@@ -1,0 +1,18 @@
+# Rust build output
+/target
+**/*.rs.bk
+
+# ECMA-376 reference material — kept LOCAL ONLY (used for schema codegen + spec lookup),
+# never committed. Regenerating `mjx-ooxml-types` requires these present locally.
+/References/
+
+# Editor / OS cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Fuzzing artifacts
+/fuzz/target
+/fuzz/corpus
+/fuzz/artifacts

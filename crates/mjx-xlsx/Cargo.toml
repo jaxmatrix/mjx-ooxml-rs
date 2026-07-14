@@ -1,0 +1,21 @@
+[package]
+name = "mjx-xlsx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "SpreadsheetML: workbook, worksheets, shared strings, styles/xf; formulas preserved as text."
+
+[lints]
+workspace = true
+
+[dependencies]
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
+mjx-derive.workspace = true
+mjx-ooxml-types.workspace = true
+mjx-opc.workspace = true
+mjx-mce.workspace = true
+mjx-dml.workspace = true

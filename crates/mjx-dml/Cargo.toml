@@ -1,0 +1,19 @@
+[package]
+name = "mjx-dml"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "DrawingML: shapes, text bodies, color model, effects, preset geometry, theme (shared by all formats)."
+
+[lints]
+workspace = true
+
+[dependencies]
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
+mjx-derive.workspace = true
+mjx-ooxml-types.workspace = true
+mjx-mce.workspace = true

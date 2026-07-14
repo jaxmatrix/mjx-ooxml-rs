@@ -1,0 +1,69 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/mjx-ooxml-core",
+    "crates/mjx-xml",
+    "crates/mjx-derive",
+    "crates/mjx-ooxml-types",
+    "crates/mjx-opc",
+    "crates/mjx-mce",
+    "crates/mjx-dml",
+    "crates/mjx-omml",
+    "crates/mjx-chart",
+    "crates/mjx-vml",
+    "crates/mjx-pptx",
+    "crates/mjx-docx",
+    "crates/mjx-xlsx",
+    "crates/mjx-ooxml",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+rust-version = "1.90"
+license = "MIT OR Apache-2.0"
+authors = ["Jai Shukla"]
+repository = "https://github.com/jaishukla7768/mjx-ooxml-rs"
+description = "Pure-Rust library to parse, edit, generate, and render OOXML (pptx/docx/xlsx) files."
+keywords = ["ooxml", "docx", "xlsx", "pptx", "office"]
+categories = ["parsing", "encoding"]
+
+# Shared dependencies. External deps are referenced by member crates via `dep.workspace = true`
+# only when they actually use them, so nothing is fetched until it is needed.
+[workspace.dependencies]
+# --- external ---
+quick-xml = "0.37"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+thiserror = "2"
+anyhow = "1"
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "2", features = ["full"] }
+
+# --- internal (path deps declared once) ---
+mjx-ooxml-core = { path = "crates/mjx-ooxml-core", version = "0.0.0" }
+mjx-xml = { path = "crates/mjx-xml", version = "0.0.0" }
+mjx-derive = { path = "crates/mjx-derive", version = "0.0.0" }
+mjx-ooxml-types = { path = "crates/mjx-ooxml-types", version = "0.0.0" }
+mjx-opc = { path = "crates/mjx-opc", version = "0.0.0" }
+mjx-mce = { path = "crates/mjx-mce", version = "0.0.0" }
+mjx-dml = { path = "crates/mjx-dml", version = "0.0.0" }
+mjx-omml = { path = "crates/mjx-omml", version = "0.0.0" }
+mjx-chart = { path = "crates/mjx-chart", version = "0.0.0" }
+mjx-vml = { path = "crates/mjx-vml", version = "0.0.0" }
+mjx-pptx = { path = "crates/mjx-pptx", version = "0.0.0" }
+mjx-docx = { path = "crates/mjx-docx", version = "0.0.0" }
+mjx-xlsx = { path = "crates/mjx-xlsx", version = "0.0.0" }
+mjx-ooxml = { path = "crates/mjx-ooxml", version = "0.0.0" }
+
+# Workspace-wide lints. Each member opts in with `[lints] workspace = true`.
+# `unsafe_code` is `deny` (not `forbid`) so a crate that genuinely needs it (arena/interner)
+# can `#[allow(unsafe_code)]` locally with a written justification.
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_debug_implementations = "warn"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }

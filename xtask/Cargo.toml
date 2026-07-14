@@ -1,0 +1,15 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Developer automation for mjx-ooxml-rs (schema codegen, etc.)."
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]

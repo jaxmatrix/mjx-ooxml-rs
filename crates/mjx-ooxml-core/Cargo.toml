@@ -1,0 +1,14 @@
+[package]
+name = "mjx-ooxml-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Shared core vocabulary: errors, XML traits, QName/namespace registry, fidelity nodes, string interner, arena + stable handles."
+
+[lints]
+workspace = true
+
+[dependencies]

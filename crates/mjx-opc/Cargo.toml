@@ -1,0 +1,16 @@
+[package]
+name = "mjx-opc"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Open Packaging Conventions: ZIP container, [Content_Types].xml, relationships, generic part graph with copy-on-write parts."
+
+[lints]
+workspace = true
+
+[dependencies]
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true

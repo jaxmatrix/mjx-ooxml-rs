@@ -1,0 +1,16 @@
+[package]
+name = "mjx-mce"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Markup Compatibility & Extensibility (Part 3): Ignorable/ProcessContent and AlternateContent resolution."
+
+[lints]
+workspace = true
+
+[dependencies]
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
