@@ -14,3 +14,5 @@ workspace = true
 [dependencies]
 mjx-ooxml-core.workspace = true
 mjx-xml.workspace = true
+zip.workspace = true
+thiserror.workspace = true

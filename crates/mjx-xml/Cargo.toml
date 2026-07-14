@@ -13,3 +13,5 @@ workspace = true
 
 [dependencies]
 mjx-ooxml-core.workspace = true
+quick-xml.workspace = true
+thiserror.workspace = true
