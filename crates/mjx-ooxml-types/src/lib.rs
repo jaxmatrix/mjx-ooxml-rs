@@ -1,13 +1,24 @@
-//! `mjx-ooxml-types` — GENERATED: OOXML simple types (enums/newtypes) + namespace/relationship/content-type constant tables (Strict + Transitional).
+//! `mjx-ooxml-types` — comprehensively-named OOXML simple types and namespace constants.
 //!
-//! Part of the `mjx-ooxml-rs` workspace. Scaffold stub — see `PLAN.md` for the roadmap
-//! and the phase in which this crate is implemented.
+//! Most of this crate is **generated** by `xtask` from the ECMA-376 XSD schemas (see the naming
+//! convention in `PLAN.md`): every cryptic `ST_*` symbol becomes a self-explanatory Rust name, each
+//! type carries wire (de)serialization, and the original symbol + wire token are documented on the
+//! item. Regenerate with `cargo run -p xtask -- codegen`.
+//!
+//! Two-valued OOXML toggles (`ST_OnOff` family) are modeled as `bool` / `Option<bool>`; all wire
+//! spellings are normalized on read and one canonical form is written — see [`support`].
+//!
+//! # Example
+//!
+//! ```
+//! use mjx_ooxml_types::shared::CalendarType;
+//! assert_eq!(CalendarType::from_wire("gregorianUs"), Some(CalendarType::GregorianUnitedStates));
+//! assert_eq!(CalendarType::GregorianUnitedStates.to_wire(), "gregorianUs");
+//! ```
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_scaffold_builds() {
-        // Placeholder so the crate is born green (TDD: always-green increments).
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub mod support;
+
+mod generated;
+
+pub use generated::{namespaces, shared};
+pub use support::{on_off, true_false, true_false_blank, UnknownWireValue};

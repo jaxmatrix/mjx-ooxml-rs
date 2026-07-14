@@ -13,3 +13,5 @@ publish = false
 workspace = true
 
 [dependencies]
+mjx-xml.workspace = true
+anyhow.workspace = true
