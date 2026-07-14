@@ -59,6 +59,21 @@ warning blocks merge.
   **feature branch** and consolidate via a **pull request**; `main` stays the integration branch.
 - **Never stage `References/`** (it is git-ignored) — test inputs belong in `tests/fixtures/`.
 
+## Naming convention (comprehensive, self-explanatory identifiers)
+
+OOXML symbols are cryptic; our public API must not be. Applies to generated *and* hand-written types.
+
+- Type names drop `ST_`/`CT_`, expand abbreviations, and are module-namespaced per schema
+  (`wml::Justification`, never `Jc`). Variant/field names expand cryptic tokens (`t` → `Top`,
+  `dist` → `Distributed`).
+- When a token's meaning is not clear from the symbol, **source the name from the ECMA-376 Part 1
+  prose** — never guess.
+- The exact XSD wire token is preserved for (de)serialization and shown in the item's docs alongside
+  its original `ST_*` symbol. Two-valued types are `bool`/`Option<bool>` with all wire spellings
+  normalized on read (see `mjx-ooxml-types::support`).
+- The generator (`xtask/src/codegen/`) applies this via curated tables in `spec.rs`; extending it to a
+  new schema means growing those tables. See the full convention in `CLAUDE.md`.
+
 ## Code style
 
 - Pure-Rust dependencies only in shipped crates. `unsafe` is denied workspace-wide; if genuinely

@@ -54,6 +54,28 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 - Generated `mjx-ooxml-types` (simple types + constant tables) via `xtask`; **output is committed**,
   never a `build.rs`. Regenerate with `cargo run -p xtask -- codegen` (needs local `References/`).
 
+## Naming convention (comprehensive, self-explanatory identifiers)
+
+OOXML symbols are cryptic (`ST_OnOff`, `ST_Jc`; values like `t`/`ctr`/`dist`). **Every public
+identifier in this project must be self-explanatory** — a reader should not need the spec to
+understand a name. This applies to generated *and* hand-written types.
+
+- **Type names:** drop `ST_`/`CT_`; expand abbreviations to full words; module-namespace per schema
+  (e.g. `wml::Justification`, never a bare `Jc`).
+- **Variant/field names:** expand cryptic tokens to full words (`t` → `Top`, `dist` → `Distributed`).
+  Where the meaning is not inferable from the token, source the name from the **ECMA-376 Part 1
+  prose** — never guess.
+- **Wire tokens are preserved exactly, never guessed:** each type/variant maps to its exact XSD
+  string for (de)serialization; the original `ST_*` symbol and wire token appear in the item's docs.
+- **Two-valued types use two values:** boolean-ish types (`ST_OnOff` family) are `bool` /
+  `Option<bool>`; all wire spellings are normalized on read and one canonical form is written (see
+  `mjx-ooxml-types::support`).
+- **Measures are named with intent** (`Twips`, `Emu`, `Percentage`, …), units explicit.
+- **Deterministic sanitization** of invalid identifiers (Rust keywords, digit-leading, punctuation).
+
+The generator lives in `xtask/src/codegen/` — curated naming data (overrides, abbreviations) in
+`spec.rs`; the engine in `naming.rs`. Adding a schema means growing the tables, not the engine.
+
 ## Commands
 
 ```sh

@@ -19,4 +19,7 @@ The full, authoritative guidance lives in:
   branches + PRs.
 - **Do the work thoroughly and correctly — no monkey-patching.** Optimize the design (memory, speed,
   reliability) *before* coding.
+- **Comprehensive, self-explanatory names.** No cryptic OOXML symbols in public identifiers — expand
+  them (`ST_Jc` → `Justification`, `t` → `Top`), source unclear ones from the ECMA-376 prose, and
+  keep the exact wire token for (de)serialization. See the naming convention in `CLAUDE.md`.
 - `References/` is git-ignored (local-only spec material); test inputs go under `tests/fixtures/`.
