@@ -4,9 +4,10 @@
 //! # Status
 //!
 //! The first typed models are the DrawingML **text** types in [`text`] — `a:txBody` / `a:p` / `a:r`
-//! / `a:t` — implemented by hand against the [`mjx_ooxml_core::FromXml`] / [`mjx_ooxml_core::ToXml`]
-//! traits. They read a real text body out of a slide, expose its text, and rebuild it byte-identically.
-//! Preset-shape geometry and the rest of DrawingML follow in later phases.
+//! / `a:t` — implementing the [`mjx_ooxml_core::FromXml`] / [`mjx_ooxml_core::ToXml`] traits via
+//! `#[derive(FromXml, ToXml)]` (the `mjx-derive` proc-macro). They read a real text body out of a
+//! slide, expose its text, and rebuild it byte-identically. Preset-shape geometry and the rest of
+//! DrawingML follow in later phases.
 //!
 //! # Fidelity
 //!
