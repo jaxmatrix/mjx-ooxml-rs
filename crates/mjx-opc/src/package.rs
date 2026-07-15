@@ -20,13 +20,18 @@
 use std::io::{Cursor, Read, Write};
 use std::mem;
 
-use mjx_ooxml_core::RawDocument;
+use mjx_ooxml_core::{
+    Interner, QuoteStyle, RawAttribute, RawDocument, RawElement, RawName, RawNode, Symbol,
+};
 use mjx_xml::fidelity;
 
 use crate::content_types::{ContentTypes, CONTENT_TYPES_ZIP_NAME};
 use crate::error::OpcError;
 use crate::name::PartName;
-use crate::rels::{rels_source, Relationships, RelationshipsPart};
+use crate::rels::{
+    build_rels_bytes, rels_source, rels_zip_name_for, Relationship, Relationships,
+    RelationshipsPart, TargetMode,
+};
 
 /// The body of a part, in one of three copy-on-write states.
 #[derive(Debug)]
@@ -300,10 +305,330 @@ impl Package {
             _ => unreachable!("transitioned to Edited above"),
         }
     }
+
+    /// The `[Content_Types].xml` tree, transitioned to `Edited` (parsed on demand). Located by the
+    /// container constant since the content-types item is not a [`PartName`].
+    fn content_types_tree_mut(&mut self) -> Result<&mut RawDocument, OpcError> {
+        let idx = self
+            .entries
+            .iter()
+            .position(|e| e.name == CONTENT_TYPES_ZIP_NAME)
+            .ok_or_else(|| OpcError::malformed("missing [Content_Types].xml"))?;
+        self.entry_tree_mut(idx)
+    }
+
+    /// Sets the content-type `Override` for a part, editing `[Content_Types].xml` and the parsed
+    /// content-type view in tandem.
+    ///
+    /// No-op (the control part stays clean) if the part already resolves to `content_type` via an
+    /// existing `Override`.
+    ///
+    /// # Errors
+    /// Returns [`OpcError`] if `[Content_Types].xml` is absent or not well-formed XML.
+    pub fn set_content_type_override(
+        &mut self,
+        part: &PartName,
+        content_type: &str,
+    ) -> Result<(), OpcError> {
+        if self
+            .content_types
+            .overrides()
+            .iter()
+            .any(|o| &o.part_name == part && o.content_type == content_type)
+        {
+            return Ok(());
+        }
+        {
+            let tree = self.content_types_tree_mut()?;
+            upsert_override_element(tree, part, content_type);
+        }
+        self.content_types
+            .upsert_override(part.clone(), content_type.to_owned());
+        Ok(())
+    }
+
+    /// Removes the content-type `Override` for a part, if present, editing `[Content_Types].xml` and
+    /// the parsed view in tandem. Shared `Default` rules are untouched.
+    ///
+    /// No-op (the control part stays clean) if the part has no `Override`.
+    ///
+    /// # Errors
+    /// Returns [`OpcError`] if `[Content_Types].xml` is not well-formed XML.
+    pub fn remove_content_type_override(&mut self, part: &PartName) -> Result<(), OpcError> {
+        if !self
+            .content_types
+            .overrides()
+            .iter()
+            .any(|o| &o.part_name == part)
+        {
+            return Ok(());
+        }
+        {
+            let tree = self.content_types_tree_mut()?;
+            remove_override_element(tree, part);
+        }
+        self.content_types.remove_override(part);
+        Ok(())
+    }
+
+    /// Adds a relationship from `source` (`None` = the package root), editing (or synthesizing) the
+    /// source's `.rels` part and updating the navigation view in tandem.
+    ///
+    /// When the source has no `.rels` part yet, a fresh one is synthesized and stored as raw bytes.
+    ///
+    /// # Errors
+    /// Returns [`OpcError`] if an existing `.rels` part is not well-formed XML.
+    pub fn add_relationship(
+        &mut self,
+        source: Option<&PartName>,
+        rel: Relationship,
+    ) -> Result<(), OpcError> {
+        let rels_name = rels_zip_name_for(source);
+        if let Some(idx) = self.entries.iter().position(|e| e.name == rels_name) {
+            {
+                let tree = self.entry_tree_mut(idx)?;
+                append_relationship_element(tree, &rel);
+            }
+            match self
+                .relationships
+                .iter_mut()
+                .find(|r| r.source.as_ref() == source)
+            {
+                Some(part) => part.relationships.push(rel),
+                None => self.relationships.push(RelationshipsPart {
+                    source: source.cloned(),
+                    relationships: Relationships::with_one(rel),
+                }),
+            }
+        } else {
+            self.entries.push(ZipEntry {
+                name: rels_name,
+                body: PartBody::Raw(build_rels_bytes(std::slice::from_ref(&rel))),
+            });
+            self.relationships.push(RelationshipsPart {
+                source: source.cloned(),
+                relationships: Relationships::with_one(rel),
+            });
+        }
+        Ok(())
+    }
+
+    /// Removes the relationship with id `id` from `source`'s `.rels` part (`None` = the package
+    /// root), editing the `.rels` tree and the navigation view in tandem. Returns whether one was
+    /// removed; a missing `.rels` part or unknown id is a no-op returning `false`.
+    ///
+    /// # Errors
+    /// Returns [`OpcError`] if the `.rels` part is not well-formed XML.
+    pub fn remove_relationship(
+        &mut self,
+        source: Option<&PartName>,
+        id: &str,
+    ) -> Result<bool, OpcError> {
+        let rels_name = rels_zip_name_for(source);
+        let Some(idx) = self.entries.iter().position(|e| e.name == rels_name) else {
+            return Ok(false);
+        };
+        let exists = self
+            .relationships
+            .iter()
+            .find(|r| r.source.as_ref() == source)
+            .is_some_and(|r| r.relationships.by_id(id).is_some());
+        if !exists {
+            return Ok(false);
+        }
+        {
+            let tree = self.entry_tree_mut(idx)?;
+            remove_relationship_element(tree, id);
+        }
+        if let Some(part) = self
+            .relationships
+            .iter_mut()
+            .find(|r| r.source.as_ref() == source)
+        {
+            part.relationships.remove_by_id(id);
+        }
+        Ok(true)
+    }
+
+    /// Inserts a new part with the given content bytes and content type.
+    ///
+    /// The bytes are stored [`Raw`](PartBody::Raw) (re-emitted verbatim). A content-type `Override`
+    /// is registered only if the part does not already resolve to `content_type` via an existing
+    /// `Default` or `Override`. Does not create relationships — wire those with
+    /// [`Package::add_relationship`]; an inserted part is unreferenced until then.
+    ///
+    /// # Errors
+    /// Returns [`OpcError::Malformed`] if a part with this name already exists, or an error from
+    /// registering the content type.
+    pub fn insert_part(
+        &mut self,
+        part: &PartName,
+        content_type: &str,
+        bytes: Vec<u8>,
+    ) -> Result<(), OpcError> {
+        let zip_name = part.zip_name();
+        if self.entries.iter().any(|e| e.name == zip_name) {
+            return Err(OpcError::malformed(format!(
+                "part already exists: {}",
+                part.as_str()
+            )));
+        }
+        self.entries.push(ZipEntry {
+            name: zip_name.to_owned(),
+            body: PartBody::Raw(bytes),
+        });
+        if self.content_types.content_type_of(part) != Some(content_type) {
+            self.set_content_type_override(part, content_type)?;
+        }
+        Ok(())
+    }
+
+    /// Removes a part, its content-type `Override` (if any), and its own outgoing `.rels` part.
+    ///
+    /// Shared `Default` content-type rules are left untouched. Inbound relationships *from other
+    /// parts* are not scanned (a graph operation left to a later phase); no bytes are corrupted.
+    ///
+    /// # Errors
+    /// Returns [`OpcError::UnknownPart`] if the part is absent, or an error while removing its
+    /// content type.
+    pub fn remove_part(&mut self, part: &PartName) -> Result<(), OpcError> {
+        let zip_name = part.zip_name();
+        let idx = self
+            .entries
+            .iter()
+            .position(|e| e.name == zip_name)
+            .ok_or_else(|| OpcError::unknown_part(part.as_str()))?;
+        self.entries.remove(idx);
+        self.remove_content_type_override(part)?;
+        let rels_name = rels_zip_name_for(Some(part));
+        if let Some(ridx) = self.entries.iter().position(|e| e.name == rels_name) {
+            self.entries.remove(ridx);
+        }
+        self.relationships
+            .retain(|r| r.source.as_ref() != Some(part));
+        Ok(())
+    }
 }
 
 /// Whether a ZIP entry name is a control part (`[Content_Types].xml` or a `.rels` part), which must
 /// be edited through the dedicated content-type / relationship helpers rather than `part_tree*`.
 fn is_control_part(zip_name: &str) -> bool {
     zip_name == CONTENT_TYPES_ZIP_NAME || matches!(rels_source(zip_name), Ok(Some(_)))
+}
+
+/// Appends `value` to `out`, escaping the characters significant inside a double-quoted XML
+/// attribute value (`&`, `<`, `"`). The fidelity writer emits attribute bytes verbatim, so any value
+/// injected from a Rust string must be escaped here to stay well-formed.
+pub(crate) fn escape_attribute_into(value: &str, out: &mut String) {
+    for ch in value.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '"' => out.push_str("&quot;"),
+            _ => out.push(ch),
+        }
+    }
+}
+
+/// Escapes `value` as double-quoted-attribute bytes.
+fn escape_attribute_bytes(value: &str) -> Box<[u8]> {
+    let mut out = String::with_capacity(value.len());
+    escape_attribute_into(value, &mut out);
+    out.into_bytes().into_boxed_slice()
+}
+
+/// Builds an unprefixed attribute `name="value"` (value escaped), interning the name.
+fn make_attribute(interner: &mut Interner, name: &str, value: &str) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: None,
+            local: interner.intern(name),
+            namespace: None,
+        },
+        value: escape_attribute_bytes(value),
+        quote: QuoteStyle::Double,
+    }
+}
+
+/// Builds a self-closing, unprefixed element `<local attrs/>` in `namespace`.
+fn make_empty_element(
+    interner: &mut Interner,
+    namespace: Option<Symbol>,
+    local: &str,
+    attributes: Vec<RawAttribute>,
+) -> RawElement {
+    RawElement {
+        name: RawName {
+            prefix: None,
+            local: interner.intern(local),
+            namespace,
+        },
+        attributes,
+        children: Vec::new(),
+        empty: true,
+    }
+}
+
+/// Removes any `<Override>` child of the content-types root whose `PartName` equals `part`.
+fn remove_override_element(tree: &mut RawDocument, part: &PartName) {
+    let target = escape_attribute_bytes(part.as_str());
+    let RawDocument { interner, root, .. } = tree;
+    root.children.retain(|child| {
+        let RawNode::Element(el) = child else {
+            return true;
+        };
+        let is_override = interner.resolve(el.name.local) == "Override";
+        let matches_part = el.attributes.iter().any(|a| {
+            interner.resolve(a.name.local) == "PartName" && a.value.as_ref() == target.as_ref()
+        });
+        !(is_override && matches_part)
+    });
+}
+
+/// Inserts (replacing any existing) the `<Override>` for `part`, setting its content type.
+fn upsert_override_element(tree: &mut RawDocument, part: &PartName, content_type: &str) {
+    remove_override_element(tree, part);
+    let namespace = tree.root.name.namespace;
+    let RawDocument { interner, root, .. } = tree;
+    let attributes = vec![
+        make_attribute(interner, "PartName", part.as_str()),
+        make_attribute(interner, "ContentType", content_type),
+    ];
+    let element = make_empty_element(interner, namespace, "Override", attributes);
+    root.empty = false;
+    root.children.push(RawNode::Element(element));
+}
+
+/// Appends a `<Relationship>` child to the relationships root.
+fn append_relationship_element(tree: &mut RawDocument, rel: &Relationship) {
+    let namespace = tree.root.name.namespace;
+    let RawDocument { interner, root, .. } = tree;
+    let mut attributes = vec![
+        make_attribute(interner, "Id", &rel.id),
+        make_attribute(interner, "Type", &rel.rel_type),
+        make_attribute(interner, "Target", &rel.target),
+    ];
+    if rel.mode == TargetMode::External {
+        attributes.push(make_attribute(interner, "TargetMode", "External"));
+    }
+    let element = make_empty_element(interner, namespace, "Relationship", attributes);
+    root.empty = false;
+    root.children.push(RawNode::Element(element));
+}
+
+/// Removes any `<Relationship>` child of the relationships root whose `Id` equals `id`.
+fn remove_relationship_element(tree: &mut RawDocument, id: &str) {
+    let target = escape_attribute_bytes(id);
+    let RawDocument { interner, root, .. } = tree;
+    root.children.retain(|child| {
+        let RawNode::Element(el) = child else {
+            return true;
+        };
+        let is_rel = interner.resolve(el.name.local) == "Relationship";
+        let matches_id = el
+            .attributes
+            .iter()
+            .any(|a| interner.resolve(a.name.local) == "Id" && a.value.as_ref() == target.as_ref());
+        !(is_rel && matches_id)
+    });
 }

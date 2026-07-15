@@ -108,7 +108,28 @@ impl Relationships {
     pub fn by_type<'a>(&'a self, rel_type: &'a str) -> impl Iterator<Item = &'a Relationship> + 'a {
         self.rels.iter().filter(move |r| r.rel_type == rel_type)
     }
+
+    /// Builds a set containing a single relationship (used when synthesizing a fresh `.rels` part).
+    pub(crate) fn with_one(rel: Relationship) -> Self {
+        Self { rels: vec![rel] }
+    }
+
+    /// Appends a relationship (view-side; the caller edits the `.rels` tree in tandem).
+    pub(crate) fn push(&mut self, rel: Relationship) {
+        self.rels.push(rel);
+    }
+
+    /// Removes the relationship with the given id, if any. Returns whether one was removed.
+    pub(crate) fn remove_by_id(&mut self, id: &str) -> bool {
+        let before = self.rels.len();
+        self.rels.retain(|r| r.id != id);
+        self.rels.len() != before
+    }
 }
+
+/// The OPC relationships namespace, used when synthesizing a fresh `.rels` part.
+pub(crate) const RELATIONSHIPS_NS: &str =
+    "http://schemas.openxmlformats.org/package/2006/relationships";
 
 /// A `.rels` part together with the part it belongs to (`None` = the package root).
 #[derive(Debug, Clone)]
@@ -150,6 +171,48 @@ pub(crate) fn rels_source(zip_name: &str) -> Result<Option<Option<PartName>>, Op
         format!("/{parent}/{base}")
     };
     Ok(Some(Some(PartName::new(&source)?)))
+}
+
+/// The ZIP entry name of the `.rels` part for a given source (`None` = the package root).
+///
+/// Inverse of [`rels_source`]: `None` → `_rels/.rels`; `Some(/dir/file.ext)` →
+/// `dir/_rels/file.ext.rels`.
+pub(crate) fn rels_zip_name_for(source: Option<&PartName>) -> String {
+    match source {
+        None => "_rels/.rels".to_owned(),
+        Some(part) => {
+            let zip = part.zip_name();
+            match zip.rfind('/') {
+                Some(idx) => format!("{}/_rels/{}.rels", &zip[..idx], &zip[idx + 1..]),
+                None => format!("_rels/{zip}.rels"),
+            }
+        }
+    }
+}
+
+/// Serializes a fresh `.rels` part containing `rels`, in canonical form. Used when a source acquires
+/// its first relationship (no prior bytes exist to preserve).
+pub(crate) fn build_rels_bytes(rels: &[Relationship]) -> Vec<u8> {
+    let mut out = String::new();
+    out.push_str(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#);
+    out.push_str(r#"<Relationships xmlns=""#);
+    out.push_str(RELATIONSHIPS_NS);
+    out.push_str(r#"">"#);
+    for rel in rels {
+        out.push_str(r#"<Relationship Id=""#);
+        crate::package::escape_attribute_into(&rel.id, &mut out);
+        out.push_str(r#"" Type=""#);
+        crate::package::escape_attribute_into(&rel.rel_type, &mut out);
+        out.push_str(r#"" Target=""#);
+        crate::package::escape_attribute_into(&rel.target, &mut out);
+        out.push('"');
+        if rel.mode == TargetMode::External {
+            out.push_str(r#" TargetMode="External""#);
+        }
+        out.push_str("/>");
+    }
+    out.push_str("</Relationships>");
+    out.into_bytes()
 }
 
 #[cfg(test)]

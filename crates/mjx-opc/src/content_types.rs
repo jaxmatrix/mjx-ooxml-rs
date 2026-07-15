@@ -110,6 +110,26 @@ impl ContentTypes {
             .find(|d| d.extension == ext)
             .map(|d| d.content_type.as_str())
     }
+
+    /// Inserts or updates the `Override` for `part_name`, setting its content type. The caller edits
+    /// the `[Content_Types].xml` tree in tandem so this view never drifts from the raw part.
+    pub(crate) fn upsert_override(&mut self, part_name: PartName, content_type: String) {
+        if let Some(existing) = self.overrides.iter_mut().find(|o| o.part_name == part_name) {
+            existing.content_type = content_type;
+        } else {
+            self.overrides.push(Override {
+                part_name,
+                content_type,
+            });
+        }
+    }
+
+    /// Removes the `Override` for `part`, if any. Returns whether one was removed.
+    pub(crate) fn remove_override(&mut self, part: &PartName) -> bool {
+        let before = self.overrides.len();
+        self.overrides.retain(|o| &o.part_name != part);
+        self.overrides.len() != before
+    }
 }
 
 #[cfg(test)]
