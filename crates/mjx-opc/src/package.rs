@@ -2,50 +2,77 @@
 //!
 //! # Fidelity backbone
 //!
-//! Every ZIP entry is retained as raw decompressed bytes in [`Package::entries`], in the container's
-//! original order. This is the round-trip source of truth: [`Package::save`] re-emits those entries
-//! verbatim and in order, so any part we do not model is preserved exactly (decompressed-byte
-//! identical). The content-type map and relationship graph are parsed *views* layered on top for
-//! navigation; they are not (yet) regenerated on save.
+//! Every ZIP entry is retained in [`Package::entries`], in the container's original order. This is
+//! the round-trip source of truth: an untouched part re-emits verbatim (decompressed-byte
+//! identical), so any part we do not model is preserved exactly.
 //!
-//! This is the copy-on-write foundation: today a part body is always [`PartBody::Raw`]; later phases
-//! add a `Parsed` variant that is only serialized back when the part has actually been mutated.
+//! # Copy-on-write parts
+//!
+//! A part body ([`PartBody`]) is in one of three states. Freshly opened it is [`Raw`](PartBody::Raw)
+//! bytes. Reading it as a fidelity tree ([`Package::part_tree`]) parses it into
+//! [`Parsed`](PartBody::Parsed) — the tree is cached for later reads while the **original bytes are
+//! retained** so [`Package::save`] still re-emits them verbatim (reading never disturbs a part).
+//! Mutating it ([`Package::part_tree_mut`]) moves it to [`Edited`](PartBody::Edited) — the stale
+//! original bytes are dropped and `save` re-serializes the tree with the byte-preserving fidelity
+//! writer. Content types and relationships are edited only through the dedicated helpers, which keep
+//! the control parts' trees and the parsed navigation views in lock-step.
 
 use std::io::{Cursor, Read, Write};
+use std::mem;
+
+use mjx_ooxml_core::RawDocument;
+use mjx_xml::fidelity;
 
 use crate::content_types::{ContentTypes, CONTENT_TYPES_ZIP_NAME};
 use crate::error::OpcError;
 use crate::name::PartName;
 use crate::rels::{rels_source, Relationships, RelationshipsPart};
 
-/// The body of a part. Currently always raw bytes; a `Parsed` variant is added in later phases.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// The body of a part, in one of three copy-on-write states.
+#[derive(Debug)]
 pub enum PartBody {
-    /// The part's decompressed bytes, retained verbatim for round-trip fidelity.
+    /// Untouched decompressed bytes, fresh from the container; re-emitted verbatim.
     Raw(Vec<u8>),
+    /// Read as a fidelity tree but not mutated: the original bytes are retained (and re-emitted
+    /// verbatim on save), with the parsed tree cached alongside for repeated reads.
+    Parsed {
+        /// The original decompressed bytes, re-emitted verbatim by [`Package::save`].
+        original: Vec<u8>,
+        /// The cached fidelity tree.
+        tree: RawDocument,
+    },
+    /// Mutated: only the tree remains (the now-stale original bytes are dropped). [`Package::save`]
+    /// re-serializes it with the byte-preserving fidelity writer.
+    Edited(RawDocument),
 }
 
-/// A single ZIP entry: its raw (relative) name and decompressed bytes, in container order.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A single ZIP entry: its raw (relative) name and its body, in container order.
+#[derive(Debug)]
 pub struct ZipEntry {
     /// The raw ZIP entry name (relative form, no leading slash).
     pub name: String,
-    /// The entry's decompressed bytes.
+    /// The entry's body.
     pub body: PartBody,
 }
 
 impl ZipEntry {
-    /// The entry's decompressed bytes.
+    /// The entry's decompressed bytes, if they are materialized.
+    ///
+    /// Returns `Some` for a [`Raw`](PartBody::Raw) or [`Parsed`](PartBody::Parsed) body (the original
+    /// bytes), and `None` for an [`Edited`](PartBody::Edited) body — a dirty part has no stored
+    /// bytes; inspect it through [`Package::part_tree`] or serialize it via [`Package::save`].
     #[must_use]
-    pub fn bytes(&self) -> &[u8] {
+    pub fn bytes(&self) -> Option<&[u8]> {
         match &self.body {
-            PartBody::Raw(b) => b,
+            PartBody::Raw(b) => Some(b),
+            PartBody::Parsed { original, .. } => Some(original),
+            PartBody::Edited(_) => None,
         }
     }
 }
 
 /// An OOXML package loaded fully into memory.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Package {
     entries: Vec<ZipEntry>,
     content_types: ContentTypes,
@@ -80,15 +107,21 @@ impl Package {
                 .iter()
                 .find(|e| e.name == CONTENT_TYPES_ZIP_NAME)
                 .ok_or_else(|| OpcError::malformed("missing [Content_Types].xml"))?;
-            ContentTypes::parse(ct.bytes())?
+            let bytes = ct.bytes().ok_or_else(|| {
+                OpcError::malformed("[Content_Types].xml has no bytes just after open")
+            })?;
+            ContentTypes::parse(bytes)?
         };
 
         let mut relationships = Vec::new();
         for entry in &entries {
             if let Some(source) = rels_source(&entry.name)? {
+                let bytes = entry.bytes().ok_or_else(|| {
+                    OpcError::malformed("a .rels part has no bytes just after open")
+                })?;
                 relationships.push(RelationshipsPart {
                     source,
-                    relationships: Relationships::parse(entry.bytes())?,
+                    relationships: Relationships::parse(bytes)?,
                 });
             }
         }
@@ -102,9 +135,11 @@ impl Package {
 
     /// Serializes the package back to container bytes.
     ///
-    /// Entries are written in their original order with their original bytes; only the ZIP
-    /// compression encoding may differ from the source (which is why the round-trip guarantee is
-    /// per-part *decompressed*-byte identity, not identical container bytes).
+    /// Clean parts ([`Raw`](PartBody::Raw) / [`Parsed`](PartBody::Parsed)) are written from their
+    /// original bytes; dirty parts ([`Edited`](PartBody::Edited)) are re-serialized from their tree
+    /// with the byte-preserving fidelity writer. Only the ZIP compression encoding may differ from
+    /// the source (which is why the round-trip guarantee is per-part *decompressed*-byte identity,
+    /// not identical container bytes).
     ///
     /// # Errors
     /// Returns [`OpcError`] if the ZIP writer fails.
@@ -114,7 +149,14 @@ impl Package {
             .compression_method(zip::CompressionMethod::Deflated);
         for entry in &self.entries {
             writer.start_file(entry.name.as_str(), options)?;
-            writer.write_all(entry.bytes())?;
+            match &entry.body {
+                PartBody::Raw(bytes) => writer.write_all(bytes)?,
+                PartBody::Parsed { original, .. } => writer.write_all(original)?,
+                PartBody::Edited(tree) => {
+                    let bytes = fidelity::serialize_to_vec(tree);
+                    writer.write_all(&bytes)?;
+                }
+            }
         }
         let cursor = writer.finish()?;
         Ok(cursor.into_inner())
@@ -163,12 +205,105 @@ impl Package {
     }
 
     /// Looks up a part's decompressed bytes by its part name.
+    ///
+    /// Returns `None` if the part is absent or has been edited (an [`Edited`](PartBody::Edited) body
+    /// has no materialized bytes — read it via [`Package::part_tree`] instead).
     #[must_use]
     pub fn part_bytes(&self, part: &PartName) -> Option<&[u8]> {
         let zip_name = part.zip_name();
         self.entries
             .iter()
             .find(|e| e.name == zip_name)
-            .map(ZipEntry::bytes)
+            .and_then(ZipEntry::bytes)
     }
+
+    /// Borrows a part's fidelity tree for **reading**, parsing and caching it on first access.
+    ///
+    /// This never dirties the part: its original bytes are retained and `save` still re-emits them
+    /// verbatim. To mutate, use [`Package::part_tree_mut`].
+    ///
+    /// # Errors
+    /// Returns [`OpcError::UnknownPart`] if the part is absent, [`OpcError::ControlPart`] if it names
+    /// `[Content_Types].xml` or a `.rels` part (edit those through the dedicated helpers), or
+    /// [`OpcError::Xml`] if the part is not well-formed XML.
+    pub fn part_tree(&mut self, part: &PartName) -> Result<&RawDocument, OpcError> {
+        let idx = self.locate_editable(part)?;
+        self.entry_tree(idx)
+    }
+
+    /// Borrows a part's fidelity tree for **mutation**, marking it dirty.
+    ///
+    /// The part transitions to [`Edited`](PartBody::Edited): its original bytes are dropped and
+    /// `save` re-serializes the (possibly mutated) tree.
+    ///
+    /// # Errors
+    /// Same as [`Package::part_tree`].
+    pub fn part_tree_mut(&mut self, part: &PartName) -> Result<&mut RawDocument, OpcError> {
+        let idx = self.locate_editable(part)?;
+        self.entry_tree_mut(idx)
+    }
+
+    /// Resolves a part name to its entry index, rejecting control parts and unknown parts.
+    fn locate_editable(&self, part: &PartName) -> Result<usize, OpcError> {
+        let zip_name = part.zip_name();
+        if is_control_part(zip_name) {
+            return Err(OpcError::control_part(part.as_str()));
+        }
+        self.entries
+            .iter()
+            .position(|e| e.name == zip_name)
+            .ok_or_else(|| OpcError::unknown_part(part.as_str()))
+    }
+
+    /// Ensures entry `idx` is parsed and returns a shared reference to its tree **without** dirtying
+    /// it (a `Raw` body becomes `Parsed`, retaining its original bytes).
+    fn entry_tree(&mut self, idx: usize) -> Result<&RawDocument, OpcError> {
+        let entry = &mut self.entries[idx];
+        if matches!(entry.body, PartBody::Raw(_)) {
+            // Take the bytes out so a parse failure can restore them without leaving a placeholder.
+            let PartBody::Raw(original) = mem::replace(&mut entry.body, PartBody::Raw(Vec::new()))
+            else {
+                unreachable!("guarded by matches! above")
+            };
+            match fidelity::parse(&original) {
+                Ok(tree) => entry.body = PartBody::Parsed { original, tree },
+                Err(e) => {
+                    entry.body = PartBody::Raw(original);
+                    return Err(e.into());
+                }
+            }
+        }
+        match &entry.body {
+            PartBody::Parsed { tree, .. } | PartBody::Edited(tree) => Ok(tree),
+            PartBody::Raw(_) => unreachable!("just transitioned out of Raw"),
+        }
+    }
+
+    /// Ensures entry `idx` is parsed, transitions it to `Edited` (dropping any original bytes), and
+    /// returns a mutable reference to its tree.
+    fn entry_tree_mut(&mut self, idx: usize) -> Result<&mut RawDocument, OpcError> {
+        let entry = &mut self.entries[idx];
+        match mem::replace(&mut entry.body, PartBody::Raw(Vec::new())) {
+            PartBody::Raw(bytes) => match fidelity::parse(&bytes) {
+                Ok(tree) => entry.body = PartBody::Edited(tree),
+                Err(e) => {
+                    entry.body = PartBody::Raw(bytes);
+                    return Err(e.into());
+                }
+            },
+            PartBody::Parsed { tree, .. } | PartBody::Edited(tree) => {
+                entry.body = PartBody::Edited(tree);
+            }
+        }
+        match &mut entry.body {
+            PartBody::Edited(tree) => Ok(tree),
+            _ => unreachable!("transitioned to Edited above"),
+        }
+    }
+}
+
+/// Whether a ZIP entry name is a control part (`[Content_Types].xml` or a `.rels` part), which must
+/// be edited through the dedicated content-type / relationship helpers rather than `part_tree*`.
+fn is_control_part(zip_name: &str) -> bool {
+    zip_name == CONTENT_TYPES_ZIP_NAME || matches!(rels_source(zip_name), Ok(Some(_)))
 }

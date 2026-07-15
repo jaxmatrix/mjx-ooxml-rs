@@ -32,7 +32,9 @@ fn every_xml_part_round_trips_byte_identical() {
                 continue;
             }
             checked += 1;
-            let original = entry.bytes();
+            let original = entry
+                .bytes()
+                .expect("fixture entries are raw (unedited) right after open");
             let doc = fidelity::parse(original)
                 .unwrap_or_else(|e| panic!("{fname}:{} parse: {e}", entry.name));
             let reserialized = fidelity::serialize_to_vec(&doc);
