@@ -17,3 +17,8 @@ mjx-xml.workspace = true
 mjx-derive.workspace = true
 mjx-ooxml-types.workspace = true
 mjx-mce.workspace = true
+
+[dev-dependencies]
+# The txBody exit test opens a real .pptx to extract the slide part; mjx-opc is a
+# lower layer, so this test-only edge is a legal downward dependency.
+mjx-opc.workspace = true
