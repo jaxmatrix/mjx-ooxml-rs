@@ -7,8 +7,10 @@ The goal: open *any* OOXML file, load it fully into RAM, operate on it at runtim
 valid file **without corrupting the parts you did not touch** — with a codebase that cross-compiles
 cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyond.
 
-> **Status:** early foundation (Phase 0). The workspace and layered crate skeleton exist; format
-> support is being built incrementally, PowerPoint first. See [`PLAN.md`](PLAN.md).
+> **Status:** pre-release `v0.0.x`. The packaging, byte-fidelity, and Markup-Compatibility core and
+> the schema-type generator are implemented and tested; the format models are being built
+> **PowerPoint first** — milestones `v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel. The public API
+> is not stable until `v0.1`. See [`PLAN.md`](PLAN.md) and [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Why another OOXML library?
 
