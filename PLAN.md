@@ -38,6 +38,13 @@ Container ZIP bytes are **not** reproduced identically (deflate parameters vary 
 guarantee is **per-part decompressed-payload byte identity** + structural container identity (same part
 set, content types, relationships).
 
+## Versioning & milestones
+
+Pre-release `v0.0.x`: the patch increments each development iteration until the first milestone; the
+public API is not stable until `v0.1`. Milestones advance the minor version — **`v0.1`** PowerPoint,
+**`v0.2`** Word, **`v0.3`** Excel — with later milestones (rendering, bindings) defined as scheduled.
+See [`CHANGELOG.md`](CHANGELOG.md).
+
 ## Phases
 
 - **Phase 0 — Skeleton + container + round-trip proof.** ✅ *done.* Workspace, CI, docs,
