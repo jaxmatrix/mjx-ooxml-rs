@@ -44,8 +44,13 @@ cargo test   --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-CI runs these plus a cross-compile *build* matrix (wasm32, Android, iOS, desktop). Red or a clippy
-warning blocks merge.
+CI runs these plus a strict `cargo doc` job and a cross-compile *build* matrix (wasm32, Android, iOS,
+desktop). Red, a clippy warning, or a doc warning blocks merge.
+
+The sample round-trip tests are the fastest confirmation that real files still parse:
+`cargo test -p mjx-opc --test roundtrip` and `cargo test -p mjx-opc --test tree_roundtrip` open the
+`.pptx`/`.docx`/`.xlsx` fixtures and assert byte-identical round-trips. See the README's *Testing*
+section.
 
 ## Git & commit conventions
 
