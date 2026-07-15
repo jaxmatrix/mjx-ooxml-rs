@@ -241,6 +241,7 @@ dependencies = [
  "mjx-ooxml-types",
  "mjx-opc",
  "mjx-xml",
+ "thiserror",
 ]
 
 [[package]]
