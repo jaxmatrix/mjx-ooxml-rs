@@ -1,10 +1,8 @@
 //! `a:p` — a text paragraph.
 
-use mjx_ooxml_core::{
-    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
-};
+use mjx_derive::{FromXml, ToXml};
+use mjx_ooxml_core::{RawAttribute, RawName, RawNode};
 
-use super::is_dml;
 use super::run::TextRun;
 
 /// One ordered child of a [`Paragraph`]: a typed [`TextRun`], or an opaque node.
@@ -21,11 +19,13 @@ pub enum ParagraphContent {
 /// `a:r` / `a:br` / `a:fld` children, then an optional `a:endParaRPr` (also opaque). Only `a:r` is
 /// typed; the line-break (`a:br`) and field (`a:fld`) run kinds are preserved opaquely and are **not**
 /// reflected by [`text`](Self::text).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[xml(namespace = DML_MAIN)]
 pub struct Paragraph {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
+    #[xml(children, child(local = "r", variant = Run, ty = TextRun))]
     content: Vec<ParagraphContent>,
 }
 
@@ -49,48 +49,5 @@ impl Paragraph {
     #[must_use]
     pub fn content(&self) -> &[ParagraphContent] {
         &self.content
-    }
-}
-
-impl FromXml for Paragraph {
-    fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let mut content = Vec::with_capacity(element.children.len());
-        for child in &element.children {
-            if let RawNode::Element(child_element) = child {
-                if is_dml(&child_element.name, interner, "r") {
-                    content.push(ParagraphContent::Run(TextRun::from_xml(
-                        child_element,
-                        interner,
-                    )?));
-                    continue;
-                }
-            }
-            content.push(ParagraphContent::Raw(child.clone()));
-        }
-        Ok(Self {
-            name: element.name,
-            attributes: element.attributes.clone(),
-            empty: element.empty,
-            content,
-        })
-    }
-}
-
-impl ToXml for Paragraph {
-    fn to_xml(&self, interner: &mut Interner) -> RawElement {
-        let mut children = Vec::with_capacity(self.content.len());
-        for item in &self.content {
-            match item {
-                ParagraphContent::Run(run) => children.push(RawNode::Element(run.to_xml(interner))),
-                ParagraphContent::Raw(node) => children.push(node.clone()),
-            }
-        }
-        let empty = self.empty && children.is_empty();
-        RawElement {
-            name: self.name,
-            attributes: self.attributes.clone(),
-            children,
-            empty,
-        }
     }
 }

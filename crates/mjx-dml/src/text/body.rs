@@ -1,10 +1,8 @@
 //! `a:txBody` — a text body.
 
-use mjx_ooxml_core::{
-    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
-};
+use mjx_derive::{FromXml, ToXml};
+use mjx_ooxml_core::{RawAttribute, RawName, RawNode};
 
-use super::is_dml;
 use super::paragraph::Paragraph;
 
 /// One ordered child of a [`TextBody`]: a typed [`Paragraph`], or an opaque node.
@@ -26,11 +24,13 @@ pub enum TextBodyContent {
 /// The element's tag and prefix are context-dependent — a slide serializes this type as `p:txBody`
 /// (presentationml), other containers as `a:txBody` — so [`from_xml`](mjx_ooxml_core::FromXml::from_xml)
 /// does not check the element's own name; the caller decides that the element *is* a text body.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[xml(namespace = DML_MAIN)]
 pub struct TextBody {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
+    #[xml(children, child(local = "p", variant = Paragraph, ty = Paragraph))]
     content: Vec<TextBodyContent>,
 }
 
@@ -56,50 +56,5 @@ impl TextBody {
     #[must_use]
     pub fn content(&self) -> &[TextBodyContent] {
         &self.content
-    }
-}
-
-impl FromXml for TextBody {
-    fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let mut content = Vec::with_capacity(element.children.len());
-        for child in &element.children {
-            if let RawNode::Element(child_element) = child {
-                if is_dml(&child_element.name, interner, "p") {
-                    content.push(TextBodyContent::Paragraph(Paragraph::from_xml(
-                        child_element,
-                        interner,
-                    )?));
-                    continue;
-                }
-            }
-            content.push(TextBodyContent::Raw(child.clone()));
-        }
-        Ok(Self {
-            name: element.name,
-            attributes: element.attributes.clone(),
-            empty: element.empty,
-            content,
-        })
-    }
-}
-
-impl ToXml for TextBody {
-    fn to_xml(&self, interner: &mut Interner) -> RawElement {
-        let mut children = Vec::with_capacity(self.content.len());
-        for item in &self.content {
-            match item {
-                TextBodyContent::Paragraph(paragraph) => {
-                    children.push(RawNode::Element(paragraph.to_xml(interner)));
-                }
-                TextBodyContent::Raw(node) => children.push(node.clone()),
-            }
-        }
-        let empty = self.empty && children.is_empty();
-        RawElement {
-            name: self.name,
-            attributes: self.attributes.clone(),
-            children,
-            empty,
-        }
     }
 }
