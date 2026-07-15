@@ -20,8 +20,14 @@
 //!
 //! Trees are normally produced by the `mjx-xml` fidelity reader rather than built by hand.
 //!
-//! Later phases add the arena + stable-handle primitives and the `FromXml`/`ToXml` traits, when the
-//! typed model needs them (see `PLAN.md`).
+//! # Typed-model conversion
+//!
+//! [`FromXml`] / [`ToXml`] (in [`convert`]) are the seam between the raw tree and typed models: a
+//! type parses itself out of a [`RawElement`] and rebuilds one, reusing interned [`Symbol`]s so the
+//! result round-trips. The format crates implement them (by hand first, later via `mjx-derive`).
+//!
+//! Later phases also add the arena + stable-handle primitives, when the typed model needs them (see
+//! `PLAN.md`).
 //!
 //! # Example
 //!
@@ -35,8 +41,10 @@
 //! assert_eq!(interner.resolve(a), "w:val");
 //! ```
 
+pub mod convert;
 pub mod intern;
 pub mod raw;
 
+pub use convert::{FromXml, FromXmlError, ToXml};
 pub use intern::{Interner, Symbol};
 pub use raw::{QuoteStyle, RawAttribute, RawDocument, RawElement, RawName, RawNode};
