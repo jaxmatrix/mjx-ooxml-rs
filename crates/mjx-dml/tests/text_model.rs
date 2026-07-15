@@ -30,7 +30,16 @@ fn assert_round_trips<T: ToXml>(typed: &T, mut doc: RawDocument, expected: &[u8]
     );
 }
 
+/// Rebuilds the root from `typed` and returns the serialized bytes as a lossy string (for inspecting
+/// mutations, where the output is expected to differ from the input).
+fn serialize_to_string<T: ToXml>(typed: &T, mut doc: RawDocument) -> String {
+    doc.root = typed.to_xml(&mut doc.interner);
+    String::from_utf8_lossy(&fidelity::serialize_to_vec(&doc)).into_owned()
+}
+
 const TXBODY: &[u8] = br#"<a:txBody xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>Hi</a:t></a:r></a:p></a:txBody>"#;
+
+const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 
 #[test]
 fn parses_typed_structure() {
@@ -201,4 +210,63 @@ fn wrapper_namespace_is_not_validated() {
     assert_eq!(body.text(), "Z");
     assert_eq!(body.paragraphs().count(), 1);
     assert_round_trips(&body, doc, BODY); // the p: prefix is preserved on the wrapper
+}
+
+#[test]
+fn set_text_replaces_run_text() {
+    let run_xml = format!(r#"<a:r xmlns:a="{A}"><a:t>Hi</a:t></a:r>"#).into_bytes();
+    let (mut run, doc): (TextRun, _) = parse_typed(&run_xml);
+    assert!(
+        run.set_text("Bye"),
+        "run has an a:t, so set_text should succeed"
+    );
+    assert_eq!(run.text(), "Bye"); // structural
+    let out = serialize_to_string(&run, doc);
+    assert!(out.contains("<a:t>Bye</a:t>"), "new text missing: {out}");
+    assert!(!out.contains("Hi"), "old text should be gone: {out}");
+}
+
+#[test]
+fn set_text_escapes_markup() {
+    let run_xml = format!(r#"<a:r xmlns:a="{A}"><a:t>Hi</a:t></a:r>"#).into_bytes();
+    let (mut run, doc): (TextRun, _) = parse_typed(&run_xml);
+    run.set_text("a<b&c");
+    let out = serialize_to_string(&run, doc);
+    // `<` and `&` are re-escaped, so the output stays well-formed.
+    assert!(out.contains("a&lt;b&amp;c"), "text not escaped: {out}");
+}
+
+#[test]
+fn set_text_on_run_without_a_t_returns_false() {
+    // A run with only an opaque rPr and no a:t.
+    let run_xml = format!(r#"<a:r xmlns:a="{A}"><a:rPr b="1"/></a:r>"#).into_bytes();
+    let (mut run, doc): (TextRun, _) = parse_typed(&run_xml);
+    assert!(!run.set_text("Bye"), "a run with no a:t cannot set text");
+    assert_eq!(run.text(), ""); // unchanged
+    let out = serialize_to_string(&run, doc);
+    assert!(
+        !out.contains("Bye"),
+        "nothing should have been written: {out}"
+    );
+    assert!(
+        out.contains(r#"<a:rPr b="1"/>"#),
+        "the rPr must survive: {out}"
+    );
+}
+
+#[test]
+fn runs_mut_targets_only_the_selected_run() {
+    let para_xml =
+        format!(r#"<a:p xmlns:a="{A}"><a:r><a:t>A</a:t></a:r><a:r><a:t>B</a:t></a:r></a:p>"#)
+            .into_bytes();
+    let (mut paragraph, doc): (Paragraph, _) = parse_typed(&para_xml);
+    let second = paragraph.runs_mut().nth(1).expect("two runs present");
+    assert!(second.set_text("X"));
+    let texts: Vec<&str> = paragraph.runs().map(TextRun::text).collect();
+    assert_eq!(texts, ["A", "X"]); // only the 2nd run changed
+    let out = serialize_to_string(&paragraph, doc);
+    assert!(
+        out.contains("<a:t>A</a:t>") && out.contains("<a:t>X</a:t>"),
+        "{out}"
+    );
 }

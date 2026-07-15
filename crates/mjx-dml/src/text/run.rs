@@ -31,6 +31,11 @@ impl Text {
     pub fn attributes(&self) -> &[RawAttribute] {
         &self.attributes
     }
+
+    /// Replaces the text content. It is re-escaped (minimally) when the run is serialized.
+    pub fn set_text(&mut self, text: &str) {
+        self.text = text.to_owned();
+    }
 }
 
 /// One ordered child of a [`TextRun`]: the typed [`Text`], or an opaque node.
@@ -71,5 +76,20 @@ impl TextRun {
     #[must_use]
     pub fn content(&self) -> &[RunContent] {
         &self.content
+    }
+
+    /// Sets the run's `a:t` text, re-escaped on write.
+    ///
+    /// Returns `false` (and changes nothing) if the run has no `a:t` child. A well-formed
+    /// `CT_RegularTextRun` always has one, so `false` signals a malformed or non-text run — a fresh
+    /// `a:t` is deliberately **not** synthesized (that would require interning a new element name).
+    pub fn set_text(&mut self, text: &str) -> bool {
+        for item in &mut self.content {
+            if let RunContent::Text(run_text) = item {
+                run_text.set_text(text);
+                return true;
+            }
+        }
+        false
     }
 }
