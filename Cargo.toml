@@ -62,6 +62,7 @@ mjx-ooxml = { path = "crates/mjx-ooxml", version = "0.0.0" }
 # can `#[allow(unsafe_code)]` locally with a written justification.
 [workspace.lints.rust]
 unsafe_code = "deny"
+missing_docs = "warn"
 missing_debug_implementations = "warn"
 unreachable_pub = "warn"
 
