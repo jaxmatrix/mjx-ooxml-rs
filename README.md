@@ -66,4 +66,10 @@ red→green→refactor loop, the fidelity-test tiers, and the git/commit convent
 
 ## License
 
-Dual-licensed under either [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) at your option.
+**mjx-ooxml-rs is free to use, modify, and distribute** — including in commercial and closed-source
+projects — under the permissive **[MIT License](LICENSE-MIT)**. It is offered as `MIT OR Apache-2.0`,
+so you may use it under either the [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE) license, at your
+option. The only condition is the usual one: keep the copyright and license notice with copies.
+
+Unless you explicitly state otherwise, any contribution you submit for inclusion is licensed the same
+way, with no additional terms.
