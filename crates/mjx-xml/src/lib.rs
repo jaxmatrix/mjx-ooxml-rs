@@ -1,18 +1,30 @@
 //! `mjx-xml` — the XML layer for mjx-ooxml-rs.
 //!
-//! This crate is the **only** place `quick-xml` is used, so the XML backend stays swappable
-//! and the rest of the workspace depends on our own stable [`Event`] surface.
+//! This crate is the **only** place `quick-xml` is used, so the XML backend stays swappable and the
+//! rest of the workspace depends on our own stable types. It exposes two readers for two jobs.
 //!
-//! # Scope (Phase 0)
+//! # [`fidelity`] — byte-preserving parse/serialize
 //!
-//! A small, namespace-resolving **pull reader** ([`Reader`]) sufficient to parse the tiny OPC
-//! control parts (`[Content_Types].xml`, `_rels/*.rels`). It resolves element namespaces and
-//! unescapes text/attribute values, returning owned data. Allocating owned strings is fine here:
-//! OPC control parts are small, and the zero-copy / interning fast paths (Phase 1+) matter for the
-//! large document parts, not these.
+//! [`fidelity::parse`] turns a part's bytes into a [`mjx_ooxml_core::RawDocument`] tree and
+//! [`fidelity::serialize`] turns it back. Values and text are kept as raw escaped bytes and the
+//! writer is hand-written, so clean Office XML round-trips **byte-for-byte** (entities, attribute
+//! order, prefixes, self-closing style, the declaration, and the trailing bytes are all preserved).
+//! This is the reader the document model is built on.
 //!
-//! The full fidelity-preserving reader/writer (attribute order, prefixes, `xml:space`, unknown
-//! content) lands in Phase 1 alongside the document model. See `PLAN.md`.
+//! # [`Reader`] — a small control-part reader
+//!
+//! A namespace-resolving pull reader that unescapes values and returns owned [`Event`]s. It is used
+//! for the tiny OPC control parts (`[Content_Types].xml`, `_rels/*.rels`) and by the schema codegen.
+//! It is *not* byte-preserving — use [`fidelity`] for document parts.
+//!
+//! # Example — byte-preserving round-trip
+//!
+//! ```
+//! let xml = br#"<a:p xmlns:a="urn:a"><a:r>hi &amp; bye</a:r></a:p>"#;
+//! let doc = mjx_xml::fidelity::parse(xml).unwrap();
+//! let out = mjx_xml::fidelity::serialize_to_vec(&doc);
+//! assert_eq!(out, xml); // identical bytes — entities, prefixes, and structure preserved
+//! ```
 
 pub mod fidelity;
 
