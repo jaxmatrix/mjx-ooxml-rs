@@ -40,13 +40,18 @@ set, content types, relationships).
 
 ## Phases
 
-- **Phase 0 — Skeleton + container + round-trip proof.** 🚧 *in progress.* Workspace, CI, docs,
-  `mjx-ooxml-core` / `mjx-xml` / `mjx-opc`, and `xtask` codegen → `mjx-ooxml-types`. Exit: open real
-  `.pptx`/`.docx`/`.xlsx`, enumerate parts + content types + rels, re-zip with per-part byte identity.
-- **Phase 1 — Fidelity + MCE.** `mjx-derive`, the `RawElement` preservation tree, attribute-order /
-  prefix / whitespace preservation, and `mjx-mce` (AlternateContent resolution).
-- **Phase 2 — PowerPoint vertical slice.** Minimal `mjx-dml` + `mjx-pptx`: open a real `.pptx`, read
-  slides + shape text, edit a run, add a shape/slide, write a file PowerPoint & LibreOffice open.
+- **Phase 0 — Skeleton + container + round-trip proof.** ✅ *done.* Workspace, CI, docs,
+  `mjx-opc` + minimal `mjx-xml` reader, and `xtask` codegen → `mjx-ooxml-types` (namespaces + shared
+  simple types). Opens real `.pptx`/`.docx`/`.xlsx`, enumerates parts/content-types/rels, re-zips with
+  per-part byte identity.
+- **Phase 1 — Fidelity + MCE.** ✅ *done.* The `mjx-ooxml-core` string interner + `RawElement`
+  preservation tree, `mjx-xml`'s byte-preserving fidelity reader/writer (parse→serialize is
+  byte-identical on every fixture part), and `mjx-mce` (AlternateContent/Ignorable/ProcessContent/
+  MustUnderstand resolve + preserve). *(`mjx-derive` moved to Phase 2, where the first typed model
+  gives it concrete consumers.)*
+- **Phase 2 — PowerPoint vertical slice.** 🚧 *next.* `mjx-derive` + minimal `mjx-dml` + `mjx-pptx`:
+  open a real `.pptx`, read slides + shape text, edit a run, add a shape/slide, write a file PowerPoint
+  & LibreOffice open.
 - **Phase 3 — DrawingML + PPTX depth.** Images, preset geometry, color model, theme, layout/master.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
