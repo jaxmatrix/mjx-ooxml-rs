@@ -13,6 +13,8 @@ workspace = true
 
 [dependencies]
 mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
+mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
