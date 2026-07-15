@@ -1,0 +1,60 @@
+//! DrawingML text: `a:txBody` → `a:p` → `a:r` → `a:t`.
+//!
+//! [`TextBody`] ([`CT_TextBody`]) holds paragraphs; [`Paragraph`] (`a:p`, `CT_TextParagraph`) holds
+//! runs; [`TextRun`] (`a:r`, `CT_RegularTextRun`) holds the text element; [`Text`] (`a:t`,
+//! `xsd:string`) is the decoded string. Only these four are typed — `a:bodyPr`, `a:lstStyle`,
+//! `a:pPr`, `a:rPr`, `a:endParaRPr`, `a:br`, `a:fld`, and anything unknown are preserved **opaquely**
+//! as [`RawNode`](mjx_ooxml_core::RawNode) so a text body round-trips even though we model only its
+//! structure and text.
+//!
+//! # Fidelity mechanism (and the shape the `mjx-derive` proc-macro must reproduce in PR 2b.2)
+//!
+//! Each complex type stores three "framework" pieces plus its ordered content:
+//!
+//! - `name: RawName` — the element's exact qualified name **including its source prefix**. The
+//!   fidelity writer emits a tag from prefix + local, so preserving `name` is what re-emits
+//!   `p:txBody` (a slide wraps `CT_TextBody` in the *presentationml* namespace) or `a:p` byte-for-byte.
+//!   `name` is used for **output only** — `from_xml` never matches on it (see below).
+//! - `attributes: Vec<RawAttribute>` — **all** attributes, verbatim (these four types model none of
+//!   their own attributes yet, so everything, e.g. `xml:space`, passes straight through).
+//! - `empty: bool` — the source self-closing flag, so `<a:t/>` and `<a:t></a:t>` are distinguished. On
+//!   write the flag is combined with the rebuilt children (`empty && children.is_empty()`) so it can
+//!   never contradict the tree invariant "self-closing ⇒ no children".
+//! - `content: Vec<…Content>` — an **ordered, interleaved** list whose variants are the known typed
+//!   children plus a `Raw(RawNode)` catch-all. Order matters for fidelity (a text body's opaque
+//!   `bodyPr`/`lstStyle` come *before* the typed `p`); a side "extra bucket" would lose the interleave
+//!   order, so this ordered enum is the deliberate refinement of the `extra: Vec<RawNode>` idea.
+//!
+//! `from_xml` walks the source children and matches each by **`(namespace, local)`** (an internal
+//! `is_dml` helper), never by prefix, accepting **both** the strict and transitional DrawingML URIs; a match recurses
+//! into the typed variant, everything else is cloned into `Raw`. It deliberately does **not** validate
+//! the element's own name/namespace — the caller asserts the type, because the wrapper tag/prefix is
+//! context-dependent. `to_xml` rebuilds the element from `name`/`attributes`/`content`. Text is
+//! decoded (unescaped) on read and minimally escaped on write (see [`Text`]).
+//!
+//! The future `#[derive(FromXml, ToXml)]` generates exactly this: the framework fields, the ordered
+//! `content` enum from `#[xml(child(local = …, ns = DML_MAIN, ty = …))]` declarations, and a
+//! `#[xml(text)]` string field for the `a:t` gather/decode/escape pattern.
+//!
+//! [`CT_TextBody`]: TextBody
+
+mod body;
+mod paragraph;
+mod run;
+
+pub use body::{TextBody, TextBodyContent};
+pub use paragraph::{Paragraph, ParagraphContent};
+pub use run::{RunContent, Text, TextRun};
+
+use mjx_ooxml_core::{Interner, RawName};
+use mjx_ooxml_types::namespaces::DML_MAIN;
+
+/// Whether `name` resolves to the DrawingML-main element `local` — matching on `(namespace, local)`,
+/// never on prefix, and accepting **both** the strict and transitional DrawingML namespace URIs.
+pub(crate) fn is_dml(name: &RawName, interner: &Interner, local: &str) -> bool {
+    if interner.resolve(name.local) != local {
+        return false;
+    }
+    let namespace = name.namespace.map(|symbol| interner.resolve(symbol));
+    namespace == Some(DML_MAIN.transitional) || namespace == DML_MAIN.strict
+}

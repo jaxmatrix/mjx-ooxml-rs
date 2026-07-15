@@ -149,6 +149,7 @@ dependencies = [
  "mjx-mce",
  "mjx-ooxml-core",
  "mjx-ooxml-types",
+ "mjx-opc",
  "mjx-xml",
 ]
 
