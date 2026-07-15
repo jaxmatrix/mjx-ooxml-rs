@@ -100,6 +100,25 @@ struct Context {
 ///
 /// # Errors
 /// Returns [`ResolveError`] on an unsatisfied `mc:MustUnderstand` or malformed `AlternateContent`.
+///
+/// # Examples
+///
+/// ```
+/// use mjx_mce::{resolve, UnderstoodNamespaces};
+/// use mjx_xml::fidelity;
+///
+/// // An AlternateContent block offering a modern Choice and a legacy Fallback.
+/// let xml = br#"<r xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:new="urn:new" xmlns:old="urn:old"><mc:AlternateContent><mc:Choice Requires="new"><new:shape/></mc:Choice><mc:Fallback><old:shape/></mc:Fallback></mc:AlternateContent></r>"#;
+/// let doc = fidelity::parse(xml).unwrap();
+///
+/// // We understand `urn:new`, so the Choice wins over the Fallback.
+/// let root = resolve(&doc, &UnderstoodNamespaces::from_uris(["urn:new"])).unwrap();
+/// assert_eq!(root.children.len(), 1);
+///
+/// // We understand neither, so the Fallback is used.
+/// let root = resolve(&doc, &UnderstoodNamespaces::new()).unwrap();
+/// assert_eq!(root.children.len(), 1);
+/// ```
 pub fn resolve<'a>(
     doc: &'a RawDocument,
     understood: &UnderstoodNamespaces,

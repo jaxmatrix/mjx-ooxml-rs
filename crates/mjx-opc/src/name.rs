@@ -7,6 +7,16 @@
 use crate::error::OpcError;
 
 /// A validated OPC part name (absolute, `/`-rooted, normalized).
+///
+/// # Examples
+///
+/// ```
+/// use mjx_opc::PartName;
+/// let part = PartName::from_zip_name("ppt/slides/slide1.xml").unwrap();
+/// assert_eq!(part.as_str(), "/ppt/slides/slide1.xml"); // absolute, `/`-rooted
+/// assert_eq!(part.zip_name(), "ppt/slides/slide1.xml"); // ZIP entry form
+/// assert_eq!(part.extension().as_deref(), Some("xml"));
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PartName(String);
 
