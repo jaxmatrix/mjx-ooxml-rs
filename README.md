@@ -61,6 +61,29 @@ The ECMA-376 reference schemas live under `References/` (git-ignored, local-only
 `xtask` to regenerate `mjx-ooxml-types`; the generated source is committed, so normal builds and CI do
 **not** need `References/` present.
 
+## Testing
+
+```sh
+cargo test --workspace                       # everything
+cargo test -p mjx-opc --test roundtrip       # OPC container: open → save → reopen, per-part byte identity
+cargo test -p mjx-opc --test tree_roundtrip  # fidelity tree: every XML part re-serializes byte-identical
+```
+
+The sample files under [`tests/fixtures/`](tests/fixtures) — a real LibreOffice `.docx` and `.xlsx`
+plus a structurally-complete `.pptx` — are the current confirmation that parsing works. As of the
+Phase 1 core, **all three parse without failure**: `tree_roundtrip` runs every `.xml`/`.rels` part of
+all three files (20+ parts) through the fidelity reader/writer and asserts **byte-for-byte** identity,
+and `roundtrip` re-zips each package with per-part byte identity. A broader multi-producer corpus and
+fuzzing come in a later iteration.
+
+## Documentation
+
+```sh
+cargo doc --workspace --no-deps --open   # start at the `mjx-ooxml` crate — the docs hub
+```
+
+Every public item is documented; the `missing_docs` lint and a strict rustdoc CI job keep it that way.
+
 ## Contributing
 
 Development is **test-driven** and **incremental** — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the
