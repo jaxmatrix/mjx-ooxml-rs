@@ -15,6 +15,19 @@ use crate::XmlError;
 ///
 /// We rely on quick-xml's defaults: no text trimming, empty elements are *not* expanded (`<a/>`
 /// stays distinct from `<a></a>`), and end-tag names are checked (well-formedness → typed error).
+///
+/// # Errors
+///
+/// Returns [`XmlError`] if the input is not well-formed XML (unbalanced tags, no root element,
+/// malformed attributes, or non-UTF-8 element/attribute names).
+///
+/// # Examples
+///
+/// ```
+/// use mjx_xml::fidelity;
+/// let doc = fidelity::parse(br#"<w:p xmlns:w="urn:w"><w:r>text</w:r></w:p>"#).unwrap();
+/// assert_eq!(doc.interner.resolve(doc.root.name.local), "p");
+/// ```
 pub fn parse(input: &[u8]) -> Result<RawDocument, XmlError> {
     let (bom, bytes) = strip_bom(input);
     let mut reader = NsReader::from_reader(bytes);
