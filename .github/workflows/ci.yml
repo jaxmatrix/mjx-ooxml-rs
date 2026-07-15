@@ -30,6 +30,20 @@ jobs:
       - name: test
         run: cargo test --workspace
 
+  # Enforce a clean, complete rustdoc build (missing docs are already denied via clippy; this also
+  # catches broken intra-doc links, which clippy does not).
+  docs:
+    name: rustdoc
+    runs-on: ubuntu-latest
+    env:
+      RUSTDOCFLAGS: "-D warnings -D rustdoc::broken_intra_doc_links -D rustdoc::private_intra_doc_links"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: doc
+        run: cargo doc --workspace --no-deps
+
   # Prove the shipped library graph cross-compiles cleanly to mobile / wasm / desktop.
   # xtask is a host-only dev tool (schema codegen), so it is excluded from cross builds.
   cross-build:
