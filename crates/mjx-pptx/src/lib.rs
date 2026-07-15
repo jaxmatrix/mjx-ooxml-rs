@@ -1,13 +1,28 @@
-//! `mjx-pptx` — PresentationML: presentation, slides, layouts, masters, shape trees. First format implemented.
+//! `mjx-pptx` — PresentationML: presentation, slides, shape trees.
 //!
-//! Part of the `mjx-ooxml-rs` workspace. Scaffold stub — see `PLAN.md` for the roadmap
-//! and the phase in which this crate is implemented.
+//! The entry point is [`Presentation`]: open a `.pptx`'s container bytes, read the slides and the text
+//! of their shapes, edit a run's text, and save. It owns an [`mjx_opc::Package`] and reuses the
+//! DrawingML text model ([`mjx_dml::TextBody`]) for shape text; everything it does not model is
+//! preserved verbatim by the OPC copy-on-write layer, so editing one run leaves every other part
+//! byte-identical.
+//!
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let bytes = std::fs::read("deck.pptx")?;
+//! let mut deck = mjx_pptx::Presentation::open(&bytes)?;
+//! println!("{}", deck.shape_text(0, 0)?);      // read the first shape's text
+//! deck.set_shape_text(0, 0, 0, "New title")?;  // edit the first run
+//! let saved = deck.save()?;
+//! # let _ = saved;
+//! # Ok(())
+//! # }
+//! ```
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_scaffold_builds() {
-        // Placeholder so the crate is born green (TDD: always-green increments).
-        assert_eq!(2 + 2, 4);
-    }
-}
+pub mod constants;
+mod error;
+mod nav;
+mod presentation;
+mod slide;
+
+pub use error::PptxError;
+pub use presentation::Presentation;

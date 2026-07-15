@@ -19,3 +19,4 @@ mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
+thiserror.workspace = true
