@@ -15,3 +15,13 @@ proc-macro = true
 workspace = true
 
 [dependencies]
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true
+
+[dev-dependencies]
+# The isolated derive tests derive on tiny local types and round-trip them through the
+# fidelity reader. None of these depend on mjx-derive, so there is no dependency cycle.
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
+mjx-ooxml-types.workspace = true

@@ -140,6 +140,14 @@ dependencies = [
 [[package]]
 name = "mjx-derive"
 version = "0.0.1"
+dependencies = [
+ "mjx-ooxml-core",
+ "mjx-ooxml-types",
+ "mjx-xml",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "mjx-dml"
