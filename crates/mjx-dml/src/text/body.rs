@@ -43,6 +43,14 @@ impl TextBody {
         })
     }
 
+    /// The typed paragraphs (`a:p`), mutably, in order (opaque children are skipped).
+    pub fn paragraphs_mut(&mut self) -> impl Iterator<Item = &mut Paragraph> {
+        self.content.iter_mut().filter_map(|item| match item {
+            TextBodyContent::Paragraph(paragraph) => Some(paragraph),
+            TextBodyContent::Raw(_) => None,
+        })
+    }
+
     /// The body's text: each paragraph's text joined by a newline (`\n`).
     #[must_use]
     pub fn text(&self) -> String {

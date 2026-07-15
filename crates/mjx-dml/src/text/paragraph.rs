@@ -38,6 +38,14 @@ impl Paragraph {
         })
     }
 
+    /// The typed runs (`a:r`), mutably, in order (opaque children are skipped).
+    pub fn runs_mut(&mut self) -> impl Iterator<Item = &mut TextRun> {
+        self.content.iter_mut().filter_map(|item| match item {
+            ParagraphContent::Run(run) => Some(run),
+            ParagraphContent::Raw(_) => None,
+        })
+    }
+
     /// The paragraph's text: the text of its runs concatenated with no separator. Opaque `a:br` line
     /// breaks and `a:fld` fields contribute nothing.
     #[must_use]
