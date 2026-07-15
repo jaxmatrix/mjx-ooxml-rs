@@ -172,6 +172,7 @@ version = "0.0.0"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
+ "thiserror",
 ]
 
 [[package]]
