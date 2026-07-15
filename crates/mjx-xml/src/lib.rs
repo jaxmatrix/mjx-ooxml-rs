@@ -27,6 +27,7 @@
 //! ```
 
 pub mod fidelity;
+pub mod text;
 
 use std::borrow::Cow;
 
