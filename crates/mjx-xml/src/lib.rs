@@ -14,6 +14,8 @@
 //! The full fidelity-preserving reader/writer (attribute order, prefixes, `xml:space`, unknown
 //! content) lands in Phase 1 alongside the document model. See `PLAN.md`.
 
+pub mod fidelity;
+
 use std::borrow::Cow;
 
 use quick_xml::events::Event as QxEvent;
