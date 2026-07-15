@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_ooxml_core::RawNode;
-use mjx_opc::{Package, PartName};
+use mjx_opc::{Package, PartName, Relationship, TargetMode};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -128,5 +128,242 @@ fn part_tree_rejects_control_parts() {
     assert!(
         pkg.part_tree_mut(&ct).is_err(),
         "content-types must be rejected"
+    );
+}
+
+#[test]
+fn set_content_type_override_roundtrips_and_leaves_others_identical() {
+    let bytes = fixture("sample.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("open baseline"));
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    // slide1 already has an Override → this exercises the replace path.
+    let slide = part("/ppt/slides/slide1.xml");
+    let custom = "application/vnd.mjx.custom+xml";
+    pkg.set_content_type_override(&slide, custom)
+        .expect("set override");
+    assert_eq!(
+        pkg.content_type_of(&slide),
+        Some(custom),
+        "view not updated in tandem"
+    );
+
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    assert_eq!(
+        reopened.content_type_of(&slide),
+        Some(custom),
+        "override lost on reopen"
+    );
+
+    // Only [Content_Types].xml changed.
+    let reopened_map = byte_map(&reopened);
+    for (name, orig) in &original {
+        if name == "[Content_Types].xml" {
+            continue;
+        }
+        assert_eq!(reopened_map.get(name), Some(orig), "part {name} changed");
+    }
+    assert_ne!(
+        reopened_map.get("[Content_Types].xml"),
+        original.get("[Content_Types].xml"),
+        "content-types should have changed"
+    );
+}
+
+#[test]
+fn add_relationship_to_existing_rels_roundtrips() {
+    let bytes = fixture("sample.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("open baseline"));
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    let source = part("/ppt/presentation.xml");
+    let rel = Relationship {
+        id: "rId4".to_owned(),
+        rel_type: "http://example.com/mjx/rel".to_owned(),
+        target: "slides/slide1.xml".to_owned(),
+        mode: TargetMode::Internal,
+    };
+    pkg.add_relationship(Some(&source), rel).expect("add rel");
+    assert!(
+        pkg.relationships_for(Some(&source))
+            .expect("rels view")
+            .by_id("rId4")
+            .is_some(),
+        "view not updated"
+    );
+
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    let rp = reopened
+        .relationships_for(Some(&source))
+        .expect("rels view");
+    assert_eq!(
+        rp.by_id("rId4").map(|r| r.target.as_str()),
+        Some("slides/slide1.xml")
+    );
+    assert!(
+        rp.by_id("rId1").is_some() && rp.by_id("rId3").is_some(),
+        "existing relationships dropped"
+    );
+
+    // Only presentation's .rels changed.
+    let reopened_map = byte_map(&reopened);
+    for (name, orig) in &original {
+        if name == "ppt/_rels/presentation.xml.rels" {
+            continue;
+        }
+        assert_eq!(reopened_map.get(name), Some(orig), "part {name} changed");
+    }
+}
+
+#[test]
+fn add_relationship_synthesizes_new_rels_part() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    // theme1.xml has no .rels of its own.
+    let source = part("/ppt/theme/theme1.xml");
+    assert!(
+        pkg.relationships_for(Some(&source)).is_none(),
+        "theme unexpectedly has relationships"
+    );
+
+    let rel = Relationship {
+        id: "rId1".to_owned(),
+        rel_type: "http://example.com/mjx/image".to_owned(),
+        target: "../media/image1.png".to_owned(),
+        mode: TargetMode::Internal,
+    };
+    pkg.add_relationship(Some(&source), rel).expect("add rel");
+
+    let rels_name = "ppt/theme/_rels/theme1.xml.rels";
+    assert!(
+        pkg.entries().iter().any(|e| e.name == rels_name),
+        "synthesized .rels missing"
+    );
+
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    let rp = reopened
+        .relationships_for(Some(&source))
+        .expect("rels present after reopen");
+    assert_eq!(
+        rp.by_id("rId1").map(|r| r.target.as_str()),
+        Some("../media/image1.png")
+    );
+}
+
+#[test]
+fn remove_relationship_roundtrips() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+    let source = part("/ppt/presentation.xml");
+
+    assert!(
+        pkg.remove_relationship(Some(&source), "rId3")
+            .expect("remove"),
+        "rId3 should have existed"
+    );
+    assert!(pkg
+        .relationships_for(Some(&source))
+        .expect("rels view")
+        .by_id("rId3")
+        .is_none());
+
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    let rp = reopened
+        .relationships_for(Some(&source))
+        .expect("rels view");
+    assert!(rp.by_id("rId3").is_none(), "rId3 present after reopen");
+    assert!(
+        rp.by_id("rId1").is_some() && rp.by_id("rId2").is_some(),
+        "other relationships dropped"
+    );
+
+    // Removing a missing id is a no-op.
+    assert!(!pkg
+        .remove_relationship(Some(&source), "rId999")
+        .expect("no-op remove"));
+}
+
+#[test]
+fn insert_part_registers_content_type_and_roundtrips() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    let new = part("/ppt/slides/slide2.xml");
+    let ct = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
+    let content = br#"<?xml version="1.0"?><p:sld xmlns:p="urn:p"/>"#.to_vec();
+    pkg.insert_part(&new, ct, content.clone()).expect("insert");
+    assert_eq!(pkg.content_type_of(&new), Some(ct));
+    assert_eq!(pkg.part_bytes(&new), Some(content.as_slice()));
+
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    assert_eq!(reopened.content_type_of(&new), Some(ct));
+    assert_eq!(reopened.part_bytes(&new), Some(content.as_slice()));
+
+    // Inserting the same part again is rejected.
+    assert!(pkg.insert_part(&new, ct, b"<p:sld/>".to_vec()).is_err());
+}
+
+#[test]
+fn insert_part_adds_no_override_when_a_default_covers_it() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+    let overrides_before = pkg.content_types().overrides().len();
+
+    // `.xml` is covered by a Default (application/xml); insert an .xml part with that exact type.
+    let new = part("/customXml/item1.xml");
+    pkg.insert_part(&new, "application/xml", b"<x/>".to_vec())
+        .expect("insert");
+
+    assert_eq!(
+        pkg.content_types().overrides().len(),
+        overrides_before,
+        "an unnecessary Override was added"
+    );
+    assert_eq!(pkg.content_type_of(&new), Some("application/xml"));
+}
+
+#[test]
+fn remove_part_drops_entry_override_and_rels() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    let slide = part("/ppt/slides/slide1.xml");
+    let slide_ct = "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
+    // Preconditions: the slide has an Override and its own .rels.
+    assert!(pkg
+        .content_types()
+        .overrides()
+        .iter()
+        .any(|o| o.part_name == slide));
+    assert!(pkg
+        .entries()
+        .iter()
+        .any(|e| e.name == "ppt/slides/_rels/slide1.xml.rels"));
+
+    pkg.remove_part(&slide).expect("remove");
+
+    assert!(pkg.part_bytes(&slide).is_none(), "entry not removed");
+    assert!(
+        !pkg.content_types()
+            .overrides()
+            .iter()
+            .any(|o| o.part_name == slide),
+        "override kept"
+    );
+    assert!(
+        !pkg.entries()
+            .iter()
+            .any(|e| e.name == "ppt/slides/_rels/slide1.xml.rels"),
+        "rels kept"
+    );
+
+    // Saves + reopens cleanly, and the specific content type is gone.
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    assert!(reopened.part_bytes(&slide).is_none());
+    assert_ne!(
+        reopened.content_type_of(&slide),
+        Some(slide_ct),
+        "the removed part's Override survived"
     );
 }
