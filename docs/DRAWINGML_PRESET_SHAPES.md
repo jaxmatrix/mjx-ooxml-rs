@@ -76,9 +76,11 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
 - **Typed tier — in progress.** Per-shape hand-written structs (a `ShapeGeometry` enum, read via
   `PresetGeometry::shape()` / written via `set_shape()`) with self-explanatory named fields in friendly
   units (fractions as `f64`; angles→radians and lengths→points arrive with the batches that use them),
-  built on the mechanical table. One reviewable PR per family (semantics need review). **Anchor batch
-  done:** the 7 corner-radius/cut rectangles + the 10 N-point stars (17 shapes, all `named` below).
-  A new `mjx-dml::geometry` measures module holds `Fraction`.
+  built on the mechanical table. One reviewable PR per batch (semantics need review). **Single-adjustment
+  tier done:** all **43** single-adjustment shapes are `named` (corner/snip rectangles, N-point stars,
+  brackets/braces, math symbols, polygons, polar donut/noSmoking, scrolls, 3D can/cube/bevel, misc) —
+  the 45 minus `teardrop`/`sun`, which stay `Unmodeled` (spec-ambiguous, pending ECMA prose). A new
+  `mjx-dml::geometry::measures` module holds `Fraction`. **Next: batch 4 (two-adjustment shapes).**
 
   **Batches follow `adjustments_of` (real user-facing adjustments), not the ledger's raw `avLst`
   counts.** So handle-less `avLst` shapes (`decagon`, `heptagon`, `pentagon`) are *parameterless*, and
@@ -96,7 +98,8 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
 2. **Fixed geometry — ✅ done** (mechanical tier). 64 shapes with 0 adjustments → the generated table
    correctly reports them parameterless (`adjustments_of` returns an empty slice); no typed struct
    needed.
-3. **Single adjustment** — 41 shapes (mostly clean `*/ ss adj 100000` fractions). *Typed tier next.*
+3. **Single adjustment — ✅ done** (typed tier). All 43 single-adjustment shapes (by `adjustments_of`)
+   are `named`; `teardrop`/`sun` deferred (spec-ambiguous).
 4. **Two adjustments** — 38 shapes.
 5. **Complex** — 43 shapes (3–8 interdependent adjusts), hand-curated names in sub-batches.
 
@@ -194,35 +197,35 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `bentConnector3` | Connector | 1 | 1×ahXY | fidelity | — |
-| `bevel` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `bracePair` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `bracketPair` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `can` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `chevron` | Arrow / ribbon | 1 | 1×ahXY | fidelity | — |
-| `cube` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `curvedConnector3` | Connector | 1 | 1×ahXY | fidelity | — |
+| `bentConnector3` | Connector | 1 | 1×ahXY | named | `bend_position` |
+| `bevel` | Basic / geometric | 1 | 1×ahXY | named | `bevel_width` |
+| `bracePair` | Basic / geometric | 1 | 1×ahXY | named | `curl_radius` |
+| `bracketPair` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
+| `can` | Basic / geometric | 1 | 1×ahXY | named | `top_ellipse_height` |
+| `chevron` | Arrow / ribbon | 1 | 1×ahXY | named | `point_depth` |
+| `cube` | Basic / geometric | 1 | 1×ahXY | named | `depth` |
+| `curvedConnector3` | Connector | 1 | 1×ahXY | named | `bend_position` |
 | `decagon` | Basic / geometric | 1 | — | fidelity | — |
-| `diagStripe` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `donut` | Basic / geometric | 1 | 1×ahPolar | fidelity | — |
+| `diagStripe` | Basic / geometric | 1 | 1×ahXY | named | `stripe_width` |
+| `donut` | Basic / geometric | 1 | 1×ahPolar | named | `ring_thickness` |
 | `foldedCorner` | Basic / geometric | 1 | 1×ahXY | named | `fold_size` |
 | `frame` | Basic / geometric | 1 | 1×ahXY | named | `border_thickness` |
-| `homePlate` | Arrow / ribbon | 1 | 1×ahXY | fidelity | — |
-| `horizontalScroll` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `leftBracket` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `mathMinus` | Math | 1 | 1×ahXY | fidelity | — |
-| `mathMultiply` | Math | 1 | 1×ahXY | fidelity | — |
-| `mathPlus` | Math | 1 | 1×ahXY | fidelity | — |
-| `moon` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `noSmoking` | Basic / geometric | 1 | 1×ahPolar | fidelity | — |
+| `homePlate` | Arrow / ribbon | 1 | 1×ahXY | named | `point_depth` |
+| `horizontalScroll` | Basic / geometric | 1 | 1×ahXY | named | `curl_size` |
+| `leftBracket` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
+| `mathMinus` | Math | 1 | 1×ahXY | named | `bar_thickness` |
+| `mathMultiply` | Math | 1 | 1×ahXY | named | `stroke_thickness` |
+| `mathPlus` | Math | 1 | 1×ahXY | named | `arm_thickness` |
+| `moon` | Basic / geometric | 1 | 1×ahXY | named | `crescent_width` |
+| `noSmoking` | Basic / geometric | 1 | 1×ahPolar | named | `band_thickness` |
 | `octagon` | Basic / geometric | 1 | 1×ahXY | named | `corner_cut` |
-| `parallelogram` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `parallelogram` | Basic / geometric | 1 | 1×ahXY | named | `skew_offset` |
 | `plaque` | Basic / geometric | 1 | 1×ahXY | named | `corner_size` |
-| `plus` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `rightBracket` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `plus` | Basic / geometric | 1 | 1×ahXY | named | `arm_inset` |
+| `rightBracket` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
 | `round1Rect` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
 | `roundRect` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
-| `smileyFace` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `smileyFace` | Basic / geometric | 1 | 1×ahXY | named | `mouth_curve` |
 | `snip1Rect` | Basic / geometric | 1 | 1×ahXY | named | `snip_size` |
 | `star12` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
 | `star16` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
@@ -232,9 +235,9 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `star8` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
 | `sun` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `teardrop` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `trapezoid` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `triangle` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `verticalScroll` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `trapezoid` | Basic / geometric | 1 | 1×ahXY | named | `top_inset` |
+| `triangle` | Basic / geometric | 1 | 1×ahXY | named | `apex_x` |
+| `verticalScroll` | Basic / geometric | 1 | 1×ahXY | named | `curl_size` |
 
 ### Batch 4 — two adjustments — 38 shapes
 
@@ -252,7 +255,7 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `gear9` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
 | `halfFrame` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
 | `heptagon` | Basic / geometric | 2 | — | fidelity | — |
-| `hexagon` | Basic / geometric | 2 | 1×ahXY | fidelity | — |
+| `hexagon` | Basic / geometric | 2 | 1×ahXY | named | `point_inset` |
 | `leftArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
 | `leftBrace` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
 | `leftRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |

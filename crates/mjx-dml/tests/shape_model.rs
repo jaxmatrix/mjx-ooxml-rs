@@ -71,12 +71,12 @@ fn reads_star_inner_radius_over_the_star_denominator() {
 
 #[test]
 fn unported_shape_is_unmodeled_and_unknown_prst_is_none() {
-    // chevron is single-adjustment but not in this batch → Unmodeled.
-    let chevron = format!(r#"<a:prstGeom xmlns:a="{A}" prst="chevron"/>"#);
-    let (geom, doc) = parse_typed(chevron.as_bytes());
+    // teardrop is single-adjustment but deferred (spec-ambiguous) → Unmodeled.
+    let teardrop = format!(r#"<a:prstGeom xmlns:a="{A}" prst="teardrop"/>"#);
+    let (geom, doc) = parse_typed(teardrop.as_bytes());
     assert_eq!(
         geom.shape(&doc.interner),
-        Some(ShapeGeometry::Unmodeled(PresetShapeType::Chevron))
+        Some(ShapeGeometry::Unmodeled(PresetShapeType::Teardrop))
     );
 
     // An unknown/future prst token → None.
@@ -118,4 +118,90 @@ fn set_shape_then_shape_round_trips_a_star() {
         panic!("expected EightPointStar");
     };
     assert_close(inner_radius, 0.375);
+}
+
+// --- Remaining single-adjustment families ---
+
+#[test]
+fn reads_triangle_apex_as_fraction_of_width() {
+    // triangle default adj 50000 → apex centered at 0.5 of the width.
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="triangle"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::Triangle { apex_x }) = geom.shape(&doc.interner) else {
+        panic!("expected Triangle");
+    };
+    assert_close(apex_x, 0.5);
+}
+
+#[test]
+fn reads_math_plus_from_adj1() {
+    // mathPlus uses adj1 (not adj); default 23520 → 0.2352 of the shorter side.
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="mathPlus"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::MathPlus { arm_thickness }) = geom.shape(&doc.interner) else {
+        panic!("expected MathPlus");
+    };
+    assert_close(arm_thickness, 0.2352);
+}
+
+#[test]
+fn reads_donut_ring_from_radius_handle() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="donut"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::Donut { ring_thickness }) = geom.shape(&doc.interner) else {
+        panic!("expected Donut");
+    };
+    assert_close(ring_thickness, 0.25);
+}
+
+#[test]
+fn reads_chevron_point_depth_default() {
+    // chevron's max is a computed guide (maxAdj); the default still reads cleanly.
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="chevron"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::Chevron { point_depth }) = geom.shape(&doc.interner) else {
+        panic!("expected Chevron");
+    };
+    assert_close(point_depth, 0.5);
+}
+
+#[test]
+fn smiley_mouth_curve_is_signed_and_round_trips() {
+    // Default is a positive (smile) curvature.
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="smileyFace"/>"#);
+    let (mut geom, mut doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::SmileyFace { mouth_curve }) = geom.shape(&doc.interner) else {
+        panic!("expected SmileyFace");
+    };
+    assert_close(mouth_curve, 0.04653);
+
+    // A negative value (frown) survives the native round-trip.
+    geom.set_shape(
+        &mut doc.interner,
+        ShapeGeometry::SmileyFace {
+            mouth_curve: Fraction::from_ratio(-0.02),
+        },
+    );
+    assert_eq!(geom.adjustment(&doc.interner, "adj"), Some(-2000));
+    let Some(ShapeGeometry::SmileyFace { mouth_curve }) = geom.shape(&doc.interner) else {
+        panic!("expected SmileyFace");
+    };
+    assert_close(mouth_curve, -0.02);
+}
+
+#[test]
+fn set_shape_writes_adj1_shapes() {
+    // mathPlus writes to adj1, not adj.
+    let mut interner = Interner::new();
+    let mut geom = PresetGeometry::new(&mut interner, PresetShapeType::Rectangle, None);
+    geom.set_shape(
+        &mut interner,
+        ShapeGeometry::MathPlus {
+            arm_thickness: Fraction::from_ratio(0.3),
+        },
+    );
+    assert_eq!(
+        serialize_built(interner, &geom),
+        r#"<a:prstGeom prst="mathPlus"><a:avLst><a:gd name="adj1" fmla="val 30000"/></a:avLst></a:prstGeom>"#
+    );
 }
