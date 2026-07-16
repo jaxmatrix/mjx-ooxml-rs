@@ -44,6 +44,26 @@ jobs:
       - name: doc
         run: cargo doc --workspace --no-deps
 
+  # The Phase-2 exit gate: a .pptx we construct actually opens in a real Office implementation.
+  # Kept separate from lint-test so the heavy LibreOffice install cannot slow or flake the fast lane.
+  # MJX_REQUIRE_SOFFICE=1 turns a missing binary into a hard failure, so this coverage can never
+  # silently skip in CI (locally the same test skips cleanly when LibreOffice is absent).
+  office-open:
+    name: office-open (LibreOffice)
+    runs-on: ubuntu-latest
+    env:
+      MJX_REQUIRE_SOFFICE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install LibreOffice Impress
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress
+      - name: office-open canary
+        run: cargo test -p mjx-pptx --test office_open
+
   # Prove the shipped library graph cross-compiles cleanly to mobile / wasm / desktop.
   # xtask is a host-only dev tool (schema codegen), so it is excluded from cross builds.
   cross-build:
