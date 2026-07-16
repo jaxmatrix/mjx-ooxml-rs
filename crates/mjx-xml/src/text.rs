@@ -35,6 +35,34 @@ pub fn escape_text(raw: &str) -> Cow<'_, str> {
     quick_xml::escape::minimal_escape(raw)
 }
 
+/// Escapes a string for use inside a **double-quoted** XML attribute value, escaping `&`, `<`, and
+/// `"` (the minimum a parser requires between double quotes). `>` and `'` are left literal.
+///
+/// Returns a borrowed [`Cow`] when nothing needed escaping. Text content uses [`escape_text`]
+/// instead — attributes additionally require `"` to be escaped.
+///
+/// # Example
+/// ```
+/// assert_eq!(mjx_xml::text::escape_attribute(r#"a<b&c"d"#), "a&lt;b&amp;c&quot;d");
+/// assert_eq!(mjx_xml::text::escape_attribute("plain > it's"), "plain > it's"); // borrowed
+/// ```
+#[must_use]
+pub fn escape_attribute(raw: &str) -> Cow<'_, str> {
+    if !raw.bytes().any(|b| matches!(b, b'&' | b'<' | b'"')) {
+        return Cow::Borrowed(raw);
+    }
+    let mut out = String::with_capacity(raw.len() + 8);
+    for ch in raw.chars() {
+        match ch {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '"' => out.push_str("&quot;"),
+            other => out.push(other),
+        }
+    }
+    Cow::Owned(out)
+}
+
 /// Decodes XML entity and character references in text content back to their characters.
 ///
 /// Handles the five predefined entities (`&amp; &lt; &gt; &quot; &apos;`) and numeric references
@@ -67,6 +95,14 @@ mod tests {
     #[test]
     fn escape_borrows_when_unchanged() {
         assert!(matches!(escape_text("Hello OOXML"), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn escape_attribute_escapes_quote_amp_lt_only() {
+        // `"` is escaped (unlike text content); `>` and `'` are left literal.
+        assert_eq!(escape_attribute(r#"a<b&c"d"#), "a&lt;b&amp;c&quot;d");
+        assert_eq!(escape_attribute("keep > ' literal"), "keep > ' literal");
+        assert!(matches!(escape_attribute("rect"), Cow::Borrowed(_)));
     }
 
     #[test]
