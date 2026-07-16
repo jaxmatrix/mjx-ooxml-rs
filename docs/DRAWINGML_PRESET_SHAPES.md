@@ -2,8 +2,9 @@
 
 > Status of porting the DrawingML preset shapes into `mjx-dml` typed geometry, and the
 > **methodology** for turning each shape’s raw `adj` control points into self-explanatory
-> **named control parameters**. This document is the source of truth for that workstream; the code
-> lands after the DrawingML text model, foundation-first then names-in-batches.
+> **named control parameters**. This document is the source of truth for that workstream. The
+> **foundation** (the `PresetShapeType` enum + the `prstGeom` fidelity model) has **shipped** — every
+> shape round-trips; the remaining batches add the named parameters. Foundation-first, names-in-batches.
 
 Generated data (adjustment / handle counts) is read directly from the ECMA-376 reference
 `presetShapeDefinitions.xml` so the ledger is truthful, not guessed. Regenerate with the script in
@@ -67,9 +68,11 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
 
 ## Batch plan (each a reviewable, always-green PR that updates this ledger)
 
-1. **Foundation** — `PresetShapeType` enum (187) + `prstGeom` fidelity model (round-trips any
-   shape) + this ledger scaffold. Reuses the `FromXml`/`ToXml` traits from the text-model PR. After
-   it, every shape is at least `fidelity`.
+1. **Foundation — ✅ done.** `PresetShapeType` enum (187, generated in `mjx-ooxml-types::drawingml`)
+   + the `prstGeom`/`avLst`/`gd` fidelity model in `mjx-dml::geometry` (`PresetGeometry` /
+   `GeometryGuideList` / `GeometryGuide`, round-trips any shape, plus a minimal typed builder) +
+   this ledger scaffold. Reuses the `FromXml`/`ToXml` traits from the text-model PR. **Every shape
+   below is now at least `fidelity`.**
 2. **Fixed geometry** — 64 shapes with 0 adjustments → parameterless.
 3. **Single adjustment** — 41 shapes (mostly clean `*/ ss adj 100000` fractions).
 4. **Two adjustments** — 38 shapes.
@@ -100,207 +103,207 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `actionButtonBackPrevious` | Action button | 0 | — | pending | — |
-| `actionButtonBeginning` | Action button | 0 | — | pending | — |
-| `actionButtonBlank` | Action button | 0 | — | pending | — |
-| `actionButtonDocument` | Action button | 0 | — | pending | — |
-| `actionButtonEnd` | Action button | 0 | — | pending | — |
-| `actionButtonForwardNext` | Action button | 0 | — | pending | — |
-| `actionButtonHelp` | Action button | 0 | — | pending | — |
-| `actionButtonHome` | Action button | 0 | — | pending | — |
-| `actionButtonInformation` | Action button | 0 | — | pending | — |
-| `actionButtonMovie` | Action button | 0 | — | pending | — |
-| `actionButtonReturn` | Action button | 0 | — | pending | — |
-| `actionButtonSound` | Action button | 0 | — | pending | — |
-| `bentConnector2` | Connector | 0 | — | pending | — |
-| `chartPlus` | Basic / geometric | 0 | — | pending | — |
-| `chartStar` | Basic / geometric | 0 | — | pending | — |
-| `chartX` | Basic / geometric | 0 | — | pending | — |
-| `cloud` | Basic / geometric | 0 | — | pending | — |
-| `cornerTabs` | Basic / geometric | 0 | — | pending | — |
-| `curvedConnector2` | Connector | 0 | — | pending | — |
-| `diamond` | Basic / geometric | 0 | — | pending | — |
-| `dodecagon` | Basic / geometric | 0 | — | pending | — |
-| `ellipse` | Basic / geometric | 0 | — | pending | — |
-| `flowChartAlternateProcess` | Flowchart | 0 | — | pending | — |
-| `flowChartCollate` | Flowchart | 0 | — | pending | — |
-| `flowChartConnector` | Flowchart | 0 | — | pending | — |
-| `flowChartDecision` | Flowchart | 0 | — | pending | — |
-| `flowChartDelay` | Flowchart | 0 | — | pending | — |
-| `flowChartDisplay` | Flowchart | 0 | — | pending | — |
-| `flowChartDocument` | Flowchart | 0 | — | pending | — |
-| `flowChartExtract` | Flowchart | 0 | — | pending | — |
-| `flowChartInputOutput` | Flowchart | 0 | — | pending | — |
-| `flowChartInternalStorage` | Flowchart | 0 | — | pending | — |
-| `flowChartMagneticDisk` | Flowchart | 0 | — | pending | — |
-| `flowChartMagneticDrum` | Flowchart | 0 | — | pending | — |
-| `flowChartMagneticTape` | Flowchart | 0 | — | pending | — |
-| `flowChartManualInput` | Flowchart | 0 | — | pending | — |
-| `flowChartManualOperation` | Flowchart | 0 | — | pending | — |
-| `flowChartMerge` | Flowchart | 0 | — | pending | — |
-| `flowChartMultidocument` | Flowchart | 0 | — | pending | — |
-| `flowChartOfflineStorage` | Flowchart | 0 | — | pending | — |
-| `flowChartOffpageConnector` | Flowchart | 0 | — | pending | — |
-| `flowChartOnlineStorage` | Flowchart | 0 | — | pending | — |
-| `flowChartOr` | Flowchart | 0 | — | pending | — |
-| `flowChartPredefinedProcess` | Flowchart | 0 | — | pending | — |
-| `flowChartPreparation` | Flowchart | 0 | — | pending | — |
-| `flowChartProcess` | Flowchart | 0 | — | pending | — |
-| `flowChartPunchedCard` | Flowchart | 0 | — | pending | — |
-| `flowChartPunchedTape` | Flowchart | 0 | — | pending | — |
-| `flowChartSort` | Flowchart | 0 | — | pending | — |
-| `flowChartSummingJunction` | Flowchart | 0 | — | pending | — |
-| `flowChartTerminator` | Flowchart | 0 | — | pending | — |
-| `funnel` | Basic / geometric | 0 | — | pending | — |
-| `heart` | Basic / geometric | 0 | — | pending | — |
-| `irregularSeal1` | Star / seal | 0 | — | pending | — |
-| `irregularSeal2` | Star / seal | 0 | — | pending | — |
-| `lightningBolt` | Basic / geometric | 0 | — | pending | — |
-| `line` | Basic / geometric | 0 | — | pending | — |
-| `lineInv` | Basic / geometric | 0 | — | pending | — |
-| `pieWedge` | Basic / geometric | 0 | — | pending | — |
-| `plaqueTabs` | Basic / geometric | 0 | — | pending | — |
-| `rect` | Basic / geometric | 0 | — | pending | — |
-| `rtTriangle` | Basic / geometric | 0 | — | pending | — |
-| `squareTabs` | Basic / geometric | 0 | — | pending | — |
-| `straightConnector1` | Connector | 0 | — | pending | — |
+| `actionButtonBackPrevious` | Action button | 0 | — | fidelity | — |
+| `actionButtonBeginning` | Action button | 0 | — | fidelity | — |
+| `actionButtonBlank` | Action button | 0 | — | fidelity | — |
+| `actionButtonDocument` | Action button | 0 | — | fidelity | — |
+| `actionButtonEnd` | Action button | 0 | — | fidelity | — |
+| `actionButtonForwardNext` | Action button | 0 | — | fidelity | — |
+| `actionButtonHelp` | Action button | 0 | — | fidelity | — |
+| `actionButtonHome` | Action button | 0 | — | fidelity | — |
+| `actionButtonInformation` | Action button | 0 | — | fidelity | — |
+| `actionButtonMovie` | Action button | 0 | — | fidelity | — |
+| `actionButtonReturn` | Action button | 0 | — | fidelity | — |
+| `actionButtonSound` | Action button | 0 | — | fidelity | — |
+| `bentConnector2` | Connector | 0 | — | fidelity | — |
+| `chartPlus` | Basic / geometric | 0 | — | fidelity | — |
+| `chartStar` | Basic / geometric | 0 | — | fidelity | — |
+| `chartX` | Basic / geometric | 0 | — | fidelity | — |
+| `cloud` | Basic / geometric | 0 | — | fidelity | — |
+| `cornerTabs` | Basic / geometric | 0 | — | fidelity | — |
+| `curvedConnector2` | Connector | 0 | — | fidelity | — |
+| `diamond` | Basic / geometric | 0 | — | fidelity | — |
+| `dodecagon` | Basic / geometric | 0 | — | fidelity | — |
+| `ellipse` | Basic / geometric | 0 | — | fidelity | — |
+| `flowChartAlternateProcess` | Flowchart | 0 | — | fidelity | — |
+| `flowChartCollate` | Flowchart | 0 | — | fidelity | — |
+| `flowChartConnector` | Flowchart | 0 | — | fidelity | — |
+| `flowChartDecision` | Flowchart | 0 | — | fidelity | — |
+| `flowChartDelay` | Flowchart | 0 | — | fidelity | — |
+| `flowChartDisplay` | Flowchart | 0 | — | fidelity | — |
+| `flowChartDocument` | Flowchart | 0 | — | fidelity | — |
+| `flowChartExtract` | Flowchart | 0 | — | fidelity | — |
+| `flowChartInputOutput` | Flowchart | 0 | — | fidelity | — |
+| `flowChartInternalStorage` | Flowchart | 0 | — | fidelity | — |
+| `flowChartMagneticDisk` | Flowchart | 0 | — | fidelity | — |
+| `flowChartMagneticDrum` | Flowchart | 0 | — | fidelity | — |
+| `flowChartMagneticTape` | Flowchart | 0 | — | fidelity | — |
+| `flowChartManualInput` | Flowchart | 0 | — | fidelity | — |
+| `flowChartManualOperation` | Flowchart | 0 | — | fidelity | — |
+| `flowChartMerge` | Flowchart | 0 | — | fidelity | — |
+| `flowChartMultidocument` | Flowchart | 0 | — | fidelity | — |
+| `flowChartOfflineStorage` | Flowchart | 0 | — | fidelity | — |
+| `flowChartOffpageConnector` | Flowchart | 0 | — | fidelity | — |
+| `flowChartOnlineStorage` | Flowchart | 0 | — | fidelity | — |
+| `flowChartOr` | Flowchart | 0 | — | fidelity | — |
+| `flowChartPredefinedProcess` | Flowchart | 0 | — | fidelity | — |
+| `flowChartPreparation` | Flowchart | 0 | — | fidelity | — |
+| `flowChartProcess` | Flowchart | 0 | — | fidelity | — |
+| `flowChartPunchedCard` | Flowchart | 0 | — | fidelity | — |
+| `flowChartPunchedTape` | Flowchart | 0 | — | fidelity | — |
+| `flowChartSort` | Flowchart | 0 | — | fidelity | — |
+| `flowChartSummingJunction` | Flowchart | 0 | — | fidelity | — |
+| `flowChartTerminator` | Flowchart | 0 | — | fidelity | — |
+| `funnel` | Basic / geometric | 0 | — | fidelity | — |
+| `heart` | Basic / geometric | 0 | — | fidelity | — |
+| `irregularSeal1` | Star / seal | 0 | — | fidelity | — |
+| `irregularSeal2` | Star / seal | 0 | — | fidelity | — |
+| `lightningBolt` | Basic / geometric | 0 | — | fidelity | — |
+| `line` | Basic / geometric | 0 | — | fidelity | — |
+| `lineInv` | Basic / geometric | 0 | — | fidelity | — |
+| `pieWedge` | Basic / geometric | 0 | — | fidelity | — |
+| `plaqueTabs` | Basic / geometric | 0 | — | fidelity | — |
+| `rect` | Basic / geometric | 0 | — | fidelity | — |
+| `rtTriangle` | Basic / geometric | 0 | — | fidelity | — |
+| `squareTabs` | Basic / geometric | 0 | — | fidelity | — |
+| `straightConnector1` | Connector | 0 | — | fidelity | — |
 
 ### Batch 3 — single adjustment — 41 shapes
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `bentConnector3` | Connector | 1 | 1×ahXY | pending | — |
-| `bevel` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `bracePair` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `bracketPair` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `can` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `chevron` | Arrow / ribbon | 1 | 1×ahXY | pending | — |
-| `cube` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `curvedConnector3` | Connector | 1 | 1×ahXY | pending | — |
-| `decagon` | Basic / geometric | 1 | — | pending | — |
-| `diagStripe` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `donut` | Basic / geometric | 1 | 1×ahPolar | pending | — |
-| `foldedCorner` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `frame` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `homePlate` | Arrow / ribbon | 1 | 1×ahXY | pending | — |
-| `horizontalScroll` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `leftBracket` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `mathMinus` | Math | 1 | 1×ahXY | pending | — |
-| `mathMultiply` | Math | 1 | 1×ahXY | pending | — |
-| `mathPlus` | Math | 1 | 1×ahXY | pending | — |
-| `moon` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `noSmoking` | Basic / geometric | 1 | 1×ahPolar | pending | — |
-| `octagon` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `parallelogram` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `plaque` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `plus` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `rightBracket` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `round1Rect` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `roundRect` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `smileyFace` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `snip1Rect` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `star12` | Star / seal | 1 | 1×ahXY | pending | — |
-| `star16` | Star / seal | 1 | 1×ahXY | pending | — |
-| `star24` | Star / seal | 1 | 1×ahXY | pending | — |
-| `star32` | Star / seal | 1 | 1×ahXY | pending | — |
-| `star4` | Star / seal | 1 | 1×ahXY | pending | — |
-| `star8` | Star / seal | 1 | 1×ahXY | pending | — |
-| `sun` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `teardrop` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `trapezoid` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `triangle` | Basic / geometric | 1 | 1×ahXY | pending | — |
-| `verticalScroll` | Basic / geometric | 1 | 1×ahXY | pending | — |
+| `bentConnector3` | Connector | 1 | 1×ahXY | fidelity | — |
+| `bevel` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `bracePair` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `bracketPair` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `can` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `chevron` | Arrow / ribbon | 1 | 1×ahXY | fidelity | — |
+| `cube` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `curvedConnector3` | Connector | 1 | 1×ahXY | fidelity | — |
+| `decagon` | Basic / geometric | 1 | — | fidelity | — |
+| `diagStripe` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `donut` | Basic / geometric | 1 | 1×ahPolar | fidelity | — |
+| `foldedCorner` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `frame` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `homePlate` | Arrow / ribbon | 1 | 1×ahXY | fidelity | — |
+| `horizontalScroll` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `leftBracket` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `mathMinus` | Math | 1 | 1×ahXY | fidelity | — |
+| `mathMultiply` | Math | 1 | 1×ahXY | fidelity | — |
+| `mathPlus` | Math | 1 | 1×ahXY | fidelity | — |
+| `moon` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `noSmoking` | Basic / geometric | 1 | 1×ahPolar | fidelity | — |
+| `octagon` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `parallelogram` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `plaque` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `plus` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `rightBracket` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `round1Rect` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `roundRect` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `smileyFace` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `snip1Rect` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `star12` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `star16` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `star24` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `star32` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `star4` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `star8` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `sun` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `teardrop` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `trapezoid` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `triangle` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `verticalScroll` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 
 ### Batch 4 — two adjustments — 38 shapes
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `arc` | Basic / geometric | 2 | 2×ahPolar | pending | — |
-| `bentConnector4` | Connector | 2 | 2×ahXY | pending | — |
-| `chord` | Basic / geometric | 2 | 2×ahPolar | pending | — |
-| `cloudCallout` | Callout | 2 | 1×ahXY | pending | — |
-| `corner` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `curvedConnector4` | Connector | 2 | 2×ahXY | pending | — |
-| `doubleWave` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `downArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `gear6` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `gear9` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `halfFrame` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `heptagon` | Basic / geometric | 2 | — | pending | — |
-| `hexagon` | Basic / geometric | 2 | 1×ahXY | pending | — |
-| `leftArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `leftBrace` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `leftRightArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `mathEqual` | Math | 2 | 2×ahXY | pending | — |
-| `nonIsoscelesTrapezoid` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `notchedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `pentagon` | Basic / geometric | 2 | — | pending | — |
-| `pie` | Basic / geometric | 2 | 2×ahPolar | pending | — |
-| `ribbon` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `ribbon2` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `rightArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `rightBrace` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `round2DiagRect` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `round2SameRect` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `snip2DiagRect` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `snip2SameRect` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `snipRoundRect` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `star10` | Star / seal | 2 | 1×ahXY | pending | — |
-| `star6` | Star / seal | 2 | 1×ahXY | pending | — |
-| `stripedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `swooshArrow` | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `upDownArrow` _(dup in spec)_ | Arrow / ribbon | 2 | 2×ahXY | pending | — |
-| `wave` | Basic / geometric | 2 | 2×ahXY | pending | — |
-| `wedgeEllipseCallout` | Callout | 2 | 1×ahXY | pending | — |
-| `wedgeRectCallout` | Callout | 2 | 1×ahXY | pending | — |
+| `arc` | Basic / geometric | 2 | 2×ahPolar | fidelity | — |
+| `bentConnector4` | Connector | 2 | 2×ahXY | fidelity | — |
+| `chord` | Basic / geometric | 2 | 2×ahPolar | fidelity | — |
+| `cloudCallout` | Callout | 2 | 1×ahXY | fidelity | — |
+| `corner` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `curvedConnector4` | Connector | 2 | 2×ahXY | fidelity | — |
+| `doubleWave` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `downArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `gear6` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `gear9` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `halfFrame` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `heptagon` | Basic / geometric | 2 | — | fidelity | — |
+| `hexagon` | Basic / geometric | 2 | 1×ahXY | fidelity | — |
+| `leftArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `leftBrace` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `leftRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `mathEqual` | Math | 2 | 2×ahXY | fidelity | — |
+| `nonIsoscelesTrapezoid` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `notchedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `pentagon` | Basic / geometric | 2 | — | fidelity | — |
+| `pie` | Basic / geometric | 2 | 2×ahPolar | fidelity | — |
+| `ribbon` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `ribbon2` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `rightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `rightBrace` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `round2DiagRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `round2SameRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `snip2DiagRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `snip2SameRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `snipRoundRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `star10` | Star / seal | 2 | 1×ahXY | fidelity | — |
+| `star6` | Star / seal | 2 | 1×ahXY | fidelity | — |
+| `stripedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `swooshArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `upDownArrow` _(dup in spec)_ | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `wave` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `wedgeEllipseCallout` | Callout | 2 | 1×ahXY | fidelity | — |
+| `wedgeRectCallout` | Callout | 2 | 1×ahXY | fidelity | — |
 
 ### Batch 5 — complex (3–8 interdependent adjustments) — 43 shapes
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `accentBorderCallout1` | Callout | 4 | 2×ahXY | pending | — |
-| `accentBorderCallout2` | Callout | 6 | 3×ahXY | pending | — |
-| `accentBorderCallout3` | Callout | 8 | 4×ahXY | pending | — |
-| `accentCallout1` | Callout | 4 | 2×ahXY | pending | — |
-| `accentCallout2` | Callout | 6 | 3×ahXY | pending | — |
-| `accentCallout3` | Callout | 8 | 4×ahXY | pending | — |
-| `bentArrow` | Arrow / ribbon | 4 | 4×ahXY | pending | — |
-| `bentConnector5` | Connector | 3 | 3×ahXY | pending | — |
-| `bentUpArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `blockArc` | Basic / geometric | 3 | 2×ahPolar | pending | — |
-| `borderCallout1` | Callout | 4 | 2×ahXY | pending | — |
-| `borderCallout2` | Callout | 6 | 3×ahXY | pending | — |
-| `borderCallout3` | Callout | 8 | 4×ahXY | pending | — |
-| `callout1` | Basic / geometric | 4 | 2×ahXY | pending | — |
-| `callout2` | Basic / geometric | 6 | 3×ahXY | pending | — |
-| `callout3` | Basic / geometric | 8 | 4×ahXY | pending | — |
-| `circularArrow` | Arrow / ribbon | 5 | 4×ahPolar | pending | — |
-| `curvedConnector5` | Connector | 3 | 3×ahXY | pending | — |
-| `curvedDownArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `curvedLeftArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `curvedRightArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `curvedUpArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `downArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `ellipseRibbon` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `ellipseRibbon2` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `leftArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `leftCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | pending | — |
-| `leftRightArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `leftRightCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | pending | — |
-| `leftRightRibbon` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `leftRightUpArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `leftUpArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `mathDivide` | Math | 3 | 3×ahXY | pending | — |
-| `mathNotEqual` | Math | 3 | 2×ahXY, 1×ahPolar | pending | — |
-| `quadArrow` | Arrow / ribbon | 3 | 3×ahXY | pending | — |
-| `quadArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `rightArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `star5` | Star / seal | 3 | 1×ahXY | pending | — |
-| `star7` | Star / seal | 3 | 1×ahXY | pending | — |
-| `upArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `upDownArrowCallout` | Callout | 4 | 4×ahXY | pending | — |
-| `uturnArrow` | Arrow / ribbon | 5 | 5×ahXY | pending | — |
-| `wedgeRoundRectCallout` | Callout | 3 | 1×ahXY | pending | — |
+| `accentBorderCallout1` | Callout | 4 | 2×ahXY | fidelity | — |
+| `accentBorderCallout2` | Callout | 6 | 3×ahXY | fidelity | — |
+| `accentBorderCallout3` | Callout | 8 | 4×ahXY | fidelity | — |
+| `accentCallout1` | Callout | 4 | 2×ahXY | fidelity | — |
+| `accentCallout2` | Callout | 6 | 3×ahXY | fidelity | — |
+| `accentCallout3` | Callout | 8 | 4×ahXY | fidelity | — |
+| `bentArrow` | Arrow / ribbon | 4 | 4×ahXY | fidelity | — |
+| `bentConnector5` | Connector | 3 | 3×ahXY | fidelity | — |
+| `bentUpArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `blockArc` | Basic / geometric | 3 | 2×ahPolar | fidelity | — |
+| `borderCallout1` | Callout | 4 | 2×ahXY | fidelity | — |
+| `borderCallout2` | Callout | 6 | 3×ahXY | fidelity | — |
+| `borderCallout3` | Callout | 8 | 4×ahXY | fidelity | — |
+| `callout1` | Basic / geometric | 4 | 2×ahXY | fidelity | — |
+| `callout2` | Basic / geometric | 6 | 3×ahXY | fidelity | — |
+| `callout3` | Basic / geometric | 8 | 4×ahXY | fidelity | — |
+| `circularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
+| `curvedConnector5` | Connector | 3 | 3×ahXY | fidelity | — |
+| `curvedDownArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `curvedLeftArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `curvedRightArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `curvedUpArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `downArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `ellipseRibbon` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `ellipseRibbon2` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `leftArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `leftCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
+| `leftRightArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `leftRightCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
+| `leftRightRibbon` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `leftRightUpArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `leftUpArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `mathDivide` | Math | 3 | 3×ahXY | fidelity | — |
+| `mathNotEqual` | Math | 3 | 2×ahXY, 1×ahPolar | fidelity | — |
+| `quadArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
+| `quadArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `rightArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `star5` | Star / seal | 3 | 1×ahXY | fidelity | — |
+| `star7` | Star / seal | 3 | 1×ahXY | fidelity | — |
+| `upArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `upDownArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `uturnArrow` | Arrow / ribbon | 5 | 5×ahXY | fidelity | — |
+| `wedgeRoundRectCallout` | Callout | 3 | 1×ahXY | fidelity | — |
 
 ---
 
