@@ -4,8 +4,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mjx_opc::Package;
-use mjx_pptx::{PptxError, Presentation, ShapeBounds};
+use mjx_opc::{Package, PartName};
+use mjx_pptx::{constants, PptxError, Presentation, ShapeBounds};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -240,6 +240,146 @@ fn add_text_box_slide_out_of_range() {
     assert!(
         matches!(err, PptxError::SlideIndexOutOfRange { .. }),
         "{err:?}"
+    );
+}
+
+fn part(name: &str) -> PartName {
+    PartName::new(name).expect("valid part name")
+}
+
+#[test]
+fn add_slide_appends_and_reopens_consistently() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    assert_eq!(pres.slide_count(), 1); // precondition
+    let idx = pres.add_slide().expect("add slide");
+    assert_eq!(idx, 1);
+    assert_eq!(pres.slide_count(), 2);
+    assert_eq!(
+        pres.slide_part(1).expect("new slide part").as_str(),
+        "/ppt/slides/slide2.xml"
+    );
+
+    // Reopen from bytes with a fresh Presentation — proves the rels→sldIdLst→rels chain we wrote is
+    // internally consistent end to end.
+    let saved = pres.save().expect("save");
+    let mut reread = Presentation::open(&saved).expect("reopen");
+    assert_eq!(reread.slide_count(), 2, "reopened deck has two slides");
+    assert_eq!(
+        reread.slide_part(1).expect("slide 1").as_str(),
+        "/ppt/slides/slide2.xml"
+    );
+    // The new slide is blank (no shapes); slide 0 is untouched.
+    assert_eq!(reread.shape_count(1).expect("new slide shapes"), 0);
+    assert_eq!(
+        reread.shape_text(0, 0).expect("slide 0 text"),
+        "Hello OOXML"
+    );
+}
+
+#[test]
+fn added_slide_registers_content_type_and_layout_rel() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_slide().expect("add slide");
+    let saved = pres.save().expect("save");
+    let pkg = Package::open(&saved).expect("reopen package");
+
+    // Content-type Override for the new slide part.
+    assert_eq!(
+        pkg.content_type_of(&part("/ppt/slides/slide2.xml")),
+        Some(constants::CONTENT_TYPE_SLIDE)
+    );
+
+    // The new slide's .rels carries exactly the slideLayout relationship, to slide 0's layout target.
+    let rels = pkg
+        .relationships_for(Some(&part("/ppt/slides/slide2.xml")))
+        .expect("new slide has rels");
+    let layout: Vec<_> = rels.by_type(constants::REL_SLIDE_LAYOUT).collect();
+    assert_eq!(layout.len(), 1, "exactly one slideLayout rel");
+    assert_eq!(layout[0].id, "rId1");
+    assert_eq!(layout[0].target, "../slideLayouts/slideLayout1.xml");
+}
+
+#[test]
+fn added_slide_numbers_the_three_id_domains() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_slide().expect("add slide");
+    let saved = pres.save().expect("save");
+    let map = byte_map(&Package::open(&saved).expect("reopen"));
+
+    // Presentation-scoped rId: fixture max is rId3 → rId4 for the new slide.
+    let pres_rels = String::from_utf8(map["ppt/_rels/presentation.xml.rels"].clone()).unwrap();
+    assert!(pres_rels.contains(r#"Id="rId4""#), "{pres_rels}");
+    assert!(
+        pres_rels.contains(r#"Target="slides/slide2.xml""#),
+        "{pres_rels}"
+    );
+
+    // Deck-scoped sldId (>=256): fixture has id=256 → 257; masters' 2147483648 must be untouched.
+    let presentation = String::from_utf8(map["ppt/presentation.xml"].clone()).unwrap();
+    assert_eq!(
+        presentation.matches("<p:sldId ").count(),
+        2,
+        "two sldIds now: {presentation}"
+    );
+    assert!(
+        presentation.contains(r#"<p:sldId id="257" r:id="rId4"/>"#),
+        "{presentation}"
+    );
+    assert!(
+        presentation.contains(r#"id="2147483648""#),
+        "master id untouched: {presentation}"
+    );
+}
+
+#[test]
+fn add_slide_leaves_untouched_parts_byte_identical() {
+    let bytes = fixture("sample.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("open baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.add_slide().expect("add slide");
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    // Only these three pre-existing parts change; two new parts appear.
+    const CHANGED: [&str; 3] = [
+        "ppt/presentation.xml",
+        "ppt/_rels/presentation.xml.rels",
+        "[Content_Types].xml",
+    ];
+    for (name, original) in &snapshot {
+        if CHANGED.contains(&name.as_str()) {
+            assert_ne!(reopened.get(name), Some(original), "{name} should change");
+        } else {
+            assert_eq!(
+                reopened.get(name),
+                Some(original),
+                "part {name} must be byte-identical"
+            );
+        }
+    }
+    assert!(
+        reopened.contains_key("ppt/slides/slide2.xml"),
+        "new slide part added"
+    );
+    assert!(
+        reopened.contains_key("ppt/slides/_rels/slide2.xml.rels"),
+        "new slide rels added"
+    );
+}
+
+#[test]
+fn add_slide_with_text_carries_a_shape() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_slide_with_text("On a new slide", CANARY_BOUNDS)
+        .expect("add slide with text");
+    assert_eq!(idx, 1);
+
+    let mut reread = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(reread.shape_count(1).expect("shapes on new slide"), 1);
+    assert_eq!(
+        reread.shape_text(1, 0).expect("new slide text"),
+        "On a new slide"
     );
 }
 

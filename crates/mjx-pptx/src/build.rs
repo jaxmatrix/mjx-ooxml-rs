@@ -13,7 +13,7 @@
 //! Each element also records its resolved namespace ([`qname`] interns `ns.transitional`) so the
 //! read-back path ([`crate::nav::name_is`]) can find the element by `(namespace, local)`.
 
-use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
+use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode, Symbol};
 use mjx_ooxml_types::namespaces::SchemaNamespace;
 use mjx_xml::text::escape_text;
 
@@ -38,6 +38,26 @@ pub(crate) fn attr(interner: &mut Interner, name: &str, value: &str) -> RawAttri
         name: RawName {
             prefix: None,
             local: interner.intern(name),
+            namespace: None,
+        },
+        value: escape_attribute(value),
+        quote: QuoteStyle::Double,
+    }
+}
+
+/// A prefixed attribute `prefix:local="value"` (value escaped), reusing an already-interned prefix
+/// symbol — used for attributes whose namespace the fidelity reader does not resolve (e.g. the `r`
+/// bound to the relationships namespace, for `r:id`).
+pub(crate) fn attr_prefixed(
+    interner: &mut Interner,
+    prefix: Symbol,
+    local: &str,
+    value: &str,
+) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: Some(prefix),
+            local: interner.intern(local),
             namespace: None,
         },
         value: escape_attribute(value),
@@ -100,6 +120,28 @@ pub(crate) fn text_leaf(
         children,
         empty: false,
     }
+}
+
+/// The bytes of a minimal, Office-valid empty slide: a `p:sld` with an empty shape tree and a
+/// master colour-map override (`a:masterClrMapping` = inherit the master's colours). This is a fresh
+/// part with its own root, so — unlike a subtree spliced into an existing slide — it must declare its
+/// own namespaces.
+pub(crate) fn empty_slide_bytes() -> Vec<u8> {
+    concat!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+        "\n",
+        r#"<p:sld xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main""#,
+        r#" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
+        r#" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
+        r#"<p:cSld><p:spTree>"#,
+        r#"<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"#,
+        r#"<p:grpSpPr/>"#,
+        r#"</p:spTree></p:cSld>"#,
+        r#"<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"#,
+        r#"</p:sld>"#,
+    )
+    .as_bytes()
+    .to_vec()
 }
 
 /// Escapes `value` as bytes for a double-quoted XML attribute (`&`, `<`, `"`). The fidelity writer
@@ -166,6 +208,25 @@ mod tests {
         let mut interner = Interner::new();
         let element = text_leaf(&mut interner, "a", DML_MAIN, "t", Vec::new(), "a<b&c");
         assert_eq!(serialize(interner, element), "<a:t>a&lt;b&amp;c</a:t>");
+    }
+
+    #[test]
+    fn empty_slide_template_parses_to_a_blank_shape_tree() {
+        let doc = mjx_xml::fidelity::parse(&empty_slide_bytes()).expect("template is well-formed");
+        // p:sld > p:cSld > p:spTree, and the tree has no p:sp shapes.
+        assert!(nav::name_is(&doc.root.name, &doc.interner, PML, "sld"));
+        let c_sld = nav::child(&doc.root, &doc.interner, PML, "cSld").expect("p:cSld");
+        let sp_tree = nav::child(c_sld, &doc.interner, PML, "spTree").expect("p:spTree");
+        assert_eq!(nav::children(sp_tree, &doc.interner, PML, "sp").count(), 0);
+    }
+
+    #[test]
+    fn attr_prefixed_emits_prefixed_name() {
+        let mut interner = Interner::new();
+        let prefix = interner.intern("r");
+        let a = attr_prefixed(&mut interner, prefix, "id", "rId7");
+        let element = leaf(&mut interner, "p", PML, "sldId", vec![a]);
+        assert_eq!(serialize(interner, element), r#"<p:sldId r:id="rId7"/>"#);
     }
 
     #[test]

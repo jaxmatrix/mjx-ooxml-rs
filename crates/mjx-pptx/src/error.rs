@@ -93,4 +93,8 @@ pub enum PptxError {
     /// The selected run has no `a:t` text element to set.
     #[error("run has no text element")]
     RunHasNoText,
+
+    /// A slide cannot be added because there is no existing slide to inherit a layout from.
+    #[error("cannot add a slide: no existing slide to borrow a layout from")]
+    NoSlideLayout,
 }
