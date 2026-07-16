@@ -9,64 +9,89 @@ use std::fmt::Write as _;
 use anyhow::Result;
 
 use crate::codegen::spec;
-use crate::codegen::xsd::{parse_simple_types, SimpleKind};
+use crate::codegen::xsd::{parse_simple_types, SimpleKind, SimpleType};
+
+/// Module-level doc block for the `shared` module (see [`file_header`]).
+const SHARED_MODULE_DOC: &str =
+    "//! Comprehensively-named OOXML simple types (see the naming convention in `PLAN.md`).\n\
+     //!\n\
+     //! Each item records its original `ST_*` symbol and exact wire token(s).\n\n";
+
+/// Module-level doc block for the `drawingml` module (see [`file_header`]).
+const DRAWINGML_MODULE_DOC: &str =
+    "//! Comprehensively-named DrawingML simple types (see the naming convention in `PLAN.md`).\n\
+     //!\n\
+     //! Selected from `dml-main.xsd`; each item records its original `ST_*` symbol and exact wire\n\
+     //! token(s). Types join the allowlist as the DrawingML workstream ports them.\n\n";
 
 /// Renders the `shared` module from the `shared-commonSimpleTypes.xsd` bytes.
 pub fn emit_shared_types(xsd: &[u8], source_note: &str) -> Result<String> {
     let types = parse_simple_types(xsd)?;
     let mut out = String::new();
-    out.push_str(&file_header(source_note));
-
+    out.push_str(&file_header(source_note, SHARED_MODULE_DOC));
     for st in &types {
-        if spec::SKIP_TYPES.contains(&st.name.as_str()) {
-            let _ = writeln!(
-                out,
-                "// `{}` — subsumed by another representation; intentionally not emitted.\n",
-                st.name
-            );
-            continue;
-        }
-        if let Some((normalizer, optional)) = spec::bool_kind(&st.name) {
-            out.push_str(&emit_bool_alias(&st.name, normalizer, optional));
-            continue;
-        }
-        match &st.kind {
-            SimpleKind::Enumeration { base, values } => {
-                out.push_str(&emit_enum(&st.name, base, values));
-            }
-            SimpleKind::Restriction { base, pattern } => {
-                if pattern.is_none() {
-                    if let Some(primitive) = spec::primitive_for(base) {
-                        out.push_str(&emit_primitive_alias(&st.name, base, primitive));
-                        continue;
-                    }
-                }
-                out.push_str(&emit_string_newtype(&st.name, base, pattern.as_deref()));
-            }
-            SimpleKind::Union { members } => {
-                let note = format!("union of {}", members.join(" | "));
-                out.push_str(&emit_string_newtype(&st.name, &note, None));
-            }
-            SimpleKind::List { item } => {
-                let note = format!("list of {item}");
-                out.push_str(&emit_string_newtype(&st.name, &note, None));
-            }
-        }
+        out.push_str(&emit_simple_type(st));
     }
-
     Ok(out)
 }
 
-fn file_header(source_note: &str) -> String {
+/// Renders a module holding only the `allowlist`ed simple types from `xsd`, in schema order.
+///
+/// Used for large schemas (e.g. `dml-main.xsd`) where emitting *every* simple type would produce
+/// hundreds of un-curated names; the allowlist grows as each type is given a comprehensive name.
+pub fn emit_selected_types(xsd: &[u8], source_note: &str, allowlist: &[&str]) -> Result<String> {
+    let types = parse_simple_types(xsd)?;
+    let mut out = String::new();
+    out.push_str(&file_header(source_note, DRAWINGML_MODULE_DOC));
+    for st in &types {
+        if allowlist.contains(&st.name.as_str()) {
+            out.push_str(&emit_simple_type(st));
+        }
+    }
+    Ok(out)
+}
+
+/// Renders the Rust source for one simple type (skip comment, bool alias, enum, newtype, or numeric
+/// alias — the classification the shared and selected emitters share).
+fn emit_simple_type(st: &SimpleType) -> String {
+    if spec::SKIP_TYPES.contains(&st.name.as_str()) {
+        return format!(
+            "// `{}` — subsumed by another representation; intentionally not emitted.\n\n",
+            st.name
+        );
+    }
+    if let Some((normalizer, optional)) = spec::bool_kind(&st.name) {
+        return emit_bool_alias(&st.name, normalizer, optional);
+    }
+    match &st.kind {
+        SimpleKind::Enumeration { base, values } => emit_enum(&st.name, base, values),
+        SimpleKind::Restriction { base, pattern } => {
+            if pattern.is_none() {
+                if let Some(primitive) = spec::primitive_for(base) {
+                    return emit_primitive_alias(&st.name, base, primitive);
+                }
+            }
+            emit_string_newtype(&st.name, base, pattern.as_deref())
+        }
+        SimpleKind::Union { members } => {
+            let note = format!("union of {}", members.join(" | "));
+            emit_string_newtype(&st.name, &note, None)
+        }
+        SimpleKind::List { item } => {
+            let note = format!("list of {item}");
+            emit_string_newtype(&st.name, &note, None)
+        }
+    }
+}
+
+fn file_header(source_note: &str, module_doc: &str) -> String {
     format!(
         "// @generated by xtask — do not edit.\n\
          //\n\
          // Regenerate with: cargo run -p xtask -- codegen\n\
          // Source: {source_note}\n\
          #![allow(clippy::enum_variant_names)]\n\
-         //! Comprehensively-named OOXML simple types (see the naming convention in `PLAN.md`).\n\
-         //!\n\
-         //! Each item records its original `ST_*` symbol and exact wire token(s).\n\n"
+         {module_doc}"
     )
 }
 
