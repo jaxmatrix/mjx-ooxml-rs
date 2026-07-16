@@ -73,9 +73,18 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
   from `presetShapeDefinitions.xml`, native spec units; computed bounds kept as `Guide(name)`) + a
   generic runtime API on `PresetGeometry` (`adjustment`/`adjustments`/`set_adjustment`) that reads/sets
   adjustments **by wire name**. Standard-faithful: regenerating ships new/changed shapes immediately.
-- **Typed tier — in progress (batches below).** Per-shape hand-written structs (a `ShapeGeometry`
-  enum) with self-explanatory named fields in friendly units (fractions `0.0..=1.0`, radians, points),
-  built on the mechanical table. One reviewable PR per batch (semantics need review).
+- **Typed tier — in progress.** Per-shape hand-written structs (a `ShapeGeometry` enum, read via
+  `PresetGeometry::shape()` / written via `set_shape()`) with self-explanatory named fields in friendly
+  units (fractions as `f64`; angles→radians and lengths→points arrive with the batches that use them),
+  built on the mechanical table. One reviewable PR per family (semantics need review). **Anchor batch
+  done:** the 7 corner-radius/cut rectangles + the 10 N-point stars (17 shapes, all `named` below).
+  A new `mjx-dml::geometry` measures module holds `Fraction`.
+
+  **Batches follow `adjustments_of` (real user-facing adjustments), not the ledger's raw `avLst`
+  counts.** So handle-less `avLst` shapes (`decagon`, `heptagon`, `pentagon`) are *parameterless*, and
+  `hexagon` + all stars are *single-adjustment* — even where the tables below place them in a different
+  section by `avLst` count (e.g. `star5`/`star6`/`star7`/`star10` sit in the 2–3 adjust sections but
+  are single-adjustment and are `named` here).
 
 ## Batch plan (each a reviewable, always-green PR that updates this ledger)
 
@@ -196,8 +205,8 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `decagon` | Basic / geometric | 1 | — | fidelity | — |
 | `diagStripe` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `donut` | Basic / geometric | 1 | 1×ahPolar | fidelity | — |
-| `foldedCorner` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `frame` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `foldedCorner` | Basic / geometric | 1 | 1×ahXY | named | `fold_size` |
+| `frame` | Basic / geometric | 1 | 1×ahXY | named | `border_thickness` |
 | `homePlate` | Arrow / ribbon | 1 | 1×ahXY | fidelity | — |
 | `horizontalScroll` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `leftBracket` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
@@ -206,21 +215,21 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `mathPlus` | Math | 1 | 1×ahXY | fidelity | — |
 | `moon` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `noSmoking` | Basic / geometric | 1 | 1×ahPolar | fidelity | — |
-| `octagon` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `octagon` | Basic / geometric | 1 | 1×ahXY | named | `corner_cut` |
 | `parallelogram` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `plaque` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `plaque` | Basic / geometric | 1 | 1×ahXY | named | `corner_size` |
 | `plus` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `rightBracket` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `round1Rect` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `roundRect` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
+| `round1Rect` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
+| `roundRect` | Basic / geometric | 1 | 1×ahXY | named | `corner_radius` |
 | `smileyFace` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `snip1Rect` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
-| `star12` | Star / seal | 1 | 1×ahXY | fidelity | — |
-| `star16` | Star / seal | 1 | 1×ahXY | fidelity | — |
-| `star24` | Star / seal | 1 | 1×ahXY | fidelity | — |
-| `star32` | Star / seal | 1 | 1×ahXY | fidelity | — |
-| `star4` | Star / seal | 1 | 1×ahXY | fidelity | — |
-| `star8` | Star / seal | 1 | 1×ahXY | fidelity | — |
+| `snip1Rect` | Basic / geometric | 1 | 1×ahXY | named | `snip_size` |
+| `star12` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
+| `star16` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
+| `star24` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
+| `star32` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
+| `star4` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
+| `star8` | Star / seal | 1 | 1×ahXY | named | `inner_radius` |
 | `sun` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `teardrop` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
 | `trapezoid` | Basic / geometric | 1 | 1×ahXY | fidelity | — |
@@ -261,8 +270,8 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `snip2DiagRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
 | `snip2SameRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
 | `snipRoundRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `star10` | Star / seal | 2 | 1×ahXY | fidelity | — |
-| `star6` | Star / seal | 2 | 1×ahXY | fidelity | — |
+| `star10` | Star / seal | 2 | 1×ahXY | named | `inner_radius` |
+| `star6` | Star / seal | 2 | 1×ahXY | named | `inner_radius` |
 | `stripedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
 | `swooshArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
 | `upDownArrow` _(dup in spec)_ | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
@@ -311,8 +320,8 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `quadArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
 | `quadArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
 | `rightArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
-| `star5` | Star / seal | 3 | 1×ahXY | fidelity | — |
-| `star7` | Star / seal | 3 | 1×ahXY | fidelity | — |
+| `star5` | Star / seal | 3 | 1×ahXY | named | `inner_radius` |
+| `star7` | Star / seal | 3 | 1×ahXY | named | `inner_radius` |
 | `upArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
 | `upDownArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
 | `uturnArrow` | Arrow / ribbon | 5 | 5×ahXY | fidelity | — |
