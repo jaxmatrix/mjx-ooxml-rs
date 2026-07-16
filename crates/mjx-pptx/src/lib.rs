@@ -18,11 +18,14 @@
 //! # }
 //! ```
 
+mod build;
 pub mod constants;
 mod error;
+mod geometry;
 mod nav;
 mod presentation;
 mod slide;
 
 pub use error::PptxError;
+pub use geometry::ShapeBounds;
 pub use presentation::Presentation;
