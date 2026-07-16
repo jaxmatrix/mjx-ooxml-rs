@@ -418,3 +418,94 @@ fn set_callout3_writes_all_eight_adjustments() {
     assert_close(vertex3_y, 1.0);
     assert_close(vertex4_x, -0.1);
 }
+
+// --- 3-adjustment arrows / ribbons / connectors (Batch 5b-i) ---
+
+#[test]
+fn reads_and_sets_unbounded_connector_bends() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="bentConnector5"/>"#);
+    let (mut geom, mut doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::BentConnector5 {
+        bend1_x,
+        bend2_y,
+        bend3_x,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected BentConnector5");
+    };
+    assert_close(bend1_x, 0.5);
+    assert_close(bend2_y, 0.5);
+    assert_close(bend3_x, 0.5);
+
+    // Bend positions are unbounded — a value beyond 0..1 round-trips.
+    geom.set_shape(
+        &mut doc.interner,
+        ShapeGeometry::BentConnector5 {
+            bend1_x: Fraction::from_ratio(1.2),
+            bend2_y: Fraction::from_ratio(0.5),
+            bend3_x: Fraction::from_ratio(-0.1),
+        },
+    );
+    assert_eq!(geom.adjustment(&doc.interner, "adj1"), Some(120000));
+    assert_eq!(geom.adjustment(&doc.interner, "adj3"), Some(-10000));
+    let Some(ShapeGeometry::BentConnector5 {
+        bend1_x, bend3_x, ..
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected BentConnector5");
+    };
+    assert_close(bend1_x, 1.2);
+    assert_close(bend3_x, -0.1);
+}
+
+#[test]
+fn reads_curved_arrow_body_head() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="curvedRightArrow"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::CurvedRightArrow {
+        body_thickness,
+        head_width,
+        head_length,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected CurvedRightArrow");
+    };
+    assert_close(body_thickness, 0.25);
+    assert_close(head_width, 0.5);
+    assert_close(head_length, 0.25);
+}
+
+#[test]
+fn reads_ellipse_ribbon() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="ellipseRibbon"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::EllipseRibbon {
+        arch_height,
+        center_width,
+        fold_thickness,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected EllipseRibbon");
+    };
+    assert_close(arch_height, 0.25);
+    assert_close(center_width, 0.5);
+    assert_close(fold_thickness, 0.125);
+}
+
+#[test]
+fn set_quad_arrow_writes_three_adjustments() {
+    let mut interner = Interner::new();
+    let mut geom = PresetGeometry::new(&mut interner, PresetShapeType::Rectangle, None);
+    geom.set_shape(
+        &mut interner,
+        ShapeGeometry::QuadArrow {
+            shaft_thickness: Fraction::from_ratio(0.3),
+            head_width: Fraction::from_ratio(0.4),
+            head_length: Fraction::from_ratio(0.35),
+        },
+    );
+    assert_eq!(
+        serialize_built(interner, &geom),
+        r#"<a:prstGeom prst="quadArrow"><a:avLst><a:gd name="adj1" fmla="val 30000"/><a:gd name="adj2" fmla="val 40000"/><a:gd name="adj3" fmla="val 35000"/></a:avLst></a:prstGeom>"#
+    );
+}
