@@ -20,7 +20,7 @@ pub mod geometry;
 pub mod text;
 
 pub use geometry::{
-    GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
-    PresetGeometryContent, ResolvedAdjustment,
+    Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
+    PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
 };
 pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
