@@ -764,6 +764,123 @@ pub enum ShapeGeometry {
         /// Leader vertex 4 (pointer tip), y as a signed fraction of the height.
         vertex4_y: Fraction,
     },
+    /// `bentConnector5` — a 5-segment bent connector. The three bend positions of the connector route, as fractions of width/height/width (unbounded — may leave 0..1).
+    BentConnector5 {
+        /// Bend1 x, as a fraction of the width.
+        bend1_x: Fraction,
+        /// Bend2 y, as a fraction of the height.
+        bend2_y: Fraction,
+        /// Bend3 x, as a fraction of the width.
+        bend3_x: Fraction,
+    },
+    /// `curvedConnector5` — a 5-segment curved connector. The three curve control positions, as fractions of width/height/width (unbounded — may leave 0..1).
+    CurvedConnector5 {
+        /// Bend1 x, as a fraction of the width.
+        bend1_x: Fraction,
+        /// Bend2 y, as a fraction of the height.
+        bend2_y: Fraction,
+        /// Bend3 x, as a fraction of the width.
+        bend3_x: Fraction,
+    },
+    /// `curvedDownArrow` — a downward curved arrow. Curved-band body thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    CurvedDownArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `curvedUpArrow` — an upward curved arrow. Curved-band body thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    CurvedUpArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `curvedLeftArrow` — a leftward curved arrow. Curved-band body thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    CurvedLeftArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `curvedRightArrow` — a rightward curved arrow. Curved-band body thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    CurvedRightArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `ellipseRibbon` — a downward-arched ribbon banner. Ribbon arch height, central panel width, and folded-strip thickness (fractions of height/width/height).
+    EllipseRibbon {
+        /// Arch height, as a fraction of the height.
+        arch_height: Fraction,
+        /// Center width, as a fraction of the width.
+        center_width: Fraction,
+        /// Fold thickness, as a fraction of the height.
+        fold_thickness: Fraction,
+    },
+    /// `ellipseRibbon2` — an upward-arched ribbon banner. Ribbon arch height, central panel width, and folded-strip thickness (fractions of height/width/height).
+    EllipseRibbon2 {
+        /// Arch height, as a fraction of the height.
+        arch_height: Fraction,
+        /// Center width, as a fraction of the width.
+        center_width: Fraction,
+        /// Fold thickness, as a fraction of the height.
+        fold_thickness: Fraction,
+    },
+    /// `leftRightRibbon` — a left-right ribbon banner. Ribbon band height, tapered end width, and the center crossing fold (fractions of height/shorter-side/height).
+    LeftRightRibbon {
+        /// Band height, as a fraction of the height.
+        band_height: Fraction,
+        /// End width, as a fraction of the shorter side.
+        end_width: Fraction,
+        /// Center fold, as a fraction of the height.
+        center_fold: Fraction,
+    },
+    /// `bentUpArrow` — a bent arrow turning upward. Arrow shaft thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    BentUpArrow {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `leftUpArrow` — an arrow pointing left and up. Arrow shaft thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    LeftUpArrow {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `leftRightUpArrow` — a three-way (left/right/up) arrow. Arrow shaft thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    LeftRightUpArrow {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
+    /// `quadArrow` — a four-way arrow. Arrow shaft thickness, arrowhead width, and arrowhead length, each a fraction of the shorter side.
+    QuadArrow {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+        /// Head length, as a fraction of the shorter side.
+        head_length: Fraction,
+    },
     /// A known preset this tier does not yet model. Its adjustments (if any) remain available by wire
     /// name through [`PresetGeometry::adjustment`] / [`set_adjustment`](PresetGeometry::set_adjustment).
     Unmodeled(PresetShapeType),
@@ -1154,6 +1271,71 @@ impl PresetGeometry {
                 vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
                 vertex4_x: self.fraction(interner, "adj8", FRACTION_DENOM),
                 vertex4_y: self.fraction(interner, "adj7", FRACTION_DENOM),
+            },
+            PresetShapeType::BentConnector5 => ShapeGeometry::BentConnector5 {
+                bend1_x: self.fraction(interner, "adj1", FRACTION_DENOM),
+                bend2_y: self.fraction(interner, "adj2", FRACTION_DENOM),
+                bend3_x: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::CurvedConnector5 => ShapeGeometry::CurvedConnector5 {
+                bend1_x: self.fraction(interner, "adj1", FRACTION_DENOM),
+                bend2_y: self.fraction(interner, "adj2", FRACTION_DENOM),
+                bend3_x: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::CurvedDownArrow => ShapeGeometry::CurvedDownArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::CurvedUpArrow => ShapeGeometry::CurvedUpArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::CurvedLeftArrow => ShapeGeometry::CurvedLeftArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::CurvedRightArrow => ShapeGeometry::CurvedRightArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::EllipseRibbon => ShapeGeometry::EllipseRibbon {
+                arch_height: self.fraction(interner, "adj1", FRACTION_DENOM),
+                center_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                fold_thickness: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::EllipseRibbon2 => ShapeGeometry::EllipseRibbon2 {
+                arch_height: self.fraction(interner, "adj1", FRACTION_DENOM),
+                center_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                fold_thickness: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftRightRibbon => ShapeGeometry::LeftRightRibbon {
+                band_height: self.fraction(interner, "adj1", FRACTION_DENOM),
+                end_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                center_fold: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::BentUpArrow => ShapeGeometry::BentUpArrow {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftUpArrow => ShapeGeometry::LeftUpArrow {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftRightUpArrow => ShapeGeometry::LeftRightUpArrow {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::QuadArrow => ShapeGeometry::QuadArrow {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
             },
             other => ShapeGeometry::Unmodeled(other),
         })
@@ -2746,6 +2928,357 @@ impl PresetGeometry {
                     PresetShapeType::AccentBorderCallout3,
                     "adj8",
                     vertex4_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BentConnector5 {
+                bend1_x,
+                bend2_y,
+                bend3_x,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::BentConnector5,
+                    "adj1",
+                    bend1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentConnector5,
+                    "adj2",
+                    bend2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentConnector5,
+                    "adj3",
+                    bend3_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::CurvedConnector5 {
+                bend1_x,
+                bend2_y,
+                bend3_x,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedConnector5,
+                    "adj1",
+                    bend1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedConnector5,
+                    "adj2",
+                    bend2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedConnector5,
+                    "adj3",
+                    bend3_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::CurvedDownArrow {
+                body_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedDownArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedDownArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedDownArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::CurvedUpArrow {
+                body_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedUpArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedUpArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedUpArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::CurvedLeftArrow {
+                body_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedLeftArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedLeftArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedLeftArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::CurvedRightArrow {
+                body_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedRightArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedRightArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CurvedRightArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::EllipseRibbon {
+                arch_height,
+                center_width,
+                fold_thickness,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::EllipseRibbon,
+                    "adj1",
+                    arch_height,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::EllipseRibbon,
+                    "adj2",
+                    center_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::EllipseRibbon,
+                    "adj3",
+                    fold_thickness,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::EllipseRibbon2 {
+                arch_height,
+                center_width,
+                fold_thickness,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::EllipseRibbon2,
+                    "adj1",
+                    arch_height,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::EllipseRibbon2,
+                    "adj2",
+                    center_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::EllipseRibbon2,
+                    "adj3",
+                    fold_thickness,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftRightRibbon {
+                band_height,
+                end_width,
+                center_fold,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightRibbon,
+                    "adj1",
+                    band_height,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightRibbon,
+                    "adj2",
+                    end_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightRibbon,
+                    "adj3",
+                    center_fold,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BentUpArrow {
+                shaft_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::BentUpArrow,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentUpArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentUpArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftUpArrow {
+                shaft_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftUpArrow,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftUpArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftUpArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftRightUpArrow {
+                shaft_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightUpArrow,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightUpArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightUpArrow,
+                    "adj3",
+                    head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::QuadArrow {
+                shaft_thickness,
+                head_width,
+                head_length,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrow,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrow,
+                    "adj2",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrow,
+                    "adj3",
+                    head_length,
                     FRACTION_DENOM,
                 );
             }
