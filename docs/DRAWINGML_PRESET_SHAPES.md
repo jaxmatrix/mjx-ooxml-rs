@@ -76,11 +76,12 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
 - **Typed tier — in progress.** Per-shape hand-written structs (a `ShapeGeometry` enum, read via
   `PresetGeometry::shape()` / written via `set_shape()`) with self-explanatory named fields in friendly
   units (fractions as `f64`; angles→radians and lengths→points arrive with the batches that use them),
-  built on the mechanical table. One reviewable PR per batch (semantics need review). **Single-adjustment
-  tier done:** all **43** single-adjustment shapes are `named` (corner/snip rectangles, N-point stars,
-  brackets/braces, math symbols, polygons, polar donut/noSmoking, scrolls, 3D can/cube/bevel, misc) —
-  the 45 minus `teardrop`/`sun`, which stay `Unmodeled` (spec-ambiguous, pending ECMA prose). A new
-  `mjx-dml::geometry::measures` module holds `Fraction`. **Next: batch 4 (two-adjustment shapes).**
+  built on the mechanical table. One reviewable PR per batch (semantics need review). **Single- and
+  two-adjustment tiers done:** all **43** single-adjustment shapes + all **34** two-adjustment shapes are
+  `named` (`teardrop`/`sun` stay `Unmodeled` — spec-ambiguous, pending ECMA prose). `mjx-dml::geometry::
+  measures` holds `Fraction` and `Angle` (radians; for `arc`/`chord`/`pie`). Three two-adjustment shapes
+  (`swooshArrow`, `corner`, `halfFrame`) carry formula-derived names flagged for reviewer confirmation.
+  **Next: batch 5 (complex, 3–8 adjustments).**
 
   **Batches follow `adjustments_of` (real user-facing adjustments), not the ledger's raw `avLst`
   counts.** So handle-less `avLst` shapes (`decagon`, `heptagon`, `pentagon`) are *parameterless*, and
@@ -100,7 +101,8 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
    needed.
 3. **Single adjustment — ✅ done** (typed tier). All 43 single-adjustment shapes (by `adjustments_of`)
    are `named`; `teardrop`/`sun` deferred (spec-ambiguous).
-4. **Two adjustments** — 38 shapes.
+4. **Two adjustments — ✅ done** (typed tier). All 34 two-adjustment shapes (by `adjustments_of`) are
+   `named`; introduced the `Angle` measure for `arc`/`chord`/`pie`.
 5. **Complex** — 43 shapes (3–8 interdependent adjusts), hand-curated names in sub-batches.
 
 ## Anomalies (in `presetShapeDefinitions.xml`)
@@ -243,44 +245,44 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `arc` | Basic / geometric | 2 | 2×ahPolar | fidelity | — |
-| `bentConnector4` | Connector | 2 | 2×ahXY | fidelity | — |
-| `chord` | Basic / geometric | 2 | 2×ahPolar | fidelity | — |
-| `cloudCallout` | Callout | 2 | 1×ahXY | fidelity | — |
-| `corner` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `curvedConnector4` | Connector | 2 | 2×ahXY | fidelity | — |
-| `doubleWave` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `downArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `gear6` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `gear9` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `halfFrame` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `arc` | Basic / geometric | 2 | 2×ahPolar | named | `start_angle`, `end_angle` |
+| `bentConnector4` | Connector | 2 | 2×ahXY | named | `bend_x`, `bend_y` |
+| `chord` | Basic / geometric | 2 | 2×ahPolar | named | `start_angle`, `end_angle` |
+| `cloudCallout` | Callout | 2 | 1×ahXY | named | `tail_x`, `tail_y` |
+| `corner` | Basic / geometric | 2 | 2×ahXY | named | `horizontal_arm_thickness`, `vertical_arm_thickness` |
+| `curvedConnector4` | Connector | 2 | 2×ahXY | named | `bend_x`, `bend_y` |
+| `doubleWave` | Basic / geometric | 2 | 2×ahXY | named | `amplitude`, `skew` |
+| `downArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
+| `gear6` | Basic / geometric | 2 | 2×ahXY | named | `tooth_depth`, `tooth_width` |
+| `gear9` | Basic / geometric | 2 | 2×ahXY | named | `tooth_depth`, `tooth_width` |
+| `halfFrame` | Basic / geometric | 2 | 2×ahXY | named | `top_arm_thickness`, `side_arm_thickness` |
 | `heptagon` | Basic / geometric | 2 | — | fidelity | — |
 | `hexagon` | Basic / geometric | 2 | 1×ahXY | named | `point_inset` |
-| `leftArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `leftBrace` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `leftRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `mathEqual` | Math | 2 | 2×ahXY | fidelity | — |
-| `nonIsoscelesTrapezoid` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `notchedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
+| `leftArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
+| `leftBrace` | Basic / geometric | 2 | 2×ahXY | named | `curl_radius`, `point_position` |
+| `leftRightArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
+| `mathEqual` | Math | 2 | 2×ahXY | named | `bar_thickness`, `bar_gap` |
+| `nonIsoscelesTrapezoid` | Basic / geometric | 2 | 2×ahXY | named | `left_top_inset`, `right_top_inset` |
+| `notchedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
 | `pentagon` | Basic / geometric | 2 | — | fidelity | — |
-| `pie` | Basic / geometric | 2 | 2×ahPolar | fidelity | — |
-| `ribbon` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `ribbon2` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `rightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `rightBrace` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `round2DiagRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `round2SameRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `snip2DiagRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `snip2SameRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `snipRoundRect` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
+| `pie` | Basic / geometric | 2 | 2×ahPolar | named | `start_angle`, `end_angle` |
+| `ribbon` | Arrow / ribbon | 2 | 2×ahXY | named | `band_height`, `panel_width` |
+| `ribbon2` | Arrow / ribbon | 2 | 2×ahXY | named | `band_height`, `panel_width` |
+| `rightArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
+| `rightBrace` | Basic / geometric | 2 | 2×ahXY | named | `curl_radius`, `point_position` |
+| `round2DiagRect` | Basic / geometric | 2 | 2×ahXY | named | `top_left_bottom_right_radius`, `top_right_bottom_left_radius` |
+| `round2SameRect` | Basic / geometric | 2 | 2×ahXY | named | `top_corner_radius`, `bottom_corner_radius` |
+| `snip2DiagRect` | Basic / geometric | 2 | 2×ahXY | named | `top_left_bottom_right_snip`, `top_right_bottom_left_snip` |
+| `snip2SameRect` | Basic / geometric | 2 | 2×ahXY | named | `top_corner_snip`, `bottom_corner_snip` |
+| `snipRoundRect` | Basic / geometric | 2 | 2×ahXY | named | `round_corner_radius`, `snip_corner_size` |
 | `star10` | Star / seal | 2 | 1×ahXY | named | `inner_radius` |
 | `star6` | Star / seal | 2 | 1×ahXY | named | `inner_radius` |
-| `stripedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `swooshArrow` | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `upDownArrow` _(dup in spec)_ | Arrow / ribbon | 2 | 2×ahXY | fidelity | — |
-| `wave` | Basic / geometric | 2 | 2×ahXY | fidelity | — |
-| `wedgeEllipseCallout` | Callout | 2 | 1×ahXY | fidelity | — |
-| `wedgeRectCallout` | Callout | 2 | 1×ahXY | fidelity | — |
+| `stripedRightArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
+| `swooshArrow` | Arrow / ribbon | 2 | 2×ahXY | named | `head_thickness`, `head_length` |
+| `upDownArrow` _(dup in spec)_ | Arrow / ribbon | 2 | 2×ahXY | named | `shaft_thickness`, `head_length` |
+| `wave` | Basic / geometric | 2 | 2×ahXY | named | `amplitude`, `skew` |
+| `wedgeEllipseCallout` | Callout | 2 | 1×ahXY | named | `tail_x`, `tail_y` |
+| `wedgeRectCallout` | Callout | 2 | 1×ahXY | named | `tail_x`, `tail_y` |
 
 ### Batch 5 — complex (3–8 interdependent adjustments) — 43 shapes
 
@@ -328,7 +330,7 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `upArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
 | `upDownArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
 | `uturnArrow` | Arrow / ribbon | 5 | 5×ahXY | fidelity | — |
-| `wedgeRoundRectCallout` | Callout | 3 | 1×ahXY | fidelity | — |
+| `wedgeRoundRectCallout` | Callout | 3 | 1×ahXY | named | `tail_x`, `tail_y` |
 
 ---
 
