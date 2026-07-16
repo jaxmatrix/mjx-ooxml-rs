@@ -336,3 +336,85 @@ fn set_shape_writes_both_adjustments() {
         r#"<a:prstGeom prst="rightArrow"><a:avLst><a:gd name="adj1" fmla="val 40000"/><a:gd name="adj2" fmla="val 60000"/></a:avLst></a:prstGeom>"#
     );
 }
+
+// --- Callouts (Batch 5a) ---
+
+#[test]
+fn reads_callout1_signed_vertices() {
+    // callout1 defaults: adj1=18750(y1), adj2=-8333(x1), adj3=112500(y2), adj4=-38333(x2).
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="callout1"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::Callout1 {
+        vertex1_x,
+        vertex1_y,
+        vertex2_x,
+        vertex2_y,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected Callout1");
+    };
+    assert_close(vertex1_x, -0.08333); // box anchor, left of box
+    assert_close(vertex1_y, 0.1875);
+    assert_close(vertex2_x, -0.38333); // tip
+    assert_close(vertex2_y, 1.125); // below the box (> 1)
+}
+
+#[test]
+fn accent_border_callout_shares_callout_structure() {
+    // accentBorderCallout2 has the same adjustment mapping as callout2 (accent/border are render-only).
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="accentBorderCallout2"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::AccentBorderCallout2 {
+        vertex1_x,
+        vertex2_x,
+        vertex3_x,
+        vertex3_y,
+        ..
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected AccentBorderCallout2");
+    };
+    assert_close(vertex1_x, -0.08333);
+    assert_close(vertex2_x, -0.16667);
+    assert_close(vertex3_x, -0.46667); // tip x
+    assert_close(vertex3_y, 1.125); // tip y
+}
+
+#[test]
+fn set_callout3_writes_all_eight_adjustments() {
+    let mut interner = Interner::new();
+    let mut geom = PresetGeometry::new(&mut interner, PresetShapeType::Rectangle, None);
+    geom.set_shape(
+        &mut interner,
+        ShapeGeometry::Callout3 {
+            vertex1_x: Fraction::from_ratio(-0.1),
+            vertex1_y: Fraction::from_ratio(0.2),
+            vertex2_x: Fraction::from_ratio(-0.2),
+            vertex2_y: Fraction::from_ratio(0.2),
+            vertex3_x: Fraction::from_ratio(-0.2),
+            vertex3_y: Fraction::from_ratio(1.0),
+            vertex4_x: Fraction::from_ratio(-0.1),
+            vertex4_y: Fraction::from_ratio(1.1),
+        },
+    );
+    // adj order is y1,x1,y2,x2,… → adj1=20000, adj2=-10000, …, adj8=-10000.
+    assert_eq!(geom.adjustment(&interner, "adj1"), Some(20000));
+    assert_eq!(geom.adjustment(&interner, "adj2"), Some(-10000));
+    assert_eq!(geom.adjustment(&interner, "adj7"), Some(110000));
+    assert_eq!(geom.adjustment(&interner, "adj8"), Some(-10000));
+
+    // Re-parse the serialized bytes and read back.
+    let serialized = serialize_built(interner, &geom);
+    let fragment = serialized.replacen("<a:prstGeom", &format!(r#"<a:prstGeom xmlns:a="{A}""#), 1);
+    let (reparsed, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::Callout3 {
+        vertex3_y,
+        vertex4_x,
+        ..
+    }) = reparsed.shape(&doc.interner)
+    else {
+        panic!("expected Callout3");
+    };
+    assert_close(vertex3_y, 1.0);
+    assert_close(vertex4_x, -0.1);
+}
