@@ -205,3 +205,134 @@ fn set_shape_writes_adj1_shapes() {
         r#"<a:prstGeom prst="mathPlus"><a:avLst><a:gd name="adj1" fmla="val 30000"/></a:avLst></a:prstGeom>"#
     );
 }
+
+// --- Two-adjustment shapes (Batch 4) ---
+
+use mjx_dml::Angle;
+
+#[track_caller]
+fn assert_deg(actual: Angle, expected: f64) {
+    assert!(
+        (actual.degrees() - expected).abs() < 1e-6,
+        "expected ≈{expected}°, got {}°",
+        actual.degrees()
+    );
+}
+
+#[test]
+fn reads_and_writes_pie_angles() {
+    // pie default: adj1 = 0 (start), adj2 = 16_200_000 = 270° (end).
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="pie"/>"#);
+    let (mut geom, mut doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::Pie {
+        start_angle,
+        end_angle,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected Pie");
+    };
+    assert_deg(start_angle, 0.0);
+    assert_deg(end_angle, 270.0);
+
+    // set_shape writes native 60000ths of a degree and round-trips.
+    geom.set_shape(
+        &mut doc.interner,
+        ShapeGeometry::Pie {
+            start_angle: Angle::from_degrees(90.0),
+            end_angle: Angle::from_degrees(180.0),
+        },
+    );
+    assert_eq!(geom.adjustment(&doc.interner, "adj1"), Some(5_400_000));
+    assert_eq!(geom.adjustment(&doc.interner, "adj2"), Some(10_800_000));
+    let Some(ShapeGeometry::Pie {
+        start_angle,
+        end_angle,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected Pie");
+    };
+    assert_deg(start_angle, 90.0);
+    assert_deg(end_angle, 180.0);
+}
+
+#[test]
+fn reads_arrow_two_fields() {
+    // rightArrow defaults: adj1 = 50000 (shaft), adj2 = 50000 (head) → 0.5 each.
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="rightArrow"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::RightArrow {
+        shaft_thickness,
+        head_length,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected RightArrow");
+    };
+    assert_close(shaft_thickness, 0.5);
+    assert_close(head_length, 0.5);
+}
+
+#[test]
+fn reads_callout_signed_tail() {
+    // wedgeRectCallout defaults: adj1 = -20833 (tail_x), adj2 = 62500 (tail_y).
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="wedgeRectCallout"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::WedgeRectangleCallout { tail_x, tail_y }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected WedgeRectangleCallout");
+    };
+    assert_close(tail_x, -0.20833);
+    assert_close(tail_y, 0.625);
+}
+
+#[test]
+fn reads_diagonal_corner_rectangle() {
+    // round2DiagRect defaults: adj1 = 16667 (tl/br), adj2 = 0 (tr/bl).
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="round2DiagRect"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::RoundDiagonalCornersRectangle {
+        top_left_bottom_right_radius,
+        top_right_bottom_left_radius,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected RoundDiagonalCornersRectangle");
+    };
+    assert_close(top_left_bottom_right_radius, 0.16667);
+    assert_close(top_right_bottom_left_radius, 0.0);
+}
+
+#[test]
+fn wave_skew_is_signed() {
+    let mut interner = Interner::new();
+    let mut geom = PresetGeometry::new(&mut interner, PresetShapeType::Rectangle, None);
+    geom.set_shape(
+        &mut interner,
+        ShapeGeometry::Wave {
+            amplitude: Fraction::from_ratio(0.1),
+            skew: Fraction::from_ratio(-0.05),
+        },
+    );
+    assert_eq!(geom.adjustment(&interner, "adj1"), Some(10000));
+    assert_eq!(geom.adjustment(&interner, "adj2"), Some(-5000));
+    let Some(ShapeGeometry::Wave { amplitude, skew }) = geom.shape(&interner) else {
+        panic!("expected Wave");
+    };
+    assert_close(amplitude, 0.1);
+    assert_close(skew, -0.05);
+}
+
+#[test]
+fn set_shape_writes_both_adjustments() {
+    let mut interner = Interner::new();
+    let mut geom = PresetGeometry::new(&mut interner, PresetShapeType::Rectangle, None);
+    geom.set_shape(
+        &mut interner,
+        ShapeGeometry::RightArrow {
+            shaft_thickness: Fraction::from_ratio(0.4),
+            head_length: Fraction::from_ratio(0.6),
+        },
+    );
+    assert_eq!(
+        serialize_built(interner, &geom),
+        r#"<a:prstGeom prst="rightArrow"><a:avLst><a:gd name="adj1" fmla="val 40000"/><a:gd name="adj2" fmla="val 60000"/></a:avLst></a:prstGeom>"#
+    );
+}
