@@ -1,12 +1,13 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::TextBody;
-use mjx_ooxml_core::{FromXml, RawDocument, ToXml};
-use mjx_ooxml_types::namespaces::{PML, SHARED_RELATIONSHIP_REFERENCE};
+use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
+use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_opc::{Package, PartName, TargetMode};
 
 use crate::error::PptxError;
-use crate::{constants, nav, slide};
+use crate::geometry::ShapeBounds;
+use crate::{build, constants, nav, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
 /// ordered list of slide parts.
@@ -210,6 +211,38 @@ impl Presentation {
         Ok(())
     }
 
+    /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
+    /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
+    /// paragraph). Returns the index of the new shape among the slide's `p:sp` shapes. Only that
+    /// slide part is marked dirty.
+    ///
+    /// The shape is a plain text box (`p:cNvSpPr@txBox="1"`, `a:prstGeom@prst="rect"`) with no
+    /// placeholder, so it renders as free-standing text. Its non-visual id (`p:cNvPr@id`) is one past
+    /// the largest id already present on the slide, keeping ids unique.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range or the slide is malformed.
+    pub fn add_text_box(
+        &mut self,
+        slide_idx: usize,
+        text: &str,
+        bounds: ShapeBounds,
+    ) -> Result<usize, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` builds the new names, `root` receives the new subtree.
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+
+        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let shape = build_text_box(interner, next_id, text, bounds);
+        sp_tree.children.push(RawNode::Element(shape));
+        sp_tree.empty = false;
+
+        // The new shape is the last `p:sp` child.
+        Ok(slide::shapes(sp_tree, interner).count() - 1)
+    }
+
     fn slide_part_checked(&self, slide_idx: usize) -> Result<&PartName, PptxError> {
         self.slides
             .get(slide_idx)
@@ -218,4 +251,146 @@ impl Presentation {
                 count: self.slides.len(),
             })
     }
+}
+
+/// The largest `p:cNvPr@id` anywhere under `sp_tree` (0 if none). Non-visual ids are unique per
+/// slide, so the next free id is one past this maximum.
+fn max_cnvpr_id(sp_tree: &RawElement, interner: &Interner) -> u32 {
+    fn walk(element: &RawElement, interner: &Interner, max: &mut u32) {
+        if nav::name_is(&element.name, interner, PML, "cNvPr") {
+            if let Some(id) = element
+                .attributes
+                .iter()
+                .find(|attr| {
+                    attr.name.prefix.is_none() && interner.resolve(attr.name.local) == "id"
+                })
+                .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+                .and_then(|value| value.parse::<u32>().ok())
+            {
+                *max = (*max).max(id);
+            }
+        }
+        for child in &element.children {
+            if let RawNode::Element(child) = child {
+                walk(child, interner, max);
+            }
+        }
+    }
+    let mut max = 0;
+    walk(sp_tree, interner, &mut max);
+    max
+}
+
+/// Builds a plain text-box `p:sp` with non-visual id `id`, laid out at `bounds`, whose text body
+/// holds one paragraph per line of `text`.
+fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBounds) -> RawElement {
+    let id_str = id.to_string();
+    let name = format!("TextBox {id}");
+
+    // p:nvSpPr — non-visual shape properties.
+    let cnvpr_attrs = vec![
+        build::attr(interner, "id", &id_str),
+        build::attr(interner, "name", &name),
+    ];
+    let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+    let cnvsppr_attrs = vec![build::attr(interner, "txBox", "1")];
+    let c_nv_sp_pr = build::leaf(interner, "p", PML, "cNvSpPr", cnvsppr_attrs);
+    let nv_pr = build::leaf(interner, "p", PML, "nvPr", Vec::new());
+    let nv_sp_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "nvSpPr",
+        Vec::new(),
+        vec![
+            RawNode::Element(c_nv_pr),
+            RawNode::Element(c_nv_sp_pr),
+            RawNode::Element(nv_pr),
+        ],
+    );
+
+    // p:spPr — visual shape properties (transform + preset rectangle geometry).
+    let off_attrs = vec![
+        build::attr(interner, "x", &bounds.offset_x_emu.to_string()),
+        build::attr(interner, "y", &bounds.offset_y_emu.to_string()),
+    ];
+    let off = build::leaf(interner, "a", DML_MAIN, "off", off_attrs);
+    let ext_attrs = vec![
+        build::attr(interner, "cx", &bounds.width_emu.to_string()),
+        build::attr(interner, "cy", &bounds.height_emu.to_string()),
+    ];
+    let ext = build::leaf(interner, "a", DML_MAIN, "ext", ext_attrs);
+    let xfrm = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "xfrm",
+        Vec::new(),
+        vec![RawNode::Element(off), RawNode::Element(ext)],
+    );
+    let av_lst = build::leaf(interner, "a", DML_MAIN, "avLst", Vec::new());
+    let prstgeom_attrs = vec![build::attr(interner, "prst", "rect")];
+    let prst_geom = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "prstGeom",
+        prstgeom_attrs,
+        vec![RawNode::Element(av_lst)],
+    );
+    let sp_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "spPr",
+        Vec::new(),
+        vec![RawNode::Element(xfrm), RawNode::Element(prst_geom)],
+    );
+
+    // p:txBody — required a:bodyPr + a:lstStyle, then one a:p per line.
+    let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
+    let lst_style = build::leaf(interner, "a", DML_MAIN, "lstStyle", Vec::new());
+    let mut tx_children = vec![RawNode::Element(body_pr), RawNode::Element(lst_style)];
+    for line in text.split('\n') {
+        tx_children.push(RawNode::Element(build_paragraph(interner, line)));
+    }
+    let tx_body = build::node(interner, "p", PML, "txBody", Vec::new(), tx_children);
+
+    build::node(
+        interner,
+        "p",
+        PML,
+        "sp",
+        Vec::new(),
+        vec![
+            RawNode::Element(nv_sp_pr),
+            RawNode::Element(sp_pr),
+            RawNode::Element(tx_body),
+        ],
+    )
+}
+
+/// Builds one `a:p`. An empty line yields an empty paragraph (`<a:p/>`); otherwise a single run
+/// (`a:r > a:t`) carrying the line's text.
+fn build_paragraph(interner: &mut Interner, line: &str) -> RawElement {
+    if line.is_empty() {
+        return build::leaf(interner, "a", DML_MAIN, "p", Vec::new());
+    }
+    let t = build::text_leaf(interner, "a", DML_MAIN, "t", Vec::new(), line);
+    let run = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "r",
+        Vec::new(),
+        vec![RawNode::Element(t)],
+    );
+    build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "p",
+        Vec::new(),
+        vec![RawNode::Element(run)],
+    )
 }
