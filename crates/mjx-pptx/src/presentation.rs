@@ -3,7 +3,7 @@
 use mjx_dml::TextBody;
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
-use mjx_opc::{Package, PartName, TargetMode};
+use mjx_opc::{Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
 use crate::geometry::ShapeBounds;
@@ -243,6 +243,178 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
+    /// Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0, and
+    /// returns its index. The new slide is a blank shape tree; add content with
+    /// [`add_text_box`](Self::add_text_box) or use [`add_slide_with_text`](Self::add_slide_with_text).
+    ///
+    /// This performs the package edits an added slide requires: it inserts the new slide part (with
+    /// its content type), synthesizes the slide's relationships (to the layout), adds the
+    /// presentation → slide relationship, and appends a `p:sldId` to `p:sldIdLst`. Every pre-existing
+    /// part other than `presentation.xml` stays byte-identical.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::NoSlideLayout`] if the deck has no slide to inherit a layout from, or
+    /// another [`PptxError`] if `presentation.xml` is malformed or a package edit fails.
+    pub fn add_slide(&mut self) -> Result<usize, PptxError> {
+        // Inherit slide 0's layout: reuse its relationship target verbatim (the new slide shares the
+        // same directory, so the relative target resolves identically).
+        let first_slide = self.slides.first().ok_or(PptxError::NoSlideLayout)?.clone();
+        let layout_target = {
+            let rels = self
+                .package
+                .relationships_for(Some(&first_slide))
+                .ok_or(PptxError::NoSlideLayout)?;
+            rels.by_type(constants::REL_SLIDE_LAYOUT)
+                .next()
+                .ok_or(PptxError::NoSlideLayout)?
+                .target
+                .clone()
+        };
+
+        let new_part = self.next_slide_part()?;
+        let new_rid = self.next_presentation_rid()?;
+        let slide_target = self.slide_rel_target(&new_part);
+
+        // 1. Insert the new slide part (registers its content-type Override).
+        self.package.insert_part(
+            &new_part,
+            constants::CONTENT_TYPE_SLIDE,
+            build::empty_slide_bytes(),
+        )?;
+        // 2. Synthesize the new slide's .rels with the slideLayout relationship.
+        self.package.add_relationship(
+            Some(&new_part),
+            Relationship {
+                id: "rId1".to_owned(),
+                rel_type: constants::REL_SLIDE_LAYOUT.to_owned(),
+                target: layout_target,
+                mode: TargetMode::Internal,
+            },
+        )?;
+        // 3. Add the presentation → slide relationship.
+        self.package.add_relationship(
+            Some(&self.presentation_part),
+            Relationship {
+                id: new_rid.clone(),
+                rel_type: constants::REL_SLIDE.to_owned(),
+                target: slide_target,
+                mode: TargetMode::Internal,
+            },
+        )?;
+        // 4. Append the p:sldId (with its r:id) to p:sldIdLst.
+        self.append_sld_id(&new_rid)?;
+
+        self.slides.push(new_part);
+        Ok(self.slides.len() - 1)
+    }
+
+    /// Adds a new slide (via [`add_slide`](Self::add_slide)) carrying a single text box with `text`
+    /// laid out at `bounds`, and returns the new slide's index.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the slide cannot be added (see [`add_slide`](Self::add_slide)).
+    pub fn add_slide_with_text(
+        &mut self,
+        text: &str,
+        bounds: ShapeBounds,
+    ) -> Result<usize, PptxError> {
+        let idx = self.add_slide()?;
+        self.add_text_box(idx, text, bounds)?;
+        Ok(idx)
+    }
+
+    /// A fresh slide part name in slide 0's directory: `slide{N}.xml` with `N` one past the largest
+    /// existing slide number.
+    fn next_slide_part(&self) -> Result<PartName, PptxError> {
+        let first = self.slides.first().ok_or(PptxError::NoSlideLayout)?;
+        let dir = dir_of(first.as_str());
+        let mut max_n = 0u32;
+        for part in self.package.part_names() {
+            if let Some(n) = slide_number(part.as_str(), dir) {
+                max_n = max_n.max(n);
+            }
+        }
+        let name = format!("{dir}slide{}.xml", max_n + 1);
+        PartName::new(&name).map_err(PptxError::from)
+    }
+
+    /// The next free presentation-scoped relationship id (`rId{N}`), one past the current maximum.
+    fn next_presentation_rid(&self) -> Result<String, PptxError> {
+        let rels = self
+            .package
+            .relationships_for(Some(&self.presentation_part))
+            .ok_or(PptxError::MalformedPresentation(
+                "presentation has no relationships",
+            ))?;
+        let mut max_n = 0u32;
+        for rel in rels.iter() {
+            if let Some(n) = rel
+                .id
+                .strip_prefix("rId")
+                .and_then(|s| s.parse::<u32>().ok())
+            {
+                max_n = max_n.max(n);
+            }
+        }
+        Ok(format!("rId{}", max_n + 1))
+    }
+
+    /// The relationship target for `new_part` relative to the presentation part's directory (falling
+    /// back to the absolute part name if it is not under that directory).
+    fn slide_rel_target(&self, new_part: &PartName) -> String {
+        let pres_dir = dir_of(self.presentation_part.as_str());
+        new_part
+            .as_str()
+            .strip_prefix(pres_dir)
+            .map_or_else(|| new_part.as_str().to_owned(), str::to_owned)
+    }
+
+    /// Appends `<p:sldId id=".." r:id="new_rid"/>` to `p:sldIdLst`, choosing the next slide id (≥256,
+    /// one past the largest existing `p:sldId@id` — masters in `p:sldMasterIdLst` are not considered).
+    fn append_sld_id(&mut self, new_rid: &str) -> Result<(), PptxError> {
+        let part = self.presentation_part.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+
+        // The `r:id` prefix: attribute namespaces are not resolved by the reader, so find the prefix
+        // bound to the relationships namespace.
+        let rels_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
+            .ok_or(PptxError::MalformedPresentation(
+                "no relationships namespace declared",
+            ))?;
+        let sld_id_lst = nav::child_mut(root, interner, PML, "sldIdLst")
+            .ok_or(PptxError::MalformedPresentation("missing p:sldIdLst"))?;
+
+        let mut max_id = 255u32;
+        for child in &sld_id_lst.children {
+            if let RawNode::Element(element) = child {
+                if nav::name_is(&element.name, interner, PML, "sldId") {
+                    if let Some(id) = element
+                        .attributes
+                        .iter()
+                        .find(|attr| {
+                            attr.name.prefix.is_none() && interner.resolve(attr.name.local) == "id"
+                        })
+                        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+                        .and_then(|value| value.parse::<u32>().ok())
+                    {
+                        max_id = max_id.max(id);
+                    }
+                }
+            }
+        }
+        let new_id = max_id + 1;
+
+        let attrs = vec![
+            build::attr(interner, "id", &new_id.to_string()),
+            build::attr_prefixed(interner, rels_prefix, "id", new_rid),
+        ];
+        let sld_id = build::leaf(interner, "p", PML, "sldId", attrs);
+        sld_id_lst.children.push(RawNode::Element(sld_id));
+        sld_id_lst.empty = false;
+        Ok(())
+    }
+
     fn slide_part_checked(&self, slide_idx: usize) -> Result<&PartName, PptxError> {
         self.slides
             .get(slide_idx)
@@ -251,6 +423,23 @@ impl Presentation {
                 count: self.slides.len(),
             })
     }
+}
+
+/// The directory portion of an absolute part name, including the trailing `/` (e.g.
+/// `/ppt/slides/slide1.xml` → `/ppt/slides/`).
+fn dir_of(part: &str) -> &str {
+    let end = part.rfind('/').map_or(0, |idx| idx + 1);
+    &part[..end]
+}
+
+/// Extracts `N` from a `slide{N}.xml` part directly inside `dir` (e.g. `/ppt/slides/slide3.xml` with
+/// `dir = /ppt/slides/` → `3`). Returns `None` for anything else (e.g. the `_rels` subfolder).
+fn slide_number(part: &str, dir: &str) -> Option<u32> {
+    part.strip_prefix(dir)?
+        .strip_prefix("slide")?
+        .strip_suffix(".xml")?
+        .parse::<u32>()
+        .ok()
 }
 
 /// The largest `p:cNvPr@id` anywhere under `sp_tree` (0 if none). Non-visual ids are unique per
