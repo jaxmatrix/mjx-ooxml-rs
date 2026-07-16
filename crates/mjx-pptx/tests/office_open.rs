@@ -166,3 +166,14 @@ fn deck_with_added_text_box_opens() {
     // The constructed deck must open in LibreOffice.
     let _ = convert_opens(&saved, "added_text_box");
 }
+
+#[test]
+fn deck_with_added_slide_opens() {
+    // Exercises the whole add-slide construction (empty-slide template + the four package touches)
+    // through a real Office implementation — the strongest check the new slide is valid.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_slide_with_text("Second slide", ShapeBounds::from_inches(1.0, 1.0, 5.0, 2.0))
+        .expect("add slide with text");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "added_slide");
+}
