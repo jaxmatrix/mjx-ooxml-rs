@@ -982,6 +982,72 @@ pub enum ShapeGeometry {
         /// Tip height, as a fraction of the height.
         tip_height: Fraction,
     },
+    /// `blockArc` — an arc-shaped ring segment. The arc's start and end angles, plus the ring band thickness.
+    BlockArc {
+        /// Start angle.
+        start_angle: Angle,
+        /// End angle.
+        end_angle: Angle,
+        /// Ring thickness, as a fraction of the shorter side.
+        ring_thickness: Fraction,
+    },
+    /// `mathDivide` — a division sign. The horizontal bar thickness, the bar-to-dot gap, and the dot radius (each a fraction of the height).
+    MathDivide {
+        /// Bar thickness, as a fraction of the height.
+        bar_thickness: Fraction,
+        /// Dot gap, as a fraction of the height.
+        dot_gap: Fraction,
+        /// Dot radius, as a fraction of the height.
+        dot_radius: Fraction,
+    },
+    /// `mathNotEqual` — a not-equal sign. The bar thickness, the angle of the crossing slash, and the gap between the two bars.
+    MathNotEqual {
+        /// Bar thickness, as a fraction of the height.
+        bar_thickness: Fraction,
+        /// Slash angle.
+        slash_angle: Angle,
+        /// Bar gap, as a fraction of the height.
+        bar_gap: Fraction,
+    },
+    /// `circularArrow` — a circular arrow sweeping around a circle. The body ring thickness, the arrowhead pointer angle, the arc end and start angles, and the arrowhead width.
+    CircularArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head pointer angle.
+        head_pointer_angle: Angle,
+        /// End angle.
+        end_angle: Angle,
+        /// Start angle.
+        start_angle: Angle,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+    },
+    /// `leftCircularArrow` — a counter-clockwise circular arrow. The body ring thickness, the arrowhead pointer angle, the arc end and start angles, and the arrowhead width.
+    LeftCircularArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head pointer angle.
+        head_pointer_angle: Angle,
+        /// End angle.
+        end_angle: Angle,
+        /// Start angle.
+        start_angle: Angle,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+    },
+    /// `leftRightCircularArrow` — a circular arrow with an arrowhead at each end. The body ring thickness, the arrowhead pointer angle, the arc end and start angles, and the arrowhead width.
+    LeftRightCircularArrow {
+        /// Body thickness, as a fraction of the shorter side.
+        body_thickness: Fraction,
+        /// Head pointer angle.
+        head_pointer_angle: Angle,
+        /// End angle.
+        end_angle: Angle,
+        /// Start angle.
+        start_angle: Angle,
+        /// Head width, as a fraction of the shorter side.
+        head_width: Fraction,
+    },
     /// A known preset this tier does not yet model. Its adjustments (if any) remain available by wire
     /// name through [`PresetGeometry::adjustment`] / [`set_adjustment`](PresetGeometry::set_adjustment).
     Unmodeled(PresetShapeType),
@@ -1492,6 +1558,42 @@ impl PresetGeometry {
                 arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
                 bend_radius: self.fraction(interner, "adj4", FRACTION_DENOM),
                 tip_height: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::BlockArc => ShapeGeometry::BlockArc {
+                start_angle: self.angle(interner, "adj1"),
+                end_angle: self.angle(interner, "adj2"),
+                ring_thickness: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::MathDivide => ShapeGeometry::MathDivide {
+                bar_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                dot_gap: self.fraction(interner, "adj2", FRACTION_DENOM),
+                dot_radius: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::MathNotEqual => ShapeGeometry::MathNotEqual {
+                bar_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                slash_angle: self.angle(interner, "adj2"),
+                bar_gap: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::CircularArrow => ShapeGeometry::CircularArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_pointer_angle: self.angle(interner, "adj2"),
+                end_angle: self.angle(interner, "adj3"),
+                start_angle: self.angle(interner, "adj4"),
+                head_width: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftCircularArrow => ShapeGeometry::LeftCircularArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_pointer_angle: self.angle(interner, "adj2"),
+                end_angle: self.angle(interner, "adj3"),
+                start_angle: self.angle(interner, "adj4"),
+                head_width: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftRightCircularArrow => ShapeGeometry::LeftRightCircularArrow {
+                body_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                head_pointer_angle: self.angle(interner, "adj2"),
+                end_angle: self.angle(interner, "adj3"),
+                start_angle: self.angle(interner, "adj4"),
+                head_width: self.fraction(interner, "adj5", FRACTION_DENOM),
             },
             other => ShapeGeometry::Unmodeled(other),
         })
@@ -3758,6 +3860,184 @@ impl PresetGeometry {
                     PresetShapeType::UTurnArrow,
                     "adj5",
                     tip_height,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BlockArc {
+                start_angle,
+                end_angle,
+                ring_thickness,
+            } => {
+                self.apply_angle(interner, PresetShapeType::BlockArc, "adj1", start_angle);
+                self.apply_angle(interner, PresetShapeType::BlockArc, "adj2", end_angle);
+                self.apply(
+                    interner,
+                    PresetShapeType::BlockArc,
+                    "adj3",
+                    ring_thickness,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::MathDivide {
+                bar_thickness,
+                dot_gap,
+                dot_radius,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::MathDivide,
+                    "adj1",
+                    bar_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::MathDivide,
+                    "adj2",
+                    dot_gap,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::MathDivide,
+                    "adj3",
+                    dot_radius,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::MathNotEqual {
+                bar_thickness,
+                slash_angle,
+                bar_gap,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::MathNotEqual,
+                    "adj1",
+                    bar_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply_angle(interner, PresetShapeType::MathNotEqual, "adj2", slash_angle);
+                self.apply(
+                    interner,
+                    PresetShapeType::MathNotEqual,
+                    "adj3",
+                    bar_gap,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::CircularArrow {
+                body_thickness,
+                head_pointer_angle,
+                end_angle,
+                start_angle,
+                head_width,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::CircularArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::CircularArrow,
+                    "adj2",
+                    head_pointer_angle,
+                );
+                self.apply_angle(interner, PresetShapeType::CircularArrow, "adj3", end_angle);
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::CircularArrow,
+                    "adj4",
+                    start_angle,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::CircularArrow,
+                    "adj5",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftCircularArrow {
+                body_thickness,
+                head_pointer_angle,
+                end_angle,
+                start_angle,
+                head_width,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftCircularArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::LeftCircularArrow,
+                    "adj2",
+                    head_pointer_angle,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::LeftCircularArrow,
+                    "adj3",
+                    end_angle,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::LeftCircularArrow,
+                    "adj4",
+                    start_angle,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftCircularArrow,
+                    "adj5",
+                    head_width,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftRightCircularArrow {
+                body_thickness,
+                head_pointer_angle,
+                end_angle,
+                start_angle,
+                head_width,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightCircularArrow,
+                    "adj1",
+                    body_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::LeftRightCircularArrow,
+                    "adj2",
+                    head_pointer_angle,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::LeftRightCircularArrow,
+                    "adj3",
+                    end_angle,
+                );
+                self.apply_angle(
+                    interner,
+                    PresetShapeType::LeftRightCircularArrow,
+                    "adj4",
+                    start_angle,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightCircularArrow,
+                    "adj5",
+                    head_width,
                     FRACTION_DENOM,
                 );
             }
