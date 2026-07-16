@@ -86,9 +86,11 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
   three-adjustment arrows/ribbons/connectors (`bentConnector5`/`curvedConnector5` bend positions; the 4
   curved arrows `body_thickness`/`head_width`/`head_length`; `ellipseRibbon`/`ellipseRibbon2`/
   `leftRightRibbon`; `bentUpArrow`/`leftUpArrow`/`leftRightUpArrow`/`quadArrow`
-  `shaft_thickness`/`head_width`/`head_length`). **Remaining complex sub-batches: the 9 arrow-callouts +
-  `bentArrow` + `uturnArrow`; then angle/math (`blockArc`, `mathDivide`/`mathNotEqual`, `circularArrow`
-  family).**
+  `shaft_thickness`/`head_width`/`head_length`); **and** the 9 arrow-callouts + `bentArrow` + `uturnArrow`
+  (the 7 `*ArrowCallout` share `shaft_thickness`/`arrowhead_width`/`arrowhead_length`/`text_box_size`;
+  `bentArrow` swaps in `bend_radius`; `uturnArrow` adds `tip_height`). **Only the angle/math set remains:
+  `blockArc`, `mathDivide`, `mathNotEqual`, and the `circularArrow` family** (reuses `Angle`; the
+  hardest). `teardrop`/`sun` still `Unmodeled`.
 
   **Batches follow `adjustments_of` (real user-facing adjustments), not the ledger's raw `avLst`
   counts.** So handle-less `avLst` shapes (`decagon`, `heptagon`, `pentagon`) are *parameterless*, and
@@ -301,7 +303,7 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `accentCallout1` | Callout | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
 | `accentCallout2` | Callout | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
 | `accentCallout3` | Callout | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
-| `bentArrow` | Arrow / ribbon | 4 | 4×ahXY | fidelity | — |
+| `bentArrow` | Arrow / ribbon | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `bend_radius` |
 | `bentConnector5` | Connector | 3 | 3×ahXY | named | `bend1_x`, `bend2_y`, `bend3_x` |
 | `bentUpArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
 | `blockArc` | Basic / geometric | 3 | 2×ahPolar | fidelity | — |
@@ -317,12 +319,12 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `curvedLeftArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `body_thickness`, `head_width`, `head_length` |
 | `curvedRightArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `body_thickness`, `head_width`, `head_length` |
 | `curvedUpArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `body_thickness`, `head_width`, `head_length` |
-| `downArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `downArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
 | `ellipseRibbon` | Arrow / ribbon | 3 | 3×ahXY | named | `arch_height`, `center_width`, `fold_thickness` |
 | `ellipseRibbon2` | Arrow / ribbon | 3 | 3×ahXY | named | `arch_height`, `center_width`, `fold_thickness` |
-| `leftArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `leftArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
 | `leftCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
-| `leftRightArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `leftRightArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
 | `leftRightCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
 | `leftRightRibbon` | Arrow / ribbon | 3 | 3×ahXY | named | `band_height`, `end_width`, `center_fold` |
 | `leftRightUpArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
@@ -330,13 +332,13 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `mathDivide` | Math | 3 | 3×ahXY | fidelity | — |
 | `mathNotEqual` | Math | 3 | 2×ahXY, 1×ahPolar | fidelity | — |
 | `quadArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
-| `quadArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
-| `rightArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
+| `quadArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
+| `rightArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
 | `star5` | Star / seal | 3 | 1×ahXY | named | `inner_radius` |
 | `star7` | Star / seal | 3 | 1×ahXY | named | `inner_radius` |
-| `upArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
-| `upDownArrowCallout` | Callout | 4 | 4×ahXY | fidelity | — |
-| `uturnArrow` | Arrow / ribbon | 5 | 5×ahXY | fidelity | — |
+| `upArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
+| `upDownArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
+| `uturnArrow` | Arrow / ribbon | 5 | 5×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `bend_radius`, `tip_height` |
 | `wedgeRoundRectCallout` | Callout | 3 | 1×ahXY | named | `tail_x`, `tail_y` |
 
 ---
