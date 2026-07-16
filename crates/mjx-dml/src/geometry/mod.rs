@@ -35,7 +35,7 @@ mod guide;
 mod preset;
 
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
-pub use preset::{PresetGeometry, PresetGeometryContent};
+pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
 /// namespace, so a built element serializes as `a:local` and reads back by `(DML_MAIN, local)`.
@@ -57,6 +57,20 @@ fn dml_attr(interner: &mut Interner, local: &str, value: &str) -> RawAttribute {
         },
         value: escape_attribute(value).as_bytes().into(),
         quote: QuoteStyle::Double,
+    }
+}
+
+/// Sets an unprefixed attribute `local="value"` on `attributes` — rewriting the existing one in
+/// place (preserving order) or appending it — with `value` escaped for an attribute.
+fn set_attr(attributes: &mut Vec<RawAttribute>, interner: &mut Interner, local: &str, value: &str) {
+    let sym = interner.intern(local);
+    if let Some(attribute) = attributes
+        .iter_mut()
+        .find(|attribute| attribute.name.prefix.is_none() && attribute.name.local == sym)
+    {
+        attribute.value = escape_attribute(value).as_bytes().into();
+    } else {
+        attributes.push(dml_attr(interner, local, value));
     }
 }
 

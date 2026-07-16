@@ -16,9 +16,10 @@
 //! assert_eq!(CalendarType::GregorianUnitedStates.to_wire(), "gregorianUs");
 //! ```
 
+pub mod drawingml;
 pub mod support;
 
 mod generated;
 
-pub use generated::{drawingml, namespaces, shared};
+pub use generated::{namespaces, shared};
 pub use support::{on_off, true_false, true_false_blank, UnknownWireValue};

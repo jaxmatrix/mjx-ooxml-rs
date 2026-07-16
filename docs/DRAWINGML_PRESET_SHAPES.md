@@ -66,6 +66,17 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
 | `chevron` | `adj` | `point_depth_fraction` | 0.0…`maxAdj` (= `w/ss`, data-dependent) |
 | `mathDivide` | `adj1`, `adj2`, `adj3` | `bar_thickness_fraction`, `dot_gap_fraction`, `dot_radius_fraction` | coupled `maxAdj*` clamps |
 
+## The two tiers
+
+- **Mechanical tier — ✅ done.** The generated `adjustments_of(PresetShapeType)` table in
+  `mjx-ooxml-types::drawingml` (`AdjustmentSpec { wire_name, axis, default, min, max }`, extracted
+  from `presetShapeDefinitions.xml`, native spec units; computed bounds kept as `Guide(name)`) + a
+  generic runtime API on `PresetGeometry` (`adjustment`/`adjustments`/`set_adjustment`) that reads/sets
+  adjustments **by wire name**. Standard-faithful: regenerating ships new/changed shapes immediately.
+- **Typed tier — in progress (batches below).** Per-shape hand-written structs (a `ShapeGeometry`
+  enum) with self-explanatory named fields in friendly units (fractions `0.0..=1.0`, radians, points),
+  built on the mechanical table. One reviewable PR per batch (semantics need review).
+
 ## Batch plan (each a reviewable, always-green PR that updates this ledger)
 
 1. **Foundation — ✅ done.** `PresetShapeType` enum (187, generated in `mjx-ooxml-types::drawingml`)
@@ -73,8 +84,10 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
    `GeometryGuideList` / `GeometryGuide`, round-trips any shape, plus a minimal typed builder) +
    this ledger scaffold. Reuses the `FromXml`/`ToXml` traits from the text-model PR. **Every shape
    below is now at least `fidelity`.**
-2. **Fixed geometry** — 64 shapes with 0 adjustments → parameterless.
-3. **Single adjustment** — 41 shapes (mostly clean `*/ ss adj 100000` fractions).
+2. **Fixed geometry — ✅ done** (mechanical tier). 64 shapes with 0 adjustments → the generated table
+   correctly reports them parameterless (`adjustments_of` returns an empty slice); no typed struct
+   needed.
+3. **Single adjustment** — 41 shapes (mostly clean `*/ ss adj 100000` fractions). *Typed tier next.*
 4. **Two adjustments** — 38 shapes.
 5. **Complex** — 43 shapes (3–8 interdependent adjusts), hand-curated names in sub-batches.
 
