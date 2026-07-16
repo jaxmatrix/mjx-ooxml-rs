@@ -32,10 +32,14 @@ use mjx_ooxml_types::namespaces::DML_MAIN;
 use mjx_xml::text::escape_attribute;
 
 mod guide;
+mod measures;
 mod preset;
+mod shape;
 
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
+pub use measures::Fraction;
 pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
+pub use shape::ShapeGeometry;
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
 /// namespace, so a built element serializes as `a:local` and reads back by `(DML_MAIN, local)`.
