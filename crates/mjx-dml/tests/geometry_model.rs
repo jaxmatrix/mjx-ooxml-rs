@@ -225,3 +225,74 @@ fn set_preset_rewrites_only_the_prst_value() {
         String::from_utf8_lossy(PRSTGEOM).replace(r#"prst="roundRect""#, r#"prst="teardrop""#);
     assert_round_trips(&geom, doc, expected.as_bytes());
 }
+
+// --- Mechanical adjustment API (native spec units, by wire name) ---
+
+#[test]
+fn reads_default_adjustment_from_the_table() {
+    // A rounded rectangle with no avLst override: the value is the generated spec default.
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="roundRect"/>"#);
+    let (geom, doc): (PresetGeometry, _) = parse_typed(fragment.as_bytes());
+    assert_eq!(geom.adjustment(&doc.interner, "adj"), Some(16667));
+
+    let adjustments = geom.adjustments(&doc.interner);
+    assert_eq!(adjustments.len(), 1);
+    assert_eq!(adjustments[0].spec.wire_name, "adj");
+    assert_eq!(adjustments[0].value, 16667);
+    assert!(!adjustments[0].is_overridden);
+
+    // A name that is neither a table adjustment nor an override → None.
+    assert_eq!(geom.adjustment(&doc.interner, "adj2"), None);
+}
+
+#[test]
+fn reads_overridden_adjustment_from_the_avlst() {
+    // PRSTGEOM overrides adj=25000 (and carries an extra adj2=12500 not in roundRect's table).
+    let (geom, doc): (PresetGeometry, _) = parse_typed(PRSTGEOM);
+    assert_eq!(geom.adjustment(&doc.interner, "adj"), Some(25000));
+
+    let adjustments = geom.adjustments(&doc.interner);
+    assert_eq!(adjustments.len(), 1); // driven by the table (roundRect has one adjustment)
+    assert_eq!(adjustments[0].value, 25000);
+    assert!(adjustments[0].is_overridden);
+
+    // An override present in the avLst is readable even when it is not a table adjustment.
+    assert_eq!(geom.adjustment(&doc.interner, "adj2"), Some(12500));
+}
+
+#[test]
+fn fixed_geometry_shape_exposes_no_adjustments() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="rect"/>"#);
+    let (geom, doc): (PresetGeometry, _) = parse_typed(fragment.as_bytes());
+    assert!(geom.adjustments(&doc.interner).is_empty());
+    assert_eq!(geom.adjustment(&doc.interner, "adj"), None);
+}
+
+#[test]
+fn set_adjustment_updates_an_existing_guide() {
+    let (mut geom, mut doc): (PresetGeometry, _) = parse_typed(PRSTGEOM);
+    geom.set_adjustment(&mut doc.interner, "adj", 30000);
+    assert_eq!(geom.adjustment(&doc.interner, "adj"), Some(30000));
+    // Structural: still one avLst with both guides; the other guide is untouched.
+    assert_eq!(geom.adjust_values().unwrap().guides().count(), 2);
+    assert_eq!(geom.adjustment(&doc.interner, "adj2"), Some(12500));
+    // Round-trip: only the adj value changed.
+    let expected = String::from_utf8_lossy(PRSTGEOM).replace("val 25000", "val 30000");
+    assert_round_trips(&geom, doc, expected.as_bytes());
+}
+
+#[test]
+fn set_adjustment_creates_the_avlst_when_missing() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="roundRect"/>"#);
+    let (mut geom, mut doc): (PresetGeometry, _) = parse_typed(fragment.as_bytes());
+    assert!(geom.adjust_values().is_none());
+
+    geom.set_adjustment(&mut doc.interner, "adj", 25000);
+    assert!(geom.adjust_values().is_some());
+    assert_eq!(geom.adjustment(&doc.interner, "adj"), Some(25000));
+
+    let expected = format!(
+        r#"<a:prstGeom xmlns:a="{A}" prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 25000"/></a:avLst></a:prstGeom>"#
+    );
+    assert_round_trips(&geom, doc, expected.as_bytes());
+}

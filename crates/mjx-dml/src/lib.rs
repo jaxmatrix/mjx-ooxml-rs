@@ -21,6 +21,6 @@ pub mod text;
 
 pub use geometry::{
     GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
-    PresetGeometryContent,
+    PresetGeometryContent, ResolvedAdjustment,
 };
 pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};

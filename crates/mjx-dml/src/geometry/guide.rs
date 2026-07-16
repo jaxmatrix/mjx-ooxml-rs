@@ -54,6 +54,11 @@ impl GeometryGuide {
     pub fn attributes(&self) -> &[RawAttribute] {
         &self.attributes
     }
+
+    /// Rewrites the guide's formula `fmla` in place (adding the attribute if it was missing).
+    pub fn set_formula(&mut self, interner: &mut Interner, formula: &str) {
+        super::set_attr(&mut self.attributes, interner, "fmla", formula);
+    }
 }
 
 impl FromXml for GeometryGuide {
@@ -132,5 +137,26 @@ impl GeometryGuideList {
     #[must_use]
     pub fn content(&self) -> &[GeometryGuideListContent] {
         &self.content
+    }
+
+    /// Sets the guide named `guide_name` to `formula`, rewriting it in place if present or appending a
+    /// new `a:gd` otherwise.
+    pub fn set_guide_formula(&mut self, interner: &mut Interner, guide_name: &str, formula: &str) {
+        let existing = self.content.iter().position(|item| match item {
+            GeometryGuideListContent::Guide(guide) => guide.name(interner) == Some(guide_name),
+            GeometryGuideListContent::Raw(_) => false,
+        });
+        match existing {
+            Some(index) => {
+                if let GeometryGuideListContent::Guide(guide) = &mut self.content[index] {
+                    guide.set_formula(interner, formula);
+                }
+            }
+            None => {
+                let guide = GeometryGuide::new(interner, guide_name, formula);
+                self.content.push(GeometryGuideListContent::Guide(guide));
+                self.empty = false;
+            }
+        }
     }
 }

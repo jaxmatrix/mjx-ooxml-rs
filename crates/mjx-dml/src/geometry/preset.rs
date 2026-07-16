@@ -2,10 +2,30 @@
 
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
-use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_xml::text::escape_attribute;
+use mjx_ooxml_types::drawingml::{adjustments_of, AdjustmentSpec, PresetShapeType};
 
 use super::{attr_str, dml_attr, dml_name, GeometryGuideList};
+
+/// A shape adjustment resolved against a concrete [`PresetGeometry`]: its static spec plus the value
+/// currently in effect (see [`PresetGeometry::adjustments`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ResolvedAdjustment {
+    /// The adjustment's static metadata (wire name, axis, default, domain), from the generated table.
+    pub spec: &'static AdjustmentSpec,
+    /// The current value in native spec units — the `avLst` override if present, else the default.
+    pub value: i32,
+    /// Whether [`value`](Self::value) came from an explicit `avLst` override (vs. the spec default).
+    pub is_overridden: bool,
+}
+
+/// The integer of a `val N` guide formula, or `None` for any other (computed) formula.
+fn parse_val_formula(formula: &str) -> Option<i32> {
+    let mut parts = formula.split_whitespace();
+    if parts.next()? != "val" {
+        return None;
+    }
+    parts.next()?.parse().ok()
+}
 
 /// One ordered child of a [`PresetGeometry`]: the typed adjust-value list, or an opaque node.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -76,6 +96,71 @@ impl PresetGeometry {
         })
     }
 
+    /// The adjustment overrides (`a:avLst`), mutably, or `None` if the shape has none.
+    pub fn adjust_values_mut(&mut self) -> Option<&mut GeometryGuideList> {
+        self.content.iter_mut().find_map(|item| match item {
+            PresetGeometryContent::AdjustValues(list) => Some(list),
+            PresetGeometryContent::Raw(_) => None,
+        })
+    }
+
+    /// The current value of the adjustment named `wire_name` (`adj`, `adj1`, …) in **native spec
+    /// units**: the `avLst` override if present, else the shape's default from
+    /// [`adjustments_of`](mjx_ooxml_types::drawingml::adjustments_of). `None` if the shape has no such
+    /// adjustment and none is overridden.
+    #[must_use]
+    pub fn adjustment(&self, interner: &Interner, wire_name: &str) -> Option<i32> {
+        if let Some(value) = self.overridden_adjustment(interner, wire_name) {
+            return Some(value);
+        }
+        let preset = self.preset(interner)?;
+        adjustments_of(preset)
+            .iter()
+            .find(|spec| spec.wire_name == wire_name)
+            .map(|spec| spec.default)
+    }
+
+    /// Every adjustment this shape exposes, each resolved to its current value (override or default).
+    /// Empty if the shape is fixed-geometry or its `prst` is unknown.
+    #[must_use]
+    pub fn adjustments(&self, interner: &Interner) -> Vec<ResolvedAdjustment> {
+        let Some(preset) = self.preset(interner) else {
+            return Vec::new();
+        };
+        adjustments_of(preset)
+            .iter()
+            .map(|spec| {
+                let overridden = self.overridden_adjustment(interner, spec.wire_name);
+                ResolvedAdjustment {
+                    spec,
+                    value: overridden.unwrap_or(spec.default),
+                    is_overridden: overridden.is_some(),
+                }
+            })
+            .collect()
+    }
+
+    /// The value of an `avLst` `val N` override for `wire_name`, if one is present and numeric.
+    fn overridden_adjustment(&self, interner: &Interner, wire_name: &str) -> Option<i32> {
+        self.adjust_values()?
+            .guides()
+            .find(|guide| guide.name(interner) == Some(wire_name))
+            .and_then(|guide| guide.formula(interner))
+            .and_then(parse_val_formula)
+    }
+
+    /// Sets the adjustment named `wire_name` to `value` (native spec units), upserting the `avLst`
+    /// `gd` as `fmla="val {value}"` and **creating the `avLst`** if the shape had none.
+    pub fn set_adjustment(&mut self, interner: &mut Interner, wire_name: &str, value: i32) {
+        if self.adjust_values().is_none() {
+            let list = GeometryGuideList::new(interner, Vec::new());
+            self.content.push(PresetGeometryContent::AdjustValues(list));
+        }
+        if let Some(list) = self.adjust_values_mut() {
+            list.set_guide_formula(interner, wire_name, &format!("val {value}"));
+        }
+    }
+
     /// The geometry's ordered content (the typed `a:avLst` interleaved with any opaque nodes).
     #[must_use]
     pub fn content(&self) -> &[PresetGeometryContent] {
@@ -85,17 +170,6 @@ impl PresetGeometry {
     /// Sets the preset shape kind, rewriting the existing `prst` attribute in place (or adding one if,
     /// against the schema, it was missing).
     pub fn set_preset(&mut self, interner: &mut Interner, preset: PresetShapeType) {
-        let prst = interner.intern("prst");
-        let value: Box<[u8]> = escape_attribute(preset.to_wire()).as_bytes().into();
-        match self
-            .attributes
-            .iter_mut()
-            .find(|attribute| attribute.name.prefix.is_none() && attribute.name.local == prst)
-        {
-            Some(attribute) => attribute.value = value,
-            None => self
-                .attributes
-                .push(dml_attr(interner, "prst", preset.to_wire())),
-        }
+        super::set_attr(&mut self.attributes, interner, "prst", preset.to_wire());
     }
 }
