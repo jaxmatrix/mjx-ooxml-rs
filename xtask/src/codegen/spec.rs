@@ -30,6 +30,8 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_VerticalAlignRun", "VerticalTextPosition"),
     ("ST_XAlign", "RelativeHorizontalAlignment"),
     ("ST_YAlign", "RelativeVerticalAlignment"),
+    // DrawingML preset-shape geometry: the `prst` token of `a:prstGeom`.
+    ("ST_ShapeType", "PresetShapeType"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -51,6 +53,59 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "GregorianTransliteratedFrench",
     ),
     ("ST_AlgType", "typeAny", "Any"),
+    // `ST_ShapeType` (`a:prstGeom@prst`): expand the cryptic/abbreviated tokens. Well-formed tokens
+    // (`flowChartProcess`, `actionButtonHome`, `hexagon`, `mathPlus`, …) auto-expand and need no row.
+    // The exact wire token is preserved on each generated variant's doc comment.
+    ("ST_ShapeType", "line", "StraightLine"),
+    ("ST_ShapeType", "lineInv", "StraightLineInverse"),
+    ("ST_ShapeType", "rtTriangle", "RightTriangle"),
+    ("ST_ShapeType", "rect", "Rectangle"),
+    ("ST_ShapeType", "star4", "FourPointStar"),
+    ("ST_ShapeType", "star5", "FivePointStar"),
+    ("ST_ShapeType", "star6", "SixPointStar"),
+    ("ST_ShapeType", "star7", "SevenPointStar"),
+    ("ST_ShapeType", "star8", "EightPointStar"),
+    ("ST_ShapeType", "star10", "TenPointStar"),
+    ("ST_ShapeType", "star12", "TwelvePointStar"),
+    ("ST_ShapeType", "star16", "SixteenPointStar"),
+    ("ST_ShapeType", "star24", "TwentyFourPointStar"),
+    ("ST_ShapeType", "star32", "ThirtyTwoPointStar"),
+    ("ST_ShapeType", "roundRect", "RoundedRectangle"),
+    ("ST_ShapeType", "round1Rect", "RoundSingleCornerRectangle"),
+    (
+        "ST_ShapeType",
+        "round2SameRect",
+        "RoundSameSideCornersRectangle",
+    ),
+    (
+        "ST_ShapeType",
+        "round2DiagRect",
+        "RoundDiagonalCornersRectangle",
+    ),
+    (
+        "ST_ShapeType",
+        "snipRoundRect",
+        "SnipAndRoundSingleCornerRectangle",
+    ),
+    ("ST_ShapeType", "snip1Rect", "SnipSingleCornerRectangle"),
+    (
+        "ST_ShapeType",
+        "snip2SameRect",
+        "SnipSameSideCornersRectangle",
+    ),
+    (
+        "ST_ShapeType",
+        "snip2DiagRect",
+        "SnipDiagonalCornersRectangle",
+    ),
+    ("ST_ShapeType", "diagStripe", "DiagonalStripe"),
+    ("ST_ShapeType", "uturnArrow", "UTurnArrow"),
+    ("ST_ShapeType", "wedgeRectCallout", "WedgeRectangleCallout"),
+    (
+        "ST_ShapeType",
+        "wedgeRoundRectCallout",
+        "WedgeRoundedRectangleCallout",
+    ),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
