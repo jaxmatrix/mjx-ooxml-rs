@@ -881,6 +881,107 @@ pub enum ShapeGeometry {
         /// Head length, as a fraction of the shorter side.
         head_length: Fraction,
     },
+    /// `downArrowCallout` — a downward arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    DownArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `upArrowCallout` — an upward arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    UpArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `leftArrowCallout` — a leftward arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    LeftArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `rightArrowCallout` — a rightward arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    RightArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `leftRightArrowCallout` — a double (left+right) arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    LeftRightArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `upDownArrowCallout` — a double (up+down) arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    UpDownArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `quadArrowCallout` — a four-way arrow with a callout box. Arrow shaft thickness, arrowhead width, and arrowhead length (fractions of the shorter side) plus the callout box's extent along the arrow axis.
+    QuadArrowCallout {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Text box size, as a fraction of the arrow's long axis (height or width).
+        text_box_size: Fraction,
+    },
+    /// `bentArrow` — an L-shaped bent arrow. Arrow shaft thickness, arrowhead width, arrowhead length, and the radius of the bend, each a fraction of the shorter side.
+    BentArrow {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Bend radius, as a fraction of the shorter side.
+        bend_radius: Fraction,
+    },
+    /// `uturnArrow` — a U-turn arrow. Arrow shaft thickness, arrowhead width, arrowhead length, and bend radius (fractions of the shorter side), plus the vertical position of the pointing tip (fraction of height).
+    UTurnArrow {
+        /// Shaft thickness, as a fraction of the shorter side.
+        shaft_thickness: Fraction,
+        /// Arrowhead width, as a fraction of the shorter side.
+        arrowhead_width: Fraction,
+        /// Arrowhead length, as a fraction of the shorter side.
+        arrowhead_length: Fraction,
+        /// Bend radius, as a fraction of the shorter side.
+        bend_radius: Fraction,
+        /// Tip height, as a fraction of the height.
+        tip_height: Fraction,
+    },
     /// A known preset this tier does not yet model. Its adjustments (if any) remain available by wire
     /// name through [`PresetGeometry::adjustment`] / [`set_adjustment`](PresetGeometry::set_adjustment).
     Unmodeled(PresetShapeType),
@@ -1336,6 +1437,61 @@ impl PresetGeometry {
                 shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
                 head_width: self.fraction(interner, "adj2", FRACTION_DENOM),
                 head_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::DownArrowCallout => ShapeGeometry::DownArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::UpArrowCallout => ShapeGeometry::UpArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftArrowCallout => ShapeGeometry::LeftArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::RightArrowCallout => ShapeGeometry::RightArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::LeftRightArrowCallout => ShapeGeometry::LeftRightArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::UpDownArrowCallout => ShapeGeometry::UpDownArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::QuadArrowCallout => ShapeGeometry::QuadArrowCallout {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                text_box_size: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::BentArrow => ShapeGeometry::BentArrow {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                bend_radius: self.fraction(interner, "adj4", FRACTION_DENOM),
+            },
+            PresetShapeType::UTurnArrow => ShapeGeometry::UTurnArrow {
+                shaft_thickness: self.fraction(interner, "adj1", FRACTION_DENOM),
+                arrowhead_width: self.fraction(interner, "adj2", FRACTION_DENOM),
+                arrowhead_length: self.fraction(interner, "adj3", FRACTION_DENOM),
+                bend_radius: self.fraction(interner, "adj4", FRACTION_DENOM),
+                tip_height: self.fraction(interner, "adj5", FRACTION_DENOM),
             },
             other => ShapeGeometry::Unmodeled(other),
         })
@@ -3279,6 +3435,329 @@ impl PresetGeometry {
                     PresetShapeType::QuadArrow,
                     "adj3",
                     head_length,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::DownArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::DownArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::DownArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::DownArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::DownArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::UpArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::UpArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UpArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UpArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UpArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::RightArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::RightArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::RightArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::RightArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::RightArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::LeftRightArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::LeftRightArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::UpDownArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::UpDownArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UpDownArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UpDownArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UpDownArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::QuadArrowCallout {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                text_box_size,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrowCallout,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrowCallout,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrowCallout,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::QuadArrowCallout,
+                    "adj4",
+                    text_box_size,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BentArrow {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                bend_radius,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::BentArrow,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentArrow,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentArrow,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BentArrow,
+                    "adj4",
+                    bend_radius,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::UTurnArrow {
+                shaft_thickness,
+                arrowhead_width,
+                arrowhead_length,
+                bend_radius,
+                tip_height,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::UTurnArrow,
+                    "adj1",
+                    shaft_thickness,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UTurnArrow,
+                    "adj2",
+                    arrowhead_width,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UTurnArrow,
+                    "adj3",
+                    arrowhead_length,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UTurnArrow,
+                    "adj4",
+                    bend_radius,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::UTurnArrow,
+                    "adj5",
+                    tip_height,
                     FRACTION_DENOM,
                 );
             }

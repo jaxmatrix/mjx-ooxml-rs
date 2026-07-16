@@ -509,3 +509,79 @@ fn set_quad_arrow_writes_three_adjustments() {
         r#"<a:prstGeom prst="quadArrow"><a:avLst><a:gd name="adj1" fmla="val 30000"/><a:gd name="adj2" fmla="val 40000"/><a:gd name="adj3" fmla="val 35000"/></a:avLst></a:prstGeom>"#
     );
 }
+
+// --- Arrow-callouts + bentArrow + uTurnArrow (Batch 5b-ii) ---
+
+#[test]
+fn reads_down_arrow_callout() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="downArrowCallout"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::DownArrowCallout {
+        shaft_thickness,
+        arrowhead_width,
+        arrowhead_length,
+        text_box_size,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected DownArrowCallout");
+    };
+    assert_close(shaft_thickness, 0.25);
+    assert_close(arrowhead_width, 0.25);
+    assert_close(arrowhead_length, 0.25);
+    assert_close(text_box_size, 0.64977);
+}
+
+#[test]
+fn reads_double_arrow_callout_smaller_box() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="leftRightArrowCallout"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::LeftRightArrowCallout { text_box_size, .. }) =
+        geom.shape(&doc.interner)
+    else {
+        panic!("expected LeftRightArrowCallout");
+    };
+    assert_close(text_box_size, 0.48123); // double-headed → smaller box default
+}
+
+#[test]
+fn reads_bent_arrow_bend_radius() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="bentArrow"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::BentArrow { bend_radius, .. }) = geom.shape(&doc.interner) else {
+        panic!("expected BentArrow");
+    };
+    assert_close(bend_radius, 0.4375);
+}
+
+#[test]
+fn uturn_arrow_reads_five_fields_and_sets() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="uturnArrow"/>"#);
+    let (mut geom, mut doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::UTurnArrow { tip_height, .. }) = geom.shape(&doc.interner) else {
+        panic!("expected UTurnArrow");
+    };
+    assert_close(tip_height, 0.75);
+
+    geom.set_shape(
+        &mut doc.interner,
+        ShapeGeometry::UTurnArrow {
+            shaft_thickness: Fraction::from_ratio(0.3),
+            arrowhead_width: Fraction::from_ratio(0.2),
+            arrowhead_length: Fraction::from_ratio(0.25),
+            bend_radius: Fraction::from_ratio(0.4),
+            tip_height: Fraction::from_ratio(0.8),
+        },
+    );
+    assert_eq!(geom.adjustment(&doc.interner, "adj1"), Some(30000));
+    assert_eq!(geom.adjustment(&doc.interner, "adj5"), Some(80000));
+    let Some(ShapeGeometry::UTurnArrow {
+        arrowhead_width,
+        tip_height,
+        ..
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected UTurnArrow");
+    };
+    assert_close(arrowhead_width, 0.2);
+    assert_close(tip_height, 0.8);
+}
