@@ -6,7 +6,9 @@
 //! `Angle` (radians) and `Points` (length) arrive with the batches that use them.
 
 /// A fraction of some geometric reference named by the field that holds it (e.g. a corner radius as a
-/// fraction of the shorter side). `1.0` is 100%; a value may exceed `1.0` where the shape allows it.
+/// fraction of the shorter side). `1.0` is 100%. A value may exceed `1.0` (e.g. a connector's bend
+/// position) or be **negative** (e.g. a smiley's mouth curve, where the sign flips smile ↔ frown)
+/// where the shape allows it.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Fraction(f64);
 
