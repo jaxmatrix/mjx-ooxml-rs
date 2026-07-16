@@ -585,3 +585,99 @@ fn uturn_arrow_reads_five_fields_and_sets() {
     assert_close(arrowhead_width, 0.2);
     assert_close(tip_height, 0.8);
 }
+
+// --- Angle/math shapes (Batch 5c) ---
+
+#[test]
+fn reads_block_arc_angles_and_thickness() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="blockArc"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::BlockArc {
+        start_angle,
+        end_angle,
+        ring_thickness,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected BlockArc");
+    };
+    assert_deg(start_angle, 180.0); // adj1 = 10_800_000
+    assert_deg(end_angle, 0.0); // adj2 = 0
+    assert_close(ring_thickness, 0.25);
+}
+
+#[test]
+fn reads_math_not_equal_slash_angle() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="mathNotEqual"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::MathNotEqual {
+        bar_thickness,
+        slash_angle,
+        bar_gap,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected MathNotEqual");
+    };
+    assert_close(bar_thickness, 0.2352);
+    assert_deg(slash_angle, 110.0); // adj2 = 6_600_000
+    assert_close(bar_gap, 0.1176);
+}
+
+#[test]
+fn reads_math_divide_fractions() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="mathDivide"/>"#);
+    let (geom, doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::MathDivide {
+        bar_thickness,
+        dot_gap,
+        dot_radius,
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected MathDivide");
+    };
+    assert_close(bar_thickness, 0.2352);
+    assert_close(dot_gap, 0.0588);
+    assert_close(dot_radius, 0.1176);
+}
+
+#[test]
+fn circular_arrow_reads_mixed_and_round_trips() {
+    let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="circularArrow"/>"#);
+    let (mut geom, mut doc) = parse_typed(fragment.as_bytes());
+    let Some(ShapeGeometry::CircularArrow {
+        body_thickness,
+        start_angle,
+        head_width,
+        ..
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected CircularArrow");
+    };
+    assert_close(body_thickness, 0.125); // adj1 (radius → fraction of ss)
+    assert_deg(start_angle, 180.0); // adj4 = 10_800_000
+    assert_close(head_width, 0.125); // adj5
+
+    // set_shape mixes fraction + angle adjustments (adj1..adj5).
+    geom.set_shape(
+        &mut doc.interner,
+        ShapeGeometry::CircularArrow {
+            body_thickness: Fraction::from_ratio(0.1),
+            head_pointer_angle: Angle::from_degrees(20.0),
+            end_angle: Angle::from_degrees(340.0),
+            start_angle: Angle::from_degrees(170.0),
+            head_width: Fraction::from_ratio(0.15),
+        },
+    );
+    assert_eq!(geom.adjustment(&doc.interner, "adj1"), Some(10000));
+    assert_eq!(geom.adjustment(&doc.interner, "adj4"), Some(10_200_000)); // 170° · 60000
+    assert_eq!(geom.adjustment(&doc.interner, "adj5"), Some(15000));
+    let Some(ShapeGeometry::CircularArrow {
+        head_pointer_angle,
+        end_angle,
+        ..
+    }) = geom.shape(&doc.interner)
+    else {
+        panic!("expected CircularArrow");
+    };
+    assert_deg(head_pointer_angle, 20.0);
+    assert_deg(end_angle, 340.0);
+}

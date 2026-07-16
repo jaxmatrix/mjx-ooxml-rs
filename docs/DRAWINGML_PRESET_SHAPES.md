@@ -73,24 +73,16 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
   from `presetShapeDefinitions.xml`, native spec units; computed bounds kept as `Guide(name)`) + a
   generic runtime API on `PresetGeometry` (`adjustment`/`adjustments`/`set_adjustment`) that reads/sets
   adjustments **by wire name**. Standard-faithful: regenerating ships new/changed shapes immediately.
-- **Typed tier — in progress.** Per-shape hand-written structs (a `ShapeGeometry` enum, read via
-  `PresetGeometry::shape()` / written via `set_shape()`) with self-explanatory named fields in friendly
-  units (fractions as `f64`; angles→radians and lengths→points arrive with the batches that use them),
-  built on the mechanical table. One reviewable PR per batch (semantics need review). **Single- and
-  two-adjustment tiers done:** all **43** single-adjustment shapes + all **34** two-adjustment shapes are
-  `named` (`teardrop`/`sun` stay `Unmodeled` — spec-ambiguous, pending ECMA prose). `mjx-dml::geometry::
-  measures` holds `Fraction` and `Angle` (radians; for `arc`/`chord`/`pie`). Three two-adjustment shapes
-  (`swooshArrow`, `corner`, `halfFrame`) carry formula-derived names flagged for reviewer confirmation.
-  **Batch 5 (complex, 3–8 adjustments) is proceeding in sub-batches. Done so far:** the 12 callouts
-  (leader-line `vertexI_x`/`vertexI_y`, `vertex1` = box anchor, `vertexN` = tip) **and** the 13
-  three-adjustment arrows/ribbons/connectors (`bentConnector5`/`curvedConnector5` bend positions; the 4
-  curved arrows `body_thickness`/`head_width`/`head_length`; `ellipseRibbon`/`ellipseRibbon2`/
-  `leftRightRibbon`; `bentUpArrow`/`leftUpArrow`/`leftRightUpArrow`/`quadArrow`
-  `shaft_thickness`/`head_width`/`head_length`); **and** the 9 arrow-callouts + `bentArrow` + `uturnArrow`
-  (the 7 `*ArrowCallout` share `shaft_thickness`/`arrowhead_width`/`arrowhead_length`/`text_box_size`;
-  `bentArrow` swaps in `bend_radius`; `uturnArrow` adds `tip_height`). **Only the angle/math set remains:
-  `blockArc`, `mathDivide`, `mathNotEqual`, and the `circularArrow` family** (reuses `Angle`; the
-  hardest). `teardrop`/`sun` still `Unmodeled`.
+- **Typed tier — ✅ COMPLETE (except 2 deferred).** Per-shape hand-written structs (a `ShapeGeometry`
+  enum, read via `PresetGeometry::shape()` / written via `set_shape()`) with self-explanatory named
+  fields in friendly units, built on the mechanical table. **All 117 shapes with user-facing adjustments
+  are `named`** — single (43), two (34), and complex (40: callouts, arrows/ribbons/connectors,
+  arrow-callouts, and the angle/math set `blockArc`/`mathDivide`/`mathNotEqual`/`circularArrow` family).
+  `mjx-dml::geometry::measures` holds `Fraction` and `Angle` (radians). The parameterless fixed-geometry
+  shapes stay `fidelity` (nothing to name); **only `teardrop`/`sun` remain `Unmodeled`** (spec-ambiguous,
+  pending ECMA prose). A handful of formula-derived names are flagged in their PRs for reviewer
+  confirmation (`swooshArrow`/`corner`/`halfFrame`, `ellipseRibbon`/`leftRightRibbon` fields,
+  `uturnArrow.tip_height`).
 
   **Batches follow `adjustments_of` (real user-facing adjustments), not the ledger's raw `avLst`
   counts.** So handle-less `avLst` shapes (`decagon`, `heptagon`, `pentagon`) are *parameterless*, and
@@ -112,7 +104,10 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
    are `named`; `teardrop`/`sun` deferred (spec-ambiguous).
 4. **Two adjustments — ✅ done** (typed tier). All 34 two-adjustment shapes (by `adjustments_of`) are
    `named`; introduced the `Angle` measure for `arc`/`chord`/`pie`.
-5. **Complex** — 43 shapes (3–8 interdependent adjusts), hand-curated names in sub-batches.
+5. **Complex — ✅ done** (typed tier). All 40 complex shapes (3–8 adjustments, by `adjustments_of`) are
+   `named`, in sub-batches: 5a callouts (12), 5b-i arrows/ribbons/connectors (13), 5b-ii arrow-callouts +
+   `bentArrow` + `uturnArrow` (9), 5c angle/math `blockArc`/`mathDivide`/`mathNotEqual`/`circularArrow`
+   family (6). **Only `teardrop`/`sun` remain `Unmodeled`** (deferred, pending ECMA prose).
 
 ## Anomalies (in `presetShapeDefinitions.xml`)
 
@@ -306,14 +301,14 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `bentArrow` | Arrow / ribbon | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `bend_radius` |
 | `bentConnector5` | Connector | 3 | 3×ahXY | named | `bend1_x`, `bend2_y`, `bend3_x` |
 | `bentUpArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
-| `blockArc` | Basic / geometric | 3 | 2×ahPolar | fidelity | — |
+| `blockArc` | Basic / geometric | 3 | 2×ahPolar | named | `start_angle`, `end_angle`, `ring_thickness` |
 | `borderCallout1` | Callout | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
 | `borderCallout2` | Callout | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
 | `borderCallout3` | Callout | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
 | `callout1` | Basic / geometric | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
 | `callout2` | Basic / geometric | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
 | `callout3` | Basic / geometric | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
-| `circularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
+| `circularArrow` | Arrow / ribbon | 5 | 4×ahPolar | named | `body_thickness`, `head_pointer_angle`, `end_angle`, `start_angle`, `head_width` |
 | `curvedConnector5` | Connector | 3 | 3×ahXY | named | `bend1_x`, `bend2_y`, `bend3_x` |
 | `curvedDownArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `body_thickness`, `head_width`, `head_length` |
 | `curvedLeftArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `body_thickness`, `head_width`, `head_length` |
@@ -323,14 +318,14 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 | `ellipseRibbon` | Arrow / ribbon | 3 | 3×ahXY | named | `arch_height`, `center_width`, `fold_thickness` |
 | `ellipseRibbon2` | Arrow / ribbon | 3 | 3×ahXY | named | `arch_height`, `center_width`, `fold_thickness` |
 | `leftArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
-| `leftCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
+| `leftCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | named | `body_thickness`, `head_pointer_angle`, `end_angle`, `start_angle`, `head_width` |
 | `leftRightArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
-| `leftRightCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
+| `leftRightCircularArrow` | Arrow / ribbon | 5 | 4×ahPolar | named | `body_thickness`, `head_pointer_angle`, `end_angle`, `start_angle`, `head_width` |
 | `leftRightRibbon` | Arrow / ribbon | 3 | 3×ahXY | named | `band_height`, `end_width`, `center_fold` |
 | `leftRightUpArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
 | `leftUpArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
-| `mathDivide` | Math | 3 | 3×ahXY | fidelity | — |
-| `mathNotEqual` | Math | 3 | 2×ahXY, 1×ahPolar | fidelity | — |
+| `mathDivide` | Math | 3 | 3×ahXY | named | `bar_thickness`, `dot_gap`, `dot_radius` |
+| `mathNotEqual` | Math | 3 | 2×ahXY, 1×ahPolar | named | `bar_thickness`, `slash_angle`, `bar_gap` |
 | `quadArrow` | Arrow / ribbon | 3 | 3×ahXY | named | `shaft_thickness`, `head_width`, `head_length` |
 | `quadArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
 | `rightArrowCallout` | Callout | 4 | 4×ahXY | named | `shaft_thickness`, `arrowhead_width`, `arrowhead_length`, `text_box_size` |
