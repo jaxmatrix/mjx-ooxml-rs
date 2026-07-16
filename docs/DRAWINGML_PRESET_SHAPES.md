@@ -81,7 +81,11 @@ text rectangle, and drawing paths are **not** in the file — they live in the s
   `named` (`teardrop`/`sun` stay `Unmodeled` — spec-ambiguous, pending ECMA prose). `mjx-dml::geometry::
   measures` holds `Fraction` and `Angle` (radians; for `arc`/`chord`/`pie`). Three two-adjustment shapes
   (`swooshArrow`, `corner`, `halfFrame`) carry formula-derived names flagged for reviewer confirmation.
-  **Next: batch 5 (complex, 3–8 adjustments).**
+  **Batch 5 (complex, 3–8 adjustments) is proceeding in sub-batches; the 12 callouts are done** —
+  `callout`/`accentCallout`/`borderCallout`/`accentBorderCallout` ×1/2/3, whose adjustments are the
+  leader-line vertices (`vertexI_x`/`vertexI_y`, signed fractions of width/height; `vertex1` = box
+  anchor, `vertexN` = tip). **Next complex sub-batches: arrows/ribbons/connectors, then angle/math
+  (blockArc, mathDivide/NotEqual, circularArrow family).**
 
   **Batches follow `adjustments_of` (real user-facing adjustments), not the ledger's raw `avLst`
   counts.** So handle-less `avLst` shapes (`decagon`, `heptagon`, `pentagon`) are *parameterless*, and
@@ -288,22 +292,22 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 
 | Shape (`prst`) | Category | Adjusts | Handles | Status | Named parameters |
 |---|---|---|---|---|---|
-| `accentBorderCallout1` | Callout | 4 | 2×ahXY | fidelity | — |
-| `accentBorderCallout2` | Callout | 6 | 3×ahXY | fidelity | — |
-| `accentBorderCallout3` | Callout | 8 | 4×ahXY | fidelity | — |
-| `accentCallout1` | Callout | 4 | 2×ahXY | fidelity | — |
-| `accentCallout2` | Callout | 6 | 3×ahXY | fidelity | — |
-| `accentCallout3` | Callout | 8 | 4×ahXY | fidelity | — |
+| `accentBorderCallout1` | Callout | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
+| `accentBorderCallout2` | Callout | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
+| `accentBorderCallout3` | Callout | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
+| `accentCallout1` | Callout | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
+| `accentCallout2` | Callout | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
+| `accentCallout3` | Callout | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
 | `bentArrow` | Arrow / ribbon | 4 | 4×ahXY | fidelity | — |
 | `bentConnector5` | Connector | 3 | 3×ahXY | fidelity | — |
 | `bentUpArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |
 | `blockArc` | Basic / geometric | 3 | 2×ahPolar | fidelity | — |
-| `borderCallout1` | Callout | 4 | 2×ahXY | fidelity | — |
-| `borderCallout2` | Callout | 6 | 3×ahXY | fidelity | — |
-| `borderCallout3` | Callout | 8 | 4×ahXY | fidelity | — |
-| `callout1` | Basic / geometric | 4 | 2×ahXY | fidelity | — |
-| `callout2` | Basic / geometric | 6 | 3×ahXY | fidelity | — |
-| `callout3` | Basic / geometric | 8 | 4×ahXY | fidelity | — |
+| `borderCallout1` | Callout | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
+| `borderCallout2` | Callout | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
+| `borderCallout3` | Callout | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
+| `callout1` | Basic / geometric | 4 | 2×ahXY | named | `vertex1_x/y`, `vertex2_x/y` |
+| `callout2` | Basic / geometric | 6 | 3×ahXY | named | `vertex1_x/y` … `vertex3_x/y` |
+| `callout3` | Basic / geometric | 8 | 4×ahXY | named | `vertex1_x/y` … `vertex4_x/y` |
 | `circularArrow` | Arrow / ribbon | 5 | 4×ahPolar | fidelity | — |
 | `curvedConnector5` | Connector | 3 | 3×ahXY | fidelity | — |
 | `curvedDownArrow` | Arrow / ribbon | 3 | 3×ahXY | fidelity | — |

@@ -560,6 +560,210 @@ pub enum ShapeGeometry {
         /// Horizontal inset of the top-right vertex, as a fraction of the shorter side.
         right_top_inset: Fraction,
     },
+    /// `callout1` — a line callout with 1 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex2` the pointer tip.
+    Callout1 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (pointer tip), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (pointer tip), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+    },
+    /// `callout2` — a line callout with 2 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex3` the pointer tip.
+    Callout2 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (pointer tip), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (pointer tip), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+    },
+    /// `callout3` — a line callout with 3 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex4` the pointer tip.
+    Callout3 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (bend), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (bend), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+        /// Leader vertex 4 (pointer tip), x as a signed fraction of the width.
+        vertex4_x: Fraction,
+        /// Leader vertex 4 (pointer tip), y as a signed fraction of the height.
+        vertex4_y: Fraction,
+    },
+    /// `accentCallout1` — a line callout with an accent bar with 1 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex2` the pointer tip.
+    AccentCallout1 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (pointer tip), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (pointer tip), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+    },
+    /// `accentCallout2` — a line callout with an accent bar with 2 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex3` the pointer tip.
+    AccentCallout2 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (pointer tip), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (pointer tip), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+    },
+    /// `accentCallout3` — a line callout with an accent bar with 3 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex4` the pointer tip.
+    AccentCallout3 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (bend), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (bend), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+        /// Leader vertex 4 (pointer tip), x as a signed fraction of the width.
+        vertex4_x: Fraction,
+        /// Leader vertex 4 (pointer tip), y as a signed fraction of the height.
+        vertex4_y: Fraction,
+    },
+    /// `borderCallout1` — a bordered line callout with 1 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex2` the pointer tip.
+    BorderCallout1 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (pointer tip), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (pointer tip), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+    },
+    /// `borderCallout2` — a bordered line callout with 2 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex3` the pointer tip.
+    BorderCallout2 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (pointer tip), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (pointer tip), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+    },
+    /// `borderCallout3` — a bordered line callout with 3 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex4` the pointer tip.
+    BorderCallout3 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (bend), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (bend), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+        /// Leader vertex 4 (pointer tip), x as a signed fraction of the width.
+        vertex4_x: Fraction,
+        /// Leader vertex 4 (pointer tip), y as a signed fraction of the height.
+        vertex4_y: Fraction,
+    },
+    /// `accentBorderCallout1` — a bordered line callout with an accent bar with 1 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex2` the pointer tip.
+    AccentBorderCallout1 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (pointer tip), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (pointer tip), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+    },
+    /// `accentBorderCallout2` — a bordered line callout with an accent bar with 2 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex3` the pointer tip.
+    AccentBorderCallout2 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (pointer tip), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (pointer tip), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+    },
+    /// `accentBorderCallout3` — a bordered line callout with an accent bar with 3 segment(s). Adjustments are the leader-line
+    /// vertices as signed fractions of width (x) and height (y); `vertex1` is the box-side
+    /// anchor and `vertex4` the pointer tip.
+    AccentBorderCallout3 {
+        /// Leader vertex 1 (box anchor), x as a signed fraction of the width.
+        vertex1_x: Fraction,
+        /// Leader vertex 1 (box anchor), y as a signed fraction of the height.
+        vertex1_y: Fraction,
+        /// Leader vertex 2 (bend), x as a signed fraction of the width.
+        vertex2_x: Fraction,
+        /// Leader vertex 2 (bend), y as a signed fraction of the height.
+        vertex2_y: Fraction,
+        /// Leader vertex 3 (bend), x as a signed fraction of the width.
+        vertex3_x: Fraction,
+        /// Leader vertex 3 (bend), y as a signed fraction of the height.
+        vertex3_y: Fraction,
+        /// Leader vertex 4 (pointer tip), x as a signed fraction of the width.
+        vertex4_x: Fraction,
+        /// Leader vertex 4 (pointer tip), y as a signed fraction of the height.
+        vertex4_y: Fraction,
+    },
     /// A known preset this tier does not yet model. Its adjustments (if any) remain available by wire
     /// name through [`PresetGeometry::adjustment`] / [`set_adjustment`](PresetGeometry::set_adjustment).
     Unmodeled(PresetShapeType),
@@ -854,6 +1058,102 @@ impl PresetGeometry {
             PresetShapeType::NonIsoscelesTrapezoid => ShapeGeometry::NonIsoscelesTrapezoid {
                 left_top_inset: self.fraction(interner, "adj1", FRACTION_DENOM),
                 right_top_inset: self.fraction(interner, "adj2", FRACTION_DENOM),
+            },
+            PresetShapeType::Callout1 => ShapeGeometry::Callout1 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::Callout2 => ShapeGeometry::Callout2 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::Callout3 => ShapeGeometry::Callout3 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+                vertex4_x: self.fraction(interner, "adj8", FRACTION_DENOM),
+                vertex4_y: self.fraction(interner, "adj7", FRACTION_DENOM),
+            },
+            PresetShapeType::AccentCallout1 => ShapeGeometry::AccentCallout1 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::AccentCallout2 => ShapeGeometry::AccentCallout2 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::AccentCallout3 => ShapeGeometry::AccentCallout3 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+                vertex4_x: self.fraction(interner, "adj8", FRACTION_DENOM),
+                vertex4_y: self.fraction(interner, "adj7", FRACTION_DENOM),
+            },
+            PresetShapeType::BorderCallout1 => ShapeGeometry::BorderCallout1 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::BorderCallout2 => ShapeGeometry::BorderCallout2 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::BorderCallout3 => ShapeGeometry::BorderCallout3 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+                vertex4_x: self.fraction(interner, "adj8", FRACTION_DENOM),
+                vertex4_y: self.fraction(interner, "adj7", FRACTION_DENOM),
+            },
+            PresetShapeType::AccentBorderCallout1 => ShapeGeometry::AccentBorderCallout1 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+            },
+            PresetShapeType::AccentBorderCallout2 => ShapeGeometry::AccentBorderCallout2 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+            },
+            PresetShapeType::AccentBorderCallout3 => ShapeGeometry::AccentBorderCallout3 {
+                vertex1_x: self.fraction(interner, "adj2", FRACTION_DENOM),
+                vertex1_y: self.fraction(interner, "adj1", FRACTION_DENOM),
+                vertex2_x: self.fraction(interner, "adj4", FRACTION_DENOM),
+                vertex2_y: self.fraction(interner, "adj3", FRACTION_DENOM),
+                vertex3_x: self.fraction(interner, "adj6", FRACTION_DENOM),
+                vertex3_y: self.fraction(interner, "adj5", FRACTION_DENOM),
+                vertex4_x: self.fraction(interner, "adj8", FRACTION_DENOM),
+                vertex4_y: self.fraction(interner, "adj7", FRACTION_DENOM),
             },
             other => ShapeGeometry::Unmodeled(other),
         })
@@ -1834,6 +2134,618 @@ impl PresetGeometry {
                     PresetShapeType::NonIsoscelesTrapezoid,
                     "adj2",
                     right_top_inset,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::Callout1 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout1,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout1,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout1,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout1,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::Callout2 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout2,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout2,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout2,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout2,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout2,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout2,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::Callout3 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+                vertex4_x,
+                vertex4_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj7",
+                    vertex4_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::Callout3,
+                    "adj8",
+                    vertex4_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::AccentCallout1 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout1,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout1,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout1,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout1,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::AccentCallout2 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout2,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout2,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout2,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout2,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout2,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout2,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::AccentCallout3 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+                vertex4_x,
+                vertex4_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj7",
+                    vertex4_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentCallout3,
+                    "adj8",
+                    vertex4_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BorderCallout1 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout1,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout1,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout1,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout1,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BorderCallout2 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout2,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout2,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout2,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout2,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout2,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout2,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::BorderCallout3 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+                vertex4_x,
+                vertex4_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj7",
+                    vertex4_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::BorderCallout3,
+                    "adj8",
+                    vertex4_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::AccentBorderCallout1 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout1,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout1,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout1,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout1,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::AccentBorderCallout2 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout2,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout2,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout2,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout2,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout2,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout2,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+            }
+            ShapeGeometry::AccentBorderCallout3 {
+                vertex1_x,
+                vertex1_y,
+                vertex2_x,
+                vertex2_y,
+                vertex3_x,
+                vertex3_y,
+                vertex4_x,
+                vertex4_y,
+            } => {
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj1",
+                    vertex1_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj2",
+                    vertex1_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj3",
+                    vertex2_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj4",
+                    vertex2_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj5",
+                    vertex3_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj6",
+                    vertex3_x,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj7",
+                    vertex4_y,
+                    FRACTION_DENOM,
+                );
+                self.apply(
+                    interner,
+                    PresetShapeType::AccentBorderCallout3,
+                    "adj8",
+                    vertex4_x,
                     FRACTION_DENOM,
                 );
             }
