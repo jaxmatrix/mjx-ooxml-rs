@@ -16,9 +16,14 @@
 //! attributes, the self-closing flag, and any unmodeled children (`a:bodyPr`, `a:rPr`, whitespace,
 //! foreign elements) — so a parsed value re-serializes exactly. See [`text`] for the mechanism.
 
+pub(crate) mod build;
+pub mod color;
+pub mod fill;
 pub mod geometry;
 pub mod text;
 
+pub use color::{Color, ColorKind, SchemeColor};
+pub use fill::{SolidFill, SolidFillContent};
 pub use geometry::{
     Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
     PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,

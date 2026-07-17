@@ -4,7 +4,8 @@ use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 use mjx_ooxml_types::drawingml::{adjustments_of, AdjustmentSpec, PresetShapeType};
 
-use super::{attr_str, dml_attr, dml_name, GeometryGuideList};
+use super::GeometryGuideList;
+use crate::build::{attr_str, dml_attr, dml_name};
 
 /// A shape adjustment resolved against a concrete [`PresetGeometry`]: its static spec plus the value
 /// currently in effect (see [`PresetGeometry::adjustments`]).
@@ -170,6 +171,6 @@ impl PresetGeometry {
     /// Sets the preset shape kind, rewriting the existing `prst` attribute in place (or adding one if,
     /// against the schema, it was missing).
     pub fn set_preset(&mut self, interner: &mut Interner, preset: PresetShapeType) {
-        super::set_attr(&mut self.attributes, interner, "prst", preset.to_wire());
+        crate::build::set_attr(&mut self.attributes, interner, "prst", preset.to_wire());
     }
 }

@@ -32,6 +32,8 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_YAlign", "RelativeVerticalAlignment"),
     // DrawingML preset-shape geometry: the `prst` token of `a:prstGeom`.
     ("ST_ShapeType", "PresetShapeType"),
+    // DrawingML theme colors: the `val` token of `a:schemeClr`.
+    ("ST_SchemeColorVal", "SchemeColor"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -106,6 +108,19 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "wedgeRoundRectCallout",
         "WedgeRoundedRectangleCallout",
     ),
+    // `ST_SchemeColorVal` (`a:schemeClr@val`): expand the cryptic theme-slot tokens. `accent1`..`accent6`
+    // auto-expand and need no row.
+    ("ST_SchemeColorVal", "bg1", "Background1"),
+    ("ST_SchemeColorVal", "tx1", "Text1"),
+    ("ST_SchemeColorVal", "bg2", "Background2"),
+    ("ST_SchemeColorVal", "tx2", "Text2"),
+    ("ST_SchemeColorVal", "hlink", "Hyperlink"),
+    ("ST_SchemeColorVal", "folHlink", "FollowedHyperlink"),
+    ("ST_SchemeColorVal", "phClr", "PlaceholderColor"),
+    ("ST_SchemeColorVal", "dk1", "Dark1"),
+    ("ST_SchemeColorVal", "lt1", "Light1"),
+    ("ST_SchemeColorVal", "dk2", "Dark2"),
+    ("ST_SchemeColorVal", "lt2", "Light2"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.

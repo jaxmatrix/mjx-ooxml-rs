@@ -4,7 +4,7 @@ use mjx_ooxml_core::{
     FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
 };
 
-use super::{attr_str, dml_attr, dml_name};
+use crate::build::{attr_str, dml_attr, dml_name};
 
 /// `a:gd` — one geometry guide (`CT_GeomGuide`): a `name` and a formula `fmla`.
 ///
@@ -57,7 +57,7 @@ impl GeometryGuide {
 
     /// Rewrites the guide's formula `fmla` in place (adding the attribute if it was missing).
     pub fn set_formula(&mut self, interner: &mut Interner, formula: &str) {
-        super::set_attr(&mut self.attributes, interner, "fmla", formula);
+        crate::build::set_attr(&mut self.attributes, interner, "fmla", formula);
     }
 }
 
