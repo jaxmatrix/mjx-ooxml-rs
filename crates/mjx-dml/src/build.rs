@@ -7,6 +7,7 @@ use mjx_ooxml_types::namespaces::DML_MAIN;
 use mjx_xml::text::escape_attribute;
 
 use crate::color::Color;
+use crate::geometry::{Angle, Fraction};
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
 /// namespace, so a built element serializes as `a:local` and reads back by `(DML_MAIN, local)`.
@@ -141,6 +142,31 @@ pub(crate) fn attr_by_local<'a>(
         .iter()
         .find(|attribute| interner.resolve(attribute.name.local) == local)
         .and_then(|attribute| std::str::from_utf8(&attribute.value).ok())
+}
+
+/// Parses a DrawingML percentage (`ST_Percentage` family) to a [`Fraction`]: the integer form
+/// (`50000` = 50%, native/100000) or an explicit-percent form (`50%`). `1.0` is 100%.
+pub(crate) fn parse_percentage(s: &str) -> Option<Fraction> {
+    let s = s.trim();
+    if let Some(stripped) = s.strip_suffix('%') {
+        stripped
+            .trim()
+            .parse::<f64>()
+            .ok()
+            .map(|value| Fraction::from_ratio(value / 100.0))
+    } else {
+        s.parse::<f64>()
+            .ok()
+            .map(|value| Fraction::from_ratio(value / 100_000.0))
+    }
+}
+
+/// Parses a DrawingML angle attribute (`ST_Angle` family, 60000ths of a degree) to an [`Angle`].
+pub(crate) fn parse_angle(s: &str) -> Option<Angle> {
+    s.trim()
+        .parse::<f64>()
+        .ok()
+        .map(|value| Angle::from_degrees(value / 60_000.0))
 }
 
 /// The first `EG_ColorChoice` child of `element`, read as a [`Color`] — used wherever a wrapper

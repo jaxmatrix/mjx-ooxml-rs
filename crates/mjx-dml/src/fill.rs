@@ -14,7 +14,7 @@ use mjx_ooxml_types::support::on_off;
 
 use crate::build::{
     attr_by_local, attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls,
-    first_color_child, prefixed_attr,
+    first_color_child, parse_angle, parse_percentage, prefixed_attr,
 };
 use crate::color::{Color, ColorKind, ColorSpec};
 use crate::geometry::{Angle, Fraction};
@@ -632,35 +632,6 @@ impl Fill {
             },
         }
     }
-}
-
-// ---------------------------------------------------------------------------------------------
-// helpers
-// ---------------------------------------------------------------------------------------------
-
-/// Parses a DrawingML percentage to a [`Fraction`]: the integer form (`50000` = 50%, native/100000)
-/// or an explicit-percent form (`50%`).
-fn parse_percentage(s: &str) -> Option<Fraction> {
-    let s = s.trim();
-    if let Some(stripped) = s.strip_suffix('%') {
-        stripped
-            .trim()
-            .parse::<f64>()
-            .ok()
-            .map(|value| Fraction::from_ratio(value / 100.0))
-    } else {
-        s.parse::<f64>()
-            .ok()
-            .map(|value| Fraction::from_ratio(value / 100_000.0))
-    }
-}
-
-/// Parses a DrawingML angle attribute (`@ang`, 60000ths of a degree) to an [`Angle`].
-fn parse_angle(s: &str) -> Option<Angle> {
-    s.trim()
-        .parse::<f64>()
-        .ok()
-        .map(|value| Angle::from_degrees(value / 60_000.0))
 }
 
 /// Builds an `a:gradFill` with a `gsLst` of `stops` and, when `angle` is `Some`, an `a:lin` linear
