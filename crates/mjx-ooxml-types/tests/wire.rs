@@ -4,7 +4,10 @@
 
 use std::str::FromStr;
 
-use mjx_ooxml_types::drawingml::{ColorSchemeSlot, PatternType, PresetShapeType, SchemeColor};
+use mjx_ooxml_types::drawingml::{
+    ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType, LineEndWidth, PatternType,
+    PenAlignment, PresetLineDash, PresetShapeType, SchemeColor,
+};
 use mjx_ooxml_types::namespaces;
 use mjx_ooxml_types::shared::{
     CalendarType, ConformanceClass, CryptographicProvider, RelativeVerticalAlignment,
@@ -460,6 +463,118 @@ fn color_scheme_slot_round_trips_all_tokens() {
     assert_eq!(ColorSchemeSlot::Accent1.to_wire(), "accent1");
     assert_eq!(ColorSchemeSlot::from_wire("phClr"), None); // phClr is not a scheme slot
     assert_eq!(ColorSchemeSlot::from_wire("bogus"), None);
+}
+
+#[test]
+fn line_cap_round_trips_all_tokens() {
+    // `ST_LineCap` (`a:ln@cap`), schema order.
+    assert_round_trip(&["rnd", "sq", "flat"], LineCap::from_wire, LineCap::to_wire);
+    assert_eq!(LineCap::from_wire("rnd"), Some(LineCap::Round));
+    assert_eq!(LineCap::Square.to_wire(), "sq");
+    assert_eq!(LineCap::from_wire("bogus"), None);
+}
+
+#[test]
+fn compound_line_round_trips_all_tokens() {
+    // `ST_CompoundLine` (`a:ln@cmpd`), schema order.
+    assert_round_trip(
+        &["sng", "dbl", "thickThin", "thinThick", "tri"],
+        CompoundLine::from_wire,
+        CompoundLine::to_wire,
+    );
+    assert_eq!(CompoundLine::from_wire("sng"), Some(CompoundLine::Single));
+    assert_eq!(CompoundLine::Triple.to_wire(), "tri");
+    // A well-formed token that auto-expands (no override) still resolves.
+    assert_eq!(
+        CompoundLine::from_wire("thickThin"),
+        Some(CompoundLine::ThickThin)
+    );
+    assert_eq!(CompoundLine::from_wire("bogus"), None);
+}
+
+#[test]
+fn pen_alignment_round_trips_all_tokens() {
+    // `ST_PenAlignment` (`a:ln@algn`), schema order. `in` is a Rust keyword — the comprehensive
+    // name `Inset` avoids it.
+    assert_round_trip(
+        &["ctr", "in"],
+        PenAlignment::from_wire,
+        PenAlignment::to_wire,
+    );
+    assert_eq!(PenAlignment::from_wire("ctr"), Some(PenAlignment::Center));
+    assert_eq!(PenAlignment::from_wire("in"), Some(PenAlignment::Inset));
+    assert_eq!(PenAlignment::Inset.to_wire(), "in");
+    assert_eq!(PenAlignment::from_wire("bogus"), None);
+}
+
+/// Every `ST_PresetLineDashVal` wire token, in `dml-main.xsd` schema order (11 values).
+const PRESET_LINE_DASH_TOKENS: &[&str] = &[
+    "solid",
+    "dot",
+    "dash",
+    "lgDash",
+    "dashDot",
+    "lgDashDot",
+    "lgDashDotDot",
+    "sysDash",
+    "sysDot",
+    "sysDashDot",
+    "sysDashDotDot",
+];
+
+#[test]
+fn preset_line_dash_round_trips_all_tokens() {
+    assert_eq!(PRESET_LINE_DASH_TOKENS.len(), 11);
+    assert_round_trip(
+        PRESET_LINE_DASH_TOKENS,
+        PresetLineDash::from_wire,
+        PresetLineDash::to_wire,
+    );
+
+    // Comprehensive names map to the abbreviated dash tokens.
+    assert_eq!(
+        PresetLineDash::from_wire("lgDashDotDot"),
+        Some(PresetLineDash::LargeDashDotDot)
+    );
+    assert_eq!(
+        PresetLineDash::from_wire("sysDashDot"),
+        Some(PresetLineDash::SystemDashDot)
+    );
+    assert_eq!(PresetLineDash::SystemDot.to_wire(), "sysDot");
+    // An auto-expanded (no-override) token still resolves.
+    assert_eq!(
+        PresetLineDash::from_wire("dashDot"),
+        Some(PresetLineDash::DashDot)
+    );
+    assert_eq!(PresetLineDash::from_wire("bogus"), None);
+}
+
+#[test]
+fn line_end_enums_round_trip_all_tokens() {
+    // `ST_LineEndType` (`a:headEnd`/`a:tailEnd@type`), schema order — every token auto-expands.
+    assert_round_trip(
+        &["none", "triangle", "stealth", "diamond", "oval", "arrow"],
+        LineEndType::from_wire,
+        LineEndType::to_wire,
+    );
+    assert_eq!(LineEndType::from_wire("arrow"), Some(LineEndType::Arrow));
+    assert_eq!(LineEndType::from_wire("bogus"), None);
+
+    // `ST_LineEndWidth` (`@w`) and `ST_LineEndLength` (`@len`) share the same three tokens.
+    assert_round_trip(
+        &["sm", "med", "lg"],
+        LineEndWidth::from_wire,
+        LineEndWidth::to_wire,
+    );
+    assert_round_trip(
+        &["sm", "med", "lg"],
+        LineEndLength::from_wire,
+        LineEndLength::to_wire,
+    );
+    assert_eq!(LineEndWidth::from_wire("sm"), Some(LineEndWidth::Small));
+    assert_eq!(LineEndLength::from_wire("lg"), Some(LineEndLength::Large));
+    assert_eq!(LineEndWidth::Medium.to_wire(), "med");
+    assert_eq!(LineEndLength::from_wire("bogus"), None);
 }
 
 #[test]

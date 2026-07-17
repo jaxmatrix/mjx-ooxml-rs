@@ -1228,6 +1228,383 @@ impl core::str::FromStr for PresetShapeType {
     }
 }
 
+/// `ST_LineEndType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineEndType {
+    /// Wire value `none`.
+    None,
+    /// Wire value `triangle`.
+    Triangle,
+    /// Wire value `stealth`.
+    Stealth,
+    /// Wire value `diamond`.
+    Diamond,
+    /// Wire value `oval`.
+    Oval,
+    /// Wire value `arrow`.
+    Arrow,
+}
+
+impl LineEndType {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "none" => Self::None,
+            "triangle" => Self::Triangle,
+            "stealth" => Self::Stealth,
+            "diamond" => Self::Diamond,
+            "oval" => Self::Oval,
+            "arrow" => Self::Arrow,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Triangle => "triangle",
+            Self::Stealth => "stealth",
+            Self::Diamond => "diamond",
+            Self::Oval => "oval",
+            Self::Arrow => "arrow",
+        }
+    }
+}
+
+impl core::fmt::Display for LineEndType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for LineEndType {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_LineEndWidth` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineEndWidth {
+    /// Wire value `sm`.
+    Small,
+    /// Wire value `med`.
+    Medium,
+    /// Wire value `lg`.
+    Large,
+}
+
+impl LineEndWidth {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "sm" => Self::Small,
+            "med" => Self::Medium,
+            "lg" => Self::Large,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Small => "sm",
+            Self::Medium => "med",
+            Self::Large => "lg",
+        }
+    }
+}
+
+impl core::fmt::Display for LineEndWidth {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for LineEndWidth {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_LineEndLength` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineEndLength {
+    /// Wire value `sm`.
+    Small,
+    /// Wire value `med`.
+    Medium,
+    /// Wire value `lg`.
+    Large,
+}
+
+impl LineEndLength {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "sm" => Self::Small,
+            "med" => Self::Medium,
+            "lg" => Self::Large,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Small => "sm",
+            Self::Medium => "med",
+            Self::Large => "lg",
+        }
+    }
+}
+
+impl core::fmt::Display for LineEndLength {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for LineEndLength {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_PresetLineDashVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PresetLineDash {
+    /// Wire value `solid`.
+    Solid,
+    /// Wire value `dot`.
+    Dot,
+    /// Wire value `dash`.
+    Dash,
+    /// Wire value `lgDash`.
+    LargeDash,
+    /// Wire value `dashDot`.
+    DashDot,
+    /// Wire value `lgDashDot`.
+    LargeDashDot,
+    /// Wire value `lgDashDotDot`.
+    LargeDashDotDot,
+    /// Wire value `sysDash`.
+    SystemDash,
+    /// Wire value `sysDot`.
+    SystemDot,
+    /// Wire value `sysDashDot`.
+    SystemDashDot,
+    /// Wire value `sysDashDotDot`.
+    SystemDashDotDot,
+}
+
+impl PresetLineDash {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "solid" => Self::Solid,
+            "dot" => Self::Dot,
+            "dash" => Self::Dash,
+            "lgDash" => Self::LargeDash,
+            "dashDot" => Self::DashDot,
+            "lgDashDot" => Self::LargeDashDot,
+            "lgDashDotDot" => Self::LargeDashDotDot,
+            "sysDash" => Self::SystemDash,
+            "sysDot" => Self::SystemDot,
+            "sysDashDot" => Self::SystemDashDot,
+            "sysDashDotDot" => Self::SystemDashDotDot,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Solid => "solid",
+            Self::Dot => "dot",
+            Self::Dash => "dash",
+            Self::LargeDash => "lgDash",
+            Self::DashDot => "dashDot",
+            Self::LargeDashDot => "lgDashDot",
+            Self::LargeDashDotDot => "lgDashDotDot",
+            Self::SystemDash => "sysDash",
+            Self::SystemDot => "sysDot",
+            Self::SystemDashDot => "sysDashDot",
+            Self::SystemDashDotDot => "sysDashDotDot",
+        }
+    }
+}
+
+impl core::fmt::Display for PresetLineDash {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PresetLineDash {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_LineCap` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineCap {
+    /// Wire value `rnd`.
+    Round,
+    /// Wire value `sq`.
+    Square,
+    /// Wire value `flat`.
+    Flat,
+}
+
+impl LineCap {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "rnd" => Self::Round,
+            "sq" => Self::Square,
+            "flat" => Self::Flat,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Round => "rnd",
+            Self::Square => "sq",
+            Self::Flat => "flat",
+        }
+    }
+}
+
+impl core::fmt::Display for LineCap {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for LineCap {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_PenAlignment` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PenAlignment {
+    /// Wire value `ctr`.
+    Center,
+    /// Wire value `in`.
+    Inset,
+}
+
+impl PenAlignment {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "ctr" => Self::Center,
+            "in" => Self::Inset,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Center => "ctr",
+            Self::Inset => "in",
+        }
+    }
+}
+
+impl core::fmt::Display for PenAlignment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PenAlignment {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_CompoundLine` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CompoundLine {
+    /// Wire value `sng`.
+    Single,
+    /// Wire value `dbl`.
+    Double,
+    /// Wire value `thickThin`.
+    ThickThin,
+    /// Wire value `thinThick`.
+    ThinThick,
+    /// Wire value `tri`.
+    Triple,
+}
+
+impl CompoundLine {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "sng" => Self::Single,
+            "dbl" => Self::Double,
+            "thickThin" => Self::ThickThin,
+            "thinThick" => Self::ThinThick,
+            "tri" => Self::Triple,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Single => "sng",
+            Self::Double => "dbl",
+            Self::ThickThin => "thickThin",
+            Self::ThinThick => "thinThick",
+            Self::Triple => "tri",
+        }
+    }
+}
+
+impl core::fmt::Display for CompoundLine {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for CompoundLine {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// The user-facing adjustments of a preset shape, in `avLst` declaration order.
 ///
 /// Extracted from `presetShapeDefinitions.xml`: each is an `avLst` guide referenced by an
