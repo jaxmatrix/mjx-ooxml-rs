@@ -194,6 +194,192 @@ impl core::str::FromStr for SchemeColor {
     }
 }
 
+/// `ST_RectAlignment` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum RectangleAlignment {
+    /// Wire value `tl`.
+    TopLeft,
+    /// Wire value `t`.
+    Top,
+    /// Wire value `tr`.
+    TopRight,
+    /// Wire value `l`.
+    Left,
+    /// Wire value `ctr`.
+    Center,
+    /// Wire value `r`.
+    Right,
+    /// Wire value `bl`.
+    BottomLeft,
+    /// Wire value `b`.
+    Bottom,
+    /// Wire value `br`.
+    BottomRight,
+}
+
+impl RectangleAlignment {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "tl" => Self::TopLeft,
+            "t" => Self::Top,
+            "tr" => Self::TopRight,
+            "l" => Self::Left,
+            "ctr" => Self::Center,
+            "r" => Self::Right,
+            "bl" => Self::BottomLeft,
+            "b" => Self::Bottom,
+            "br" => Self::BottomRight,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::TopLeft => "tl",
+            Self::Top => "t",
+            Self::TopRight => "tr",
+            Self::Left => "l",
+            Self::Center => "ctr",
+            Self::Right => "r",
+            Self::BottomLeft => "bl",
+            Self::Bottom => "b",
+            Self::BottomRight => "br",
+        }
+    }
+}
+
+impl core::fmt::Display for RectangleAlignment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for RectangleAlignment {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_PresetShadowVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PresetShadow {
+    /// Wire value `shdw1`.
+    Shadow1,
+    /// Wire value `shdw2`.
+    Shadow2,
+    /// Wire value `shdw3`.
+    Shadow3,
+    /// Wire value `shdw4`.
+    Shadow4,
+    /// Wire value `shdw5`.
+    Shadow5,
+    /// Wire value `shdw6`.
+    Shadow6,
+    /// Wire value `shdw7`.
+    Shadow7,
+    /// Wire value `shdw8`.
+    Shadow8,
+    /// Wire value `shdw9`.
+    Shadow9,
+    /// Wire value `shdw10`.
+    Shadow10,
+    /// Wire value `shdw11`.
+    Shadow11,
+    /// Wire value `shdw12`.
+    Shadow12,
+    /// Wire value `shdw13`.
+    Shadow13,
+    /// Wire value `shdw14`.
+    Shadow14,
+    /// Wire value `shdw15`.
+    Shadow15,
+    /// Wire value `shdw16`.
+    Shadow16,
+    /// Wire value `shdw17`.
+    Shadow17,
+    /// Wire value `shdw18`.
+    Shadow18,
+    /// Wire value `shdw19`.
+    Shadow19,
+    /// Wire value `shdw20`.
+    Shadow20,
+}
+
+impl PresetShadow {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "shdw1" => Self::Shadow1,
+            "shdw2" => Self::Shadow2,
+            "shdw3" => Self::Shadow3,
+            "shdw4" => Self::Shadow4,
+            "shdw5" => Self::Shadow5,
+            "shdw6" => Self::Shadow6,
+            "shdw7" => Self::Shadow7,
+            "shdw8" => Self::Shadow8,
+            "shdw9" => Self::Shadow9,
+            "shdw10" => Self::Shadow10,
+            "shdw11" => Self::Shadow11,
+            "shdw12" => Self::Shadow12,
+            "shdw13" => Self::Shadow13,
+            "shdw14" => Self::Shadow14,
+            "shdw15" => Self::Shadow15,
+            "shdw16" => Self::Shadow16,
+            "shdw17" => Self::Shadow17,
+            "shdw18" => Self::Shadow18,
+            "shdw19" => Self::Shadow19,
+            "shdw20" => Self::Shadow20,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Shadow1 => "shdw1",
+            Self::Shadow2 => "shdw2",
+            Self::Shadow3 => "shdw3",
+            Self::Shadow4 => "shdw4",
+            Self::Shadow5 => "shdw5",
+            Self::Shadow6 => "shdw6",
+            Self::Shadow7 => "shdw7",
+            Self::Shadow8 => "shdw8",
+            Self::Shadow9 => "shdw9",
+            Self::Shadow10 => "shdw10",
+            Self::Shadow11 => "shdw11",
+            Self::Shadow12 => "shdw12",
+            Self::Shadow13 => "shdw13",
+            Self::Shadow14 => "shdw14",
+            Self::Shadow15 => "shdw15",
+            Self::Shadow16 => "shdw16",
+            Self::Shadow17 => "shdw17",
+            Self::Shadow18 => "shdw18",
+            Self::Shadow19 => "shdw19",
+            Self::Shadow20 => "shdw20",
+        }
+    }
+}
+
+impl core::fmt::Display for PresetShadow {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PresetShadow {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_PresetPatternVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PatternType {
