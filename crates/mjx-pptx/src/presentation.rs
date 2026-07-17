@@ -1,6 +1,8 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
-use mjx_dml::{Fill, FillSpec, PresetGeometry, ShapeGeometry, TextBody, Theme, ThemeInfo};
+use mjx_dml::{
+    ColorMap, Fill, FillSpec, PresetGeometry, ShapeGeometry, TextBody, Theme, ThemeInfo,
+};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
@@ -655,6 +657,42 @@ impl Presentation {
         }
         Ok(Some(nav::resolve_target(part, &rel.target)?))
     }
+
+    /// The effective theme [`ColorMap`] for slide `slide_idx`: the slide master's `p:clrMap` (reached
+    /// via slide → slideLayout → slideMaster), replaced by the slide's own `p:clrMapOvr >
+    /// a:overrideClrMapping` when it supplies a full mapping (a `masterClrMapping`, an absent override,
+    /// or a schema-loose attribute-less override all inherit the master's map). It maps the logical
+    /// color names a shape may reference (`bg1`/`tx1`/…) to the theme's concrete scheme slots.
+    /// `Ok(None)` when there is no reachable master or no `p:clrMap`. Reading does not dirty a part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range, a relationship points outside the package
+    /// ([`ExternalTarget`](PptxError::ExternalTarget)), or a part is not well-formed.
+    pub fn slide_color_map(&mut self, slide_idx: usize) -> Result<Option<ColorMap>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? else {
+            return Ok(None);
+        };
+        let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? else {
+            return Ok(None);
+        };
+
+        let base = {
+            let doc = self.package.part_tree(&master)?;
+            nav::child(&doc.root, &doc.interner, PML, "clrMap")
+                .and_then(|clr_map| slide::parse_color_map(clr_map, &doc.interner))
+        };
+        let Some(base) = base else {
+            return Ok(None);
+        };
+
+        let doc = self.package.part_tree(&slide_part)?;
+        let effective = nav::child(&doc.root, &doc.interner, PML, "clrMapOvr")
+            .and_then(|ovr| nav::child(ovr, &doc.interner, DML_MAIN, "overrideClrMapping"))
+            .and_then(|mapping| slide::parse_color_map(mapping, &doc.interner))
+            .unwrap_or(base);
+        Ok(Some(effective))
+    }
 }
 
 /// The directory portion of an absolute part name, including the trailing `/` (e.g.
@@ -862,4 +900,39 @@ fn build_paragraph(interner: &mut Interner, line: &str) -> RawElement {
         Vec::new(),
         vec![RawNode::Element(run)],
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mjx_dml::{ColorSchemeSlot, SchemeColor};
+
+    fn fixture() -> Vec<u8> {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/sample.pptx");
+        std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
+    }
+
+    #[test]
+    fn slide_color_map_resolves_master_mapping() {
+        // The fixture master's p:clrMap is the standard mapping (bg1=lt1, tx1=dk1, …), and slide 0
+        // has no p:clrMapOvr — so the effective map is the master's.
+        let mut pres = Presentation::open(&fixture()).expect("open");
+        let map = pres
+            .slide_color_map(0)
+            .expect("slide_color_map")
+            .expect("fixture has a color map");
+        assert_eq!(
+            map.resolve(SchemeColor::Background1),
+            Some(ColorSchemeSlot::Light1)
+        );
+        assert_eq!(
+            map.resolve(SchemeColor::Text1),
+            Some(ColorSchemeSlot::Dark1)
+        );
+        assert_eq!(
+            map.resolve(SchemeColor::Accent1),
+            Some(ColorSchemeSlot::Accent1)
+        );
+    }
 }

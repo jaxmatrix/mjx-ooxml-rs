@@ -35,14 +35,16 @@ to rendering — pin expected values from a trusted reference).
     Option<ThemeInfo>` walking slide→layout→master→theme.
   - The **interner-bound `Theme`** is retained (public in `mjx-dml`) as the color resolver's input for
     PR-3/PR-4 — it keeps color transforms and opaque fill internals that `ThemeInfo` drops.
-- **PR-2 — Shape style ref + color map.**
-  - `mjx-dml`: `StyleMatrixReference { idx: u32, color: Option<Color> }` (`a:fillRef`/`lnRef`/
-    `effectRef`; hand-written `FromXml`, element name is the discriminant like `Color`); `ColorMap`
-    value-object (`bg1/tx1/bg2/tx2/accent1..6/hlink/folHlink → ColorSchemeSlot`), `resolve(SchemeColor)
-    -> ColorSchemeSlot`.
-  - `mjx-pptx`: read `p:sp > p:style > a:fillRef`; build a slide's effective `ColorMap` (master
-    `p:clrMap` overridden by slide/layout `p:clrMapOvr`: `masterClrMapping` inherit vs
-    `overrideClrMapping`).
+- **PR-2 — Shape style ref + color map. ✅ DONE.**
+  - `mjx-dml::style`: `StyleMatrixReference { idx: Option<u32>, color: Option<Color> }` (`a:fillRef`
+    etc.; `FromXml` parsing `@idx` + `first_color_child`); `ColorMap` value-object (pub fields
+    `background1`/`text1`/… → `ColorSchemeSlot`) with `identity()` and `resolve(SchemeColor) ->
+    Option<ColorSchemeSlot>` (map for `bg/tx/accent/hlink`, direct for `dk/lt`, `None` for `phClr`).
+  - `mjx-pptx`: `Presentation::slide_color_map(idx) -> Option<ColorMap>` (public) — master `p:clrMap`
+    via slide→layout→master, overridden by the slide's `p:clrMapOvr` (falls back to master on a
+    `masterClrMapping` / absent / attribute-less override); `nav::attr_value` + `slide::parse_color_map`.
+  - **Deferred to PR-4:** reading `p:sp > p:style > a:fillRef` (`shape_fill_ref`) lands where it is
+    consumed (in `effective_shape_fill`), keeping its interner-bound `Color` internal.
 - **PR-3 — Color resolver (full concrete RGB).**
   - `mjx-dml`: `resolve_color(&Color, &ColorScheme, &ColorMap, placeholder: Option<&Color>) ->
     Option<ResolvedColor>` — base resolution (srgb/sys/scheme, phClr substitution, bg/tx map) + the

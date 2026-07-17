@@ -20,6 +20,7 @@ pub(crate) mod build;
 pub mod color;
 pub mod fill;
 pub mod geometry;
+pub mod style;
 pub mod text;
 pub mod theme;
 
@@ -32,5 +33,6 @@ pub use geometry::{
     Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
     PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
 };
+pub use style::{ColorMap, StyleMatrixReference};
 pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
 pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};

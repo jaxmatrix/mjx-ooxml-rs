@@ -1,6 +1,6 @@
 //! Navigation of a slide's shape tree (`p:sld > p:cSld > p:spTree > p:sp > p:txBody`).
 
-use mjx_dml::Fill;
+use mjx_dml::{ColorMap, ColorSchemeSlot, Fill};
 use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
 
@@ -56,6 +56,28 @@ pub(crate) fn shape_prstgeom<'a>(
 ) -> Option<&'a RawElement> {
     let sp_pr = nav::child(shape, interner, PML, "spPr")?;
     nav::child(sp_pr, interner, DML_MAIN, "prstGeom")
+}
+
+/// Parses a `p:clrMap` / `a:overrideClrMapping` element into a [`ColorMap`] — the twelve logical
+/// color-name attributes, each a `ST_ColorSchemeIndex` token. Returns `None` if any of the twelve is
+/// absent or unrecognized (e.g. the schema-loose attribute-less `overrideClrMapping` some files emit).
+pub(crate) fn parse_color_map(element: &RawElement, interner: &Interner) -> Option<ColorMap> {
+    let slot =
+        |local| nav::attr_value(element, interner, local).and_then(ColorSchemeSlot::from_wire);
+    Some(ColorMap {
+        background1: slot("bg1")?,
+        text1: slot("tx1")?,
+        background2: slot("bg2")?,
+        text2: slot("tx2")?,
+        accent1: slot("accent1")?,
+        accent2: slot("accent2")?,
+        accent3: slot("accent3")?,
+        accent4: slot("accent4")?,
+        accent5: slot("accent5")?,
+        accent6: slot("accent6")?,
+        hyperlink: slot("hlink")?,
+        followed_hyperlink: slot("folHlink")?,
+    })
 }
 
 /// The local name of `node` if it is a DrawingML-main element (accepting both URIs), else `None`.
@@ -125,6 +147,11 @@ mod tests {
         (doc.root, doc.interner)
     }
 
+    fn element(fragment: String) -> (RawElement, mjx_ooxml_core::Interner) {
+        let doc = fidelity::parse(fragment.as_bytes()).expect("parse");
+        (doc.root, doc.interner)
+    }
+
     #[test]
     fn finds_existing_fill_of_any_kind() {
         let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:gradFill/><a:ln/>"#);
@@ -149,5 +176,33 @@ mod tests {
         // No line/effect/3-D/ext child: the fill appends after geometry.
         let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/>"#);
         assert_eq!(fill_insert_index(&el, &interner), 2);
+    }
+
+    #[test]
+    fn parse_color_map_reads_twelve_slots() {
+        let (map_el, interner) = element(format!(
+            concat!(
+                r#"<p:clrMap xmlns:p="{P}" bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" "#,
+                r#"accent1="accent1" accent2="accent2" accent3="accent3" accent4="accent4" "#,
+                r#"accent5="accent5" accent6="accent6" hlink="hlink" folHlink="folHlink"/>"#
+            ),
+            P = P
+        ));
+        let map = parse_color_map(&map_el, &interner).expect("color map");
+        assert_eq!(
+            map.resolve(mjx_dml::SchemeColor::Background1),
+            Some(ColorSchemeSlot::Light1)
+        );
+        assert_eq!(
+            map.resolve(mjx_dml::SchemeColor::Text1),
+            Some(ColorSchemeSlot::Dark1)
+        );
+    }
+
+    #[test]
+    fn parse_color_map_rejects_attribute_less_override() {
+        // A schema-loose, attribute-less overrideClrMapping yields no map (caller falls back).
+        let (map_el, interner) = element(format!(r#"<a:overrideClrMapping xmlns:a="{A}"/>"#));
+        assert!(parse_color_map(&map_el, &interner).is_none());
     }
 }
