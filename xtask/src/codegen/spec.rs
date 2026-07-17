@@ -38,6 +38,14 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_PresetPatternVal", "PatternType"),
     // DrawingML theme color-scheme slots: the `a:clrScheme` slot names + `p:clrMap` targets.
     ("ST_ColorSchemeIndex", "ColorSchemeSlot"),
+    // DrawingML line (outline) properties: `a:ln`'s attributes and its head/tail line-end sub-elements.
+    ("ST_LineCap", "LineCap"),
+    ("ST_CompoundLine", "CompoundLine"),
+    ("ST_PenAlignment", "PenAlignment"),
+    ("ST_PresetLineDashVal", "PresetLineDash"),
+    ("ST_LineEndType", "LineEndType"),
+    ("ST_LineEndWidth", "LineEndWidth"),
+    ("ST_LineEndLength", "LineEndLength"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -188,6 +196,37 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_ColorSchemeIndex", "lt2", "Light2"),
     ("ST_ColorSchemeIndex", "hlink", "Hyperlink"),
     ("ST_ColorSchemeIndex", "folHlink", "FollowedHyperlink"),
+    // `ST_LineCap` (`a:ln@cap`): expand the abbreviated end-cap tokens (ECMA-376 §20.1.10.31).
+    ("ST_LineCap", "rnd", "Round"),
+    ("ST_LineCap", "sq", "Square"),
+    // `flat` auto-expands.
+    // `ST_CompoundLine` (`a:ln@cmpd`): expand the abbreviated compound-line tokens (§20.1.10.15).
+    // `thickThin`/`thinThick` auto-expand.
+    ("ST_CompoundLine", "sng", "Single"),
+    ("ST_CompoundLine", "dbl", "Double"),
+    ("ST_CompoundLine", "tri", "Triple"),
+    // `ST_PenAlignment` (`a:ln@algn`): expand the pen-alignment tokens (§20.1.10.40). `in` is also a
+    // Rust keyword, so it must not fall through to the mechanical `In`.
+    ("ST_PenAlignment", "ctr", "Center"),
+    ("ST_PenAlignment", "in", "Inset"),
+    // `ST_PresetLineDashVal` (`a:prstDash@val`): expand the abbreviated dash tokens (§20.1.10.48).
+    // `lg`→Large, `sys`→System; `solid`/`dot`/`dash`/`dashDot` auto-expand.
+    ("ST_PresetLineDashVal", "lgDash", "LargeDash"),
+    ("ST_PresetLineDashVal", "lgDashDot", "LargeDashDot"),
+    ("ST_PresetLineDashVal", "lgDashDotDot", "LargeDashDotDot"),
+    ("ST_PresetLineDashVal", "sysDash", "SystemDash"),
+    ("ST_PresetLineDashVal", "sysDot", "SystemDot"),
+    ("ST_PresetLineDashVal", "sysDashDot", "SystemDashDot"),
+    ("ST_PresetLineDashVal", "sysDashDotDot", "SystemDashDotDot"),
+    // `ST_LineEndType` (`a:headEnd`/`a:tailEnd@type`, §20.1.10.33): all tokens
+    // (`none`/`triangle`/`stealth`/`diamond`/`oval`/`arrow`) auto-expand — no rows needed.
+    // `ST_LineEndWidth` (`@w`) / `ST_LineEndLength` (`@len`): expand the size tokens (§20.1.10.34/.32).
+    ("ST_LineEndWidth", "sm", "Small"),
+    ("ST_LineEndWidth", "med", "Medium"),
+    ("ST_LineEndWidth", "lg", "Large"),
+    ("ST_LineEndLength", "sm", "Small"),
+    ("ST_LineEndLength", "med", "Medium"),
+    ("ST_LineEndLength", "lg", "Large"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
