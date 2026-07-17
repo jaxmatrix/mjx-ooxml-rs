@@ -22,10 +22,10 @@ pub mod fill;
 pub mod geometry;
 pub mod text;
 
-pub use color::{Color, ColorKind, SchemeColor};
+pub use color::{Color, ColorKind, ColorSpec, SchemeColor};
 pub use fill::{
-    BlipFill, BlipFillMode, Fill, GradientFill, GradientStop, GroupFill, NoFill, PatternFill,
-    PatternType, SolidFill, SolidFillContent,
+    BlipFill, BlipFillMode, Fill, FillSpec, GradientFill, GradientStop, GradientStopSpec,
+    GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
 };
 pub use geometry::{
     Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,

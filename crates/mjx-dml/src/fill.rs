@@ -16,7 +16,7 @@ use crate::build::{
     attr_by_local, attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls,
     prefixed_attr,
 };
-use crate::color::Color;
+use crate::color::{Color, ColorKind, ColorSpec};
 use crate::geometry::{Angle, Fraction};
 
 pub use mjx_ooxml_types::drawingml::PatternType;
@@ -173,27 +173,7 @@ impl GradientFill {
     /// `<a:gradFill><a:gsLst>…</a:gsLst><a:lin ang="…"/></a:gradFill>`.
     #[must_use]
     pub fn linear(interner: &mut Interner, stops: &[(Fraction, Color)], angle: Angle) -> Self {
-        let gs_nodes: Vec<RawNode> = stops
-            .iter()
-            .map(|(position, color)| {
-                let pos = (position.ratio() * 100_000.0).round() as i64;
-                let attributes = vec![dml_attr(interner, "pos", &pos.to_string())];
-                let color_node = RawNode::Element(color.to_xml(interner));
-                RawNode::Element(dml_element(interner, "gs", attributes, vec![color_node]))
-            })
-            .collect();
-        let gs_lst = RawNode::Element(dml_element(interner, "gsLst", Vec::new(), gs_nodes));
-
-        let ang = (angle.degrees() * 60_000.0).round() as i64;
-        let lin_attributes = vec![dml_attr(interner, "ang", &ang.to_string())];
-        let lin = RawNode::Element(dml_element(interner, "lin", lin_attributes, Vec::new()));
-
-        Self {
-            name: dml_name(interner, "gradFill"),
-            attributes: Vec::new(),
-            children: vec![gs_lst, lin],
-            empty: false,
-        }
+        build_gradient(interner, stops, Some(angle))
     }
 
     /// The gradient stops (`gsLst > gs`), in order — each stop's `@pos` as a [`Fraction`] and its
@@ -360,16 +340,46 @@ impl PatternFill {
     /// Builds `<a:pattFill prst="{preset}"><a:fgClr>{fg}</a:fgClr><a:bgClr>{bg}</a:bgClr></a:pattFill>`.
     #[must_use]
     pub fn new(interner: &mut Interner, preset: PatternType, fg: Color, bg: Color) -> Self {
-        let prst = dml_attr(interner, "prst", preset.to_wire());
-        let fg_node = RawNode::Element(fg.to_xml(interner));
-        let bg_node = RawNode::Element(bg.to_xml(interner));
-        let fg_clr = RawNode::Element(dml_element(interner, "fgClr", Vec::new(), vec![fg_node]));
-        let bg_clr = RawNode::Element(dml_element(interner, "bgClr", Vec::new(), vec![bg_node]));
+        Self::from_parts(interner, Some(preset), Some(fg), Some(bg))
+    }
+
+    /// Builds an `a:pattFill` from optional parts — each of `@prst`, `a:fgClr`, `a:bgClr` is emitted
+    /// only when present (all three are schema-optional). Behind [`FillSpec::to_fill`].
+    #[must_use]
+    pub fn from_parts(
+        interner: &mut Interner,
+        preset: Option<PatternType>,
+        fg: Option<Color>,
+        bg: Option<Color>,
+    ) -> Self {
+        let attributes = preset
+            .map(|preset| vec![dml_attr(interner, "prst", preset.to_wire())])
+            .unwrap_or_default();
+        let mut children = Vec::new();
+        if let Some(fg) = fg {
+            let fg_node = RawNode::Element(fg.to_xml(interner));
+            children.push(RawNode::Element(dml_element(
+                interner,
+                "fgClr",
+                Vec::new(),
+                vec![fg_node],
+            )));
+        }
+        if let Some(bg) = bg {
+            let bg_node = RawNode::Element(bg.to_xml(interner));
+            children.push(RawNode::Element(dml_element(
+                interner,
+                "bgClr",
+                Vec::new(),
+                vec![bg_node],
+            )));
+        }
+        let empty = children.is_empty();
         Self {
             name: dml_name(interner, "pattFill"),
-            attributes: vec![prst],
-            children: vec![fg_clr, bg_clr],
-            empty: false,
+            attributes,
+            children,
+            empty,
         }
     }
 
@@ -459,6 +469,172 @@ impl ToXml for Fill {
 }
 
 // ---------------------------------------------------------------------------------------------
+// FillSpec — the interner-free description
+// ---------------------------------------------------------------------------------------------
+
+/// One stop of a [`FillSpec::Gradient`]: an interner-free position + color.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GradientStopSpec {
+    /// The stop's position along the gradient (`0.0`..=`1.0`).
+    pub position: Fraction,
+    /// The stop's color.
+    pub color: ColorSpec,
+}
+
+/// An interner-free description of a shape [`Fill`] — the friendly value an interner-less caller reads
+/// and writes (`mjx-pptx`'s `shape_fill` / `set_shape_fill`). Convert with [`Fill::spec`] /
+/// [`FillSpec::to_fill`]. A spec is a value description, not a fidelity view: converting a `Fill` to a
+/// spec and back rebuilds the element from its key values and drops any opaque internals (blip
+/// effects, gradient shade paths, tile/fill rects).
+#[derive(Debug, Clone, PartialEq)]
+pub enum FillSpec {
+    /// `a:noFill` — an explicit "no fill".
+    None,
+    /// `a:solidFill` — a solid color (an absent color reads as [`ColorSpec::Other`] with
+    /// [`Unknown`](ColorKind::Unknown)).
+    Solid(ColorSpec),
+    /// `a:gradFill` — a gradient: ordered stops and an optional linear angle (`None` when the source
+    /// gradient has no `a:lin` linear shade).
+    Gradient {
+        /// The gradient stops, in order.
+        stops: Vec<GradientStopSpec>,
+        /// The linear-shade angle, if any.
+        angle: Option<Angle>,
+    },
+    /// `a:blipFill` — an image fill referencing an image relationship id.
+    Blip {
+        /// The image relationship id (`a:blip@r:embed`, or `@r:link`).
+        rel_id: String,
+        /// How the image maps onto the shape.
+        mode: BlipFillMode,
+    },
+    /// `a:pattFill` — a two-color preset pattern. Each part is schema-optional.
+    Pattern {
+        /// The preset pattern (`@prst`).
+        preset: Option<PatternType>,
+        /// The foreground color (`a:fgClr`).
+        foreground: Option<ColorSpec>,
+        /// The background color (`a:bgClr`).
+        background: Option<ColorSpec>,
+    },
+    /// `a:grpFill` — inherit the group's fill.
+    Group,
+}
+
+impl FillSpec {
+    /// A solid fill of `color`.
+    #[must_use]
+    pub fn solid(color: ColorSpec) -> Self {
+        FillSpec::Solid(color)
+    }
+
+    /// A linear gradient from `stops` at `angle`.
+    #[must_use]
+    pub fn linear_gradient(stops: Vec<GradientStopSpec>, angle: Angle) -> Self {
+        FillSpec::Gradient {
+            stops,
+            angle: Some(angle),
+        }
+    }
+
+    /// A preset pattern fill with a foreground and background color.
+    #[must_use]
+    pub fn pattern(preset: PatternType, foreground: ColorSpec, background: ColorSpec) -> Self {
+        FillSpec::Pattern {
+            preset: Some(preset),
+            foreground: Some(foreground),
+            background: Some(background),
+        }
+    }
+
+    /// Builds the fidelity [`Fill`] for this description, interning against `interner`.
+    #[must_use]
+    pub fn to_fill(&self, interner: &mut Interner) -> Fill {
+        match self {
+            FillSpec::None => Fill::None(NoFill::new(interner)),
+            FillSpec::Group => Fill::Group(GroupFill::new(interner)),
+            FillSpec::Solid(color) => {
+                let color = Color::from_spec(interner, color);
+                Fill::Solid(SolidFill::new(interner, color))
+            }
+            FillSpec::Gradient { stops, angle } => {
+                let pairs: Vec<(Fraction, Color)> = stops
+                    .iter()
+                    .filter_map(|stop| {
+                        Color::from_spec(interner, &stop.color).map(|color| (stop.position, color))
+                    })
+                    .collect();
+                Fill::Gradient(build_gradient(interner, &pairs, *angle))
+            }
+            FillSpec::Blip { rel_id, mode } => Fill::Blip(BlipFill::new(interner, rel_id, *mode)),
+            FillSpec::Pattern {
+                preset,
+                foreground,
+                background,
+            } => {
+                let fg = foreground
+                    .as_ref()
+                    .and_then(|spec| Color::from_spec(interner, spec));
+                let bg = background
+                    .as_ref()
+                    .and_then(|spec| Color::from_spec(interner, spec));
+                Fill::Pattern(PatternFill::from_parts(interner, *preset, fg, bg))
+            }
+        }
+    }
+}
+
+impl Fill {
+    /// This fill as an interner-free [`FillSpec`] — resolving the key values of the current variant
+    /// and dropping opaque internals. Reading does not need a mutable interner.
+    #[must_use]
+    pub fn spec(&self, interner: &Interner) -> FillSpec {
+        match self {
+            Fill::None(_) => FillSpec::None,
+            Fill::Group(_) => FillSpec::Group,
+            Fill::Solid(solid) => FillSpec::Solid(solid.color().map_or(
+                ColorSpec::Other {
+                    kind: ColorKind::Unknown,
+                    value: None,
+                },
+                |color| color.spec(interner),
+            )),
+            Fill::Gradient(gradient) => {
+                let stops = gradient
+                    .stops(interner)
+                    .into_iter()
+                    .map(|stop| GradientStopSpec {
+                        position: stop.position,
+                        color: stop.color.spec(interner),
+                    })
+                    .collect();
+                FillSpec::Gradient {
+                    stops,
+                    angle: gradient.linear_angle(interner),
+                }
+            }
+            Fill::Blip(blip) => FillSpec::Blip {
+                rel_id: blip
+                    .image_rel_id(interner)
+                    .or_else(|| blip.image_link_id(interner))
+                    .unwrap_or_default()
+                    .to_owned(),
+                mode: blip.mode(interner),
+            },
+            Fill::Pattern(pattern) => FillSpec::Pattern {
+                preset: pattern.preset(interner),
+                foreground: pattern
+                    .foreground(interner)
+                    .map(|color| color.spec(interner)),
+                background: pattern
+                    .background(interner)
+                    .map(|color| color.spec(interner)),
+            },
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------------------------
 
@@ -499,4 +675,44 @@ fn parse_angle(s: &str) -> Option<Angle> {
         .parse::<f64>()
         .ok()
         .map(|value| Angle::from_degrees(value / 60_000.0))
+}
+
+/// Builds an `a:gradFill` with a `gsLst` of `stops` and, when `angle` is `Some`, an `a:lin` linear
+/// shade. Behind [`GradientFill::linear`] and [`FillSpec::to_fill`].
+fn build_gradient(
+    interner: &mut Interner,
+    stops: &[(Fraction, Color)],
+    angle: Option<Angle>,
+) -> GradientFill {
+    let gs_nodes: Vec<RawNode> = stops
+        .iter()
+        .map(|(position, color)| {
+            let pos = (position.ratio() * 100_000.0).round() as i64;
+            let attributes = vec![dml_attr(interner, "pos", &pos.to_string())];
+            let color_node = RawNode::Element(color.to_xml(interner));
+            RawNode::Element(dml_element(interner, "gs", attributes, vec![color_node]))
+        })
+        .collect();
+    let mut children = vec![RawNode::Element(dml_element(
+        interner,
+        "gsLst",
+        Vec::new(),
+        gs_nodes,
+    ))];
+    if let Some(angle) = angle {
+        let ang = (angle.degrees() * 60_000.0).round() as i64;
+        let lin_attributes = vec![dml_attr(interner, "ang", &ang.to_string())];
+        children.push(RawNode::Element(dml_element(
+            interner,
+            "lin",
+            lin_attributes,
+            Vec::new(),
+        )));
+    }
+    GradientFill {
+        name: dml_name(interner, "gradFill"),
+        attributes: Vec::new(),
+        children,
+        empty: false,
+    }
 }

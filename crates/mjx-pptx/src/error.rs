@@ -106,4 +106,8 @@ pub enum PptxError {
     /// A slide cannot be added because there is no existing slide to inherit a layout from.
     #[error("cannot add a slide: no existing slide to borrow a layout from")]
     NoSlideLayout,
+
+    /// The shape has no `p:spPr` shape-properties element to edit.
+    #[error("shape has no properties element")]
+    ShapeHasNoProperties,
 }

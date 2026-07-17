@@ -348,8 +348,10 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
   the **exhaustive fill model** — all six `EG_FillProperties` kinds (`noFill`/`solidFill`/`gradFill`/
   `blipFill`/`pattFill`/`grpFill`) as a `mjx-dml::fill::Fill` enum of fidelity wrappers with key typed
   accessors + builders, backed by generated `PatternType` (`ST_PresetPatternVal`, 54 tokens).
-- ⏭ **Next (PR-2):** wire `shape_fill`/`set_shape_fill` into `mjx-pptx` (navigate `p:spPr` → the fill
-  child → `Fill::from_xml`; insert after geometry, before `a:ln`); extend the office-open canary.
+- ✅ **Done (PR-2):** `mjx-pptx` `shape_fill` / `set_shape_fill` / `set_shape_no_fill` over an
+  interner-free `mjx-dml::FillSpec` (+ `ColorSpec`, `GradientStopSpec`) — mirrors `ShapeGeometry`.
+  Reads/sets all six kinds; inserts the fill after geometry, before `a:ln`; office-open canary covers
+  a gradient- and pattern-filled deck.
 - ⏳ **Deferred (future round): PowerPoint default fill resolution.** The typed fill model covers only
   **explicit** fills. Resolving a shape's *effective* fill when it has none — inheritance from the
   placeholder → `p:style > a:fillRef` style-matrix index → the theme's `a:fmtScheme`/`a:clrScheme` —
