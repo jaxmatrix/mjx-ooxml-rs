@@ -21,6 +21,7 @@ pub mod color;
 pub mod fill;
 pub mod geometry;
 pub mod text;
+pub mod theme;
 
 pub use color::{Color, ColorKind, ColorSpec, SchemeColor};
 pub use fill::{
@@ -32,3 +33,4 @@ pub use geometry::{
     PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
 };
 pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
+pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};

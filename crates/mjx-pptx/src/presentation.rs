@@ -1,6 +1,6 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
-use mjx_dml::{Fill, FillSpec, PresetGeometry, ShapeGeometry, TextBody};
+use mjx_dml::{Fill, FillSpec, PresetGeometry, ShapeGeometry, TextBody, Theme, ThemeInfo};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
@@ -372,6 +372,30 @@ impl Presentation {
         self.set_shape_fill(slide_idx, shape_idx, &FillSpec::None)
     }
 
+    /// The theme that governs slide `slide_idx`, as an interner-free [`ThemeInfo`] (its color scheme +
+    /// fill-style matrix) — resolved by following the relationship chain slide → slideLayout →
+    /// slideMaster → theme. Returns `Ok(None)` if any hop in the chain is absent (a deck without a
+    /// theme). Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range, a relationship points outside the package
+    /// ([`ExternalTarget`](PptxError::ExternalTarget)), or the theme part is not well-formed.
+    pub fn slide_theme(&mut self, slide_idx: usize) -> Result<Option<ThemeInfo>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? else {
+            return Ok(None);
+        };
+        let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? else {
+            return Ok(None);
+        };
+        let Some(theme_part) = self.follow_rel(&master, constants::REL_THEME)? else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&theme_part)?;
+        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(theme.to_info(&doc.interner)))
+    }
+
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
     /// paragraph). Returns the index of the new shape among the slide's `p:sp` shapes. Only that
@@ -612,6 +636,24 @@ impl Presentation {
                 index: slide_idx,
                 count: self.slides.len(),
             })
+    }
+
+    /// Follows the single relationship of type `rel_type` from `part` to a target [`PartName`], or
+    /// `None` if `part` has no such relationship. Errors if the relationship points outside the
+    /// package. This is the shared hop used to walk slide → layout → master → theme.
+    fn follow_rel(&self, part: &PartName, rel_type: &str) -> Result<Option<PartName>, PptxError> {
+        let Some(rels) = self.package.relationships_for(Some(part)) else {
+            return Ok(None);
+        };
+        let Some(rel) = rels.by_type(rel_type).next() else {
+            return Ok(None);
+        };
+        if rel.mode == TargetMode::External {
+            return Err(PptxError::ExternalTarget {
+                target: rel.target.clone(),
+            });
+        }
+        Ok(Some(nav::resolve_target(part, &rel.target)?))
     }
 }
 

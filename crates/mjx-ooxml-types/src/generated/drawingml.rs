@@ -8,6 +8,89 @@
 //! Selected from `dml-main.xsd`; each item records its original `ST_*` symbol and exact wire
 //! token(s). Types join the allowlist as the DrawingML workstream ports them.
 
+/// `ST_ColorSchemeIndex` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ColorSchemeSlot {
+    /// Wire value `dk1`.
+    Dark1,
+    /// Wire value `lt1`.
+    Light1,
+    /// Wire value `dk2`.
+    Dark2,
+    /// Wire value `lt2`.
+    Light2,
+    /// Wire value `accent1`.
+    Accent1,
+    /// Wire value `accent2`.
+    Accent2,
+    /// Wire value `accent3`.
+    Accent3,
+    /// Wire value `accent4`.
+    Accent4,
+    /// Wire value `accent5`.
+    Accent5,
+    /// Wire value `accent6`.
+    Accent6,
+    /// Wire value `hlink`.
+    Hyperlink,
+    /// Wire value `folHlink`.
+    FollowedHyperlink,
+}
+
+impl ColorSchemeSlot {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "dk1" => Self::Dark1,
+            "lt1" => Self::Light1,
+            "dk2" => Self::Dark2,
+            "lt2" => Self::Light2,
+            "accent1" => Self::Accent1,
+            "accent2" => Self::Accent2,
+            "accent3" => Self::Accent3,
+            "accent4" => Self::Accent4,
+            "accent5" => Self::Accent5,
+            "accent6" => Self::Accent6,
+            "hlink" => Self::Hyperlink,
+            "folHlink" => Self::FollowedHyperlink,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Dark1 => "dk1",
+            Self::Light1 => "lt1",
+            Self::Dark2 => "dk2",
+            Self::Light2 => "lt2",
+            Self::Accent1 => "accent1",
+            Self::Accent2 => "accent2",
+            Self::Accent3 => "accent3",
+            Self::Accent4 => "accent4",
+            Self::Accent5 => "accent5",
+            Self::Accent6 => "accent6",
+            Self::Hyperlink => "hlink",
+            Self::FollowedHyperlink => "folHlink",
+        }
+    }
+}
+
+impl core::fmt::Display for ColorSchemeSlot {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for ColorSchemeSlot {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_SchemeColorVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SchemeColor {

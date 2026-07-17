@@ -352,7 +352,13 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
   interner-free `mjx-dml::FillSpec` (+ `ColorSpec`, `GradientStopSpec`) — mirrors `ShapeGeometry`.
   Reads/sets all six kinds; inserts the fill after geometry, before `a:ln`; office-open canary covers
   a gradient- and pattern-filled deck.
-- ⏳ **Deferred (future round): PowerPoint default fill resolution.** The typed fill model covers only
-  **explicit** fills. Resolving a shape's *effective* fill when it has none — inheritance from the
-  placeholder → `p:style > a:fillRef` style-matrix index → the theme's `a:fmtScheme`/`a:clrScheme` —
-  needs the theme part + style matrix (neither modeled yet) and is out of scope until a later round.
+- 🔄 **In progress: PowerPoint effective (default) fill resolution** (4-PR workstream, see
+  `docs/DRAWINGML_EFFECTIVE_FILL_HANDOFF.md`). Resolves a shape's *effective* fill when it has none —
+  inheritance from the placeholder → `p:style > a:fillRef` style-matrix index → the theme's
+  `a:fmtScheme`/`a:clrScheme`. Public API interner-free; color resolution targets full concrete RGB.
+  - ✅ **PR-1 done:** the theme model (`mjx-dml::theme` — `Theme`/`ColorScheme`/fill-style matrix +
+    interner-free `ThemeInfo`) backed by generated `ColorSchemeSlot`, and `Presentation::slide_theme`
+    walking slide→layout→master→theme.
+  - ⏭ **Next:** PR-2 shape style ref (`a:fillRef`) + color map (`p:clrMap`/`p:clrMapOvr`); PR-3 the
+    color resolver (scheme/phClr → concrete RGB, transform math); PR-4 placeholder inheritance +
+    `effective_shape_fill`.

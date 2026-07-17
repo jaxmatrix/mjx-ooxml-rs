@@ -4,7 +4,7 @@
 
 use std::str::FromStr;
 
-use mjx_ooxml_types::drawingml::{PatternType, PresetShapeType, SchemeColor};
+use mjx_ooxml_types::drawingml::{ColorSchemeSlot, PatternType, PresetShapeType, SchemeColor};
 use mjx_ooxml_types::namespaces;
 use mjx_ooxml_types::shared::{
     CalendarType, ConformanceClass, CryptographicProvider, RelativeVerticalAlignment,
@@ -429,6 +429,37 @@ fn pattern_type_round_trips_all_tokens() {
         PatternType::from_str("notAPattern").unwrap_err().value(),
         "notAPattern"
     );
+}
+
+#[test]
+fn color_scheme_slot_round_trips_all_tokens() {
+    let tokens = [
+        "dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3", "accent4", "accent5",
+        "accent6", "hlink", "folHlink",
+    ];
+    assert_eq!(tokens.len(), 12);
+    assert_round_trip(
+        &tokens,
+        ColorSchemeSlot::from_wire,
+        ColorSchemeSlot::to_wire,
+    );
+
+    // Comprehensive names map to the cryptic dark/light/hyperlink tokens.
+    assert_eq!(
+        ColorSchemeSlot::from_wire("dk1"),
+        Some(ColorSchemeSlot::Dark1)
+    );
+    assert_eq!(
+        ColorSchemeSlot::from_wire("lt2"),
+        Some(ColorSchemeSlot::Light2)
+    );
+    assert_eq!(
+        ColorSchemeSlot::from_wire("folHlink"),
+        Some(ColorSchemeSlot::FollowedHyperlink)
+    );
+    assert_eq!(ColorSchemeSlot::Accent1.to_wire(), "accent1");
+    assert_eq!(ColorSchemeSlot::from_wire("phClr"), None); // phClr is not a scheme slot
+    assert_eq!(ColorSchemeSlot::from_wire("bogus"), None);
 }
 
 #[test]

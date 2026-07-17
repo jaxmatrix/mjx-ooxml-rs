@@ -15,6 +15,14 @@ pub const REL_SLIDE: &str =
 pub const REL_SLIDE_LAYOUT: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout";
 
+/// The relationship type from a slide layout to its slide master.
+pub const REL_SLIDE_MASTER: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster";
+
+/// The relationship type from a slide master (or the presentation) to its theme.
+pub const REL_THEME: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
@@ -22,3 +30,6 @@ pub const CONTENT_TYPE_PRESENTATION: &str =
 /// The content type of a slide part.
 pub const CONTENT_TYPE_SLIDE: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
+
+/// The content type of a theme part.
+pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
