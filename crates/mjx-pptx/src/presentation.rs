@@ -1,6 +1,6 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
-use mjx_dml::{PresetGeometry, ShapeGeometry, TextBody};
+use mjx_dml::{Fill, FillSpec, PresetGeometry, ShapeGeometry, TextBody};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
@@ -279,6 +279,97 @@ impl Presentation {
         // The edit lands here: rebuild the prstGeom in place, reusing the part's own interner.
         *slot = geom.to_xml(interner);
         Ok(())
+    }
+
+    /// The explicit fill of shape `shape_idx` on slide `slide_idx`, as an interner-free [`FillSpec`],
+    /// or `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the
+    /// placeholder / style / theme — resolving that is a separate, future task). Reading does not
+    /// dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the fill element
+    /// is not well-formed.
+    pub fn shape_fill(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<FillSpec>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        match slide::shape_fill(shape, &doc.interner) {
+            Some(fill) => {
+                let fill = Fill::from_xml(fill, &doc.interner)?;
+                Ok(Some(fill.spec(&doc.interner)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Sets the fill of shape `shape_idx` on slide `slide_idx` from an interner-free [`FillSpec`],
+    /// rebuilding the `p:spPr` fill element (replacing an existing one in place, or inserting a new
+    /// one after any geometry and before `a:ln`). Marks only that slide part dirty.
+    ///
+    /// A [`FillSpec::Blip`] writes only the `a:blip@r:embed` reference; the image part and its
+    /// relationship must already exist in the package.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
+    pub fn set_shape_fill(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+        fill: &FillSpec,
+    ) -> Result<(), PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` builds the fill element, `root` receives it.
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let sp_pr =
+            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+
+        let element = fill.to_fill(interner).to_xml(interner);
+        let node = RawNode::Element(element);
+        match slide::fill_child_index(sp_pr, interner) {
+            Some(index) => sp_pr.children[index] = node,
+            None => {
+                let at = slide::fill_insert_index(sp_pr, interner);
+                sp_pr.children.insert(at, node);
+                sp_pr.empty = false;
+            }
+        }
+        Ok(())
+    }
+
+    /// Sets shape `shape_idx` on slide `slide_idx` to an explicit "no fill" (`a:noFill`). A shorthand
+    /// for [`set_shape_fill`](Self::set_shape_fill) with [`FillSpec::None`].
+    ///
+    /// # Errors
+    /// As [`set_shape_fill`](Self::set_shape_fill).
+    pub fn set_shape_no_fill(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<(), PptxError> {
+        self.set_shape_fill(slide_idx, shape_idx, &FillSpec::None)
     }
 
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`

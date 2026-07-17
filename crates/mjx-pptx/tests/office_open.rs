@@ -11,7 +11,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-use mjx_dml::{Fraction, ShapeGeometry};
+use mjx_dml::{
+    Angle, ColorSpec, FillSpec, Fraction, GradientStopSpec, PatternType, SchemeColor, ShapeGeometry,
+};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds};
 
@@ -192,6 +194,60 @@ fn deck_with_added_shape_opens() {
     .expect("set geometry");
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "added_shape");
+}
+
+#[test]
+fn deck_with_filled_shapes_opens() {
+    // Adds autoshapes with a gradient and a preset pattern fill and checks the deck opens in
+    // LibreOffice — exercises the fill write path end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+
+    let gradient = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 3.0, 1.5),
+        )
+        .expect("add gradient shape");
+    pres.set_shape_fill(
+        0,
+        gradient,
+        &FillSpec::linear_gradient(
+            vec![
+                GradientStopSpec {
+                    position: Fraction::from_ratio(0.0),
+                    color: ColorSpec::Srgb("FF0000".into()),
+                },
+                GradientStopSpec {
+                    position: Fraction::from_ratio(1.0),
+                    color: ColorSpec::Scheme(SchemeColor::Accent1),
+                },
+            ],
+            Angle::from_degrees(45.0),
+        ),
+    )
+    .expect("set gradient fill");
+
+    let pattern = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 3.0, 3.0, 1.5),
+        )
+        .expect("add pattern shape");
+    pres.set_shape_fill(
+        0,
+        pattern,
+        &FillSpec::pattern(
+            PatternType::Percent25,
+            ColorSpec::Srgb("000000".into()),
+            ColorSpec::Srgb("FFFFFF".into()),
+        ),
+    )
+    .expect("set pattern fill");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "filled_shapes");
 }
 
 #[test]

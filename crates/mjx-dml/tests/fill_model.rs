@@ -3,8 +3,8 @@
 //! opaque bucket; typed reads and builders are checked against expected values/bytes.
 
 use mjx_dml::{
-    BlipFill, BlipFillMode, Color, ColorKind, Fill, GradientFill, NoFill, PatternFill, PatternType,
-    SchemeColor,
+    Angle, BlipFill, BlipFillMode, Color, ColorKind, ColorSpec, Fill, FillSpec, Fraction,
+    GradientFill, GradientStopSpec, NoFill, PatternFill, PatternType, SchemeColor,
 };
 use mjx_dml::{GroupFill, SolidFill};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
@@ -222,9 +222,10 @@ fn fill_dispatches_on_local_name_for_all_six_kinds() {
         &format!(r#"<a:blipFill xmlns:a="{A}"><a:blip/></a:blipFill>"#),
         |f| matches!(f, Fill::Blip(_)),
     );
-    assert_fill_variant(&format!(r#"<a:pattFill xmlns:a="{A}" prst="pct5"/>"#), |f| {
-        matches!(f, Fill::Pattern(_))
-    });
+    assert_fill_variant(
+        &format!(r#"<a:pattFill xmlns:a="{A}" prst="pct5"/>"#),
+        |f| matches!(f, Fill::Pattern(_)),
+    );
     assert_fill_variant(&format!(r#"<a:grpFill xmlns:a="{A}"/>"#), |f| {
         matches!(f, Fill::Group(_))
     });
@@ -255,4 +256,97 @@ fn fill_solid_variant_exposes_its_color() {
     let _: &SolidFill = solid;
     assert_eq!(solid.color().unwrap().hex(&doc.interner), Some("112233"));
     assert_round_trips(&fill, doc, fragment.as_bytes());
+}
+
+// ---------------------------------------------------------------------------------------------
+// FillSpec / ColorSpec (the interner-free description)
+// ---------------------------------------------------------------------------------------------
+
+/// Round-trips a [`FillSpec`] through the fidelity model: `spec → to_fill → Fill → spec`.
+#[track_caller]
+fn assert_spec_round_trips(spec: FillSpec) {
+    let mut interner = Interner::new();
+    let fill = spec.to_fill(&mut interner);
+    assert_eq!(fill.spec(&interner), spec, "FillSpec round-trip mismatch");
+}
+
+#[test]
+fn fill_spec_round_trips_each_kind() {
+    assert_spec_round_trips(FillSpec::None);
+    assert_spec_round_trips(FillSpec::Group);
+    assert_spec_round_trips(FillSpec::solid(ColorSpec::Srgb("FF0000".into())));
+    assert_spec_round_trips(FillSpec::solid(ColorSpec::Scheme(SchemeColor::Accent1)));
+    // A non-first-class color kind survives as Other with its raw val.
+    assert_spec_round_trips(FillSpec::solid(ColorSpec::Other {
+        kind: ColorKind::System,
+        value: Some("windowText".into()),
+    }));
+    assert_spec_round_trips(FillSpec::linear_gradient(
+        vec![
+            GradientStopSpec {
+                position: Fraction::from_ratio(0.0),
+                color: ColorSpec::Srgb("FF0000".into()),
+            },
+            GradientStopSpec {
+                position: Fraction::from_ratio(1.0),
+                color: ColorSpec::Scheme(SchemeColor::Accent2),
+            },
+        ],
+        Angle::from_degrees(90.0),
+    ));
+    assert_spec_round_trips(FillSpec::Blip {
+        rel_id: "rId7".into(),
+        mode: BlipFillMode::Stretch,
+    });
+    assert_spec_round_trips(FillSpec::pattern(
+        PatternType::Percent25,
+        ColorSpec::Srgb("000000".into()),
+        ColorSpec::Srgb("FFFFFF".into()),
+    ));
+}
+
+#[test]
+fn solid_fill_reads_via_spec() {
+    let fragment =
+        format!(r#"<a:solidFill xmlns:a="{A}"><a:schemeClr val="accent3"/></a:solidFill>"#);
+    let (fill, doc): (Fill, _) = parse_typed(fragment.as_bytes());
+    assert_eq!(
+        fill.spec(&doc.interner),
+        FillSpec::Solid(ColorSpec::Scheme(SchemeColor::Accent3))
+    );
+}
+
+#[test]
+fn color_less_solid_fill_reads_and_rebuilds_empty() {
+    // An empty solidFill has no color: it reads as Other/Unknown and rebuilds as `<a:solidFill/>`.
+    let mut interner = Interner::new();
+    let spec = FillSpec::Solid(ColorSpec::Other {
+        kind: ColorKind::Unknown,
+        value: None,
+    });
+    let fill = spec.to_fill(&mut interner);
+    assert_eq!(fill.spec(&interner), spec);
+    let Fill::Solid(solid) = &fill else {
+        panic!("expected a solid fill");
+    };
+    assert!(solid.color().is_none());
+}
+
+#[test]
+fn fill_spec_gradient_without_linear_shade_has_no_angle() {
+    // A gradient with stops but no linear angle round-trips with angle == None.
+    let spec = FillSpec::Gradient {
+        stops: vec![
+            GradientStopSpec {
+                position: Fraction::from_ratio(0.0),
+                color: ColorSpec::Srgb("112233".into()),
+            },
+            GradientStopSpec {
+                position: Fraction::from_ratio(1.0),
+                color: ColorSpec::Srgb("445566".into()),
+            },
+        ],
+        angle: None,
+    };
+    assert_spec_round_trips(spec);
 }

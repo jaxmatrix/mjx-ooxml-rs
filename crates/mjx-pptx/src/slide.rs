@@ -1,10 +1,15 @@
 //! Navigation of a slide's shape tree (`p:sld > p:cSld > p:spTree > p:sp > p:txBody`).
 
-use mjx_ooxml_core::{Interner, RawElement};
+use mjx_dml::Fill;
+use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
 
 use crate::error::PptxError;
 use crate::nav;
+
+/// The `p:spPr` child elements that a fill must precede, per `CT_ShapeProperties`'s content order
+/// (line, effects, 3-D, extensions). A new fill is inserted before the first of these.
+const AFTER_FILL_LOCALS: [&str; 6] = ["ln", "effectLst", "effectDag", "scene3d", "sp3d", "extLst"];
 
 /// The `p:spTree` of a slide (`slide_root` is the `p:sld`).
 pub(crate) fn sp_tree<'a>(
@@ -51,4 +56,98 @@ pub(crate) fn shape_prstgeom<'a>(
 ) -> Option<&'a RawElement> {
     let sp_pr = nav::child(shape, interner, PML, "spPr")?;
     nav::child(sp_pr, interner, DML_MAIN, "prstGeom")
+}
+
+/// The local name of `node` if it is a DrawingML-main element (accepting both URIs), else `None`.
+fn dml_element_local<'a>(node: &'a RawNode, interner: &'a Interner) -> Option<&'a str> {
+    match node {
+        RawNode::Element(element) => {
+            let namespace = element
+                .name
+                .namespace
+                .map(|symbol| interner.resolve(symbol));
+            if namespace == Some(DML_MAIN.transitional) || namespace == DML_MAIN.strict {
+                Some(interner.resolve(element.name.local))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+/// A shape's explicit fill element (`p:spPr`'s `EG_FillProperties` child), if present. Returns `None`
+/// when the shape has no `p:spPr` or no explicit fill (its fill is then inherited).
+pub(crate) fn shape_fill<'a>(shape: &'a RawElement, interner: &Interner) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    sp_pr.children.iter().find_map(|node| match node {
+        RawNode::Element(element)
+            if dml_element_local(node, interner).is_some_and(Fill::is_fill_local) =>
+        {
+            Some(element)
+        }
+        _ => None,
+    })
+}
+
+/// The index of `sp_pr`'s existing fill child (`EG_FillProperties`), if any.
+pub(crate) fn fill_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| dml_element_local(node, interner).is_some_and(Fill::is_fill_local))
+}
+
+/// Where a new fill child should be inserted in `sp_pr`: before the first line/effect/3-D/extension
+/// child (so it lands after any geometry), or at the end when none is present.
+pub(crate) fn fill_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| {
+            dml_element_local(node, interner)
+                .is_some_and(|local| AFTER_FILL_LOCALS.contains(&local))
+        })
+        .unwrap_or(sp_pr.children.len())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mjx_xml::fidelity;
+
+    const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+    const P: &str = "http://schemas.openxmlformats.org/presentationml/2006/main";
+
+    fn sp_pr(inner: &str) -> (RawElement, mjx_ooxml_core::Interner) {
+        let fragment = format!(r#"<p:spPr xmlns:p="{P}" xmlns:a="{A}">{inner}</p:spPr>"#);
+        let doc = fidelity::parse(fragment.as_bytes()).expect("parse");
+        (doc.root, doc.interner)
+    }
+
+    #[test]
+    fn finds_existing_fill_of_any_kind() {
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:gradFill/><a:ln/>"#);
+        assert_eq!(fill_child_index(&el, &interner), Some(2));
+    }
+
+    #[test]
+    fn no_fill_child_when_absent() {
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/>"#);
+        assert_eq!(fill_child_index(&el, &interner), None);
+    }
+
+    #[test]
+    fn insert_index_lands_after_geometry_before_line() {
+        // With an a:ln present, the fill inserts right before it (after geometry).
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:ln/>"#);
+        assert_eq!(fill_insert_index(&el, &interner), 2);
+    }
+
+    #[test]
+    fn insert_index_appends_when_no_trailing_children() {
+        // No line/effect/3-D/ext child: the fill appends after geometry.
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/>"#);
+        assert_eq!(fill_insert_index(&el, &interner), 2);
+    }
 }

@@ -28,6 +28,26 @@ pub enum ColorKind {
     Unknown,
 }
 
+/// An interner-free description of a [`Color`] — the friendly value an interner-less caller reads and
+/// writes (see [`Color::spec`] / [`Color::from_spec`]). The two first-class kinds carry their value;
+/// any other `EG_ColorChoice` kind is preserved as [`Other`](ColorSpec::Other) with its raw `val`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ColorSpec {
+    /// `a:srgbClr` — an sRGB hex value like `"FF0000"` (no leading `#`).
+    Srgb(String),
+    /// `a:schemeClr` — a theme color.
+    Scheme(SchemeColor),
+    /// Any other color kind (`a:sysClr`, `a:prstClr`, `a:scrgbClr`, `a:hslClr`), carrying its kind
+    /// and raw `val` (if any). Also represents an absent color ([`Unknown`](ColorKind::Unknown), no
+    /// value) so a color-less `a:solidFill` round-trips.
+    Other {
+        /// The color-choice element kind.
+        kind: ColorKind,
+        /// The raw `val` attribute, if present.
+        value: Option<String>,
+    },
+}
+
 /// A DrawingML color — one `EG_ColorChoice` element with its value attributes and any color-transform
 /// children (`a:lumMod`, `a:alpha`, …).
 ///
@@ -65,6 +85,37 @@ impl Color {
             children: Vec::new(),
             empty: true,
         }
+    }
+
+    /// The `EG_ColorChoice` element local name for a [`ColorKind`], or `None` for
+    /// [`Unknown`](ColorKind::Unknown).
+    fn kind_local(kind: ColorKind) -> Option<&'static str> {
+        Some(match kind {
+            ColorKind::Srgb => "srgbClr",
+            ColorKind::ScRgb => "scrgbClr",
+            ColorKind::Hsl => "hslClr",
+            ColorKind::System => "sysClr",
+            ColorKind::Scheme => "schemeClr",
+            ColorKind::Preset => "prstClr",
+            ColorKind::Unknown => return None,
+        })
+    }
+
+    /// Builds a color of `kind` carrying an optional `val` attribute — the generic path behind
+    /// [`from_spec`](Self::from_spec) for kinds other than sRGB / scheme. Returns `None` for
+    /// [`Unknown`](ColorKind::Unknown), which names no element.
+    #[must_use]
+    pub fn of_kind(interner: &mut Interner, kind: ColorKind, value: Option<&str>) -> Option<Self> {
+        let local = Self::kind_local(kind)?;
+        let attributes = value
+            .map(|value| vec![dml_attr(interner, "val", value)])
+            .unwrap_or_default();
+        Some(Self {
+            name: dml_name(interner, local),
+            attributes,
+            children: Vec::new(),
+            empty: true,
+        })
     }
 
     /// The six `EG_ColorChoice` element local names (`a:srgbClr`, `a:schemeClr`, …), in schema order.
@@ -121,6 +172,38 @@ impl Color {
     #[must_use]
     pub fn value(&self, interner: &Interner) -> Option<&str> {
         attr_str(&self.attributes, interner, "val")
+    }
+
+    /// This color as an interner-free [`ColorSpec`] — sRGB and scheme colors resolve to their first-
+    /// class variants; any other kind becomes [`ColorSpec::Other`] carrying its `val`. Transform
+    /// children are not represented (the spec is a value description, not a fidelity view).
+    #[must_use]
+    pub fn spec(&self, interner: &Interner) -> ColorSpec {
+        match self.kind(interner) {
+            ColorKind::Srgb => ColorSpec::Srgb(self.value(interner).unwrap_or_default().to_owned()),
+            ColorKind::Scheme => match self.scheme_color(interner) {
+                Some(scheme) => ColorSpec::Scheme(scheme),
+                None => ColorSpec::Other {
+                    kind: ColorKind::Scheme,
+                    value: self.value(interner).map(str::to_owned),
+                },
+            },
+            kind => ColorSpec::Other {
+                kind,
+                value: self.value(interner).map(str::to_owned),
+            },
+        }
+    }
+
+    /// Builds a color from an interner-free [`ColorSpec`]. Returns `None` only for an
+    /// [`Other`](ColorSpec::Other) spec whose kind names no element ([`Unknown`](ColorKind::Unknown)).
+    #[must_use]
+    pub fn from_spec(interner: &mut Interner, spec: &ColorSpec) -> Option<Self> {
+        match spec {
+            ColorSpec::Srgb(hex) => Some(Self::srgb(interner, hex)),
+            ColorSpec::Scheme(scheme) => Some(Self::scheme(interner, *scheme)),
+            ColorSpec::Other { kind, value } => Self::of_kind(interner, *kind, value.as_deref()),
+        }
     }
 
     /// The color's attributes, verbatim.
