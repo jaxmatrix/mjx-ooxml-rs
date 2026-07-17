@@ -1,9 +1,11 @@
-//! Unit tests for base color resolution: a `Color` resolved against a theme color scheme + color map
-//! bakes down to a concrete RGB. The scheme is resolved to an interner-free `SchemeColors` first, so
-//! the scheme and the color legitimately use different interners (the real cross-part scenario).
-//! Transform-bearing colors are (this stage) reported unresolved.
+//! Unit tests for color resolution: a `Color` (and a whole `Fill`) resolved against a theme color
+//! scheme + color map bakes down to concrete RGB. The scheme is resolved to an interner-free
+//! `SchemeColors` first, so the scheme and the color legitimately use different interners (the real
+//! cross-part scenario).
 
-use mjx_dml::{Color, ColorMap, ColorScheme, ResolvedColor, SchemeColors};
+use mjx_dml::{
+    Color, ColorMap, ColorScheme, ColorSpec, Fill, FillSpec, ResolvedColor, SchemeColors,
+};
 use mjx_ooxml_core::{FromXml, RawNode};
 use mjx_xml::fidelity;
 
@@ -41,10 +43,12 @@ fn resolve(frag: &str, map: &ColorMap, placeholder_frag: Option<&str>) -> Option
         _ => None,
     });
     let color = Color::from_xml(&elements.next().expect("color element"), &doc.interner).unwrap();
-    let placeholder = elements
-        .next()
-        .map(|el| Color::from_xml(&el, &doc.interner).unwrap());
-    mjx_dml::resolve_color(&color, &scheme, map, placeholder.as_ref(), &doc.interner)
+    // The placeholder (a shape's fillRef color) is pre-resolved to an interner-free ResolvedColor.
+    let placeholder = elements.next().and_then(|el| {
+        let ph = Color::from_xml(&el, &doc.interner).unwrap();
+        mjx_dml::resolve_color(&ph, &scheme, map, None, &doc.interner)
+    });
+    mjx_dml::resolve_color(&color, &scheme, map, placeholder, &doc.interner)
 }
 
 #[test]
@@ -253,4 +257,107 @@ fn transforms_apply_at_every_level_of_the_chain() {
     assert_ne!(c.to_hex(), "4472C4");
     // 4472C4 has L ~= 0.52; halving luminance darkens every channel.
     assert!(c.red < 0x44 && c.green < 0x72 && c.blue < 0xC4);
+}
+
+// ---------------------------------------------------------------------------------------------
+// resolve_fill — resolving a whole fill's colors
+// ---------------------------------------------------------------------------------------------
+
+fn fill(frag: &str) -> (Fill, mjx_ooxml_core::RawDocument) {
+    let full = format!(r#"<a:wrap xmlns:a="{A}" xmlns:r="http://x">{frag}</a:wrap>"#);
+    let doc = fidelity::parse(full.as_bytes()).expect("parses");
+    let element = doc
+        .root
+        .children
+        .iter()
+        .find_map(|node| match node {
+            RawNode::Element(el) => Some(el.clone()),
+            _ => None,
+        })
+        .expect("fill element");
+    let fill = Fill::from_xml(&element, &doc.interner).expect("Fill");
+    (fill, doc)
+}
+
+#[test]
+fn resolve_fill_solid_scheme_color() {
+    let scheme = office_scheme();
+    let (f, doc) = fill(r#"<a:solidFill><a:schemeClr val="accent1"/></a:solidFill>"#);
+    let spec = mjx_dml::resolve_fill(&f, &scheme, &ColorMap::identity(), None, &doc.interner);
+    assert_eq!(spec, FillSpec::Solid(ColorSpec::Srgb("4472C4".into())));
+}
+
+#[test]
+fn resolve_fill_solid_with_transform() {
+    let scheme = office_scheme();
+    let (f, doc) = fill(
+        r#"<a:solidFill><a:schemeClr val="accent1"><a:lumMod val="50000"/></a:schemeClr></a:solidFill>"#,
+    );
+    let FillSpec::Solid(ColorSpec::Srgb(hex)) =
+        mjx_dml::resolve_fill(&f, &scheme, &ColorMap::identity(), None, &doc.interner)
+    else {
+        panic!("expected a resolved solid fill");
+    };
+    assert_ne!(hex, "4472C4"); // darkened by lumMod
+}
+
+#[test]
+fn resolve_fill_gradient_stops() {
+    let scheme = office_scheme();
+    let (f, doc) = fill(
+        r#"<a:gradFill><a:gsLst>
+             <a:gs pos="0"><a:srgbClr val="FF0000"/></a:gs>
+             <a:gs pos="100000"><a:schemeClr val="accent1"/></a:gs>
+           </a:gsLst><a:lin ang="0"/></a:gradFill>"#,
+    );
+    let FillSpec::Gradient { stops, .. } =
+        mjx_dml::resolve_fill(&f, &scheme, &ColorMap::identity(), None, &doc.interner)
+    else {
+        panic!("expected a gradient");
+    };
+    assert_eq!(stops.len(), 2);
+    assert_eq!(stops[0].color, ColorSpec::Srgb("FF0000".into()));
+    assert_eq!(stops[1].color, ColorSpec::Srgb("4472C4".into()));
+}
+
+#[test]
+fn resolve_fill_theme_style_substitutes_placeholder() {
+    // A theme fill style (solidFill of phClr) resolved with a pre-resolved fillRef color.
+    let scheme = office_scheme();
+    let (f, doc) = fill(r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>"#);
+    let placeholder = ResolvedColor {
+        red: 0x00,
+        green: 0xFF,
+        blue: 0x00,
+        alpha: 1.0,
+    };
+    let spec = mjx_dml::resolve_fill(
+        &f,
+        &scheme,
+        &ColorMap::identity(),
+        Some(placeholder),
+        &doc.interner,
+    );
+    assert_eq!(spec, FillSpec::Solid(ColorSpec::Srgb("00FF00".into())));
+}
+
+#[test]
+fn resolve_fill_passthrough_kinds() {
+    let scheme = office_scheme();
+    let (no_fill, doc) = fill(r#"<a:noFill/>"#);
+    assert_eq!(
+        mjx_dml::resolve_fill(
+            &no_fill,
+            &scheme,
+            &ColorMap::identity(),
+            None,
+            &doc.interner
+        ),
+        FillSpec::None
+    );
+    let (grp, doc) = fill(r#"<a:grpFill/>"#);
+    assert_eq!(
+        mjx_dml::resolve_fill(&grp, &scheme, &ColorMap::identity(), None, &doc.interner),
+        FillSpec::Group
+    );
 }

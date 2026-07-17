@@ -62,10 +62,18 @@ to rendering — pin expected values from a trusted reference).
     now real. Common ops value-pinned (`shade 50%` white→`BCBCBC`, `lumMod 50%` red→`800000`,
     `lumMod60+lumOff40`→`FF6666`); `comp`/`gray`/`gamma` are documented-interpretation, not Office-exact.
     **The color resolver is complete.**
-- **PR-4 — Placeholder inheritance + `effective_shape_fill`.**
-  - `mjx-pptx`: `p:ph` model (`@type`/`@idx`), a slide→layout→master walker matching the same-typed
-    shape; `Presentation::effective_shape_fill(slide, shape) -> Option<FillSpec>` composing
-    explicit-fill → style-fillRef+theme → placeholder inheritance.
+- **PR-4 — `effective_shape_fill`. Split into 4a + 4b.**
+  - **PR-4a — shape-level effective fill. ✅ DONE.** `resolve_color`'s placeholder became an
+    interner-free `ResolvedColor` (the theme fill-style and a shape's `fillRef` color live in different
+    interners). New `resolve_fill(&Fill, &SchemeColors, &ColorMap, Option<ResolvedColor>, &Interner) ->
+    FillSpec` bakes every color of a fill. `mjx-pptx`: re-added `slide::shape_fill_ref`; factored
+    `slide_theme_part`; public `Presentation::effective_shape_fill(slide, shape) -> Option<FillSpec>`
+    composing **explicit `p:spPr` fill** and **`p:style > a:fillRef` (theme fill-style + phClr
+    substitution)**, resolved to concrete `RRGGBB` (each source under its own part borrow; interner-free
+    `SchemeColors`/`ColorMap`/`ResolvedColor` carried across). `None` when the shape declares neither.
+  - **PR-4b — placeholder inheritance.** The slide→layout→master `p:ph` (`@type`/`@idx`) walker as a
+    third source in `effective_shape_fill`; needs a **richer `.pptx` fixture** (the sample deck's
+    layout/master have no placeholder shapes, so inheritance can't be positively tested against it).
 
 ## Verified schema facts
 

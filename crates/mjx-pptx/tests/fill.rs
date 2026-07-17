@@ -152,3 +152,97 @@ fn set_fill_keeps_other_parts_byte_identical() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// effective_shape_fill — the shape's rendered fill, resolved to concrete RGB
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn effective_fill_resolves_a_scheme_color_against_the_theme() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // A shape filled with a theme scheme color...
+    pres.set_shape_fill(
+        0,
+        idx,
+        &FillSpec::solid(ColorSpec::Scheme(SchemeColor::Accent1)),
+    )
+    .expect("set fill");
+    // ...resolves to the fixture theme's concrete accent1 (4472C4).
+    assert_eq!(
+        pres.effective_shape_fill(0, idx).expect("effective fill"),
+        Some(FillSpec::Solid(ColorSpec::Srgb("4472C4".into())))
+    );
+}
+
+#[test]
+fn effective_fill_keeps_explicit_srgb_and_baked_gradient() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // An explicit sRGB fill resolves to itself.
+    pres.set_shape_fill(0, idx, &FillSpec::solid(ColorSpec::Srgb("112233".into())))
+        .expect("set fill");
+    assert_eq!(
+        pres.effective_shape_fill(0, idx).expect("effective fill"),
+        Some(FillSpec::Solid(ColorSpec::Srgb("112233".into())))
+    );
+
+    // A gradient with a scheme stop resolves that stop to concrete RGB.
+    let grad = added_shape(&mut pres);
+    pres.set_shape_fill(
+        0,
+        grad,
+        &FillSpec::linear_gradient(
+            vec![
+                GradientStopSpec {
+                    position: Fraction::from_ratio(0.0),
+                    color: ColorSpec::Srgb("FF0000".into()),
+                },
+                GradientStopSpec {
+                    position: Fraction::from_ratio(1.0),
+                    color: ColorSpec::Scheme(SchemeColor::Accent1),
+                },
+            ],
+            Angle::from_degrees(0.0),
+        ),
+    )
+    .expect("set gradient");
+    let Some(FillSpec::Gradient { stops, .. }) =
+        pres.effective_shape_fill(0, grad).expect("effective fill")
+    else {
+        panic!("expected a gradient");
+    };
+    assert_eq!(stops[0].color, ColorSpec::Srgb("FF0000".into()));
+    assert_eq!(stops[1].color, ColorSpec::Srgb("4472C4".into()));
+}
+
+#[test]
+fn effective_fill_is_none_when_the_shape_declares_no_fill() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // A fresh autoshape has no explicit fill and no p:style; inherited fill is a later step.
+    assert_eq!(
+        pres.effective_shape_fill(0, idx).expect("effective fill"),
+        None
+    );
+}
+
+#[test]
+fn reading_effective_fill_keeps_all_parts_byte_identical() {
+    let bytes = fixture("sample.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    // Reading the title's effective fill navigates slide->layout->master->theme without dirtying.
+    let _ = pres.effective_shape_fill(0, 0).expect("effective fill");
+    let saved = pres.save().expect("save");
+
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+    for (name, original) in &snapshot {
+        assert_eq!(
+            reopened.get(name),
+            Some(original),
+            "reading effective fill dirtied part {name}"
+        );
+    }
+}

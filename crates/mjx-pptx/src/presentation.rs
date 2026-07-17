@@ -1,7 +1,8 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    ColorMap, Fill, FillSpec, PresetGeometry, ShapeGeometry, TextBody, Theme, ThemeInfo,
+    resolve_color, resolve_fill, ColorMap, Fill, FillSpec, PresetGeometry, SchemeColors,
+    ShapeGeometry, TextBody, Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -383,6 +384,17 @@ impl Presentation {
     /// Returns [`PptxError`] if `slide_idx` is out of range, a relationship points outside the package
     /// ([`ExternalTarget`](PptxError::ExternalTarget)), or the theme part is not well-formed.
     pub fn slide_theme(&mut self, slide_idx: usize) -> Result<Option<ThemeInfo>, PptxError> {
+        let Some(theme_part) = self.slide_theme_part(slide_idx)? else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&theme_part)?;
+        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(theme.to_info(&doc.interner)))
+    }
+
+    /// The theme [`PartName`] governing slide `slide_idx`, via slide → slideLayout → slideMaster →
+    /// theme; `None` if any hop is absent.
+    fn slide_theme_part(&self, slide_idx: usize) -> Result<Option<PartName>, PptxError> {
         let slide_part = self.slide_part_checked(slide_idx)?.clone();
         let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? else {
             return Ok(None);
@@ -390,12 +402,98 @@ impl Presentation {
         let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? else {
             return Ok(None);
         };
-        let Some(theme_part) = self.follow_rel(&master, constants::REL_THEME)? else {
-            return Ok(None);
+        self.follow_rel(&master, constants::REL_THEME)
+    }
+
+    /// The **effective** fill of shape `shape_idx` on slide `slide_idx`, as an interner-free
+    /// [`FillSpec`] whose colors are resolved to concrete `RRGGBB` values — the fill the shape actually
+    /// renders. Two shape-level sources are resolved: an explicit `p:spPr` fill, or a `p:style >
+    /// a:fillRef` (the theme fill-style at that index with its `phClr` substituted by the reference's
+    /// color). Scheme colors and color transforms are baked against the slide's theme + color map.
+    ///
+    /// Returns `Ok(None)` when the shape declares neither (its fill is then inherited from a
+    /// placeholder — resolving that is a separate, future step). Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
+    /// outside the package, or a part is not well-formed.
+    pub fn effective_shape_fill(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<FillSpec>, PptxError> {
+        let map = self
+            .slide_color_map(slide_idx)?
+            .unwrap_or_else(ColorMap::identity);
+        let theme_part = self.slide_theme_part(slide_idx)?;
+
+        // The resolved color scheme (interner-free) — bridges the theme-part vs slide-part interners.
+        let scheme = match &theme_part {
+            Some(part) => {
+                let doc = self.package.part_tree(part)?;
+                let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                theme
+                    .color_scheme()
+                    .map(|cs| SchemeColors::from_scheme(cs, &doc.interner))
+                    .unwrap_or_default()
+            }
+            None => SchemeColors::default(),
         };
-        let doc = self.package.part_tree(&theme_part)?;
-        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
-        Ok(Some(theme.to_info(&doc.interner)))
+
+        // Inspect the shape: an explicit fill resolves here; a fillRef stashes its (idx, resolved color).
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let fill_ref = {
+            let doc = self.package.part_tree(&slide_part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            let count = slide::shapes(sp_tree, &doc.interner).count();
+            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+                PptxError::ShapeIndexOutOfRange {
+                    slide: slide_idx,
+                    index: shape_idx,
+                    count,
+                },
+            )?;
+
+            if let Some(fill_element) = slide::shape_fill(shape, &doc.interner) {
+                let fill = Fill::from_xml(fill_element, &doc.interner)?;
+                return Ok(Some(resolve_fill(
+                    &fill,
+                    &scheme,
+                    &map,
+                    None,
+                    &doc.interner,
+                )));
+            }
+
+            // No explicit fill — resolve a style fillRef's color (if any) for the theme step below.
+            slide::shape_fill_ref(shape, &doc.interner).and_then(|reference| {
+                let idx = reference.idx()?;
+                if idx == 0 {
+                    return None;
+                }
+                let color = reference
+                    .color()
+                    .and_then(|c| resolve_color(c, &scheme, &map, None, &doc.interner));
+                Some((idx, color))
+            })
+        };
+
+        // fillRef path: resolve the theme fill-style at the index, substituting phClr.
+        if let (Some((idx, placeholder)), Some(part)) = (fill_ref, theme_part) {
+            let doc = self.package.part_tree(&part)?;
+            let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+            if let Some(style) = theme.fill_style(idx) {
+                return Ok(Some(resolve_fill(
+                    style,
+                    &scheme,
+                    &map,
+                    placeholder,
+                    &doc.interner,
+                )));
+            }
+        }
+
+        Ok(None)
     }
 
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`

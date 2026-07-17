@@ -16,7 +16,8 @@
 use mjx_ooxml_core::{Interner, RawNode};
 
 use crate::build::{attr_str, parse_angle, parse_percentage};
-use crate::color::{Color, ColorKind, SchemeColor};
+use crate::color::{Color, ColorKind, ColorSpec, SchemeColor};
+use crate::fill::{Fill, FillSpec, GradientStopSpec};
 use crate::style::ColorMap;
 use crate::theme::{ColorScheme, ColorSchemeSlot};
 
@@ -45,8 +46,9 @@ impl ResolvedColor {
 /// color from one part be resolved against a theme in another part. Build it once from a
 /// [`ColorScheme`] with the theme part's interner, then pass it to [`resolve_color`].
 ///
-/// A slot whose color could not be resolved (an unrecognized value) is omitted.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A slot whose color could not be resolved (an unrecognized value) is omitted. The [`Default`] is an
+/// empty scheme (no slots defined) — resolution then yields `None` for any scheme color.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SchemeColors {
     slots: Vec<(ColorSchemeSlot, [u8; 3])>,
 }
@@ -77,8 +79,10 @@ impl SchemeColors {
 }
 
 /// Resolves `color` to a concrete [`ResolvedColor`] against the resolved theme `scheme` and color
-/// `map`, with `placeholder` supplying the substitute for a `phClr` reference (a shape's `a:fillRef`
-/// color). `interner` is the interner of `color` / `placeholder` (the shape's part).
+/// `map`, with `placeholder` supplying the already-resolved substitute for a `phClr` reference (a
+/// shape's resolved `a:fillRef` color). `interner` is the interner of `color` (the shape's or theme's
+/// part) — `placeholder` is interner-free, so `color` and its `phClr` substitute may come from
+/// different parts.
 ///
 /// Returns `None` when the color cannot be resolved: an unknown/absent value, a `phClr` with no
 /// `placeholder`, or a scheme slot the theme does not define.
@@ -87,7 +91,7 @@ pub fn resolve_color(
     color: &Color,
     scheme: &SchemeColors,
     map: &ColorMap,
-    placeholder: Option<&Color>,
+    placeholder: Option<ResolvedColor>,
     interner: &Interner,
 ) -> Option<ResolvedColor> {
     let (rgb, alpha) = resolve_rgba(color, scheme, map, placeholder, interner)?;
@@ -100,20 +104,79 @@ pub fn resolve_color(
     })
 }
 
+/// Resolves every color of `fill` to concrete RGB, producing an interner-free [`FillSpec`] whose
+/// colors are [`ColorSpec::Srgb`] hex values. `placeholder` is the resolved `phClr` substitute (a
+/// shape's `a:fillRef` color) used when `fill` is a theme fill-style; pass `None` for an explicit
+/// shape fill. A color that cannot be resolved falls back to its own (unresolved) [`ColorSpec`].
+///
+/// Note: [`FillSpec`] colors are RGB-only, so a resolved alpha (from an `a:alpha` transform) is not
+/// represented in the result.
+#[must_use]
+pub fn resolve_fill(
+    fill: &Fill,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> FillSpec {
+    let to_spec = |color: &Color| -> ColorSpec {
+        resolve_color(color, scheme, map, placeholder, interner).map_or_else(
+            || color.spec(interner),
+            |resolved| ColorSpec::Srgb(resolved.to_hex()),
+        )
+    };
+    match fill {
+        Fill::None(_) => FillSpec::None,
+        Fill::Group(_) => FillSpec::Group,
+        Fill::Solid(solid) => FillSpec::Solid(solid.color().map_or(
+            ColorSpec::Other {
+                kind: ColorKind::Unknown,
+                value: None,
+            },
+            to_spec,
+        )),
+        Fill::Gradient(gradient) => FillSpec::Gradient {
+            stops: gradient
+                .stops(interner)
+                .iter()
+                .map(|stop| GradientStopSpec {
+                    position: stop.position,
+                    color: to_spec(&stop.color),
+                })
+                .collect(),
+            angle: gradient.linear_angle(interner),
+        },
+        Fill::Blip(blip) => FillSpec::Blip {
+            rel_id: blip
+                .image_rel_id(interner)
+                .or_else(|| blip.image_link_id(interner))
+                .unwrap_or_default()
+                .to_owned(),
+            mode: blip.mode(interner),
+        },
+        Fill::Pattern(pattern) => FillSpec::Pattern {
+            preset: pattern.preset(interner),
+            foreground: pattern.foreground(interner).map(|color| to_spec(&color)),
+            background: pattern.background(interner).map(|color| to_spec(&color)),
+        },
+    }
+}
+
 /// Resolves `color` to sRGB floats (`0.0..=1.0`) + alpha, applying transforms at every level:
-/// `schemeClr` resolves through the map into a scheme slot or (for `phClr`) the placeholder, then
-/// this node's own transforms apply on top.
+/// `schemeClr` resolves through the map into a scheme slot or (for `phClr`) the pre-resolved
+/// placeholder, then this node's own transforms apply on top.
 fn resolve_rgba(
     color: &Color,
     scheme: &SchemeColors,
     map: &ColorMap,
-    placeholder: Option<&Color>,
+    placeholder: Option<ResolvedColor>,
     interner: &Interner,
 ) -> Option<([f64; 3], f64)> {
     let (base_rgb, base_alpha) = if color.kind(interner) == ColorKind::Scheme {
         match color.scheme_color(interner)? {
             SchemeColor::PlaceholderColor => {
-                resolve_rgba(placeholder?, scheme, map, None, interner)?
+                let ph = placeholder?;
+                (bytes_to_floats([ph.red, ph.green, ph.blue]), ph.alpha)
             }
             other => (bytes_to_floats(scheme.rgb(map.resolve(other)?)?), 1.0),
         }
