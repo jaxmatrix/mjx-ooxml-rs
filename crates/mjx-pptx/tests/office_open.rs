@@ -12,8 +12,9 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, ColorSpec, FillSpec, Fraction, GradientStopSpec, LineCap, LineDash, LineJoin, LineSpec,
-    LineWidth, PatternType, PresetLineDash, SchemeColor, ShapeGeometry,
+    Angle, ColorSpec, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect, GradientStopSpec,
+    LineCap, LineDash, LineJoin, LineSpec, LineWidth, OuterShadowEffect, PatternType,
+    PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds};
@@ -292,4 +293,47 @@ fn deck_with_added_slide_opens() {
         .expect("add slide with text");
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "added_slide");
+}
+
+#[test]
+fn deck_with_effect_shape_opens() {
+    // Adds an autoshape with a solid fill plus an outer shadow and a glow, and checks the deck opens
+    // in LibreOffice — exercises the effects write path (and fill+effect coexistence in spPr)
+    // end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 3.0, 1.5),
+        )
+        .expect("add shape");
+    pres.set_shape_fill(0, idx, &FillSpec::solid(ColorSpec::Srgb("FFF2CC".into())))
+        .expect("set fill");
+    pres.set_shape_effects(
+        0,
+        idx,
+        &EffectListSpec {
+            glow: Some(GlowEffect {
+                color: ColorSpec::Scheme(SchemeColor::Accent1),
+                radius: Some(Emu::from_points(5.0)),
+            }),
+            outer_shadow: Some(OuterShadowEffect {
+                color: ColorSpec::Srgb("808080".into()),
+                blur_radius: Some(Emu::from_points(4.0)),
+                distance: Some(Emu::from_points(3.0)),
+                direction: Some(Angle::from_degrees(45.0)),
+                scale_x: None,
+                scale_y: None,
+                skew_x: None,
+                skew_y: None,
+                alignment: Some(RectangleAlignment::BottomRight),
+                rotate_with_shape: Some(false),
+            }),
+            ..EffectListSpec::new()
+        },
+    )
+    .expect("set effects");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "effect_shape");
 }

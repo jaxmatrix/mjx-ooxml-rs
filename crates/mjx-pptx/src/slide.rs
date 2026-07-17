@@ -16,6 +16,12 @@ const AFTER_FILL_LOCALS: [&str; 6] = ["ln", "effectLst", "effectDag", "scene3d",
 /// so a new outline lands after any geometry and fill (neither is in the set) and before effects.
 const AFTER_LINE_LOCALS: [&str; 5] = ["effectLst", "effectDag", "scene3d", "sp3d", "extLst"];
 
+/// The `p:spPr` child elements that the effect list (`a:effectLst`) must precede, per
+/// `CT_ShapeProperties`'s content order (3-D, extensions). This is [`AFTER_LINE_LOCALS`] without the
+/// leading effect-container names, so a new effect list lands after any geometry, fill, and outline
+/// (none of which is in the set) and before the 3-D/extension children.
+const AFTER_EFFECT_LOCALS: [&str; 3] = ["scene3d", "sp3d", "extLst"];
+
 /// The `p:spTree` of a slide (`slide_root` is the `p:sld`).
 pub(crate) fn sp_tree<'a>(
     slide_root: &'a RawElement,
@@ -239,6 +245,43 @@ pub(crate) fn line_insert_index(sp_pr: &RawElement, interner: &Interner) -> usiz
         .unwrap_or(sp_pr.children.len())
 }
 
+/// A shape's explicit effect list (`p:spPr > a:effectLst`), if present. Returns `None` when the shape
+/// has no `p:spPr` or no `a:effectLst` (its effects are then inherited). The rarer `a:effectDag`
+/// alternative is not modeled and reads as `None`.
+pub(crate) fn shape_effects<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    nav::child(sp_pr, interner, DML_MAIN, "effectLst")
+}
+
+/// The index of `sp_pr`'s existing effect-container child, if any. Matches both `a:effectLst` and its
+/// mutually-exclusive `a:effectDag` alternative (`EG_EffectProperties` permits at most one), so setting
+/// effects replaces whichever is present rather than emitting a second effect container.
+pub(crate) fn effect_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
+    sp_pr.children.iter().position(|node| {
+        matches!(
+            dml_element_local(node, interner),
+            Some("effectLst") | Some("effectDag")
+        )
+    })
+}
+
+/// Where a new effect list (`a:effectLst`) should be inserted in `sp_pr`: before the first
+/// 3-D/extension child (so it lands after any geometry, fill, and outline), or at the end when none is
+/// present.
+pub(crate) fn effect_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| {
+            dml_element_local(node, interner)
+                .is_some_and(|local| AFTER_EFFECT_LOCALS.contains(&local))
+        })
+        .unwrap_or(sp_pr.children.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -309,6 +352,35 @@ mod tests {
         // No effect/3-D/ext child: the outline appends after geometry and fill.
         let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:solidFill/>"#);
         assert_eq!(line_insert_index(&el, &interner), 3);
+    }
+
+    #[test]
+    fn finds_existing_effect_list_or_dag() {
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:solidFill/><a:ln/><a:effectLst/>"#);
+        assert_eq!(effect_child_index(&el, &interner), Some(3));
+        // The mutually-exclusive a:effectDag alternative is matched too, so it is replaced on set.
+        let (dag, interner) = sp_pr(r#"<a:xfrm/><a:ln/><a:effectDag/>"#);
+        assert_eq!(effect_child_index(&dag, &interner), Some(2));
+    }
+
+    #[test]
+    fn no_effect_child_when_absent() {
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:solidFill/><a:ln/>"#);
+        assert_eq!(effect_child_index(&el, &interner), None);
+    }
+
+    #[test]
+    fn effect_insert_index_lands_after_line_before_3d() {
+        // The effect list inserts after geometry+fill+outline and before the 3-D children.
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:solidFill/><a:ln/><a:sp3d/>"#);
+        assert_eq!(effect_insert_index(&el, &interner), 3);
+    }
+
+    #[test]
+    fn effect_insert_index_appends_when_no_trailing_children() {
+        // No 3-D/ext child: the effect list appends after geometry, fill, and outline.
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:solidFill/><a:ln/>"#);
+        assert_eq!(effect_insert_index(&el, &interner), 3);
     }
 
     #[test]
