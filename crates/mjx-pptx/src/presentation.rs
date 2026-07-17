@@ -1,8 +1,9 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_fill, resolve_line, ColorMap, Fill, FillSpec, LineProperties, LineSpec,
-    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
+    resolve_color, resolve_fill, resolve_line, ColorMap, EffectList, EffectListSpec, Fill, FillSpec,
+    LineProperties, LineSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody,
+    Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -465,6 +466,99 @@ impl Presentation {
             ..LineSpec::new()
         };
         self.set_shape_outline(slide_idx, shape_idx, &line)
+    }
+
+    /// The **explicit** effects of shape `shape_idx` on slide `slide_idx` — its `p:spPr > a:effectLst`
+    /// as an interner-free [`EffectListSpec`] — or `None` when the shape declares no `a:effectLst` (its
+    /// effects are then inherited; effective effect resolution is a later step). A shape whose effects
+    /// use the rarer `a:effectDag` alternative also reads as `None` (that opaque graph is not modeled).
+    /// Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the effect element
+    /// is not well-formed.
+    pub fn shape_effects(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<EffectListSpec>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        match slide::shape_effects(shape, &doc.interner) {
+            Some(effects) => {
+                let effects = EffectList::from_xml(effects, &doc.interner)?;
+                Ok(Some(effects.spec(&doc.interner)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Sets the effects of shape `shape_idx` on slide `slide_idx` from an interner-free
+    /// [`EffectListSpec`], rebuilding the `p:spPr` `a:effectLst` element (replacing an existing effect
+    /// container in place — either an `a:effectLst` or the mutually-exclusive `a:effectDag`, which is
+    /// overwritten — or inserting a new one after any geometry, fill, and outline, before the 3-D and
+    /// extension children). Marks only that slide part dirty.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
+    pub fn set_shape_effects(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+        effects: &EffectListSpec,
+    ) -> Result<(), PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` builds the effect element, `root` receives it.
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let sp_pr =
+            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+
+        let element = effects.to_effect_list(interner).to_xml(interner);
+        let node = RawNode::Element(element);
+        match slide::effect_child_index(sp_pr, interner) {
+            Some(index) => sp_pr.children[index] = node,
+            None => {
+                let at = slide::effect_insert_index(sp_pr, interner);
+                sp_pr.children.insert(at, node);
+                sp_pr.empty = false;
+            }
+        }
+        Ok(())
+    }
+
+    /// Sets shape `shape_idx` on slide `slide_idx` to explicit "no effects" (an empty `<a:effectLst/>`).
+    /// A shorthand for [`set_shape_effects`](Self::set_shape_effects) with an empty [`EffectListSpec`] —
+    /// the explicitly-cleared effect state that overrides inheritance, distinct from an absent
+    /// `a:effectLst`. Reads back as `Some(EffectListSpec::default())`.
+    ///
+    /// # Errors
+    /// As [`set_shape_effects`](Self::set_shape_effects).
+    pub fn set_shape_no_effects(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<(), PptxError> {
+        self.set_shape_effects(slide_idx, shape_idx, &EffectListSpec::new())
     }
 
     /// The theme that governs slide `slide_idx`, as an interner-free [`ThemeInfo`] (its color scheme +
