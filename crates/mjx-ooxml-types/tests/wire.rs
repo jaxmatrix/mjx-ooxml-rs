@@ -4,7 +4,7 @@
 
 use std::str::FromStr;
 
-use mjx_ooxml_types::drawingml::PresetShapeType;
+use mjx_ooxml_types::drawingml::{PresetShapeType, SchemeColor};
 use mjx_ooxml_types::namespaces;
 use mjx_ooxml_types::shared::{
     CalendarType, ConformanceClass, CryptographicProvider, RelativeVerticalAlignment,
@@ -313,6 +313,28 @@ fn preset_shape_type_exposes_comprehensive_names() {
         PresetShapeType::from_str("notAShape").unwrap_err().value(),
         "notAShape"
     );
+}
+
+#[test]
+fn scheme_color_round_trips_all_tokens() {
+    let tokens = [
+        "bg1", "tx1", "bg2", "tx2", "accent1", "accent2", "accent3", "accent4", "accent5",
+        "accent6", "hlink", "folHlink", "phClr", "dk1", "lt1", "dk2", "lt2",
+    ];
+    assert_round_trip(&tokens, SchemeColor::from_wire, SchemeColor::to_wire);
+
+    // Comprehensive names map to the cryptic theme-slot tokens.
+    assert_eq!(
+        SchemeColor::from_wire("bg1"),
+        Some(SchemeColor::Background1)
+    );
+    assert_eq!(SchemeColor::from_wire("tx1"), Some(SchemeColor::Text1));
+    assert_eq!(
+        SchemeColor::from_wire("folHlink"),
+        Some(SchemeColor::FollowedHyperlink)
+    );
+    assert_eq!(SchemeColor::Accent1.to_wire(), "accent1");
+    assert_eq!(SchemeColor::from_wire("bogus"), None);
 }
 
 #[test]

@@ -8,6 +8,109 @@
 //! Selected from `dml-main.xsd`; each item records its original `ST_*` symbol and exact wire
 //! token(s). Types join the allowlist as the DrawingML workstream ports them.
 
+/// `ST_SchemeColorVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SchemeColor {
+    /// Wire value `bg1`.
+    Background1,
+    /// Wire value `tx1`.
+    Text1,
+    /// Wire value `bg2`.
+    Background2,
+    /// Wire value `tx2`.
+    Text2,
+    /// Wire value `accent1`.
+    Accent1,
+    /// Wire value `accent2`.
+    Accent2,
+    /// Wire value `accent3`.
+    Accent3,
+    /// Wire value `accent4`.
+    Accent4,
+    /// Wire value `accent5`.
+    Accent5,
+    /// Wire value `accent6`.
+    Accent6,
+    /// Wire value `hlink`.
+    Hyperlink,
+    /// Wire value `folHlink`.
+    FollowedHyperlink,
+    /// Wire value `phClr`.
+    PlaceholderColor,
+    /// Wire value `dk1`.
+    Dark1,
+    /// Wire value `lt1`.
+    Light1,
+    /// Wire value `dk2`.
+    Dark2,
+    /// Wire value `lt2`.
+    Light2,
+}
+
+impl SchemeColor {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "bg1" => Self::Background1,
+            "tx1" => Self::Text1,
+            "bg2" => Self::Background2,
+            "tx2" => Self::Text2,
+            "accent1" => Self::Accent1,
+            "accent2" => Self::Accent2,
+            "accent3" => Self::Accent3,
+            "accent4" => Self::Accent4,
+            "accent5" => Self::Accent5,
+            "accent6" => Self::Accent6,
+            "hlink" => Self::Hyperlink,
+            "folHlink" => Self::FollowedHyperlink,
+            "phClr" => Self::PlaceholderColor,
+            "dk1" => Self::Dark1,
+            "lt1" => Self::Light1,
+            "dk2" => Self::Dark2,
+            "lt2" => Self::Light2,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Background1 => "bg1",
+            Self::Text1 => "tx1",
+            Self::Background2 => "bg2",
+            Self::Text2 => "tx2",
+            Self::Accent1 => "accent1",
+            Self::Accent2 => "accent2",
+            Self::Accent3 => "accent3",
+            Self::Accent4 => "accent4",
+            Self::Accent5 => "accent5",
+            Self::Accent6 => "accent6",
+            Self::Hyperlink => "hlink",
+            Self::FollowedHyperlink => "folHlink",
+            Self::PlaceholderColor => "phClr",
+            Self::Dark1 => "dk1",
+            Self::Light1 => "lt1",
+            Self::Dark2 => "dk2",
+            Self::Light2 => "lt2",
+        }
+    }
+}
+
+impl core::fmt::Display for SchemeColor {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for SchemeColor {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_ShapeType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PresetShapeType {
