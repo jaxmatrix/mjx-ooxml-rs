@@ -365,6 +365,8 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
   - ✅ **PR-3a/3b done:** `mjx-dml::resolve` — `resolve_color` / `SchemeColors` / `ResolvedColor`
     baking a color to concrete RGB: base kinds (`srgb`/`sys`/`scrgb`/`hsl`/`prst` incl. the 190-color
     table) + the full `EG_ColorTransform` set (`lumMod`/`shade`/`tint`/`alpha`/… applied per level).
-    **The resolver is complete.**
-  - ⏭ **Next (final): PR-4** — placeholder inheritance walker + the public
-    `Presentation::effective_shape_fill` (also adds `shape_fill_ref`, deferred from PR-2).
+  - ✅ **PR-4a done:** `resolve_fill` + public `Presentation::effective_shape_fill` — a shape's
+    rendered fill resolved to concrete RGB from its explicit `p:spPr` fill or `p:style > a:fillRef`
+    (theme fill-style + phClr).
+  - ⏭ **Next (final): PR-4b** — placeholder inheritance (slide→layout→master `p:ph` walk) as a third
+    source, with a richer `.pptx` fixture.

@@ -1,7 +1,7 @@
 //! Navigation of a slide's shape tree (`p:sld > p:cSld > p:spTree > p:sp > p:txBody`).
 
-use mjx_dml::{ColorMap, ColorSchemeSlot, Fill};
-use mjx_ooxml_core::{Interner, RawElement, RawNode};
+use mjx_dml::{ColorMap, ColorSchemeSlot, Fill, StyleMatrixReference};
+use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
 
 use crate::error::PptxError;
@@ -110,6 +110,17 @@ pub(crate) fn shape_fill<'a>(shape: &'a RawElement, interner: &Interner) -> Opti
         }
         _ => None,
     })
+}
+
+/// A shape's fill style reference (`p:sp > p:style > a:fillRef`), if it has one — the theme
+/// fill-style index and the color that substitutes the style's `phClr`.
+pub(crate) fn shape_fill_ref(
+    shape: &RawElement,
+    interner: &Interner,
+) -> Option<StyleMatrixReference> {
+    let style = nav::child(shape, interner, PML, "style")?;
+    let fill_ref = nav::child(style, interner, DML_MAIN, "fillRef")?;
+    StyleMatrixReference::from_xml(fill_ref, interner).ok()
 }
 
 /// The index of `sp_pr`'s existing fill child (`EG_FillProperties`), if any.

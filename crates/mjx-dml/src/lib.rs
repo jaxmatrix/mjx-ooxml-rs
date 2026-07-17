@@ -34,7 +34,7 @@ pub use geometry::{
     Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
     PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
 };
-pub use resolve::{resolve_color, ResolvedColor, SchemeColors};
+pub use resolve::{resolve_color, resolve_fill, ResolvedColor, SchemeColors};
 pub use style::{ColorMap, StyleMatrixReference};
 pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
 pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};
