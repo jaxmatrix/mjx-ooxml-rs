@@ -45,12 +45,20 @@ to rendering — pin expected values from a trusted reference).
     `masterClrMapping` / absent / attribute-less override); `nav::attr_value` + `slide::parse_color_map`.
   - **Deferred to PR-4:** reading `p:sp > p:style > a:fillRef` (`shape_fill_ref`) lands where it is
     consumed (in `effective_shape_fill`), keeping its interner-bound `Color` internal.
-- **PR-3 — Color resolver (full concrete RGB).**
-  - `mjx-dml`: `resolve_color(&Color, &ColorScheme, &ColorMap, placeholder: Option<&Color>) ->
-    Option<ResolvedColor>` — base resolution (srgb/sys/scheme, phClr substitution, bg/tx map) + the
-    full `EG_ColorTransform` set (`lum*`/`sat*`/`hue*`/`shade`/`tint`/`alpha*`/`comp`/`inv`/`gray`/
-    channel mods/`gamma`). Parse transforms from `Color::transforms()`. Pin test values from a trusted
-    reference (LibreOffice / python-pptx).
+- **PR-3 — Color resolver (full concrete RGB). Split into 3a + 3b.**
+  - **PR-3a — base resolution. ✅ DONE.** `mjx-dml::resolve`: `ResolvedColor { red,green,blue,alpha }`
+    (`to_hex()`); `SchemeColors` (interner-free slot→RGB, built via `SchemeColors::from_scheme(
+    &ColorScheme, &Interner)` — bridges the theme-part vs shape-part interner boundary);
+    `resolve_color(&Color, &SchemeColors, &ColorMap, placeholder: Option<&Color>, &Interner) ->
+    Option<ResolvedColor>` resolving `srgbClr`/`sysClr`(lastClr)/`scrgbClr`(linear→sRGB)/`hslClr`/
+    `prstClr` (**190-color table**)/`schemeClr` (map→slot; `phClr`→placeholder recursion). Lifted
+    `parse_percentage`/`parse_angle` into `crate::build`. **Contract:** a color carrying any transform
+    child resolves to `None` (deferred to 3b).
+  - **PR-3b — color transforms.** Drop the `None`-on-transforms guard; add a typed `ColorTransform`
+    parse from `Color::transforms()` + the full `EG_ColorTransform` math (HSL `lum*`/`sat*`/`hue*`;
+    linear-RGB `shade`/`tint`; `alpha*`; `comp`/`inv`/`gray`; per-channel `red*`/`green*`/`blue*`;
+    `gamma`/`invGamma`), applied on top of the base; alpha flows into `ResolvedColor.alpha`. Pin test
+    values from a trusted reference; document the algorithm (not Office-pixel-exact).
 - **PR-4 — Placeholder inheritance + `effective_shape_fill`.**
   - `mjx-pptx`: `p:ph` model (`@type`/`@idx`), a slide→layout→master walker matching the same-typed
     shape; `Presentation::effective_shape_fill(slide, shape) -> Option<FillSpec>` composing
