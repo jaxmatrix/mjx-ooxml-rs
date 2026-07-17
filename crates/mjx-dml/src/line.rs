@@ -14,7 +14,7 @@
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
 
 use crate::build::{
-    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, is_dml,
+    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
     parse_percentage,
 };
 use crate::color::ColorSpec;
@@ -178,20 +178,6 @@ impl LineProperties {
 }
 
 fidelity_element_impls!(LineProperties);
-
-/// The first `EG_FillProperties` child of `children` (any of the six fill element names), read as a
-/// [`RawElement`] — the stroke fill of a line. Mirrors [`first_color_child`](crate::build::first_color_child).
-fn first_fill_child<'a>(children: &'a [RawNode], interner: &Interner) -> Option<&'a RawElement> {
-    children.iter().find_map(|node| match node {
-        RawNode::Element(child)
-            if is_dml(&child.name, interner)
-                && Fill::is_fill_local(interner.resolve(child.name.local)) =>
-        {
-            Some(child)
-        }
-        _ => None,
-    })
-}
 
 /// Reads a `CT_LineEndProperties` element (`a:headEnd`/`a:tailEnd`) into a [`LineEnd`].
 fn read_line_end(element: &RawElement, interner: &Interner) -> LineEnd {

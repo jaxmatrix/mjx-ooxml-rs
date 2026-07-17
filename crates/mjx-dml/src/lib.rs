@@ -18,6 +18,7 @@
 
 pub(crate) mod build;
 pub mod color;
+pub mod effect;
 pub mod fill;
 pub mod geometry;
 pub mod line;
@@ -27,12 +28,17 @@ pub mod text;
 pub mod theme;
 
 pub use color::{Color, ColorKind, ColorSpec, SchemeColor};
+pub use effect::{
+    BlendMode, BlurEffect, EffectList, EffectListSpec, FillOverlayEffect, GlowEffect,
+    InnerShadowEffect, OuterShadowEffect, PresetShadow, PresetShadowEffect, RectangleAlignment,
+    ReflectionEffect, SoftEdgeEffect,
+};
 pub use fill::{
     BlipFill, BlipFillMode, Fill, FillSpec, GradientFill, GradientStop, GradientStopSpec,
     GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
 };
 pub use geometry::{
-    Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, LineWidth,
+    Angle, Emu, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, LineWidth,
     PresetGeometry, PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
 };
 pub use line::{

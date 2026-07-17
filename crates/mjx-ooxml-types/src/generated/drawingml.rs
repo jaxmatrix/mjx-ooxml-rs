@@ -631,6 +631,61 @@ impl core::str::FromStr for PatternType {
     }
 }
 
+/// `ST_BlendMode` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BlendMode {
+    /// Wire value `over`.
+    Over,
+    /// Wire value `mult`.
+    Multiply,
+    /// Wire value `screen`.
+    Screen,
+    /// Wire value `darken`.
+    Darken,
+    /// Wire value `lighten`.
+    Lighten,
+}
+
+impl BlendMode {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "over" => Self::Over,
+            "mult" => Self::Multiply,
+            "screen" => Self::Screen,
+            "darken" => Self::Darken,
+            "lighten" => Self::Lighten,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Over => "over",
+            Self::Multiply => "mult",
+            Self::Screen => "screen",
+            Self::Darken => "darken",
+            Self::Lighten => "lighten",
+        }
+    }
+}
+
+impl core::fmt::Display for BlendMode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for BlendMode {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_ShapeType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PresetShapeType {
