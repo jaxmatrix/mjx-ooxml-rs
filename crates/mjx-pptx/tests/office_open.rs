@@ -12,7 +12,8 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, ColorSpec, FillSpec, Fraction, GradientStopSpec, PatternType, SchemeColor, ShapeGeometry,
+    Angle, ColorSpec, FillSpec, Fraction, GradientStopSpec, LineCap, LineDash, LineJoin, LineSpec,
+    LineWidth, PatternType, PresetLineDash, SchemeColor, ShapeGeometry,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds};
@@ -248,6 +249,38 @@ fn deck_with_filled_shapes_opens() {
 
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "filled_shapes");
+}
+
+#[test]
+fn deck_with_outlined_shape_opens() {
+    // Adds an autoshape with both a solid fill and a dashed, round-capped outline and checks the deck
+    // opens in LibreOffice — exercises the outline write path (and fill+outline coexistence in spPr)
+    // end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 3.0, 1.5),
+        )
+        .expect("add shape");
+    pres.set_shape_fill(0, idx, &FillSpec::solid(ColorSpec::Srgb("FFF2CC".into())))
+        .expect("set fill");
+    pres.set_shape_outline(
+        0,
+        idx,
+        &LineSpec {
+            width: Some(LineWidth::from_points(3.0)),
+            cap: Some(LineCap::Round),
+            fill: Some(FillSpec::Solid(ColorSpec::Scheme(SchemeColor::Accent1))),
+            dash: Some(LineDash::Preset(PresetLineDash::Dash)),
+            join: Some(LineJoin::Round),
+            ..LineSpec::new()
+        },
+    )
+    .expect("set outline");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "outlined_shape");
 }
 
 #[test]

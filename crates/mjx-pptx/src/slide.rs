@@ -11,6 +11,11 @@ use crate::nav;
 /// (line, effects, 3-D, extensions). A new fill is inserted before the first of these.
 const AFTER_FILL_LOCALS: [&str; 6] = ["ln", "effectLst", "effectDag", "scene3d", "sp3d", "extLst"];
 
+/// The `p:spPr` child elements that the outline (`a:ln`) must precede, per `CT_ShapeProperties`'s
+/// content order (effects, 3-D, extensions). This is [`AFTER_FILL_LOCALS`] without the leading `ln`,
+/// so a new outline lands after any geometry and fill (neither is in the set) and before effects.
+const AFTER_LINE_LOCALS: [&str; 5] = ["effectLst", "effectDag", "scene3d", "sp3d", "extLst"];
+
 /// The `p:spTree` of a slide (`slide_root` is the `p:sld`).
 pub(crate) fn sp_tree<'a>(
     slide_root: &'a RawElement,
@@ -194,6 +199,35 @@ pub(crate) fn fill_insert_index(sp_pr: &RawElement, interner: &Interner) -> usiz
         .unwrap_or(sp_pr.children.len())
 }
 
+/// A shape's explicit outline element (`p:spPr > a:ln`), if present. Returns `None` when the shape has
+/// no `p:spPr` or no `a:ln` (its outline is then inherited).
+pub(crate) fn shape_line<'a>(shape: &'a RawElement, interner: &Interner) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    nav::child(sp_pr, interner, DML_MAIN, "ln")
+}
+
+/// The index of `sp_pr`'s existing outline child (`a:ln`), if any.
+pub(crate) fn line_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| dml_element_local(node, interner) == Some("ln"))
+}
+
+/// Where a new outline child (`a:ln`) should be inserted in `sp_pr`: before the first
+/// effect/3-D/extension child (so it lands after any geometry and fill), or at the end when none is
+/// present.
+pub(crate) fn line_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| {
+            dml_element_local(node, interner)
+                .is_some_and(|local| AFTER_LINE_LOCALS.contains(&local))
+        })
+        .unwrap_or(sp_pr.children.len())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -237,6 +271,33 @@ mod tests {
         // No line/effect/3-D/ext child: the fill appends after geometry.
         let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/>"#);
         assert_eq!(fill_insert_index(&el, &interner), 2);
+    }
+
+    #[test]
+    fn finds_existing_line() {
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:solidFill/><a:ln/>"#);
+        assert_eq!(line_child_index(&el, &interner), Some(3));
+    }
+
+    #[test]
+    fn no_line_child_when_absent() {
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:solidFill/>"#);
+        assert_eq!(line_child_index(&el, &interner), None);
+    }
+
+    #[test]
+    fn line_insert_index_lands_after_fill_before_effects() {
+        // The outline inserts after geometry+fill and before the effect list.
+        let (el, interner) =
+            sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:solidFill/><a:effectLst/>"#);
+        assert_eq!(line_insert_index(&el, &interner), 3);
+    }
+
+    #[test]
+    fn line_insert_index_appends_when_no_trailing_children() {
+        // No effect/3-D/ext child: the outline appends after geometry and fill.
+        let (el, interner) = sp_pr(r#"<a:xfrm/><a:prstGeom prst="rect"/><a:solidFill/>"#);
+        assert_eq!(line_insert_index(&el, &interner), 3);
     }
 
     #[test]
