@@ -339,3 +339,16 @@ parameters ported. Handle column: `n×ahXY` / `n×ahPolar` (— = fixed geometry
 ---
 
 _Missing from the spec file but standardised in `ST_ShapeType`: `upArrow` (author on port)._
+
+## Related styling workstream — shape fill (`EG_FillProperties`)
+
+Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HANDOFF.md`).
+
+- ✅ **Done:** the color model (`mjx-dml::color::{Color, ColorKind}` + generated `SchemeColor`) and
+  **`solidFill`** (`mjx-dml::fill::SolidFill`).
+- ⏭ **Next:** make the fill model **exhaustive** — `noFill`/`gradFill`/`blipFill`/`pattFill`/`grpFill`
+  (a `Fill` enum + generated `PatternType`), then wire `shape_fill`/`set_shape_fill` into `mjx-pptx`.
+- ⏳ **Deferred (future round): PowerPoint default fill resolution.** The typed fill model covers only
+  **explicit** fills. Resolving a shape's *effective* fill when it has none — inheritance from the
+  placeholder → `p:style > a:fillRef` style-matrix index → the theme's `a:fmtScheme`/`a:clrScheme` —
+  needs the theme part + style matrix (neither modeled yet) and is out of scope until a later round.
