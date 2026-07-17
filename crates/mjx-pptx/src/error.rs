@@ -94,6 +94,15 @@ pub enum PptxError {
     #[error("run has no text element")]
     RunHasNoText,
 
+    /// The shape has no `a:prstGeom` preset geometry (it may use `a:custGeom` or inherit geometry
+    /// from a placeholder).
+    #[error("shape has no preset geometry")]
+    ShapeHasNoGeometry,
+
+    /// The shape's `a:prstGeom@prst` names a shape type this build does not recognize.
+    #[error("shape has an unrecognized preset geometry type")]
+    UnknownShapeType,
+
     /// A slide cannot be added because there is no existing slide to inherit a layout from.
     #[error("cannot add a slide: no existing slide to borrow a layout from")]
     NoSlideLayout,

@@ -11,6 +11,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+use mjx_dml::{Fraction, ShapeGeometry};
+use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds};
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -165,6 +167,31 @@ fn deck_with_added_text_box_opens() {
     let saved = pres.save().expect("save");
     // The constructed deck must open in LibreOffice.
     let _ = convert_opens(&saved, "added_text_box");
+}
+
+#[test]
+fn deck_with_added_shape_opens() {
+    // Constructs an autoshape via add_shape + set_shape_geometry (a rounded rectangle with a custom
+    // corner radius) and checks the deck opens in LibreOffice — exercises the geometry write path
+    // end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::RoundedRectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 3.0, 2.0),
+        )
+        .expect("add shape");
+    pres.set_shape_geometry(
+        0,
+        idx,
+        ShapeGeometry::RoundedRectangle {
+            corner_radius: Fraction::from_ratio(0.3),
+        },
+    )
+    .expect("set geometry");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "added_shape");
 }
 
 #[test]

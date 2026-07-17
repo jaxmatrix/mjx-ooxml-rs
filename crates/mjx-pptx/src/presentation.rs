@@ -1,7 +1,8 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
-use mjx_dml::TextBody;
+use mjx_dml::{PresetGeometry, ShapeGeometry, TextBody};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
+use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_opc::{Package, PartName, Relationship, TargetMode};
 
@@ -211,6 +212,75 @@ impl Presentation {
         Ok(())
     }
 
+    /// The preset geometry of shape `shape_idx` on slide `slide_idx`, as a typed [`ShapeGeometry`]
+    /// (named adjustments in friendly units). Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, the shape has no
+    /// `a:prstGeom` ([`ShapeHasNoGeometry`](PptxError::ShapeHasNoGeometry)), or its `prst` names a
+    /// shape type this build does not recognize ([`UnknownShapeType`](PptxError::UnknownShapeType)).
+    pub fn shape_geometry(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<ShapeGeometry, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let prst_geom =
+            slide::shape_prstgeom(shape, &doc.interner).ok_or(PptxError::ShapeHasNoGeometry)?;
+        let geometry = PresetGeometry::from_xml(prst_geom, &doc.interner)?;
+        geometry
+            .shape(&doc.interner)
+            .ok_or(PptxError::UnknownShapeType)
+    }
+
+    /// Sets the preset geometry of shape `shape_idx` on slide `slide_idx` from a typed
+    /// [`ShapeGeometry`] — rewriting the shape's `a:prstGeom@prst` and its adjustment `a:gd`s. Marks
+    /// only that slide part dirty; everything else re-emits verbatim.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// `a:prstGeom` to edit.
+    pub fn set_shape_geometry(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+        geometry: ShapeGeometry,
+    ) -> Result<(), PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let sp_pr =
+            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoGeometry)?;
+        let slot = nav::child_mut(sp_pr, interner, DML_MAIN, "prstGeom")
+            .ok_or(PptxError::ShapeHasNoGeometry)?;
+
+        let mut geom = PresetGeometry::from_xml(slot, interner)?;
+        geom.set_shape(interner, geometry);
+        // The edit lands here: rebuild the prstGeom in place, reusing the part's own interner.
+        *slot = geom.to_xml(interner);
+        Ok(())
+    }
+
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
     /// paragraph). Returns the index of the new shape among the slide's `p:sp` shapes. Only that
@@ -240,6 +310,35 @@ impl Presentation {
         sp_tree.empty = false;
 
         // The new shape is the last `p:sp` child.
+        Ok(slide::shapes(sp_tree, interner).count() - 1)
+    }
+
+    /// Appends a new autoshape (`p:sp`) with the given `preset` geometry to slide `slide_idx`, laid
+    /// out at `bounds`, with an empty text body. Returns the index of the new shape among the slide's
+    /// `p:sp` shapes. Only that slide part is marked dirty.
+    ///
+    /// The shape is created with the preset's default adjustments; customize them afterward with
+    /// [`set_shape_geometry`](Self::set_shape_geometry). Its non-visual id (`p:cNvPr@id`) is one past
+    /// the largest id already present on the slide, keeping ids unique.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range or the slide is malformed.
+    pub fn add_shape(
+        &mut self,
+        slide_idx: usize,
+        preset: PresetShapeType,
+        bounds: ShapeBounds,
+    ) -> Result<usize, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+
+        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let shape = build_shape(interner, next_id, preset.to_wire(), bounds);
+        sp_tree.children.push(RawNode::Element(shape));
+        sp_tree.empty = false;
+
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
@@ -472,20 +571,22 @@ fn max_cnvpr_id(sp_tree: &RawElement, interner: &Interner) -> u32 {
 
 /// Builds a plain text-box `p:sp` with non-visual id `id`, laid out at `bounds`, whose text body
 /// holds one paragraph per line of `text`.
-fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBounds) -> RawElement {
-    let id_str = id.to_string();
-    let name = format!("TextBox {id}");
-
-    // p:nvSpPr — non-visual shape properties.
+/// `p:nvSpPr` — non-visual shape properties: `p:cNvPr@id,name`, `p:cNvSpPr` (with `txBox="1"` iff
+/// `tx_box`), and an empty `p:nvPr`.
+fn build_nv_sp_pr(interner: &mut Interner, id: u32, name: &str, tx_box: bool) -> RawElement {
     let cnvpr_attrs = vec![
-        build::attr(interner, "id", &id_str),
-        build::attr(interner, "name", &name),
+        build::attr(interner, "id", &id.to_string()),
+        build::attr(interner, "name", name),
     ];
     let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
-    let cnvsppr_attrs = vec![build::attr(interner, "txBox", "1")];
+    let cnvsppr_attrs = if tx_box {
+        vec![build::attr(interner, "txBox", "1")]
+    } else {
+        Vec::new()
+    };
     let c_nv_sp_pr = build::leaf(interner, "p", PML, "cNvSpPr", cnvsppr_attrs);
     let nv_pr = build::leaf(interner, "p", PML, "nvPr", Vec::new());
-    let nv_sp_pr = build::node(
+    build::node(
         interner,
         "p",
         PML,
@@ -496,9 +597,12 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
             RawNode::Element(c_nv_sp_pr),
             RawNode::Element(nv_pr),
         ],
-    );
+    )
+}
 
-    // p:spPr — visual shape properties (transform + preset rectangle geometry).
+/// `p:spPr` — visual shape properties: an `a:xfrm` transform at `bounds` plus `a:prstGeom@prst` with
+/// an empty `a:avLst` (the preset's default adjustments).
+fn build_sp_pr(interner: &mut Interner, prst: &str, bounds: ShapeBounds) -> RawElement {
     let off_attrs = vec![
         build::attr(interner, "x", &bounds.offset_x_emu.to_string()),
         build::attr(interner, "y", &bounds.offset_y_emu.to_string()),
@@ -518,7 +622,7 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
         vec![RawNode::Element(off), RawNode::Element(ext)],
     );
     let av_lst = build::leaf(interner, "a", DML_MAIN, "avLst", Vec::new());
-    let prstgeom_attrs = vec![build::attr(interner, "prst", "rect")];
+    let prstgeom_attrs = vec![build::attr(interner, "prst", prst)];
     let prst_geom = build::node(
         interner,
         "a",
@@ -527,14 +631,21 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
         prstgeom_attrs,
         vec![RawNode::Element(av_lst)],
     );
-    let sp_pr = build::node(
+    build::node(
         interner,
         "p",
         PML,
         "spPr",
         Vec::new(),
         vec![RawNode::Element(xfrm), RawNode::Element(prst_geom)],
-    );
+    )
+}
+
+/// A whole `p:sp` text box: `nvSpPr` (`txBox="1"`) + `spPr` (`prst="rect"`) + a `txBody` with one
+/// `a:p` per line of `text`.
+fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBounds) -> RawElement {
+    let nv_sp_pr = build_nv_sp_pr(interner, id, &format!("TextBox {id}"), true);
+    let sp_pr = build_sp_pr(interner, "rect", bounds);
 
     // p:txBody — required a:bodyPr + a:lstStyle, then one a:p per line.
     let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
@@ -544,6 +655,42 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
         tx_children.push(RawNode::Element(build_paragraph(interner, line)));
     }
     let tx_body = build::node(interner, "p", PML, "txBody", Vec::new(), tx_children);
+
+    build::node(
+        interner,
+        "p",
+        PML,
+        "sp",
+        Vec::new(),
+        vec![
+            RawNode::Element(nv_sp_pr),
+            RawNode::Element(sp_pr),
+            RawNode::Element(tx_body),
+        ],
+    )
+}
+
+/// A whole `p:sp` autoshape: `nvSpPr` (no `txBox`) + `spPr` with the `prst` preset geometry + an
+/// empty `txBody` (`a:bodyPr`, `a:lstStyle`, one empty `a:p`).
+fn build_shape(interner: &mut Interner, id: u32, prst: &str, bounds: ShapeBounds) -> RawElement {
+    let nv_sp_pr = build_nv_sp_pr(interner, id, &format!("Shape {id}"), false);
+    let sp_pr = build_sp_pr(interner, prst, bounds);
+
+    let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
+    let lst_style = build::leaf(interner, "a", DML_MAIN, "lstStyle", Vec::new());
+    let empty_p = build_paragraph(interner, "");
+    let tx_body = build::node(
+        interner,
+        "p",
+        PML,
+        "txBody",
+        Vec::new(),
+        vec![
+            RawNode::Element(body_pr),
+            RawNode::Element(lst_style),
+            RawNode::Element(empty_p),
+        ],
+    );
 
     build::node(
         interner,

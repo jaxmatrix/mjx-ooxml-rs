@@ -1,7 +1,7 @@
 //! Navigation of a slide's shape tree (`p:sld > p:cSld > p:spTree > p:sp > p:txBody`).
 
 use mjx_ooxml_core::{Interner, RawElement};
-use mjx_ooxml_types::namespaces::PML;
+use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
 
 use crate::error::PptxError;
 use crate::nav;
@@ -41,4 +41,14 @@ pub(crate) fn shape_txbody<'a>(
     interner: &Interner,
 ) -> Option<&'a RawElement> {
     nav::child(shape, interner, PML, "txBody")
+}
+
+/// A shape's preset geometry (`p:spPr > a:prstGeom`), if it has one. A shape with custom geometry
+/// (`a:custGeom`) or an inherited placeholder geometry returns `None`.
+pub(crate) fn shape_prstgeom<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    nav::child(sp_pr, interner, DML_MAIN, "prstGeom")
 }
