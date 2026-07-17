@@ -2,9 +2,11 @@
 //! to construct `a:`-prefixed elements and read/write their attributes, keeping the byte-level fidelity
 //! rules in one place.
 
-use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
+use mjx_ooxml_core::{FromXml, Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
 use mjx_ooxml_types::namespaces::DML_MAIN;
 use mjx_xml::text::escape_attribute;
+
+use crate::color::Color;
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
 /// namespace, so a built element serializes as `a:local` and reads back by `(DML_MAIN, local)`.
@@ -139,6 +141,20 @@ pub(crate) fn attr_by_local<'a>(
         .iter()
         .find(|attribute| interner.resolve(attribute.name.local) == local)
         .and_then(|attribute| std::str::from_utf8(&attribute.value).ok())
+}
+
+/// The first `EG_ColorChoice` child of `element`, read as a [`Color`] — used wherever a wrapper
+/// element holds one color (a gradient `gs`, a `fgClr`/`bgClr`, a `clrScheme` slot).
+pub(crate) fn first_color_child(element: &RawElement, interner: &Interner) -> Option<Color> {
+    element.children.iter().find_map(|node| match node {
+        RawNode::Element(child)
+            if is_dml(&child.name, interner)
+                && Color::is_choice_local(interner.resolve(child.name.local)) =>
+        {
+            Color::from_xml(child, interner).ok()
+        }
+        _ => None,
+    })
 }
 
 /// Generates the fidelity `FromXml`/`ToXml` impls for a wrapper `struct` whose fields are exactly

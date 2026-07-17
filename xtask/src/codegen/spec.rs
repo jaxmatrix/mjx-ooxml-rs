@@ -36,6 +36,8 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_SchemeColorVal", "SchemeColor"),
     // DrawingML pattern fills: the `prst` token of `a:pattFill`.
     ("ST_PresetPatternVal", "PatternType"),
+    // DrawingML theme color-scheme slots: the `a:clrScheme` slot names + `p:clrMap` targets.
+    ("ST_ColorSchemeIndex", "ColorSchemeSlot"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -178,6 +180,14 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_PresetPatternVal", "openDmnd", "OpenDiamond"),
     ("ST_PresetPatternVal", "dotDmnd", "DottedDiamond"),
     ("ST_PresetPatternVal", "zigZag", "ZigZag"),
+    // `ST_ColorSchemeIndex` (`a:clrScheme` slot names / `p:clrMap` targets): expand the cryptic
+    // dark/light and hyperlink tokens. `accent1`..`accent6` auto-expand and need no row.
+    ("ST_ColorSchemeIndex", "dk1", "Dark1"),
+    ("ST_ColorSchemeIndex", "lt1", "Light1"),
+    ("ST_ColorSchemeIndex", "dk2", "Dark2"),
+    ("ST_ColorSchemeIndex", "lt2", "Light2"),
+    ("ST_ColorSchemeIndex", "hlink", "Hyperlink"),
+    ("ST_ColorSchemeIndex", "folHlink", "FollowedHyperlink"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.

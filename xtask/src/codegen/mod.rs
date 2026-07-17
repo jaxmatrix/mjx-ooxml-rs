@@ -58,7 +58,12 @@ pub fn run() -> Result<()> {
     let mut drawingml_src = emit::emit_selected_types(
         &dml_xsd,
         "References/.../OfficeOpenXML-XMLSchema-Transitional/dml-main.xsd",
-        &["ST_ShapeType", "ST_SchemeColorVal", "ST_PresetPatternVal"],
+        &[
+            "ST_ShapeType",
+            "ST_SchemeColorVal",
+            "ST_PresetPatternVal",
+            "ST_ColorSchemeIndex",
+        ],
     )?;
     // Append the per-shape adjustment table, extracted from the DrawingML geometry definitions.
     let geometries_path = root.join(GEOMETRIES_XML);
@@ -145,7 +150,8 @@ fn coverage_manifest(shared_xsd: &[u8]) -> Result<String> {
     s.push_str("| Schema | Status |\n|---|---|\n");
     s.push_str("| shared-commonSimpleTypes | generated |\n");
     s.push_str(
-        "| dml-main | partial (`ST_ShapeType`, `ST_SchemeColorVal`, `ST_PresetPatternVal`) |\n",
+        "| dml-main | partial (`ST_ShapeType`, `ST_SchemeColorVal`, `ST_PresetPatternVal`, \
+         `ST_ColorSchemeIndex`) |\n",
     );
     for schema in ["wml", "sml", "pml", "shared-math"] {
         s.push_str(&format!("| {schema} | pending |\n"));

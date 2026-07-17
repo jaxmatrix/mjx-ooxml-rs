@@ -14,7 +14,7 @@ use mjx_ooxml_types::support::on_off;
 
 use crate::build::{
     attr_by_local, attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls,
-    prefixed_attr,
+    first_color_child, prefixed_attr,
 };
 use crate::color::{Color, ColorKind, ColorSpec};
 use crate::geometry::{Angle, Fraction};
@@ -637,20 +637,6 @@ impl Fill {
 // ---------------------------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------------------------
-
-/// The first `EG_ColorChoice` child of `element`, read as a [`Color`] (used for a `gs`'s direct color
-/// and for `fgClr`/`bgClr`'s wrapped color).
-fn first_color_child(element: &RawElement, interner: &Interner) -> Option<Color> {
-    element.children.iter().find_map(|node| match node {
-        RawNode::Element(child)
-            if crate::build::is_dml(&child.name, interner)
-                && Color::is_choice_local(interner.resolve(child.name.local)) =>
-        {
-            Color::from_xml(child, interner).ok()
-        }
-        _ => None,
-    })
-}
 
 /// Parses a DrawingML percentage to a [`Fraction`]: the integer form (`50000` = 50%, native/100000)
 /// or an explicit-percent form (`50%`).
