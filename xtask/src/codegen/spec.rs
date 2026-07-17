@@ -46,6 +46,10 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_LineEndType", "LineEndType"),
     ("ST_LineEndWidth", "LineEndWidth"),
     ("ST_LineEndLength", "LineEndLength"),
+    // DrawingML effects: the preset shadow kind (`a:prstShdw`) and the rectangle alignment shared by
+    // shadow/reflection effects.
+    ("ST_PresetShadowVal", "PresetShadow"),
+    ("ST_RectAlignment", "RectangleAlignment"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -227,6 +231,38 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_LineEndLength", "sm", "Small"),
     ("ST_LineEndLength", "med", "Medium"),
     ("ST_LineEndLength", "lg", "Large"),
+    // `ST_PresetShadowVal` (`a:prstShdw@prst`, §20.1.10.50): 20 numbered preset shadows with no
+    // semantic name — `ShadowN` is the clearest faithful form (the mechanical split gives `Shdw1`).
+    ("ST_PresetShadowVal", "shdw1", "Shadow1"),
+    ("ST_PresetShadowVal", "shdw2", "Shadow2"),
+    ("ST_PresetShadowVal", "shdw3", "Shadow3"),
+    ("ST_PresetShadowVal", "shdw4", "Shadow4"),
+    ("ST_PresetShadowVal", "shdw5", "Shadow5"),
+    ("ST_PresetShadowVal", "shdw6", "Shadow6"),
+    ("ST_PresetShadowVal", "shdw7", "Shadow7"),
+    ("ST_PresetShadowVal", "shdw8", "Shadow8"),
+    ("ST_PresetShadowVal", "shdw9", "Shadow9"),
+    ("ST_PresetShadowVal", "shdw10", "Shadow10"),
+    ("ST_PresetShadowVal", "shdw11", "Shadow11"),
+    ("ST_PresetShadowVal", "shdw12", "Shadow12"),
+    ("ST_PresetShadowVal", "shdw13", "Shadow13"),
+    ("ST_PresetShadowVal", "shdw14", "Shadow14"),
+    ("ST_PresetShadowVal", "shdw15", "Shadow15"),
+    ("ST_PresetShadowVal", "shdw16", "Shadow16"),
+    ("ST_PresetShadowVal", "shdw17", "Shadow17"),
+    ("ST_PresetShadowVal", "shdw18", "Shadow18"),
+    ("ST_PresetShadowVal", "shdw19", "Shadow19"),
+    ("ST_PresetShadowVal", "shdw20", "Shadow20"),
+    // `ST_RectAlignment` (effect `@algn`, §20.1.10.53): expand the compass-abbreviation tokens.
+    ("ST_RectAlignment", "tl", "TopLeft"),
+    ("ST_RectAlignment", "t", "Top"),
+    ("ST_RectAlignment", "tr", "TopRight"),
+    ("ST_RectAlignment", "l", "Left"),
+    ("ST_RectAlignment", "ctr", "Center"),
+    ("ST_RectAlignment", "r", "Right"),
+    ("ST_RectAlignment", "bl", "BottomLeft"),
+    ("ST_RectAlignment", "b", "Bottom"),
+    ("ST_RectAlignment", "br", "BottomRight"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.

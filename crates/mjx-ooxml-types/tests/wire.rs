@@ -6,7 +6,7 @@ use std::str::FromStr;
 
 use mjx_ooxml_types::drawingml::{
     ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType, LineEndWidth, PatternType,
-    PenAlignment, PresetLineDash, PresetShapeType, SchemeColor,
+    PenAlignment, PresetLineDash, PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor,
 };
 use mjx_ooxml_types::namespaces;
 use mjx_ooxml_types::shared::{
@@ -575,6 +575,49 @@ fn line_end_enums_round_trip_all_tokens() {
     assert_eq!(LineEndLength::from_wire("lg"), Some(LineEndLength::Large));
     assert_eq!(LineEndWidth::Medium.to_wire(), "med");
     assert_eq!(LineEndLength::from_wire("bogus"), None);
+}
+
+#[test]
+fn preset_shadow_round_trips_all_tokens() {
+    // `ST_PresetShadowVal` (`a:prstShdw@prst`) — the 20 numbered presets, schema order.
+    let tokens: Vec<String> = (1..=20).map(|n| format!("shdw{n}")).collect();
+    let token_refs: Vec<&str> = tokens.iter().map(String::as_str).collect();
+    assert_eq!(token_refs.len(), 20);
+    assert_round_trip(&token_refs, PresetShadow::from_wire, PresetShadow::to_wire);
+
+    // Numbered names map to the `shdw{n}` tokens.
+    assert_eq!(
+        PresetShadow::from_wire("shdw1"),
+        Some(PresetShadow::Shadow1)
+    );
+    assert_eq!(
+        PresetShadow::from_wire("shdw20"),
+        Some(PresetShadow::Shadow20)
+    );
+    assert_eq!(PresetShadow::Shadow13.to_wire(), "shdw13");
+    assert_eq!(PresetShadow::from_wire("shdw21"), None);
+}
+
+#[test]
+fn rectangle_alignment_round_trips_all_tokens() {
+    // `ST_RectAlignment` (effect `@algn`), schema order.
+    assert_round_trip(
+        &["tl", "t", "tr", "l", "ctr", "r", "bl", "b", "br"],
+        RectangleAlignment::from_wire,
+        RectangleAlignment::to_wire,
+    );
+
+    // Compass-abbreviation tokens map to comprehensive names.
+    assert_eq!(
+        RectangleAlignment::from_wire("tl"),
+        Some(RectangleAlignment::TopLeft)
+    );
+    assert_eq!(
+        RectangleAlignment::from_wire("ctr"),
+        Some(RectangleAlignment::Center)
+    );
+    assert_eq!(RectangleAlignment::BottomRight.to_wire(), "br");
+    assert_eq!(RectangleAlignment::from_wire("bogus"), None);
 }
 
 #[test]

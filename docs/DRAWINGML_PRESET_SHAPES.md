@@ -373,3 +373,35 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
 - ✅ **Workstream complete:** `effective_shape_fill` covers explicit fill, style `fillRef`, and
   placeholder inheritance, all baked to concrete RGB. Deferred beyond this: theme background fills
   (`p:bg`/`bgFillStyleLst`), non-`p:sp` shapes, exact PowerPoint placeholder-match edge cases.
+
+## Related styling workstream — shape outline (`a:ln`) — ✅ COMPLETE
+
+Shape **outline** (`p:spPr > a:ln`, `CT_LineProperties`) is the line analog of the fill story and
+mirrors it PR-for-PR (see `docs/DRAWINGML_OUTLINE_HANDOFF.md`). All four PRs merged:
+
+- ✅ **O1 (#33):** generated line simple types in `mjx-ooxml-types::drawingml` — `LineCap`,
+  `CompoundLine`, `PenAlignment`, `PresetLineDash`, `LineEndType`, `LineEndWidth`, `LineEndLength`.
+- ✅ **O2 (#34):** `mjx-dml::line` — `LineProperties` fidelity wrapper over `a:ln` + interner-free
+  `LineSpec` (`spec`/`to_line`) + the `LineWidth` EMU measure; helper values `LineDash`/`LineJoin`/
+  `LineEnd`. The stroke reuses `Fill` (a line fill is a subset of `EG_FillProperties`).
+- ✅ **O3 (#35):** `mjx-pptx` `shape_outline` / `set_shape_outline` / `set_shape_no_outline`; `a:ln`
+  inserts after the fill, before effects/3-D/extLst. Office-open canary covers an outlined deck.
+- ✅ **O4 (#36):** theme `lnStyleLst` (`Theme::line_style`) + `resolve_line` +
+  `Presentation::effective_shape_outline` — explicit `a:ln`, else `p:style > a:lnRef` → theme line-style
+  (phClr substituted), else placeholder inheritance; stroke baked to concrete RGB.
+
+## Related styling workstream — shape effects (`a:effectLst`) — 🔄 in progress
+
+Shape **effects** (`p:spPr > a:effectLst`, `CT_EffectList`: `blur`/`fillOverlay`/`glow`/`innerShdw`/
+`outerShdw`/`prstShdw`/`reflection`/`softEdge`) is the **last** `spPr` visual property — modeling it
+completes the shape's visual definitions. The rare `a:effectDag` DAG stays opaque (fidelity). Colored
+effects reuse `Color`; `fillOverlay` reuses `Fill`. A 4-PR mirror of the outline workstream:
+
+- 🔄 **E1 — generated effect simple types:** `PresetShadow` (`ST_PresetShadowVal`, 20) +
+  `RectangleAlignment` (`ST_RectAlignment`, 9).
+- ⏳ **E2 — `mjx-dml::effect`:** `EffectList` fidelity wrapper + typed accessors for all 8 effects +
+  interner-free `EffectListSpec`; a general `Emu` length measure (in `geometry::measures`).
+- ⏳ **E3 — `mjx-pptx` explicit:** `shape_effects` / `set_shape_effects` / `set_shape_no_effects`;
+  `a:effectLst` inserts after `a:ln`, before scene3d/sp3d/extLst. Office-open canary.
+- ⏳ **E4 — effective:** theme `effectStyleLst` + `resolve_effects` + `effective_shape_effects`
+  (`p:style > a:effectRef` → theme effect-style with phClr; placeholder inheritance).

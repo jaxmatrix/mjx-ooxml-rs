@@ -9,7 +9,8 @@
 
 pub use crate::generated::drawingml::{
     adjustments_of, ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType,
-    LineEndWidth, PatternType, PenAlignment, PresetLineDash, PresetShapeType, SchemeColor,
+    LineEndWidth, PatternType, PenAlignment, PresetLineDash, PresetShadow, PresetShapeType,
+    RectangleAlignment, SchemeColor,
 };
 
 /// The axis a shape adjustment controls, disclosed by which `ahLst` handle reference names its guide.
