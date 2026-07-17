@@ -7,7 +7,7 @@
 //! spec units, keyed by shape. The ergonomic typed tier (named parameters in friendly units) is built
 //! on top of these in `mjx-dml`.
 
-pub use crate::generated::drawingml::{adjustments_of, PresetShapeType, SchemeColor};
+pub use crate::generated::drawingml::{adjustments_of, PatternType, PresetShapeType, SchemeColor};
 
 /// The axis a shape adjustment controls, disclosed by which `ahLst` handle reference names its guide.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

@@ -111,6 +111,257 @@ impl core::str::FromStr for SchemeColor {
     }
 }
 
+/// `ST_PresetPatternVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PatternType {
+    /// Wire value `pct5`.
+    Percent5,
+    /// Wire value `pct10`.
+    Percent10,
+    /// Wire value `pct20`.
+    Percent20,
+    /// Wire value `pct25`.
+    Percent25,
+    /// Wire value `pct30`.
+    Percent30,
+    /// Wire value `pct40`.
+    Percent40,
+    /// Wire value `pct50`.
+    Percent50,
+    /// Wire value `pct60`.
+    Percent60,
+    /// Wire value `pct70`.
+    Percent70,
+    /// Wire value `pct75`.
+    Percent75,
+    /// Wire value `pct80`.
+    Percent80,
+    /// Wire value `pct90`.
+    Percent90,
+    /// Wire value `horz`.
+    Horizontal,
+    /// Wire value `vert`.
+    Vertical,
+    /// Wire value `ltHorz`.
+    LightHorizontal,
+    /// Wire value `ltVert`.
+    LightVertical,
+    /// Wire value `dkHorz`.
+    DarkHorizontal,
+    /// Wire value `dkVert`.
+    DarkVertical,
+    /// Wire value `narHorz`.
+    NarrowHorizontal,
+    /// Wire value `narVert`.
+    NarrowVertical,
+    /// Wire value `dashHorz`.
+    DashedHorizontal,
+    /// Wire value `dashVert`.
+    DashedVertical,
+    /// Wire value `cross`.
+    Cross,
+    /// Wire value `dnDiag`.
+    DownwardDiagonal,
+    /// Wire value `upDiag`.
+    UpwardDiagonal,
+    /// Wire value `ltDnDiag`.
+    LightDownwardDiagonal,
+    /// Wire value `ltUpDiag`.
+    LightUpwardDiagonal,
+    /// Wire value `dkDnDiag`.
+    DarkDownwardDiagonal,
+    /// Wire value `dkUpDiag`.
+    DarkUpwardDiagonal,
+    /// Wire value `wdDnDiag`.
+    WideDownwardDiagonal,
+    /// Wire value `wdUpDiag`.
+    WideUpwardDiagonal,
+    /// Wire value `dashDnDiag`.
+    DashedDownwardDiagonal,
+    /// Wire value `dashUpDiag`.
+    DashedUpwardDiagonal,
+    /// Wire value `diagCross`.
+    DiagonalCross,
+    /// Wire value `smCheck`.
+    SmallCheckerboard,
+    /// Wire value `lgCheck`.
+    LargeCheckerboard,
+    /// Wire value `smGrid`.
+    SmallGrid,
+    /// Wire value `lgGrid`.
+    LargeGrid,
+    /// Wire value `dotGrid`.
+    DottedGrid,
+    /// Wire value `smConfetti`.
+    SmallConfetti,
+    /// Wire value `lgConfetti`.
+    LargeConfetti,
+    /// Wire value `horzBrick`.
+    HorizontalBrick,
+    /// Wire value `diagBrick`.
+    DiagonalBrick,
+    /// Wire value `solidDmnd`.
+    SolidDiamond,
+    /// Wire value `openDmnd`.
+    OpenDiamond,
+    /// Wire value `dotDmnd`.
+    DottedDiamond,
+    /// Wire value `plaid`.
+    Plaid,
+    /// Wire value `sphere`.
+    Sphere,
+    /// Wire value `weave`.
+    Weave,
+    /// Wire value `divot`.
+    Divot,
+    /// Wire value `shingle`.
+    Shingle,
+    /// Wire value `wave`.
+    Wave,
+    /// Wire value `trellis`.
+    Trellis,
+    /// Wire value `zigZag`.
+    ZigZag,
+}
+
+impl PatternType {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "pct5" => Self::Percent5,
+            "pct10" => Self::Percent10,
+            "pct20" => Self::Percent20,
+            "pct25" => Self::Percent25,
+            "pct30" => Self::Percent30,
+            "pct40" => Self::Percent40,
+            "pct50" => Self::Percent50,
+            "pct60" => Self::Percent60,
+            "pct70" => Self::Percent70,
+            "pct75" => Self::Percent75,
+            "pct80" => Self::Percent80,
+            "pct90" => Self::Percent90,
+            "horz" => Self::Horizontal,
+            "vert" => Self::Vertical,
+            "ltHorz" => Self::LightHorizontal,
+            "ltVert" => Self::LightVertical,
+            "dkHorz" => Self::DarkHorizontal,
+            "dkVert" => Self::DarkVertical,
+            "narHorz" => Self::NarrowHorizontal,
+            "narVert" => Self::NarrowVertical,
+            "dashHorz" => Self::DashedHorizontal,
+            "dashVert" => Self::DashedVertical,
+            "cross" => Self::Cross,
+            "dnDiag" => Self::DownwardDiagonal,
+            "upDiag" => Self::UpwardDiagonal,
+            "ltDnDiag" => Self::LightDownwardDiagonal,
+            "ltUpDiag" => Self::LightUpwardDiagonal,
+            "dkDnDiag" => Self::DarkDownwardDiagonal,
+            "dkUpDiag" => Self::DarkUpwardDiagonal,
+            "wdDnDiag" => Self::WideDownwardDiagonal,
+            "wdUpDiag" => Self::WideUpwardDiagonal,
+            "dashDnDiag" => Self::DashedDownwardDiagonal,
+            "dashUpDiag" => Self::DashedUpwardDiagonal,
+            "diagCross" => Self::DiagonalCross,
+            "smCheck" => Self::SmallCheckerboard,
+            "lgCheck" => Self::LargeCheckerboard,
+            "smGrid" => Self::SmallGrid,
+            "lgGrid" => Self::LargeGrid,
+            "dotGrid" => Self::DottedGrid,
+            "smConfetti" => Self::SmallConfetti,
+            "lgConfetti" => Self::LargeConfetti,
+            "horzBrick" => Self::HorizontalBrick,
+            "diagBrick" => Self::DiagonalBrick,
+            "solidDmnd" => Self::SolidDiamond,
+            "openDmnd" => Self::OpenDiamond,
+            "dotDmnd" => Self::DottedDiamond,
+            "plaid" => Self::Plaid,
+            "sphere" => Self::Sphere,
+            "weave" => Self::Weave,
+            "divot" => Self::Divot,
+            "shingle" => Self::Shingle,
+            "wave" => Self::Wave,
+            "trellis" => Self::Trellis,
+            "zigZag" => Self::ZigZag,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Percent5 => "pct5",
+            Self::Percent10 => "pct10",
+            Self::Percent20 => "pct20",
+            Self::Percent25 => "pct25",
+            Self::Percent30 => "pct30",
+            Self::Percent40 => "pct40",
+            Self::Percent50 => "pct50",
+            Self::Percent60 => "pct60",
+            Self::Percent70 => "pct70",
+            Self::Percent75 => "pct75",
+            Self::Percent80 => "pct80",
+            Self::Percent90 => "pct90",
+            Self::Horizontal => "horz",
+            Self::Vertical => "vert",
+            Self::LightHorizontal => "ltHorz",
+            Self::LightVertical => "ltVert",
+            Self::DarkHorizontal => "dkHorz",
+            Self::DarkVertical => "dkVert",
+            Self::NarrowHorizontal => "narHorz",
+            Self::NarrowVertical => "narVert",
+            Self::DashedHorizontal => "dashHorz",
+            Self::DashedVertical => "dashVert",
+            Self::Cross => "cross",
+            Self::DownwardDiagonal => "dnDiag",
+            Self::UpwardDiagonal => "upDiag",
+            Self::LightDownwardDiagonal => "ltDnDiag",
+            Self::LightUpwardDiagonal => "ltUpDiag",
+            Self::DarkDownwardDiagonal => "dkDnDiag",
+            Self::DarkUpwardDiagonal => "dkUpDiag",
+            Self::WideDownwardDiagonal => "wdDnDiag",
+            Self::WideUpwardDiagonal => "wdUpDiag",
+            Self::DashedDownwardDiagonal => "dashDnDiag",
+            Self::DashedUpwardDiagonal => "dashUpDiag",
+            Self::DiagonalCross => "diagCross",
+            Self::SmallCheckerboard => "smCheck",
+            Self::LargeCheckerboard => "lgCheck",
+            Self::SmallGrid => "smGrid",
+            Self::LargeGrid => "lgGrid",
+            Self::DottedGrid => "dotGrid",
+            Self::SmallConfetti => "smConfetti",
+            Self::LargeConfetti => "lgConfetti",
+            Self::HorizontalBrick => "horzBrick",
+            Self::DiagonalBrick => "diagBrick",
+            Self::SolidDiamond => "solidDmnd",
+            Self::OpenDiamond => "openDmnd",
+            Self::DottedDiamond => "dotDmnd",
+            Self::Plaid => "plaid",
+            Self::Sphere => "sphere",
+            Self::Weave => "weave",
+            Self::Divot => "divot",
+            Self::Shingle => "shingle",
+            Self::Wave => "wave",
+            Self::Trellis => "trellis",
+            Self::ZigZag => "zigZag",
+        }
+    }
+}
+
+impl core::fmt::Display for PatternType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PatternType {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_ShapeType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PresetShapeType {

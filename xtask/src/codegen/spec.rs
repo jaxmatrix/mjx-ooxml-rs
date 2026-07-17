@@ -34,6 +34,8 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_ShapeType", "PresetShapeType"),
     // DrawingML theme colors: the `val` token of `a:schemeClr`.
     ("ST_SchemeColorVal", "SchemeColor"),
+    // DrawingML pattern fills: the `prst` token of `a:pattFill`.
+    ("ST_PresetPatternVal", "PatternType"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -121,6 +123,61 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_SchemeColorVal", "lt1", "Light1"),
     ("ST_SchemeColorVal", "dk2", "Dark2"),
     ("ST_SchemeColorVal", "lt2", "Light2"),
+    // `ST_PresetPatternVal` (`a:pattFill@prst`): expand the cryptic pattern tokens to the ECMA-376
+    // prose names. `cross`/`plaid`/`sphere`/`weave`/`divot`/`shingle`/`wave`/`trellis` auto-expand
+    // and need no row. Abbreviations: `pct`→Percent, `lt`→Light, `dk`→Dark, `nar`→Narrow,
+    // `dash`→Dashed, `dn`→Downward, `up`→Upward, `wd`→Wide, `horz`→Horizontal, `vert`→Vertical,
+    // `sm`→Small, `lg`→Large, `dot`→Dotted, `dmnd`→Diamond, `diag`→Diagonal, `check`→Checkerboard.
+    ("ST_PresetPatternVal", "pct5", "Percent5"),
+    ("ST_PresetPatternVal", "pct10", "Percent10"),
+    ("ST_PresetPatternVal", "pct20", "Percent20"),
+    ("ST_PresetPatternVal", "pct25", "Percent25"),
+    ("ST_PresetPatternVal", "pct30", "Percent30"),
+    ("ST_PresetPatternVal", "pct40", "Percent40"),
+    ("ST_PresetPatternVal", "pct50", "Percent50"),
+    ("ST_PresetPatternVal", "pct60", "Percent60"),
+    ("ST_PresetPatternVal", "pct70", "Percent70"),
+    ("ST_PresetPatternVal", "pct75", "Percent75"),
+    ("ST_PresetPatternVal", "pct80", "Percent80"),
+    ("ST_PresetPatternVal", "pct90", "Percent90"),
+    ("ST_PresetPatternVal", "horz", "Horizontal"),
+    ("ST_PresetPatternVal", "vert", "Vertical"),
+    ("ST_PresetPatternVal", "ltHorz", "LightHorizontal"),
+    ("ST_PresetPatternVal", "ltVert", "LightVertical"),
+    ("ST_PresetPatternVal", "dkHorz", "DarkHorizontal"),
+    ("ST_PresetPatternVal", "dkVert", "DarkVertical"),
+    ("ST_PresetPatternVal", "narHorz", "NarrowHorizontal"),
+    ("ST_PresetPatternVal", "narVert", "NarrowVertical"),
+    ("ST_PresetPatternVal", "dashHorz", "DashedHorizontal"),
+    ("ST_PresetPatternVal", "dashVert", "DashedVertical"),
+    ("ST_PresetPatternVal", "dnDiag", "DownwardDiagonal"),
+    ("ST_PresetPatternVal", "upDiag", "UpwardDiagonal"),
+    ("ST_PresetPatternVal", "ltDnDiag", "LightDownwardDiagonal"),
+    ("ST_PresetPatternVal", "ltUpDiag", "LightUpwardDiagonal"),
+    ("ST_PresetPatternVal", "dkDnDiag", "DarkDownwardDiagonal"),
+    ("ST_PresetPatternVal", "dkUpDiag", "DarkUpwardDiagonal"),
+    ("ST_PresetPatternVal", "wdDnDiag", "WideDownwardDiagonal"),
+    ("ST_PresetPatternVal", "wdUpDiag", "WideUpwardDiagonal"),
+    (
+        "ST_PresetPatternVal",
+        "dashDnDiag",
+        "DashedDownwardDiagonal",
+    ),
+    ("ST_PresetPatternVal", "dashUpDiag", "DashedUpwardDiagonal"),
+    ("ST_PresetPatternVal", "diagCross", "DiagonalCross"),
+    ("ST_PresetPatternVal", "smCheck", "SmallCheckerboard"),
+    ("ST_PresetPatternVal", "lgCheck", "LargeCheckerboard"),
+    ("ST_PresetPatternVal", "smGrid", "SmallGrid"),
+    ("ST_PresetPatternVal", "lgGrid", "LargeGrid"),
+    ("ST_PresetPatternVal", "dotGrid", "DottedGrid"),
+    ("ST_PresetPatternVal", "smConfetti", "SmallConfetti"),
+    ("ST_PresetPatternVal", "lgConfetti", "LargeConfetti"),
+    ("ST_PresetPatternVal", "horzBrick", "HorizontalBrick"),
+    ("ST_PresetPatternVal", "diagBrick", "DiagonalBrick"),
+    ("ST_PresetPatternVal", "solidDmnd", "SolidDiamond"),
+    ("ST_PresetPatternVal", "openDmnd", "OpenDiamond"),
+    ("ST_PresetPatternVal", "dotDmnd", "DottedDiamond"),
+    ("ST_PresetPatternVal", "zigZag", "ZigZag"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.

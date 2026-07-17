@@ -4,7 +4,7 @@
 
 use std::str::FromStr;
 
-use mjx_ooxml_types::drawingml::{PresetShapeType, SchemeColor};
+use mjx_ooxml_types::drawingml::{PatternType, PresetShapeType, SchemeColor};
 use mjx_ooxml_types::namespaces;
 use mjx_ooxml_types::shared::{
     CalendarType, ConformanceClass, CryptographicProvider, RelativeVerticalAlignment,
@@ -335,6 +335,100 @@ fn scheme_color_round_trips_all_tokens() {
     );
     assert_eq!(SchemeColor::Accent1.to_wire(), "accent1");
     assert_eq!(SchemeColor::from_wire("bogus"), None);
+}
+
+/// Every `ST_PresetPatternVal` wire token, in `dml-main.xsd` schema order (54 values).
+const PATTERN_TYPE_TOKENS: &[&str] = &[
+    "pct5",
+    "pct10",
+    "pct20",
+    "pct25",
+    "pct30",
+    "pct40",
+    "pct50",
+    "pct60",
+    "pct70",
+    "pct75",
+    "pct80",
+    "pct90",
+    "horz",
+    "vert",
+    "ltHorz",
+    "ltVert",
+    "dkHorz",
+    "dkVert",
+    "narHorz",
+    "narVert",
+    "dashHorz",
+    "dashVert",
+    "cross",
+    "dnDiag",
+    "upDiag",
+    "ltDnDiag",
+    "ltUpDiag",
+    "dkDnDiag",
+    "dkUpDiag",
+    "wdDnDiag",
+    "wdUpDiag",
+    "dashDnDiag",
+    "dashUpDiag",
+    "diagCross",
+    "smCheck",
+    "lgCheck",
+    "smGrid",
+    "lgGrid",
+    "dotGrid",
+    "smConfetti",
+    "lgConfetti",
+    "horzBrick",
+    "diagBrick",
+    "solidDmnd",
+    "openDmnd",
+    "dotDmnd",
+    "plaid",
+    "sphere",
+    "weave",
+    "divot",
+    "shingle",
+    "wave",
+    "trellis",
+    "zigZag",
+];
+
+#[test]
+fn pattern_type_round_trips_all_tokens() {
+    assert_eq!(PATTERN_TYPE_TOKENS.len(), 54);
+    assert_round_trip(
+        PATTERN_TYPE_TOKENS,
+        PatternType::from_wire,
+        PatternType::to_wire,
+    );
+
+    // Comprehensive names map to the cryptic pattern tokens.
+    assert_eq!(
+        PatternType::from_wire("pct25"),
+        Some(PatternType::Percent25)
+    );
+    assert_eq!(
+        PatternType::from_wire("ltDnDiag"),
+        Some(PatternType::LightDownwardDiagonal)
+    );
+    assert_eq!(
+        PatternType::from_wire("smCheck"),
+        Some(PatternType::SmallCheckerboard)
+    );
+    assert_eq!(PatternType::DiagonalCross.to_wire(), "diagCross");
+    // An auto-expanded (no-override) token still resolves.
+    assert_eq!(
+        PatternType::from_wire("trellis"),
+        Some(PatternType::Trellis)
+    );
+    // Unknown / future token: no panic, reported as absent.
+    assert_eq!(PatternType::from_wire("notAPattern"), None);
+    assert_eq!(
+        PatternType::from_str("notAPattern").unwrap_err().value(),
+        "notAPattern"
+    );
 }
 
 #[test]
