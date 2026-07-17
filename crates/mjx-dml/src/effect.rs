@@ -237,6 +237,46 @@ impl EffectList {
             soft_edge: self.soft_edge(interner),
         }
     }
+
+    /// The glow's interner-bound [`Color`] (`a:glow`'s `EG_ColorChoice`), or `None` if absent — the raw
+    /// color the effect resolver bakes (preserving color transforms a [`ColorSpec`] would drop).
+    #[must_use]
+    pub fn glow_color(&self, interner: &Interner) -> Option<Color> {
+        effect_child_color(&self.children, interner, "glow")
+    }
+
+    /// The inner shadow's interner-bound [`Color`] (`a:innerShdw`'s `EG_ColorChoice`), or `None`.
+    #[must_use]
+    pub fn inner_shadow_color(&self, interner: &Interner) -> Option<Color> {
+        effect_child_color(&self.children, interner, "innerShdw")
+    }
+
+    /// The outer shadow's interner-bound [`Color`] (`a:outerShdw`'s `EG_ColorChoice`), or `None`.
+    #[must_use]
+    pub fn outer_shadow_color(&self, interner: &Interner) -> Option<Color> {
+        effect_child_color(&self.children, interner, "outerShdw")
+    }
+
+    /// The preset shadow's interner-bound [`Color`] (`a:prstShdw`'s `EG_ColorChoice`), or `None`.
+    #[must_use]
+    pub fn preset_shadow_color(&self, interner: &Interner) -> Option<Color> {
+        effect_child_color(&self.children, interner, "prstShdw")
+    }
+
+    /// The fill-overlay's interner-bound [`Fill`] (`a:fillOverlay`'s `EG_FillProperties`), or `None` —
+    /// the raw fill the effect resolver bakes.
+    #[must_use]
+    pub fn fill_overlay_fill(&self, interner: &Interner) -> Option<Fill> {
+        let overlay = dml_child(&self.children, interner, "fillOverlay")?;
+        first_fill_child(&overlay.children, interner)
+            .and_then(|el| Fill::from_xml(el, interner).ok())
+    }
+}
+
+/// The `EG_ColorChoice` child of a colored effect element named `local`, as an interner-bound [`Color`].
+fn effect_child_color(children: &[RawNode], interner: &Interner, local: &str) -> Option<Color> {
+    let effect = dml_child(children, interner, local)?;
+    first_color_child(effect, interner)
 }
 
 fidelity_element_impls!(EffectList);

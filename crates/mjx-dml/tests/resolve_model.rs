@@ -4,8 +4,8 @@
 //! cross-part scenario).
 
 use mjx_dml::{
-    Color, ColorMap, ColorScheme, ColorSpec, Fill, FillSpec, LineProperties, LineWidth,
-    ResolvedColor, SchemeColors,
+    Color, ColorMap, ColorScheme, ColorSpec, EffectList, Emu, Fill, FillSpec, LineProperties,
+    LineWidth, ResolvedColor, SchemeColors,
 };
 use mjx_ooxml_core::{FromXml, RawNode};
 use mjx_xml::fidelity;
@@ -431,4 +431,90 @@ fn resolve_line_theme_style_substitutes_placeholder() {
         spec.fill,
         Some(FillSpec::Solid(ColorSpec::Srgb("4472C4".into())))
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// resolve_effects — resolving an effect list's colors, keeping structural attributes
+// ---------------------------------------------------------------------------------------------
+
+fn effects(frag: &str) -> (EffectList, mjx_ooxml_core::RawDocument) {
+    let full = format!(r#"<a:wrap xmlns:a="{A}">{frag}</a:wrap>"#);
+    let doc = fidelity::parse(full.as_bytes()).expect("parses");
+    let element = doc
+        .root
+        .children
+        .iter()
+        .find_map(|node| match node {
+            RawNode::Element(el) => Some(el.clone()),
+            _ => None,
+        })
+        .expect("effectLst element");
+    let effects = EffectList::from_xml(&element, &doc.interner).expect("EffectList");
+    (effects, doc)
+}
+
+#[test]
+fn resolve_effects_bakes_a_scheme_color() {
+    let scheme = office_scheme();
+    let (e, doc) = effects(
+        r#"<a:effectLst><a:glow rad="63500"><a:schemeClr val="accent1"/></a:glow></a:effectLst>"#,
+    );
+    let spec = mjx_dml::resolve_effects(&e, &scheme, &ColorMap::identity(), None, &doc.interner);
+    let glow = spec.glow.expect("glow");
+    assert_eq!(glow.radius, Some(Emu::from_emu(63500)));
+    assert_eq!(glow.color, ColorSpec::Srgb("4472C4".into()));
+}
+
+#[test]
+fn resolve_effects_theme_style_substitutes_placeholder() {
+    // A theme effect style (outerShdw of phClr) resolved with a pre-resolved effectRef color — the
+    // a:effectRef -> effectStyleLst path. Structural attrs are preserved; the phClr becomes the substitute.
+    let scheme = office_scheme();
+    let (e, doc) = effects(
+        r#"<a:effectLst>
+             <a:outerShdw blurRad="40000" dist="20000" dir="5400000">
+               <a:schemeClr val="phClr"/>
+             </a:outerShdw>
+           </a:effectLst>"#,
+    );
+    let placeholder = ResolvedColor {
+        red: 0x44,
+        green: 0x72,
+        blue: 0xC4,
+        alpha: 1.0,
+    };
+    let spec = mjx_dml::resolve_effects(
+        &e,
+        &scheme,
+        &ColorMap::identity(),
+        Some(placeholder),
+        &doc.interner,
+    );
+    let shadow = spec.outer_shadow.expect("outer shadow");
+    assert_eq!(shadow.blur_radius, Some(Emu::from_emu(40000)));
+    assert_eq!(shadow.distance, Some(Emu::from_emu(20000)));
+    assert_eq!(shadow.color, ColorSpec::Srgb("4472C4".into()));
+}
+
+#[test]
+fn resolve_effects_preserves_structural_fields_and_bakes_srgb() {
+    let scheme = office_scheme();
+    let (e, doc) = effects(
+        r#"<a:effectLst>
+             <a:blur rad="25400" grow="1"/>
+             <a:outerShdw blurRad="12700" dist="38100" dir="2700000"><a:srgbClr val="FF0000"/></a:outerShdw>
+             <a:softEdge rad="50800"/>
+           </a:effectLst>"#,
+    );
+    let spec = mjx_dml::resolve_effects(&e, &scheme, &ColorMap::identity(), None, &doc.interner);
+    // Colorless effects copied verbatim.
+    let blur = spec.blur.expect("blur");
+    assert_eq!(blur.radius, Some(Emu::from_emu(25400)));
+    assert_eq!(blur.grow, Some(true));
+    assert_eq!(spec.soft_edge.expect("soft edge").radius, Emu::from_emu(50800));
+    // The shadow keeps its structural attributes and bakes its explicit sRGB unchanged.
+    let shadow = spec.outer_shadow.expect("outer shadow");
+    assert_eq!(shadow.blur_radius, Some(Emu::from_emu(12700)));
+    assert_eq!(shadow.distance, Some(Emu::from_emu(38100)));
+    assert_eq!(shadow.color, ColorSpec::Srgb("FF0000".into()));
 }

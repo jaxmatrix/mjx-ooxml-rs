@@ -13,6 +13,7 @@ use mjx_ooxml_core::{FromXml, FromXmlError, Interner, RawElement, RawNode};
 
 use crate::build::{dml_child, first_color_child, is_dml};
 use crate::color::{Color, ColorSpec};
+use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec};
 use crate::line::{LineProperties, LineSpec};
 
@@ -78,6 +79,10 @@ pub struct Theme {
     color_scheme: Option<ColorScheme>,
     fill_styles: Vec<Fill>,
     line_styles: Vec<LineProperties>,
+    /// The effect styles of `a:fmtScheme > a:effectStyleLst`, positional (1-based via
+    /// [`Theme::effect_style`]). Each entry is the `a:effectStyle`'s `a:effectLst`, or `None` when that
+    /// style uses the opaque `a:effectDag` alternative — the `None` preserves index alignment.
+    effect_styles: Vec<Option<EffectList>>,
 }
 
 impl Theme {
@@ -115,6 +120,15 @@ impl Theme {
         self.line_styles.get(position)
     }
 
+    /// The effect style referenced by a **1-based** style-matrix index (as in `a:effectRef@idx`): `1` is
+    /// the first style, and `0` — the schema's "no reference" value — returns `None`. A style whose
+    /// effect properties are the opaque `a:effectDag` (not modeled) also returns `None`.
+    #[must_use]
+    pub fn effect_style(&self, idx: u32) -> Option<&EffectList> {
+        let position = usize::try_from(idx).ok()?.checked_sub(1)?;
+        self.effect_styles.get(position)?.as_ref()
+    }
+
     /// This theme as an interner-free [`ThemeInfo`], resolving every color, fill, and line against
     /// `interner` — the value an interner-less caller (`mjx-pptx`'s `slide_theme`) reads.
     #[must_use]
@@ -135,6 +149,11 @@ impl Theme {
                 .iter()
                 .map(|line| line.spec(interner))
                 .collect(),
+            effect_styles: self
+                .effect_styles
+                .iter()
+                .map(|style| style.as_ref().map(|effects| effects.spec(interner)))
+                .collect(),
         }
     }
 }
@@ -148,6 +167,7 @@ pub struct ThemeInfo {
     colors: Vec<(ColorSchemeSlot, ColorSpec)>,
     fill_styles: Vec<FillSpec>,
     line_styles: Vec<LineSpec>,
+    effect_styles: Vec<Option<EffectListSpec>>,
 }
 
 impl ThemeInfo {
@@ -191,6 +211,14 @@ impl ThemeInfo {
         let position = usize::try_from(idx).ok()?.checked_sub(1)?;
         self.line_styles.get(position)
     }
+
+    /// The effect style at a **1-based** style-matrix index (`a:effectRef@idx`); `0` (no reference), an
+    /// out-of-range index, or an `a:effectDag`-based style all return `None`.
+    #[must_use]
+    pub fn effect_style(&self, idx: u32) -> Option<&EffectListSpec> {
+        let position = usize::try_from(idx).ok()?.checked_sub(1)?;
+        self.effect_styles.get(position)?.as_ref()
+    }
 }
 
 impl FromXml for Theme {
@@ -219,10 +247,18 @@ impl FromXml for Theme {
             None => Vec::new(),
         };
 
+        let effect_styles = match fmt_scheme
+            .and_then(|scheme| dml_child(&scheme.children, interner, "effectStyleLst"))
+        {
+            Some(list) => effect_styles_of(list, interner)?,
+            None => Vec::new(),
+        };
+
         Ok(Self {
             color_scheme,
             fill_styles,
             line_styles,
+            effect_styles,
         })
     }
 }
@@ -257,4 +293,28 @@ fn line_styles_of(
         }
     }
     Ok(lines)
+}
+
+/// Parses the `a:effectStyle` (`CT_EffectStyleItem`) children of an `a:effectStyleLst`, in order. Each
+/// yields its `a:effectLst` as an [`EffectList`], or `None` when the style uses the opaque `a:effectDag`
+/// alternative (the `None` keeps the positional 1-based `a:effectRef@idx` alignment). Any `a:scene3d` /
+/// `a:sp3d` siblings are not modeled.
+fn effect_styles_of(
+    list: &RawElement,
+    interner: &Interner,
+) -> Result<Vec<Option<EffectList>>, FromXmlError> {
+    let mut styles = Vec::new();
+    for node in &list.children {
+        let RawNode::Element(child) = node else {
+            continue;
+        };
+        if is_dml(&child.name, interner) && interner.resolve(child.name.local) == "effectStyle" {
+            let effects = match dml_child(&child.children, interner, "effectLst") {
+                Some(effect_lst) => Some(EffectList::from_xml(effect_lst, interner)?),
+                None => None,
+            };
+            styles.push(effects);
+        }
+    }
+    Ok(styles)
 }

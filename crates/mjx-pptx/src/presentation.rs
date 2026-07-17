@@ -1,9 +1,9 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_fill, resolve_line, ColorMap, EffectList, EffectListSpec, Fill, FillSpec,
-    LineProperties, LineSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody,
-    Theme, ThemeInfo,
+    resolve_color, resolve_effects, resolve_fill, resolve_line, ColorMap, EffectList,
+    EffectListSpec, Fill, FillSpec, LineProperties, LineSpec, PresetGeometry, ResolvedColor,
+    SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -800,6 +800,111 @@ impl Presentation {
         Ok(None)
     }
 
+    /// The **effective** effects of shape `shape_idx` on slide `slide_idx`, as an interner-free
+    /// [`EffectListSpec`] whose colors are resolved to concrete `RRGGBB` values — the effects the shape
+    /// actually renders. Three sources are tried, in order: an explicit `p:spPr > a:effectLst`; a
+    /// `p:style > a:effectRef` (the theme effect-style at that index, `phClr` substituted by the
+    /// reference's color); and, for a placeholder shape (`p:ph`), **inheritance** from the same-slot
+    /// placeholder on the slide layout then the master. Scheme colors and color transforms are baked
+    /// against the slide's theme + map.
+    ///
+    /// Returns `Ok(None)` when no source yields effects. Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
+    /// outside the package, or a part is not well-formed.
+    pub fn effective_shape_effects(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<EffectListSpec>, PptxError> {
+        let map = self
+            .slide_color_map(slide_idx)?
+            .unwrap_or_else(ColorMap::identity);
+        let theme_part = self.slide_theme_part(slide_idx)?;
+
+        // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
+        let scheme = match &theme_part {
+            Some(part) => {
+                let doc = self.package.part_tree(part)?;
+                let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                theme
+                    .color_scheme()
+                    .map(|cs| SchemeColors::from_scheme(cs, &doc.interner))
+                    .unwrap_or_default()
+            }
+            None => SchemeColors::default(),
+        };
+
+        // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
+        // the matching placeholder on the layout, then the master.
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let placeholder = {
+            let doc = self.package.part_tree(&slide_part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            let count = slide::shapes(sp_tree, &doc.interner).count();
+            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+                PptxError::ShapeIndexOutOfRange {
+                    slide: slide_idx,
+                    index: shape_idx,
+                    count,
+                },
+            )?;
+            slide::shape_placeholder(shape, &doc.interner)
+        };
+
+        let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
+        if let Some(ph) = placeholder {
+            if let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? {
+                if let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? {
+                    candidates.push((master, Candidate::Placeholder(ph)));
+                }
+                candidates.insert(1, (layout, Candidate::Placeholder(ph)));
+            }
+        }
+
+        for (part, candidate) in candidates {
+            // Extract the candidate's own effects while holding its part's borrow (fully owned).
+            let own = {
+                let doc = self.package.part_tree(&part)?;
+                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+                let shape = match candidate {
+                    Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
+                    Candidate::Placeholder(ph) => {
+                        slide::find_placeholder(sp_tree, ph, &doc.interner)
+                    }
+                };
+                match shape {
+                    Some(shape) => shape_own_effects(shape, &doc.interner, &scheme, &map)?,
+                    None => OwnEffects::Absent,
+                }
+            };
+
+            match own {
+                OwnEffects::Resolved(spec) => return Ok(Some(*spec)),
+                OwnEffects::StyleRef(idx, color) => {
+                    // Resolve the referenced theme effect-style (theme-part interner), substituting phClr.
+                    if let Some(theme_part) = &theme_part {
+                        let doc = self.package.part_tree(theme_part)?;
+                        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                        if let Some(style) = theme.effect_style(idx) {
+                            return Ok(Some(resolve_effects(
+                                style,
+                                &scheme,
+                                &map,
+                                color,
+                                &doc.interner,
+                            )));
+                        }
+                    }
+                }
+                OwnEffects::Absent => {}
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
     /// paragraph). Returns the index of the new shape among the slide's `p:sp` shapes. Only that
@@ -1179,6 +1284,45 @@ fn shape_own_line(
         }
     }
     Ok(OwnLine::Absent)
+}
+
+/// A candidate shape's own effects, extracted while its part's tree is borrowed (fully owned, so no
+/// borrow escapes): an already-resolved effect list, a theme style reference to resolve against the
+/// theme, or no effects.
+enum OwnEffects {
+    /// An explicit `p:spPr > a:effectLst`, already resolved to concrete colors. Boxed — an
+    /// [`EffectListSpec`] is far larger than the other variants.
+    Resolved(Box<EffectListSpec>),
+    /// A `p:style > a:effectRef@idx` with its (already-resolved) `phClr` substitute color.
+    StyleRef(u32, Option<ResolvedColor>),
+    /// The shape declares no effects of its own.
+    Absent,
+}
+
+/// The effects a `shape` declares itself (explicit `p:spPr > a:effectLst`, or a `p:style > a:effectRef`),
+/// resolved against `scheme` / `map`. The style-reference case returns its index + resolved color for the
+/// caller to resolve against the theme (which lives in a different part interner).
+fn shape_own_effects(
+    shape: &RawElement,
+    interner: &Interner,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+) -> Result<OwnEffects, PptxError> {
+    if let Some(effect_element) = slide::shape_effects(shape, interner) {
+        let effects = EffectList::from_xml(effect_element, interner)?;
+        return Ok(OwnEffects::Resolved(Box::new(resolve_effects(
+            &effects, scheme, map, None, interner,
+        ))));
+    }
+    if let Some(reference) = slide::shape_effect_ref(shape, interner) {
+        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+            let color = reference
+                .color()
+                .and_then(|c| resolve_color(c, scheme, map, None, interner));
+            return Ok(OwnEffects::StyleRef(idx, color));
+        }
+    }
+    Ok(OwnEffects::Absent)
 }
 
 /// The directory portion of an absolute part name, including the trailing `/` (e.g.

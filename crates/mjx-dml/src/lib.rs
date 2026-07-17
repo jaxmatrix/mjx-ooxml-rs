@@ -45,7 +45,9 @@ pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
     LineProperties, LineSpec, PenAlignment, PresetLineDash,
 };
-pub use resolve::{resolve_color, resolve_fill, resolve_line, ResolvedColor, SchemeColors};
+pub use resolve::{
+    resolve_color, resolve_effects, resolve_fill, resolve_line, ResolvedColor, SchemeColors,
+};
 pub use style::{ColorMap, StyleMatrixReference};
 pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
 pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};

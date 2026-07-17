@@ -17,6 +17,7 @@ use mjx_ooxml_core::{Interner, RawNode};
 
 use crate::build::{attr_str, parse_angle, parse_percentage};
 use crate::color::{Color, ColorKind, ColorSpec, SchemeColor};
+use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec, GradientStopSpec};
 use crate::line::{LineProperties, LineSpec};
 use crate::style::ColorMap;
@@ -188,6 +189,56 @@ pub fn resolve_line(
         head_end: line.head_end(interner),
         tail_end: line.tail_end(interner),
     }
+}
+
+/// Resolves the colors of `effects` to concrete RGB, producing an interner-free [`EffectListSpec`]. The
+/// structural fields (radii, distances, angles, scales, alignment, blend, preset) are copied verbatim;
+/// each colored effect's `EG_ColorChoice` is baked via [`resolve_color`] and the fill overlay via
+/// [`resolve_fill`]. `placeholder` is the resolved `phClr` substitute (a shape's `a:effectRef` color)
+/// used when `effects` is a theme effect-style; pass `None` for an explicit shape effect list.
+///
+/// A color that cannot be resolved falls back to its own (unresolved) [`ColorSpec`]. Resolved alpha
+/// (from an `a:alpha` transform) is not represented, as effect colors are RGB-only.
+#[must_use]
+pub fn resolve_effects(
+    effects: &EffectList,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> EffectListSpec {
+    let to_spec = |color: &Color| -> ColorSpec {
+        resolve_color(color, scheme, map, placeholder, interner).map_or_else(
+            || color.spec(interner),
+            |resolved| ColorSpec::Srgb(resolved.to_hex()),
+        )
+    };
+
+    let mut spec = effects.spec(interner);
+    if let (Some(glow), Some(color)) = (spec.glow.as_mut(), effects.glow_color(interner)) {
+        glow.color = to_spec(&color);
+    }
+    if let (Some(shadow), Some(color)) =
+        (spec.inner_shadow.as_mut(), effects.inner_shadow_color(interner))
+    {
+        shadow.color = to_spec(&color);
+    }
+    if let (Some(shadow), Some(color)) =
+        (spec.outer_shadow.as_mut(), effects.outer_shadow_color(interner))
+    {
+        shadow.color = to_spec(&color);
+    }
+    if let (Some(shadow), Some(color)) =
+        (spec.preset_shadow.as_mut(), effects.preset_shadow_color(interner))
+    {
+        shadow.color = to_spec(&color);
+    }
+    if let (Some(overlay), Some(fill)) =
+        (spec.fill_overlay.as_mut(), effects.fill_overlay_fill(interner))
+    {
+        overlay.fill = resolve_fill(&fill, scheme, map, placeholder, interner);
+    }
+    spec
 }
 
 /// Resolves `color` to sRGB floats (`0.0..=1.0`) + alpha, applying transforms at every level:
