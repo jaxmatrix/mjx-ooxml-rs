@@ -23,7 +23,10 @@ pub mod geometry;
 pub mod text;
 
 pub use color::{Color, ColorKind, SchemeColor};
-pub use fill::{SolidFill, SolidFillContent};
+pub use fill::{
+    BlipFill, BlipFillMode, Fill, GradientFill, GradientStop, GroupFill, NoFill, PatternFill,
+    PatternType, SolidFill, SolidFillContent,
+};
 pub use geometry::{
     Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
     PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,

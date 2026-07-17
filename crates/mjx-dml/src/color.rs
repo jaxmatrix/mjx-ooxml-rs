@@ -67,6 +67,22 @@ impl Color {
         }
     }
 
+    /// The six `EG_ColorChoice` element local names (`a:srgbClr`, `a:schemeClr`, …), in schema order.
+    pub(crate) const CHOICE_LOCALS: [&'static str; 6] = [
+        "srgbClr",
+        "schemeClr",
+        "sysClr",
+        "scrgbClr",
+        "hslClr",
+        "prstClr",
+    ];
+
+    /// Whether `local` names one of the six `EG_ColorChoice` elements.
+    #[must_use]
+    pub(crate) fn is_choice_local(local: &str) -> bool {
+        Self::CHOICE_LOCALS.contains(&local)
+    }
+
     /// Which color-choice element this is.
     #[must_use]
     pub fn kind(&self, interner: &Interner) -> ColorKind {

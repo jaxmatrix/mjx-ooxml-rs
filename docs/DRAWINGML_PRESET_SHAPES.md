@@ -345,9 +345,11 @@ _Missing from the spec file but standardised in `ST_ShapeType`: `upArrow` (autho
 Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HANDOFF.md`).
 
 - ✅ **Done:** the color model (`mjx-dml::color::{Color, ColorKind}` + generated `SchemeColor`) and
-  **`solidFill`** (`mjx-dml::fill::SolidFill`).
-- ⏭ **Next:** make the fill model **exhaustive** — `noFill`/`gradFill`/`blipFill`/`pattFill`/`grpFill`
-  (a `Fill` enum + generated `PatternType`), then wire `shape_fill`/`set_shape_fill` into `mjx-pptx`.
+  the **exhaustive fill model** — all six `EG_FillProperties` kinds (`noFill`/`solidFill`/`gradFill`/
+  `blipFill`/`pattFill`/`grpFill`) as a `mjx-dml::fill::Fill` enum of fidelity wrappers with key typed
+  accessors + builders, backed by generated `PatternType` (`ST_PresetPatternVal`, 54 tokens).
+- ⏭ **Next (PR-2):** wire `shape_fill`/`set_shape_fill` into `mjx-pptx` (navigate `p:spPr` → the fill
+  child → `Fill::from_xml`; insert after geometry, before `a:ln`); extend the office-open canary.
 - ⏳ **Deferred (future round): PowerPoint default fill resolution.** The typed fill model covers only
   **explicit** fills. Resolving a shape's *effective* fill when it has none — inheritance from the
   placeholder → `p:style > a:fillRef` style-matrix index → the theme's `a:fmtScheme`/`a:clrScheme` —
