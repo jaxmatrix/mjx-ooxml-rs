@@ -1,7 +1,7 @@
 //! Unit tests for the DrawingML theme read-view (`ColorScheme` + fill-style matrix), through the
 //! public API only, against a minimal but faithful `a:theme` fragment.
 
-use mjx_dml::{ColorKind, ColorSchemeSlot, Fill, LineWidth, SchemeColor, Theme};
+use mjx_dml::{ColorKind, ColorSchemeSlot, ColorSpec, Emu, Fill, LineWidth, SchemeColor, Theme};
 use mjx_ooxml_core::FromXml;
 use mjx_xml::fidelity;
 
@@ -43,7 +43,19 @@ fn office_theme() -> String {
                  <a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
                  <a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
                </a:lnStyleLst>
-               <a:effectStyleLst/><a:bgFillStyleLst/>
+               <a:effectStyleLst>
+                 <a:effectStyle><a:effectLst/></a:effectStyle>
+                 <a:effectStyle><a:effectLst/></a:effectStyle>
+                 <a:effectStyle>
+                   <a:effectLst>
+                     <a:outerShdw blurRad="40000" dist="20000" dir="5400000" rotWithShape="0">
+                       <a:schemeClr val="phClr"><a:alpha val="63000"/></a:schemeClr>
+                     </a:outerShdw>
+                   </a:effectLst>
+                   <a:scene3d><a:camera prst="orthographicFront"/></a:scene3d>
+                   <a:sp3d><a:bevelT w="63500" h="25400"/></a:sp3d>
+                 </a:effectStyle>
+               </a:effectStyleLst><a:bgFillStyleLst/>
              </a:fmtScheme>
            </a:themeElements></a:theme>"#
     )
@@ -116,6 +128,29 @@ fn line_styles_are_indexed_one_based() {
     );
     // Out-of-range indices are absent, no panic.
     assert!(theme.line_style(4).is_none());
+}
+
+#[test]
+fn effect_styles_are_indexed_one_based() {
+    let (theme, interner) = parse_theme(office_theme().as_bytes());
+
+    // idx 0 is the schema's "no reference".
+    assert!(theme.effect_style(0).is_none());
+    // idx 1 is the first (empty) effect style — present but declares no effects.
+    let first = theme.effect_style(1).expect("effect style 1");
+    assert_eq!(first.outer_shadow(&interner), None);
+    // idx 3 is the populated style: an outer shadow whose color is the placeholder color, with its
+    // scene3d/sp3d siblings ignored.
+    let third = theme.effect_style(3).expect("effect style 3");
+    let shadow = third.outer_shadow(&interner).expect("outer shadow");
+    assert_eq!(shadow.blur_radius, Some(Emu::from_emu(40_000)));
+    assert_eq!(shadow.distance, Some(Emu::from_emu(20_000)));
+    assert_eq!(
+        shadow.color,
+        ColorSpec::Scheme(SchemeColor::PlaceholderColor)
+    );
+    // Out-of-range indices are absent, no panic.
+    assert!(theme.effect_style(4).is_none());
 }
 
 #[test]

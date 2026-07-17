@@ -8,7 +8,7 @@ use std::path::PathBuf;
 use mjx_dml::{
     Angle, BlendMode, BlurEffect, ColorSpec, EffectListSpec, Emu, FillOverlayEffect, FillSpec,
     Fraction, GlowEffect, InnerShadowEffect, LineSpec, LineWidth, OuterShadowEffect, PresetShadow,
-    PresetShadowEffect, RectangleAlignment, ReflectionEffect, SoftEdgeEffect,
+    PresetShadowEffect, RectangleAlignment, ReflectionEffect, SchemeColor, SoftEdgeEffect,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_opc::Package;
@@ -259,4 +259,114 @@ fn set_effects_keeps_other_parts_byte_identical() {
             "effects edit dirtied unrelated part {name}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// effective_shape_effects — the shape's rendered effects, resolved to concrete RGB
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn effective_effects_resolves_a_scheme_color_against_the_theme() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // An explicit glow whose color is the theme's accent1 scheme color.
+    pres.set_shape_effects(
+        0,
+        idx,
+        &EffectListSpec {
+            glow: Some(GlowEffect {
+                color: ColorSpec::Scheme(SchemeColor::Accent1),
+                radius: Some(Emu::from_emu(63_500)),
+            }),
+            ..EffectListSpec::new()
+        },
+    )
+    .expect("set effects");
+
+    let effective = pres
+        .effective_shape_effects(0, idx)
+        .expect("effective_shape_effects")
+        .expect("some effects");
+    let glow = effective.glow.expect("glow");
+    // accent1 bakes to the fixture theme's 4472C4; the radius is preserved.
+    assert_eq!(glow.color, ColorSpec::Srgb("4472C4".into()));
+    assert_eq!(glow.radius, Some(Emu::from_emu(63_500)));
+}
+
+#[test]
+fn effective_effects_keeps_explicit_srgb() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    pres.set_shape_effects(
+        0,
+        idx,
+        &EffectListSpec {
+            glow: Some(GlowEffect {
+                color: ColorSpec::Srgb("112233".into()),
+                radius: None,
+            }),
+            ..EffectListSpec::new()
+        },
+    )
+    .expect("set effects");
+
+    let effective = pres
+        .effective_shape_effects(0, idx)
+        .expect("effective_shape_effects")
+        .expect("some effects");
+    assert_eq!(
+        effective.glow.expect("glow").color,
+        ColorSpec::Srgb("112233".into())
+    );
+}
+
+#[test]
+fn effective_effects_is_none_when_shape_declares_no_effects() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // A fresh autoshape has no explicit effectLst and no p:style effectRef.
+    assert_eq!(
+        pres.effective_shape_effects(0, idx)
+            .expect("effective_shape_effects"),
+        None
+    );
+}
+
+#[test]
+fn reading_effective_effects_keeps_all_parts_byte_identical() {
+    let bytes = fixture("sample.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    // Reading the title placeholder's effective effects walks slide -> layout -> master -> theme.
+    let _ = pres
+        .effective_shape_effects(0, 0)
+        .expect("effective_shape_effects");
+    let saved = pres.save().expect("save");
+
+    let reopened = byte_map(&Package::open(&saved).expect("reopen package"));
+    assert_eq!(reopened.len(), snapshot.len());
+    for (name, original) in &snapshot {
+        assert_eq!(
+            reopened.get(name),
+            Some(original),
+            "reading effective effects dirtied part {name}"
+        );
+    }
+}
+
+#[test]
+fn effective_effects_resolves_a_theme_effect_ref_shadow() {
+    // The `effects_theme.pptx` fixture has a shape (index 1) with no explicit effectLst but a
+    // `p:style > a:effectRef idx="3"` into a theme effect style whose outer shadow is `phClr`. The
+    // effectRef's accent1 substitutes the phClr, baking to the theme's 4472C4.
+    let mut pres = Presentation::open(&fixture("effects_theme.pptx")).expect("open");
+    let effective = pres
+        .effective_shape_effects(0, 1)
+        .expect("effective_shape_effects")
+        .expect("some effects");
+    let shadow = effective.outer_shadow.expect("outer shadow");
+    assert_eq!(shadow.color, ColorSpec::Srgb("4472C4".into()));
+    assert_eq!(shadow.blur_radius, Some(Emu::from_emu(40_000)));
+    assert_eq!(shadow.distance, Some(Emu::from_emu(20_000)));
 }

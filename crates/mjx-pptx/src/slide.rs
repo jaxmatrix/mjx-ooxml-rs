@@ -145,6 +145,17 @@ pub(crate) fn shape_line_ref(
     StyleMatrixReference::from_xml(line_ref, interner).ok()
 }
 
+/// A shape's effect style reference (`p:sp > p:style > a:effectRef`), if it has one — the theme
+/// effect-style index and the color that substitutes the style's `phClr`.
+pub(crate) fn shape_effect_ref(
+    shape: &RawElement,
+    interner: &Interner,
+) -> Option<StyleMatrixReference> {
+    let style = nav::child(shape, interner, PML, "style")?;
+    let effect_ref = nav::child(style, interner, DML_MAIN, "effectRef")?;
+    StyleMatrixReference::from_xml(effect_ref, interner).ok()
+}
+
 /// A shape's placeholder identity (`p:sp > p:nvSpPr > p:nvPr > p:ph`): the `@type` (as the
 /// title-family flag) and `@idx`. The slot a placeholder occupies, used to match it against the
 /// same-slot placeholder on the slide layout / master when its own fill is inherited.

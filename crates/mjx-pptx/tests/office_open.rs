@@ -160,6 +160,13 @@ fn unmodified_fixture_opens() {
 }
 
 #[test]
+fn effects_theme_fixture_opens() {
+    // The hand-authored effects_theme.pptx (rich theme effectStyleLst + a shape with an effectRef)
+    // must itself be a valid deck a real Office implementation opens.
+    let _ = convert_opens(&fixture("effects_theme.pptx"), "effects_theme_baseline");
+}
+
+#[test]
 fn deck_with_added_text_box_opens() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     pres.add_text_box(
