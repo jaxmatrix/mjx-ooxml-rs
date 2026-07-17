@@ -359,6 +359,8 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
   - ✅ **PR-1 done:** the theme model (`mjx-dml::theme` — `Theme`/`ColorScheme`/fill-style matrix +
     interner-free `ThemeInfo`) backed by generated `ColorSchemeSlot`, and `Presentation::slide_theme`
     walking slide→layout→master→theme.
-  - ⏭ **Next:** PR-2 shape style ref (`a:fillRef`) + color map (`p:clrMap`/`p:clrMapOvr`); PR-3 the
-    color resolver (scheme/phClr → concrete RGB, transform math); PR-4 placeholder inheritance +
-    `effective_shape_fill`.
+  - ✅ **PR-2 done:** `mjx-dml::style` — `StyleMatrixReference` (`a:fillRef`) + `ColorMap`
+    (`resolve(SchemeColor)`), and `Presentation::slide_color_map` (master `p:clrMap` + slide
+    `p:clrMapOvr`).
+  - ⏭ **Next:** PR-3 the color resolver (scheme/phClr → concrete RGB, transform math); PR-4
+    placeholder inheritance + `effective_shape_fill` (which also adds `shape_fill_ref`).

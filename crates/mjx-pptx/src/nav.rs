@@ -128,6 +128,21 @@ fn decode_value(attr: &RawAttribute) -> Result<String, PptxError> {
     Ok(unescape_text(raw)?.into_owned())
 }
 
+/// The UTF-8 value of the first **unprefixed** attribute named `local`, or `None` if absent (or not
+/// UTF-8). Returned verbatim — the attributes read this way (`p:clrMap`'s `bg1`/`tx1`/… scheme-slot
+/// tokens) contain no XML-special characters.
+pub(crate) fn attr_value<'a>(
+    element: &'a RawElement,
+    interner: &Interner,
+    local: &str,
+) -> Option<&'a str> {
+    element
+        .attributes
+        .iter()
+        .find(|attr| attr.name.prefix.is_none() && interner.resolve(attr.name.local) == local)
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
 /// Resolves a relationship `target` relative to the package root (base directory `/`).
 pub(crate) fn resolve_from_root(target: &str) -> Result<PartName, PptxError> {
     resolve_in_dir("/", target)
