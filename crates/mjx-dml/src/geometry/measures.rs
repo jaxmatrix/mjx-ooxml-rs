@@ -1,9 +1,10 @@
-//! Friendly measures for the typed shape-geometry tier.
+//! Friendly measures for the typed DrawingML tiers.
 //!
-//! The mechanical tier stores adjustments in native spec units (fractions in 1000ths of a percent,
-//! angles in 60000ths of a degree). The typed tier converts those into these self-explanatory
-//! measures. [`Fraction`] covers the fraction-valued adjustments; [`Angle`] the angular ones (`arc`,
-//! `chord`, `pie`). `Points` (length) arrives with the batches that use it.
+//! The wire forms store measures in native spec units (fractions in 1000ths of a percent, angles in
+//! 60000ths of a degree, lengths in EMU). These self-explanatory newtypes convert those into intent.
+//! [`Fraction`] covers the fraction-valued shape adjustments; [`Angle`] the angular ones (`arc`,
+//! `chord`, `pie`); [`LineWidth`] the outline width (`a:ln@w`). `Points` (length) arrives with the
+//! batches that use it.
 
 /// A fraction of some geometric reference named by the field that holds it (e.g. a corner radius as a
 /// fraction of the shorter side). `1.0` is 100%. A value may exceed `1.0` (e.g. a connector's bend
@@ -54,5 +55,40 @@ impl Angle {
     #[must_use]
     pub fn degrees(self) -> f64 {
         self.0.to_degrees()
+    }
+}
+
+/// English Metric Units per point (`72` points per inch, `914400` EMU per inch → `12700`).
+const EMU_PER_POINT: i64 = 12_700;
+
+/// An outline width, stored in **English Metric Units** (`a:ln@w`, `ST_LineWidth`; EMU 0..=20116800).
+/// Construct from and read as EMU or points — PowerPoint's line-weight UI is in points, and one point
+/// is `12700` EMU.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LineWidth(i64);
+
+impl LineWidth {
+    /// Wraps a width given in EMU.
+    #[must_use]
+    pub const fn from_emu(emu: i64) -> Self {
+        Self(emu)
+    }
+
+    /// The width in EMU.
+    #[must_use]
+    pub const fn emu(self) -> i64 {
+        self.0
+    }
+
+    /// Wraps a width given in points (one point = `12700` EMU), rounded to the nearest EMU.
+    #[must_use]
+    pub fn from_points(points: f64) -> Self {
+        Self((points * EMU_PER_POINT as f64).round() as i64)
+    }
+
+    /// The width in points (one point = `12700` EMU).
+    #[must_use]
+    pub fn points(self) -> f64 {
+        self.0 as f64 / EMU_PER_POINT as f64
     }
 }

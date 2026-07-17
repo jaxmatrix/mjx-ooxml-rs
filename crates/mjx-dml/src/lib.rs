@@ -20,6 +20,7 @@ pub(crate) mod build;
 pub mod color;
 pub mod fill;
 pub mod geometry;
+pub mod line;
 pub mod resolve;
 pub mod style;
 pub mod text;
@@ -31,8 +32,12 @@ pub use fill::{
     GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
 };
 pub use geometry::{
-    Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, PresetGeometry,
-    PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
+    Angle, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, LineWidth,
+    PresetGeometry, PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
+};
+pub use line::{
+    CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
+    LineProperties, LineSpec, PenAlignment, PresetLineDash,
 };
 pub use resolve::{resolve_color, resolve_fill, ResolvedColor, SchemeColors};
 pub use style::{ColorMap, StyleMatrixReference};
