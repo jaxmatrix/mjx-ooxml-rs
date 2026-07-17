@@ -18,6 +18,7 @@ use mjx_ooxml_core::{Interner, RawNode};
 use crate::build::{attr_str, parse_angle, parse_percentage};
 use crate::color::{Color, ColorKind, ColorSpec, SchemeColor};
 use crate::fill::{Fill, FillSpec, GradientStopSpec};
+use crate::line::{LineProperties, LineSpec};
 use crate::style::ColorMap;
 use crate::theme::{ColorScheme, ColorSchemeSlot};
 
@@ -159,6 +160,33 @@ pub fn resolve_fill(
             foreground: pattern.foreground(interner).map(|color| to_spec(&color)),
             background: pattern.background(interner).map(|color| to_spec(&color)),
         },
+    }
+}
+
+/// Resolves `line`'s stroke color to concrete RGB, producing an interner-free [`LineSpec`]. The
+/// width/cap/compound/pen-alignment/dash/join/end attributes are copied verbatim; the stroke fill is
+/// baked via [`resolve_fill`]. `placeholder` is the resolved `phClr` substitute (a shape's `a:lnRef`
+/// color) used when `line` is a theme line-style; pass `None` for an explicit shape outline.
+#[must_use]
+pub fn resolve_line(
+    line: &LineProperties,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> LineSpec {
+    LineSpec {
+        width: line.width(interner),
+        cap: line.cap(interner),
+        compound: line.compound(interner),
+        pen_alignment: line.pen_alignment(interner),
+        fill: line
+            .fill(interner)
+            .map(|fill| resolve_fill(&fill, scheme, map, placeholder, interner)),
+        dash: line.dash(interner),
+        join: line.join(interner),
+        head_end: line.head_end(interner),
+        tail_end: line.tail_end(interner),
     }
 }
 

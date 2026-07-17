@@ -1,16 +1,20 @@
-//! DrawingML theme: the color scheme and fill-style matrix a shape's effective fill resolves against.
+//! DrawingML theme: the color scheme and the fill/line style matrices a shape's effective fill and
+//! outline resolve against.
 //!
 //! A theme part (`a:theme`) carries `a:themeElements > { a:clrScheme, a:fontScheme, a:fmtScheme }`.
-//! This module models the two pieces the fill workstream needs — the **color scheme** (the 12 named
-//! color slots) and the **fill-style matrix** (`a:fmtScheme > a:fillStyleLst`) — as read-only views.
-//! The theme part is never edited here, so these are parsed value views (not fidelity wrappers): the
-//! font scheme, the line/effect/background-fill lists, and unknown children are simply not retained.
+//! This module models the pieces the fill and outline workstreams need — the **color scheme** (the 12
+//! named color slots), the **fill-style matrix** (`a:fmtScheme > a:fillStyleLst`), and the **line-style
+//! matrix** (`a:fmtScheme > a:lnStyleLst`) — as read-only views. The theme part is never edited here,
+//! so the color scheme and fill styles are parsed value views; the line styles are the [`LineProperties`]
+//! fidelity wrappers (an `a:ln` is a fidelity type). The font scheme, effect/background-fill lists, and
+//! unknown children are simply not retained.
 
 use mjx_ooxml_core::{FromXml, FromXmlError, Interner, RawElement, RawNode};
 
 use crate::build::{dml_child, first_color_child, is_dml};
 use crate::color::{Color, ColorSpec};
 use crate::fill::{Fill, FillSpec};
+use crate::line::{LineProperties, LineSpec};
 
 pub use mjx_ooxml_types::drawingml::ColorSchemeSlot;
 
@@ -66,12 +70,14 @@ impl FromXml for ColorScheme {
     }
 }
 
-/// `a:theme` — a DrawingML theme, reduced to the pieces effective-fill resolution needs: the
-/// [`ColorScheme`] and the ordered fill styles of `a:fmtScheme > a:fillStyleLst`.
+/// `a:theme` — a DrawingML theme, reduced to the pieces effective fill/outline resolution needs: the
+/// [`ColorScheme`], the ordered fill styles of `a:fmtScheme > a:fillStyleLst`, and the ordered line
+/// styles of `a:fmtScheme > a:lnStyleLst`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Theme {
     color_scheme: Option<ColorScheme>,
     fill_styles: Vec<Fill>,
+    line_styles: Vec<LineProperties>,
 }
 
 impl Theme {
@@ -95,8 +101,22 @@ impl Theme {
         self.fill_styles.get(position)
     }
 
-    /// This theme as an interner-free [`ThemeInfo`], resolving every color and fill against `interner`
-    /// — the value an interner-less caller (`mjx-pptx`'s `slide_theme`) reads.
+    /// The line styles of `a:fmtScheme > a:lnStyleLst`, in order.
+    #[must_use]
+    pub fn line_styles(&self) -> &[LineProperties] {
+        &self.line_styles
+    }
+
+    /// The line style referenced by a **1-based** style-matrix index (as in `a:lnRef@idx`): `1` is the
+    /// first style, and `0` — the schema's "no reference" value — returns `None`.
+    #[must_use]
+    pub fn line_style(&self, idx: u32) -> Option<&LineProperties> {
+        let position = usize::try_from(idx).ok()?.checked_sub(1)?;
+        self.line_styles.get(position)
+    }
+
+    /// This theme as an interner-free [`ThemeInfo`], resolving every color, fill, and line against
+    /// `interner` — the value an interner-less caller (`mjx-pptx`'s `slide_theme`) reads.
     #[must_use]
     pub fn to_info(&self, interner: &Interner) -> ThemeInfo {
         ThemeInfo {
@@ -110,6 +130,11 @@ impl Theme {
                 .iter()
                 .map(|fill| fill.spec(interner))
                 .collect(),
+            line_styles: self
+                .line_styles
+                .iter()
+                .map(|line| line.spec(interner))
+                .collect(),
         }
     }
 }
@@ -122,6 +147,7 @@ impl Theme {
 pub struct ThemeInfo {
     colors: Vec<(ColorSchemeSlot, ColorSpec)>,
     fill_styles: Vec<FillSpec>,
+    line_styles: Vec<LineSpec>,
 }
 
 impl ThemeInfo {
@@ -151,6 +177,20 @@ impl ThemeInfo {
         let position = usize::try_from(idx).ok()?.checked_sub(1)?;
         self.fill_styles.get(position)
     }
+
+    /// The theme's line styles (`a:lnStyleLst`), in order.
+    #[must_use]
+    pub fn line_styles(&self) -> &[LineSpec] {
+        &self.line_styles
+    }
+
+    /// The line style at a **1-based** style-matrix index (`a:lnRef@idx`); `0` (no reference)
+    /// returns `None`.
+    #[must_use]
+    pub fn line_style(&self, idx: u32) -> Option<&LineSpec> {
+        let position = usize::try_from(idx).ok()?.checked_sub(1)?;
+        self.line_styles.get(position)
+    }
 }
 
 impl FromXml for Theme {
@@ -162,17 +202,27 @@ impl FromXml for Theme {
             .map(|scheme| ColorScheme::from_xml(scheme, interner))
             .transpose()?;
 
-        let fill_styles = match theme_elements
-            .and_then(|elements| dml_child(&elements.children, interner, "fmtScheme"))
+        let fmt_scheme = theme_elements
+            .and_then(|elements| dml_child(&elements.children, interner, "fmtScheme"));
+
+        let fill_styles = match fmt_scheme
             .and_then(|scheme| dml_child(&scheme.children, interner, "fillStyleLst"))
         {
             Some(list) => fill_styles_of(list, interner)?,
             None => Vec::new(),
         };
 
+        let line_styles = match fmt_scheme
+            .and_then(|scheme| dml_child(&scheme.children, interner, "lnStyleLst"))
+        {
+            Some(list) => line_styles_of(list, interner)?,
+            None => Vec::new(),
+        };
+
         Ok(Self {
             color_scheme,
             fill_styles,
+            line_styles,
         })
     }
 }
@@ -190,4 +240,21 @@ fn fill_styles_of(list: &RawElement, interner: &Interner) -> Result<Vec<Fill>, F
         }
     }
     Ok(fills)
+}
+
+/// Parses the `a:ln` (`CT_LineProperties`) children of an `a:lnStyleLst`, in order.
+fn line_styles_of(
+    list: &RawElement,
+    interner: &Interner,
+) -> Result<Vec<LineProperties>, FromXmlError> {
+    let mut lines = Vec::new();
+    for node in &list.children {
+        let RawNode::Element(child) = node else {
+            continue;
+        };
+        if is_dml(&child.name, interner) && interner.resolve(child.name.local) == "ln" {
+            lines.push(LineProperties::from_xml(child, interner)?);
+        }
+    }
+    Ok(lines)
 }

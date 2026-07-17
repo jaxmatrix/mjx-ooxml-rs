@@ -1,7 +1,7 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_fill, ColorMap, Fill, FillSpec, LineProperties, LineSpec,
+    resolve_color, resolve_fill, resolve_line, ColorMap, Fill, FillSpec, LineProperties, LineSpec,
     PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
@@ -601,6 +601,111 @@ impl Presentation {
         Ok(None)
     }
 
+    /// The **effective** outline of shape `shape_idx` on slide `slide_idx`, as an interner-free
+    /// [`LineSpec`] whose stroke color is resolved to a concrete `RRGGBB` value — the outline the shape
+    /// actually renders. Three sources are tried, in order: an explicit `p:spPr > a:ln`; a
+    /// `p:style > a:lnRef` (the theme line-style at that index, `phClr` substituted by the reference's
+    /// color); and, for a placeholder shape (`p:ph`), **inheritance** from the same-slot placeholder on
+    /// the slide layout then the master. Scheme colors and color transforms are baked against the
+    /// slide's theme + map.
+    ///
+    /// Returns `Ok(None)` when no source yields an outline. Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
+    /// outside the package, or a part is not well-formed.
+    pub fn effective_shape_outline(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<LineSpec>, PptxError> {
+        let map = self
+            .slide_color_map(slide_idx)?
+            .unwrap_or_else(ColorMap::identity);
+        let theme_part = self.slide_theme_part(slide_idx)?;
+
+        // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
+        let scheme = match &theme_part {
+            Some(part) => {
+                let doc = self.package.part_tree(part)?;
+                let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                theme
+                    .color_scheme()
+                    .map(|cs| SchemeColors::from_scheme(cs, &doc.interner))
+                    .unwrap_or_default()
+            }
+            None => SchemeColors::default(),
+        };
+
+        // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
+        // the matching placeholder on the layout, then the master.
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let placeholder = {
+            let doc = self.package.part_tree(&slide_part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            let count = slide::shapes(sp_tree, &doc.interner).count();
+            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+                PptxError::ShapeIndexOutOfRange {
+                    slide: slide_idx,
+                    index: shape_idx,
+                    count,
+                },
+            )?;
+            slide::shape_placeholder(shape, &doc.interner)
+        };
+
+        let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
+        if let Some(ph) = placeholder {
+            if let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? {
+                if let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? {
+                    candidates.push((master, Candidate::Placeholder(ph)));
+                }
+                candidates.insert(1, (layout, Candidate::Placeholder(ph)));
+            }
+        }
+
+        for (part, candidate) in candidates {
+            // Extract the candidate's own outline while holding its part's borrow (fully owned).
+            let own = {
+                let doc = self.package.part_tree(&part)?;
+                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+                let shape = match candidate {
+                    Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
+                    Candidate::Placeholder(ph) => {
+                        slide::find_placeholder(sp_tree, ph, &doc.interner)
+                    }
+                };
+                match shape {
+                    Some(shape) => shape_own_line(shape, &doc.interner, &scheme, &map)?,
+                    None => OwnLine::Absent,
+                }
+            };
+
+            match own {
+                OwnLine::Resolved(spec) => return Ok(Some(spec)),
+                OwnLine::StyleRef(idx, color) => {
+                    // Resolve the referenced theme line-style (theme-part interner), substituting phClr.
+                    if let Some(theme_part) = &theme_part {
+                        let doc = self.package.part_tree(theme_part)?;
+                        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                        if let Some(style) = theme.line_style(idx) {
+                            return Ok(Some(resolve_line(
+                                style,
+                                &scheme,
+                                &map,
+                                color,
+                                &doc.interner,
+                            )));
+                        }
+                    }
+                }
+                OwnLine::Absent => {}
+            }
+        }
+
+        Ok(None)
+    }
+
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
     /// paragraph). Returns the index of the new shape among the slide's `p:sp` shapes. Only that
@@ -944,6 +1049,44 @@ fn shape_own_fill(
     Ok(OwnFill::Absent)
 }
 
+/// A candidate shape's own outline, extracted while its part's tree is borrowed (fully owned, so no
+/// borrow escapes): an already-resolved outline, a theme style reference to resolve against the theme,
+/// or no outline.
+enum OwnLine {
+    /// An explicit `p:spPr > a:ln`, already resolved to a concrete stroke color.
+    Resolved(LineSpec),
+    /// A `p:style > a:lnRef@idx` with its (already-resolved) `phClr` substitute color.
+    StyleRef(u32, Option<ResolvedColor>),
+    /// The shape declares no outline of its own.
+    Absent,
+}
+
+/// The outline a `shape` declares itself (explicit `p:spPr > a:ln`, or a `p:style > a:lnRef`), resolved
+/// against `scheme` / `map`. The style-reference case returns its index + resolved color for the caller
+/// to resolve against the theme (which lives in a different part interner).
+fn shape_own_line(
+    shape: &RawElement,
+    interner: &Interner,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+) -> Result<OwnLine, PptxError> {
+    if let Some(line_element) = slide::shape_line(shape, interner) {
+        let line = LineProperties::from_xml(line_element, interner)?;
+        return Ok(OwnLine::Resolved(resolve_line(
+            &line, scheme, map, None, interner,
+        )));
+    }
+    if let Some(reference) = slide::shape_line_ref(shape, interner) {
+        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+            let color = reference
+                .color()
+                .and_then(|c| resolve_color(c, scheme, map, None, interner));
+            return Ok(OwnLine::StyleRef(idx, color));
+        }
+    }
+    Ok(OwnLine::Absent)
+}
+
 /// The directory portion of an absolute part name, including the trailing `/` (e.g.
 /// `/ppt/slides/slide1.xml` → `/ppt/slides/`).
 fn dir_of(part: &str) -> &str {
@@ -1273,6 +1416,163 @@ mod tests {
         assert_eq!(
             pres.effective_shape_fill(0, 0).expect("effective fill"),
             Some(FillSpec::Solid(mjx_dml::ColorSpec::Srgb("ED7D31".into())))
+        );
+    }
+
+    /// Injects a `p:sp` placeholder of `ph_type` whose `spPr` holds an `a:ln` with a
+    /// `solidFill schemeClr {scheme}` stroke into `part`'s shape tree.
+    fn inject_placeholder_outline(
+        pres: &mut Presentation,
+        part: &PartName,
+        ph_type: &str,
+        scheme: &str,
+    ) {
+        let doc = pres.package.part_tree_mut(part).expect("part tree");
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner).expect("spTree");
+
+        let ph_attrs = vec![build::attr(interner, "type", ph_type)];
+        let ph = build::leaf(interner, "p", PML, "ph", ph_attrs);
+        let nv_pr = build::node(
+            interner,
+            "p",
+            PML,
+            "nvPr",
+            Vec::new(),
+            vec![RawNode::Element(ph)],
+        );
+        let cnvpr_attrs = vec![
+            build::attr(interner, "id", "11"),
+            build::attr(interner, "name", "InjectedLine"),
+        ];
+        let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+        let c_nv_sp_pr = build::leaf(interner, "p", PML, "cNvSpPr", Vec::new());
+        let nv_sp_pr = build::node(
+            interner,
+            "p",
+            PML,
+            "nvSpPr",
+            Vec::new(),
+            vec![
+                RawNode::Element(c_nv_pr),
+                RawNode::Element(c_nv_sp_pr),
+                RawNode::Element(nv_pr),
+            ],
+        );
+
+        let clr_attrs = vec![build::attr(interner, "val", scheme)];
+        let scheme_clr = build::leaf(interner, "a", DML_MAIN, "schemeClr", clr_attrs);
+        let solid = build::node(
+            interner,
+            "a",
+            DML_MAIN,
+            "solidFill",
+            Vec::new(),
+            vec![RawNode::Element(scheme_clr)],
+        );
+        let ln = build::node(
+            interner,
+            "a",
+            DML_MAIN,
+            "ln",
+            Vec::new(),
+            vec![RawNode::Element(solid)],
+        );
+        let sp_pr = build::node(
+            interner,
+            "p",
+            PML,
+            "spPr",
+            Vec::new(),
+            vec![RawNode::Element(ln)],
+        );
+        let sp = build::node(
+            interner,
+            "p",
+            PML,
+            "sp",
+            Vec::new(),
+            vec![RawNode::Element(nv_sp_pr), RawNode::Element(sp_pr)],
+        );
+        sp_tree.children.push(RawNode::Element(sp));
+        sp_tree.empty = false;
+    }
+
+    #[test]
+    fn effective_outline_inherits_from_layout_placeholder() {
+        let mut pres = Presentation::open(&fixture()).expect("open");
+        let slide0 = pres.slide_part_checked(0).expect("slide").clone();
+        let layout = pres
+            .follow_rel(&slide0, constants::REL_SLIDE_LAYOUT)
+            .expect("rel")
+            .expect("layout");
+
+        // The layout's ctrTitle placeholder carries an explicit accent2 outline.
+        inject_placeholder_outline(&mut pres, &layout, "ctrTitle", "accent2");
+
+        // Slide 0's ctrTitle declares no outline of its own, so it inherits the layout's — resolved
+        // against the real theme (accent2 = ED7D31).
+        let effective = pres
+            .effective_shape_outline(0, 0)
+            .expect("effective outline")
+            .expect("inherited outline");
+        assert_eq!(
+            effective.fill,
+            Some(FillSpec::Solid(mjx_dml::ColorSpec::Srgb("ED7D31".into())))
+        );
+    }
+
+    #[test]
+    fn effective_outline_resolves_a_line_ref_against_the_theme() {
+        let mut pres = Presentation::open(&fixture()).expect("open");
+        let idx = pres
+            .add_shape(
+                0,
+                PresetShapeType::Rectangle,
+                ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0),
+            )
+            .expect("add shape");
+
+        // Give the shape a p:style > a:lnRef into the theme's line-style 2 (w=12700), with accent1 as
+        // the phClr substitute.
+        {
+            let part = pres.slide_part_checked(0).expect("slide").clone();
+            let doc = pres.package.part_tree_mut(&part).expect("part tree");
+            let RawDocument { interner, root, .. } = doc;
+            let sp_tree = slide::sp_tree_mut(root, interner).expect("spTree");
+            let sp = nav::nth_child_mut(sp_tree, interner, PML, "sp", idx).expect("sp");
+            let clr_attrs = vec![build::attr(interner, "val", "accent1")];
+            let clr = build::leaf(interner, "a", DML_MAIN, "schemeClr", clr_attrs);
+            let ln_ref_attrs = vec![build::attr(interner, "idx", "2")];
+            let ln_ref = build::node(
+                interner,
+                "a",
+                DML_MAIN,
+                "lnRef",
+                ln_ref_attrs,
+                vec![RawNode::Element(clr)],
+            );
+            let style = build::node(
+                interner,
+                "p",
+                PML,
+                "style",
+                Vec::new(),
+                vec![RawNode::Element(ln_ref)],
+            );
+            sp.children.push(RawNode::Element(style));
+            sp.empty = false;
+        }
+
+        // The effective outline is theme line-style 2 (w=12700) with phClr baked to accent1 (4472C4).
+        let effective = pres
+            .effective_shape_outline(0, idx)
+            .expect("effective outline")
+            .expect("line-ref outline");
+        assert_eq!(effective.width, Some(mjx_dml::LineWidth::from_emu(12700)));
+        assert_eq!(
+            effective.fill,
+            Some(FillSpec::Solid(mjx_dml::ColorSpec::Srgb("4472C4".into())))
         );
     }
 }

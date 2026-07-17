@@ -4,7 +4,8 @@
 //! cross-part scenario).
 
 use mjx_dml::{
-    Color, ColorMap, ColorScheme, ColorSpec, Fill, FillSpec, ResolvedColor, SchemeColors,
+    Color, ColorMap, ColorScheme, ColorSpec, Fill, FillSpec, LineProperties, LineWidth,
+    ResolvedColor, SchemeColors,
 };
 use mjx_ooxml_core::{FromXml, RawNode};
 use mjx_xml::fidelity;
@@ -359,5 +360,75 @@ fn resolve_fill_passthrough_kinds() {
     assert_eq!(
         mjx_dml::resolve_fill(&grp, &scheme, &ColorMap::identity(), None, &doc.interner),
         FillSpec::Group
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// resolve_line — resolving an outline's stroke color, keeping structural attributes
+// ---------------------------------------------------------------------------------------------
+
+fn line(frag: &str) -> (LineProperties, mjx_ooxml_core::RawDocument) {
+    let full = format!(r#"<a:wrap xmlns:a="{A}">{frag}</a:wrap>"#);
+    let doc = fidelity::parse(full.as_bytes()).expect("parses");
+    let element = doc
+        .root
+        .children
+        .iter()
+        .find_map(|node| match node {
+            RawNode::Element(el) => Some(el.clone()),
+            _ => None,
+        })
+        .expect("line element");
+    let line = LineProperties::from_xml(&element, &doc.interner).expect("LineProperties");
+    (line, doc)
+}
+
+#[test]
+fn resolve_line_width_only_has_no_fill() {
+    let scheme = office_scheme();
+    let (l, doc) = line(r#"<a:ln w="12700" cap="rnd"/>"#);
+    let spec = mjx_dml::resolve_line(&l, &scheme, &ColorMap::identity(), None, &doc.interner);
+    assert_eq!(spec.width, Some(LineWidth::from_emu(12700)));
+    assert_eq!(spec.cap, Some(mjx_dml::LineCap::Round));
+    assert_eq!(spec.fill, None);
+}
+
+#[test]
+fn resolve_line_bakes_a_scheme_stroke_color() {
+    let scheme = office_scheme();
+    let (l, doc) =
+        line(r#"<a:ln w="9525"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>"#);
+    let spec = mjx_dml::resolve_line(&l, &scheme, &ColorMap::identity(), None, &doc.interner);
+    assert_eq!(spec.width, Some(LineWidth::from_emu(9525)));
+    assert_eq!(
+        spec.fill,
+        Some(FillSpec::Solid(ColorSpec::Srgb("4472C4".into())))
+    );
+}
+
+#[test]
+fn resolve_line_theme_style_substitutes_placeholder() {
+    // A theme line style (w + solidFill of phClr) resolved with a pre-resolved lnRef color — the
+    // a:lnRef -> lnStyleLst path. The width is preserved; the phClr stroke becomes the substitute.
+    let scheme = office_scheme();
+    let (l, doc) =
+        line(r#"<a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>"#);
+    let placeholder = ResolvedColor {
+        red: 0x44,
+        green: 0x72,
+        blue: 0xC4,
+        alpha: 1.0,
+    };
+    let spec = mjx_dml::resolve_line(
+        &l,
+        &scheme,
+        &ColorMap::identity(),
+        Some(placeholder),
+        &doc.interner,
+    );
+    assert_eq!(spec.width, Some(LineWidth::from_emu(12700)));
+    assert_eq!(
+        spec.fill,
+        Some(FillSpec::Solid(ColorSpec::Srgb("4472C4".into())))
     );
 }
