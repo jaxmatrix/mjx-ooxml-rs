@@ -6,19 +6,21 @@
 //! `srgbClr`/`sysClr`/`scrgbClr`/`hslClr`/`prstClr` directly, and `schemeClr` through the color map into
 //! a scheme slot (or, for `phClr`, into a substituted placeholder color).
 //!
-//! **Scope (this stage):** color **transforms** (`a:lumMod`, `a:shade`, …) are not yet applied — a
-//! color that carries any transform child resolves to `None` here, to avoid silently returning a wrong
-//! value. Applying the transform math on top of the base is the next step.
+//! **Color transforms** (`EG_ColorTransform`: `a:lumMod`, `a:shade`, `a:alpha`, …) are applied on top
+//! of the base, in document order, at every level of the chain (the reference, the `phClr` placeholder,
+//! and each scheme slot can carry their own). The common transforms (`lumMod`/`lumOff`/`shade`/`tint`/
+//! `alpha`/`sat*`) follow the widely-adopted Apache-POI / LibreOffice algorithm and are value-pinned in
+//! the tests; the rarely-seen `comp`/`gray`/`gamma`/`invGamma` follow a documented interpretation and
+//! are **not** guaranteed pixel-identical to Microsoft Office's renderer.
 
-use mjx_ooxml_core::Interner;
+use mjx_ooxml_core::{Interner, RawNode};
 
 use crate::build::{attr_str, parse_angle, parse_percentage};
 use crate::color::{Color, ColorKind, SchemeColor};
 use crate::style::ColorMap;
 use crate::theme::{ColorScheme, ColorSchemeSlot};
 
-/// A fully resolved color: 8-bit sRGB channels plus an alpha in `0.0..=1.0` (always `1.0` until the
-/// alpha transforms are applied).
+/// A fully resolved color: 8-bit sRGB channels plus an alpha (opacity) in `0.0..=1.0`.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ResolvedColor {
     /// The red channel (`0..=255`).
@@ -43,19 +45,24 @@ impl ResolvedColor {
 /// color from one part be resolved against a theme in another part. Build it once from a
 /// [`ColorScheme`] with the theme part's interner, then pass it to [`resolve_color`].
 ///
-/// A slot whose color could not be resolved at this stage (e.g. it carries a transform) is omitted.
+/// A slot whose color could not be resolved (an unrecognized value) is omitted.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemeColors {
     slots: Vec<(ColorSchemeSlot, [u8; 3])>,
 }
 
 impl SchemeColors {
-    /// Resolves each slot of `scheme` (parsed with `interner`) to its base RGB.
+    /// Resolves each slot of `scheme` (parsed with `interner`) to its RGB, honoring any transforms a
+    /// slot color carries.
     #[must_use]
     pub fn from_scheme(scheme: &ColorScheme, interner: &Interner) -> Self {
         let slots = scheme
             .slots()
-            .filter_map(|(slot, color)| Some((slot, concrete_rgb(color, interner)?)))
+            .filter_map(|(slot, color)| {
+                let base = concrete_base(color, interner)?;
+                let (rgb, _alpha) = apply_transforms(base, 1.0, color.transforms(), interner);
+                Some((slot, floats_to_bytes(rgb)))
+            })
             .collect();
         Self { slots }
     }
@@ -74,8 +81,7 @@ impl SchemeColors {
 /// color). `interner` is the interner of `color` / `placeholder` (the shape's part).
 ///
 /// Returns `None` when the color cannot be resolved: an unknown/absent value, a `phClr` with no
-/// `placeholder`, a scheme slot the theme does not define — or (this stage) **any color that carries a
-/// transform child**, since the transform math is not applied yet.
+/// `placeholder`, or a scheme slot the theme does not define.
 #[must_use]
 pub fn resolve_color(
     color: &Color,
@@ -84,50 +90,59 @@ pub fn resolve_color(
     placeholder: Option<&Color>,
     interner: &Interner,
 ) -> Option<ResolvedColor> {
-    let [red, green, blue] = base_rgb(color, scheme, map, placeholder, interner)?;
+    let (rgb, alpha) = resolve_rgba(color, scheme, map, placeholder, interner)?;
+    let [red, green, blue] = floats_to_bytes(rgb);
     Some(ResolvedColor {
         red,
         green,
         blue,
-        alpha: 1.0,
+        alpha,
     })
 }
 
-/// The base RGB of `color` (before transforms): `schemeClr` resolves through the map into a scheme
-/// slot or (for `phClr`) the placeholder; every other kind is a concrete color.
-fn base_rgb(
+/// Resolves `color` to sRGB floats (`0.0..=1.0`) + alpha, applying transforms at every level:
+/// `schemeClr` resolves through the map into a scheme slot or (for `phClr`) the placeholder, then
+/// this node's own transforms apply on top.
+fn resolve_rgba(
     color: &Color,
     scheme: &SchemeColors,
     map: &ColorMap,
     placeholder: Option<&Color>,
     interner: &Interner,
-) -> Option<[u8; 3]> {
-    if !color.transforms().is_empty() {
-        return None; // transforms deferred to the next stage
-    }
-    if color.kind(interner) == ColorKind::Scheme {
-        return match color.scheme_color(interner)? {
-            SchemeColor::PlaceholderColor => base_rgb(placeholder?, scheme, map, None, interner),
-            other => scheme.rgb(map.resolve(other)?),
-        };
-    }
-    concrete_rgb(color, interner)
+) -> Option<([f64; 3], f64)> {
+    let (base_rgb, base_alpha) = if color.kind(interner) == ColorKind::Scheme {
+        match color.scheme_color(interner)? {
+            SchemeColor::PlaceholderColor => {
+                resolve_rgba(placeholder?, scheme, map, None, interner)?
+            }
+            other => (bytes_to_floats(scheme.rgb(map.resolve(other)?)?), 1.0),
+        }
+    } else {
+        (concrete_base(color, interner)?, 1.0)
+    };
+    Some(apply_transforms(
+        base_rgb,
+        base_alpha,
+        color.transforms(),
+        interner,
+    ))
 }
 
-/// The base RGB of a **concrete** color (`srgbClr`/`sysClr`/`scrgbClr`/`hslClr`/`prstClr`); `None` for
-/// a `schemeClr` / unknown element or a transform-bearing color.
-fn concrete_rgb(color: &Color, interner: &Interner) -> Option<[u8; 3]> {
-    if !color.transforms().is_empty() {
-        return None;
-    }
-    match color.kind(interner) {
-        ColorKind::Srgb => hex_to_rgb(color.value(interner)?),
-        ColorKind::System => hex_to_rgb(attr_str(color.attributes(), interner, "lastClr")?),
+/// The base sRGB (`0.0..=1.0`) of a **concrete** color (`srgbClr`/`sysClr`/`scrgbClr`/`hslClr`/
+/// `prstClr`), before any transforms; `None` for a `schemeClr` / unknown element.
+fn concrete_base(color: &Color, interner: &Interner) -> Option<[f64; 3]> {
+    Some(match color.kind(interner) {
+        ColorKind::Srgb => bytes_to_floats(hex_to_rgb(color.value(interner)?)?),
+        ColorKind::System => bytes_to_floats(hex_to_rgb(attr_str(
+            color.attributes(),
+            interner,
+            "lastClr",
+        )?)?),
         ColorKind::ScRgb => {
             let r = channel_percentage(color, interner, "r")?;
             let g = channel_percentage(color, interner, "g")?;
             let b = channel_percentage(color, interner, "b")?;
-            Some(scrgb_to_srgb(r, g, b))
+            [linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b)]
         }
         ColorKind::Hsl => {
             let hue = attr_str(color.attributes(), interner, "hue")
@@ -135,11 +150,11 @@ fn concrete_rgb(color: &Color, interner: &Interner) -> Option<[u8; 3]> {
                 .degrees();
             let sat = channel_percentage(color, interner, "sat")?;
             let lum = channel_percentage(color, interner, "lum")?;
-            Some(hsl_to_rgb(hue, sat, lum))
+            hsl_to_rgb_f64(hue, sat, lum)
         }
-        ColorKind::Preset => preset_color_rgb(color.value(interner)?),
-        ColorKind::Scheme | ColorKind::Unknown => None,
-    }
+        ColorKind::Preset => bytes_to_floats(preset_color_rgb(color.value(interner)?)?),
+        ColorKind::Scheme | ColorKind::Unknown => return None,
+    })
 }
 
 /// Reads a color's percentage-valued attribute (`r`/`g`/`b` of `scrgbClr`, `sat`/`lum` of `hslClr`) as
@@ -148,6 +163,181 @@ fn channel_percentage(color: &Color, interner: &Interner, local: &str) -> Option
     attr_str(color.attributes(), interner, local)
         .and_then(parse_percentage)
         .map(|fraction| fraction.ratio())
+}
+
+// ---------------------------------------------------------------------------------------------
+// Color transforms (EG_ColorTransform)
+// ---------------------------------------------------------------------------------------------
+
+/// Applies the transform children (`EG_ColorTransform`) to a base color, in document order. `rgb` is
+/// sRGB `0.0..=1.0`, `alpha` is `0.0..=1.0`; each transform converts to the space it is defined in and
+/// back. Unrecognized transform elements are ignored.
+fn apply_transforms(
+    mut rgb: [f64; 3],
+    mut alpha: f64,
+    transforms: &[RawNode],
+    interner: &Interner,
+) -> ([f64; 3], f64) {
+    for node in transforms {
+        let RawNode::Element(element) = node else {
+            continue;
+        };
+        let local = interner.resolve(element.name.local);
+        let value = attr_str(&element.attributes, interner, "val");
+        let percent = || value.and_then(parse_percentage).map(|f| f.ratio());
+        let angle = || value.and_then(parse_angle).map(|a| a.degrees());
+
+        match local {
+            "alpha" => {
+                if let Some(p) = percent() {
+                    alpha = p;
+                }
+            }
+            "alphaMod" => {
+                if let Some(p) = percent() {
+                    alpha *= p;
+                }
+            }
+            "alphaOff" => {
+                if let Some(p) = percent() {
+                    alpha += p;
+                }
+            }
+            "lum" | "lumMod" | "lumOff" | "sat" | "satMod" | "satOff" | "hue" | "hueMod"
+            | "hueOff" => {
+                let (mut h, mut s, mut l) = rgb_to_hsl(rgb);
+                match local {
+                    "lum" => {
+                        if let Some(p) = percent() {
+                            l = p;
+                        }
+                    }
+                    "lumMod" => {
+                        if let Some(p) = percent() {
+                            l *= p;
+                        }
+                    }
+                    "lumOff" => {
+                        if let Some(p) = percent() {
+                            l += p;
+                        }
+                    }
+                    "sat" => {
+                        if let Some(p) = percent() {
+                            s = p;
+                        }
+                    }
+                    "satMod" => {
+                        if let Some(p) = percent() {
+                            s *= p;
+                        }
+                    }
+                    "satOff" => {
+                        if let Some(p) = percent() {
+                            s += p;
+                        }
+                    }
+                    "hue" => {
+                        if let Some(a) = angle() {
+                            h = a;
+                        }
+                    }
+                    "hueMod" => {
+                        if let Some(p) = percent() {
+                            h *= p;
+                        }
+                    }
+                    "hueOff" => {
+                        if let Some(a) = angle() {
+                            h += a;
+                        }
+                    }
+                    _ => {}
+                }
+                rgb = hsl_to_rgb_f64(h, s.clamp(0.0, 1.0), l.clamp(0.0, 1.0));
+            }
+            "shade" => {
+                if let Some(p) = percent() {
+                    rgb = map_channels(rgb, |c| linear_to_srgb(srgb_to_linear(c) * p));
+                }
+            }
+            "tint" => {
+                if let Some(p) = percent() {
+                    rgb = map_channels(rgb, |c| linear_to_srgb(srgb_to_linear(c) * p + (1.0 - p)));
+                }
+            }
+            "red" => channel_op(&mut rgb[0], percent(), ChannelOp::Set),
+            "redMod" => channel_op(&mut rgb[0], percent(), ChannelOp::Mul),
+            "redOff" => channel_op(&mut rgb[0], percent(), ChannelOp::Add),
+            "green" => channel_op(&mut rgb[1], percent(), ChannelOp::Set),
+            "greenMod" => channel_op(&mut rgb[1], percent(), ChannelOp::Mul),
+            "greenOff" => channel_op(&mut rgb[1], percent(), ChannelOp::Add),
+            "blue" => channel_op(&mut rgb[2], percent(), ChannelOp::Set),
+            "blueMod" => channel_op(&mut rgb[2], percent(), ChannelOp::Mul),
+            "blueOff" => channel_op(&mut rgb[2], percent(), ChannelOp::Add),
+            "inv" => rgb = map_channels(rgb, |c| 1.0 - c),
+            "gray" => {
+                let y = 0.299 * rgb[0] + 0.587 * rgb[1] + 0.114 * rgb[2];
+                rgb = [y, y, y];
+            }
+            "comp" => {
+                let max = rgb[0].max(rgb[1]).max(rgb[2]);
+                let min = rgb[0].min(rgb[1]).min(rgb[2]);
+                rgb = map_channels(rgb, |c| max + min - c);
+            }
+            "gamma" => rgb = map_channels(rgb, linear_to_srgb),
+            "invGamma" => rgb = map_channels(rgb, srgb_to_linear),
+            _ => {} // unknown transform: leave the color unchanged
+        }
+
+        rgb = map_channels(rgb, |c| c.clamp(0.0, 1.0));
+        alpha = alpha.clamp(0.0, 1.0);
+    }
+    (rgb, alpha)
+}
+
+/// A per-channel set / multiply / offset (`red`/`redMod`/`redOff` and the green/blue equivalents).
+enum ChannelOp {
+    Set,
+    Mul,
+    Add,
+}
+
+fn channel_op(channel: &mut f64, value: Option<f64>, op: ChannelOp) {
+    if let Some(p) = value {
+        *channel = match op {
+            ChannelOp::Set => p,
+            ChannelOp::Mul => *channel * p,
+            ChannelOp::Add => *channel + p,
+        };
+    }
+}
+
+/// Applies `f` to each of the three channels.
+fn map_channels(rgb: [f64; 3], f: impl Fn(f64) -> f64) -> [f64; 3] {
+    [f(rgb[0]), f(rgb[1]), f(rgb[2])]
+}
+
+// ---------------------------------------------------------------------------------------------
+// Color-space conversions
+// ---------------------------------------------------------------------------------------------
+
+/// Scales sRGB floats (`0.0..=1.0`) to 8-bit, rounding and clamping.
+fn floats_to_bytes(rgb: [f64; 3]) -> [u8; 3] {
+    [
+        (rgb[0].clamp(0.0, 1.0) * 255.0).round() as u8,
+        (rgb[1].clamp(0.0, 1.0) * 255.0).round() as u8,
+        (rgb[2].clamp(0.0, 1.0) * 255.0).round() as u8,
+    ]
+}
+
+/// Scales 8-bit sRGB to floats (`0.0..=1.0`).
+fn bytes_to_floats(rgb: [u8; 3]) -> [f64; 3] {
+    [
+        f64::from(rgb[0]) / 255.0,
+        f64::from(rgb[1]) / 255.0,
+        f64::from(rgb[2]) / 255.0,
+    ]
 }
 
 /// Parses a `RRGGBB` hex string (an optional leading `#` is tolerated) into RGB bytes.
@@ -162,35 +352,34 @@ fn hex_to_rgb(s: &str) -> Option<[u8; 3]> {
     Some([red, green, blue])
 }
 
-/// Converts a linear-light channel (`0.0..=1.0`) to an 8-bit sRGB value (sRGB gamma encoding).
-fn linear_to_srgb_byte(linear: f64) -> u8 {
+/// Encodes a linear-light channel (`0.0..=1.0`) to sRGB (`0.0..=1.0`), the sRGB gamma curve.
+fn linear_to_srgb(linear: f64) -> f64 {
     let c = linear.clamp(0.0, 1.0);
-    let encoded = if c <= 0.003_130_8 {
+    if c <= 0.003_130_8 {
         12.92 * c
     } else {
         1.055 * c.powf(1.0 / 2.4) - 0.055
-    };
-    (encoded * 255.0).round() as u8
+    }
 }
 
-/// Converts an `scrgbClr` (linear RGB percentages, `1.0` = 100%) to 8-bit sRGB.
-fn scrgb_to_srgb(r: f64, g: f64, b: f64) -> [u8; 3] {
-    [
-        linear_to_srgb_byte(r),
-        linear_to_srgb_byte(g),
-        linear_to_srgb_byte(b),
-    ]
+/// Decodes an sRGB channel (`0.0..=1.0`) to linear light (the inverse of [`linear_to_srgb`]).
+fn srgb_to_linear(srgb: f64) -> f64 {
+    let c = srgb.clamp(0.0, 1.0);
+    if c <= 0.040_45 {
+        c / 12.92
+    } else {
+        ((c + 0.055) / 1.055).powf(2.4)
+    }
 }
 
-/// Converts an `hslClr` (`hue` in degrees, `sat`/`lum` as ratios) to 8-bit sRGB via the standard
+/// Converts an `hslClr` (`hue` in degrees, `sat`/`lum` as ratios) to sRGB floats via the standard
 /// HSL→RGB algorithm.
-fn hsl_to_rgb(hue_degrees: f64, sat: f64, lum: f64) -> [u8; 3] {
+fn hsl_to_rgb_f64(hue_degrees: f64, sat: f64, lum: f64) -> [f64; 3] {
     let s = sat.clamp(0.0, 1.0);
     let l = lum.clamp(0.0, 1.0);
     let h = hue_degrees.rem_euclid(360.0) / 360.0;
     if s == 0.0 {
-        let v = (l * 255.0).round() as u8;
-        return [v, v, v];
+        return [l, l, l];
     }
     let q = if l < 0.5 {
         l * (1.0 + s)
@@ -198,9 +387,9 @@ fn hsl_to_rgb(hue_degrees: f64, sat: f64, lum: f64) -> [u8; 3] {
         l + s - l * s
     };
     let p = 2.0 * l - q;
-    let channel = |t: f64| -> u8 {
+    let channel = |t: f64| -> f64 {
         let mut t = t.rem_euclid(1.0);
-        let value = if t < 1.0 / 6.0 {
+        if t < 1.0 / 6.0 {
             p + (q - p) * 6.0 * t
         } else if t < 1.0 / 2.0 {
             q
@@ -209,10 +398,40 @@ fn hsl_to_rgb(hue_degrees: f64, sat: f64, lum: f64) -> [u8; 3] {
             p + (q - p) * 6.0 * t
         } else {
             p
-        };
-        (value * 255.0).round() as u8
+        }
     };
     [channel(h + 1.0 / 3.0), channel(h), channel(h - 1.0 / 3.0)]
+}
+
+/// Converts sRGB floats to `(hue_degrees, sat, lum)` — the inverse of [`hsl_to_rgb_f64`].
+fn rgb_to_hsl(rgb: [f64; 3]) -> (f64, f64, f64) {
+    let [r, g, b] = rgb;
+    let max = r.max(g).max(b);
+    let min = r.min(g).min(b);
+    let l = (max + min) / 2.0;
+    if (max - min).abs() < f64::EPSILON {
+        return (0.0, 0.0, l);
+    }
+    let d = max - min;
+    let s = if l > 0.5 {
+        d / (2.0 - max - min)
+    } else {
+        d / (max + min)
+    };
+    let h = if (max - r).abs() < f64::EPSILON {
+        (g - b) / d + if g < b { 6.0 } else { 0.0 }
+    } else if (max - g).abs() < f64::EPSILON {
+        (b - r) / d + 2.0
+    } else {
+        (r - g) / d + 4.0
+    };
+    (h * 60.0, s, l)
+}
+
+/// A `[u8; 3]` sRGB → HSL helper retained for the in-module test.
+#[cfg(test)]
+fn hsl_to_rgb(hue_degrees: f64, sat: f64, lum: f64) -> [u8; 3] {
+    floats_to_bytes(hsl_to_rgb_f64(hue_degrees, sat, lum))
 }
 
 /// The RGB of an `a:prstClr` preset color name, or `None` if the token is unrecognized.
@@ -434,5 +653,25 @@ mod tests {
     fn hsl_primary_and_grey() {
         assert_eq!(hsl_to_rgb(120.0, 1.0, 0.5), [0, 255, 0]); // pure green
         assert_eq!(hsl_to_rgb(0.0, 0.0, 0.5), [128, 128, 128]); // mid grey
+    }
+    #[test]
+    fn rgb_to_hsl_round_trips() {
+        for rgb in [
+            [0.2, 0.6, 0.4],
+            [1.0, 0.0, 0.0],
+            [0.5, 0.5, 0.5],
+            [0.1, 0.1, 0.9],
+        ] {
+            let (h, s, l) = rgb_to_hsl(rgb);
+            let back = hsl_to_rgb_f64(h, s, l);
+            for i in 0..3 {
+                assert!(
+                    (rgb[i] - back[i]).abs() < 1e-9,
+                    "channel {i}: {:?} -> {:?}",
+                    rgb,
+                    back
+                );
+            }
+        }
     }
 }

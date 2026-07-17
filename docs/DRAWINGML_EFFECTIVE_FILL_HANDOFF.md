@@ -54,11 +54,14 @@ to rendering — pin expected values from a trusted reference).
     `prstClr` (**190-color table**)/`schemeClr` (map→slot; `phClr`→placeholder recursion). Lifted
     `parse_percentage`/`parse_angle` into `crate::build`. **Contract:** a color carrying any transform
     child resolves to `None` (deferred to 3b).
-  - **PR-3b — color transforms.** Drop the `None`-on-transforms guard; add a typed `ColorTransform`
-    parse from `Color::transforms()` + the full `EG_ColorTransform` math (HSL `lum*`/`sat*`/`hue*`;
-    linear-RGB `shade`/`tint`; `alpha*`; `comp`/`inv`/`gray`; per-channel `red*`/`green*`/`blue*`;
-    `gamma`/`invGamma`), applied on top of the base; alpha flows into `ResolvedColor.alpha`. Pin test
-    values from a trusted reference; document the algorithm (not Office-pixel-exact).
+  - **PR-3b — color transforms. ✅ DONE.** `resolve.rs`: `apply_transforms` applies the full
+    `EG_ColorTransform` set (HSL `lum*`/`sat*`/`hue*` via `rgb_to_hsl`/`hsl_to_rgb_f64`; linear-RGB
+    `shade`/`tint` via `srgb_to_linear`/`linear_to_srgb`; `alpha*`; per-channel `red*`/`green*`/
+    `blue*`; `inv`/`gray`/`comp`/`gamma`/`invGamma`) **per level** of the chain (`resolve_rgba` recurses
+    for `phClr`/scheme; `SchemeColors::from_scheme` honors slot transforms). `ResolvedColor.alpha` is
+    now real. Common ops value-pinned (`shade 50%` white→`BCBCBC`, `lumMod 50%` red→`800000`,
+    `lumMod60+lumOff40`→`FF6666`); `comp`/`gray`/`gamma` are documented-interpretation, not Office-exact.
+    **The color resolver is complete.**
 - **PR-4 — Placeholder inheritance + `effective_shape_fill`.**
   - `mjx-pptx`: `p:ph` model (`@type`/`@idx`), a slide→layout→master walker matching the same-typed
     shape; `Presentation::effective_shape_fill(slide, shape) -> Option<FillSpec>` composing
