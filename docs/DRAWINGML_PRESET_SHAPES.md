@@ -362,8 +362,9 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
   - ✅ **PR-2 done:** `mjx-dml::style` — `StyleMatrixReference` (`a:fillRef`) + `ColorMap`
     (`resolve(SchemeColor)`), and `Presentation::slide_color_map` (master `p:clrMap` + slide
     `p:clrMapOvr`).
-  - ✅ **PR-3a done:** `mjx-dml::resolve` — `resolve_color` / `SchemeColors` / `ResolvedColor` baking
-    a color to concrete RGB (scheme/phClr/map recursion + `srgb`/`sys`/`scrgb`/`hsl`/`prst` incl. the
-    190-color table); a transform-bearing color reports `None` (deferred to 3b).
-  - ⏭ **Next:** PR-3b the color-transform math (`lumMod`/`shade`/`tint`/… on top of the base); PR-4
-    placeholder inheritance + `effective_shape_fill` (which also adds `shape_fill_ref`).
+  - ✅ **PR-3a/3b done:** `mjx-dml::resolve` — `resolve_color` / `SchemeColors` / `ResolvedColor`
+    baking a color to concrete RGB: base kinds (`srgb`/`sys`/`scrgb`/`hsl`/`prst` incl. the 190-color
+    table) + the full `EG_ColorTransform` set (`lumMod`/`shade`/`tint`/`alpha`/… applied per level).
+    **The resolver is complete.**
+  - ⏭ **Next (final): PR-4** — placeholder inheritance walker + the public
+    `Presentation::effective_shape_fill` (also adds `shape_fill_ref`, deferred from PR-2).

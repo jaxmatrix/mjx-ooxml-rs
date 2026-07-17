@@ -155,11 +155,102 @@ fn hsl_and_scrgb_convert() {
 }
 
 #[test]
-fn transformed_color_is_unresolved_at_this_stage() {
-    assert!(resolve(
-        r#"<a:schemeClr val="accent1"><a:lumMod val="75000"/></a:schemeClr>"#,
+fn shade_and_tint_operate_in_linear_rgb() {
+    // 50% shade of white: linear 1.0*0.5 -> sRGB-encode(0.5) = 0xBC.
+    let shaded = resolve(
+        r#"<a:srgbClr val="FFFFFF"><a:shade val="50000"/></a:srgbClr>"#,
         &ColorMap::identity(),
         None,
     )
-    .is_none());
+    .unwrap();
+    assert_eq!(shaded.to_hex(), "BCBCBC");
+    // 50% tint of black: linear 0*0.5 + 0.5 -> same 0xBC.
+    let tinted = resolve(
+        r#"<a:srgbClr val="000000"><a:tint val="50000"/></a:srgbClr>"#,
+        &ColorMap::identity(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(tinted.to_hex(), "BCBCBC");
+}
+
+#[test]
+fn lum_mod_and_off_operate_in_hsl() {
+    // lumMod 50% of pure red (HSL L 0.5 -> 0.25) -> 800000.
+    let darker = resolve(
+        r#"<a:srgbClr val="FF0000"><a:lumMod val="50000"/></a:srgbClr>"#,
+        &ColorMap::identity(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(darker.to_hex(), "800000");
+    // Office "lighter": lumMod 60% then lumOff 40% (L 0.5 -> 0.3 -> 0.7) -> FF6666.
+    let lighter = resolve(
+        r#"<a:srgbClr val="FF0000"><a:lumMod val="60000"/><a:lumOff val="40000"/></a:srgbClr>"#,
+        &ColorMap::identity(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(lighter.to_hex(), "FF6666");
+}
+
+#[test]
+fn alpha_offset_and_whole_color_transforms() {
+    // alpha sets opacity; the hex (RGB) is unchanged.
+    let faded = resolve(
+        r#"<a:srgbClr val="112233"><a:alpha val="50000"/></a:srgbClr>"#,
+        &ColorMap::identity(),
+        None,
+    )
+    .unwrap();
+    assert_eq!(faded.to_hex(), "112233");
+    assert!((faded.alpha - 0.5).abs() < 1e-9);
+
+    // inv, gray, comp.
+    assert_eq!(
+        resolve(
+            r#"<a:srgbClr val="FF0000"><a:inv/></a:srgbClr>"#,
+            &ColorMap::identity(),
+            None
+        )
+        .unwrap()
+        .to_hex(),
+        "00FFFF"
+    );
+    assert_eq!(
+        resolve(
+            r#"<a:srgbClr val="FF0000"><a:gray/></a:srgbClr>"#,
+            &ColorMap::identity(),
+            None
+        )
+        .unwrap()
+        .to_hex(),
+        "4C4C4C"
+    );
+    assert_eq!(
+        resolve(
+            r#"<a:srgbClr val="FF8000"><a:comp/></a:srgbClr>"#,
+            &ColorMap::identity(),
+            None
+        )
+        .unwrap()
+        .to_hex(),
+        "007FFF"
+    );
+}
+
+#[test]
+fn transforms_apply_at_every_level_of_the_chain() {
+    // phClr substituted by schemeClr(accent1) that itself carries a lumMod:
+    // accent1 = 4472C4, HSL L; lumMod 50% darkens it. Resolving must honor the placeholder's own
+    // transform (a value strictly darker than 4472C4, and not None).
+    let c = resolve(
+        r#"<a:schemeClr val="phClr"/>"#,
+        &ColorMap::identity(),
+        Some(r#"<a:schemeClr val="accent1"><a:lumMod val="50000"/></a:schemeClr>"#),
+    )
+    .unwrap();
+    assert_ne!(c.to_hex(), "4472C4");
+    // 4472C4 has L ~= 0.52; halving luminance darkens every channel.
+    assert!(c.red < 0x44 && c.green < 0x72 && c.blue < 0xC4);
 }
