@@ -1,8 +1,8 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_fill, ColorMap, Fill, FillSpec, PresetGeometry, SchemeColors,
-    ShapeGeometry, TextBody, Theme, ThemeInfo,
+    resolve_color, resolve_fill, ColorMap, Fill, FillSpec, PresetGeometry, ResolvedColor,
+    SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -407,12 +407,12 @@ impl Presentation {
 
     /// The **effective** fill of shape `shape_idx` on slide `slide_idx`, as an interner-free
     /// [`FillSpec`] whose colors are resolved to concrete `RRGGBB` values — the fill the shape actually
-    /// renders. Two shape-level sources are resolved: an explicit `p:spPr` fill, or a `p:style >
-    /// a:fillRef` (the theme fill-style at that index with its `phClr` substituted by the reference's
-    /// color). Scheme colors and color transforms are baked against the slide's theme + color map.
+    /// renders. Three sources are tried, in order: an explicit `p:spPr` fill; a `p:style > a:fillRef`
+    /// (the theme fill-style at that index, `phClr` substituted by the reference's color); and, for a
+    /// placeholder shape (`p:ph`), **inheritance** from the same-slot placeholder on the slide layout
+    /// then the master. Scheme colors and color transforms are baked against the slide's theme + map.
     ///
-    /// Returns `Ok(None)` when the shape declares neither (its fill is then inherited from a
-    /// placeholder — resolving that is a separate, future step). Reading does not dirty any part.
+    /// Returns `Ok(None)` when no source yields a fill. Reading does not dirty any part.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
@@ -427,7 +427,7 @@ impl Presentation {
             .unwrap_or_else(ColorMap::identity);
         let theme_part = self.slide_theme_part(slide_idx)?;
 
-        // The resolved color scheme (interner-free) — bridges the theme-part vs slide-part interners.
+        // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
             Some(part) => {
                 let doc = self.package.part_tree(part)?;
@@ -440,9 +440,10 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        // Inspect the shape: an explicit fill resolves here; a fillRef stashes its (idx, resolved color).
+        // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
+        // the matching placeholder on the layout, then the master.
         let slide_part = self.slide_part_checked(slide_idx)?.clone();
-        let fill_ref = {
+        let placeholder = {
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -453,43 +454,55 @@ impl Presentation {
                     count,
                 },
             )?;
-
-            if let Some(fill_element) = slide::shape_fill(shape, &doc.interner) {
-                let fill = Fill::from_xml(fill_element, &doc.interner)?;
-                return Ok(Some(resolve_fill(
-                    &fill,
-                    &scheme,
-                    &map,
-                    None,
-                    &doc.interner,
-                )));
-            }
-
-            // No explicit fill — resolve a style fillRef's color (if any) for the theme step below.
-            slide::shape_fill_ref(shape, &doc.interner).and_then(|reference| {
-                let idx = reference.idx()?;
-                if idx == 0 {
-                    return None;
-                }
-                let color = reference
-                    .color()
-                    .and_then(|c| resolve_color(c, &scheme, &map, None, &doc.interner));
-                Some((idx, color))
-            })
+            slide::shape_placeholder(shape, &doc.interner)
         };
 
-        // fillRef path: resolve the theme fill-style at the index, substituting phClr.
-        if let (Some((idx, placeholder)), Some(part)) = (fill_ref, theme_part) {
-            let doc = self.package.part_tree(&part)?;
-            let theme = Theme::from_xml(&doc.root, &doc.interner)?;
-            if let Some(style) = theme.fill_style(idx) {
-                return Ok(Some(resolve_fill(
-                    style,
-                    &scheme,
-                    &map,
-                    placeholder,
-                    &doc.interner,
-                )));
+        let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
+        if let Some(ph) = placeholder {
+            if let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? {
+                if let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? {
+                    candidates.push((master, Candidate::Placeholder(ph)));
+                }
+                candidates.insert(1, (layout, Candidate::Placeholder(ph)));
+            }
+        }
+
+        for (part, candidate) in candidates {
+            // Extract the candidate's own fill while holding its part's borrow (fully owned).
+            let own = {
+                let doc = self.package.part_tree(&part)?;
+                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+                let shape = match candidate {
+                    Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
+                    Candidate::Placeholder(ph) => {
+                        slide::find_placeholder(sp_tree, ph, &doc.interner)
+                    }
+                };
+                match shape {
+                    Some(shape) => shape_own_fill(shape, &doc.interner, &scheme, &map)?,
+                    None => OwnFill::Absent,
+                }
+            };
+
+            match own {
+                OwnFill::Resolved(spec) => return Ok(Some(spec)),
+                OwnFill::StyleRef(idx, color) => {
+                    // Resolve the referenced theme fill-style (theme-part interner), substituting phClr.
+                    if let Some(theme_part) = &theme_part {
+                        let doc = self.package.part_tree(theme_part)?;
+                        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                        if let Some(style) = theme.fill_style(idx) {
+                            return Ok(Some(resolve_fill(
+                                style,
+                                &scheme,
+                                &map,
+                                color,
+                                &doc.interner,
+                            )));
+                        }
+                    }
+                }
+                OwnFill::Absent => {}
             }
         }
 
@@ -793,6 +806,52 @@ impl Presentation {
     }
 }
 
+/// How to locate a candidate shape within a part's shape tree during effective-fill resolution.
+enum Candidate {
+    /// The originally-requested shape, by index (the slide itself).
+    Index(usize),
+    /// The matching placeholder on an ancestor part (layout / master).
+    Placeholder(slide::Placeholder),
+}
+
+/// A candidate shape's own fill, extracted while its part's tree is borrowed (fully owned, so no
+/// borrow escapes): an already-resolved fill, a theme style reference to resolve against the theme, or
+/// no fill.
+enum OwnFill {
+    /// An explicit `p:spPr` fill, already resolved to concrete colors.
+    Resolved(FillSpec),
+    /// A `p:style > a:fillRef@idx` with its (already-resolved) `phClr` substitute color.
+    StyleRef(u32, Option<ResolvedColor>),
+    /// The shape declares no fill of its own.
+    Absent,
+}
+
+/// The fill a `shape` declares itself (explicit `p:spPr` fill, or a `p:style > a:fillRef`), resolved
+/// against `scheme` / `map`. The style-reference case returns its index + resolved color for the
+/// caller to resolve against the theme (which lives in a different part interner).
+fn shape_own_fill(
+    shape: &RawElement,
+    interner: &Interner,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+) -> Result<OwnFill, PptxError> {
+    if let Some(fill_element) = slide::shape_fill(shape, interner) {
+        let fill = Fill::from_xml(fill_element, interner)?;
+        return Ok(OwnFill::Resolved(resolve_fill(
+            &fill, scheme, map, None, interner,
+        )));
+    }
+    if let Some(reference) = slide::shape_fill_ref(shape, interner) {
+        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+            let color = reference
+                .color()
+                .and_then(|c| resolve_color(c, scheme, map, None, interner));
+            return Ok(OwnFill::StyleRef(idx, color));
+        }
+    }
+    Ok(OwnFill::Absent)
+}
+
 /// The directory portion of an absolute part name, including the trailing `/` (e.g.
 /// `/ppt/slides/slide1.xml` → `/ppt/slides/`).
 fn dir_of(part: &str) -> &str {
@@ -1031,6 +1090,97 @@ mod tests {
         assert_eq!(
             map.resolve(SchemeColor::Accent1),
             Some(ColorSchemeSlot::Accent1)
+        );
+    }
+
+    /// Injects a `p:sp` placeholder of `ph_type` with an explicit `solidFill schemeClr {scheme}` into
+    /// `part`'s shape tree (the layout/master have empty trees in the fixture).
+    fn inject_placeholder_fill(
+        pres: &mut Presentation,
+        part: &PartName,
+        ph_type: &str,
+        scheme: &str,
+    ) {
+        let doc = pres.package.part_tree_mut(part).expect("part tree");
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner).expect("spTree");
+
+        let ph_attrs = vec![build::attr(interner, "type", ph_type)];
+        let ph = build::leaf(interner, "p", PML, "ph", ph_attrs);
+        let nv_pr = build::node(
+            interner,
+            "p",
+            PML,
+            "nvPr",
+            Vec::new(),
+            vec![RawNode::Element(ph)],
+        );
+        let cnvpr_attrs = vec![
+            build::attr(interner, "id", "10"),
+            build::attr(interner, "name", "Injected"),
+        ];
+        let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+        let c_nv_sp_pr = build::leaf(interner, "p", PML, "cNvSpPr", Vec::new());
+        let nv_sp_pr = build::node(
+            interner,
+            "p",
+            PML,
+            "nvSpPr",
+            Vec::new(),
+            vec![
+                RawNode::Element(c_nv_pr),
+                RawNode::Element(c_nv_sp_pr),
+                RawNode::Element(nv_pr),
+            ],
+        );
+
+        let clr_attrs = vec![build::attr(interner, "val", scheme)];
+        let scheme_clr = build::leaf(interner, "a", DML_MAIN, "schemeClr", clr_attrs);
+        let solid = build::node(
+            interner,
+            "a",
+            DML_MAIN,
+            "solidFill",
+            Vec::new(),
+            vec![RawNode::Element(scheme_clr)],
+        );
+        let sp_pr = build::node(
+            interner,
+            "p",
+            PML,
+            "spPr",
+            Vec::new(),
+            vec![RawNode::Element(solid)],
+        );
+        let sp = build::node(
+            interner,
+            "p",
+            PML,
+            "sp",
+            Vec::new(),
+            vec![RawNode::Element(nv_sp_pr), RawNode::Element(sp_pr)],
+        );
+        sp_tree.children.push(RawNode::Element(sp));
+        sp_tree.empty = false;
+    }
+
+    #[test]
+    fn effective_fill_inherits_from_layout_placeholder() {
+        let mut pres = Presentation::open(&fixture()).expect("open");
+        let slide0 = pres.slide_part_checked(0).expect("slide").clone();
+        let layout = pres
+            .follow_rel(&slide0, constants::REL_SLIDE_LAYOUT)
+            .expect("rel")
+            .expect("layout");
+
+        // The layout's ctrTitle placeholder carries an explicit accent2 fill.
+        inject_placeholder_fill(&mut pres, &layout, "ctrTitle", "accent2");
+
+        // Slide 0's ctrTitle placeholder declares no fill of its own, so it inherits the layout's —
+        // resolved against the real theme (accent2 = ED7D31).
+        assert_eq!(
+            pres.effective_shape_fill(0, 0).expect("effective fill"),
+            Some(FillSpec::Solid(mjx_dml::ColorSpec::Srgb("ED7D31".into())))
         );
     }
 }
