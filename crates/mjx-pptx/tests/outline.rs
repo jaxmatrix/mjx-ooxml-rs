@@ -207,3 +207,84 @@ fn set_outline_keeps_other_parts_byte_identical() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// effective_shape_outline — the shape's rendered outline, resolved to concrete RGB
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn effective_outline_resolves_a_scheme_color_against_the_theme() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // A shape outlined with a theme scheme color...
+    pres.set_shape_outline(
+        0,
+        idx,
+        &LineSpec {
+            width: Some(LineWidth::from_points(2.0)),
+            fill: Some(FillSpec::Solid(ColorSpec::Scheme(
+                mjx_dml::SchemeColor::Accent1,
+            ))),
+            ..LineSpec::new()
+        },
+    )
+    .expect("set outline");
+    // ...resolves to the fixture theme's concrete accent1 (4472C4), width preserved.
+    let effective = pres
+        .effective_shape_outline(0, idx)
+        .expect("effective outline")
+        .expect("some outline");
+    assert_eq!(effective.width, Some(LineWidth::from_points(2.0)));
+    assert_eq!(
+        effective.fill,
+        Some(FillSpec::Solid(ColorSpec::Srgb("4472C4".into())))
+    );
+}
+
+#[test]
+fn effective_outline_keeps_explicit_srgb() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    let spec = LineSpec::solid(
+        LineWidth::from_points(1.0),
+        ColorSpec::Srgb("112233".into()),
+    );
+    pres.set_shape_outline(0, idx, &spec).expect("set outline");
+    assert_eq!(
+        pres.effective_shape_outline(0, idx).expect("effective"),
+        Some(spec)
+    );
+}
+
+#[test]
+fn effective_outline_is_none_when_the_shape_declares_no_outline() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = added_shape(&mut pres);
+    // A fresh autoshape has no explicit a:ln and no p:style; inherited outline needs a placeholder.
+    assert_eq!(
+        pres.effective_shape_outline(0, idx).expect("effective"),
+        None
+    );
+}
+
+#[test]
+fn reading_effective_outline_keeps_all_parts_byte_identical() {
+    let bytes = fixture("sample.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    // Reading the title's effective outline navigates slide->layout->master->theme without dirtying.
+    let _ = pres
+        .effective_shape_outline(0, 0)
+        .expect("effective outline");
+    let saved = pres.save().expect("save");
+
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+    for (name, original) in &snapshot {
+        assert_eq!(
+            reopened.get(name),
+            Some(original),
+            "reading effective outline dirtied part {name}"
+        );
+    }
+}

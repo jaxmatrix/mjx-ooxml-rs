@@ -1,7 +1,7 @@
 //! Unit tests for the DrawingML theme read-view (`ColorScheme` + fill-style matrix), through the
 //! public API only, against a minimal but faithful `a:theme` fragment.
 
-use mjx_dml::{ColorKind, ColorSchemeSlot, Fill, SchemeColor, Theme};
+use mjx_dml::{ColorKind, ColorSchemeSlot, Fill, LineWidth, SchemeColor, Theme};
 use mjx_ooxml_core::FromXml;
 use mjx_xml::fidelity;
 
@@ -38,7 +38,12 @@ fn office_theme() -> String {
                  <a:gradFill><a:gsLst><a:gs pos="0"><a:schemeClr val="phClr"/></a:gs></a:gsLst><a:lin ang="5400000"/></a:gradFill>
                  <a:solidFill><a:schemeClr val="phClr"/></a:solidFill>
                </a:fillStyleLst>
-               <a:lnStyleLst/><a:effectStyleLst/><a:bgFillStyleLst/>
+               <a:lnStyleLst>
+                 <a:ln w="6350"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+                 <a:ln w="12700"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+                 <a:ln w="19050"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:ln>
+               </a:lnStyleLst>
+               <a:effectStyleLst/><a:bgFillStyleLst/>
              </a:fmtScheme>
            </a:themeElements></a:theme>"#
     )
@@ -90,6 +95,27 @@ fn fill_styles_are_indexed_one_based() {
     assert!(matches!(theme.fill_style(2), Some(Fill::Gradient(_))));
     // Out-of-range indices are absent, no panic.
     assert!(theme.fill_style(4).is_none());
+}
+
+#[test]
+fn line_styles_are_indexed_one_based() {
+    let (theme, interner) = parse_theme(office_theme().as_bytes());
+
+    assert_eq!(theme.line_styles().len(), 3);
+    // idx 0 is the schema's "no reference".
+    assert!(theme.line_style(0).is_none());
+    // idx 2 is the middle line (w=12700) whose stroke is the placeholder color.
+    let ln = theme.line_style(2).expect("line style 2");
+    assert_eq!(ln.width(&interner), Some(LineWidth::from_emu(12700)));
+    let Some(Fill::Solid(solid)) = ln.fill(&interner) else {
+        panic!("line style 2 should have a solid stroke fill");
+    };
+    assert_eq!(
+        solid.color().unwrap().scheme_color(&interner),
+        Some(SchemeColor::PlaceholderColor)
+    );
+    // Out-of-range indices are absent, no panic.
+    assert!(theme.line_style(4).is_none());
 }
 
 #[test]
