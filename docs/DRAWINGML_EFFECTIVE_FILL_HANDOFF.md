@@ -71,9 +71,13 @@ to rendering — pin expected values from a trusted reference).
     composing **explicit `p:spPr` fill** and **`p:style > a:fillRef` (theme fill-style + phClr
     substitution)**, resolved to concrete `RRGGBB` (each source under its own part borrow; interner-free
     `SchemeColors`/`ColorMap`/`ResolvedColor` carried across). `None` when the shape declares neither.
-  - **PR-4b — placeholder inheritance.** The slide→layout→master `p:ph` (`@type`/`@idx`) walker as a
-    third source in `effective_shape_fill`; needs a **richer `.pptx` fixture** (the sample deck's
-    layout/master have no placeholder shapes, so inheritance can't be positively tested against it).
+  - **PR-4b — placeholder inheritance. ✅ DONE.** `slide::Placeholder { title_family, idx }` +
+    `shape_placeholder` / `matches` / `find_placeholder` (title-family match; else by `idx` — a
+    documented heuristic). `effective_shape_fill` now walks an owned candidate chain (slide shape →
+    layout-matched → master-matched `p:ph`), resolving each candidate's own fill via `shape_own_fill`
+    (`OwnFill::{Resolved, StyleRef, Absent}`) and returning the first hit. Tested by injecting a
+    `ctrTitle` placeholder-with-fill into the fixture layout in-test (no new binary fixture) →
+    inheritance resolves to `accent2` (`ED7D31`). **The effective-fill workstream is complete.**
 
 ## Verified schema facts
 

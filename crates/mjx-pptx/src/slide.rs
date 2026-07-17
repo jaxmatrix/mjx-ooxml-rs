@@ -123,6 +123,56 @@ pub(crate) fn shape_fill_ref(
     StyleMatrixReference::from_xml(fill_ref, interner).ok()
 }
 
+/// A shape's placeholder identity (`p:sp > p:nvSpPr > p:nvPr > p:ph`): the `@type` (as the
+/// title-family flag) and `@idx`. The slot a placeholder occupies, used to match it against the
+/// same-slot placeholder on the slide layout / master when its own fill is inherited.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Placeholder {
+    /// Whether the placeholder is a title (`type` = `title` or `ctrTitle`) — these share one slot.
+    pub title_family: bool,
+    /// The placeholder index (`@idx`, default `0`).
+    pub idx: u32,
+}
+
+impl Placeholder {
+    /// Whether `self` and `other` name the same inheritance slot: title-family placeholders match each
+    /// other regardless of index; any other placeholder matches by index. (A documented heuristic —
+    /// PowerPoint's exact matching has more nuance around body/object placeholders.)
+    pub(crate) fn matches(self, other: Placeholder) -> bool {
+        if self.title_family || other.title_family {
+            self.title_family && other.title_family
+        } else {
+            self.idx == other.idx
+        }
+    }
+}
+
+/// The placeholder identity of `shape` (`p:nvSpPr > p:nvPr > p:ph`), or `None` if it is not a
+/// placeholder shape.
+pub(crate) fn shape_placeholder(shape: &RawElement, interner: &Interner) -> Option<Placeholder> {
+    let nv_sp_pr = nav::child(shape, interner, PML, "nvSpPr")?;
+    let nv_pr = nav::child(nv_sp_pr, interner, PML, "nvPr")?;
+    let ph = nav::child(nv_pr, interner, PML, "ph")?;
+    let ph_type = nav::attr_value(ph, interner, "type").unwrap_or("obj");
+    let idx = nav::attr_value(ph, interner, "idx")
+        .and_then(|value| value.parse::<u32>().ok())
+        .unwrap_or(0);
+    Some(Placeholder {
+        title_family: matches!(ph_type, "title" | "ctrTitle"),
+        idx,
+    })
+}
+
+/// The first `p:sp` in `sp_tree` whose placeholder matches `target` (see [`Placeholder::matches`]).
+pub(crate) fn find_placeholder<'a>(
+    sp_tree: &'a RawElement,
+    target: Placeholder,
+    interner: &'a Interner,
+) -> Option<&'a RawElement> {
+    shapes(sp_tree, interner)
+        .find(|shape| shape_placeholder(shape, interner).is_some_and(|ph| ph.matches(target)))
+}
+
 /// The index of `sp_pr`'s existing fill child (`EG_FillProperties`), if any.
 pub(crate) fn fill_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
     sp_pr
@@ -215,5 +265,95 @@ mod tests {
         // A schema-loose, attribute-less overrideClrMapping yields no map (caller falls back).
         let (map_el, interner) = element(format!(r#"<a:overrideClrMapping xmlns:a="{A}"/>"#));
         assert!(parse_color_map(&map_el, &interner).is_none());
+    }
+
+    fn sp(inner: &str) -> (RawElement, mjx_ooxml_core::Interner) {
+        let fragment = format!(r#"<p:sp xmlns:p="{P}" xmlns:a="{A}">{inner}</p:sp>"#);
+        let doc = fidelity::parse(fragment.as_bytes()).expect("parse");
+        (doc.root, doc.interner)
+    }
+
+    #[test]
+    fn shape_placeholder_reads_type_and_idx_with_defaults() {
+        let (shape, interner) = sp(
+            r#"<p:nvSpPr><p:cNvPr id="2" name="T"/><p:cNvSpPr/><p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr><p:spPr/>"#,
+        );
+        let ph = shape_placeholder(&shape, &interner).expect("placeholder");
+        assert!(ph.title_family);
+        assert_eq!(ph.idx, 0);
+
+        // A body placeholder with an explicit idx.
+        let (shape, interner) = sp(
+            r#"<p:nvSpPr><p:cNvPr id="3" name="B"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>"#,
+        );
+        let ph = shape_placeholder(&shape, &interner).expect("placeholder");
+        assert!(!ph.title_family);
+        assert_eq!(ph.idx, 1);
+
+        // No p:ph -> not a placeholder.
+        let (shape, interner) =
+            sp(r#"<p:nvSpPr><p:cNvPr id="4" name="X"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>"#);
+        assert!(shape_placeholder(&shape, &interner).is_none());
+    }
+
+    #[test]
+    fn placeholder_matching_rules() {
+        let title = Placeholder {
+            title_family: true,
+            idx: 0,
+        };
+        let ctr_title = Placeholder {
+            title_family: true,
+            idx: 5,
+        };
+        let body0 = Placeholder {
+            title_family: false,
+            idx: 0,
+        };
+        let body1 = Placeholder {
+            title_family: false,
+            idx: 1,
+        };
+        // Title-family match regardless of idx.
+        assert!(title.matches(ctr_title));
+        // Body matches by idx.
+        assert!(body0.matches(Placeholder {
+            title_family: false,
+            idx: 0
+        }));
+        assert!(!body0.matches(body1));
+        // Title never matches body.
+        assert!(!title.matches(body0));
+    }
+
+    #[test]
+    fn find_placeholder_picks_the_matching_shape() {
+        let (sp_tree, interner) = element(format!(
+            concat!(
+                r#"<p:spTree xmlns:p="{P}" xmlns:a="{A}">"#,
+                r#"<p:sp><p:nvSpPr><p:cNvPr id="2" name="B"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr></p:sp>"#,
+                r#"<p:sp><p:nvSpPr><p:cNvPr id="3" name="T"/><p:cNvSpPr/><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr></p:sp>"#,
+                r#"</p:spTree>"#
+            ),
+            P = P,
+            A = A
+        ));
+        let title_target = Placeholder {
+            title_family: true,
+            idx: 0,
+        };
+        let found = find_placeholder(&sp_tree, title_target, &interner).expect("title match");
+        assert!(shape_placeholder(found, &interner).unwrap().title_family);
+
+        // No matching body idx.
+        assert!(find_placeholder(
+            &sp_tree,
+            Placeholder {
+                title_family: false,
+                idx: 9
+            },
+            &interner
+        )
+        .is_none());
     }
 }

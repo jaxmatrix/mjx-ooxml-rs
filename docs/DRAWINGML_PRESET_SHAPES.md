@@ -368,5 +368,8 @@ Shape **fill** is a separate DrawingML workstream (see `docs/DRAWINGML_FILL_HAND
   - ✅ **PR-4a done:** `resolve_fill` + public `Presentation::effective_shape_fill` — a shape's
     rendered fill resolved to concrete RGB from its explicit `p:spPr` fill or `p:style > a:fillRef`
     (theme fill-style + phClr).
-  - ⏭ **Next (final): PR-4b** — placeholder inheritance (slide→layout→master `p:ph` walk) as a third
-    source, with a richer `.pptx` fixture.
+  - ✅ **PR-4b done:** placeholder inheritance — `effective_shape_fill` walks slide→layout→master
+    matching the same-slot `p:ph` (`slide::Placeholder`), completing the third fill source.
+- ✅ **Workstream complete:** `effective_shape_fill` covers explicit fill, style `fillRef`, and
+  placeholder inheritance, all baked to concrete RGB. Deferred beyond this: theme background fills
+  (`p:bg`/`bgFillStyleLst`), non-`p:sp` shapes, exact PowerPoint placeholder-match edge cases.
