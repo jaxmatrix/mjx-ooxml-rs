@@ -92,3 +92,36 @@ impl LineWidth {
         self.0 as f64 / EMU_PER_POINT as f64
     }
 }
+
+/// A general length in **English Metric Units** (`914400` EMU per inch, `12700` per point) — the
+/// spec's `ST_Coordinate`/`ST_PositiveCoordinate` family. Used by the effect measures (a blur/shadow
+/// radius, a shadow distance, a soft-edge radius) that carry a raw EMU length with no dedicated
+/// newtype of their own. Construct from and read as EMU or points.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct Emu(i64);
+
+impl Emu {
+    /// Wraps a length given in EMU.
+    #[must_use]
+    pub const fn from_emu(emu: i64) -> Self {
+        Self(emu)
+    }
+
+    /// The length in EMU.
+    #[must_use]
+    pub const fn emu(self) -> i64 {
+        self.0
+    }
+
+    /// Wraps a length given in points (one point = `12700` EMU), rounded to the nearest EMU.
+    #[must_use]
+    pub fn from_points(points: f64) -> Self {
+        Self((points * EMU_PER_POINT as f64).round() as i64)
+    }
+
+    /// The length in points (one point = `12700` EMU).
+    #[must_use]
+    pub fn points(self) -> f64 {
+        self.0 as f64 / EMU_PER_POINT as f64
+    }
+}

@@ -7,6 +7,7 @@ use mjx_ooxml_types::namespaces::DML_MAIN;
 use mjx_xml::text::escape_attribute;
 
 use crate::color::Color;
+use crate::fill::Fill;
 use crate::geometry::{Angle, Fraction};
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
@@ -178,6 +179,24 @@ pub(crate) fn first_color_child(element: &RawElement, interner: &Interner) -> Op
                 && Color::is_choice_local(interner.resolve(child.name.local)) =>
         {
             Color::from_xml(child, interner).ok()
+        }
+        _ => None,
+    })
+}
+
+/// The first `EG_FillProperties` child of `children` (any of the six fill element names), read as a
+/// [`RawElement`] — the stroke fill of a line, or the overlay fill of a `fillOverlay` effect. Takes a
+/// node slice so an accessor can search a wrapper's own `children` without rebuilding a [`RawElement`].
+pub(crate) fn first_fill_child<'a>(
+    children: &'a [RawNode],
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    children.iter().find_map(|node| match node {
+        RawNode::Element(child)
+            if is_dml(&child.name, interner)
+                && Fill::is_fill_local(interner.resolve(child.name.local)) =>
+        {
+            Some(child)
         }
         _ => None,
     })

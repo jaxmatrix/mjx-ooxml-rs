@@ -50,6 +50,8 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     // shadow/reflection effects.
     ("ST_PresetShadowVal", "PresetShadow"),
     ("ST_RectAlignment", "RectangleAlignment"),
+    // DrawingML fill-overlay blend mode: `a:fillOverlay@blend`.
+    ("ST_BlendMode", "BlendMode"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -263,6 +265,9 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_RectAlignment", "bl", "BottomLeft"),
     ("ST_RectAlignment", "b", "Bottom"),
     ("ST_RectAlignment", "br", "BottomRight"),
+    // `ST_BlendMode` (`a:fillOverlay@blend`, §20.1.10.11): expand the abbreviated multiply token.
+    // `over`/`screen`/`darken`/`lighten` auto-expand and need no row.
+    ("ST_BlendMode", "mult", "Multiply"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
