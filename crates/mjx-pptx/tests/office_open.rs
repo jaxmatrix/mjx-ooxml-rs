@@ -426,3 +426,17 @@ fn deck_with_an_edited_layout_opens() {
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "edited_layout");
 }
+
+#[test]
+fn deck_with_a_slide_built_from_a_layout_opens() {
+    // Builds a slide the way a caller is meant to: pick a layout, fill the placeholders it hands
+    // over. Everything else — position, size, text style — inherits from the layout.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    let slide = pres.add_slide_from_layout(1).expect("add slide"); // "Title and Content"
+    pres.set_shape_text(slide, 0, 0, "Built from a layout")
+        .expect("set the title");
+    pres.set_shape_text(slide, 1, 0, "The placeholders came with the slide")
+        .expect("set the body");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "slide_from_layout");
+}
