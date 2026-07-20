@@ -3,6 +3,7 @@
 use mjx_dml::{ColorMap, ColorSchemeSlot, Fill, StyleMatrixReference};
 use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
+use mjx_ooxml_types::presentationml::PlaceholderType;
 
 use crate::error::PptxError;
 use crate::nav;
@@ -240,24 +241,32 @@ pub(crate) fn shape_effect_ref(
     StyleMatrixReference::from_xml(effect_ref, interner).ok()
 }
 
-/// A shape's placeholder identity (`p:sp > p:nvSpPr > p:nvPr > p:ph`): the `@type` (as the
-/// title-family flag) and `@idx`. The slot a placeholder occupies, used to match it against the
-/// same-slot placeholder on the slide layout / master when its own fill is inherited.
+/// A shape's placeholder identity (`p:nv*Pr > p:nvPr > p:ph`): what it holds (`@type`) and which
+/// slot it occupies (`@idx`). Used to match a shape against the same-slot placeholder on the slide
+/// layout / master when its own properties are inherited.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Placeholder {
-    /// Whether the placeholder is a title (`type` = `title` or `ctrTitle`) — these share one slot.
-    pub title_family: bool,
+    /// What the placeholder holds (`@type`, default [`PlaceholderType::Object`] per the schema).
+    pub kind: PlaceholderType,
     /// The placeholder index (`@idx`, default `0`).
     pub idx: u32,
 }
 
 impl Placeholder {
+    /// Whether this is a title placeholder — `title` and `ctrTitle` share one inheritance slot.
+    pub(crate) fn is_title_family(self) -> bool {
+        matches!(
+            self.kind,
+            PlaceholderType::Title | PlaceholderType::CenteredTitle
+        )
+    }
+
     /// Whether `self` and `other` name the same inheritance slot: title-family placeholders match each
     /// other regardless of index; any other placeholder matches by index. (A documented heuristic —
     /// PowerPoint's exact matching has more nuance around body/object placeholders.)
     pub(crate) fn matches(self, other: Placeholder) -> bool {
-        if self.title_family || other.title_family {
-            self.title_family && other.title_family
+        if self.is_title_family() || other.is_title_family() {
+            self.is_title_family() && other.is_title_family()
         } else {
             self.idx == other.idx
         }
@@ -287,14 +296,13 @@ pub(crate) fn shape_placeholder(shape: &RawElement, interner: &Interner) -> Opti
     let nv_sp_pr = non_visual_properties(shape, interner)?;
     let nv_pr = nav::child(nv_sp_pr, interner, PML, "nvPr")?;
     let ph = nav::child(nv_pr, interner, PML, "ph")?;
-    let ph_type = nav::attr_value(ph, interner, "type").unwrap_or("obj");
+    let kind = nav::attr_value(ph, interner, "type")
+        .and_then(PlaceholderType::from_wire)
+        .unwrap_or(PlaceholderType::Object);
     let idx = nav::attr_value(ph, interner, "idx")
         .and_then(|value| value.parse::<u32>().ok())
         .unwrap_or(0);
-    Some(Placeholder {
-        title_family: matches!(ph_type, "title" | "ctrTitle"),
-        idx,
-    })
+    Some(Placeholder { kind, idx })
 }
 
 /// The first `p:sp` in `sp_tree` whose placeholder matches `target` (see [`Placeholder::matches`]).
@@ -600,7 +608,8 @@ mod tests {
             A = A
         ));
         let ph = shape_placeholder(&pic, &interner).expect("picture placeholder");
-        assert!(!ph.title_family);
+        assert_eq!(ph.kind, PlaceholderType::Picture);
+        assert!(!ph.is_title_family());
         assert_eq!(ph.idx, 2);
     }
 
@@ -610,7 +619,8 @@ mod tests {
             r#"<p:nvSpPr><p:cNvPr id="2" name="T"/><p:cNvSpPr/><p:nvPr><p:ph type="ctrTitle"/></p:nvPr></p:nvSpPr><p:spPr/>"#,
         );
         let ph = shape_placeholder(&shape, &interner).expect("placeholder");
-        assert!(ph.title_family);
+        assert_eq!(ph.kind, PlaceholderType::CenteredTitle);
+        assert!(ph.is_title_family());
         assert_eq!(ph.idx, 0);
 
         // A body placeholder with an explicit idx.
@@ -618,8 +628,17 @@ mod tests {
             r#"<p:nvSpPr><p:cNvPr id="3" name="B"/><p:cNvSpPr/><p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>"#,
         );
         let ph = shape_placeholder(&shape, &interner).expect("placeholder");
-        assert!(!ph.title_family);
+        assert_eq!(ph.kind, PlaceholderType::Body);
+        assert!(!ph.is_title_family());
         assert_eq!(ph.idx, 1);
+
+        // A p:ph with no @type defaults to the schema's `obj`.
+        let (shape, interner) = sp(
+            r#"<p:nvSpPr><p:cNvPr id="4" name="C"/><p:cNvSpPr/><p:nvPr><p:ph idx="2"/></p:nvPr></p:nvSpPr>"#,
+        );
+        let ph = shape_placeholder(&shape, &interner).expect("placeholder");
+        assert_eq!(ph.kind, PlaceholderType::Object);
+        assert_eq!(ph.idx, 2);
 
         // No p:ph -> not a placeholder.
         let (shape, interner) =
@@ -630,26 +649,26 @@ mod tests {
     #[test]
     fn placeholder_matching_rules() {
         let title = Placeholder {
-            title_family: true,
+            kind: PlaceholderType::Title,
             idx: 0,
         };
         let ctr_title = Placeholder {
-            title_family: true,
+            kind: PlaceholderType::CenteredTitle,
             idx: 5,
         };
         let body0 = Placeholder {
-            title_family: false,
+            kind: PlaceholderType::Body,
             idx: 0,
         };
         let body1 = Placeholder {
-            title_family: false,
+            kind: PlaceholderType::Body,
             idx: 1,
         };
         // Title-family match regardless of idx.
         assert!(title.matches(ctr_title));
         // Body matches by idx.
         assert!(body0.matches(Placeholder {
-            title_family: false,
+            kind: PlaceholderType::Object,
             idx: 0
         }));
         assert!(!body0.matches(body1));
@@ -670,17 +689,19 @@ mod tests {
             A = A
         ));
         let title_target = Placeholder {
-            title_family: true,
+            kind: PlaceholderType::Title,
             idx: 0,
         };
         let found = find_placeholder(&sp_tree, title_target, &interner).expect("title match");
-        assert!(shape_placeholder(found, &interner).unwrap().title_family);
+        assert!(shape_placeholder(found, &interner)
+            .expect("placeholder")
+            .is_title_family());
 
         // No matching body idx.
         assert!(find_placeholder(
             &sp_tree,
             Placeholder {
-                title_family: false,
+                kind: PlaceholderType::Body,
                 idx: 9
             },
             &interner

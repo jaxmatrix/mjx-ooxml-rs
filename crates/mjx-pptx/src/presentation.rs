@@ -8,10 +8,11 @@ use mjx_dml::{
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
+use mjx_ooxml_types::presentationml::{SlideLayoutKind, SlideSizeKind};
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
-use crate::geometry::ShapeBounds;
+use crate::geometry::{ShapeBounds, SlideSize};
 use crate::slide::ShapeKind;
 use crate::{build, constants, nav, slide};
 
@@ -26,6 +27,11 @@ pub struct Presentation {
     package: Package,
     presentation_part: PartName,
     slides: Vec<PartName>,
+    masters: Vec<PartName>,
+    /// Every master's layouts, master by master (see [`Presentation::layout_count`]).
+    layouts: Vec<PartName>,
+    /// `layout_owners[i]` is the index in `masters` of the master that lists `layouts[i]`.
+    layout_owners: Vec<usize>,
 }
 
 impl Presentation {
@@ -60,50 +66,41 @@ impl Presentation {
             ));
         }
 
-        // presentation.xml -> p:sldIdLst -> each p:sldId's r:id (owned, so the tree borrow ends here).
-        let slide_rids: Vec<String> = {
+        // presentation.xml -> p:sldIdLst -> each p:sldId's r:id -> the slide parts. A deck must have
+        // the list (an empty one is fine); the same walk resolves masters and, per master, layouts.
+        {
             let doc = package.part_tree(&presentation_part)?;
-            let interner = &doc.interner;
-            let root = &doc.root;
-            let rels_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
-                .ok_or(PptxError::MalformedPresentation(
-                    "no relationships namespace declared",
-                ))?;
-            let sld_id_lst = nav::child(root, interner, PML, "sldIdLst")
-                .ok_or(PptxError::MalformedPresentation("missing p:sldIdLst"))?;
-            let mut rids = Vec::new();
-            for sld_id in nav::children(sld_id_lst, interner, PML, "sldId") {
-                let rid = nav::prefixed_attr_value(sld_id, interner, rels_prefix, "id")
-                    .ok_or(PptxError::MalformedPresentation("p:sldId has no r:id"))??;
-                rids.push(rid);
+            if nav::child(&doc.root, &doc.interner, PML, "sldIdLst").is_none() {
+                return Err(PptxError::MalformedPresentation("missing p:sldIdLst"));
             }
-            rids
-        };
+        }
+        let slides = referenced_parts(&mut package, &presentation_part, "sldIdLst", "sldId")?;
+        let masters = referenced_parts(
+            &mut package,
+            &presentation_part,
+            "sldMasterIdLst",
+            "sldMasterId",
+        )?;
 
-        // Resolve each r:id against presentation.xml.rels into a slide PartName.
-        let slides = {
-            let pres_rels = package.relationships_for(Some(&presentation_part)).ok_or(
-                PptxError::MalformedPresentation("presentation has no relationships"),
-            )?;
-            let mut slides = Vec::with_capacity(slide_rids.len());
-            for rid in &slide_rids {
-                let rel = pres_rels
-                    .by_id(rid)
-                    .ok_or_else(|| PptxError::SlideRelNotFound { id: rid.clone() })?;
-                if rel.mode == TargetMode::External {
-                    return Err(PptxError::ExternalTarget {
-                        target: rel.target.clone(),
-                    });
-                }
-                slides.push(nav::resolve_target(&presentation_part, &rel.target)?);
+        // Each master lists its own layouts; the flat layout index runs master by master, in order.
+        let mut layouts = Vec::new();
+        let mut layout_owners = Vec::new();
+        for (master_idx, master) in masters.iter().enumerate() {
+            let master = master.clone();
+            for layout in referenced_parts(&mut package, &master, "sldLayoutIdLst", "sldLayoutId")?
+            {
+                layouts.push(layout);
+                layout_owners.push(master_idx);
             }
-            slides
-        };
+        }
 
         Ok(Self {
             package,
             presentation_part,
             slides,
+            masters,
+            layouts,
+            layout_owners,
         })
     }
 
@@ -131,6 +128,142 @@ impl Presentation {
     #[must_use]
     pub fn slide_part(&self, idx: usize) -> Option<&PartName> {
         self.slides.get(idx)
+    }
+
+    /// The number of slide masters, in `p:sldMasterIdLst` order.
+    #[must_use]
+    pub fn master_count(&self) -> usize {
+        self.masters.len()
+    }
+
+    /// The part name of master `idx` (does not touch the package).
+    #[must_use]
+    pub fn master_part(&self, idx: usize) -> Option<&PartName> {
+        self.masters.get(idx)
+    }
+
+    /// The name of master `idx` (`p:cSld@name`, e.g. `Office Theme`), or `None` if it is unnamed.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the index is out of range or the master is malformed.
+    pub fn master_name(&mut self, idx: usize) -> Result<Option<String>, PptxError> {
+        let part = self.master_part_checked(idx)?.clone();
+        self.common_slide_data_name(&part)
+    }
+
+    /// The number of slide layouts across the whole deck, in (master order, `p:sldLayoutIdLst` order)
+    /// — so layout indices run master by master. [`layout_master`](Self::layout_master) says which
+    /// master an index belongs to.
+    ///
+    /// A layout no master lists is not counted: layouts are reached through their master, as
+    /// PowerPoint reaches them.
+    #[must_use]
+    pub fn layout_count(&self) -> usize {
+        self.layouts.len()
+    }
+
+    /// The part name of layout `idx` (does not touch the package).
+    #[must_use]
+    pub fn layout_part(&self, idx: usize) -> Option<&PartName> {
+        self.layouts.get(idx)
+    }
+
+    /// The index of the master that lists layout `idx`.
+    #[must_use]
+    pub fn layout_master(&self, idx: usize) -> Option<usize> {
+        self.layout_owners.get(idx).copied()
+    }
+
+    /// The name of layout `idx` (`p:cSld@name`, e.g. `Title and Content` — the name PowerPoint shows
+    /// in its layout gallery), or `None` if it is unnamed.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the index is out of range or the layout is malformed.
+    pub fn layout_name(&mut self, idx: usize) -> Result<Option<String>, PptxError> {
+        let part = self.layout_part_checked(idx)?.clone();
+        self.common_slide_data_name(&part)
+    }
+
+    /// How layout `idx` arranges its content (`p:sldLayout@type`) — a coarse description of which
+    /// placeholders it offers, which an application can use to map between layouts.
+    ///
+    /// Defaults to [`SlideLayoutKind::Custom`] when the attribute is absent (as the schema does) or
+    /// names a value this build does not recognize.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the index is out of range or the layout is malformed.
+    pub fn layout_kind(&mut self, idx: usize) -> Result<SlideLayoutKind, PptxError> {
+        let part = self.layout_part_checked(idx)?.clone();
+        let doc = self.package.part_tree(&part)?;
+        Ok(nav::attr_value(&doc.root, &doc.interner, "type")
+            .and_then(SlideLayoutKind::from_wire)
+            .unwrap_or(SlideLayoutKind::Custom))
+    }
+
+    /// The index of the layout slide `slide_idx` is built on, or `None` if the slide relates to no
+    /// layout (or to one no master lists).
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range or the relationship points outside the
+    /// package.
+    pub fn slide_layout(&self, slide_idx: usize) -> Result<Option<usize>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?;
+        let Some(layout) = self.follow_rel(slide_part, constants::REL_SLIDE_LAYOUT)? else {
+            return Ok(None);
+        };
+        Ok(self.layouts.iter().position(|part| *part == layout))
+    }
+
+    /// The size of every slide in the deck (`p:sldSz`) — the extent shape bounds are laid out in.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::MalformedPresentation`] if `p:sldSz` is missing or its extent attributes
+    /// are absent or unparseable.
+    pub fn slide_size(&mut self) -> Result<SlideSize, PptxError> {
+        let part = self.presentation_part.clone();
+        let doc = self.package.part_tree(&part)?;
+        let sld_sz = nav::child(&doc.root, &doc.interner, PML, "sldSz")
+            .ok_or(PptxError::MalformedPresentation("missing p:sldSz"))?;
+        let extent = |local| {
+            nav::attr_value(sld_sz, &doc.interner, local)
+                .and_then(|value| value.parse::<i64>().ok())
+                .ok_or(PptxError::MalformedPresentation("p:sldSz has no extent"))
+        };
+        Ok(SlideSize {
+            width_emu: extent("cx")?,
+            height_emu: extent("cy")?,
+            kind: nav::attr_value(sld_sz, &doc.interner, "type")
+                .and_then(SlideSizeKind::from_wire)
+                .unwrap_or(SlideSizeKind::Custom),
+        })
+    }
+
+    /// The `p:cSld@name` of a slide-bearing part (master, layout, or slide).
+    fn common_slide_data_name(&mut self, part: &PartName) -> Result<Option<String>, PptxError> {
+        let doc = self.package.part_tree(part)?;
+        let c_sld = nav::child(&doc.root, &doc.interner, PML, "cSld")
+            .ok_or(PptxError::MalformedSlide("missing p:cSld"))?;
+        Ok(nav::attr_value(c_sld, &doc.interner, "name")
+            .filter(|name| !name.is_empty())
+            .map(str::to_owned))
+    }
+
+    fn master_part_checked(&self, idx: usize) -> Result<&PartName, PptxError> {
+        self.masters
+            .get(idx)
+            .ok_or(PptxError::MasterIndexOutOfRange {
+                index: idx,
+                count: self.masters.len(),
+            })
+    }
+
+    fn layout_part_checked(&self, idx: usize) -> Result<&PartName, PptxError> {
+        self.layouts
+            .get(idx)
+            .ok_or(PptxError::LayoutIndexOutOfRange {
+                index: idx,
+                count: self.layouts.len(),
+            })
     }
 
     /// The number of shapes on slide `slide_idx` — of **every** [`ShapeKind`] (autoshapes, pictures,
@@ -1644,6 +1777,60 @@ fn slide_number(part: &str, dir: &str) -> Option<u32> {
         .strip_suffix(".xml")?
         .parse::<u32>()
         .ok()
+}
+
+/// The parts referenced by one of PresentationML's `r:id` lists — `p:sldIdLst > p:sldId`,
+/// `p:sldMasterIdLst > p:sldMasterId`, `p:sldLayoutIdLst > p:sldLayoutId` — in document order.
+///
+/// Each item names a relationship of `source`; the ids are collected first so the tree borrow ends
+/// before the relationships are consulted. An absent list yields no parts (a master need not list
+/// layouts); a *present* item with no `r:id`, or an id no relationship matches, is an error, since
+/// that is a broken reference rather than an absence.
+fn referenced_parts(
+    package: &mut Package,
+    source: &PartName,
+    list_local: &str,
+    item_local: &str,
+) -> Result<Vec<PartName>, PptxError> {
+    let rids: Vec<String> = {
+        let doc = package.part_tree(source)?;
+        let interner = &doc.interner;
+        let rels_prefix = nav::namespace_prefix(&doc.root, interner, SHARED_RELATIONSHIP_REFERENCE)
+            .ok_or(PptxError::MalformedPresentation(
+                "no relationships namespace declared",
+            ))?;
+        let Some(list) = nav::child(&doc.root, interner, PML, list_local) else {
+            return Ok(Vec::new());
+        };
+        let mut rids = Vec::new();
+        for item in nav::children(list, interner, PML, item_local) {
+            rids.push(
+                nav::prefixed_attr_value(item, interner, rels_prefix, "id").ok_or(
+                    PptxError::MalformedPresentation("id list entry has no r:id"),
+                )??,
+            );
+        }
+        rids
+    };
+
+    let rels = package
+        .relationships_for(Some(source))
+        .ok_or(PptxError::MalformedPresentation(
+            "presentation has no relationships",
+        ))?;
+    let mut parts = Vec::with_capacity(rids.len());
+    for rid in &rids {
+        let rel = rels
+            .by_id(rid)
+            .ok_or_else(|| PptxError::SlideRelNotFound { id: rid.clone() })?;
+        if rel.mode == TargetMode::External {
+            return Err(PptxError::ExternalTarget {
+                target: rel.target.clone(),
+            });
+        }
+        parts.push(nav::resolve_target(source, &rel.target)?);
+    }
+    Ok(parts)
 }
 
 /// The `p:pic` at `shape_idx` in `sp_tree`, or [`PptxError::ShapeIsNotAPicture`] when that index

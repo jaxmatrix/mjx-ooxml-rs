@@ -66,6 +66,24 @@ pub enum PptxError {
         count: usize,
     },
 
+    /// A slide-master index was out of range.
+    #[error("master index {index} out of range (0..{count})")]
+    MasterIndexOutOfRange {
+        /// The requested index.
+        index: usize,
+        /// The number of masters.
+        count: usize,
+    },
+
+    /// A slide-layout index was out of range.
+    #[error("layout index {index} out of range (0..{count})")]
+    LayoutIndexOutOfRange {
+        /// The requested index.
+        index: usize,
+        /// The number of layouts.
+        count: usize,
+    },
+
     /// A shape index was out of range on the given slide.
     #[error("shape index {index} out of range on slide {slide} (0..{count})")]
     ShapeIndexOutOfRange {
