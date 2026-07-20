@@ -52,6 +52,15 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_RectAlignment", "RectangleAlignment"),
     // DrawingML fill-overlay blend mode: `a:fillOverlay@blend`.
     ("ST_BlendMode", "BlendMode"),
+    // PresentationML placeholders: `p:ph`'s `type`, `sz`, and `orient`. `ST_Direction` is PML's own
+    // two-valued axis (`horz`/`vert`), named for what it selects rather than the generic "direction".
+    ("ST_PlaceholderType", "PlaceholderType"),
+    ("ST_PlaceholderSize", "PlaceholderSize"),
+    ("ST_Direction", "Orientation"),
+    // PresentationML slide layouts and slide size: `p:sldLayout@type` and `p:sldSz@type`. Both are
+    // named `*Kind` because the wire attribute is `type`, which is a Rust keyword in field position.
+    ("ST_SlideLayoutType", "SlideLayoutKind"),
+    ("ST_SlideSizeType", "SlideSizeKind"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -268,6 +277,73 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     // `ST_BlendMode` (`a:fillOverlay@blend`, §20.1.10.11): expand the abbreviated multiply token.
     // `over`/`screen`/`darken`/`lighten` auto-expand and need no row.
     ("ST_BlendMode", "mult", "Multiply"),
+    // `ST_PlaceholderType` (`p:ph@type`, §19.7.10): every name is the enumeration's official title
+    // from the Part 1 table ("ctrTitle (Centered Title)", "dt (Date and Time)", …).
+    // `body`/`chart`/`clipArt`/`media`/`title` auto-expand and need no row.
+    ("ST_PlaceholderType", "ctrTitle", "CenteredTitle"),
+    ("ST_PlaceholderType", "subTitle", "Subtitle"),
+    ("ST_PlaceholderType", "dt", "DateAndTime"),
+    ("ST_PlaceholderType", "ftr", "Footer"),
+    ("ST_PlaceholderType", "hdr", "Header"),
+    ("ST_PlaceholderType", "sldNum", "SlideNumber"),
+    ("ST_PlaceholderType", "sldImg", "SlideImage"),
+    ("ST_PlaceholderType", "obj", "Object"),
+    ("ST_PlaceholderType", "pic", "Picture"),
+    ("ST_PlaceholderType", "tbl", "Table"),
+    ("ST_PlaceholderType", "dgm", "Diagram"),
+    // `ST_SlideLayoutType` (`p:sldLayout@type`, §19.7.15): the Part 1 table gives each value an
+    // official title — `obj` is "Title and Object", not merely "object", and the multi-object
+    // arrangements are plural. Names below are those titles; `blank`/`chart` auto-expand.
+    ("ST_SlideLayoutType", "tx", "Text"),
+    ("ST_SlideLayoutType", "twoColTx", "TwoColumnText"),
+    ("ST_SlideLayoutType", "tbl", "Table"),
+    ("ST_SlideLayoutType", "txAndChart", "TextAndChart"),
+    ("ST_SlideLayoutType", "chartAndTx", "ChartAndText"),
+    ("ST_SlideLayoutType", "dgm", "Diagram"),
+    ("ST_SlideLayoutType", "txAndClipArt", "TextAndClipArt"),
+    ("ST_SlideLayoutType", "clipArtAndTx", "ClipArtAndText"),
+    ("ST_SlideLayoutType", "txAndObj", "TextAndObject"),
+    ("ST_SlideLayoutType", "objAndTx", "ObjectAndText"),
+    ("ST_SlideLayoutType", "objOnly", "ObjectOnly"),
+    ("ST_SlideLayoutType", "obj", "TitleAndObject"),
+    ("ST_SlideLayoutType", "txAndMedia", "TextAndMedia"),
+    ("ST_SlideLayoutType", "mediaAndTx", "MediaAndText"),
+    ("ST_SlideLayoutType", "objOverTx", "ObjectOverText"),
+    ("ST_SlideLayoutType", "txOverObj", "TextOverObject"),
+    ("ST_SlideLayoutType", "txAndTwoObj", "TextAndTwoObjects"),
+    ("ST_SlideLayoutType", "twoObjAndTx", "TwoObjectsAndText"),
+    ("ST_SlideLayoutType", "twoObjOverTx", "TwoObjectsOverText"),
+    ("ST_SlideLayoutType", "fourObj", "FourObjects"),
+    ("ST_SlideLayoutType", "vertTx", "VerticalText"),
+    (
+        "ST_SlideLayoutType",
+        "clipArtAndVertTx",
+        "ClipArtAndVerticalText",
+    ),
+    (
+        "ST_SlideLayoutType",
+        "vertTitleAndTx",
+        "VerticalTitleAndText",
+    ),
+    (
+        "ST_SlideLayoutType",
+        "vertTitleAndTxOverChart",
+        "VerticalTitleAndTextOverChart",
+    ),
+    ("ST_SlideLayoutType", "twoObj", "TwoObjects"),
+    ("ST_SlideLayoutType", "objAndTwoObj", "ObjectAndTwoObjects"),
+    ("ST_SlideLayoutType", "twoObjAndObj", "TwoObjectsAndObject"),
+    ("ST_SlideLayoutType", "cust", "Custom"),
+    ("ST_SlideLayoutType", "secHead", "SectionHeader"),
+    ("ST_SlideLayoutType", "twoTxTwoObj", "TwoTextAndTwoObjects"),
+    ("ST_SlideLayoutType", "objTx", "TitleObjectAndCaption"),
+    ("ST_SlideLayoutType", "picTx", "PictureAndCaption"),
+    // `ST_Direction` (`p:ph@orient`, §19.7.2): the two abbreviated axis tokens ("horz (Horizontal)").
+    ("ST_Direction", "horz", "Horizontal"),
+    ("ST_Direction", "vert", "Vertical"),
+    // `ST_SlideSizeType` (`p:sldSz@type`, §19.7.18): only the digit-leading token needs a name (the
+    // mechanical one would be `N35Mm`); the paper and screen sizes auto-expand acceptably.
+    ("ST_SlideSizeType", "35mm", "Film35Mm"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
