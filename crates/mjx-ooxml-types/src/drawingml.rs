@@ -8,9 +8,10 @@
 //! on top of these in `mjx-dml`.
 
 pub use crate::generated::drawingml::{
-    adjustments_of, BlendMode, ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType,
-    LineEndWidth, PatternType, PenAlignment, PresetLineDash, PresetShadow, PresetShapeType,
-    RectangleAlignment, SchemeColor,
+    adjustments_of, AutonumberScheme, BlendMode, ColorSchemeSlot, CompoundLine, FontAlignment,
+    LineCap, LineEndLength, LineEndType, LineEndWidth, PatternType, PenAlignment, PresetLineDash,
+    PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor, TabAlignment, TextAlignment,
+    TextCapitalization, TextStrike, TextUnderline,
 };
 
 /// The axis a shape adjustment controls, disclosed by which `ahLst` handle reference names its guide.
