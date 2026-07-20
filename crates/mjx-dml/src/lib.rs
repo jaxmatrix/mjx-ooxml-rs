@@ -46,8 +46,13 @@ pub use line::{
     LineProperties, LineSpec, PenAlignment, PresetLineDash,
 };
 pub use resolve::{
-    resolve_color, resolve_effects, resolve_fill, resolve_line, ResolvedColor, SchemeColors,
+    resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
+    ResolvedColor, SchemeColors,
 };
 pub use style::{ColorMap, StyleMatrixReference};
-pub use text::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
+pub use text::{
+    CharacterProperties, CharacterPropertiesSpec, FontSlot, Paragraph, ParagraphContent,
+    RunContent, Text, TextBody, TextBodyContent, TextCapitalization, TextFont, TextRun, TextStrike,
+    TextUnderline,
+};
 pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};

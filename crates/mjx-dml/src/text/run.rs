@@ -1,7 +1,9 @@
 //! `a:r` (a text run) and its `a:t` (the run's text).
 
 use mjx_derive::{FromXml, ToXml};
-use mjx_ooxml_core::{RawAttribute, RawName, RawNode};
+use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
+
+use super::character::{CharacterProperties, CharacterPropertiesSpec};
 
 /// `a:t` — the literal text of a run.
 ///
@@ -38,24 +40,31 @@ impl Text {
     }
 }
 
-/// One ordered child of a [`TextRun`]: the typed [`Text`], or an opaque node.
+/// One ordered child of a [`TextRun`]: its typed [`CharacterProperties`] or [`Text`], or an opaque
+/// node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunContent {
+    /// The run's `a:rPr` — how the text looks.
+    Properties(CharacterProperties),
     /// The run's `a:t` text element.
     Text(Text),
-    /// Any other child — `a:rPr`, whitespace, or an unknown element — preserved verbatim.
+    /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
 
-/// `a:r` — a regular text run (`CT_RegularTextRun`): an optional `a:rPr` (kept opaque) followed by the
-/// required `a:t`.
+/// `a:r` — a regular text run (`CT_RegularTextRun`): an optional `a:rPr` followed by the required
+/// `a:t`.
 #[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(namespace = DML_MAIN)]
 pub struct TextRun {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "t", variant = Text, ty = Text))]
+    #[xml(
+        children,
+        child(local = "rPr", variant = Properties, ty = CharacterProperties),
+        child(local = "t", variant = Text, ty = Text)
+    )]
     content: Vec<RunContent>,
 }
 
@@ -67,12 +76,45 @@ impl TextRun {
             .iter()
             .find_map(|item| match item {
                 RunContent::Text(text) => Some(text.text()),
-                RunContent::Raw(_) => None,
+                _ => None,
             })
             .unwrap_or("")
     }
 
-    /// The run's ordered content (its typed `a:t` interleaved with opaque nodes such as `a:rPr`).
+    /// The run's character properties (`a:rPr`), or `None` if it declares none — in which case every
+    /// property is inherited (from the paragraph, the placeholder, the layout, the master, the theme).
+    #[must_use]
+    pub fn properties(&self) -> Option<&CharacterProperties> {
+        self.content.iter().find_map(|item| match item {
+            RunContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// The run's character properties (`a:rPr`), mutably, or `None` if it declares none.
+    pub fn properties_mut(&mut self) -> Option<&mut CharacterProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            RunContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// Applies `spec` to the run's character properties, creating the `a:rPr` if the run has none.
+    ///
+    /// An existing `a:rPr` is **merged** onto, so the state this model does not describe — `lang`,
+    /// `dirty`, a hyperlink — survives (see [`CharacterProperties::apply`]). A created one is placed
+    /// first, where `CT_RegularTextRun` requires it.
+    pub fn set_properties(&mut self, spec: &CharacterPropertiesSpec, interner: &mut Interner) {
+        if let Some(properties) = self.properties_mut() {
+            properties.apply(spec, interner);
+            return;
+        }
+        let properties = spec.to_properties(interner, "rPr");
+        self.content.insert(0, RunContent::Properties(properties));
+        self.empty = false;
+    }
+
+    /// The run's ordered content (its typed `a:rPr` and `a:t` interleaved with opaque nodes).
     #[must_use]
     pub fn content(&self) -> &[RunContent] {
         &self.content
