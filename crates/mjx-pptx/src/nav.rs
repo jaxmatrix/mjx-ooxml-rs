@@ -87,6 +87,38 @@ pub(crate) fn nth_child_matching_mut<'a>(
         .nth(n)
 }
 
+/// The position in `parent.children` of the `n`-th child element satisfying `predicate` — the
+/// index-space sibling of [`nth_child_matching_mut`], for callers that must *remove* the child rather
+/// than edit it.
+pub(crate) fn nth_child_matching_position(
+    parent: &RawElement,
+    interner: &Interner,
+    n: usize,
+    predicate: impl Fn(&RawElement, &Interner) -> bool,
+) -> Option<usize> {
+    parent
+        .children
+        .iter()
+        .enumerate()
+        .filter_map(|(position, node)| match node {
+            RawNode::Element(element) if predicate(element, interner) => Some(position),
+            _ => None,
+        })
+        .nth(n)
+}
+
+/// Whether a node is a text node made only of whitespace — the indentation between block elements.
+///
+/// Such a node is significant to the round-trip contract and is never touched on a read; it is only
+/// consulted when an element is *removed*, so its own indentation goes with it instead of piling up
+/// as blank lines.
+pub(crate) fn is_whitespace_text(node: &RawNode) -> bool {
+    match node {
+        RawNode::Text(bytes) => !bytes.is_empty() && bytes.iter().all(u8::is_ascii_whitespace),
+        _ => false,
+    }
+}
+
 /// The prefix (as an interned [`Symbol`]) that `element` binds to `ns` via an `xmlns:PREFIX="uri"`
 /// declaration, if any. Used to locate prefixed attributes whose namespace the reader does not resolve.
 pub(crate) fn namespace_prefix(
