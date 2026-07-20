@@ -33,6 +33,6 @@ mod preset;
 mod shape;
 
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
-pub use measures::{Angle, Emu, FontSize, Fraction, LineWidth, TextPoint};
+pub use measures::{Angle, Emu, FontSize, Fraction, IndentLevel, LineWidth, TextPoint};
 pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
 pub use shape::ShapeGeometry;
