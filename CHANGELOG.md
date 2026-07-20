@@ -15,6 +15,41 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.3] - 2026-07-20
+
+Text formatting begins: the vocabulary and the run-level model. A run's appearance — its size, weight,
+slant, underline, colour, font — can now be read and written. (Reaching it through a `Presentation`,
+and resolving what a run *inherits*, come next.)
+
+### Added
+
+- **Text simple types** — `TextUnderline`, `TextStrike`, `TextCapitalization`, `TextAlignment`,
+  `FontAlignment`, `TabAlignment` and `AutonumberScheme` (41 bullet-numbering schemes), generated from
+  `dml-main.xsd` and named from the ECMA-376 §20.1.10 enumeration tables.
+- **`FontSize` and `TextPoint`** — text measures stated **in points** (`from_points` / `points`), the
+  unit every size control uses. The file's hundredths of a point are reachable only through
+  `from_wire` / `to_wire`.
+- **`CharacterProperties`** (`CT_TextCharacterProperties`) — size, bold, italic, underline, strike,
+  capitalization, spacing, kerning, baseline, language, plus the text fill, glyph outline, effects,
+  highlight and the four script fonts. One type serves `a:rPr`, `a:defRPr` and `a:endParaRPr`, and
+  everything it does not model — hyperlinks, `dirty`/`err`/`smtClean`, unknown children — round-trips
+  verbatim.
+- **`CharacterPropertiesSpec`** — an interner-free builder:
+  `CharacterPropertiesSpec::new().with_size_points(28.0).with_bold(true).with_color(…)`. Naming a
+  property sets it; leaving it unnamed means *inherit*, so `with_bold(false)` and
+  `with_underline(TextUnderline::None)` are how a caller overrides an inherited value.
+- **`TextFont`** — a typeface reference, whether a literal name or a `+mj-lt`-style theme reference.
+- **`resolve_character_properties`** — bakes a run's colours (text fill, glyph outline, effects,
+  highlight) down to concrete RGB against a theme scheme and colour map.
+- **Typed access from the text tree** — `TextRun::properties` / `set_properties` and
+  `Paragraph::end_properties`, so `a:rPr` and `a:endParaRPr` are no longer opaque.
+
+### Notes
+
+- Setting a run's properties **merges** onto its existing `a:rPr` rather than replacing it, so the
+  state this model does not describe (`lang`, `dirty`, a hyperlink) survives a restyle. An unset
+  property means "leave it alone", never "clear it".
+
 ## [0.0.2] - 2026-07-20
 
 The PowerPoint slice — Phases 2 and 3. A real `.pptx` can now be opened, read, edited, built up from
@@ -101,5 +136,6 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.3]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.3
 [0.0.2]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.2
 [0.0.1]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.1
