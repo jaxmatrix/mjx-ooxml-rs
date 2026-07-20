@@ -46,9 +46,10 @@ pub(crate) fn sp_tree_mut<'a>(
 /// What kind of shape a `p:spTree` child is — the six alternatives of `CT_GroupShape`'s child choice
 /// (`EG_ShapeElements`).
 ///
-/// Shapes of every kind share one index space (see [`shapes`]), so this is how a caller tells what it
-/// is addressing: a picture accepts the `p:spPr` surface (fill, outline, effects, geometry) but has no
-/// text body, a group has no `p:spPr` at all, and so on.
+/// Shapes of every kind share one index space (see
+/// [`Presentation::shape_count`](crate::Presentation::shape_count)), so this is how a caller tells
+/// what it is addressing: a picture accepts the `p:spPr` surface (fill, outline, effects, geometry)
+/// but has no text body, a group has no `p:spPr` at all, and so on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum ShapeKind {
