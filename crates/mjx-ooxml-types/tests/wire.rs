@@ -5,8 +5,10 @@
 use std::str::FromStr;
 
 use mjx_ooxml_types::drawingml::{
-    ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType, LineEndWidth, PatternType,
-    PenAlignment, PresetLineDash, PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor,
+    AutonumberScheme, ColorSchemeSlot, CompoundLine, FontAlignment, LineCap, LineEndLength,
+    LineEndType, LineEndWidth, PatternType, PenAlignment, PresetLineDash, PresetShadow,
+    PresetShapeType, RectangleAlignment, SchemeColor, TabAlignment, TextAlignment,
+    TextCapitalization, TextStrike, TextUnderline,
 };
 use mjx_ooxml_types::namespaces;
 use mjx_ooxml_types::presentationml::{
@@ -753,6 +755,174 @@ fn slide_size_kind_round_trips_all_tokens() {
         Some(SlideSizeKind::Film35Mm)
     );
     assert_eq!(SlideSizeKind::Film35Mm.to_wire(), "35mm");
+}
+
+#[test]
+fn text_run_property_enums_round_trip_all_tokens() {
+    // `ST_TextUnderlineType` (`a:rPr@u`), schema order.
+    assert_round_trip(
+        &[
+            "none",
+            "words",
+            "sng",
+            "dbl",
+            "heavy",
+            "dotted",
+            "dottedHeavy",
+            "dash",
+            "dashHeavy",
+            "dashLong",
+            "dashLongHeavy",
+            "dotDash",
+            "dotDashHeavy",
+            "dotDotDash",
+            "dotDotDashHeavy",
+            "wavy",
+            "wavyHeavy",
+            "wavyDbl",
+        ],
+        TextUnderline::from_wire,
+        TextUnderline::to_wire,
+    );
+    // The ECMA-376 §20.1.10.82 titles read modifier-first: `dashHeavy` is "Heavy Dashed".
+    assert_eq!(TextUnderline::from_wire("sng"), Some(TextUnderline::Single));
+    assert_eq!(
+        TextUnderline::from_wire("dashHeavy"),
+        Some(TextUnderline::HeavyDashed)
+    );
+    assert_eq!(TextUnderline::DoubleWavy.to_wire(), "wavyDbl");
+
+    // `ST_TextStrikeType` (`a:rPr@strike`).
+    assert_round_trip(
+        &["noStrike", "sngStrike", "dblStrike"],
+        TextStrike::from_wire,
+        TextStrike::to_wire,
+    );
+    assert_eq!(
+        TextStrike::from_wire("dblStrike"),
+        Some(TextStrike::DoubleStrike)
+    );
+
+    // `ST_TextCapsType` (`a:rPr@cap`) — `none` is an explicit override, not an absence.
+    assert_round_trip(
+        &["none", "small", "all"],
+        TextCapitalization::from_wire,
+        TextCapitalization::to_wire,
+    );
+    assert_eq!(TextCapitalization::Small.to_wire(), "small");
+}
+
+#[test]
+fn text_paragraph_property_enums_round_trip_all_tokens() {
+    // `ST_TextAlignType` (`a:pPr@algn`), schema order.
+    assert_round_trip(
+        &["l", "ctr", "r", "just", "justLow", "dist", "thaiDist"],
+        TextAlignment::from_wire,
+        TextAlignment::to_wire,
+    );
+    assert_eq!(TextAlignment::from_wire("l"), Some(TextAlignment::Left));
+    assert_eq!(TextAlignment::ThaiDistributed.to_wire(), "thaiDist");
+
+    // `ST_TextFontAlignType` (`a:pPr@fontAlgn`) — where letters sit relative to the baselines.
+    assert_round_trip(
+        &["auto", "t", "ctr", "base", "b"],
+        FontAlignment::from_wire,
+        FontAlignment::to_wire,
+    );
+    assert_eq!(
+        FontAlignment::from_wire("base"),
+        Some(FontAlignment::Baseline)
+    );
+    assert_eq!(FontAlignment::Automatic.to_wire(), "auto");
+
+    // `ST_TextTabAlignType` (`a:tab@algn`).
+    assert_round_trip(
+        &["l", "ctr", "r", "dec"],
+        TabAlignment::from_wire,
+        TabAlignment::to_wire,
+    );
+    assert_eq!(TabAlignment::from_wire("dec"), Some(TabAlignment::Decimal));
+}
+
+#[test]
+fn autonumber_scheme_round_trips_all_tokens() {
+    // `ST_TextAutonumberScheme` (`a:buAutoNum@type`) — all 41 values, schema order.
+    let tokens = [
+        "alphaLcParenBoth",
+        "alphaUcParenBoth",
+        "alphaLcParenR",
+        "alphaUcParenR",
+        "alphaLcPeriod",
+        "alphaUcPeriod",
+        "arabicParenBoth",
+        "arabicParenR",
+        "arabicPeriod",
+        "arabicPlain",
+        "romanLcParenBoth",
+        "romanUcParenBoth",
+        "romanLcParenR",
+        "romanUcParenR",
+        "romanLcPeriod",
+        "romanUcPeriod",
+        "circleNumDbPlain",
+        "circleNumWdBlackPlain",
+        "circleNumWdWhitePlain",
+        "arabicDbPeriod",
+        "arabicDbPlain",
+        "ea1ChsPeriod",
+        "ea1ChsPlain",
+        "ea1ChtPeriod",
+        "ea1ChtPlain",
+        "ea1JpnChsDbPeriod",
+        "ea1JpnKorPlain",
+        "ea1JpnKorPeriod",
+        "arabic1Minus",
+        "arabic2Minus",
+        "hebrew2Minus",
+        "thaiAlphaPeriod",
+        "thaiAlphaParenR",
+        "thaiAlphaParenBoth",
+        "thaiNumPeriod",
+        "thaiNumParenR",
+        "thaiNumParenBoth",
+        "hindiAlphaPeriod",
+        "hindiNumPeriod",
+        "hindiNumParenR",
+        "hindiAlpha1Period",
+    ];
+    assert_eq!(tokens.len(), 41);
+    assert_round_trip(
+        &tokens,
+        AutonumberScheme::from_wire,
+        AutonumberScheme::to_wire,
+    );
+
+    // The enumeration table's titles only repeat the token, so names come from the Description
+    // column: `alphaLcParenBoth` is "(a), (b), (c), …" and `romanUcPeriod` is "I., II., III., …".
+    assert_eq!(
+        AutonumberScheme::from_wire("alphaLcParenBoth"),
+        Some(AutonumberScheme::LowercaseLetterParenthesesBoth)
+    );
+    assert_eq!(
+        AutonumberScheme::from_wire("romanUcPeriod"),
+        Some(AutonumberScheme::UppercaseRomanPeriod)
+    );
+    // "EA: Simplified Chinese w/ single-byte period"; `ea1` is a family prefix, not a numeral.
+    assert_eq!(
+        AutonumberScheme::from_wire("ea1ChsPeriod"),
+        Some(AutonumberScheme::SimplifiedChinesePeriod)
+    );
+    // "Bidi Arabic 1 (AraAlpha) / 2 (AraAbjad) with ANSI minus symbol".
+    assert_eq!(
+        AutonumberScheme::BidirectionalArabicAbjadMinus.to_wire(),
+        "arabic2Minus"
+    );
+    // "Hindi alphabet period - vowels" vs "- consonants".
+    assert_eq!(
+        AutonumberScheme::from_wire("hindiAlpha1Period"),
+        Some(AutonumberScheme::HindiConsonantPeriod)
+    );
+    assert_eq!(AutonumberScheme::from_wire("bogus"), None);
 }
 
 #[test]
