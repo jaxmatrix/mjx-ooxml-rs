@@ -204,8 +204,12 @@ fn set_no_effects_writes_an_empty_effect_lst() {
 fn effects_fill_and_outline_coexist_on_one_shape() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let idx = added_shape(&mut pres);
-    pres.set_shape_fill(0, idx, &FillSpec::solid(ColorSpec::Srgb("FFFF00".to_owned())))
-        .expect("set fill");
+    pres.set_shape_fill(
+        0,
+        idx,
+        &FillSpec::solid(ColorSpec::Srgb("FFFF00".to_owned())),
+    )
+    .expect("set fill");
     pres.set_shape_outline(
         0,
         idx,

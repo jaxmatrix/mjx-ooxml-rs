@@ -390,18 +390,24 @@ mirrors it PR-for-PR (see `docs/DRAWINGML_OUTLINE_HANDOFF.md`). All four PRs mer
   `Presentation::effective_shape_outline` — explicit `a:ln`, else `p:style > a:lnRef` → theme line-style
   (phClr substituted), else placeholder inheritance; stroke baked to concrete RGB.
 
-## Related styling workstream — shape effects (`a:effectLst`) — 🔄 in progress
+## Related styling workstream — shape effects (`a:effectLst`) — ✅ COMPLETE
 
 Shape **effects** (`p:spPr > a:effectLst`, `CT_EffectList`: `blur`/`fillOverlay`/`glow`/`innerShdw`/
 `outerShdw`/`prstShdw`/`reflection`/`softEdge`) is the **last** `spPr` visual property — modeling it
 completes the shape's visual definitions. The rare `a:effectDag` DAG stays opaque (fidelity). Colored
-effects reuse `Color`; `fillOverlay` reuses `Fill`. A 4-PR mirror of the outline workstream:
+effects reuse `Color`; `fillOverlay` reuses `Fill`. A 4-PR mirror of the outline workstream, all four
+merged:
 
-- 🔄 **E1 — generated effect simple types:** `PresetShadow` (`ST_PresetShadowVal`, 20) +
-  `RectangleAlignment` (`ST_RectAlignment`, 9).
-- ⏳ **E2 — `mjx-dml::effect`:** `EffectList` fidelity wrapper + typed accessors for all 8 effects +
-  interner-free `EffectListSpec`; a general `Emu` length measure (in `geometry::measures`).
-- ⏳ **E3 — `mjx-pptx` explicit:** `shape_effects` / `set_shape_effects` / `set_shape_no_effects`;
+- ✅ **E1 (#37):** generated effect simple types in `mjx-ooxml-types::drawingml` — `PresetShadow`
+  (`ST_PresetShadowVal`, 20) + `RectangleAlignment` (`ST_RectAlignment`, 9).
+- ✅ **E2 (#38):** `mjx-dml::effect` — `EffectList` fidelity wrapper + typed accessors for all 8
+  effects + interner-free `EffectListSpec`; a general `Emu` length measure (in `geometry::measures`).
+- ✅ **E3 (#39):** `mjx-pptx` `shape_effects` / `set_shape_effects` / `set_shape_no_effects`;
   `a:effectLst` inserts after `a:ln`, before scene3d/sp3d/extLst. Office-open canary.
-- ⏳ **E4 — effective:** theme `effectStyleLst` + `resolve_effects` + `effective_shape_effects`
-  (`p:style > a:effectRef` → theme effect-style with phClr; placeholder inheritance).
+- ✅ **E4 (#40):** theme `effectStyleLst` (`Theme::effect_style`, keyed 1-based, `None` for an
+  `effectDag`-based style so `effectRef@idx` stays aligned) + `resolve_effects` +
+  `Presentation::effective_shape_effects` — explicit `a:effectLst`, else `p:style > a:effectRef` →
+  theme effect-style (phClr substituted), else placeholder inheritance; colors baked to concrete RGB.
+- ✅ **Workstream complete:** the `spPr` visual trilogy (fill · outline · effects) is now modeled both
+  explicitly and effectively. Deferred beyond this: `a:effectDag` stays opaque (preserved, not
+  modeled), and `scene3d`/`sp3d` inside theme effect styles are ignored.

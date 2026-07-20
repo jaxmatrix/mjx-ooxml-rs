@@ -218,24 +218,28 @@ pub fn resolve_effects(
     if let (Some(glow), Some(color)) = (spec.glow.as_mut(), effects.glow_color(interner)) {
         glow.color = to_spec(&color);
     }
-    if let (Some(shadow), Some(color)) =
-        (spec.inner_shadow.as_mut(), effects.inner_shadow_color(interner))
-    {
+    if let (Some(shadow), Some(color)) = (
+        spec.inner_shadow.as_mut(),
+        effects.inner_shadow_color(interner),
+    ) {
         shadow.color = to_spec(&color);
     }
-    if let (Some(shadow), Some(color)) =
-        (spec.outer_shadow.as_mut(), effects.outer_shadow_color(interner))
-    {
+    if let (Some(shadow), Some(color)) = (
+        spec.outer_shadow.as_mut(),
+        effects.outer_shadow_color(interner),
+    ) {
         shadow.color = to_spec(&color);
     }
-    if let (Some(shadow), Some(color)) =
-        (spec.preset_shadow.as_mut(), effects.preset_shadow_color(interner))
-    {
+    if let (Some(shadow), Some(color)) = (
+        spec.preset_shadow.as_mut(),
+        effects.preset_shadow_color(interner),
+    ) {
         shadow.color = to_spec(&color);
     }
-    if let (Some(overlay), Some(fill)) =
-        (spec.fill_overlay.as_mut(), effects.fill_overlay_fill(interner))
-    {
+    if let (Some(overlay), Some(fill)) = (
+        spec.fill_overlay.as_mut(),
+        effects.fill_overlay_fill(interner),
+    ) {
         overlay.fill = resolve_fill(&fill, scheme, map, placeholder, interner);
     }
     spec
