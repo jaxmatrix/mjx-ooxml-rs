@@ -257,7 +257,10 @@ impl BlipFill {
     ///
     /// The `r` prefix binds the relationships namespace on the containing part's root element (the
     /// caller's responsibility); this builder emits the attribute prefixed, unresolved, as the reader
-    /// stores it. The relationship itself (and the image part) must be added to the package separately.
+    /// stores it. A caller that cannot assume the binding — most parts declare it, but not all — should
+    /// declare `xmlns:r` on the element it splices this into (`mjx-pptx` does exactly that, since it is
+    /// the layer that knows the part's namespace bindings). The relationship itself (and the image
+    /// part) must be added to the package separately.
     #[must_use]
     pub fn new(interner: &mut Interner, rel_id: &str, mode: BlipFillMode) -> Self {
         let embed = prefixed_attr(interner, "r", "embed", rel_id);
