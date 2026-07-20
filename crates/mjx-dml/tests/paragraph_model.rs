@@ -697,6 +697,113 @@ fn a_bullet_lands_between_the_spacing_and_the_tab_stops() {
     assert!(position("<a:buChar") < position("<a:tabLst>"), "{out}");
 }
 
+// ---------------------------------------------------------------------------------------------
+// Merging tiers — what an inherited property means
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn a_higher_tier_wins_and_an_unset_property_inherits() {
+    let higher = ParagraphPropertiesSpec::new()
+        .with_level(IndentLevel::of(1))
+        .with_alignment(TextAlignment::Center);
+    let lower = ParagraphPropertiesSpec::new()
+        .with_alignment(TextAlignment::Left)
+        .with_left_margin_points(36.0)
+        .with_indent_points(-18.0);
+
+    let merged = higher.merge_under(&lower);
+
+    assert_eq!(merged.level(), Some(IndentLevel::of(1)));
+    assert_eq!(merged.alignment(), Some(TextAlignment::Center));
+    assert_eq!(merged.left_margin_points(), Some(36.0));
+    assert_eq!(merged.indent_points(), Some(-18.0));
+    assert_eq!(merged.right_margin_points(), None);
+}
+
+#[test]
+fn merging_an_empty_tier_changes_nothing_either_way() {
+    let full = ParagraphPropertiesSpec::new()
+        .with_alignment(TextAlignment::Justified)
+        .with_bullet_character("•");
+    let empty = ParagraphPropertiesSpec::new();
+
+    assert_eq!(full.clone().merge_under(&empty), full);
+    assert_eq!(empty.merge_under(&full), full);
+}
+
+#[test]
+fn each_bullet_group_inherits_independently() {
+    // The higher tier names the character; the colour and size come from below. The four groups are
+    // separate elements in the schema and inherit separately — a level may restyle the glyph and keep
+    // the theme's colour.
+    let merged = ParagraphPropertiesSpec::new()
+        .with_bullet_character("–")
+        .merge_under(
+            &ParagraphPropertiesSpec::new()
+                .with_bullet_character("•")
+                .with_bullet_color(BulletColor::FollowText)
+                .with_bullet_size(BulletSize::percentage(0.8)),
+        );
+
+    assert_eq!(
+        merged.bullet(),
+        Some(&Bullet::Character(BulletCharacter::new("–")))
+    );
+    assert_eq!(merged.bullet_color(), Some(&BulletColor::FollowText));
+    assert_eq!(merged.bullet_size(), Some(BulletSize::percentage(0.8)));
+}
+
+#[test]
+fn an_explicit_no_bullet_blocks_an_inherited_one() {
+    // `<a:buNone/>` is a decision, so a paragraph that says "no bullet" stays unbulleted under a
+    // master `bodyStyle` that bullets its level.
+    let merged = ParagraphPropertiesSpec::new()
+        .without_bullet()
+        .merge_under(&ParagraphPropertiesSpec::new().with_bullet_character("•"));
+    assert_eq!(merged.bullet(), Some(&Bullet::None));
+}
+
+#[test]
+fn tab_stops_merge_as_one_list() {
+    let higher = vec![TabStop::at_points(72.0, TabAlignment::Left)];
+    let lower = vec![
+        TabStop::at_points(36.0, TabAlignment::Center),
+        TabStop::at_points(144.0, TabAlignment::Right),
+    ];
+
+    // A tier that names any tab stops replaces the list; `a:tabLst` is not additive.
+    let merged = ParagraphPropertiesSpec::new()
+        .with_tab_stops(higher.clone())
+        .merge_under(&ParagraphPropertiesSpec::new().with_tab_stops(lower.clone()));
+    assert_eq!(merged.tab_stops(), higher.as_slice());
+
+    // An empty list means "unset", so the whole lower list is inherited.
+    let merged = ParagraphPropertiesSpec::new()
+        .merge_under(&ParagraphPropertiesSpec::new().with_tab_stops(lower.clone()));
+    assert_eq!(merged.tab_stops(), lower.as_slice());
+}
+
+#[test]
+fn default_run_properties_merge_recursively() {
+    // A tier setting only the size must not shadow a lower tier's weight: what a level contributes to
+    // `a:defRPr` is per property, exactly as it is for a run's own `a:rPr`.
+    let merged = ParagraphPropertiesSpec::new()
+        .with_default_run_properties(CharacterPropertiesSpec::new().with_size_points(28.0))
+        .merge_under(
+            &ParagraphPropertiesSpec::new().with_default_run_properties(
+                CharacterPropertiesSpec::new()
+                    .with_size_points(32.0)
+                    .with_bold(true),
+            ),
+        );
+
+    let run = merged
+        .default_run_properties()
+        .expect("default run properties");
+    assert_eq!(run.size_points(), Some(28.0));
+    assert_eq!(run.is_bold(), Some(true));
+}
+
 #[test]
 fn no_bullet_is_an_override_not_an_absence() {
     let spec = ParagraphPropertiesSpec::new().without_bullet();
