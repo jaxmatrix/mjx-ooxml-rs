@@ -175,87 +175,38 @@ pub(crate) fn attr_value<'a>(
 }
 
 /// Resolves a relationship `target` relative to the package root (base directory `/`).
+///
+/// Part-name algebra lives in [`PartName`]; this only restates the failure in PresentationML terms.
 pub(crate) fn resolve_from_root(target: &str) -> Result<PartName, PptxError> {
-    resolve_in_dir("/", target)
+    PartName::resolve_from_root(target).map_err(|err| target_error(err, target))
 }
 
 /// Resolves a relationship `target` relative to `source`'s directory to an absolute [`PartName`].
 pub(crate) fn resolve_target(source: &PartName, target: &str) -> Result<PartName, PptxError> {
-    let source = source.as_str();
-    // `source` is absolute, so there is always a leading '/'; include it in the base directory.
-    let dir_end = source.rfind('/').map_or(0, |idx| idx + 1);
-    resolve_in_dir(&source[..dir_end], target)
+    source
+        .resolve(target)
+        .map_err(|err| target_error(err, target))
 }
 
 /// The relationship target to write in `source`'s `.rels` so that it resolves to `target` — the
 /// inverse of [`resolve_target`].
-///
-/// The result is relative to `source`'s directory, with one `..` segment per directory level that has
-/// to be climbed (`/ppt/slides/slide1.xml` → `/ppt/media/image1.png` = `../media/image1.png`). This is
-/// the form Office writes, and it keeps a part relocatable with its neighbours.
 pub(crate) fn relative_target(source: &PartName, target: &PartName) -> String {
-    let source_dirs: Vec<&str> = path_segments(source.as_str());
-    let target_dirs: Vec<&str> = path_segments(target.as_str());
-    // Both are absolute part names, so the last segment is the file name, not a directory.
-    let source_depth = source_dirs.len() - 1;
-    let shared = source_dirs
-        .iter()
-        .take(source_depth)
-        .zip(target_dirs.iter())
-        .take_while(|(a, b)| a == b)
-        .count();
-    let mut out = String::new();
-    for _ in shared..source_depth {
-        out.push_str("../");
-    }
-    for segment in &target_dirs[shared..] {
-        out.push_str(segment);
-        out.push('/');
-    }
-    out.pop(); // the trailing '/' after the file name
-    out
+    source.relative_target(target)
 }
 
-/// The non-empty `/`-separated segments of an absolute part name.
-fn path_segments(part: &str) -> Vec<&str> {
-    part.split('/').filter(|s| !s.is_empty()).collect()
-}
-
-fn resolve_in_dir(base_dir: &str, target: &str) -> Result<PartName, PptxError> {
-    if is_external(target) {
-        return Err(PptxError::ExternalTarget {
+/// Restates an OPC target-resolution failure as the PresentationML error naming the same target.
+fn target_error(err: mjx_opc::OpcError, target: &str) -> PptxError {
+    match err {
+        mjx_opc::OpcError::ExternalTarget(_) => PptxError::ExternalTarget {
             target: target.to_owned(),
-        });
-    }
-    let joined = if target.starts_with('/') {
-        target.to_owned()
-    } else {
-        format!("{base_dir}{target}")
-    };
-    let normalized = normalize(&joined).ok_or_else(|| PptxError::TargetResolution {
-        target: target.to_owned(),
-    })?;
-    PartName::new(&normalized).map_err(PptxError::from)
-}
-
-/// Whether a target points outside the package (an absolute URI).
-fn is_external(target: &str) -> bool {
-    target.contains("://") || target.starts_with("//")
-}
-
-/// Normalizes an absolute path, folding `.` and `..` segments. Returns `None` if `..` escapes the root.
-fn normalize(path: &str) -> Option<String> {
-    let mut segments: Vec<&str> = Vec::new();
-    for segment in path.split('/') {
-        match segment {
-            "" | "." => {}
-            ".." => {
-                segments.pop()?;
+        },
+        mjx_opc::OpcError::TargetResolution(_) | mjx_opc::OpcError::Malformed(_) => {
+            PptxError::TargetResolution {
+                target: target.to_owned(),
             }
-            other => segments.push(other),
         }
+        other => PptxError::from(other),
     }
-    Some(format!("/{}", segments.join("/")))
 }
 
 #[cfg(test)]
@@ -268,90 +219,19 @@ mod tests {
         PartName::new(name).expect("valid part name")
     }
 
+    // The part-name algebra itself is tested in `mjx_opc::name`; what matters here is that a
+    // failure arrives as the PresentationML error naming the offending target.
     #[test]
-    fn resolve_relative_simple() {
-        let resolved = resolve_target(&part("/ppt/presentation.xml"), "slides/slide1.xml").unwrap();
-        assert_eq!(resolved.as_str(), "/ppt/slides/slide1.xml");
-    }
-
-    #[test]
-    fn resolve_with_dotdot() {
-        let resolved = resolve_target(
-            &part("/ppt/slides/slide1.xml"),
-            "../slideLayouts/slideLayout1.xml",
-        )
-        .unwrap();
-        assert_eq!(resolved.as_str(), "/ppt/slideLayouts/slideLayout1.xml");
-    }
-
-    #[test]
-    fn resolve_from_root_prepends_slash() {
-        assert_eq!(
-            resolve_from_root("ppt/presentation.xml").unwrap().as_str(),
-            "/ppt/presentation.xml"
-        );
-    }
-
-    #[test]
-    fn resolve_rejects_root_escape() {
+    fn resolve_restates_failures_in_presentationml_terms() {
         let err = resolve_target(&part("/a/b.xml"), "../../x").unwrap_err();
         assert!(matches!(err, PptxError::TargetResolution { .. }), "{err:?}");
-    }
 
-    #[test]
-    fn resolve_rejects_external() {
         let err =
             resolve_target(&part("/ppt/presentation.xml"), "http://example.com/x").unwrap_err();
         assert!(matches!(err, PptxError::ExternalTarget { .. }), "{err:?}");
-    }
 
-    #[test]
-    fn relative_target_climbs_to_a_sibling_directory() {
-        let target = relative_target(
-            &part("/ppt/slides/slide1.xml"),
-            &part("/ppt/media/image1.png"),
-        );
-        assert_eq!(target, "../media/image1.png");
-    }
-
-    #[test]
-    fn relative_target_handles_same_and_deeper_directories() {
-        assert_eq!(
-            relative_target(
-                &part("/ppt/slides/slide1.xml"),
-                &part("/ppt/slides/slide2.xml")
-            ),
-            "slide2.xml"
-        );
-        assert_eq!(
-            relative_target(
-                &part("/ppt/presentation.xml"),
-                &part("/ppt/slides/slide2.xml")
-            ),
-            "slides/slide2.xml"
-        );
-        assert_eq!(
-            relative_target(&part("/ppt/slides/slide1.xml"), &part("/docProps/app.xml")),
-            "../../docProps/app.xml"
-        );
-    }
-
-    #[test]
-    fn relative_target_is_the_inverse_of_resolve_target() {
-        for (source, target) in [
-            ("/ppt/slides/slide1.xml", "/ppt/media/image1.png"),
-            ("/ppt/presentation.xml", "/ppt/slides/slide2.xml"),
-            ("/ppt/slides/slide1.xml", "/docProps/app.xml"),
-            ("/a.xml", "/b.xml"),
-        ] {
-            let (source, target) = (part(source), part(target));
-            let relative = relative_target(&source, &target);
-            assert_eq!(
-                resolve_target(&source, &relative).unwrap(),
-                target,
-                "round trip failed for {relative}"
-            );
-        }
+        let resolved = resolve_target(&part("/ppt/presentation.xml"), "slides/slide1.xml").unwrap();
+        assert_eq!(resolved.as_str(), "/ppt/slides/slide1.xml");
     }
 
     #[test]

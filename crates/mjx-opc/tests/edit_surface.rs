@@ -418,6 +418,95 @@ fn insert_part_adds_no_override_when_a_default_covers_it() {
     assert_eq!(pkg.content_type_of(&new), Some("application/xml"));
 }
 
+/// Wires `source` → `target` with a fresh relationship id, resolving the target relative to `source`.
+fn relate(pkg: &mut Package, source: &PartName, target: &PartName, id: &str) {
+    pkg.add_relationship(
+        Some(source),
+        Relationship {
+            id: id.to_owned(),
+            rel_type: "http://example.com/test".to_owned(),
+            target: source.relative_target(target),
+            mode: TargetMode::Internal,
+        },
+    )
+    .expect("relate");
+}
+
+#[test]
+fn cascading_removal_takes_exclusive_targets_and_spares_shared_ones() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    let slide = part("/ppt/slides/slide1.xml");
+    let notes = part("/ppt/notesSlides/notesSlide1.xml");
+    let exclusive = part("/ppt/media/only-here.png");
+    let shared = part("/ppt/media/everywhere.png");
+
+    for (new, ct) in [
+        (
+            &notes,
+            "application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml",
+        ),
+        (&exclusive, "image/png"),
+        (&shared, "image/png"),
+    ] {
+        pkg.insert_part(new, ct, b"x".to_vec()).expect("insert");
+    }
+    // The slide reaches all three; the notes slide points back at the slide (the dangling-reference
+    // case); the presentation also shows the shared image.
+    relate(&mut pkg, &slide, &notes, "rId90");
+    relate(&mut pkg, &slide, &exclusive, "rId91");
+    relate(&mut pkg, &slide, &shared, "rId92");
+    relate(&mut pkg, &notes, &slide, "rId1");
+    relate(&mut pkg, &part("/ppt/presentation.xml"), &shared, "rId90");
+
+    let removed = pkg.remove_part_cascading(&slide).expect("cascade");
+
+    assert!(removed.contains(&slide) && removed.contains(&notes) && removed.contains(&exclusive));
+    assert_eq!(removed[0], slide, "the requested part goes first");
+    assert!(!removed.contains(&shared));
+    assert!(pkg.part_bytes(&notes).is_none(), "orphan notes slide kept");
+    assert!(pkg.part_bytes(&exclusive).is_none(), "orphan image kept");
+    assert!(
+        pkg.part_bytes(&shared).is_some(),
+        "an image the presentation still shows must survive"
+    );
+    // Nothing dangles: the removed parts' own .rels went with them.
+    assert!(pkg
+        .relationships()
+        .iter()
+        .all(|r| r.source.as_ref() != Some(&slide) && r.source.as_ref() != Some(&notes)));
+    Package::open(&pkg.save().expect("save")).expect("reopen");
+}
+
+#[test]
+fn cascading_removal_terminates_on_a_reference_cycle() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    let a = part("/ppt/cycle/a.xml");
+    let b = part("/ppt/cycle/b.xml");
+    for new in [&a, &b] {
+        pkg.insert_part(new, "application/xml", b"<x/>".to_vec())
+            .expect("insert");
+    }
+    relate(&mut pkg, &a, &b, "rId1");
+    relate(&mut pkg, &b, &a, "rId1");
+
+    let removed = pkg.remove_part_cascading(&a).expect("cascade");
+    assert_eq!(removed.len(), 2, "each part is removed exactly once");
+    assert!(pkg.part_bytes(&a).is_none() && pkg.part_bytes(&b).is_none());
+}
+
+#[test]
+fn cascading_removal_of_an_unknown_part_is_rejected() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let err = pkg
+        .remove_part_cascading(&part("/ppt/slides/slide9.xml"))
+        .expect_err("no such part");
+    assert!(matches!(err, mjx_opc::OpcError::UnknownPart(_)), "{err:?}");
+}
+
 #[test]
 fn remove_part_drops_entry_override_and_rels() {
     let bytes = fixture("sample.pptx");
