@@ -34,7 +34,7 @@ use mjx_ooxml_types::support::on_off;
 
 use crate::build::{
     attr_str, dml_child, fidelity_element_impls, first_color_child, first_fill_child,
-    parse_percentage, set_attr,
+    parse_percentage, replace_or_insert_child, set_attr,
 };
 use crate::color::{Color, ColorSpec};
 use crate::effect::{EffectList, EffectListSpec};
@@ -324,57 +324,16 @@ impl CharacterProperties {
     }
 
     /// Replaces the first child element whose local name satisfies `matches` with `element`, keeping
-    /// its position; inserts it **in schema order** when there is none.
+    /// its position; inserts it in `CT_TextCharacterProperties` order when there is none.
     fn replace_child(
         &mut self,
         interner: &Interner,
         element: RawElement,
         matches: impl Fn(&str) -> bool,
     ) {
-        let existing = self.children.iter().position(|node| match node {
-            RawNode::Element(child) => {
-                crate::build::is_dml(&child.name, interner)
-                    && matches(interner.resolve(child.name.local))
-            }
-            _ => false,
-        });
-        match existing {
-            Some(index) => self.children[index] = RawNode::Element(element),
-            None => {
-                let at = self.insertion_point(interner, sequence_rank(interner, &element));
-                self.children.insert(at, RawNode::Element(element));
-            }
-        }
+        replace_or_insert_child(&mut self.children, interner, element, matches, known_rank);
         self.empty = false;
     }
-
-    /// Where a child of sequence `rank` belongs: just after the last child that sorts before or with
-    /// it, or at the front when there is none.
-    ///
-    /// `CT_TextCharacterProperties` is an `xsd:sequence`, so child order is validity, not style — a
-    /// fill written before the `a:ln` it belongs after makes the run unreadable to Office. Children
-    /// this model does not recognize are ignored when choosing the point rather than treated as a
-    /// boundary, so a new child lands beside its ranked neighbours.
-    fn insertion_point(&self, interner: &Interner, rank: usize) -> usize {
-        let mut at = 0;
-        for (index, node) in self.children.iter().enumerate() {
-            if let RawNode::Element(child) = node {
-                if crate::build::is_dml(&child.name, interner) {
-                    match known_rank(interner.resolve(child.name.local)) {
-                        Some(existing) if existing <= rank => at = index + 1,
-                        Some(_) => break,
-                        None => {}
-                    }
-                }
-            }
-        }
-        at
-    }
-}
-
-/// The `CT_TextCharacterProperties` sequence position of an element, for ordered insertion.
-fn sequence_rank(interner: &Interner, element: &RawElement) -> usize {
-    known_rank(interner.resolve(element.name.local)).unwrap_or(UNKNOWN_RANK)
 }
 
 /// Children this model may write, in schema order. Anything else sorts last.
@@ -398,9 +357,6 @@ fn known_rank(local: &str) -> Option<usize> {
     };
     Some(rank)
 }
-
-/// Sorts after every element the model knows how to place.
-const UNKNOWN_RANK: usize = usize::MAX;
 
 fidelity_element_impls!(CharacterProperties);
 
