@@ -93,6 +93,75 @@ impl LineWidth {
     }
 }
 
+/// Hundredths of a point — the unit DrawingML measures text in (`sz="4400"` is 44 pt).
+const HUNDREDTHS_PER_POINT: f64 = 100.0;
+
+/// A font size, stored in **hundredths of a point** (`a:rPr@sz`, `ST_TextFontSize`; the spec's range
+/// is `100..=400000`, i.e. 1 pt to 4000 pt).
+///
+/// Construct from and read as points or the raw wire units — every font-size UI in the world is in
+/// points, while the file stores hundredths, and confusing the two is a factor-of-100 bug.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct FontSize(i32);
+
+impl FontSize {
+    /// Wraps a size given in hundredths of a point — the value exactly as written on the wire.
+    #[must_use]
+    pub const fn from_hundredths_of_a_point(hundredths: i32) -> Self {
+        Self(hundredths)
+    }
+
+    /// The size in hundredths of a point, as written on the wire.
+    #[must_use]
+    pub const fn hundredths_of_a_point(self) -> i32 {
+        self.0
+    }
+
+    /// Wraps a size given in points (`18.0` → `1800`), rounded to the nearest hundredth.
+    #[must_use]
+    pub fn from_points(points: f64) -> Self {
+        Self((points * HUNDREDTHS_PER_POINT).round() as i32)
+    }
+
+    /// The size in points.
+    #[must_use]
+    pub fn points(self) -> f64 {
+        f64::from(self.0) / HUNDREDTHS_PER_POINT
+    }
+}
+
+/// A text measurement in **hundredths of a point** that is not a font size — character spacing
+/// (`a:rPr@spc`, `ST_TextPoint`, which may be negative to tighten) and kerning threshold
+/// (`a:rPr@kern`, `ST_TextNonNegativePoint`). Both are bounded to ±4000 pt by the schema.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TextPoint(i32);
+
+impl TextPoint {
+    /// Wraps a measurement given in hundredths of a point — the value exactly as written on the wire.
+    #[must_use]
+    pub const fn from_hundredths_of_a_point(hundredths: i32) -> Self {
+        Self(hundredths)
+    }
+
+    /// The measurement in hundredths of a point, as written on the wire.
+    #[must_use]
+    pub const fn hundredths_of_a_point(self) -> i32 {
+        self.0
+    }
+
+    /// Wraps a measurement given in points, rounded to the nearest hundredth.
+    #[must_use]
+    pub fn from_points(points: f64) -> Self {
+        Self((points * HUNDREDTHS_PER_POINT).round() as i32)
+    }
+
+    /// The measurement in points.
+    #[must_use]
+    pub fn points(self) -> f64 {
+        f64::from(self.0) / HUNDREDTHS_PER_POINT
+    }
+}
+
 /// A general length in **English Metric Units** (`914400` EMU per inch, `12700` per point) — the
 /// spec's `ST_Coordinate`/`ST_PositiveCoordinate` family. Used by the effect measures (a blur/shadow
 /// radius, a shadow distance, a soft-edge radius) that carry a raw EMU length with no dedicated
