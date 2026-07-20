@@ -58,4 +58,7 @@ pub use text::{
     RunContent, TabAlignment, TabStop, Text, TextAlignment, TextBody, TextBodyContent,
     TextCapitalization, TextFont, TextListStyle, TextRun, TextSpacing, TextStrike, TextUnderline,
 };
-pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};
+pub use theme::{
+    ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot, SupplementalFont,
+    Theme, ThemeFontReference, ThemeInfo,
+};

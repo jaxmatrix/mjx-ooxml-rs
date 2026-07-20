@@ -7,6 +7,8 @@
 use mjx_ooxml_core::{Interner, RawAttribute, RawElement};
 
 use crate::build::{attr_str, dml_attr, dml_element};
+use crate::text::FontSlot;
+use crate::theme::{FontSchemeSlot, ThemeFontReference};
 
 /// A typeface reference (`CT_TextFont`) — the font a run asks for.
 ///
@@ -44,6 +46,26 @@ impl TextFont {
     #[must_use]
     pub fn is_theme_reference(&self) -> bool {
         self.typeface.starts_with('+')
+    }
+
+    /// This typeface parsed as a theme font reference — the font-scheme collection and script slot it
+    /// names — or `None` for a literal font name or an unrecognized `+…` spelling.
+    ///
+    /// The six spellings the schema defines are matched exactly: `+mj-lt`, `+mj-ea`, `+mj-cs` for the
+    /// major (heading) collection and `+mn-lt`, `+mn-ea`, `+mn-cs` for the minor (body) one. There is
+    /// no `+…-sym`, because a font collection has no symbol font.
+    #[must_use]
+    pub fn theme_reference(&self) -> Option<ThemeFontReference> {
+        let (collection, slot) = match self.typeface.as_str() {
+            "+mj-lt" => (FontSchemeSlot::Major, FontSlot::Latin),
+            "+mj-ea" => (FontSchemeSlot::Major, FontSlot::EastAsian),
+            "+mj-cs" => (FontSchemeSlot::Major, FontSlot::ComplexScript),
+            "+mn-lt" => (FontSchemeSlot::Minor, FontSlot::Latin),
+            "+mn-ea" => (FontSchemeSlot::Minor, FontSlot::EastAsian),
+            "+mn-cs" => (FontSchemeSlot::Minor, FontSlot::ComplexScript),
+            _ => return None,
+        };
+        Some(ThemeFontReference { collection, slot })
     }
 
     /// Reads a `CT_TextFont` element (`a:latin`, `a:ea`, `a:cs`, `a:sym`, `a:buFont`, or a font-scheme
