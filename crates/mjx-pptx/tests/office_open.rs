@@ -17,7 +17,7 @@ use mjx_dml::{
     PatternType, PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_pptx::{Presentation, ShapeBounds};
+use mjx_pptx::{Presentation, ShapeBounds, Surface};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -410,4 +410,19 @@ fn layouts_fixture_opens() {
     // must itself be a valid deck a real Office implementation opens, before anything is asserted
     // about reading it.
     let _ = convert_opens(&fixture("layouts.pptx"), "layouts_baseline");
+}
+
+#[test]
+fn deck_with_an_edited_layout_opens() {
+    // Fills the *layout's* title placeholder and checks the deck opens — the slides built on that
+    // layout inherit the fill, which is the point of addressing a layout at all.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    pres.set_shape_fill(
+        Surface::Layout(1),
+        0,
+        &FillSpec::solid(ColorSpec::Srgb("C00000".into())),
+    )
+    .expect("fill the layout's title");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "edited_layout");
 }
