@@ -1846,6 +1846,575 @@ impl core::str::FromStr for CompoundLine {
     }
 }
 
+/// `ST_TextAutonumberScheme` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum AutonumberScheme {
+    /// Wire value `alphaLcParenBoth`.
+    LowercaseLetterParenthesesBoth,
+    /// Wire value `alphaUcParenBoth`.
+    UppercaseLetterParenthesesBoth,
+    /// Wire value `alphaLcParenR`.
+    LowercaseLetterParenthesisRight,
+    /// Wire value `alphaUcParenR`.
+    UppercaseLetterParenthesisRight,
+    /// Wire value `alphaLcPeriod`.
+    LowercaseLetterPeriod,
+    /// Wire value `alphaUcPeriod`.
+    UppercaseLetterPeriod,
+    /// Wire value `arabicParenBoth`.
+    ArabicParenthesesBoth,
+    /// Wire value `arabicParenR`.
+    ArabicParenthesisRight,
+    /// Wire value `arabicPeriod`.
+    ArabicPeriod,
+    /// Wire value `arabicPlain`.
+    ArabicPlain,
+    /// Wire value `romanLcParenBoth`.
+    LowercaseRomanParenthesesBoth,
+    /// Wire value `romanUcParenBoth`.
+    UppercaseRomanParenthesesBoth,
+    /// Wire value `romanLcParenR`.
+    LowercaseRomanParenthesisRight,
+    /// Wire value `romanUcParenR`.
+    UppercaseRomanParenthesisRight,
+    /// Wire value `romanLcPeriod`.
+    LowercaseRomanPeriod,
+    /// Wire value `romanUcPeriod`.
+    UppercaseRomanPeriod,
+    /// Wire value `circleNumDbPlain`.
+    DoubleByteCircledNumberPlain,
+    /// Wire value `circleNumWdBlackPlain`.
+    WingdingsBlackCircledNumberPlain,
+    /// Wire value `circleNumWdWhitePlain`.
+    WingdingsWhiteCircledNumberPlain,
+    /// Wire value `arabicDbPeriod`.
+    DoubleByteArabicPeriod,
+    /// Wire value `arabicDbPlain`.
+    DoubleByteArabicPlain,
+    /// Wire value `ea1ChsPeriod`.
+    SimplifiedChinesePeriod,
+    /// Wire value `ea1ChsPlain`.
+    SimplifiedChinesePlain,
+    /// Wire value `ea1ChtPeriod`.
+    TraditionalChinesePeriod,
+    /// Wire value `ea1ChtPlain`.
+    TraditionalChinesePlain,
+    /// Wire value `ea1JpnChsDbPeriod`.
+    JapaneseDoubleBytePeriod,
+    /// Wire value `ea1JpnKorPlain`.
+    JapaneseKoreanPlain,
+    /// Wire value `ea1JpnKorPeriod`.
+    JapaneseKoreanPeriod,
+    /// Wire value `arabic1Minus`.
+    BidirectionalArabicAlphabeticMinus,
+    /// Wire value `arabic2Minus`.
+    BidirectionalArabicAbjadMinus,
+    /// Wire value `hebrew2Minus`.
+    BidirectionalHebrewMinus,
+    /// Wire value `thaiAlphaPeriod`.
+    ThaiLetterPeriod,
+    /// Wire value `thaiAlphaParenR`.
+    ThaiLetterParenthesisRight,
+    /// Wire value `thaiAlphaParenBoth`.
+    ThaiLetterParenthesesBoth,
+    /// Wire value `thaiNumPeriod`.
+    ThaiNumberPeriod,
+    /// Wire value `thaiNumParenR`.
+    ThaiNumberParenthesisRight,
+    /// Wire value `thaiNumParenBoth`.
+    ThaiNumberParenthesesBoth,
+    /// Wire value `hindiAlphaPeriod`.
+    HindiVowelPeriod,
+    /// Wire value `hindiNumPeriod`.
+    HindiNumberPeriod,
+    /// Wire value `hindiNumParenR`.
+    HindiNumberParenthesisRight,
+    /// Wire value `hindiAlpha1Period`.
+    HindiConsonantPeriod,
+}
+
+impl AutonumberScheme {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "alphaLcParenBoth" => Self::LowercaseLetterParenthesesBoth,
+            "alphaUcParenBoth" => Self::UppercaseLetterParenthesesBoth,
+            "alphaLcParenR" => Self::LowercaseLetterParenthesisRight,
+            "alphaUcParenR" => Self::UppercaseLetterParenthesisRight,
+            "alphaLcPeriod" => Self::LowercaseLetterPeriod,
+            "alphaUcPeriod" => Self::UppercaseLetterPeriod,
+            "arabicParenBoth" => Self::ArabicParenthesesBoth,
+            "arabicParenR" => Self::ArabicParenthesisRight,
+            "arabicPeriod" => Self::ArabicPeriod,
+            "arabicPlain" => Self::ArabicPlain,
+            "romanLcParenBoth" => Self::LowercaseRomanParenthesesBoth,
+            "romanUcParenBoth" => Self::UppercaseRomanParenthesesBoth,
+            "romanLcParenR" => Self::LowercaseRomanParenthesisRight,
+            "romanUcParenR" => Self::UppercaseRomanParenthesisRight,
+            "romanLcPeriod" => Self::LowercaseRomanPeriod,
+            "romanUcPeriod" => Self::UppercaseRomanPeriod,
+            "circleNumDbPlain" => Self::DoubleByteCircledNumberPlain,
+            "circleNumWdBlackPlain" => Self::WingdingsBlackCircledNumberPlain,
+            "circleNumWdWhitePlain" => Self::WingdingsWhiteCircledNumberPlain,
+            "arabicDbPeriod" => Self::DoubleByteArabicPeriod,
+            "arabicDbPlain" => Self::DoubleByteArabicPlain,
+            "ea1ChsPeriod" => Self::SimplifiedChinesePeriod,
+            "ea1ChsPlain" => Self::SimplifiedChinesePlain,
+            "ea1ChtPeriod" => Self::TraditionalChinesePeriod,
+            "ea1ChtPlain" => Self::TraditionalChinesePlain,
+            "ea1JpnChsDbPeriod" => Self::JapaneseDoubleBytePeriod,
+            "ea1JpnKorPlain" => Self::JapaneseKoreanPlain,
+            "ea1JpnKorPeriod" => Self::JapaneseKoreanPeriod,
+            "arabic1Minus" => Self::BidirectionalArabicAlphabeticMinus,
+            "arabic2Minus" => Self::BidirectionalArabicAbjadMinus,
+            "hebrew2Minus" => Self::BidirectionalHebrewMinus,
+            "thaiAlphaPeriod" => Self::ThaiLetterPeriod,
+            "thaiAlphaParenR" => Self::ThaiLetterParenthesisRight,
+            "thaiAlphaParenBoth" => Self::ThaiLetterParenthesesBoth,
+            "thaiNumPeriod" => Self::ThaiNumberPeriod,
+            "thaiNumParenR" => Self::ThaiNumberParenthesisRight,
+            "thaiNumParenBoth" => Self::ThaiNumberParenthesesBoth,
+            "hindiAlphaPeriod" => Self::HindiVowelPeriod,
+            "hindiNumPeriod" => Self::HindiNumberPeriod,
+            "hindiNumParenR" => Self::HindiNumberParenthesisRight,
+            "hindiAlpha1Period" => Self::HindiConsonantPeriod,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::LowercaseLetterParenthesesBoth => "alphaLcParenBoth",
+            Self::UppercaseLetterParenthesesBoth => "alphaUcParenBoth",
+            Self::LowercaseLetterParenthesisRight => "alphaLcParenR",
+            Self::UppercaseLetterParenthesisRight => "alphaUcParenR",
+            Self::LowercaseLetterPeriod => "alphaLcPeriod",
+            Self::UppercaseLetterPeriod => "alphaUcPeriod",
+            Self::ArabicParenthesesBoth => "arabicParenBoth",
+            Self::ArabicParenthesisRight => "arabicParenR",
+            Self::ArabicPeriod => "arabicPeriod",
+            Self::ArabicPlain => "arabicPlain",
+            Self::LowercaseRomanParenthesesBoth => "romanLcParenBoth",
+            Self::UppercaseRomanParenthesesBoth => "romanUcParenBoth",
+            Self::LowercaseRomanParenthesisRight => "romanLcParenR",
+            Self::UppercaseRomanParenthesisRight => "romanUcParenR",
+            Self::LowercaseRomanPeriod => "romanLcPeriod",
+            Self::UppercaseRomanPeriod => "romanUcPeriod",
+            Self::DoubleByteCircledNumberPlain => "circleNumDbPlain",
+            Self::WingdingsBlackCircledNumberPlain => "circleNumWdBlackPlain",
+            Self::WingdingsWhiteCircledNumberPlain => "circleNumWdWhitePlain",
+            Self::DoubleByteArabicPeriod => "arabicDbPeriod",
+            Self::DoubleByteArabicPlain => "arabicDbPlain",
+            Self::SimplifiedChinesePeriod => "ea1ChsPeriod",
+            Self::SimplifiedChinesePlain => "ea1ChsPlain",
+            Self::TraditionalChinesePeriod => "ea1ChtPeriod",
+            Self::TraditionalChinesePlain => "ea1ChtPlain",
+            Self::JapaneseDoubleBytePeriod => "ea1JpnChsDbPeriod",
+            Self::JapaneseKoreanPlain => "ea1JpnKorPlain",
+            Self::JapaneseKoreanPeriod => "ea1JpnKorPeriod",
+            Self::BidirectionalArabicAlphabeticMinus => "arabic1Minus",
+            Self::BidirectionalArabicAbjadMinus => "arabic2Minus",
+            Self::BidirectionalHebrewMinus => "hebrew2Minus",
+            Self::ThaiLetterPeriod => "thaiAlphaPeriod",
+            Self::ThaiLetterParenthesisRight => "thaiAlphaParenR",
+            Self::ThaiLetterParenthesesBoth => "thaiAlphaParenBoth",
+            Self::ThaiNumberPeriod => "thaiNumPeriod",
+            Self::ThaiNumberParenthesisRight => "thaiNumParenR",
+            Self::ThaiNumberParenthesesBoth => "thaiNumParenBoth",
+            Self::HindiVowelPeriod => "hindiAlphaPeriod",
+            Self::HindiNumberPeriod => "hindiNumPeriod",
+            Self::HindiNumberParenthesisRight => "hindiNumParenR",
+            Self::HindiConsonantPeriod => "hindiAlpha1Period",
+        }
+    }
+}
+
+impl core::fmt::Display for AutonumberScheme {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for AutonumberScheme {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextUnderlineType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextUnderline {
+    /// Wire value `none`.
+    None,
+    /// Wire value `words`.
+    Words,
+    /// Wire value `sng`.
+    Single,
+    /// Wire value `dbl`.
+    Double,
+    /// Wire value `heavy`.
+    Heavy,
+    /// Wire value `dotted`.
+    Dotted,
+    /// Wire value `dottedHeavy`.
+    HeavyDotted,
+    /// Wire value `dash`.
+    Dashed,
+    /// Wire value `dashHeavy`.
+    HeavyDashed,
+    /// Wire value `dashLong`.
+    LongDashed,
+    /// Wire value `dashLongHeavy`.
+    HeavyLongDashed,
+    /// Wire value `dotDash`.
+    DotDash,
+    /// Wire value `dotDashHeavy`.
+    HeavyDotDash,
+    /// Wire value `dotDotDash`.
+    DotDotDash,
+    /// Wire value `dotDotDashHeavy`.
+    HeavyDotDotDash,
+    /// Wire value `wavy`.
+    Wavy,
+    /// Wire value `wavyHeavy`.
+    HeavyWavy,
+    /// Wire value `wavyDbl`.
+    DoubleWavy,
+}
+
+impl TextUnderline {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "none" => Self::None,
+            "words" => Self::Words,
+            "sng" => Self::Single,
+            "dbl" => Self::Double,
+            "heavy" => Self::Heavy,
+            "dotted" => Self::Dotted,
+            "dottedHeavy" => Self::HeavyDotted,
+            "dash" => Self::Dashed,
+            "dashHeavy" => Self::HeavyDashed,
+            "dashLong" => Self::LongDashed,
+            "dashLongHeavy" => Self::HeavyLongDashed,
+            "dotDash" => Self::DotDash,
+            "dotDashHeavy" => Self::HeavyDotDash,
+            "dotDotDash" => Self::DotDotDash,
+            "dotDotDashHeavy" => Self::HeavyDotDotDash,
+            "wavy" => Self::Wavy,
+            "wavyHeavy" => Self::HeavyWavy,
+            "wavyDbl" => Self::DoubleWavy,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Words => "words",
+            Self::Single => "sng",
+            Self::Double => "dbl",
+            Self::Heavy => "heavy",
+            Self::Dotted => "dotted",
+            Self::HeavyDotted => "dottedHeavy",
+            Self::Dashed => "dash",
+            Self::HeavyDashed => "dashHeavy",
+            Self::LongDashed => "dashLong",
+            Self::HeavyLongDashed => "dashLongHeavy",
+            Self::DotDash => "dotDash",
+            Self::HeavyDotDash => "dotDashHeavy",
+            Self::DotDotDash => "dotDotDash",
+            Self::HeavyDotDotDash => "dotDotDashHeavy",
+            Self::Wavy => "wavy",
+            Self::HeavyWavy => "wavyHeavy",
+            Self::DoubleWavy => "wavyDbl",
+        }
+    }
+}
+
+impl core::fmt::Display for TextUnderline {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextUnderline {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextStrikeType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextStrike {
+    /// Wire value `noStrike`.
+    NoStrike,
+    /// Wire value `sngStrike`.
+    SingleStrike,
+    /// Wire value `dblStrike`.
+    DoubleStrike,
+}
+
+impl TextStrike {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "noStrike" => Self::NoStrike,
+            "sngStrike" => Self::SingleStrike,
+            "dblStrike" => Self::DoubleStrike,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::NoStrike => "noStrike",
+            Self::SingleStrike => "sngStrike",
+            Self::DoubleStrike => "dblStrike",
+        }
+    }
+}
+
+impl core::fmt::Display for TextStrike {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextStrike {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextCapsType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextCapitalization {
+    /// Wire value `none`.
+    None,
+    /// Wire value `small`.
+    Small,
+    /// Wire value `all`.
+    All,
+}
+
+impl TextCapitalization {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "none" => Self::None,
+            "small" => Self::Small,
+            "all" => Self::All,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Small => "small",
+            Self::All => "all",
+        }
+    }
+}
+
+impl core::fmt::Display for TextCapitalization {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextCapitalization {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextTabAlignType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TabAlignment {
+    /// Wire value `l`.
+    Left,
+    /// Wire value `ctr`.
+    Center,
+    /// Wire value `r`.
+    Right,
+    /// Wire value `dec`.
+    Decimal,
+}
+
+impl TabAlignment {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "l" => Self::Left,
+            "ctr" => Self::Center,
+            "r" => Self::Right,
+            "dec" => Self::Decimal,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Left => "l",
+            Self::Center => "ctr",
+            Self::Right => "r",
+            Self::Decimal => "dec",
+        }
+    }
+}
+
+impl core::fmt::Display for TabAlignment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TabAlignment {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextAlignType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextAlignment {
+    /// Wire value `l`.
+    Left,
+    /// Wire value `ctr`.
+    Center,
+    /// Wire value `r`.
+    Right,
+    /// Wire value `just`.
+    Justified,
+    /// Wire value `justLow`.
+    JustifiedLow,
+    /// Wire value `dist`.
+    Distributed,
+    /// Wire value `thaiDist`.
+    ThaiDistributed,
+}
+
+impl TextAlignment {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "l" => Self::Left,
+            "ctr" => Self::Center,
+            "r" => Self::Right,
+            "just" => Self::Justified,
+            "justLow" => Self::JustifiedLow,
+            "dist" => Self::Distributed,
+            "thaiDist" => Self::ThaiDistributed,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Left => "l",
+            Self::Center => "ctr",
+            Self::Right => "r",
+            Self::Justified => "just",
+            Self::JustifiedLow => "justLow",
+            Self::Distributed => "dist",
+            Self::ThaiDistributed => "thaiDist",
+        }
+    }
+}
+
+impl core::fmt::Display for TextAlignment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextAlignment {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextFontAlignType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FontAlignment {
+    /// Wire value `auto`.
+    Automatic,
+    /// Wire value `t`.
+    Top,
+    /// Wire value `ctr`.
+    Center,
+    /// Wire value `base`.
+    Baseline,
+    /// Wire value `b`.
+    Bottom,
+}
+
+impl FontAlignment {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "auto" => Self::Automatic,
+            "t" => Self::Top,
+            "ctr" => Self::Center,
+            "base" => Self::Baseline,
+            "b" => Self::Bottom,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Automatic => "auto",
+            Self::Top => "t",
+            Self::Center => "ctr",
+            Self::Baseline => "base",
+            Self::Bottom => "b",
+        }
+    }
+}
+
+impl core::fmt::Display for FontAlignment {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for FontAlignment {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// The user-facing adjustments of a preset shape, in `avLst` declaration order.
 ///
 /// Extracted from `presetShapeDefinitions.xml`: each is an `avLst` guide referenced by an
