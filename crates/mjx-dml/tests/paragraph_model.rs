@@ -7,9 +7,10 @@
 //! place and is pinned here.
 
 use mjx_dml::{
-    CharacterPropertiesSpec, FontAlignment, IndentLevel, Paragraph, ParagraphContent,
-    ParagraphProperties, ParagraphPropertiesSpec, TabAlignment, TabStop, TextAlignment, TextBody,
-    TextListStyle, TextSpacing,
+    AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,
+    BulletSize, BulletTypeface, CharacterPropertiesSpec, ColorSpec, FontAlignment, IndentLevel,
+    Paragraph, ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec, TabAlignment,
+    TabStop, TextAlignment, TextBody, TextFont, TextListStyle, TextSpacing,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
@@ -448,4 +449,261 @@ fn a_text_body_reaches_its_list_style() {
     );
     assert_eq!(body.paragraphs().count(), 1);
     assert_round_trips(&body, doc, fragment.as_bytes());
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bullets — four groups that inherit independently
+// ---------------------------------------------------------------------------------------------
+
+/// Parses an `a:pPr` whose body is `inner`.
+fn paragraph_properties(inner: &str) -> (ParagraphProperties, RawDocument) {
+    let fragment = format!(r#"<a:pPr xmlns:a="{A}">{inner}</a:pPr>"#);
+    parse_typed(fragment.as_bytes())
+}
+
+#[test]
+fn each_kind_of_bullet_reads_back() {
+    let (properties, doc) = paragraph_properties(r#"<a:buNone/>"#);
+    assert_eq!(properties.bullet(&doc.interner), Some(Bullet::None));
+
+    let (properties, doc) = paragraph_properties(r#"<a:buChar char="•"/>"#);
+    assert_eq!(
+        properties.bullet(&doc.interner),
+        Some(Bullet::Character(BulletCharacter::new("•")))
+    );
+
+    let (properties, doc) =
+        paragraph_properties(r#"<a:buAutoNum type="arabicPeriod" startAt="3"/>"#);
+    assert_eq!(
+        properties.bullet(&doc.interner),
+        Some(Bullet::AutoNumber(
+            AutoNumberBullet::new(AutonumberScheme::ArabicPeriod).starting_at(3)
+        ))
+    );
+
+    let (properties, doc) =
+        paragraph_properties(r#"<a:buBlip><a:blip r:embed="rId7"/></a:buBlip>"#);
+    assert_eq!(
+        properties.bullet(&doc.interner),
+        Some(Bullet::Picture(BulletPicture::new("rId7")))
+    );
+}
+
+#[test]
+fn an_autonumber_bullet_starts_at_one_by_default() {
+    let (properties, doc) = paragraph_properties(r#"<a:buAutoNum type="alphaLcParenR"/>"#);
+    let Some(Bullet::AutoNumber(auto)) = properties.bullet(&doc.interner) else {
+        panic!("expected an auto-numbered bullet");
+    };
+    assert_eq!(
+        auto.scheme,
+        AutonumberScheme::LowercaseLetterParenthesisRight
+    );
+    assert_eq!(auto.start_at, 1, "the schema default");
+
+    // …and a default `startAt` is not written back out as noise.
+    let mut interner = Interner::new();
+    let built = ParagraphPropertiesSpec::new()
+        .with_bullet(Bullet::AutoNumber(AutoNumberBullet::new(
+            AutonumberScheme::ArabicPeriod,
+        )))
+        .to_properties(&mut interner, "pPr");
+    let out = serialize_built(interner, &built);
+    assert!(out.contains(r#"type="arabicPeriod""#), "{out}");
+    assert!(
+        !out.contains("startAt"),
+        "the default should be implicit: {out}"
+    );
+}
+
+#[test]
+fn follow_the_text_is_a_decision_not_an_absence() {
+    // `<a:buClrTx/>` says "match the text". No group at all says "inherit whatever the level above
+    // decided". They are different answers and must not collapse into one.
+    let (following, doc) =
+        paragraph_properties(r#"<a:buClrTx/><a:buSzTx/><a:buFontTx/><a:buChar char="•"/>"#);
+    assert_eq!(
+        following.bullet_color(&doc.interner),
+        Some(BulletColor::FollowText)
+    );
+    assert_eq!(
+        following.bullet_size(&doc.interner),
+        Some(BulletSize::FollowText)
+    );
+    assert_eq!(
+        following.bullet_typeface(&doc.interner),
+        Some(BulletTypeface::FollowText)
+    );
+
+    let (inheriting, doc) = paragraph_properties(r#"<a:buChar char="•"/>"#);
+    assert_eq!(inheriting.bullet_color(&doc.interner), None);
+    assert_eq!(inheriting.bullet_size(&doc.interner), None);
+    assert_eq!(inheriting.bullet_typeface(&doc.interner), None);
+}
+
+#[test]
+fn bullet_sizes_read_in_both_spellings_and_write_the_spec_form() {
+    // `buSzPts` is a font size.
+    let (properties, doc) = paragraph_properties(r#"<a:buSzPts val="1400"/>"#);
+    assert_eq!(
+        properties.bullet_size(&doc.interner),
+        Some(BulletSize::points(14.0))
+    );
+
+    // The schema (and ECMA §21.1.2.4.9's example) spell the percentage `"111%"`…
+    let (properties, doc) = paragraph_properties(r#"<a:buSzPct val="111%"/>"#);
+    assert_eq!(
+        properties.bullet_size(&doc.interner),
+        Some(BulletSize::percentage(1.11))
+    );
+    // …while the integer spelling appears in the wild, so it reads too.
+    let (properties, doc) = paragraph_properties(r#"<a:buSzPct val="45000"/>"#);
+    assert_eq!(
+        properties.bullet_size(&doc.interner),
+        Some(BulletSize::percentage(0.45))
+    );
+
+    // What we write is the spec form.
+    let mut interner = Interner::new();
+    let built = ParagraphPropertiesSpec::new()
+        .with_bullet_size(BulletSize::percentage(1.11))
+        .to_properties(&mut interner, "pPr");
+    let out = serialize_built(interner, &built);
+    assert!(out.contains(r#"val="111%""#), "{out}");
+}
+
+#[test]
+fn a_multi_code_unit_bullet_glyph_survives() {
+    // `buChar@char` is an xsd:string, not a character — a `char` would truncate this.
+    let glyph = "👍🏽";
+    let mut interner = Interner::new();
+    let built = ParagraphPropertiesSpec::new()
+        .with_bullet_character(glyph)
+        .to_properties(&mut interner, "pPr");
+    let out = serialize_built(interner, &built);
+    assert!(out.contains(glyph), "{out}");
+
+    // …and reads back whole from a real fragment (the built element above has no namespace
+    // declaration of its own — it is meant to be spliced into a part that binds `a`).
+    let (properties, doc) = paragraph_properties(&format!(r#"<a:buChar char="{glyph}"/>"#));
+    assert_eq!(
+        properties.bullet(&doc.interner),
+        Some(Bullet::Character(BulletCharacter::new(glyph)))
+    );
+}
+
+#[test]
+fn a_full_bullet_specification_round_trips() {
+    let fragment = format!(
+        concat!(
+            r#"<a:pPr xmlns:a="{A}" marL="342900" indent="-342900">"#,
+            r#"<a:spcBef><a:spcPts val="600"/></a:spcBef>"#,
+            r#"<a:buClr><a:srgbClr val="C00000"/></a:buClr>"#,
+            r#"<a:buSzPct val="111%"/>"#,
+            r#"<a:buFont typeface="Wingdings" pitchFamily="2" charset="2"/>"#,
+            r#"<a:buChar char="§"/>"#,
+            r#"<a:defRPr sz="1800"/>"#,
+            r#"</a:pPr>"#
+        ),
+        A = A
+    );
+    let (properties, doc): (ParagraphProperties, _) = parse_typed(fragment.as_bytes());
+    let interner = &doc.interner;
+    assert_eq!(
+        properties.bullet_color(interner),
+        Some(BulletColor::Explicit(ColorSpec::Srgb("C00000".into())))
+    );
+    assert_eq!(
+        properties.bullet_size(interner),
+        Some(BulletSize::percentage(1.11))
+    );
+    assert_eq!(
+        properties.bullet_typeface(interner),
+        Some(BulletTypeface::Explicit(TextFont {
+            typeface: "Wingdings".into(),
+            panose: None,
+            pitch_family: Some(2),
+            charset: Some(2),
+        }))
+    );
+    assert_eq!(
+        properties.bullet(interner),
+        Some(Bullet::Character(BulletCharacter::new("§")))
+    );
+    assert_round_trips(&properties, doc, fragment.as_bytes());
+}
+
+#[test]
+fn the_four_groups_do_not_move_as_a_block() {
+    // Setting only the character must leave an inherited-from-elsewhere colour and size alone: the
+    // groups are independent, which is the whole reason they are four fields.
+    let fragment = format!(
+        concat!(
+            r#"<a:pPr xmlns:a="{A}">"#,
+            r#"<a:buClr><a:srgbClr val="C00000"/></a:buClr>"#,
+            r#"<a:buSzPct val="80%"/>"#,
+            r#"<a:buChar char="•"/>"#,
+            r#"</a:pPr>"#
+        ),
+        A = A
+    );
+    let (mut properties, mut doc): (ParagraphProperties, _) = parse_typed(fragment.as_bytes());
+    properties.apply(
+        &ParagraphPropertiesSpec::new().with_bullet_character("–"),
+        &mut doc.interner,
+    );
+    let out = serialize_edited(doc, &properties);
+
+    assert!(out.contains(r#"char="–""#), "{out}");
+    assert!(
+        !out.contains(r#"char="•""#),
+        "the old character should be gone: {out}"
+    );
+    assert!(out.contains("C00000"), "the colour was disturbed: {out}");
+    assert!(
+        out.contains(r#"val="80%""#),
+        "the size was disturbed: {out}"
+    );
+    assert_eq!(out.matches("<a:buChar").count(), 1, "duplicated: {out}");
+}
+
+#[test]
+fn a_bullet_lands_between_the_spacing_and_the_tab_stops() {
+    // The schema puts the bullet groups after spcAft and before tabLst.
+    let fragment = format!(
+        concat!(
+            r#"<a:pPr xmlns:a="{A}">"#,
+            r#"<a:spcBef><a:spcPts val="600"/></a:spcBef>"#,
+            r#"<a:tabLst><a:tab pos="914400"/></a:tabLst>"#,
+            r#"</a:pPr>"#
+        ),
+        A = A
+    );
+    let (mut properties, mut doc): (ParagraphProperties, _) = parse_typed(fragment.as_bytes());
+    properties.apply(
+        &ParagraphPropertiesSpec::new()
+            .with_bullet_character("•")
+            .with_bullet_color(BulletColor::FollowText),
+        &mut doc.interner,
+    );
+    let out = serialize_edited(doc, &properties);
+
+    let position = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    assert!(position("<a:spcBef>") < position("<a:buClrTx/>"), "{out}");
+    assert!(position("<a:buClrTx/>") < position("<a:buChar"), "{out}");
+    assert!(position("<a:buChar") < position("<a:tabLst>"), "{out}");
+}
+
+#[test]
+fn no_bullet_is_an_override_not_an_absence() {
+    let spec = ParagraphPropertiesSpec::new().without_bullet();
+    assert_eq!(spec.bullet(), Some(&Bullet::None));
+
+    let mut interner = Interner::new();
+    let built = spec.to_properties(&mut interner, "pPr");
+    let out = serialize_built(interner, &built);
+    assert!(out.contains("<a:buNone/>"), "{out}");
 }
