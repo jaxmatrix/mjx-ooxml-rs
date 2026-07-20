@@ -39,7 +39,8 @@ pub use fill::{
 };
 pub use geometry::{
     Angle, Emu, FontSize, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent,
-    LineWidth, PresetGeometry, PresetGeometryContent, ResolvedAdjustment, ShapeGeometry, TextPoint,
+    IndentLevel, LineWidth, PresetGeometry, PresetGeometryContent, ResolvedAdjustment,
+    ShapeGeometry, TextPoint,
 };
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
@@ -51,8 +52,9 @@ pub use resolve::{
 };
 pub use style::{ColorMap, StyleMatrixReference};
 pub use text::{
-    CharacterProperties, CharacterPropertiesSpec, FontSlot, Paragraph, ParagraphContent,
-    RunContent, Text, TextBody, TextBodyContent, TextCapitalization, TextFont, TextRun, TextStrike,
-    TextUnderline,
+    CharacterProperties, CharacterPropertiesSpec, FontAlignment, FontSlot, Paragraph,
+    ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec, RunContent, TabAlignment,
+    TabStop, Text, TextAlignment, TextBody, TextBodyContent, TextCapitalization, TextFont,
+    TextListStyle, TextRun, TextSpacing, TextStrike, TextUnderline,
 };
 pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};

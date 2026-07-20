@@ -42,7 +42,9 @@
 mod body;
 mod character;
 mod font;
+mod list_style;
 mod paragraph;
+mod paragraph_properties;
 mod run;
 
 pub use body::{TextBody, TextBodyContent};
@@ -51,5 +53,10 @@ pub use character::{
     TextUnderline,
 };
 pub use font::TextFont;
+pub use list_style::TextListStyle;
 pub use paragraph::{Paragraph, ParagraphContent};
+pub use paragraph_properties::{
+    FontAlignment, ParagraphProperties, ParagraphPropertiesSpec, TabAlignment, TabStop,
+    TextAlignment, TextSpacing,
+};
 pub use run::{RunContent, Text, TextRun};
