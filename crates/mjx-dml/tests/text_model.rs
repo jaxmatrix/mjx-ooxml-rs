@@ -44,10 +44,11 @@ const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 #[test]
 fn parses_typed_structure() {
     let (body, _doc): (TextBody, _) = parse_typed(TXBODY);
-    // bodyPr, lstStyle are opaque; the paragraph is typed — and order is preserved.
+    // bodyPr stays opaque; the list style and the paragraph are typed — and order is preserved.
     assert_eq!(body.content().len(), 3);
     assert!(matches!(body.content()[0], TextBodyContent::Raw(_)));
-    assert!(matches!(body.content()[1], TextBodyContent::Raw(_)));
+    assert!(matches!(body.content()[1], TextBodyContent::ListStyle(_)));
+    assert!(body.list_style().is_some());
     let TextBodyContent::Paragraph(paragraph) = &body.content()[2] else {
         panic!("third child should be a typed paragraph");
     };
