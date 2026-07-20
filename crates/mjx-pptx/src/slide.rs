@@ -43,12 +43,95 @@ pub(crate) fn sp_tree_mut<'a>(
         .ok_or(PptxError::MalformedSlide("missing p:spTree"))
 }
 
-/// The `p:sp` shape children of a shape tree, in order (skips `p:nvGrpSpPr` / `p:grpSpPr`).
+/// What kind of shape a `p:spTree` child is — the six alternatives of `CT_GroupShape`'s child choice
+/// (`EG_ShapeElements`).
+///
+/// Shapes of every kind share one index space (see [`shapes`]), so this is how a caller tells what it
+/// is addressing: a picture accepts the `p:spPr` surface (fill, outline, effects, geometry) but has no
+/// text body, a group has no `p:spPr` at all, and so on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum ShapeKind {
+    /// `p:sp` — an autoshape, text box, or placeholder (`CT_Shape`).
+    Shape,
+    /// `p:pic` — a picture (`CT_Picture`).
+    Picture,
+    /// `p:grpSp` — a group of shapes (`CT_GroupShape`). Its children are not themselves enumerated.
+    GroupShape,
+    /// `p:graphicFrame` — a frame holding a table, chart, or other graphical object
+    /// (`CT_GraphicalObjectFrame`).
+    GraphicFrame,
+    /// `p:cxnSp` — a connector between two shapes (`CT_Connector`).
+    ConnectionShape,
+    /// `p:contentPart` — a reference to an external content part (`CT_Rel`).
+    ContentPart,
+}
+
+impl ShapeKind {
+    /// The kind named by a `p:spTree` child's local name, or `None` for anything that is not a shape
+    /// (`p:nvGrpSpPr`, `p:grpSpPr`, `p:extLst`).
+    pub(crate) fn from_local(local: &str) -> Option<Self> {
+        match local {
+            "sp" => Some(Self::Shape),
+            "pic" => Some(Self::Picture),
+            "grpSp" => Some(Self::GroupShape),
+            "graphicFrame" => Some(Self::GraphicFrame),
+            "cxnSp" => Some(Self::ConnectionShape),
+            "contentPart" => Some(Self::ContentPart),
+            _ => None,
+        }
+    }
+
+    /// The element name this kind is written as, without its `p:` prefix (e.g. `pic`).
+    #[must_use]
+    pub fn wire(self) -> &'static str {
+        match self {
+            Self::Shape => "sp",
+            Self::Picture => "pic",
+            Self::GroupShape => "grpSp",
+            Self::GraphicFrame => "graphicFrame",
+            Self::ConnectionShape => "cxnSp",
+            Self::ContentPart => "contentPart",
+        }
+    }
+}
+
+/// The kind of a shape-tree child, or `None` if it is not a PresentationML shape element.
+pub(crate) fn shape_kind(element: &RawElement, interner: &Interner) -> Option<ShapeKind> {
+    let namespace = element
+        .name
+        .namespace
+        .map(|symbol| interner.resolve(symbol));
+    if namespace != Some(PML.transitional) && namespace != PML.strict {
+        return None;
+    }
+    ShapeKind::from_local(interner.resolve(element.name.local))
+}
+
+/// The shape children of a shape tree, of **every** [`ShapeKind`], in document order — one index
+/// space, so a picture is simply shape *n* on the slide.
+///
+/// Skips the tree's own `p:nvGrpSpPr` / `p:grpSpPr` / `p:extLst`, and does not descend into a
+/// `p:grpSp`: a group is one shape, its members are not separately addressable.
 pub(crate) fn shapes<'a>(
     sp_tree: &'a RawElement,
     interner: &'a Interner,
 ) -> impl Iterator<Item = &'a RawElement> {
-    nav::children(sp_tree, interner, PML, "sp")
+    sp_tree.children.iter().filter_map(move |node| match node {
+        RawNode::Element(element) if shape_kind(element, interner).is_some() => Some(element),
+        _ => None,
+    })
+}
+
+/// The `n`-th shape of a shape tree, mutably — the same index space [`shapes`] enumerates.
+pub(crate) fn nth_shape_mut<'a>(
+    sp_tree: &'a mut RawElement,
+    interner: &Interner,
+    n: usize,
+) -> Option<&'a mut RawElement> {
+    nav::nth_child_matching_mut(sp_tree, interner, n, |element, interner| {
+        shape_kind(element, interner).is_some()
+    })
 }
 
 /// A shape's `p:txBody`, if it has one.
@@ -180,10 +263,27 @@ impl Placeholder {
     }
 }
 
-/// The placeholder identity of `shape` (`p:nvSpPr > p:nvPr > p:ph`), or `None` if it is not a
-/// placeholder shape.
+/// The non-visual properties container of a shape of any kind — `p:nvSpPr` on a `p:sp`, `p:nvPicPr`
+/// on a `p:pic`, and so on. Every kind names it differently but each holds the `p:nvPr` that carries
+/// the placeholder.
+fn non_visual_properties<'a>(shape: &'a RawElement, interner: &Interner) -> Option<&'a RawElement> {
+    const CONTAINERS: [&str; 5] = [
+        "nvSpPr",
+        "nvPicPr",
+        "nvGrpSpPr",
+        "nvCxnSpPr",
+        "nvGraphicFramePr",
+    ];
+    CONTAINERS
+        .iter()
+        .find_map(|local| nav::child(shape, interner, PML, local))
+}
+
+/// The placeholder identity of `shape` (`p:nv*Pr > p:nvPr > p:ph`), or `None` if it is not a
+/// placeholder shape. Pictures and graphic frames can be placeholders too, so this accepts the
+/// non-visual container of any shape kind.
 pub(crate) fn shape_placeholder(shape: &RawElement, interner: &Interner) -> Option<Placeholder> {
-    let nv_sp_pr = nav::child(shape, interner, PML, "nvSpPr")?;
+    let nv_sp_pr = non_visual_properties(shape, interner)?;
     let nv_pr = nav::child(nv_sp_pr, interner, PML, "nvPr")?;
     let ph = nav::child(nv_pr, interner, PML, "ph")?;
     let ph_type = nav::attr_value(ph, interner, "type").unwrap_or("obj");
@@ -426,6 +526,81 @@ mod tests {
         let fragment = format!(r#"<p:sp xmlns:p="{P}" xmlns:a="{A}">{inner}</p:sp>"#);
         let doc = fidelity::parse(fragment.as_bytes()).expect("parse");
         (doc.root, doc.interner)
+    }
+
+    /// A shape tree holding one child of each interesting kind, in a deliberate order.
+    fn mixed_sp_tree() -> (RawElement, mjx_ooxml_core::Interner) {
+        element(format!(
+            concat!(
+                r#"<p:spTree xmlns:p="{P}" xmlns:a="{A}">"#,
+                r#"<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"#,
+                r#"<p:grpSpPr/>"#,
+                r#"<p:sp><p:spPr/></p:sp>"#,
+                r#"<p:pic><p:spPr/></p:pic>"#,
+                r#"<p:grpSp><p:sp><p:spPr/></p:sp><p:pic/></p:grpSp>"#,
+                r#"<p:cxnSp><p:spPr/></p:cxnSp>"#,
+                r#"<p:graphicFrame/>"#,
+                r#"<p:extLst/>"#,
+                r#"</p:spTree>"#
+            ),
+            P = P,
+            A = A
+        ))
+    }
+
+    #[test]
+    fn shapes_enumerates_every_kind_in_document_order() {
+        let (tree, interner) = mixed_sp_tree();
+        let kinds: Vec<ShapeKind> = shapes(&tree, &interner)
+            .map(|shape| shape_kind(shape, &interner).expect("a shape kind"))
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![
+                ShapeKind::Shape,
+                ShapeKind::Picture,
+                ShapeKind::GroupShape,
+                ShapeKind::ConnectionShape,
+                ShapeKind::GraphicFrame,
+            ],
+            "the group's own members must not be enumerated, and non-shape children must be skipped"
+        );
+    }
+
+    #[test]
+    fn nth_shape_mut_addresses_the_same_index_space() {
+        let (mut tree, interner) = mixed_sp_tree();
+        // Index 1 is the picture, index 3 the connector — a `p:sp`-only lookup would return neither.
+        let picture = nth_shape_mut(&mut tree, &interner, 1).expect("shape 1");
+        assert_eq!(shape_kind(picture, &interner), Some(ShapeKind::Picture));
+        let connector = nth_shape_mut(&mut tree, &interner, 3).expect("shape 3");
+        assert_eq!(
+            shape_kind(connector, &interner),
+            Some(ShapeKind::ConnectionShape)
+        );
+        assert!(nth_shape_mut(&mut tree, &interner, 5).is_none());
+    }
+
+    #[test]
+    fn shape_kind_rejects_a_same_named_element_in_another_namespace() {
+        let (foreign, interner) = element(format!(r#"<a:pic xmlns:a="{A}"/>"#));
+        assert_eq!(shape_kind(&foreign, &interner), None);
+    }
+
+    #[test]
+    fn placeholder_is_read_from_a_pictures_non_visual_container() {
+        // A picture placeholder keeps its p:ph under p:nvPicPr, not p:nvSpPr.
+        let (pic, interner) = element(format!(
+            concat!(
+                r#"<p:pic xmlns:p="{P}" xmlns:a="{A}"><p:nvPicPr><p:cNvPr id="5" name="P"/>"#,
+                r#"<p:cNvPicPr/><p:nvPr><p:ph type="pic" idx="2"/></p:nvPr></p:nvPicPr></p:pic>"#
+            ),
+            P = P,
+            A = A
+        ));
+        let ph = shape_placeholder(&pic, &interner).expect("picture placeholder");
+        assert!(!ph.title_family);
+        assert_eq!(ph.idx, 2);
     }
 
     #[test]

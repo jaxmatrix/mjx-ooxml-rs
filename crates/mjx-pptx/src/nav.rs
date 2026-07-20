@@ -68,21 +68,20 @@ pub(crate) fn children<'a>(
     })
 }
 
-/// The `n`-th child element matching `(ns, local)`, mutably.
-pub(crate) fn nth_child_mut<'a>(
+/// The `n`-th child element satisfying `predicate`, mutably. Used to reach a shape by its index in
+/// the one shape-kind-agnostic index space (see `slide::shapes`), where a plain `(namespace, local)`
+/// match is not enough.
+pub(crate) fn nth_child_matching_mut<'a>(
     parent: &'a mut RawElement,
     interner: &Interner,
-    ns: SchemaNamespace,
-    local: &str,
     n: usize,
+    predicate: impl Fn(&RawElement, &Interner) -> bool,
 ) -> Option<&'a mut RawElement> {
     parent
         .children
         .iter_mut()
         .filter_map(|node| match node {
-            RawNode::Element(element) if name_is(&element.name, interner, ns, local) => {
-                Some(element)
-            }
+            RawNode::Element(element) if predicate(element, interner) => Some(element),
             _ => None,
         })
         .nth(n)
