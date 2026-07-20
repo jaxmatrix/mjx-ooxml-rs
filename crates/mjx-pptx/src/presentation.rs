@@ -14,6 +14,7 @@ use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 use crate::error::PptxError;
 use crate::geometry::{ShapeBounds, SlideSize};
 use crate::slide::ShapeKind;
+use crate::surface::Surface;
 use crate::{build, constants, nav, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
@@ -296,7 +297,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -318,7 +319,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -350,7 +351,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -397,7 +398,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -431,7 +432,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -467,7 +468,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -512,7 +513,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -567,7 +568,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -602,7 +603,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -661,7 +662,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -698,7 +699,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             },
@@ -808,7 +809,7 @@ impl Presentation {
             let count = slide::shapes(sp_tree, &doc.interner).count();
             let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
                 PptxError::ShapeIndexOutOfRange {
-                    slide: slide_idx,
+                    surface: Surface::Slide(slide_idx),
                     index: shape_idx,
                     count,
                 },
@@ -913,7 +914,7 @@ impl Presentation {
             let count = slide::shapes(sp_tree, &doc.interner).count();
             let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
                 PptxError::ShapeIndexOutOfRange {
-                    slide: slide_idx,
+                    surface: Surface::Slide(slide_idx),
                     index: shape_idx,
                     count,
                 },
@@ -1018,7 +1019,7 @@ impl Presentation {
             let count = slide::shapes(sp_tree, &doc.interner).count();
             let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
                 PptxError::ShapeIndexOutOfRange {
-                    slide: slide_idx,
+                    surface: Surface::Slide(slide_idx),
                     index: shape_idx,
                     count,
                 },
@@ -1846,7 +1847,7 @@ fn picture_at<'a>(
         slide::shapes(sp_tree, interner)
             .nth(shape_idx)
             .ok_or(PptxError::ShapeIndexOutOfRange {
-                slide: slide_idx,
+                surface: Surface::Slide(slide_idx),
                 index: shape_idx,
                 count,
             })?;
