@@ -4,6 +4,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_opc::{Package, PartName};
 use mjx_pptx::{constants, PptxError, Presentation, ShapeBounds};
 
@@ -231,6 +232,80 @@ fn add_text_box_escapes_markup() {
         slide.contains("a&lt;b&amp;c"),
         "text must be escaped: {slide}"
     );
+}
+
+#[test]
+fn an_added_autoshape_can_be_labelled_straight_away() {
+    // `add_shape` + `set_shape_text` is the obvious two-call sequence; it used to fail because the
+    // built body had a paragraph but no run to replace.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(0, PresetShapeType::RoundedRectangle, CANARY_BOUNDS)
+        .expect("add shape");
+    pres.set_shape_text(0, idx, 0, "Label").expect("label it");
+
+    let mut reread = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(reread.shape_text(0, idx).expect("read back"), "Label");
+}
+
+#[test]
+fn an_empty_text_box_can_be_filled_afterwards() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres.add_text_box(0, "", CANARY_BOUNDS).expect("add");
+    assert_eq!(pres.shape_text(0, idx).expect("read"), "");
+    pres.set_shape_text(0, idx, 0, "Filled in")
+        .expect("fill it");
+
+    let mut reread = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(reread.shape_text(0, idx).expect("read back"), "Filled in");
+}
+
+#[test]
+fn a_blank_line_is_an_addressable_run() {
+    // One run per line, blank lines included, so run indices track lines one-for-one.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_text_box(0, "first\n\nthird", CANARY_BOUNDS)
+        .expect("add");
+    assert_eq!(pres.shape_text(0, idx).expect("read"), "first\n\nthird");
+
+    pres.set_shape_text(0, idx, 1, "second")
+        .expect("fill the blank line");
+    let mut reread = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(
+        reread.shape_text(0, idx).expect("read back"),
+        "first\nsecond\nthird"
+    );
+}
+
+#[test]
+fn filling_an_added_shape_leaves_other_parts_byte_identical() {
+    let bytes = fixture("sample.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("open baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    let idx = pres
+        .add_shape(0, PresetShapeType::Rectangle, CANARY_BOUNDS)
+        .expect("add shape");
+    pres.set_shape_text(0, idx, 0, "Label").expect("label it");
+
+    let reopened_map = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    assert_eq!(
+        snapshot.keys().collect::<Vec<_>>(),
+        reopened_map.keys().collect::<Vec<_>>(),
+        "part set changed"
+    );
+    const SLIDE: &str = "ppt/slides/slide1.xml";
+    for (name, original) in &snapshot {
+        if name == SLIDE {
+            continue;
+        }
+        assert_eq!(
+            reopened_map.get(name),
+            Some(original),
+            "part {name} must be byte-identical"
+        );
+    }
 }
 
 #[test]
