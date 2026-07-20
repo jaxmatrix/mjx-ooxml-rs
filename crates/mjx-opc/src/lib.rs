@@ -30,12 +30,14 @@
 
 mod content_types;
 mod error;
+mod media;
 mod name;
 mod package;
 mod rels;
 
 pub use content_types::{ContentTypes, Default, Override, CONTENT_TYPES_ZIP_NAME};
 pub use error::OpcError;
+pub use media::ImageFormat;
 pub use name::PartName;
 pub use package::{Package, PartBody, ZipEntry};
 pub use rels::{Relationship, Relationships, RelationshipsPart, TargetMode};
