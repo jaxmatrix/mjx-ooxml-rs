@@ -1,9 +1,10 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_effects, resolve_fill, resolve_line, BlipFill, CharacterPropertiesSpec,
-    ColorMap, EffectList, EffectListSpec, Fill, FillSpec, LineProperties, LineSpec,
-    ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody,
+    resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
+    BlipFill, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Fill, FillSpec,
+    FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties, ParagraphPropertiesSpec,
+    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody, TextFont, TextListStyle,
     Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
@@ -1551,6 +1552,289 @@ impl Presentation {
         Ok(None)
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Effective text formatting — what the text actually renders as
+    //
+    // Every reader above answers what a paragraph or run *declares*. These two answer what it
+    // *renders as*, which is a different question: a placeholder that declares nothing still has a
+    // size, and that size lives in the master's `p:txStyles`. Seven tiers, each contributing only
+    // what the tiers above left unset — see `text_style_tiers` for the walk they share.
+    // -----------------------------------------------------------------------------------------
+
+    /// The **effective** character properties of run `run_idx` — what the run actually renders as,
+    /// with every tier of inheritance resolved and its colors baked to concrete `RRGGBB`.
+    ///
+    /// Seven tiers contribute, highest priority first, each supplying only what the tiers above left
+    /// unset:
+    ///
+    /// 1. the run's own `a:rPr`;
+    /// 2. the paragraph's `a:pPr > a:defRPr`;
+    /// 3. the shape's `a:lstStyle`, at the paragraph's level;
+    /// 4. the same-slot placeholder's `a:lstStyle` on the layout, then the master;
+    /// 5. the master's `p:txStyles` — `p:titleStyle` for a title placeholder, `p:otherStyle` for the
+    ///    date/footer/slide-number slots, `p:bodyStyle` for the rest. A shape that is not a
+    ///    placeholder takes none of these;
+    /// 6. `p:defaultTextStyle` in `presentation.xml`;
+    /// 7. the theme's font scheme, for a typeface still naming `+mj-lt` / `+mn-lt`.
+    ///
+    /// The paragraph's level (`a:pPr@lvl`, [`IndentLevel::TOP`] when unstated) is read once and
+    /// selects which `a:lvlNpPr` every tier from 3 down contributes — which is why demoting a line
+    /// changes its size and bullet without anything being written to the run.
+    ///
+    /// Returns an empty spec when no tier contributes anything. Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the shape has no text body, a relationship
+    /// points outside the package, or a part is not well-formed.
+    pub fn effective_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        run_idx: usize,
+    ) -> Result<CharacterPropertiesSpec, PptxError> {
+        let surface = surface.into();
+        let scheme = self.resolved_scheme_colors(surface)?;
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+
+        // Tiers 1 and 2, and the level the rest are read at — all from the shape's own body.
+        let (level, own, paragraph_default) =
+            self.with_text_body(surface, shape_idx, |body, interner| {
+                let paragraph = nth_paragraph(body, para_idx)?;
+                let count = paragraph.runs().count();
+                let run = paragraph
+                    .runs()
+                    .nth(run_idx)
+                    .ok_or(PptxError::RunIndexOutOfRange {
+                        index: run_idx,
+                        count,
+                    })?;
+                let properties = paragraph.properties();
+                Ok((
+                    paragraph_level(body, para_idx, interner),
+                    run.properties()
+                        .map(|rpr| resolve_character_properties(rpr, &scheme, &map, None, interner))
+                        .unwrap_or_default(),
+                    properties
+                        .and_then(|ppr| ppr.default_run_properties(interner))
+                        .map(|def| {
+                            resolve_character_properties(&def, &scheme, &map, None, interner)
+                        })
+                        .unwrap_or_default(),
+                ))
+            })?;
+
+        // Tiers 3–6 contribute their level's `a:defRPr`.
+        let effective = self
+            .text_style_tiers(surface, shape_idx, level, &scheme, &map)?
+            .iter()
+            .filter_map(ParagraphPropertiesSpec::default_run_properties)
+            .fold(own.merge_under(&paragraph_default), |resolved, tier| {
+                resolved.merge_under(tier)
+            });
+
+        // Tier 7: a typeface that still names a theme font.
+        self.resolve_theme_fonts(surface, effective)
+    }
+
+    /// The **effective** paragraph properties of paragraph `para_idx` — the layout it actually
+    /// renders with, every tier of inheritance resolved.
+    ///
+    /// The same ladder as [`effective_run_properties`](Self::effective_run_properties), minus the
+    /// run-level tiers: the paragraph's own `a:pPr`, then the shape's `a:lstStyle`, the same-slot
+    /// placeholder's on the layout and master, the master's `p:txStyles`, and `p:defaultTextStyle`.
+    /// Its [`default_run_properties`](ParagraphPropertiesSpec::default_run_properties) carry the
+    /// merged `a:defRPr` of every tier, with colors baked.
+    ///
+    /// This is where a bullet comes from: a level-2 paragraph that declares nothing still answers with
+    /// the master `bodyStyle`'s `a:lvl3pPr` bullet, size and indent.
+    ///
+    /// Returns an empty spec when no tier contributes anything. Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// As [`effective_run_properties`](Self::effective_run_properties).
+    pub fn effective_paragraph_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+    ) -> Result<ParagraphPropertiesSpec, PptxError> {
+        let surface = surface.into();
+        let scheme = self.resolved_scheme_colors(surface)?;
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+
+        let (level, own) = self.with_text_body(surface, shape_idx, |body, interner| {
+            let level = paragraph_level(body, para_idx, interner);
+            let own = nth_paragraph(body, para_idx)?
+                .properties()
+                .map(|ppr| resolved_paragraph_spec(ppr, &scheme, &map, interner))
+                .unwrap_or_default();
+            Ok((level, own))
+        })?;
+
+        Ok(self
+            .text_style_tiers(surface, shape_idx, level, &scheme, &map)?
+            .iter()
+            .fold(own, |resolved, tier| resolved.merge_under(tier)))
+    }
+
+    /// Tiers 3–6 of the ladder, in order and already interner-free: the shape's own `a:lstStyle`, the
+    /// same-slot placeholder's on each ancestor part, the master's `p:txStyles`, and the
+    /// presentation's `p:defaultTextStyle` — each taken at `level`.
+    ///
+    /// One walk serves both public answers: a tier's `a:lvlNpPr` *is* the paragraph contribution, and
+    /// its `a:defRPr` is the character one.
+    fn text_style_tiers(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        level: IndentLevel,
+        scheme: &SchemeColors,
+        map: &ColorMap,
+    ) -> Result<Vec<ParagraphPropertiesSpec>, PptxError> {
+        let mut tiers = Vec::new();
+
+        // Tier 3 — the shape's own list style, and the placeholder slot the rest are matched on.
+        let placeholder = {
+            let part = self.surface_part(surface)?.clone();
+            let doc = self.package.part_tree(&part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            let count = slide::shapes(sp_tree, &doc.interner).count();
+            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+                PptxError::ShapeIndexOutOfRange {
+                    surface,
+                    index: shape_idx,
+                    count,
+                },
+            )?;
+            if let Some(txbody) = slide::shape_txbody(shape, &doc.interner) {
+                let body = TextBody::from_xml(txbody, &doc.interner)?;
+                tiers.extend(list_style_tier(
+                    body.list_style(),
+                    level,
+                    scheme,
+                    map,
+                    &doc.interner,
+                ));
+            }
+            slide::shape_placeholder(shape, &doc.interner)
+        };
+
+        // A shape that is not a placeholder inherits from no ancestor shape and takes no master text
+        // style: its text falls straight through to the presentation default.
+        if let Some(slot) = placeholder {
+            // Tier 4 — the same-slot placeholder's list style, on the layout then the master.
+            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
+                let doc = self.package.part_tree(&ancestor)?;
+                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+                let Some(shape) = slide::find_placeholder(sp_tree, slot, &doc.interner) else {
+                    continue;
+                };
+                let Some(txbody) = slide::shape_txbody(shape, &doc.interner) else {
+                    continue;
+                };
+                let body = TextBody::from_xml(txbody, &doc.interner)?;
+                tiers.extend(list_style_tier(
+                    body.list_style(),
+                    level,
+                    scheme,
+                    map,
+                    &doc.interner,
+                ));
+            }
+
+            // Tier 5 — the master's `p:txStyles`, whichever style this slot is styled by.
+            let chain = self.inheritance_chain(surface)?;
+            let master = chain
+                .last()
+                .expect("a chain always holds the surface's own part");
+            let doc = self.package.part_tree(master)?;
+            // `p:txStyles` exists only on a `p:sldMaster`, so an absent one simply means the chain
+            // never reached a master (or that master declares no text styles).
+            if let Some(styles) = nav::child(&doc.root, &doc.interner, PML, "txStyles") {
+                if let Some(named) =
+                    nav::child(styles, &doc.interner, PML, master_style_local(slot))
+                {
+                    let list_style = TextListStyle::from_xml(named, &doc.interner)?;
+                    tiers.extend(list_style_tier(
+                        Some(&list_style),
+                        level,
+                        scheme,
+                        map,
+                        &doc.interner,
+                    ));
+                }
+            }
+        }
+
+        // Tier 6 — `p:defaultTextStyle`, which applies to every shape, placeholder or not.
+        let presentation_part = self.presentation_part.clone();
+        let doc = self.package.part_tree(&presentation_part)?;
+        if let Some(default) = nav::child(&doc.root, &doc.interner, PML, "defaultTextStyle") {
+            let list_style = TextListStyle::from_xml(default, &doc.interner)?;
+            tiers.extend(list_style_tier(
+                Some(&list_style),
+                level,
+                scheme,
+                map,
+                &doc.interner,
+            ));
+        }
+
+        Ok(tiers)
+    }
+
+    /// Tier 7 — replaces any typeface still naming a theme font (`+mj-lt`, `+mn-ea`, …) with the one
+    /// the surface's theme actually names. A slot the scheme leaves undefined keeps its reference,
+    /// which is the honest answer: the file points somewhere the theme does not go.
+    fn resolve_theme_fonts(
+        &mut self,
+        surface: Surface,
+        spec: CharacterPropertiesSpec,
+    ) -> Result<CharacterPropertiesSpec, PptxError> {
+        if !FontSlot::all_slots()
+            .into_iter()
+            .any(|slot| spec.font(slot).is_some_and(TextFont::is_theme_reference))
+        {
+            return Ok(spec);
+        }
+        let Some(theme_part) = self.theme_part(surface)? else {
+            return Ok(spec);
+        };
+        let doc = self.package.part_tree(&theme_part)?;
+        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+        let Some(font_scheme) = theme.font_scheme() else {
+            return Ok(spec);
+        };
+
+        let mut resolved = spec.clone();
+        for slot in FontSlot::all_slots() {
+            let Some(font) = spec.font(slot) else {
+                continue;
+            };
+            if let Some(named) = font_scheme.resolve(font) {
+                if named != font {
+                    resolved = resolved.with_font_for(slot, named.clone());
+                }
+            }
+        }
+        Ok(resolved)
+    }
+
+    /// The surface's theme color scheme, resolved to concrete RGB — the interner-free bridge every
+    /// effective reader builds once before walking parts.
+    fn resolved_scheme_colors(&mut self, surface: Surface) -> Result<SchemeColors, PptxError> {
+        let Some(part) = self.theme_part(surface)? else {
+            return Ok(SchemeColors::default());
+        };
+        let doc = self.package.part_tree(&part)?;
+        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+        Ok(theme
+            .color_scheme()
+            .map(|scheme| SchemeColors::from_scheme(scheme, &doc.interner))
+            .unwrap_or_default())
+    }
+
     /// Appends a new rectangular text-box shape (`p:sp`) to `surface`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`). Returns the index of the new
     /// shape in the slide's one shape index space (see [`shape_count`](Self::shape_count)). Only that
@@ -2331,6 +2615,66 @@ impl Presentation {
             .and_then(|mapping| slide::parse_color_map(mapping, &doc.interner))
             .unwrap_or(base);
         Ok(Some(effective))
+    }
+}
+
+/// The level a paragraph is read at (`a:pPr@lvl`), or [`IndentLevel::TOP`] when it states none.
+///
+/// Read **once**, before the walk: it selects which `a:lvlNpPr` every list-style tier contributes, so
+/// every tier must be asked about the same level. A paragraph index past the end reads as the top
+/// level rather than failing — the caller's own index error surfaces from the tier that needs it.
+fn paragraph_level(body: &TextBody, para_idx: usize, interner: &Interner) -> IndentLevel {
+    nth_paragraph(body, para_idx)
+        .ok()
+        .and_then(|paragraph| paragraph.properties())
+        .and_then(|properties| properties.level(interner))
+        .unwrap_or(IndentLevel::TOP)
+}
+
+/// One list-style tier: the properties `list_style` defines at `level`, as an interner-free spec with
+/// its colors baked. Yields nothing when the style defines nothing there — an absent tier contributes
+/// no value rather than an empty one, so the fold stays honest about which tiers spoke.
+fn list_style_tier(
+    list_style: Option<&TextListStyle>,
+    level: IndentLevel,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    interner: &Interner,
+) -> Option<ParagraphPropertiesSpec> {
+    let properties = list_style?.level(interner, level)?;
+    Some(resolved_paragraph_spec(&properties, scheme, map, interner))
+}
+
+/// A tier's paragraph properties as an interner-free spec, with the colors of its `a:defRPr` resolved
+/// to concrete RGB (`ParagraphProperties::spec` leaves a scheme color a scheme color).
+fn resolved_paragraph_spec(
+    properties: &ParagraphProperties,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    interner: &Interner,
+) -> ParagraphPropertiesSpec {
+    let spec = properties.spec(interner);
+    match properties.default_run_properties(interner) {
+        Some(default) => spec.with_default_run_properties(resolve_character_properties(
+            &default, scheme, map, None, interner,
+        )),
+        None => spec,
+    }
+}
+
+/// Which of a master's three text styles governs a placeholder slot: titles are styled by
+/// `p:titleStyle`, the date / footer / slide-number chrome by `p:otherStyle`, and everything else —
+/// body, subtitle, object, chart, table — by `p:bodyStyle`.
+fn master_style_local(slot: slide::Placeholder) -> &'static str {
+    if slot.is_title_family() {
+        return "titleStyle";
+    }
+    match slot.kind {
+        PlaceholderType::DateAndTime
+        | PlaceholderType::Footer
+        | PlaceholderType::SlideNumber
+        | PlaceholderType::Header => "otherStyle",
+        _ => "bodyStyle",
     }
 }
 
@@ -3354,5 +3698,66 @@ mod tests {
             effective.fill,
             Some(FillSpec::Solid(mjx_dml::ColorSpec::Srgb("4472C4".into())))
         );
+    }
+
+    #[test]
+    fn a_shapes_own_list_style_beats_the_layout_and_the_master() {
+        // Tier 3 of the text ladder. A shape's `a:lstStyle` has no public setter — it is authored by
+        // the designer, not the caller — so it is injected here the way the fill tests inject theirs.
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/layouts.pptx");
+        let bytes = std::fs::read(&path)
+            .unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()));
+        let mut pres = Presentation::open(&bytes).expect("open");
+
+        // `<a:lstStyle><a:lvl1pPr algn="r"><a:defRPr sz="1400"/></a:lvl1pPr></a:lstStyle>` on the
+        // body placeholder of slide 0, replacing the empty one the fixture ships.
+        {
+            let part = pres.slide_part_checked(0).expect("slide").clone();
+            let doc = pres.package.part_tree_mut(&part).expect("part tree");
+            let RawDocument { interner, root, .. } = doc;
+            let sp_tree = slide::sp_tree_mut(root, interner).expect("spTree");
+            let sp = slide::nth_shape_mut(sp_tree, interner, 1).expect("body placeholder");
+            let tx_body = nav::child_mut(sp, interner, PML, "txBody").expect("txBody");
+
+            let def_rpr_attrs = vec![build::attr(interner, "sz", "1400")];
+            let def_rpr = build::leaf(interner, "a", DML_MAIN, "defRPr", def_rpr_attrs);
+            let lvl1_attrs = vec![build::attr(interner, "algn", "r")];
+            let lvl1 = build::node(
+                interner,
+                "a",
+                DML_MAIN,
+                "lvl1pPr",
+                lvl1_attrs,
+                vec![RawNode::Element(def_rpr)],
+            );
+            let lst_style = build::node(
+                interner,
+                "a",
+                DML_MAIN,
+                "lstStyle",
+                Vec::new(),
+                vec![RawNode::Element(lvl1)],
+            );
+            let slot = nav::child_mut(tx_body, interner, DML_MAIN, "lstStyle")
+                .expect("the fixture ships an empty a:lstStyle");
+            *slot = lst_style;
+        }
+
+        let paragraph = pres
+            .effective_paragraph_properties(0, 1, 0)
+            .expect("effective paragraph");
+        assert_eq!(paragraph.alignment(), Some(mjx_dml::TextAlignment::Right));
+        // The bullet still comes from the master: tier 3 named an alignment, not a bullet.
+        assert!(matches!(
+            paragraph.bullet(),
+            Some(mjx_dml::Bullet::Character(_))
+        ));
+
+        let run = pres
+            .effective_run_properties(0, 1, 0, 0)
+            .expect("effective run");
+        assert_eq!(run.size_points(), Some(14.0), "the shape's own size wins");
+        assert_eq!(run.is_bold(), Some(true), "still the layout's bold");
     }
 }
