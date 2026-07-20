@@ -12,6 +12,7 @@ use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
 use crate::geometry::ShapeBounds;
+use crate::slide::ShapeKind;
 use crate::{build, constants, nav, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
@@ -132,7 +133,9 @@ impl Presentation {
         self.slides.get(idx)
     }
 
-    /// The number of `p:sp` shapes on slide `slide_idx`.
+    /// The number of shapes on slide `slide_idx` — of **every** [`ShapeKind`] (autoshapes, pictures,
+    /// groups, graphic frames, connectors), in document order. A group counts as one shape; its
+    /// members are not separately addressable.
     ///
     /// # Errors
     /// Returns [`PptxError`] if the index is out of range or the slide is malformed.
@@ -143,11 +146,38 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, &doc.interner).count())
     }
 
+    /// What kind of shape `shape_idx` on slide `slide_idx` is — which of the index-addressed APIs
+    /// apply to it (a [`Picture`](ShapeKind::Picture) takes the `p:spPr` surface but has no text body;
+    /// a [`GroupShape`](ShapeKind::GroupShape) has no `p:spPr` at all).
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn shape_kind(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<ShapeKind, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        slide::shape_kind(shape, &doc.interner)
+            .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))
+    }
+
     /// The full text of shape `shape_idx` on slide `slide_idx` (paragraphs joined by `\n`).
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
-    /// text body.
+    /// text body ([`ShapeHasNoTextBody`](PptxError::ShapeHasNoTextBody) — a picture or group never
+    /// has one).
     pub fn shape_text(&mut self, slide_idx: usize, shape_idx: usize) -> Result<String, PptxError> {
         let slide_part = self.slide_part_checked(slide_idx)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
@@ -185,7 +215,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
-        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
                 slide: slide_idx,
                 index: shape_idx,
@@ -266,7 +296,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
-        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
                 slide: slide_idx,
                 index: shape_idx,
@@ -340,7 +370,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
-        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
                 slide: slide_idx,
                 index: shape_idx,
@@ -427,7 +457,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
-        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
                 slide: slide_idx,
                 index: shape_idx,
@@ -523,7 +553,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
-        let shape = nav::nth_child_mut(sp_tree, interner, PML, "sp", shape_idx).ok_or(
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
                 slide: slide_idx,
                 index: shape_idx,
@@ -907,8 +937,8 @@ impl Presentation {
 
     /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
-    /// paragraph). Returns the index of the new shape among the slide's `p:sp` shapes. Only that
-    /// slide part is marked dirty.
+    /// paragraph). Returns the index of the new shape in the slide's one shape index space (see
+    /// [`shape_count`](Self::shape_count)). Only that slide part is marked dirty.
     ///
     /// The shape is a plain text box (`p:cNvSpPr@txBox="1"`, `a:prstGeom@prst="rect"`) with no
     /// placeholder, so it renders as free-standing text. Its non-visual id (`p:cNvPr@id`) is one past
@@ -933,13 +963,13 @@ impl Presentation {
         sp_tree.children.push(RawNode::Element(shape));
         sp_tree.empty = false;
 
-        // The new shape is the last `p:sp` child.
+        // The new shape is the last child of the shape tree.
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
     /// Appends a new autoshape (`p:sp`) with the given `preset` geometry to slide `slide_idx`, laid
-    /// out at `bounds`, with an empty text body. Returns the index of the new shape among the slide's
-    /// `p:sp` shapes. Only that slide part is marked dirty.
+    /// out at `bounds`, with an empty text body. Returns the index of the new shape in the slide's one
+    /// shape index space (see [`shape_count`](Self::shape_count)). Only that slide part is marked dirty.
     ///
     /// The shape is created with the preset's default adjustments; customize them afterward with
     /// [`set_shape_geometry`](Self::set_shape_geometry). Its non-visual id (`p:cNvPr@id`) is one past
@@ -1886,7 +1916,7 @@ mod tests {
             let doc = pres.package.part_tree_mut(&part).expect("part tree");
             let RawDocument { interner, root, .. } = doc;
             let sp_tree = slide::sp_tree_mut(root, interner).expect("spTree");
-            let sp = nav::nth_child_mut(sp_tree, interner, PML, "sp", idx).expect("sp");
+            let sp = slide::nth_shape_mut(sp_tree, interner, idx).expect("sp");
             let clr_attrs = vec![build::attr(interner, "val", "accent1")];
             let clr = build::leaf(interner, "a", DML_MAIN, "schemeClr", clr_attrs);
             let ln_ref_attrs = vec![build::attr(interner, "idx", "2")];
