@@ -1248,7 +1248,18 @@ impl Presentation {
                 .target
                 .clone()
         };
+        self.insert_slide_part(&layout_target)
+    }
 
+    /// Creates an empty slide part at the end of the deck, related to the layout at `layout_target`
+    /// (a relationship target relative to the new slide part), and returns its slide index.
+    ///
+    /// This is the package work every "add a slide" entry point shares: insert the part with its
+    /// content type, synthesize its `.rels` with the slideLayout relationship, add the presentation →
+    /// slide relationship, and append a `p:sldId` to `p:sldIdLst`. Every pre-existing part other than
+    /// `presentation.xml` stays byte-identical. Shapes are added afterwards, built with the new
+    /// part's own interner.
+    fn insert_slide_part(&mut self, layout_target: &str) -> Result<usize, PptxError> {
         let new_part = self.next_slide_part()?;
         let new_rid = self.next_presentation_rid()?;
         let slide_target = nav::relative_target(&self.presentation_part, &new_part);
@@ -1265,7 +1276,7 @@ impl Presentation {
             Relationship {
                 id: "rId1".to_owned(),
                 rel_type: constants::REL_SLIDE_LAYOUT.to_owned(),
-                target: layout_target,
+                target: layout_target.to_owned(),
                 mode: TargetMode::Internal,
             },
         )?;
@@ -2072,14 +2083,12 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
     let nv_sp_pr = build_nv_sp_pr(interner, id, &format!("TextBox {id}"), true);
     let sp_pr = build_sp_pr(interner, "rect", bounds);
 
-    // p:txBody — required a:bodyPr + a:lstStyle, then one a:p per line.
-    let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
-    let lst_style = build::leaf(interner, "a", DML_MAIN, "lstStyle", Vec::new());
-    let mut tx_children = vec![RawNode::Element(body_pr), RawNode::Element(lst_style)];
-    for line in text.split('\n') {
-        tx_children.push(RawNode::Element(build_paragraph(interner, line)));
-    }
-    let tx_body = build::node(interner, "p", PML, "txBody", Vec::new(), tx_children);
+    // One a:p per line of text.
+    let paragraphs = text
+        .split('\n')
+        .map(|line| build_paragraph(interner, line))
+        .collect();
+    let tx_body = build_text_body(interner, paragraphs);
 
     build::node(
         interner,
@@ -2095,27 +2104,23 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
     )
 }
 
+/// `p:txBody` — the required `a:bodyPr` + `a:lstStyle`, then `paragraphs`.
+fn build_text_body(interner: &mut Interner, paragraphs: Vec<RawElement>) -> RawElement {
+    let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
+    let lst_style = build::leaf(interner, "a", DML_MAIN, "lstStyle", Vec::new());
+    let mut children = vec![RawNode::Element(body_pr), RawNode::Element(lst_style)];
+    children.extend(paragraphs.into_iter().map(RawNode::Element));
+    build::node(interner, "p", PML, "txBody", Vec::new(), children)
+}
+
 /// A whole `p:sp` autoshape: `nvSpPr` (no `txBox`) + `spPr` with the `prst` preset geometry + an
 /// empty `txBody` (`a:bodyPr`, `a:lstStyle`, one empty `a:p`).
 fn build_shape(interner: &mut Interner, id: u32, prst: &str, bounds: ShapeBounds) -> RawElement {
     let nv_sp_pr = build_nv_sp_pr(interner, id, &format!("Shape {id}"), false);
     let sp_pr = build_sp_pr(interner, prst, bounds);
 
-    let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
-    let lst_style = build::leaf(interner, "a", DML_MAIN, "lstStyle", Vec::new());
     let empty_p = build_paragraph(interner, "");
-    let tx_body = build::node(
-        interner,
-        "p",
-        PML,
-        "txBody",
-        Vec::new(),
-        vec![
-            RawNode::Element(body_pr),
-            RawNode::Element(lst_style),
-            RawNode::Element(empty_p),
-        ],
-    );
+    let tx_body = build_text_body(interner, vec![empty_p]);
 
     build::node(
         interner,
@@ -2223,15 +2228,7 @@ fn build_paragraph(interner: &mut Interner, line: &str) -> RawElement {
     if line.is_empty() {
         return build::leaf(interner, "a", DML_MAIN, "p", Vec::new());
     }
-    let t = build::text_leaf(interner, "a", DML_MAIN, "t", Vec::new(), line);
-    let run = build::node(
-        interner,
-        "a",
-        DML_MAIN,
-        "r",
-        Vec::new(),
-        vec![RawNode::Element(t)],
-    );
+    let run = build_run(interner, line);
     build::node(
         interner,
         "a",
@@ -2239,6 +2236,20 @@ fn build_paragraph(interner: &mut Interner, line: &str) -> RawElement {
         "p",
         Vec::new(),
         vec![RawNode::Element(run)],
+    )
+}
+
+/// One `a:r` text run carrying `text` (which may be empty — an empty run is what makes a shape
+/// fillable by [`set_shape_text`](Presentation::set_shape_text), which replaces an existing run).
+fn build_run(interner: &mut Interner, text: &str) -> RawElement {
+    let t = build::text_leaf(interner, "a", DML_MAIN, "t", Vec::new(), text);
+    build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "r",
+        Vec::new(),
+        vec![RawNode::Element(t)],
     )
 }
 
