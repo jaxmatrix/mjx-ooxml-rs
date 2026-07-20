@@ -5,7 +5,7 @@ use mjx_dml::{
     EffectListSpec, Fill, FillSpec, LineProperties, LineSpec, PresetGeometry, ResolvedColor,
     SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
 };
-use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
+use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
@@ -1071,6 +1071,44 @@ impl Presentation {
         Ok(self.slides.len() - 1)
     }
 
+    /// Appends a picture (`p:pic`) showing `bytes` to slide `slide_idx`, laid out at `bounds`.
+    /// Returns the index of the new shape in the slide's one shape index space (see
+    /// [`shape_count`](Self::shape_count)); [`shape_kind`](Self::shape_kind) reports it as
+    /// [`ShapeKind::Picture`], and the whole `p:spPr` surface — outline, effects, geometry — applies
+    /// to it like any other shape.
+    ///
+    /// The image part and its relationship are created by [`add_image`](Self::add_image), so adding
+    /// the same picture twice stores the bytes once. The image is stretched to fill `bounds`; since
+    /// nothing here decodes the image, its natural size is unknown and the caller chooses the extent
+    /// (the emitted `a:picLocks@noChangeAspect` keeps the ratio locked for later interactive resizing).
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range, the bytes match no known image format
+    /// ([`UnrecognizedImageFormat`](PptxError::UnrecognizedImageFormat)), the slide is malformed, or a
+    /// package edit fails.
+    pub fn add_picture(
+        &mut self,
+        slide_idx: usize,
+        bytes: &[u8],
+        bounds: ShapeBounds,
+    ) -> Result<usize, PptxError> {
+        // The image part and relationship first: if the bytes are not an image, nothing is edited.
+        let rel_id = self.add_image(slide_idx, bytes)?;
+
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let rel_declaration = build::relationship_prefix_declaration(root, interner);
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+
+        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let picture = build_picture(interner, next_id, &rel_id, bounds, rel_declaration);
+        sp_tree.children.push(RawNode::Element(picture));
+        sp_tree.empty = false;
+
+        Ok(slide::shapes(sp_tree, interner).count() - 1)
+    }
+
     /// Stores `bytes` as an image part of the package and relates it to slide `slide_idx`, returning
     /// the **slide-scoped relationship id** that names the image — the `rel_id` to hand to
     /// [`FillSpec::Blip`] via [`set_shape_fill`](Self::set_shape_fill).
@@ -1653,6 +1691,92 @@ fn build_shape(interner: &mut Interner, id: u32, prst: &str, bounds: ShapeBounds
             RawNode::Element(tx_body),
         ],
     )
+}
+
+/// A whole `p:pic` picture: `nvPicPr` (with `a:picLocks@noChangeAspect`) + a `p:blipFill` embedding
+/// `rel_id` stretched to the shape + `spPr` with a rectangular geometry at `bounds`.
+///
+/// `p:blipFill` is a PresentationML element of the DrawingML `CT_BlipFillProperties` type, so it is
+/// built here with the `p`-prefixed builders rather than by `mjx_dml::BlipFill::new` (which emits
+/// `a:blipFill`); reading it back does reuse `BlipFill`, whose fidelity wrapper is name-agnostic.
+/// `rel_declaration` is an `xmlns:r` declaration for the `r:embed` prefix when the slide does not
+/// already bind it (see [`build::relationship_prefix_declaration`]).
+fn build_picture(
+    interner: &mut Interner,
+    id: u32,
+    rel_id: &str,
+    bounds: ShapeBounds,
+    rel_declaration: Option<RawAttribute>,
+) -> RawElement {
+    // p:nvPicPr — cNvPr, cNvPicPr (locking the aspect ratio, as Office writes it), and an empty nvPr.
+    let cnvpr_attrs = vec![
+        build::attr(interner, "id", &id.to_string()),
+        build::attr(interner, "name", &format!("Picture {id}")),
+    ];
+    let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+    let lock_attrs = vec![build::attr(interner, "noChangeAspect", "1")];
+    let pic_locks = build::leaf(interner, "a", DML_MAIN, "picLocks", lock_attrs);
+    let c_nv_pic_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "cNvPicPr",
+        Vec::new(),
+        vec![RawNode::Element(pic_locks)],
+    );
+    let nv_pr = build::leaf(interner, "p", PML, "nvPr", Vec::new());
+    let nv_pic_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "nvPicPr",
+        Vec::new(),
+        vec![
+            RawNode::Element(c_nv_pr),
+            RawNode::Element(c_nv_pic_pr),
+            RawNode::Element(nv_pr),
+        ],
+    );
+
+    // p:blipFill — the image reference, stretched over the whole shape.
+    let rel_prefix = interner.intern(build::RELATIONSHIP_PREFIX);
+    let embed = build::attr_prefixed(interner, rel_prefix, "embed", rel_id);
+    let blip = build::leaf(interner, "a", DML_MAIN, "blip", vec![embed]);
+    let fill_rect = build::leaf(interner, "a", DML_MAIN, "fillRect", Vec::new());
+    let stretch = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "stretch",
+        Vec::new(),
+        vec![RawNode::Element(fill_rect)],
+    );
+    let blip_fill = build::node(
+        interner,
+        "p",
+        PML,
+        "blipFill",
+        Vec::new(),
+        vec![RawNode::Element(blip), RawNode::Element(stretch)],
+    );
+
+    let sp_pr = build_sp_pr(interner, "rect", bounds);
+    let mut picture = build::node(
+        interner,
+        "p",
+        PML,
+        "pic",
+        Vec::new(),
+        vec![
+            RawNode::Element(nv_pic_pr),
+            RawNode::Element(blip_fill),
+            RawNode::Element(sp_pr),
+        ],
+    );
+    if let Some(declaration) = rel_declaration {
+        picture.attributes.push(declaration);
+    }
+    picture
 }
 
 /// Builds one `a:p`. An empty line yields an empty paragraph (`<a:p/>`); otherwise a single run
