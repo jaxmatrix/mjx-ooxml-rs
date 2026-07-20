@@ -52,6 +52,16 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_RectAlignment", "RectangleAlignment"),
     // DrawingML fill-overlay blend mode: `a:fillOverlay@blend`.
     ("ST_BlendMode", "BlendMode"),
+    // DrawingML text: run properties (`a:rPr@u`/`@strike`/`@cap`) and paragraph properties
+    // (`a:pPr@algn`/`@fontAlgn`, `a:tab@algn`, `a:buAutoNum@type`). Each is named for what it selects
+    // rather than the schema's generic "…Type" suffix.
+    ("ST_TextUnderlineType", "TextUnderline"),
+    ("ST_TextStrikeType", "TextStrike"),
+    ("ST_TextCapsType", "TextCapitalization"),
+    ("ST_TextAlignType", "TextAlignment"),
+    ("ST_TextFontAlignType", "FontAlignment"),
+    ("ST_TextTabAlignType", "TabAlignment"),
+    ("ST_TextAutonumberScheme", "AutonumberScheme"),
     // PresentationML placeholders: `p:ph`'s `type`, `sz`, and `orient`. `ST_Direction` is PML's own
     // two-valued axis (`horz`/`vert`), named for what it selects rather than the generic "direction".
     ("ST_PlaceholderType", "PlaceholderType"),
@@ -344,6 +354,254 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     // `ST_SlideSizeType` (`p:sldSz@type`, §19.7.18): only the digit-leading token needs a name (the
     // mechanical one would be `N35Mm`); the paper and screen sizes auto-expand acceptably.
     ("ST_SlideSizeType", "35mm", "Film35Mm"),
+    // `ST_TextUnderlineType` (`a:rPr@u`, §20.1.10.82): names are the enumeration table's official
+    // titles ("dashHeavy (Text Underline Enum ( Heavy Dashed ))"), which read modifier-first —
+    // `HeavyDashed`, not `DashedHeavy`. `none`/`words`/`heavy`/`dotted`/`wavy`/`dotDash`/`dotDotDash`
+    // already match their titles and need no row.
+    ("ST_TextUnderlineType", "sng", "Single"),
+    ("ST_TextUnderlineType", "dbl", "Double"),
+    ("ST_TextUnderlineType", "dash", "Dashed"),
+    ("ST_TextUnderlineType", "dottedHeavy", "HeavyDotted"),
+    ("ST_TextUnderlineType", "dashHeavy", "HeavyDashed"),
+    ("ST_TextUnderlineType", "dashLong", "LongDashed"),
+    ("ST_TextUnderlineType", "dashLongHeavy", "HeavyLongDashed"),
+    ("ST_TextUnderlineType", "dotDashHeavy", "HeavyDotDash"),
+    ("ST_TextUnderlineType", "dotDotDashHeavy", "HeavyDotDotDash"),
+    ("ST_TextUnderlineType", "wavyHeavy", "HeavyWavy"),
+    ("ST_TextUnderlineType", "wavyDbl", "DoubleWavy"),
+    // `ST_TextStrikeType` (`a:rPr@strike`, §20.1.10.79): "No Strike" / "Single Strike" / "Double
+    // Strike". `noStrike` auto-expands to the title already.
+    ("ST_TextStrikeType", "sngStrike", "SingleStrike"),
+    ("ST_TextStrikeType", "dblStrike", "DoubleStrike"),
+    // `ST_TextCapsType` (`a:rPr@cap`, §20.1.10.64) needs no rows: `none`/`small`/`all` are the titles.
+    // `ST_TextAlignType` (`a:pPr@algn`, §20.1.10.59): paragraph alignment.
+    ("ST_TextAlignType", "l", "Left"),
+    ("ST_TextAlignType", "ctr", "Center"),
+    ("ST_TextAlignType", "r", "Right"),
+    ("ST_TextAlignType", "just", "Justified"),
+    ("ST_TextAlignType", "justLow", "JustifiedLow"),
+    ("ST_TextAlignType", "dist", "Distributed"),
+    ("ST_TextAlignType", "thaiDist", "ThaiDistributed"),
+    // `ST_TextFontAlignType` (`a:pPr@fontAlgn`, §20.1.10.66): where letters sit between the baselines.
+    ("ST_TextFontAlignType", "auto", "Automatic"),
+    ("ST_TextFontAlignType", "t", "Top"),
+    ("ST_TextFontAlignType", "ctr", "Center"),
+    ("ST_TextFontAlignType", "base", "Baseline"),
+    ("ST_TextFontAlignType", "b", "Bottom"),
+    // `ST_TextTabAlignType` (`a:tab@algn`, §20.1.10.80).
+    ("ST_TextTabAlignType", "l", "Left"),
+    ("ST_TextTabAlignType", "ctr", "Center"),
+    ("ST_TextTabAlignType", "r", "Right"),
+    ("ST_TextTabAlignType", "dec", "Decimal"),
+    // `ST_TextAutonumberScheme` (`a:buAutoNum@type`, §20.1.10.61) — the bullet numbering schemes.
+    // Unusually, the table's titles merely repeat the wire token, so each name is derived from the
+    // **Description** column instead: `alphaLcParenBoth` is described as "(a), (b), (c), …", i.e.
+    // lowercase letters wrapped in parentheses on both sides. The three axes compose:
+    //   numerals   — LowercaseLetter / UppercaseLetter / LowercaseRoman / UppercaseRoman / Arabic / …
+    //   punctuation— ParenthesesBoth "(a)" / ParenthesisRight "a)" / Period "a." / Plain "a"
+    (
+        "ST_TextAutonumberScheme",
+        "alphaLcParenBoth",
+        "LowercaseLetterParenthesesBoth",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "alphaLcParenR",
+        "LowercaseLetterParenthesisRight",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "alphaLcPeriod",
+        "LowercaseLetterPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "alphaUcParenBoth",
+        "UppercaseLetterParenthesesBoth",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "alphaUcParenR",
+        "UppercaseLetterParenthesisRight",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "alphaUcPeriod",
+        "UppercaseLetterPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "romanLcParenBoth",
+        "LowercaseRomanParenthesesBoth",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "romanLcParenR",
+        "LowercaseRomanParenthesisRight",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "romanLcPeriod",
+        "LowercaseRomanPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "romanUcParenBoth",
+        "UppercaseRomanParenthesesBoth",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "romanUcParenR",
+        "UppercaseRomanParenthesisRight",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "romanUcPeriod",
+        "UppercaseRomanPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "arabicParenBoth",
+        "ArabicParenthesesBoth",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "arabicParenR",
+        "ArabicParenthesisRight",
+    ),
+    ("ST_TextAutonumberScheme", "arabicPeriod", "ArabicPeriod"),
+    ("ST_TextAutonumberScheme", "arabicPlain", "ArabicPlain"),
+    // "Dbl-byte Arabic numbers" (with and without a double-byte period).
+    (
+        "ST_TextAutonumberScheme",
+        "arabicDbPeriod",
+        "DoubleByteArabicPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "arabicDbPlain",
+        "DoubleByteArabicPlain",
+    ),
+    // "Bidi <script> N with ANSI minus symbol"; the parentheticals name the two Arabic systems.
+    (
+        "ST_TextAutonumberScheme",
+        "arabic1Minus",
+        "BidirectionalArabicAlphabeticMinus",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "arabic2Minus",
+        "BidirectionalArabicAbjadMinus",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "hebrew2Minus",
+        "BidirectionalHebrewMinus",
+    ),
+    // Circled numbers: double-byte, and the two Wingdings sets.
+    (
+        "ST_TextAutonumberScheme",
+        "circleNumDbPlain",
+        "DoubleByteCircledNumberPlain",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "circleNumWdBlackPlain",
+        "WingdingsBlackCircledNumberPlain",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "circleNumWdWhitePlain",
+        "WingdingsWhiteCircledNumberPlain",
+    ),
+    // East Asian ("EA:" in the descriptions); `ea1` is the spec's family prefix, not a numeral.
+    (
+        "ST_TextAutonumberScheme",
+        "ea1ChsPeriod",
+        "SimplifiedChinesePeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "ea1ChsPlain",
+        "SimplifiedChinesePlain",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "ea1ChtPeriod",
+        "TraditionalChinesePeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "ea1ChtPlain",
+        "TraditionalChinesePlain",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "ea1JpnChsDbPeriod",
+        "JapaneseDoubleBytePeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "ea1JpnKorPeriod",
+        "JapaneseKoreanPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "ea1JpnKorPlain",
+        "JapaneseKoreanPlain",
+    ),
+    // Hindi: the alphabet forms are distinguished as vowels vs consonants by the descriptions.
+    (
+        "ST_TextAutonumberScheme",
+        "hindiAlphaPeriod",
+        "HindiVowelPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "hindiAlpha1Period",
+        "HindiConsonantPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "hindiNumPeriod",
+        "HindiNumberPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "hindiNumParenR",
+        "HindiNumberParenthesisRight",
+    ),
+    // Thai.
+    (
+        "ST_TextAutonumberScheme",
+        "thaiAlphaPeriod",
+        "ThaiLetterPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "thaiAlphaParenR",
+        "ThaiLetterParenthesisRight",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "thaiAlphaParenBoth",
+        "ThaiLetterParenthesesBoth",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "thaiNumPeriod",
+        "ThaiNumberPeriod",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "thaiNumParenR",
+        "ThaiNumberParenthesisRight",
+    ),
+    (
+        "ST_TextAutonumberScheme",
+        "thaiNumParenBoth",
+        "ThaiNumberParenthesesBoth",
+    ),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
