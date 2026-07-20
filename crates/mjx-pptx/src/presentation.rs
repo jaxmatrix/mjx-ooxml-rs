@@ -1,9 +1,10 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_effects, resolve_fill, resolve_line, BlipFill, ColorMap, EffectList,
-    EffectListSpec, Fill, FillSpec, LineProperties, LineSpec, PresetGeometry, ResolvedColor,
-    SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
+    resolve_color, resolve_effects, resolve_fill, resolve_line, BlipFill, CharacterPropertiesSpec,
+    ColorMap, EffectList, EffectListSpec, Fill, FillSpec, LineProperties, LineSpec,
+    ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody,
+    Theme, ThemeInfo,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -458,6 +459,396 @@ impl Presentation {
         // The edit lands here: rebuild the txBody in place, reusing the part's own interner.
         *slot = body.to_xml(interner);
         Ok(())
+    }
+
+    /// Reads a shape's text body as a typed value. Does **not** dirty the part.
+    fn read_text_body(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+    ) -> Result<TextBody, PptxError> {
+        self.with_text_body(surface, shape_idx, |body, _| Ok(body.clone()))
+    }
+
+    /// Reads a shape's text body and hands it, with the part's interner, to `read` — for the
+    /// accessors that need the interner to resolve what they return. Does **not** dirty the part.
+    ///
+    /// The interner is borrowed rather than cloned: a part's interner holds every string in it, and
+    /// copying that per property read would be absurd.
+    fn with_text_body<R>(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        read: impl FnOnce(&TextBody, &Interner) -> Result<R, PptxError>,
+    ) -> Result<R, PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let txbody =
+            slide::shape_txbody(shape, &doc.interner).ok_or(PptxError::ShapeHasNoTextBody)?;
+        let body = TextBody::from_xml(txbody, &doc.interner)?;
+        read(&body, &doc.interner)
+    }
+
+    /// Locates a shape's text body, hands it to `edit`, and writes the result back — the one place
+    /// the text-editing calls share, so the split borrow and the rebuild happen once.
+    ///
+    /// Marks only that part dirty, and only when `edit` succeeds is the body written back.
+    fn edit_text_body(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        edit: impl FnOnce(&mut TextBody, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        // Split the borrow: `interner` for names and rebuilding, `root` for locate + replace.
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let slot =
+            nav::child_mut(shape, interner, PML, "txBody").ok_or(PptxError::ShapeHasNoTextBody)?;
+
+        let mut body = TextBody::from_xml(slot, interner)?;
+        edit(&mut body, interner)?;
+        *slot = body.to_xml(interner);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Text formatting — the paragraph axis
+    //
+    // `set_shape_text` above addresses runs *flat* across the whole body, which is the shorthand for
+    // the common one-paragraph case. Everything below addresses a paragraph first and a run within
+    // it, matching the document tree — and matching what a user selects.
+    // -----------------------------------------------------------------------------------------
+
+    /// The number of paragraphs in shape `shape_idx`'s text body. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn paragraph_count(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<usize, PptxError> {
+        let body = self.read_text_body(surface.into(), shape_idx)?;
+        Ok(body.paragraphs().count())
+    }
+
+    /// The number of runs in paragraph `para_idx` of shape `shape_idx`. Reading does not dirty the
+    /// part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn run_count(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+    ) -> Result<usize, PptxError> {
+        let body = self.read_text_body(surface.into(), shape_idx)?;
+        let paragraph = nth_paragraph(&body, para_idx)?;
+        Ok(paragraph.runs().count())
+    }
+
+    /// The text of paragraph `para_idx` — its runs concatenated. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn paragraph_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+    ) -> Result<String, PptxError> {
+        let body = self.read_text_body(surface.into(), shape_idx)?;
+        Ok(nth_paragraph(&body, para_idx)?.text())
+    }
+
+    /// The text of one run. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn run_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        run_idx: usize,
+    ) -> Result<String, PptxError> {
+        let body = self.read_text_body(surface.into(), shape_idx)?;
+        let paragraph = nth_paragraph(&body, para_idx)?;
+        let count = paragraph.runs().count();
+        let run = paragraph
+            .runs()
+            .nth(run_idx)
+            .ok_or(PptxError::RunIndexOutOfRange {
+                index: run_idx,
+                count,
+            })?;
+        Ok(run.text().to_owned())
+    }
+
+    /// The layout properties a paragraph declares of its own (`a:pPr`), or `None` if it declares
+    /// none — in which case every property is inherited. Reading does not dirty the part.
+    ///
+    /// This is what the paragraph *says*, not what it renders as: a property left unset here is
+    /// inherited from the shape's list style, the placeholder, the layout, the master and the theme,
+    /// in that order.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn paragraph_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+    ) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph(body, para_idx)?;
+            Ok(paragraph
+                .properties()
+                .map(|properties| properties.spec(interner)))
+        })
+    }
+
+    /// The character properties a run declares of its own (`a:rPr`), or `None` if it declares none.
+    /// Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        run_idx: usize,
+    ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph(body, para_idx)?;
+            let count = paragraph.runs().count();
+            let run = paragraph
+                .runs()
+                .nth(run_idx)
+                .ok_or(PptxError::RunIndexOutOfRange {
+                    index: run_idx,
+                    count,
+                })?;
+            Ok(run.properties().map(|properties| properties.spec(interner)))
+        })
+    }
+
+    /// The paragraph-mark properties (`a:endParaRPr`), or `None` if the paragraph declares none.
+    ///
+    /// This is the format an **empty** paragraph holds — what keeps a blank line its size, and what
+    /// text typed into it would take on. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn end_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+    ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph(body, para_idx)?;
+            Ok(paragraph
+                .end_properties()
+                .map(|properties| properties.spec(interner)))
+        })
+    }
+
+    /// Applies `spec` to one run's character properties, creating its `a:rPr` if it has none.
+    ///
+    /// The properties **merge**: what the spec names is set, and everything else the run carried —
+    /// including the state this model does not describe, like `lang` or `dirty` — is left alone.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn set_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        run_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph_mut(body, para_idx)?;
+            let count = paragraph.runs().count();
+            let run = paragraph
+                .runs_mut()
+                .nth(run_idx)
+                .ok_or(PptxError::RunIndexOutOfRange {
+                    index: run_idx,
+                    count,
+                })?;
+            run.set_properties(spec, interner);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to **every run** in paragraph `para_idx`, and to its `a:endParaRPr` if it has
+    /// one — so text typed at the end of the paragraph takes the same formatting, which is what
+    /// selecting a paragraph and restyling it means.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn set_paragraph_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph_mut(body, para_idx)?;
+            apply_to_paragraph(paragraph, spec, interner);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to **every run of every paragraph** in the shape, and to each paragraph's
+    /// `a:endParaRPr` where present — selecting a whole text box and restyling it.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn set_shape_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            for paragraph in body.paragraphs_mut() {
+                apply_to_paragraph(paragraph, spec, interner);
+            }
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to the paragraph-mark properties (`a:endParaRPr`), creating the element if the
+    /// paragraph has none.
+    ///
+    /// This is how an **empty** paragraph is formatted — a placeholder that has been added but not
+    /// yet typed into, for instance.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn set_end_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph_mut(body, para_idx)?;
+            paragraph.set_end_properties(spec, interner);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to a paragraph's layout properties (`a:pPr`), creating the element if it has
+    /// none. The properties **merge**, as run properties do.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn set_paragraph_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        spec: &ParagraphPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph_mut(body, para_idx)?;
+            paragraph.set_properties(spec, interner);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to part of a paragraph — the characters in `range`, counted in **Unicode
+    /// scalars** across the paragraph's whole text.
+    ///
+    /// A run boundary is where formatting changes, so formatting part of a run **splits** it: after
+    /// this call the paragraph holds up to two more runs than before, and only those inside `range`
+    /// carry `spec`. A range that already lines up with run boundaries splits nothing. Runs are never
+    /// merged back together, so the file changes only where it had to.
+    ///
+    /// For a range taken from a real text selection, prefer
+    /// [`set_text_range_properties_by_grapheme`](Self::set_text_range_properties_by_grapheme):
+    /// scalar offsets can fall inside a grapheme cluster, splitting an emoji from its modifier.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::TextRangeOutOfBounds`] if the range ends before it starts or runs past
+    /// the paragraph's text, or another [`PptxError`] if an index is out of range, the slide is
+    /// malformed, or the shape has no text body.
+    pub fn set_text_range_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        range: core::ops::Range<usize>,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let paragraph = nth_paragraph_mut(body, para_idx)?;
+            apply_to_scalar_range(paragraph, range, spec, interner)
+        })
+    }
+
+    /// Applies `spec` to part of a paragraph — the characters in `range`, counted in **grapheme
+    /// clusters**: what a reader would call characters, and what a text selection actually spans.
+    ///
+    /// `👍🏽` is one grapheme (two scalars), so a range that covers it cannot split it in half. The
+    /// offsets are converted to scalars and the work is done by
+    /// [`set_text_range_properties`](Self::set_text_range_properties).
+    ///
+    /// # Errors
+    /// As [`set_text_range_properties`](Self::set_text_range_properties), with the bounds reported in
+    /// graphemes.
+    pub fn set_text_range_properties_by_grapheme(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        para_idx: usize,
+        range: core::ops::Range<usize>,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let text = self.paragraph_text(surface, shape_idx, para_idx)?;
+        let scalars = grapheme_range_to_scalars(&text, &range)?;
+        self.set_text_range_properties(surface, shape_idx, para_idx, scalars, spec)
     }
 
     /// The preset geometry of shape `shape_idx` on `surface`, as a typed [`ShapeGeometry`]
@@ -1961,6 +2352,136 @@ enum OwnFill {
     StyleRef(u32, Option<ResolvedColor>),
     /// The shape declares no fill of its own.
     Absent,
+}
+
+// ---------------------------------------------------------------------------------------------
+// Text-body helpers — one place for "find the body, do the thing, put it back"
+// ---------------------------------------------------------------------------------------------
+
+/// The `para_idx`-th paragraph of a body, or a typed out-of-range error.
+fn nth_paragraph(body: &TextBody, para_idx: usize) -> Result<&mjx_dml::Paragraph, PptxError> {
+    let count = body.paragraphs().count();
+    body.paragraphs()
+        .nth(para_idx)
+        .ok_or(PptxError::ParagraphIndexOutOfRange {
+            index: para_idx,
+            count,
+        })
+}
+
+/// The `para_idx`-th paragraph of a body, mutably.
+fn nth_paragraph_mut(
+    body: &mut TextBody,
+    para_idx: usize,
+) -> Result<&mut mjx_dml::Paragraph, PptxError> {
+    let count = body.paragraphs().count();
+    body.paragraphs_mut()
+        .nth(para_idx)
+        .ok_or(PptxError::ParagraphIndexOutOfRange {
+            index: para_idx,
+            count,
+        })
+}
+
+/// Applies `spec` to every run of `paragraph` and to its paragraph mark, so text typed at the end
+/// takes the same formatting.
+fn apply_to_paragraph(
+    paragraph: &mut mjx_dml::Paragraph,
+    spec: &CharacterPropertiesSpec,
+    interner: &mut Interner,
+) {
+    for run in paragraph.runs_mut() {
+        run.set_properties(spec, interner);
+    }
+    if paragraph.end_properties().is_some() {
+        paragraph.set_end_properties(spec, interner);
+    }
+}
+
+/// Splits `paragraph`'s runs at the range's boundaries, then applies `spec` to every run that now
+/// falls wholly inside it.
+fn apply_to_scalar_range(
+    paragraph: &mut mjx_dml::Paragraph,
+    range: core::ops::Range<usize>,
+    spec: &CharacterPropertiesSpec,
+    interner: &mut Interner,
+) -> Result<(), PptxError> {
+    let length = paragraph.text().chars().count();
+    if range.start > range.end || range.end > length {
+        return Err(PptxError::TextRangeOutOfBounds {
+            start: range.start,
+            end: range.end,
+            length,
+        });
+    }
+    if range.start == range.end {
+        return Ok(()); // An empty selection formats nothing.
+    }
+
+    // Split at the far boundary first: splitting at the near one would shift everything after it,
+    // while the far offset is expressed in the *original* coordinates.
+    split_at_offset(paragraph, range.end);
+    split_at_offset(paragraph, range.start);
+
+    // After the splits every run lies wholly inside or wholly outside the range, so a running count
+    // of scalars is enough to tell which.
+    let mut consumed = 0;
+    let mut targets = Vec::new();
+    for (index, run) in paragraph.runs().enumerate() {
+        let len = run.text().chars().count();
+        if consumed >= range.start && consumed + len <= range.end {
+            targets.push(index);
+        }
+        consumed += len;
+    }
+    for index in targets {
+        if let Some(run) = paragraph.runs_mut().nth(index) {
+            run.set_properties(spec, interner);
+        }
+    }
+    Ok(())
+}
+
+/// Splits whichever run contains the paragraph-level scalar `offset`, unless it already falls on a
+/// run boundary — where there is nothing to split.
+fn split_at_offset(paragraph: &mut mjx_dml::Paragraph, offset: usize) {
+    let mut consumed = 0;
+    let mut target = None;
+    for (index, run) in paragraph.runs().enumerate() {
+        let len = run.text().chars().count();
+        if offset > consumed && offset < consumed + len {
+            target = Some((index, offset - consumed));
+            break;
+        }
+        consumed += len;
+    }
+    if let Some((index, within)) = target {
+        paragraph.split_run_at(index, within);
+    }
+}
+
+/// Converts a grapheme-cluster range into the scalar range covering the same text.
+fn grapheme_range_to_scalars(
+    text: &str,
+    range: &core::ops::Range<usize>,
+) -> Result<core::ops::Range<usize>, PptxError> {
+    use unicode_segmentation::UnicodeSegmentation;
+
+    let clusters: Vec<&str> = text.graphemes(true).collect();
+    if range.start > range.end || range.end > clusters.len() {
+        return Err(PptxError::TextRangeOutOfBounds {
+            start: range.start,
+            end: range.end,
+            length: clusters.len(),
+        });
+    }
+    let scalars_before = |count: usize| -> usize {
+        clusters[..count]
+            .iter()
+            .map(|cluster| cluster.chars().count())
+            .sum()
+    };
+    Ok(scalars_before(range.start)..scalars_before(range.end))
 }
 
 /// The fill a `shape` declares itself (explicit `p:spPr` fill, or a `p:style > a:fillRef`), resolved
