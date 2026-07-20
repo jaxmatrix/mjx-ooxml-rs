@@ -67,7 +67,10 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   shape kind). ✅ **layout/master** — PresentationML simple types, the layout/master inventory,
   `Surface` addressing (every shape API works on a slide, layout, or master, so editing a layout
   reaches every slide that inherits it), and `add_slide_from_layout`, which hands back a slide
-  carrying the layout's placeholders ready to fill.
+  carrying the layout's placeholders ready to fill. ✅ **removal** completes the story — `remove_shape`
+  on any surface and `remove_slide`, which unwires the deck and takes with it every part only that
+  slide referenced (`Package::remove_part_cascading`). Still open for PowerPoint: master `p:txStyles`
+  feeding *effective text formatting*.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).

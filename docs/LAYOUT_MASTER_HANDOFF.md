@@ -5,7 +5,8 @@ The last Phase 3 workstream, and with it the PowerPoint slice. Read after `docs/
 settled the shape-addressing model this builds on.
 
 **Status: done — L1 (types), L2 (inventory), L3 (`Surface` addressing) and L4
-(`add_slide_from_layout`) have all shipped.**
+(`add_slide_from_layout`) have all shipped, and the follow-up round after them
+(`remove_shape`, `remove_slide`, and the two construction fixes) is in too.**
 
 ## Building a deck, end to end
 
@@ -89,17 +90,46 @@ deck.theme(Surface::Master(0))?;
   paragraph → placeholder → layout → master → theme font scheme). That is its own workstream, larger
   than all of L1–L4.
 
-## Known follow-ups (not blockers)
+## Known follow-ups — all closed except the last
 
-- **Every placeholder is cloned, including `dt`/`ftr`/`sldNum`.** Those three render from the layout
-  when a slide does not declare them, so cloned copies show as empty boxes instead. PowerPoint skips
-  them; a `skip_kinds` argument or a `remove_shape` would both close this.
-- **`add_shape` / `add_text_box` build a shape whose paragraph has no run**, so `set_shape_text`
-  cannot fill an added autoshape (`RunIndexOutOfRange`). `build_run` now exists — giving those two the
-  same empty run as a placeholder would fix it.
-- **There is no `remove_shape` or `remove_slide`.** Everything so far adds.
+- ~~**Every placeholder is cloned, including `dt`/`ftr`/`sldNum`.**~~ ✅ *done* —
+  `add_slide_from_layout` skips those three (`is_layout_rendered_slot`), as PowerPoint does: they
+  render *from the layout* precisely for slides that do not declare them, so a clone suppressed the
+  layout's rendering and left an empty box. `tests/fixtures/layouts.pptx` layout 1 now carries the
+  trio so the rule is testable.
+- ~~**`add_shape` / `add_text_box` build a shape whose paragraph has no run.**~~ ✅ *done* —
+  `build_paragraph` always emits exactly one run, an empty line included, so an added shape can be
+  filled by `set_shape_text` immediately and every line is addressable as a run of its own.
+- ~~**There is no `remove_shape` or `remove_slide`.**~~ ✅ *done* — see below.
 - **Master `p:txStyles` is unread** — effective *text* formatting (run → paragraph → placeholder →
   layout → master → theme font scheme) is the natural next PowerPoint workstream, larger than L1–L4.
+  **This is the only PowerPoint item still open.**
+
+## What removal shipped
+
+```rust
+deck.remove_shape(slide, 2)?;                 // any Surface — a slide, a layout, a master
+deck.remove_shape(Surface::Layout(1), 3)?;
+deck.remove_slide(0)?;                        // later slides shift down one index
+```
+
+- **`remove_shape`** removes the `shape_idx`-th shape in the one shape index space (so a picture or a
+  group goes exactly as an autoshape does) plus the whitespace that indented it, and **leaves
+  relationships and parts alone** — an unused relationship is valid OOXML, `add_image` de-duplicates
+  by content, and a sibling shape may share the image.
+- **`remove_slide`** unwires in the reverse of the order `insert_slide_part` wired: the `p:sldId`
+  (found via its `r:id` — attribute namespaces are never resolved), the presentation relationship,
+  then the part through the new **`Package::remove_part_cascading`**, which also removes every part no
+  remaining relationship resolves to. That takes the notes slide (which holds a relationship *back* to
+  the slide, so leaving it behind leaves a dangling reference) and unshared media, and spares media
+  the rest of the deck still shows. Cycles terminate; unresolvable targets are skipped.
+- **Part-name algebra moved down to `mjx-opc`**: `PartName::{resolve, resolve_from_root,
+  relative_target}` — pure OPC arithmetic that `mjx-docx`/`mjx-xlsx` will need and could not reach in
+  `mjx-pptx` without a sideways dependency. `pptx::nav` keeps thin wrappers that restate the failure
+  as `PptxError::{TargetResolution, ExternalTarget}`.
+- **Indices**: removing a slide shifts later *slide* indices down; layout and master indices are
+  unaffected. A freed `slideN.xml` name is never recycled — `next_slide_part` numbers past every
+  existing part.
 
 ## Guardrails
 
