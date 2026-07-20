@@ -1,9 +1,34 @@
-# Handoff — PowerPoint images / pictures (`p:pic` + media parts) — NEXT WORKSTREAM
+# Handoff — PowerPoint images / pictures (`p:pic` + media parts) — IN PROGRESS
 
-A self-contained brief to start the **images** workstream from a cold start. Read after
-`docs/PHASE2_HANDOFF.md` (§3 guardrails) and `docs/DRAWINGML_FILL_HANDOFF.md` (the `blipFill` model).
-Nothing here is implemented yet — this is the plan plus the facts already verified against the repo
+A self-contained brief for the **images** workstream. Read after `docs/PHASE2_HANDOFF.md` (§3
+guardrails) and `docs/DRAWINGML_FILL_HANDOFF.md` (the `blipFill` model).
+
+**Status: I1 (image parts) is done — resume at I2 (`p:pic` picture shapes).** See "What I1 shipped"
+below for the decisions it settled; the rest is the plan plus facts already verified against the repo
 and the spec, so the next session does not re-derive them.
+
+## What I1 shipped
+
+`Presentation::add_image(slide_idx, bytes) -> Result<String /* rel id */, PptxError>` — sniff the
+format, store the bytes verbatim as `/ppt/media/image{N}.{ext}`, register the content type, add the
+slide → image relationship, return the id to hand to `FillSpec::Blip`. **A shape can now be filled
+with a real picture end-to-end** (`crates/mjx-pptx/tests/images.rs`, plus a LibreOffice canary that
+renders the image).
+
+Decisions I1 settled — do not re-litigate them in I2/I3:
+- **`ImageFormat` lives in `mjx-opc`** (`crates/mjx-opc/src/media.rs`), not `mjx-pptx`: its payload
+  *is* an OPC content type, and `mjx-docx`/`mjx-xlsx` sit above `mjx-opc` so they inherit it. Magic
+  bytes only — PNG/JPEG/GIF/BMP/TIFF/EMF/WMF/SVG — never a decode or re-encode.
+- **Content types use a `Default` extension rule**, as Office writes them, not a per-part `Override`:
+  `Package::set_content_type_default` (new in `mjx-opc`), called *before* `insert_part` so that call
+  finds the type already resolved and adds no `Override`.
+- **Identical bytes are stored once**: an existing media part with the same bytes is reused, and a
+  slide that already relates to it gets its existing relationship id back untouched.
+- `nav::relative_target` is the inverse of `nav::resolve_target` (it replaced the old
+  `slide_rel_target`) — use it for any new relationship target.
+- Media part numbering: `image{N}` is one past the largest existing image number, whatever the
+  extension; relationship ids come from `next_rid_for(part)`, which starts at `rId1` for a part with
+  no `.rels`.
 
 ## Why this is next
 
@@ -15,23 +40,21 @@ a slide.** The fill workstream deliberately deferred it ("adding a `blipFill` im
 
 ## Current state — verified, not assumed
 
-- **`mjx-pptx` has zero image support.** The only trace in the whole crate is a doc comment on
-  `set_shape_fill` noting that a `FillSpec::Blip` writes only the `a:blip@r:embed` reference and that
-  "the image part and its relationship must already exist in the package".
-- **The OPC plumbing is ready** (`crates/mjx-opc/src/package.rs`):
+- **Image *parts* are done (I1)** — `Presentation::add_image`, `mjx_opc::ImageFormat`,
+  `Package::set_content_type_default`, `constants::REL_IMAGE`, `nav::relative_target`. What is still
+  missing is the **`p:pic` shape** (I2) and reading an image back out (I3).
+- **The OPC plumbing** (`crates/mjx-opc/src/package.rs`):
   - `Package::insert_part(&PartName, content_type: &str, bytes: Vec<u8>)` — works for **binary** parts
     and auto-registers a content-type `Override` iff the type isn't already resolved.
   - `Package::add_relationship(Option<&PartName>, Relationship)` — appends to the source's `.rels`, or
     synthesizes one when absent. Caller supplies `rel.id` (no de-collision — allocate it yourself).
   - `Package::part_names` / `part_bytes` / `content_type_of` for scanning + reading back.
-  - Precedent: `crates/mjx-opc/tests/edit_surface.rs` already adds a `../media/image1.png` relationship.
 - **`mjx-dml::BlipFill` already models the picture fill** — `BlipFill::new(interner, rel_id, mode)`,
   `image_rel_id()`, `image_link_id()`, `mode()`, plus interner-free `FillSpec::Blip { rel_id, mode }`
-  and `BlipFillMode::{Tile, Stretch, None}`. **No `mjx-dml` changes are expected for I1.**
-- **`tests/fixtures/sample.pptx` has NO media parts** (11 parts total). So tests should synthesize a
-  tiny valid PNG in-test rather than committing a binary fixture.
-- **Missing constants** in `crates/mjx-pptx/src/constants.rs`: no `REL_IMAGE`, no image content types
-  (it currently has only office-document/slide/slideLayout/slideMaster/theme + 3 content types).
+  and `BlipFillMode::{Tile, Stretch, None}`. **No `mjx-dml` changes were needed for I1.**
+- **`tests/fixtures/sample.pptx` has NO media parts** (11 parts total), so tests synthesize a tiny
+  valid PNG in-test rather than committing a binary fixture — reuse the `TINY_PNG` const in
+  `crates/mjx-pptx/tests/images.rs`.
 - **Shape enumeration is `p:sp`-only** — `slide::shapes` = `nav::children(sp_tree, .., PML, "sp")`, so
   every index-addressed API (`shape_count`, `shape_text`, `shape_fill`, …) skips `p:pic` entirely.
   Pictures therefore need their own parallel index space, not a silent change to `shapes()`.
@@ -70,15 +93,7 @@ Well-known strings (not in the XSD; from ECMA-376 Part 1 / OPC):
 
 ## Roadmap — 3 atomic PRs
 
-- **I1 — image parts (foundation).** An `ImageFormat` enum (magic-byte sniffing → `content_type()` /
-  `extension()`); `REL_IMAGE` + image content-type constants; `Presentation::add_image(slide_idx,
-  bytes) -> Result<String /* rel id */, PptxError>` = sniff → allocate `/ppt/media/imageN.ext` (scan
-  existing media for max N; **dedupe identical bytes** so re-adding one image doesn't bloat the
-  package) → `insert_part` → `add_relationship` from the slide with a fresh `rIdN`. This alone makes
-  `set_shape_fill(.., &FillSpec::Blip { .. })` work **end-to-end** — a shape filled with a real
-  picture. Office-open canary.
-  *Placement of `ImageFormat`:* `mjx-pptx` for now (keeps the PR focused); promote to a shared crate
-  when `mjx-docx`/`mjx-xlsx` need it.
+- **I1 — image parts (foundation).** ✅ *done* — see "What I1 shipped" above.
 - **I2 — `p:pic` picture shapes.** `Presentation::add_picture(slide_idx, bytes, ShapeBounds) ->
   Result<usize, PptxError>` building a whole `p:pic` (`nvPicPr`/`p:blipFill` with `a:blip r:embed` +
   `a:stretch`/`a:fillRect`/`spPr` with `a:xfrm` + `prstGeom prst="rect"`), appended to `p:spTree`;
@@ -96,12 +111,14 @@ edits; `r:embed` is a **prefixed** attribute whose namespace the reader leaves u
 panic; pure-Rust only (**no image-decoding crate** — we only sniff magic bytes and store bytes
 verbatim, we never re-encode); never stage `References/`.
 
-**Commits:** split by concern — constants/`ImageFormat`, the package plumbing, the public API, and docs
-each land as their own commit (see the git-workflow memory).
+**Commits:** split by concern — the shared plumbing, the package plumbing, the public API, tests, and
+docs each land as their own commit (see the git-workflow memory).
 
-## First actions
+## First actions (for I2)
 
-1. `git switch main && git pull --ff-only` (ensure effects PR #40 has merged).
+1. `git switch main && git pull --ff-only` (ensure the I1 PR has merged).
 2. Read this + `docs/DRAWINGML_FILL_HANDOFF.md` (blipFill) + `mjx-pptx/src/{presentation.rs,build.rs}`
-   (`build_shape`/`build_sp_pr` — the subtree-construction pattern I2 copies).
-3. Discussion-first, then implement I1.
+   (`build_shape`/`build_sp_pr` — the subtree-construction pattern I2 copies) + `add_image` and
+   `crates/mjx-pptx/tests/images.rs` (what I1 left you).
+3. Discussion-first, then implement I2 — `add_picture` should call `add_image` for the part/rel and
+   then build the `p:pic` subtree, so the two layers stay separable.
