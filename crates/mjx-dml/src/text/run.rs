@@ -114,6 +114,42 @@ impl TextRun {
         self.empty = false;
     }
 
+    /// Splits this run in two at `offset` **Unicode scalars** into its text, returning the tail.
+    ///
+    /// This run keeps the text before `offset`; the returned run holds the rest and carries a **clone
+    /// of this run's `a:rPr`**, so splitting on its own changes nothing about how the text renders —
+    /// it only creates a boundary that formatting can then be applied to one side of. That is exactly
+    /// what a word processor does when you select part of a run and restyle it.
+    ///
+    /// Returns `None`, leaving this run untouched, when the split would leave one side empty
+    /// (`offset` is 0, or at or past the end of the text) or the run has no `a:t` to divide.
+    ///
+    /// Offsets count scalars rather than bytes, so a caller cannot land inside a UTF-8 sequence. A
+    /// scalar boundary can still fall *within* a grapheme cluster — between an emoji and its
+    /// skin-tone modifier, say — so a caller driving a real text selection should choose offsets by
+    /// grapheme and convert.
+    #[must_use]
+    pub fn split_at(&mut self, offset: usize) -> Option<Self> {
+        if offset == 0 {
+            return None;
+        }
+        let text = self.content.iter().find_map(|item| match item {
+            RunContent::Text(text) => Some(text.text()),
+            _ => None,
+        })?;
+        // `nth(offset)` is `None` at or past the end, which is exactly when there would be no tail.
+        let split_byte = text.char_indices().nth(offset).map(|(index, _)| index)?;
+        let (head, tail) = text.split_at(split_byte);
+        let (head, tail) = (head.to_owned(), tail.to_owned());
+
+        // The tail is a clone, so its `a:rPr` — and every interned symbol in it — is already this
+        // part's; only the text differs.
+        let mut tail_run = self.clone();
+        tail_run.set_text(&tail);
+        self.set_text(&head);
+        Some(tail_run)
+    }
+
     /// The run's ordered content (its typed `a:rPr` and `a:t` interleaved with opaque nodes).
     #[must_use]
     pub fn content(&self) -> &[RunContent] {

@@ -3,7 +3,7 @@
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
-use super::character::CharacterProperties;
+use super::character::{CharacterProperties, CharacterPropertiesSpec};
 use super::paragraph_properties::{ParagraphProperties, ParagraphPropertiesSpec};
 use super::run::TextRun;
 
@@ -92,6 +92,39 @@ impl Paragraph {
         self.empty = false;
     }
 
+    /// Splits the `run_idx`-th run at `offset` scalars into its text, so the paragraph has one more
+    /// run than before and the boundary falls where the caller asked.
+    ///
+    /// The tail is placed immediately after the head, and every other child — a line break, a field,
+    /// the whitespace between elements — stays exactly where it was. Both halves carry the original's
+    /// formatting (see [`TextRun::split_at`]), so this changes nothing about how the paragraph reads;
+    /// it only makes a range separately addressable.
+    ///
+    /// Returns `true` if a split happened. `false` means the request was a no-op — no such run, or an
+    /// offset at either end of its text — and nothing changed.
+    pub fn split_run_at(&mut self, run_idx: usize, offset: usize) -> bool {
+        // The run's position in the ordered content, not its index among runs.
+        let Some(position) = self
+            .content
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| matches!(item, ParagraphContent::Run(_)))
+            .map(|(position, _)| position)
+            .nth(run_idx)
+        else {
+            return false;
+        };
+        let ParagraphContent::Run(run) = &mut self.content[position] else {
+            return false;
+        };
+        let Some(tail) = run.split_at(offset) else {
+            return false;
+        };
+        self.content
+            .insert(position + 1, ParagraphContent::Run(tail));
+        true
+    }
+
     /// The paragraph-mark properties (`a:endParaRPr`), or `None` if the paragraph declares none.
     ///
     /// This is how a paragraph with no runs still has a size: PowerPoint records what text *would*
@@ -110,6 +143,21 @@ impl Paragraph {
             ParagraphContent::EndProperties(properties) => Some(properties),
             _ => None,
         })
+    }
+
+    /// Applies `spec` to the paragraph-mark properties, creating the `a:endParaRPr` if there is none.
+    ///
+    /// An existing element is **merged** onto, like a run's properties. A created one is appended
+    /// last, where `CT_TextParagraph` puts it — after every run.
+    pub fn set_end_properties(&mut self, spec: &CharacterPropertiesSpec, interner: &mut Interner) {
+        if let Some(properties) = self.end_properties_mut() {
+            properties.apply(spec, interner);
+            return;
+        }
+        let properties = spec.to_properties(interner, "endParaRPr");
+        self.content
+            .push(ParagraphContent::EndProperties(properties));
+        self.empty = false;
     }
 
     /// The paragraph's text: the text of its runs concatenated with no separator. Opaque `a:br` line
