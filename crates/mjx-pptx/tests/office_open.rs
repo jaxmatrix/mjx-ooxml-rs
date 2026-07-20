@@ -12,9 +12,9 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, ColorSpec, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect, GradientStopSpec,
-    LineCap, LineDash, LineJoin, LineSpec, LineWidth, OuterShadowEffect, PatternType,
-    PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry,
+    Angle, BlipFillMode, ColorSpec, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect,
+    GradientStopSpec, LineCap, LineDash, LineJoin, LineSpec, LineWidth, OuterShadowEffect,
+    PatternType, PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds};
@@ -343,4 +343,40 @@ fn deck_with_effect_shape_opens() {
     .expect("set effects");
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "effect_shape");
+}
+
+/// A valid 2×2 truecolour PNG (76 bytes), inlined so no binary fixture is committed.
+const TINY_PNG: &[u8] = &[
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,
+    0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x02, 0x08, 0x02, 0x00, 0x00, 0x00, 0xFD, 0xD4, 0x9A,
+    0x73, 0x00, 0x00, 0x00, 0x13, 0x49, 0x44, 0x41, 0x54, 0x78, 0xDA, 0x63, 0x78, 0x60, 0x60, 0x60,
+    0x90, 0xF0, 0x80, 0x01, 0x88, 0x81, 0x2C, 0x00, 0x25, 0xAE, 0x05, 0x61, 0x56, 0x69, 0x41, 0x72,
+    0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+];
+
+#[test]
+fn deck_with_a_picture_filled_shape_opens() {
+    // Adds an image part and fills a shape with it, and checks the deck opens in LibreOffice —
+    // exercises the whole image path (media part, content type, slide relationship, a:blip@r:embed)
+    // end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 3.0, 2.0),
+        )
+        .expect("add shape");
+    let rel_id = pres.add_image(0, TINY_PNG).expect("add image");
+    pres.set_shape_fill(
+        0,
+        idx,
+        &FillSpec::Blip {
+            rel_id,
+            mode: BlipFillMode::Stretch,
+        },
+    )
+    .expect("set picture fill");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "picture_filled_shape");
 }
