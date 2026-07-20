@@ -1269,10 +1269,10 @@ impl Presentation {
     /// empty and carry no `p:spPr` content of their own, so their position, size and appearance all
     /// keep inheriting from the layout — editing the layout still moves them.
     ///
-    /// **Every** placeholder is cloned, including any date, footer and slide-number slots. Those three
-    /// render from the layout when a slide does *not* declare them, so a deck that wants the layout's
-    /// date or footer text should delete the cloned shapes (or use [`add_slide`](Self::add_slide) and
-    /// build what it needs).
+    /// The date, footer and slide-number slots are **not** cloned, which is what PowerPoint does: those
+    /// three render *from the layout* precisely when a slide does not declare them, so a copy on the
+    /// slide would suppress the layout's rendering and show an empty box instead. Every other slot the
+    /// layout declares is cloned, in the layout's own order.
     ///
     /// # Errors
     /// Returns [`PptxError::LayoutIndexOutOfRange`] if `layout_idx` is out of range, or another
@@ -1280,12 +1280,15 @@ impl Presentation {
     pub fn add_slide_from_layout(&mut self, layout_idx: usize) -> Result<usize, PptxError> {
         let layout_part = self.layout_part_checked(layout_idx)?.clone();
 
-        // The slots the layout offers, read before anything is inserted.
+        // The slots the layout offers a slide to fill, read before anything is inserted. Date, footer
+        // and slide-number slots are excluded: they inherit-render from the layout, and a copy here
+        // would replace that rendering with an empty box.
         let slots = {
             let doc = self.package.part_tree(&layout_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             slide::shapes(sp_tree, &doc.interner)
                 .filter_map(|shape| slide::shape_placeholder_info(shape, &doc.interner))
+                .filter(|slot| !is_layout_rendered_slot(slot.kind))
                 .collect::<Vec<_>>()
         };
 
@@ -2190,6 +2193,20 @@ fn build_shape(interner: &mut Interner, id: u32, prst: &str, bounds: ShapeBounds
             RawNode::Element(sp_pr),
             RawNode::Element(tx_body),
         ],
+    )
+}
+
+/// Whether a placeholder slot is one a slide leaves to its layout to render.
+///
+/// A date (`dt`), footer (`ftr`) or slide-number (`sldNum`) placeholder is drawn from the layout for
+/// every slide that does **not** declare one of its own — that is the mechanism by which one footer
+/// reaches a whole deck. Cloning such a slot onto a new slide therefore does not copy the footer, it
+/// *suppresses* it and leaves an empty box, so [`add_slide_from_layout`](Presentation::add_slide_from_layout)
+/// skips these three, as PowerPoint does.
+fn is_layout_rendered_slot(kind: PlaceholderType) -> bool {
+    matches!(
+        kind,
+        PlaceholderType::DateAndTime | PlaceholderType::Footer | PlaceholderType::SlideNumber
     )
 }
 
