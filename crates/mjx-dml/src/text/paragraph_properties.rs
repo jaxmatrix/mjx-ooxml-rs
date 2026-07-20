@@ -726,6 +726,59 @@ impl ParagraphPropertiesSpec {
         self.default_run_properties.as_ref()
     }
 
+    /// Merges a **lower** inheritance tier under these properties: `self` wins wherever it names
+    /// something, and `lower` supplies only what `self` leaves unset.
+    ///
+    /// This is one rung of the ladder a paragraph's *effective* layout is resolved along — the
+    /// paragraph's own `a:pPr`, then the shape's list style at this level, then the same-slot
+    /// placeholder's on the layout and master, then the master's `p:txStyles`, then the presentation
+    /// default. Fold from the top: `paragraph.merge_under(&shape).merge_under(&layout)`.
+    ///
+    /// Three fields are not a plain field-wise fallback:
+    ///
+    /// - **Each bullet group merges as a unit.** A tier that sets `a:buChar` supplies the whole
+    ///   bullet, never a field of one — and `Bullet::None` (`<a:buNone/>`) is a *present* value, so an
+    ///   explicit "no bullet" correctly blocks an inherited one. The colour, size and typeface groups
+    ///   inherit independently of it, which is why they are separate fields.
+    /// - **Tab stops merge as a unit.** `a:tabLst` replaces wholesale in the schema, so an empty list
+    ///   means "unset" and takes the lower tier's list entirely rather than concatenating.
+    /// - **Default run properties merge recursively**, so a tier setting `a:defRPr@sz` does not shadow
+    ///   a lower tier's `a:defRPr@b`.
+    #[must_use]
+    pub fn merge_under(mut self, lower: &Self) -> Self {
+        self.level = self.level.or(lower.level);
+        self.alignment = self.alignment.or(lower.alignment);
+        self.left_margin = self.left_margin.or(lower.left_margin);
+        self.right_margin = self.right_margin.or(lower.right_margin);
+        self.indent = self.indent.or(lower.indent);
+        self.default_tab_size = self.default_tab_size.or(lower.default_tab_size);
+        self.right_to_left = self.right_to_left.or(lower.right_to_left);
+        self.font_alignment = self.font_alignment.or(lower.font_alignment);
+        self.line_spacing = self.line_spacing.or(lower.line_spacing);
+        self.space_before = self.space_before.or(lower.space_before);
+        self.space_after = self.space_after.or(lower.space_after);
+
+        self.bullet = self.bullet.or_else(|| lower.bullet.clone());
+        self.bullet_color = self.bullet_color.or_else(|| lower.bullet_color.clone());
+        self.bullet_size = self.bullet_size.or(lower.bullet_size);
+        self.bullet_typeface = self
+            .bullet_typeface
+            .or_else(|| lower.bullet_typeface.clone());
+
+        if self.tab_stops.is_empty() {
+            self.tab_stops = lower.tab_stops.clone();
+        }
+
+        self.default_run_properties = match (
+            self.default_run_properties.take(),
+            lower.default_run_properties.as_ref(),
+        ) {
+            (Some(higher), Some(lower)) => Some(higher.merge_under(lower)),
+            (higher, lower) => higher.or_else(|| lower.cloned()),
+        };
+        self
+    }
+
     /// Builds a **fresh** element under `local` (`pPr`, `defPPr` or `lvlNpPr`), in
     /// `CT_TextParagraphProperties` order: the attributes, then `a:lnSpc` → `a:spcBef` → `a:spcAft` →
     /// `a:tabLst` → `a:defRPr`.

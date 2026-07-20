@@ -649,6 +649,49 @@ impl CharacterPropertiesSpec {
             .map(|(_, font)| font)
     }
 
+    /// Merges a **lower** inheritance tier under these properties: `self` wins wherever it names
+    /// something, and `lower` supplies only what `self` leaves unset.
+    ///
+    /// This is one rung of the ladder a run's *effective* formatting is resolved along — the run's own
+    /// `a:rPr`, then the paragraph's `a:defRPr`, then each list style up through the layout, the master
+    /// and the presentation default. Fold from the top: `run.merge_under(&paragraph).merge_under(&shape)`.
+    ///
+    /// Every property merges as a whole value, so a tier that sets a fill supplies *that* fill rather
+    /// than half of one, and an explicit "off" — `Fill::NoFill`, an empty effect list — is a present
+    /// value that correctly blocks the tier below. Two fields are not a plain field-wise fallback:
+    ///
+    /// - **Fonts merge per script slot.** A tier naming only a latin font leaves a lower tier's East
+    ///   Asian font standing, because `a:latin` and `a:ea` are separate elements, not one choice.
+    /// - **Nothing else is special.** Sizes, weights, colors and the rest are single values.
+    #[must_use]
+    pub fn merge_under(mut self, lower: &Self) -> Self {
+        self.size = self.size.or(lower.size);
+        self.bold = self.bold.or(lower.bold);
+        self.italic = self.italic.or(lower.italic);
+        self.underline = self.underline.or(lower.underline);
+        self.strike = self.strike.or(lower.strike);
+        self.capitalization = self.capitalization.or(lower.capitalization);
+        self.spacing = self.spacing.or(lower.spacing);
+        self.kerning = self.kerning.or(lower.kerning);
+        self.baseline = self.baseline.or(lower.baseline);
+        self.language = self.language.or_else(|| lower.language.clone());
+        self.fill = self.fill.or_else(|| lower.fill.clone());
+        self.outline = self.outline.or_else(|| lower.outline.clone());
+        self.effects = self.effects.or_else(|| lower.effects.clone());
+        self.highlight = self.highlight.or_else(|| lower.highlight.clone());
+
+        // Per slot, in schema order, so a merged spec's fonts read the same whichever tier set them.
+        for slot in FontSlot::all_slots() {
+            if self.font(slot).is_none() {
+                if let Some(font) = lower.font(slot) {
+                    self.fonts.push((slot, font.clone()));
+                }
+            }
+        }
+        self.fonts.sort_by_key(|(slot, _)| *slot as u8);
+        self
+    }
+
     /// Builds a **fresh** element for these properties under `local` (`rPr`, `defRPr` or
     /// `endParaRPr`), assembled in `CT_TextCharacterProperties` order: the attributes, then `a:ln` →
     /// fill → effects → `a:highlight` → the script fonts.
