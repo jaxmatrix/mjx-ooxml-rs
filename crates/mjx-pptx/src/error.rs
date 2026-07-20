@@ -115,4 +115,12 @@ pub enum PptxError {
     /// The shape has no `p:spPr` shape-properties element to edit.
     #[error("shape has no properties element")]
     ShapeHasNoProperties,
+
+    /// The addressed shape is not a picture (`p:pic`), so it has no image to read or replace.
+    #[error("shape is not a picture")]
+    ShapeIsNotAPicture,
+
+    /// The picture is missing its `p:blipFill` (or its `a:blip`), which the schema requires.
+    #[error("picture has no blip fill")]
+    PictureHasNoBlipFill,
 }
