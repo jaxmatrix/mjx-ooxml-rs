@@ -64,7 +64,9 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   ✅ `spPr` visual trilogy — fill, outline (`a:ln`), and effects (`a:effectLst`) — each modeled both
   explicitly and *effectively* (style refs + placeholder inheritance), and ✅ **images** (`add_image`
   media parts, `add_picture` `p:pic` shapes, read/replace — on one shape index space covering every
-  shape kind). ⏳ Remaining: **layout/master** modeling.
+  shape kind). 🚧 **layout/master**: ✅ PresentationML simple types + the layout/master inventory
+  (enumerate layouts and masters, kind/name, a slide's layout, slide size); ⏳ remaining: addressing
+  shapes on a layout or master, and creating a slide from a chosen layout.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).
