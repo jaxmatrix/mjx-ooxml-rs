@@ -52,9 +52,10 @@ pub use resolve::{
 };
 pub use style::{ColorMap, StyleMatrixReference};
 pub use text::{
-    CharacterProperties, CharacterPropertiesSpec, FontAlignment, FontSlot, Paragraph,
-    ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec, RunContent, TabAlignment,
-    TabStop, Text, TextAlignment, TextBody, TextBodyContent, TextCapitalization, TextFont,
-    TextListStyle, TextRun, TextSpacing, TextStrike, TextUnderline,
+    AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,
+    BulletSize, BulletTypeface, CharacterProperties, CharacterPropertiesSpec, FontAlignment,
+    FontSlot, Paragraph, ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec,
+    RunContent, TabAlignment, TabStop, Text, TextAlignment, TextBody, TextBodyContent,
+    TextCapitalization, TextFont, TextListStyle, TextRun, TextSpacing, TextStrike, TextUnderline,
 };
 pub use theme::{ColorScheme, ColorSchemeSlot, Theme, ThemeInfo};

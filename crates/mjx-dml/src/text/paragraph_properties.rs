@@ -31,6 +31,12 @@ use crate::build::{
     parse_percentage, replace_or_insert_child, set_attr,
 };
 use crate::geometry::{Emu, Fraction, IndentLevel, TextPoint};
+use crate::text::bullet::{
+    build_bullet, build_bullet_color, build_bullet_size, build_bullet_typeface,
+    is_bullet_color_local, is_bullet_local, is_bullet_size_local, is_bullet_typeface_local,
+    read_bullet, read_bullet_color, read_bullet_size, read_bullet_typeface, Bullet,
+    BulletCharacter, BulletColor, BulletSize, BulletTypeface,
+};
 use crate::text::character::{CharacterProperties, CharacterPropertiesSpec};
 
 pub use mjx_ooxml_types::drawingml::{FontAlignment, TabAlignment, TextAlignment};
@@ -92,11 +98,11 @@ impl TabStop {
 // ---------------------------------------------------------------------------------------------
 
 /// `CT_TextParagraphProperties` — a paragraph's layout: its indent level, alignment, margins,
-/// spacing, tab stops, and the character properties its runs default to.
+/// spacing, bullet, tab stops, and the character properties its runs default to.
 ///
 /// A fidelity wrapper: the modeled properties are typed, while the line-breaking attributes
-/// (`eaLnBrk`, `latinLnBrk`, `hangingPunct`), `extLst`, the bullet groups and anything unknown are
-/// preserved verbatim so a paragraph round-trips byte-for-byte. The element name is preserved too, so
+/// (`eaLnBrk`, `latinLnBrk`, `hangingPunct`), `extLst` and anything unknown are preserved verbatim so
+/// a paragraph round-trips byte-for-byte. The element name is preserved too, so
 /// the same type reads and writes `a:pPr`, `a:defPPr` and each `a:lvlNpPr`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ParagraphProperties {
@@ -206,6 +212,31 @@ impl ParagraphProperties {
             .collect()
     }
 
+    /// What marks this paragraph (`EG_TextBullet`), or `None` if it declares no bullet group — in
+    /// which case the bullet is inherited. [`Bullet::None`] is the *decision* to have none.
+    #[must_use]
+    pub fn bullet(&self, interner: &Interner) -> Option<Bullet> {
+        read_bullet(&self.children, interner)
+    }
+
+    /// The bullet's colour (`EG_TextBulletColor`), or `None` if inherited.
+    #[must_use]
+    pub fn bullet_color(&self, interner: &Interner) -> Option<BulletColor> {
+        read_bullet_color(&self.children, interner)
+    }
+
+    /// The bullet's size (`EG_TextBulletSize`), or `None` if inherited.
+    #[must_use]
+    pub fn bullet_size(&self, interner: &Interner) -> Option<BulletSize> {
+        read_bullet_size(&self.children, interner)
+    }
+
+    /// The bullet's typeface (`EG_TextBulletTypeface`), or `None` if inherited.
+    #[must_use]
+    pub fn bullet_typeface(&self, interner: &Interner) -> Option<BulletTypeface> {
+        read_bullet_typeface(&self.children, interner)
+    }
+
     /// The character properties this paragraph's runs default to (`a:defRPr`), or `None` if it
     /// declares none. This is the tier a run's own `a:rPr` overrides.
     #[must_use]
@@ -229,6 +260,10 @@ impl ParagraphProperties {
             line_spacing: self.line_spacing(interner),
             space_before: self.space_before(interner),
             space_after: self.space_after(interner),
+            bullet: self.bullet(interner),
+            bullet_color: self.bullet_color(interner),
+            bullet_size: self.bullet_size(interner),
+            bullet_typeface: self.bullet_typeface(interner),
             tab_stops: self.tab_stops(interner),
             default_run_properties: self
                 .default_run_properties(interner)
@@ -289,6 +324,25 @@ impl ParagraphProperties {
                 let element = build_spacing(interner, local, spacing);
                 self.replace_child(interner, element, |candidate| candidate == local);
             }
+        }
+        // The four bullet groups are independent: each replaces its own group and leaves the others
+        // exactly as they were, because a level may set one and inherit the rest.
+        if let Some(color) = &spec.bullet_color {
+            if let Some(element) = build_bullet_color(interner, color) {
+                self.replace_child(interner, element, is_bullet_color_local);
+            }
+        }
+        if let Some(size) = spec.bullet_size {
+            let element = build_bullet_size(interner, size);
+            self.replace_child(interner, element, is_bullet_size_local);
+        }
+        if let Some(typeface) = &spec.bullet_typeface {
+            let element = build_bullet_typeface(interner, typeface);
+            self.replace_child(interner, element, is_bullet_typeface_local);
+        }
+        if let Some(bullet) = &spec.bullet {
+            let element = build_bullet(interner, bullet);
+            self.replace_child(interner, element, is_bullet_local);
         }
         if !spec.tab_stops.is_empty() {
             let element = build_tab_stops(interner, &spec.tab_stops);
@@ -419,6 +473,10 @@ pub struct ParagraphPropertiesSpec {
     line_spacing: Option<TextSpacing>,
     space_before: Option<TextSpacing>,
     space_after: Option<TextSpacing>,
+    bullet: Option<Bullet>,
+    bullet_color: Option<BulletColor>,
+    bullet_size: Option<BulletSize>,
+    bullet_typeface: Option<BulletTypeface>,
     tab_stops: Vec<TabStop>,
     default_run_properties: Option<CharacterPropertiesSpec>,
 }
@@ -509,6 +567,48 @@ impl ParagraphPropertiesSpec {
         self
     }
 
+    /// Sets what marks the paragraph.
+    #[must_use]
+    pub fn with_bullet(mut self, bullet: Bullet) -> Self {
+        self.bullet = Some(bullet);
+        self
+    }
+
+    /// Marks the paragraph with a literal character — `with_bullet_character("•")`.
+    #[must_use]
+    pub fn with_bullet_character(self, character: &str) -> Self {
+        self.with_bullet(Bullet::Character(BulletCharacter::new(character)))
+    }
+
+    /// Gives the paragraph no bullet at all, **overriding** any it would otherwise inherit. This is
+    /// `a:buNone`, a decision — not the same as never naming a bullet.
+    #[must_use]
+    pub fn without_bullet(self) -> Self {
+        self.with_bullet(Bullet::None)
+    }
+
+    /// Sets the bullet's colour.
+    #[must_use]
+    pub fn with_bullet_color(mut self, color: BulletColor) -> Self {
+        self.bullet_color = Some(color);
+        self
+    }
+
+    /// Sets the bullet's size.
+    #[must_use]
+    pub fn with_bullet_size(mut self, size: BulletSize) -> Self {
+        self.bullet_size = Some(size);
+        self
+    }
+
+    /// Sets the bullet's typeface — a character bullet usually needs one, since the glyph has to
+    /// exist in the font.
+    #[must_use]
+    pub fn with_bullet_typeface(mut self, typeface: BulletTypeface) -> Self {
+        self.bullet_typeface = Some(typeface);
+        self
+    }
+
     /// Sets the tab stops, replacing any already named.
     #[must_use]
     pub fn with_tab_stops(mut self, stops: Vec<TabStop>) -> Self {
@@ -588,6 +688,30 @@ impl ParagraphPropertiesSpec {
     #[must_use]
     pub fn space_after(&self) -> Option<TextSpacing> {
         self.space_after
+    }
+
+    /// What marks the paragraph, if set.
+    #[must_use]
+    pub fn bullet(&self) -> Option<&Bullet> {
+        self.bullet.as_ref()
+    }
+
+    /// The bullet's colour, if set.
+    #[must_use]
+    pub fn bullet_color(&self) -> Option<&BulletColor> {
+        self.bullet_color.as_ref()
+    }
+
+    /// The bullet's size, if set.
+    #[must_use]
+    pub fn bullet_size(&self) -> Option<BulletSize> {
+        self.bullet_size
+    }
+
+    /// The bullet's typeface, if set.
+    #[must_use]
+    pub fn bullet_typeface(&self) -> Option<&BulletTypeface> {
+        self.bullet_typeface.as_ref()
     }
 
     /// The tab stops, empty if none are named.
