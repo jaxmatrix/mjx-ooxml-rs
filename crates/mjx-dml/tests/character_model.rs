@@ -6,8 +6,8 @@
 //! it.
 
 use mjx_dml::{
-    CharacterProperties, CharacterPropertiesSpec, ColorSpec, FontSlot, Fraction, LineSpec,
-    LineWidth, Paragraph, RunContent, SchemeColor, TextCapitalization, TextFont, TextRun,
+    CharacterProperties, CharacterPropertiesSpec, ColorSpec, FillSpec, FontSlot, Fraction,
+    LineSpec, LineWidth, Paragraph, RunContent, SchemeColor, TextCapitalization, TextFont, TextRun,
     TextStrike, TextUnderline,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
@@ -425,4 +425,80 @@ fn a_font_carries_its_metric_hints_through() {
     let mut interner = Interner::new();
     let built = spec.to_properties(&mut interner, "rPr");
     assert_eq!(built.font(&interner, FontSlot::Latin), Some(font));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Merging tiers — what an inherited property means
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn a_higher_tier_wins_and_an_unset_property_inherits() {
+    let higher = CharacterPropertiesSpec::new()
+        .with_size_points(18.0)
+        .with_bold(true);
+    let lower = CharacterPropertiesSpec::new()
+        .with_size_points(32.0)
+        .with_italic(true)
+        .with_language("en-US");
+
+    let merged = higher.merge_under(&lower);
+
+    // Named above: kept. Named only below: inherited. Named nowhere: still unset.
+    assert_eq!(merged.size_points(), Some(18.0));
+    assert_eq!(merged.is_bold(), Some(true));
+    assert_eq!(merged.is_italic(), Some(true));
+    assert_eq!(merged.language(), Some("en-US"));
+    assert_eq!(merged.underline(), None);
+}
+
+#[test]
+fn merging_an_empty_tier_changes_nothing_either_way() {
+    let full = CharacterPropertiesSpec::new()
+        .with_size_points(24.0)
+        .with_underline(TextUnderline::Single);
+    let empty = CharacterPropertiesSpec::new();
+
+    // An empty tier below adds nothing; an empty tier above inherits everything.
+    assert_eq!(full.clone().merge_under(&empty), full);
+    assert_eq!(empty.merge_under(&full), full);
+}
+
+#[test]
+fn an_explicit_off_blocks_the_tier_below() {
+    // `b="0"` is a decision, not an absence — a title that says "not bold" stays unbold under a
+    // master that says bold.
+    let merged = CharacterPropertiesSpec::new()
+        .with_bold(false)
+        .merge_under(&CharacterPropertiesSpec::new().with_bold(true));
+    assert_eq!(merged.is_bold(), Some(false));
+
+    // Same for a fill: `a:noFill` is a present value.
+    let merged = CharacterPropertiesSpec::new()
+        .with_fill(FillSpec::None)
+        .merge_under(
+            &CharacterPropertiesSpec::new()
+                .with_fill(FillSpec::Solid(ColorSpec::Srgb("FF0000".into()))),
+        );
+    assert_eq!(merged.fill(), Some(&FillSpec::None));
+}
+
+#[test]
+fn fonts_merge_per_script_slot() {
+    let latin = TextFont::named("Cambria");
+    let east_asian = TextFont::named("Yu Gothic");
+    let other_latin = TextFont::named("Calibri");
+
+    // The higher tier names only the latin font, so the lower tier's East Asian font survives — the
+    // two are separate elements, not one choice.
+    let merged = CharacterPropertiesSpec::new()
+        .with_font_for(FontSlot::Latin, latin.clone())
+        .merge_under(
+            &CharacterPropertiesSpec::new()
+                .with_font_for(FontSlot::Latin, other_latin)
+                .with_font_for(FontSlot::EastAsian, east_asian.clone()),
+        );
+
+    assert_eq!(merged.font(FontSlot::Latin), Some(&latin));
+    assert_eq!(merged.font(FontSlot::EastAsian), Some(&east_asian));
+    assert_eq!(merged.font(FontSlot::ComplexScript), None);
 }
