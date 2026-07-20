@@ -1,11 +1,37 @@
-# Handoff — PowerPoint images / pictures (`p:pic` + media parts) — IN PROGRESS
+# Handoff — PowerPoint images / pictures (`p:pic` + media parts) — COMPLETE
 
-A self-contained brief for the **images** workstream. Read after `docs/PHASE2_HANDOFF.md` (§3
-guardrails) and `docs/DRAWINGML_FILL_HANDOFF.md` (the `blipFill` model).
+A record of the **images** workstream, kept for the decisions it settled. Read after
+`docs/PHASE2_HANDOFF.md` (§3 guardrails) and `docs/DRAWINGML_FILL_HANDOFF.md` (the `blipFill` model).
 
-**Status: I1 (image parts) is done — resume at I2 (`p:pic` picture shapes).** See "What I1 shipped"
-below for the decisions it settled; the rest is the plan plus facts already verified against the repo
-and the spec, so the next session does not re-derive them.
+**Status: done — I1 (image parts), I2 (`p:pic` picture shapes), I3 (read/replace) have all shipped.**
+The next Phase 3 workstream is **layout/master** modeling.
+
+## What shipped
+
+```rust
+let picture = deck.add_picture(0, &png_bytes, ShapeBounds::from_inches(1.0, 1.0, 3.0, 2.0))?;
+deck.set_shape_outline(0, picture, &border)?;      // a picture takes the whole spPr surface
+deck.set_picture_image(0, picture, &other_bytes)?; // …and its image can be swapped
+```
+Also `add_image` (parts only, for `FillSpec::Blip`), `picture_image_rel_id`, `picture_image_bytes`,
+`shape_kind`. Tests: `crates/mjx-pptx/tests/{images,pictures}.rs` + two LibreOffice canaries, both
+eyeballed as rendered PNGs.
+
+Decisions I2/I3 settled:
+- **One shape index space over every kind.** `slide::shapes` yields all six `EG_ShapeElements`
+  (`sp | pic | grpSp | graphicFrame | cxnSp | contentPart`) in document order, and the public
+  `ShapeKind` says which an index is. A picture is simply shape *n*, so fill/outline/effects/geometry
+  work on it with no duplicated API family. A group counts as one shape; its members are not
+  addressable. **This changed what an existing `shape_idx` means** on any deck containing more than
+  `p:sp`.
+- **`p:blipFill` is built in `mjx-pptx`**, not by `mjx_dml::BlipFill::new` (that emits `a:blipFill`);
+  reading it back does reuse `BlipFill`, whose fidelity wrapper is name-agnostic.
+- **The `r` prefix is declared on a built subtree when the part does not bind it**
+  (`build::relationship_prefix_declaration`) — attribute namespaces are never resolved, so an
+  `r:embed` is meaningless without a binding. `mjx-dml` keeps putting that on the caller.
+- **A replaced image's part stays in the package.** Another shape may reference it; sweeping
+  unreferenced parts is a package-wide graph operation for a later task.
+- Picture bounds are always the caller's — nothing decodes an image, so its natural size is unknown.
 
 ## What I1 shipped
 
@@ -30,13 +56,12 @@ Decisions I1 settled — do not re-litigate them in I2/I3:
   extension; relationship ids come from `next_rid_for(part)`, which starts at `rId1` for a part with
   no `.rels`.
 
-## Why this is next
+## Why this workstream existed
 
 With fill, outline (`a:ln`), and effects (`a:effectLst`) all modeled explicitly **and** effectively,
-the `spPr` visual trilogy is done. `PLAN.md` Phase 3 lists two remaining items — **images** and
-**layout/master** — and images is the bigger user-visible gap: **you currently cannot put a picture on
-a slide.** The fill workstream deliberately deferred it ("adding a `blipFill` image needs an image part
-+ a relationship — its own step").
+the `spPr` visual trilogy was done, and images were the bigger of Phase 3's two remaining gaps: you
+could not put a picture on a slide at all. The fill workstream deliberately deferred it ("adding a
+`blipFill` image needs an image part + a relationship — its own step").
 
 ## Current state — verified, not assumed
 
@@ -91,15 +116,22 @@ Well-known strings (not in the XSD; from ECMA-376 Part 1 / OPC):
 - content types: `image/png`, `image/jpeg`, `image/gif`, `image/bmp`, `image/tiff`, `image/x-emf`,
   `image/x-wmf`, `image/svg+xml`.
 
-## Roadmap — 3 atomic PRs
+## Roadmap — all three PRs landed
 
 - **I1 — image parts (foundation).** ✅ *done* — see "What I1 shipped" above.
-- **I2 — `p:pic` picture shapes.** `Presentation::add_picture(slide_idx, bytes, ShapeBounds) ->
-  Result<usize, PptxError>` building a whole `p:pic` (`nvPicPr`/`p:blipFill` with `a:blip r:embed` +
-  `a:stretch`/`a:fillRect`/`spPr` with `a:xfrm` + `prstGeom prst="rect"`), appended to `p:spTree`;
-  plus a parallel picture index space (`picture_count`, `picture_image_rel_id`). Office-open canary.
-- **I3 (optional) — read/replace.** `picture_image_bytes` (resolve `r:embed` → part → bytes) and
-  `set_picture_image` / replacing an existing image part.
+- **I2 — `p:pic` picture shapes.** ✅ *done* — `add_picture`, on the unified shape index space rather
+  than the parallel `picture_*` space originally sketched here.
+- **I3 — read/replace.** ✅ *done* — `picture_image_rel_id` / `picture_image_bytes` /
+  `set_picture_image`.
+
+## Known follow-ups (not blockers)
+
+- **Unreferenced media parts are never swept.** Replacing an image leaves the old part in place. A
+  package-wide "remove parts nothing relates to" pass belongs in `mjx-opc`.
+- **Linked images (`a:blip@r:link`) are not resolved** — `picture_image_rel_id` returns `None` for a
+  picture that links rather than embeds.
+- **Group members are not addressable.** A `p:grpSp` is one shape; reaching inside it needs a nested
+  address (`ShapeKind::GroupShape` marks where).
 
 ## Guardrails
 
@@ -114,11 +146,8 @@ verbatim, we never re-encode); never stage `References/`.
 **Commits:** split by concern — the shared plumbing, the package plumbing, the public API, tests, and
 docs each land as their own commit (see the git-workflow memory).
 
-## First actions (for I2)
+## Where to look
 
-1. `git switch main && git pull --ff-only` (ensure the I1 PR has merged).
-2. Read this + `docs/DRAWINGML_FILL_HANDOFF.md` (blipFill) + `mjx-pptx/src/{presentation.rs,build.rs}`
-   (`build_shape`/`build_sp_pr` — the subtree-construction pattern I2 copies) + `add_image` and
-   `crates/mjx-pptx/tests/images.rs` (what I1 left you).
-3. Discussion-first, then implement I2 — `add_picture` should call `add_image` for the part/rel and
-   then build the `p:pic` subtree, so the two layers stay separable.
+`crates/mjx-pptx/src/presentation.rs` (`add_image`, `add_picture`, `build_picture`, the `picture_*`
+readers), `crates/mjx-pptx/src/slide.rs` (`ShapeKind`, `shapes`, `nth_shape_mut`),
+`crates/mjx-opc/src/media.rs` (`ImageFormat`), and the tests named above.

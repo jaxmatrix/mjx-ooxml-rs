@@ -62,9 +62,9 @@ See [`CHANGELOG.md`](CHANGELOG.md).
 - **Phase 3 — DrawingML + PPTX depth.** 🚧 *in progress.* ✅ preset geometry (all 117 adjustable shapes
   named), ✅ color model + theme (`clrScheme`/`fmtScheme`, color resolution to concrete RGB), and the
   ✅ `spPr` visual trilogy — fill, outline (`a:ln`), and effects (`a:effectLst`) — each modeled both
-  explicitly and *effectively* (style refs + placeholder inheritance), and ✅ **image parts**
-  (`add_image`: format sniffing, deduplicated media parts, relationship wiring → picture fill works
-  end-to-end). ⏳ Remaining: **`p:pic` picture shapes** and **layout/master** modeling.
+  explicitly and *effectively* (style refs + placeholder inheritance), and ✅ **images** (`add_image`
+  media parts, `add_picture` `p:pic` shapes, read/replace — on one shape index space covering every
+  shape kind). ⏳ Remaining: **layout/master** modeling.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).
