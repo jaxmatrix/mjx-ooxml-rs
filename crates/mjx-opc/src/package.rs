@@ -552,6 +552,78 @@ impl Package {
             .retain(|r| r.source.as_ref() != Some(part));
         Ok(())
     }
+
+    /// Removes a part together with every part that was reachable *only* through it, and returns the
+    /// parts removed, in removal order (`part` first).
+    ///
+    /// [`remove_part`](Self::remove_part) unwires one part and leaves the graph alone, which is right
+    /// when the caller knows what the targets are. This is the whole-document operation: deleting a
+    /// slide should take its notes slide with it — that part holds a relationship *back* to the slide,
+    /// so leaving it behind leaves a dangling reference — while leaving media the rest of the deck
+    /// still shows.
+    ///
+    /// A target survives if any relationship remaining in the package resolves to it. Only `Internal`
+    /// targets are followed; external ones name no part. Unresolvable targets are skipped rather than
+    /// failing the removal — a package that already contained a broken target is not made worse by
+    /// deleting something else. A reference cycle terminates: each part is considered once.
+    ///
+    /// The caller is still responsible for the *inbound* reference to `part` itself (the `p:sldId` and
+    /// the presentation's relationship, say) — this walks downward only.
+    ///
+    /// # Errors
+    /// Returns [`OpcError::UnknownPart`] if `part` is absent, or an error while removing a content
+    /// type.
+    pub fn remove_part_cascading(&mut self, part: &PartName) -> Result<Vec<PartName>, OpcError> {
+        let mut removed = Vec::new();
+        let mut queue = vec![part.clone()];
+        let mut seen: Vec<PartName> = vec![part.clone()];
+
+        while let Some(current) = queue.pop() {
+            // The targets this part referenced; they may become unreferenced once it is gone.
+            let targets = self.internal_targets_of(&current);
+            self.remove_part(&current)?;
+            removed.push(current);
+
+            for target in targets {
+                if seen.contains(&target) || self.is_referenced(&target) {
+                    continue;
+                }
+                if self.entries.iter().any(|e| e.name == target.zip_name()) {
+                    seen.push(target.clone());
+                    queue.push(target);
+                }
+            }
+        }
+        Ok(removed)
+    }
+
+    /// The parts `source`'s own `.rels` points at — internal targets only, unresolvable ones skipped.
+    fn internal_targets_of(&self, source: &PartName) -> Vec<PartName> {
+        let Some(rels) = self.relationships_for(Some(source)) else {
+            return Vec::new();
+        };
+        rels.iter()
+            .filter(|rel| rel.mode == TargetMode::Internal)
+            .filter_map(|rel| source.resolve(&rel.target).ok())
+            .collect()
+    }
+
+    /// Whether any relationship still in the package resolves to `part`.
+    fn is_referenced(&self, part: &PartName) -> bool {
+        self.relationships.iter().any(|rels_part| {
+            rels_part
+                .relationships
+                .iter()
+                .filter(|rel| rel.mode == TargetMode::Internal)
+                .any(|rel| {
+                    let resolved = match &rels_part.source {
+                        Some(source) => source.resolve(&rel.target),
+                        None => PartName::resolve_from_root(&rel.target),
+                    };
+                    resolved.is_ok_and(|resolved| &resolved == part)
+                })
+        })
+    }
 }
 
 /// Whether a ZIP entry name is a control part (`[Content_Types].xml` or a `.rels` part), which must
