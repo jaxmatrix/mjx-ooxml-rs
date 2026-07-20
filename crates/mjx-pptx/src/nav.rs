@@ -156,6 +156,40 @@ pub(crate) fn resolve_target(source: &PartName, target: &str) -> Result<PartName
     resolve_in_dir(&source[..dir_end], target)
 }
 
+/// The relationship target to write in `source`'s `.rels` so that it resolves to `target` — the
+/// inverse of [`resolve_target`].
+///
+/// The result is relative to `source`'s directory, with one `..` segment per directory level that has
+/// to be climbed (`/ppt/slides/slide1.xml` → `/ppt/media/image1.png` = `../media/image1.png`). This is
+/// the form Office writes, and it keeps a part relocatable with its neighbours.
+pub(crate) fn relative_target(source: &PartName, target: &PartName) -> String {
+    let source_dirs: Vec<&str> = path_segments(source.as_str());
+    let target_dirs: Vec<&str> = path_segments(target.as_str());
+    // Both are absolute part names, so the last segment is the file name, not a directory.
+    let source_depth = source_dirs.len() - 1;
+    let shared = source_dirs
+        .iter()
+        .take(source_depth)
+        .zip(target_dirs.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
+    let mut out = String::new();
+    for _ in shared..source_depth {
+        out.push_str("../");
+    }
+    for segment in &target_dirs[shared..] {
+        out.push_str(segment);
+        out.push('/');
+    }
+    out.pop(); // the trailing '/' after the file name
+    out
+}
+
+/// The non-empty `/`-separated segments of an absolute part name.
+fn path_segments(part: &str) -> Vec<&str> {
+    part.split('/').filter(|s| !s.is_empty()).collect()
+}
+
 fn resolve_in_dir(base_dir: &str, target: &str) -> Result<PartName, PptxError> {
     if is_external(target) {
         return Err(PptxError::ExternalTarget {
@@ -238,6 +272,55 @@ mod tests {
         let err =
             resolve_target(&part("/ppt/presentation.xml"), "http://example.com/x").unwrap_err();
         assert!(matches!(err, PptxError::ExternalTarget { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn relative_target_climbs_to_a_sibling_directory() {
+        let target = relative_target(
+            &part("/ppt/slides/slide1.xml"),
+            &part("/ppt/media/image1.png"),
+        );
+        assert_eq!(target, "../media/image1.png");
+    }
+
+    #[test]
+    fn relative_target_handles_same_and_deeper_directories() {
+        assert_eq!(
+            relative_target(
+                &part("/ppt/slides/slide1.xml"),
+                &part("/ppt/slides/slide2.xml")
+            ),
+            "slide2.xml"
+        );
+        assert_eq!(
+            relative_target(
+                &part("/ppt/presentation.xml"),
+                &part("/ppt/slides/slide2.xml")
+            ),
+            "slides/slide2.xml"
+        );
+        assert_eq!(
+            relative_target(&part("/ppt/slides/slide1.xml"), &part("/docProps/app.xml")),
+            "../../docProps/app.xml"
+        );
+    }
+
+    #[test]
+    fn relative_target_is_the_inverse_of_resolve_target() {
+        for (source, target) in [
+            ("/ppt/slides/slide1.xml", "/ppt/media/image1.png"),
+            ("/ppt/presentation.xml", "/ppt/slides/slide2.xml"),
+            ("/ppt/slides/slide1.xml", "/docProps/app.xml"),
+            ("/a.xml", "/b.xml"),
+        ] {
+            let (source, target) = (part(source), part(target));
+            let relative = relative_target(&source, &target);
+            assert_eq!(
+                resolve_target(&source, &relative).unwrap(),
+                target,
+                "round trip failed for {relative}"
+            );
+        }
     }
 
     #[test]

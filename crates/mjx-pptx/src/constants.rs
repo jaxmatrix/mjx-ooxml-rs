@@ -23,6 +23,10 @@ pub const REL_SLIDE_MASTER: &str =
 pub const REL_THEME: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
 
+/// The relationship type from a part (e.g. a slide) to an embedded image part.
+pub const REL_IMAGE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";

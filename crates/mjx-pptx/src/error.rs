@@ -107,6 +107,11 @@ pub enum PptxError {
     #[error("cannot add a slide: no existing slide to borrow a layout from")]
     NoSlideLayout,
 
+    /// The supplied image bytes match no image format this build recognizes (see
+    /// [`mjx_opc::ImageFormat`]).
+    #[error("image bytes match no recognized image format")]
+    UnrecognizedImageFormat,
+
     /// The shape has no `p:spPr` shape-properties element to edit.
     #[error("shape has no properties element")]
     ShapeHasNoProperties,
