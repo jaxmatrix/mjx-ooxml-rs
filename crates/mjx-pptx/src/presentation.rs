@@ -20,9 +20,13 @@ use crate::{build, constants, nav, slide};
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
 /// ordered list of slide parts.
 ///
-/// Reads and edits are addressed by index (`slide_idx`, `shape_idx`, `run_idx`). Reading a part never
-/// dirties it; editing marks only the one slide part dirty, so [`save`](Self::save) re-emits every
-/// other part byte-identically.
+/// Reads and edits are addressed by a [`Surface`] (a slide, layout, or master — a bare `usize` means
+/// a slide) plus `shape_idx` / `run_idx`. Reading a part never dirties it; editing marks only that one
+/// part dirty, so [`save`](Self::save) re-emits every other part byte-identically.
+///
+/// Editing a **layout or master** is how one change reaches many slides: a slide placeholder that
+/// declares no property of its own inherits from the same-slot placeholder up its chain (see
+/// [`effective_shape_fill`](Self::effective_shape_fill)).
 #[derive(Debug)]
 pub struct Presentation {
     package: Package,
@@ -304,20 +308,21 @@ impl Presentation {
         Ok(chain)
     }
 
-    /// The number of shapes on slide `slide_idx` — of **every** [`ShapeKind`] (autoshapes, pictures,
+    /// The number of shapes on `surface` — of **every** [`ShapeKind`] (autoshapes, pictures,
     /// groups, graphic frames, connectors), in document order. A group counts as one shape; its
     /// members are not separately addressable.
     ///
     /// # Errors
     /// Returns [`PptxError`] if the index is out of range or the slide is malformed.
-    pub fn shape_count(&mut self, slide_idx: usize) -> Result<usize, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+    pub fn shape_count(&mut self, surface: impl Into<Surface>) -> Result<usize, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         Ok(slide::shapes(sp_tree, &doc.interner).count())
     }
 
-    /// What kind of shape `shape_idx` on slide `slide_idx` is — which of the index-addressed APIs
+    /// What kind of shape `shape_idx` on `surface` is — which of the index-addressed APIs
     /// apply to it (a [`Picture`](ShapeKind::Picture) takes the `p:spPr` surface but has no text body;
     /// a [`GroupShape`](ShapeKind::GroupShape) has no `p:spPr` at all).
     ///
@@ -325,16 +330,17 @@ impl Presentation {
     /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
     pub fn shape_kind(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<ShapeKind, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -343,20 +349,25 @@ impl Presentation {
             .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))
     }
 
-    /// The full text of shape `shape_idx` on slide `slide_idx` (paragraphs joined by `\n`).
+    /// The full text of shape `shape_idx` on `surface` (paragraphs joined by `\n`).
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
     /// text body ([`ShapeHasNoTextBody`](PptxError::ShapeHasNoTextBody) — a picture or group never
     /// has one).
-    pub fn shape_text(&mut self, slide_idx: usize, shape_idx: usize) -> Result<String, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+    pub fn shape_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<String, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -368,19 +379,20 @@ impl Presentation {
     }
 
     /// Replaces the text of the `run_idx`-th run (flattened over the shape's paragraphs, in document
-    /// order) of shape `shape_idx` on slide `slide_idx`. Marks only that slide part dirty.
+    /// order) of shape `shape_idx` on `surface`. Marks only that part dirty.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, the shape has no
     /// text body, or the selected run has no `a:t`.
     pub fn set_shape_text(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
         run_idx: usize,
         text: &str,
     ) -> Result<(), PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
@@ -388,7 +400,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -417,7 +429,7 @@ impl Presentation {
         Ok(())
     }
 
-    /// The preset geometry of shape `shape_idx` on slide `slide_idx`, as a typed [`ShapeGeometry`]
+    /// The preset geometry of shape `shape_idx` on `surface`, as a typed [`ShapeGeometry`]
     /// (named adjustments in friendly units). Reading does not dirty the part.
     ///
     /// # Errors
@@ -426,16 +438,17 @@ impl Presentation {
     /// shape type this build does not recognize ([`UnknownShapeType`](PptxError::UnknownShapeType)).
     pub fn shape_geometry(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<ShapeGeometry, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -448,7 +461,7 @@ impl Presentation {
             .ok_or(PptxError::UnknownShapeType)
     }
 
-    /// Sets the preset geometry of shape `shape_idx` on slide `slide_idx` from a typed
+    /// Sets the preset geometry of shape `shape_idx` on `surface` from a typed
     /// [`ShapeGeometry`] — rewriting the shape's `a:prstGeom@prst` and its adjustment `a:gd`s. Marks
     /// only that slide part dirty; everything else re-emits verbatim.
     ///
@@ -457,11 +470,12 @@ impl Presentation {
     /// `a:prstGeom` to edit.
     pub fn set_shape_geometry(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
         geometry: ShapeGeometry,
     ) -> Result<(), PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
@@ -469,7 +483,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -486,7 +500,7 @@ impl Presentation {
         Ok(())
     }
 
-    /// The explicit fill of shape `shape_idx` on slide `slide_idx`, as an interner-free [`FillSpec`],
+    /// The explicit fill of shape `shape_idx` on `surface`, as an interner-free [`FillSpec`],
     /// or `None` if the shape declares no fill in its `p:spPr` (its fill is then inherited from the
     /// placeholder / style / theme — resolving that is a separate, future task). Reading does not
     /// dirty the part.
@@ -496,16 +510,17 @@ impl Presentation {
     /// is not well-formed.
     pub fn shape_fill(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -519,9 +534,9 @@ impl Presentation {
         }
     }
 
-    /// Sets the fill of shape `shape_idx` on slide `slide_idx` from an interner-free [`FillSpec`],
+    /// Sets the fill of shape `shape_idx` on `surface` from an interner-free [`FillSpec`],
     /// rebuilding the `p:spPr` fill element (replacing an existing one in place, or inserting a new
-    /// one after any geometry and before `a:ln`). Marks only that slide part dirty.
+    /// one after any geometry and before `a:ln`). Marks only that part dirty.
     ///
     /// A [`FillSpec::Blip`] writes only the `a:blip@r:embed` reference; the image part and its
     /// relationship must already exist in the package — create both with
@@ -532,11 +547,12 @@ impl Presentation {
     /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
     pub fn set_shape_fill(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the fill element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
@@ -550,7 +566,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -574,20 +590,21 @@ impl Presentation {
         Ok(())
     }
 
-    /// Sets shape `shape_idx` on slide `slide_idx` to an explicit "no fill" (`a:noFill`). A shorthand
+    /// Sets shape `shape_idx` on `surface` to an explicit "no fill" (`a:noFill`). A shorthand
     /// for [`set_shape_fill`](Self::set_shape_fill) with [`FillSpec::None`].
     ///
     /// # Errors
     /// As [`set_shape_fill`](Self::set_shape_fill).
     pub fn set_shape_no_fill(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<(), PptxError> {
-        self.set_shape_fill(slide_idx, shape_idx, &FillSpec::None)
+        let surface = surface.into();
+        self.set_shape_fill(surface, shape_idx, &FillSpec::None)
     }
 
-    /// The **explicit** outline of shape `shape_idx` on slide `slide_idx` — its `p:spPr > a:ln` as an
+    /// The **explicit** outline of shape `shape_idx` on `surface` — its `p:spPr > a:ln` as an
     /// interner-free [`LineSpec`] — or `None` when the shape declares no `a:ln` (its outline is then
     /// inherited; effective outline resolution is a later step). Reading does not dirty the part.
     ///
@@ -596,16 +613,17 @@ impl Presentation {
     /// is not well-formed.
     pub fn shape_outline(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<LineSpec>, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -619,20 +637,21 @@ impl Presentation {
         }
     }
 
-    /// Sets the outline of shape `shape_idx` on slide `slide_idx` from an interner-free [`LineSpec`],
+    /// Sets the outline of shape `shape_idx` on `surface` from an interner-free [`LineSpec`],
     /// rebuilding the `p:spPr` `a:ln` element (replacing an existing one in place, or inserting a new
-    /// one after any geometry and fill, before effects). Marks only that slide part dirty.
+    /// one after any geometry and fill, before effects). Marks only that part dirty.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
     /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
     pub fn set_shape_outline(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
         line: &LineSpec,
     ) -> Result<(), PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the outline element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
@@ -640,7 +659,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -661,7 +680,7 @@ impl Presentation {
         Ok(())
     }
 
-    /// Sets shape `shape_idx` on slide `slide_idx` to an explicit "no outline" (`<a:ln><a:noFill/></a:ln>`).
+    /// Sets shape `shape_idx` on `surface` to an explicit "no outline" (`<a:ln><a:noFill/></a:ln>`).
     /// A shorthand for [`set_shape_outline`](Self::set_shape_outline) with a [`LineSpec`] whose fill is
     /// [`FillSpec::None`] — PowerPoint's "no line", distinct from an absent `a:ln`.
     ///
@@ -669,17 +688,18 @@ impl Presentation {
     /// As [`set_shape_outline`](Self::set_shape_outline).
     pub fn set_shape_no_outline(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<(), PptxError> {
+        let surface = surface.into();
         let line = LineSpec {
             fill: Some(FillSpec::None),
             ..LineSpec::new()
         };
-        self.set_shape_outline(slide_idx, shape_idx, &line)
+        self.set_shape_outline(surface, shape_idx, &line)
     }
 
-    /// The **explicit** effects of shape `shape_idx` on slide `slide_idx` — its `p:spPr > a:effectLst`
+    /// The **explicit** effects of shape `shape_idx` on `surface` — its `p:spPr > a:effectLst`
     /// as an interner-free [`EffectListSpec`] — or `None` when the shape declares no `a:effectLst` (its
     /// effects are then inherited; effective effect resolution is a later step). A shape whose effects
     /// use the rarer `a:effectDag` alternative also reads as `None` (that opaque graph is not modeled).
@@ -690,16 +710,17 @@ impl Presentation {
     /// is not well-formed.
     pub fn shape_effects(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<EffectListSpec>, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
         let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -713,22 +734,23 @@ impl Presentation {
         }
     }
 
-    /// Sets the effects of shape `shape_idx` on slide `slide_idx` from an interner-free
+    /// Sets the effects of shape `shape_idx` on `surface` from an interner-free
     /// [`EffectListSpec`], rebuilding the `p:spPr` `a:effectLst` element (replacing an existing effect
     /// container in place — either an `a:effectLst` or the mutually-exclusive `a:effectDag`, which is
     /// overwritten — or inserting a new one after any geometry, fill, and outline, before the 3-D and
-    /// extension children). Marks only that slide part dirty.
+    /// extension children). Marks only that part dirty.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
     /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
     pub fn set_shape_effects(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
         effects: &EffectListSpec,
     ) -> Result<(), PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the effect element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
@@ -736,7 +758,7 @@ impl Presentation {
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
             PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             },
@@ -757,7 +779,7 @@ impl Presentation {
         Ok(())
     }
 
-    /// Sets shape `shape_idx` on slide `slide_idx` to explicit "no effects" (an empty `<a:effectLst/>`).
+    /// Sets shape `shape_idx` on `surface` to explicit "no effects" (an empty `<a:effectLst/>`).
     /// A shorthand for [`set_shape_effects`](Self::set_shape_effects) with an empty [`EffectListSpec`] —
     /// the explicitly-cleared effect state that overrides inheritance, distinct from an absent
     /// `a:effectLst`. Reads back as `Some(EffectListSpec::default())`.
@@ -766,10 +788,11 @@ impl Presentation {
     /// As [`set_shape_effects`](Self::set_shape_effects).
     pub fn set_shape_no_effects(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<(), PptxError> {
-        self.set_shape_effects(slide_idx, shape_idx, &EffectListSpec::new())
+        let surface = surface.into();
+        self.set_shape_effects(surface, shape_idx, &EffectListSpec::new())
     }
 
     /// The theme that governs `surface`, as an interner-free [`ThemeInfo`] (its color scheme +
@@ -782,7 +805,8 @@ impl Presentation {
     /// Returns [`PptxError`] if the surface index is out of range, a relationship points outside the
     /// package ([`ExternalTarget`](PptxError::ExternalTarget)), or the theme part is not well-formed.
     pub fn theme(&mut self, surface: impl Into<Surface>) -> Result<Option<ThemeInfo>, PptxError> {
-        let Some(theme_part) = self.theme_part(surface.into())? else {
+        let surface = surface.into();
+        let Some(theme_part) = self.theme_part(surface)? else {
             return Ok(None);
         };
         let doc = self.package.part_tree(&theme_part)?;
@@ -800,12 +824,12 @@ impl Presentation {
         self.follow_rel(last, constants::REL_THEME)
     }
 
-    /// The **effective** fill of shape `shape_idx` on slide `slide_idx`, as an interner-free
+    /// The **effective** fill of shape `shape_idx` on `surface`, as an interner-free
     /// [`FillSpec`] whose colors are resolved to concrete `RRGGBB` values — the fill the shape actually
     /// renders. Three sources are tried, in order: an explicit `p:spPr` fill; a `p:style > a:fillRef`
     /// (the theme fill-style at that index, `phClr` substituted by the reference's color); and, for a
-    /// placeholder shape (`p:ph`), **inheritance** from the same-slot placeholder on the slide layout
-    /// then the master. Scheme colors and color transforms are baked against the slide's theme + map.
+    /// placeholder shape (`p:ph`), **inheritance** from the same-slot placeholder on the layout
+    /// then the master. Scheme colors and color transforms are baked against the surface's theme + map.
     ///
     /// Returns `Ok(None)` when no source yields a fill. Reading does not dirty any part.
     ///
@@ -814,13 +838,12 @@ impl Presentation {
     /// outside the package, or a part is not well-formed.
     pub fn effective_shape_fill(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
-        let map = self
-            .color_map(slide_idx)?
-            .unwrap_or_else(ColorMap::identity);
-        let theme_part = self.theme_part(Surface::Slide(slide_idx))?;
+        let surface = surface.into();
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+        let theme_part = self.theme_part(surface)?;
 
         // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
@@ -836,15 +859,15 @@ impl Presentation {
         };
 
         // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
-        // the matching placeholder on the layout, then the master.
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        // the matching placeholder on each part the surface inherits from.
+        let slide_part = self.surface_part(surface)?.clone();
         let placeholder = {
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let count = slide::shapes(sp_tree, &doc.interner).count();
             let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
                 PptxError::ShapeIndexOutOfRange {
-                    surface: Surface::Slide(slide_idx),
+                    surface,
                     index: shape_idx,
                     count,
                 },
@@ -854,11 +877,9 @@ impl Presentation {
 
         let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
         if let Some(ph) = placeholder {
-            if let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? {
-                if let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? {
-                    candidates.push((master, Candidate::Placeholder(ph)));
-                }
-                candidates.insert(1, (layout, Candidate::Placeholder(ph)));
+            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
+            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
+                candidates.push((ancestor, Candidate::Placeholder(ph)));
             }
         }
 
@@ -904,7 +925,7 @@ impl Presentation {
         Ok(None)
     }
 
-    /// The **effective** outline of shape `shape_idx` on slide `slide_idx`, as an interner-free
+    /// The **effective** outline of shape `shape_idx` on `surface`, as an interner-free
     /// [`LineSpec`] whose stroke color is resolved to a concrete `RRGGBB` value — the outline the shape
     /// actually renders. Three sources are tried, in order: an explicit `p:spPr > a:ln`; a
     /// `p:style > a:lnRef` (the theme line-style at that index, `phClr` substituted by the reference's
@@ -919,13 +940,12 @@ impl Presentation {
     /// outside the package, or a part is not well-formed.
     pub fn effective_shape_outline(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<LineSpec>, PptxError> {
-        let map = self
-            .color_map(slide_idx)?
-            .unwrap_or_else(ColorMap::identity);
-        let theme_part = self.theme_part(Surface::Slide(slide_idx))?;
+        let surface = surface.into();
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+        let theme_part = self.theme_part(surface)?;
 
         // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
@@ -941,15 +961,15 @@ impl Presentation {
         };
 
         // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
-        // the matching placeholder on the layout, then the master.
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        // the matching placeholder on each part the surface inherits from.
+        let slide_part = self.surface_part(surface)?.clone();
         let placeholder = {
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let count = slide::shapes(sp_tree, &doc.interner).count();
             let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
                 PptxError::ShapeIndexOutOfRange {
-                    surface: Surface::Slide(slide_idx),
+                    surface,
                     index: shape_idx,
                     count,
                 },
@@ -959,11 +979,9 @@ impl Presentation {
 
         let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
         if let Some(ph) = placeholder {
-            if let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? {
-                if let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? {
-                    candidates.push((master, Candidate::Placeholder(ph)));
-                }
-                candidates.insert(1, (layout, Candidate::Placeholder(ph)));
+            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
+            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
+                candidates.push((ancestor, Candidate::Placeholder(ph)));
             }
         }
 
@@ -1009,7 +1027,7 @@ impl Presentation {
         Ok(None)
     }
 
-    /// The **effective** effects of shape `shape_idx` on slide `slide_idx`, as an interner-free
+    /// The **effective** effects of shape `shape_idx` on `surface`, as an interner-free
     /// [`EffectListSpec`] whose colors are resolved to concrete `RRGGBB` values — the effects the shape
     /// actually renders. Three sources are tried, in order: an explicit `p:spPr > a:effectLst`; a
     /// `p:style > a:effectRef` (the theme effect-style at that index, `phClr` substituted by the
@@ -1024,13 +1042,12 @@ impl Presentation {
     /// outside the package, or a part is not well-formed.
     pub fn effective_shape_effects(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<EffectListSpec>, PptxError> {
-        let map = self
-            .color_map(slide_idx)?
-            .unwrap_or_else(ColorMap::identity);
-        let theme_part = self.theme_part(Surface::Slide(slide_idx))?;
+        let surface = surface.into();
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+        let theme_part = self.theme_part(surface)?;
 
         // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
@@ -1046,15 +1063,15 @@ impl Presentation {
         };
 
         // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
-        // the matching placeholder on the layout, then the master.
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        // the matching placeholder on each part the surface inherits from.
+        let slide_part = self.surface_part(surface)?.clone();
         let placeholder = {
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let count = slide::shapes(sp_tree, &doc.interner).count();
             let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
                 PptxError::ShapeIndexOutOfRange {
-                    surface: Surface::Slide(slide_idx),
+                    surface,
                     index: shape_idx,
                     count,
                 },
@@ -1064,11 +1081,9 @@ impl Presentation {
 
         let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
         if let Some(ph) = placeholder {
-            if let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? {
-                if let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? {
-                    candidates.push((master, Candidate::Placeholder(ph)));
-                }
-                candidates.insert(1, (layout, Candidate::Placeholder(ph)));
+            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
+            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
+                candidates.push((ancestor, Candidate::Placeholder(ph)));
             }
         }
 
@@ -1114,24 +1129,25 @@ impl Presentation {
         Ok(None)
     }
 
-    /// Appends a new rectangular text-box shape (`p:sp`) to slide `slide_idx`, laid out at `bounds`
+    /// Appends a new rectangular text-box shape (`p:sp`) to `surface`, laid out at `bounds`
     /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
     /// paragraph). Returns the index of the new shape in the slide's one shape index space (see
-    /// [`shape_count`](Self::shape_count)). Only that slide part is marked dirty.
+    /// [`shape_count`](Self::shape_count)). Only that part is marked dirty.
     ///
     /// The shape is a plain text box (`p:cNvSpPr@txBox="1"`, `a:prstGeom@prst="rect"`) with no
     /// placeholder, so it renders as free-standing text. Its non-visual id (`p:cNvPr@id`) is one past
-    /// the largest id already present on the slide, keeping ids unique.
+    /// the largest id already present on that part, keeping ids unique.
     ///
     /// # Errors
-    /// Returns [`PptxError`] if `slide_idx` is out of range or the slide is malformed.
+    /// Returns [`PptxError`] if the surface index is out of range or the part is malformed.
     pub fn add_text_box(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         text: &str,
         bounds: ShapeBounds,
     ) -> Result<usize, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the new names, `root` receives the new subtree.
         let RawDocument { interner, root, .. } = doc;
@@ -1146,23 +1162,24 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
-    /// Appends a new autoshape (`p:sp`) with the given `preset` geometry to slide `slide_idx`, laid
+    /// Appends a new autoshape (`p:sp`) with the given `preset` geometry to `surface`, laid
     /// out at `bounds`, with an empty text body. Returns the index of the new shape in the slide's one
-    /// shape index space (see [`shape_count`](Self::shape_count)). Only that slide part is marked dirty.
+    /// shape index space (see [`shape_count`](Self::shape_count)). Only that part is marked dirty.
     ///
     /// The shape is created with the preset's default adjustments; customize them afterward with
     /// [`set_shape_geometry`](Self::set_shape_geometry). Its non-visual id (`p:cNvPr@id`) is one past
-    /// the largest id already present on the slide, keeping ids unique.
+    /// the largest id already present on that part, keeping ids unique.
     ///
     /// # Errors
-    /// Returns [`PptxError`] if `slide_idx` is out of range or the slide is malformed.
+    /// Returns [`PptxError`] if the surface index is out of range or the part is malformed.
     pub fn add_shape(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         preset: PresetShapeType,
         bounds: ShapeBounds,
     ) -> Result<usize, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -1240,7 +1257,7 @@ impl Presentation {
         Ok(self.slides.len() - 1)
     }
 
-    /// Appends a picture (`p:pic`) showing `bytes` to slide `slide_idx`, laid out at `bounds`.
+    /// Appends a picture (`p:pic`) showing `bytes` to `surface`, laid out at `bounds`.
     /// Returns the index of the new shape in the slide's one shape index space (see
     /// [`shape_count`](Self::shape_count)); [`shape_kind`](Self::shape_kind) reports it as
     /// [`ShapeKind::Picture`], and the whole `p:spPr` surface — outline, effects, geometry — applies
@@ -1252,19 +1269,20 @@ impl Presentation {
     /// (the emitted `a:picLocks@noChangeAspect` keeps the ratio locked for later interactive resizing).
     ///
     /// # Errors
-    /// Returns [`PptxError`] if `slide_idx` is out of range, the bytes match no known image format
+    /// Returns [`PptxError`] if the surface index is out of range, the bytes match no known image format
     /// ([`UnrecognizedImageFormat`](PptxError::UnrecognizedImageFormat)), the slide is malformed, or a
     /// package edit fails.
     pub fn add_picture(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         bytes: &[u8],
         bounds: ShapeBounds,
     ) -> Result<usize, PptxError> {
+        let surface = surface.into();
         // The image part and relationship first: if the bytes are not an image, nothing is edited.
-        let rel_id = self.add_image(slide_idx, bytes)?;
+        let rel_id = self.add_image(surface, bytes)?;
 
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let rel_declaration = build::relationship_prefix_declaration(root, interner);
@@ -1278,7 +1296,7 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
-    /// The relationship id of the image that picture `shape_idx` on slide `slide_idx` embeds
+    /// The relationship id of the image that picture `shape_idx` on `surface` embeds
     /// (`p:blipFill > a:blip@r:embed`), or `None` when the blip embeds nothing — a picture may instead
     /// *link* an external image (`@r:link`), which this does not resolve. Reading does not dirty the
     /// part.
@@ -1289,20 +1307,21 @@ impl Presentation {
     /// [`PptxError`] if an index is out of range or the slide is malformed.
     pub fn picture_image_rel_id(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<String>, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let picture = picture_at(sp_tree, &doc.interner, slide_idx, shape_idx)?;
+        let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
         let blip_fill = nav::child(picture, &doc.interner, PML, "blipFill")
             .ok_or(PptxError::PictureHasNoBlipFill)?;
         let blip_fill = BlipFill::from_xml(blip_fill, &doc.interner)?;
         Ok(blip_fill.image_rel_id(&doc.interner).map(str::to_owned))
     }
 
-    /// The stored bytes of the image that picture `shape_idx` on slide `slide_idx` embeds, exactly as
+    /// The stored bytes of the image that picture `shape_idx` on `surface` embeds, exactly as
     /// the package holds them (never decoded or re-encoded), or `None` when the picture embeds no
     /// image. Borrowed from the package, so a large image is not copied.
     ///
@@ -1311,20 +1330,21 @@ impl Presentation {
     /// [`PptxError::ExternalTarget`] if the relationship points outside the package.
     pub fn picture_image_bytes(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<Option<&[u8]>, PptxError> {
-        let Some(rel_id) = self.picture_image_rel_id(slide_idx, shape_idx)? else {
+        let surface = surface.into();
+        let Some(rel_id) = self.picture_image_rel_id(surface, shape_idx)? else {
             return Ok(None);
         };
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let slide_part = self.surface_part(surface)?.clone();
         let Some(part) = self.image_part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
         Ok(self.package.part_bytes(&part))
     }
 
-    /// Points picture `shape_idx` on slide `slide_idx` at `bytes`, adding the image to the package if
+    /// Points picture `shape_idx` on `surface` at `bytes`, adding the image to the package if
     /// it is not already there ([`add_image`](Self::add_image), so identical bytes are stored once)
     /// and rewriting the blip's `@r:embed`. Any `@r:link` is dropped — the picture now embeds its
     /// image — and the rest of the `p:blipFill` (source rect, tile/stretch) is preserved.
@@ -1339,23 +1359,24 @@ impl Presentation {
     /// image format.
     pub fn set_picture_image(
         &mut self,
-        slide_idx: usize,
+        surface: impl Into<Surface>,
         shape_idx: usize,
         bytes: &[u8],
     ) -> Result<(), PptxError> {
+        let surface = surface.into();
         // Validate the shape kind before editing the package, so a wrong index adds no image part.
         {
-            let slide_part = self.slide_part_checked(slide_idx)?.clone();
+            let slide_part = self.surface_part(surface)?.clone();
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let picture = picture_at(sp_tree, &doc.interner, slide_idx, shape_idx)?;
+            let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
             if nav::child(picture, &doc.interner, PML, "blipFill").is_none() {
                 return Err(PptxError::PictureHasNoBlipFill);
             }
         }
-        let rel_id = self.add_image(slide_idx, bytes)?;
+        let rel_id = self.add_image(surface, bytes)?;
 
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let slide_part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
@@ -1404,7 +1425,7 @@ impl Presentation {
         Ok(Some(nav::resolve_target(source, &rel.target)?))
     }
 
-    /// Stores `bytes` as an image part of the package and relates it to slide `slide_idx`, returning
+    /// Stores `bytes` as an image part of the package and relates it to `surface`, returning
     /// the **slide-scoped relationship id** that names the image — the `rel_id` to hand to
     /// [`FillSpec::Blip`] via [`set_shape_fill`](Self::set_shape_fill).
     ///
@@ -1414,16 +1435,21 @@ impl Presentation {
     /// largest existing image number.
     ///
     /// **Identical images are stored once**: if a media part already holds exactly these bytes it is
-    /// reused, and if this slide already relates to it, the existing relationship id is returned and
+    /// reused, and if that surface already relates to it, the existing relationship id is returned and
     /// the package is not touched at all. Otherwise only `[Content_Types].xml`, the new media part, and
-    /// this slide's `.rels` change — every other pre-existing part stays byte-identical.
+    /// that part's `.rels` change — every other pre-existing part stays byte-identical.
     ///
     /// # Errors
-    /// Returns [`PptxError::SlideIndexOutOfRange`] if `slide_idx` is out of range,
+    /// Returns [`PptxError`] if the surface index is out of range,
     /// [`PptxError::UnrecognizedImageFormat`] if the bytes match no known image format, or another
     /// [`PptxError`] if a package edit fails.
-    pub fn add_image(&mut self, slide_idx: usize, bytes: &[u8]) -> Result<String, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+    pub fn add_image(
+        &mut self,
+        surface: impl Into<Surface>,
+        bytes: &[u8],
+    ) -> Result<String, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
         let format = ImageFormat::sniff(bytes).ok_or(PptxError::UnrecognizedImageFormat)?;
 
         let media_part = match self.media_part_with_bytes(bytes) {
@@ -1885,7 +1911,7 @@ fn referenced_parts(
 fn picture_at<'a>(
     sp_tree: &'a RawElement,
     interner: &'a Interner,
-    slide_idx: usize,
+    surface: Surface,
     shape_idx: usize,
 ) -> Result<&'a RawElement, PptxError> {
     let count = slide::shapes(sp_tree, interner).count();
@@ -1893,7 +1919,7 @@ fn picture_at<'a>(
         slide::shapes(sp_tree, interner)
             .nth(shape_idx)
             .ok_or(PptxError::ShapeIndexOutOfRange {
-                surface: Surface::Slide(slide_idx),
+                surface,
                 index: shape_idx,
                 count,
             })?;
