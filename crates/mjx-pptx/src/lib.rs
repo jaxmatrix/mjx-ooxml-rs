@@ -6,6 +6,15 @@
 //! preserved verbatim by the OPC copy-on-write layer, so editing one run leaves every other part
 //! byte-identical.
 //!
+//! # Addressing shapes
+//!
+//! A slide's shapes live in **one index space covering every [`ShapeKind`]** — autoshapes (`p:sp`),
+//! pictures (`p:pic`), groups, graphic frames, connectors — in document order, so `shape_idx` means
+//! the same thing to every API. A group counts as one shape; its members are not separately
+//! addressable. Ask [`Presentation::shape_kind`] what a given index is: the `p:spPr` surface (fill,
+//! outline, effects, geometry) applies to shapes, pictures and connectors alike, while text APIs
+//! return [`PptxError::ShapeHasNoTextBody`] for a kind that has none.
+//!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let bytes = std::fs::read("deck.pptx")?;
@@ -29,3 +38,4 @@ mod slide;
 pub use error::PptxError;
 pub use geometry::ShapeBounds;
 pub use presentation::Presentation;
+pub use slide::ShapeKind;
