@@ -380,3 +380,26 @@ fn deck_with_a_picture_filled_shape_opens() {
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "picture_filled_shape");
 }
+
+#[test]
+fn deck_with_a_picture_shape_opens() {
+    // Adds a real p:pic (not just a picture-filled autoshape) and gives it an outline through the
+    // shared spPr surface, then checks the deck opens in LibreOffice — exercises the picture shape,
+    // its blipFill relationship, and shape-kind-agnostic addressing end-to-end.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let picture = pres
+        .add_picture(0, TINY_PNG, ShapeBounds::from_inches(1.0, 1.0, 3.0, 2.0))
+        .expect("add picture");
+    pres.set_shape_outline(
+        0,
+        picture,
+        &LineSpec {
+            fill: Some(FillSpec::solid(ColorSpec::Srgb("203864".into()))),
+            width: Some(LineWidth::from_points(3.0)),
+            ..LineSpec::new()
+        },
+    )
+    .expect("outline the picture");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "picture_shape");
+}
