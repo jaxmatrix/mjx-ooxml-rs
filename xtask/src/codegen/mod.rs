@@ -74,6 +74,13 @@ pub fn run() -> Result<()> {
             "ST_PresetShadowVal",
             "ST_RectAlignment",
             "ST_BlendMode",
+            "ST_TextUnderlineType",
+            "ST_TextStrikeType",
+            "ST_TextCapsType",
+            "ST_TextAlignType",
+            "ST_TextFontAlignType",
+            "ST_TextTabAlignType",
+            "ST_TextAutonumberScheme",
         ],
     )?;
     // Append the per-shape adjustment table, extracted from the DrawingML geometry definitions.
