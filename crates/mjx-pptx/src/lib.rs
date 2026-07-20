@@ -36,6 +36,6 @@ mod presentation;
 mod slide;
 
 pub use error::PptxError;
-pub use geometry::ShapeBounds;
+pub use geometry::{ShapeBounds, SlideSize};
 pub use presentation::Presentation;
 pub use slide::ShapeKind;

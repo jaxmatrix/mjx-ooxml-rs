@@ -2,7 +2,10 @@
 //!
 //! DrawingML measures lengths in EMU: 914 400 per inch, 12 700 per point (72 points to the inch). A
 //! shape's placement is an offset (`a:off`) plus an extent (`a:ext`); [`ShapeBounds`] names those four
-//! numbers so callers never touch the raw `x`/`y`/`cx`/`cy` wire attributes.
+//! numbers so callers never touch the raw `x`/`y`/`cx`/`cy` wire attributes. [`SlideSize`] is the
+//! extent those bounds sit inside.
+
+use mjx_ooxml_types::presentationml::SlideSizeKind;
 
 /// A shape's position and size on a slide, in English Metric Units (914 400 EMU = 1 inch).
 ///
@@ -49,6 +52,20 @@ impl ShapeBounds {
             height_emu: to_emu(height),
         }
     }
+}
+
+/// The size of every slide in a deck (`p:sldSz`), in English Metric Units.
+///
+/// Shape bounds are absolute within this extent, so it is what a layout computation measures
+/// against: a full-width shape on a 4:3 deck is `width_emu` wide.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SlideSize {
+    /// Slide width (`p:sldSz@cx`), in EMU.
+    pub width_emu: i64,
+    /// Slide height (`p:sldSz@cy`), in EMU.
+    pub height_emu: i64,
+    /// What the size is optimized for (`p:sldSz@type`); [`SlideSizeKind::Custom`] when unstated.
+    pub kind: SlideSizeKind,
 }
 
 #[cfg(test)]
