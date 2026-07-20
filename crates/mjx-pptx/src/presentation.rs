@@ -1,7 +1,7 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_color, resolve_effects, resolve_fill, resolve_line, ColorMap, EffectList,
+    resolve_color, resolve_effects, resolve_fill, resolve_line, BlipFill, ColorMap, EffectList,
     EffectListSpec, Fill, FillSpec, LineProperties, LineSpec, PresetGeometry, ResolvedColor,
     SchemeColors, ShapeGeometry, TextBody, Theme, ThemeInfo,
 };
@@ -1109,6 +1109,132 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
+    /// The relationship id of the image that picture `shape_idx` on slide `slide_idx` embeds
+    /// (`p:blipFill > a:blip@r:embed`), or `None` when the blip embeds nothing — a picture may instead
+    /// *link* an external image (`@r:link`), which this does not resolve. Reading does not dirty the
+    /// part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::ShapeIsNotAPicture`] if the shape is not a `p:pic`,
+    /// [`PptxError::PictureHasNoBlipFill`] if it is missing its `p:blipFill`, or another
+    /// [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn picture_image_rel_id(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<String>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let picture = picture_at(sp_tree, &doc.interner, slide_idx, shape_idx)?;
+        let blip_fill = nav::child(picture, &doc.interner, PML, "blipFill")
+            .ok_or(PptxError::PictureHasNoBlipFill)?;
+        let blip_fill = BlipFill::from_xml(blip_fill, &doc.interner)?;
+        Ok(blip_fill.image_rel_id(&doc.interner).map(str::to_owned))
+    }
+
+    /// The stored bytes of the image that picture `shape_idx` on slide `slide_idx` embeds, exactly as
+    /// the package holds them (never decoded or re-encoded), or `None` when the picture embeds no
+    /// image. Borrowed from the package, so a large image is not copied.
+    ///
+    /// # Errors
+    /// As [`picture_image_rel_id`](Self::picture_image_rel_id), plus
+    /// [`PptxError::ExternalTarget`] if the relationship points outside the package.
+    pub fn picture_image_bytes(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let Some(rel_id) = self.picture_image_rel_id(slide_idx, shape_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let Some(part) = self.image_part_for_rel(&slide_part, &rel_id)? else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&part))
+    }
+
+    /// Points picture `shape_idx` on slide `slide_idx` at `bytes`, adding the image to the package if
+    /// it is not already there ([`add_image`](Self::add_image), so identical bytes are stored once)
+    /// and rewriting the blip's `@r:embed`. Any `@r:link` is dropped — the picture now embeds its
+    /// image — and the rest of the `p:blipFill` (source rect, tile/stretch) is preserved.
+    ///
+    /// The previously embedded image part is **left in the package**: another shape may still show it,
+    /// and sweeping unreferenced parts is a package-wide graph operation, not this method's job. An
+    /// unreferenced part is legal and simply unused.
+    ///
+    /// # Errors
+    /// As [`picture_image_rel_id`](Self::picture_image_rel_id), plus
+    /// [`UnrecognizedImageFormat`](PptxError::UnrecognizedImageFormat) if the bytes match no known
+    /// image format.
+    pub fn set_picture_image(
+        &mut self,
+        slide_idx: usize,
+        shape_idx: usize,
+        bytes: &[u8],
+    ) -> Result<(), PptxError> {
+        // Validate the shape kind before editing the package, so a wrong index adds no image part.
+        {
+            let slide_part = self.slide_part_checked(slide_idx)?.clone();
+            let doc = self.package.part_tree(&slide_part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            let picture = picture_at(sp_tree, &doc.interner, slide_idx, shape_idx)?;
+            if nav::child(picture, &doc.interner, PML, "blipFill").is_none() {
+                return Err(PptxError::PictureHasNoBlipFill);
+            }
+        }
+        let rel_id = self.add_image(slide_idx, bytes)?;
+
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
+            .unwrap_or_else(|| interner.intern(build::RELATIONSHIP_PREFIX));
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let picture = slide::nth_shape_mut(sp_tree, interner, shape_idx)
+            .ok_or(PptxError::ShapeIsNotAPicture)?;
+        let blip_fill = nav::child_mut(picture, interner, PML, "blipFill")
+            .ok_or(PptxError::PictureHasNoBlipFill)?;
+        let blip = nav::child_mut(blip_fill, interner, DML_MAIN, "blip")
+            .ok_or(PptxError::PictureHasNoBlipFill)?;
+
+        // Attribute namespaces are unresolved, so the embed/link attributes are matched by local name.
+        blip.attributes
+            .retain(|attr| interner.resolve(attr.name.local) != "link");
+        let embed = build::attr_prefixed(interner, rel_prefix, "embed", &rel_id);
+        match blip
+            .attributes
+            .iter()
+            .position(|attr| interner.resolve(attr.name.local) == "embed")
+        {
+            Some(index) => blip.attributes[index] = embed,
+            None => blip.attributes.push(embed),
+        }
+        Ok(())
+    }
+
+    /// The part an image relationship of `source` points at, or `None` if there is no such
+    /// relationship. Errors if it points outside the package.
+    fn image_part_for_rel(
+        &self,
+        source: &PartName,
+        rel_id: &str,
+    ) -> Result<Option<PartName>, PptxError> {
+        let Some(rels) = self.package.relationships_for(Some(source)) else {
+            return Ok(None);
+        };
+        let Some(rel) = rels.by_id(rel_id) else {
+            return Ok(None);
+        };
+        if rel.mode == TargetMode::External {
+            return Err(PptxError::ExternalTarget {
+                target: rel.target.clone(),
+            });
+        }
+        Ok(Some(nav::resolve_target(source, &rel.target)?))
+    }
+
     /// Stores `bytes` as an image part of the package and relates it to slide `slide_idx`, returning
     /// the **slide-scoped relationship id** that names the image — the `rel_id` to hand to
     /// [`FillSpec::Blip`] via [`set_shape_fill`](Self::set_shape_fill).
@@ -1518,6 +1644,29 @@ fn slide_number(part: &str, dir: &str) -> Option<u32> {
         .strip_suffix(".xml")?
         .parse::<u32>()
         .ok()
+}
+
+/// The `p:pic` at `shape_idx` in `sp_tree`, or [`PptxError::ShapeIsNotAPicture`] when that index
+/// addresses a shape of another kind (the one index space covers every kind).
+fn picture_at<'a>(
+    sp_tree: &'a RawElement,
+    interner: &'a Interner,
+    slide_idx: usize,
+    shape_idx: usize,
+) -> Result<&'a RawElement, PptxError> {
+    let count = slide::shapes(sp_tree, interner).count();
+    let shape =
+        slide::shapes(sp_tree, interner)
+            .nth(shape_idx)
+            .ok_or(PptxError::ShapeIndexOutOfRange {
+                slide: slide_idx,
+                index: shape_idx,
+                count,
+            })?;
+    match slide::shape_kind(shape, interner) {
+        Some(ShapeKind::Picture) => Ok(shape),
+        _ => Err(PptxError::ShapeIsNotAPicture),
+    }
 }
 
 /// Extracts `N` from an `image{N}.{ext}` part directly inside `dir` (e.g. `/ppt/media/image3.png`
