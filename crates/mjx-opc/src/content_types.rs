@@ -124,6 +124,16 @@ impl ContentTypes {
         }
     }
 
+    /// Appends a `Default` rule mapping `extension` (already lowercased by the caller) to
+    /// `content_type`. The caller has already checked that no rule for that extension exists and edits
+    /// the `[Content_Types].xml` tree in tandem so this view never drifts from the raw part.
+    pub(crate) fn push_default(&mut self, extension: String, content_type: String) {
+        self.defaults.push(Default {
+            extension,
+            content_type,
+        });
+    }
+
     /// Removes the `Override` for `part`, if any. Returns whether one was removed.
     pub(crate) fn remove_override(&mut self, part: &PartName) -> bool {
         let before = self.overrides.len();

@@ -347,6 +347,50 @@ impl Package {
         Ok(())
     }
 
+    /// Registers a content-type `Default` mapping every part with `extension` to `content_type`,
+    /// editing `[Content_Types].xml` and the parsed content-type view in tandem.
+    ///
+    /// This is how binary media parts get their content type in an Office-written package (one
+    /// `<Default Extension="png" .../>` rather than an `Override` per image). Registering the
+    /// `Default` before [`insert_part`](Package::insert_part) therefore leaves that call with no
+    /// `Override` to add. The new rule is placed after the last existing `Default`, ahead of the
+    /// `Override`s, matching Office's ordering.
+    ///
+    /// No-op (the control part stays clean) if the extension already maps to `content_type`.
+    ///
+    /// # Errors
+    /// Returns [`OpcError::Malformed`] if a `Default` already maps `extension` to a *different*
+    /// content type — rewriting it would silently retype every part with that extension — or if
+    /// `[Content_Types].xml` is absent or not well-formed XML.
+    pub fn set_content_type_default(
+        &mut self,
+        extension: &str,
+        content_type: &str,
+    ) -> Result<(), OpcError> {
+        let extension = extension.to_ascii_lowercase();
+        if let Some(existing) = self
+            .content_types
+            .defaults()
+            .iter()
+            .find(|d| d.extension == extension)
+        {
+            if existing.content_type == content_type {
+                return Ok(());
+            }
+            return Err(OpcError::malformed(format!(
+                "content-type Default for extension {extension} is already {}, not {content_type}",
+                existing.content_type
+            )));
+        }
+        {
+            let tree = self.content_types_tree_mut()?;
+            insert_default_element(tree, &extension, content_type);
+        }
+        self.content_types
+            .push_default(extension, content_type.to_owned());
+        Ok(())
+    }
+
     /// Removes the content-type `Override` for a part, if present, editing `[Content_Types].xml` and
     /// the parsed view in tandem. Shared `Default` rules are untouched.
     ///
@@ -597,6 +641,29 @@ fn upsert_override_element(tree: &mut RawDocument, part: &PartName, content_type
     let element = make_empty_element(interner, namespace, "Override", attributes);
     root.empty = false;
     root.children.push(RawNode::Element(element));
+}
+
+/// Inserts a `<Default Extension=".." ContentType=".."/>` after the last existing `<Default>` child
+/// of the content-types root (or first, when there is none), so `Default`s stay ahead of `Override`s
+/// as Office writes them. The caller has checked that no rule for `extension` exists.
+fn insert_default_element(tree: &mut RawDocument, extension: &str, content_type: &str) {
+    let namespace = tree.root.name.namespace;
+    let RawDocument { interner, root, .. } = tree;
+    let at = root
+        .children
+        .iter()
+        .rposition(|child| match child {
+            RawNode::Element(el) => interner.resolve(el.name.local) == "Default",
+            _ => false,
+        })
+        .map_or(0, |idx| idx + 1);
+    let attributes = vec![
+        make_attribute(interner, "Extension", extension),
+        make_attribute(interner, "ContentType", content_type),
+    ];
+    let element = make_empty_element(interner, namespace, "Default", attributes);
+    root.empty = false;
+    root.children.insert(at, RawNode::Element(element));
 }
 
 /// Appends a `<Relationship>` child to the relationships root.
