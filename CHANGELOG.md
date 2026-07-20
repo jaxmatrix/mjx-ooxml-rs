@@ -15,6 +15,27 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.8] - 2026-07-21
+
+What "inherited" means, made explicit — the merge one tier of the text-formatting ladder performs.
+
+### Added
+
+- **`CharacterPropertiesSpec::merge_under`** and **`ParagraphPropertiesSpec::merge_under`**
+  (`mjx-dml`) — merge a lower inheritance tier under a spec: the receiver is the higher tier and
+  wins, and the argument supplies only what the receiver leaves unset. Folding from the top reads as
+  the ladder does: `run.merge_under(&paragraph).merge_under(&shape)`.
+
+### Notes
+
+- Properties merge as **whole values**, so an explicit "off" — `b="0"`, `a:noFill`, `<a:buNone/>` —
+  is a present value that blocks the tier below rather than an absence that falls through it.
+- Four fields are not a plain field-wise fallback: fonts merge **per script slot**, tab stops as one
+  **list** (`a:tabLst` replaces wholesale), `a:defRPr` **recursively**, and each of the four bullet
+  groups **as a unit**.
+- These are the merge halves of effective text formatting; the inheritance walk that calls them
+  follows.
+
 ## [0.0.7] - 2026-07-21
 
 The theme's font scheme — where a typeface of `+mj-lt` finally leads.
@@ -241,6 +262,7 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.8]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.8
 [0.0.7]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.7
 [0.0.6]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.6
 [0.0.5]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.5
