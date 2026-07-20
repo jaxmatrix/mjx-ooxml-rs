@@ -440,3 +440,40 @@ fn deck_with_a_slide_built_from_a_layout_opens() {
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "slide_from_layout");
 }
+
+#[test]
+fn a_deck_edited_and_pruned_end_to_end_opens() {
+    // The whole editing story in one deck: build a slide from a layout and fill the placeholders it
+    // handed over, label an added autoshape, drop a shape, then drop one of the original slides —
+    // and have a real Office implementation still render what is left.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+
+    let slide = pres.add_slide_from_layout(1).expect("add slide");
+    pres.set_shape_text(slide, 0, 0, "Edited and pruned")
+        .expect("set the title");
+    pres.set_shape_text(slide, 1, 0, "The inherited footer is the layout's")
+        .expect("set the body");
+
+    let shape = pres
+        .add_shape(
+            slide,
+            PresetShapeType::RoundedRectangle,
+            ShapeBounds::from_inches(1.0, 5.0, 3.0, 1.0),
+        )
+        .expect("add shape");
+    pres.set_shape_text(slide, shape, 0, "Labelled on the way in")
+        .expect("label the shape");
+
+    let doomed = pres
+        .add_text_box(
+            slide,
+            "removed again",
+            ShapeBounds::from_inches(5.0, 5.0, 3.0, 1.0),
+        )
+        .expect("add text box");
+    pres.remove_shape(slide, doomed).expect("remove the box");
+    pres.remove_slide(0).expect("remove the first slide");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "edited_and_pruned");
+}
