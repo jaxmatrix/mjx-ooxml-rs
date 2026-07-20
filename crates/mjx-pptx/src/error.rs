@@ -4,6 +4,8 @@ use mjx_ooxml_core::FromXmlError;
 use mjx_opc::OpcError;
 use mjx_xml::XmlError;
 
+use crate::surface::Surface;
+
 /// Errors produced while opening, reading, editing, or saving a presentation.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
@@ -84,14 +86,14 @@ pub enum PptxError {
         count: usize,
     },
 
-    /// A shape index was out of range on the given slide.
-    #[error("shape index {index} out of range on slide {slide} (0..{count})")]
+    /// A shape index was out of range on the given surface.
+    #[error("shape index {index} out of range on {surface} (0..{count})")]
     ShapeIndexOutOfRange {
-        /// The slide index.
-        slide: usize,
+        /// The surface addressed (slide, layout, or master).
+        surface: Surface,
         /// The requested shape index.
         index: usize,
-        /// The number of shapes on that slide.
+        /// The number of shapes on that surface.
         count: usize,
     },
 

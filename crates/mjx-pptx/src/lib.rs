@@ -34,8 +34,10 @@ mod geometry;
 mod nav;
 mod presentation;
 mod slide;
+mod surface;
 
 pub use error::PptxError;
 pub use geometry::{ShapeBounds, SlideSize};
 pub use presentation::Presentation;
 pub use slide::ShapeKind;
+pub use surface::Surface;
