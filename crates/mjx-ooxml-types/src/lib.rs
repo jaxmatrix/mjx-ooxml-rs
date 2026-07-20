@@ -17,6 +17,7 @@
 //! ```
 
 pub mod drawingml;
+pub mod presentationml;
 pub mod support;
 
 mod generated;

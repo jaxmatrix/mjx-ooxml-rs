@@ -9,6 +9,9 @@ use mjx_ooxml_types::drawingml::{
     PenAlignment, PresetLineDash, PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor,
 };
 use mjx_ooxml_types::namespaces;
+use mjx_ooxml_types::presentationml::{
+    Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
+};
 use mjx_ooxml_types::shared::{
     CalendarType, ConformanceClass, CryptographicProvider, RelativeVerticalAlignment,
     VerticalTextPosition,
@@ -618,6 +621,138 @@ fn rectangle_alignment_round_trips_all_tokens() {
     );
     assert_eq!(RectangleAlignment::BottomRight.to_wire(), "br");
     assert_eq!(RectangleAlignment::from_wire("bogus"), None);
+}
+
+#[test]
+fn placeholder_enums_round_trip_all_tokens() {
+    // `ST_PlaceholderType` (`p:ph@type`), schema order.
+    assert_round_trip(
+        &[
+            "title", "body", "ctrTitle", "subTitle", "dt", "sldNum", "ftr", "hdr", "obj", "chart",
+            "tbl", "clipArt", "dgm", "media", "sldImg", "pic",
+        ],
+        PlaceholderType::from_wire,
+        PlaceholderType::to_wire,
+    );
+    // The cryptic tokens carry the ECMA-376 prose names.
+    assert_eq!(
+        PlaceholderType::from_wire("ctrTitle"),
+        Some(PlaceholderType::CenteredTitle)
+    );
+    assert_eq!(
+        PlaceholderType::from_wire("sldNum"),
+        Some(PlaceholderType::SlideNumber)
+    );
+    assert_eq!(PlaceholderType::DateAndTime.to_wire(), "dt");
+    assert_eq!(PlaceholderType::from_wire("bogus"), None);
+
+    // `ST_PlaceholderSize` (`p:ph@sz`) and `ST_Direction` (`p:ph@orient`).
+    assert_round_trip(
+        &["full", "half", "quarter"],
+        PlaceholderSize::from_wire,
+        PlaceholderSize::to_wire,
+    );
+    assert_round_trip(
+        &["horz", "vert"],
+        Orientation::from_wire,
+        Orientation::to_wire,
+    );
+    assert_eq!(
+        Orientation::from_wire("vert"),
+        Some(Orientation::Vertical),
+        "the axis tokens must not stay abbreviated"
+    );
+}
+
+#[test]
+fn slide_layout_kind_round_trips_all_tokens() {
+    // `ST_SlideLayoutType` (`p:sldLayout@type`), schema order (36 values).
+    assert_round_trip(
+        &[
+            "title",
+            "tx",
+            "twoColTx",
+            "tbl",
+            "txAndChart",
+            "chartAndTx",
+            "dgm",
+            "chart",
+            "txAndClipArt",
+            "clipArtAndTx",
+            "titleOnly",
+            "blank",
+            "txAndObj",
+            "objAndTx",
+            "objOnly",
+            "obj",
+            "txAndMedia",
+            "mediaAndTx",
+            "objOverTx",
+            "txOverObj",
+            "txAndTwoObj",
+            "twoObjAndTx",
+            "twoObjOverTx",
+            "fourObj",
+            "vertTx",
+            "clipArtAndVertTx",
+            "vertTitleAndTx",
+            "vertTitleAndTxOverChart",
+            "twoObj",
+            "objAndTwoObj",
+            "twoObjAndObj",
+            "cust",
+            "secHead",
+            "twoTxTwoObj",
+            "objTx",
+            "picTx",
+        ],
+        SlideLayoutKind::from_wire,
+        SlideLayoutKind::to_wire,
+    );
+    // `obj` is "Title and Object" in the prose — not merely "object", which is `objOnly`.
+    assert_eq!(
+        SlideLayoutKind::from_wire("obj"),
+        Some(SlideLayoutKind::TitleAndObject)
+    );
+    assert_eq!(
+        SlideLayoutKind::from_wire("objOnly"),
+        Some(SlideLayoutKind::ObjectOnly)
+    );
+    assert_eq!(SlideLayoutKind::SectionHeader.to_wire(), "secHead");
+    assert_eq!(SlideLayoutKind::TwoColumnText.to_wire(), "twoColTx");
+}
+
+#[test]
+fn slide_size_kind_round_trips_all_tokens() {
+    // `ST_SlideSizeType` (`p:sldSz@type`), schema order.
+    assert_round_trip(
+        &[
+            "screen4x3",
+            "letter",
+            "A4",
+            "35mm",
+            "overhead",
+            "banner",
+            "custom",
+            "ledger",
+            "A3",
+            "B4ISO",
+            "B5ISO",
+            "B4JIS",
+            "B5JIS",
+            "hagakiCard",
+            "screen16x9",
+            "screen16x10",
+        ],
+        SlideSizeKind::from_wire,
+        SlideSizeKind::to_wire,
+    );
+    // The digit-leading token needs a hand-given name; the wire spelling is untouched.
+    assert_eq!(
+        SlideSizeKind::from_wire("35mm"),
+        Some(SlideSizeKind::Film35Mm)
+    );
+    assert_eq!(SlideSizeKind::Film35Mm.to_wire(), "35mm");
 }
 
 #[test]
