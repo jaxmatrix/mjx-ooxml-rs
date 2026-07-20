@@ -1398,6 +1398,96 @@ impl Presentation {
         Ok(self.slides.len() - 1)
     }
 
+    /// Removes slide `slide_idx` from the deck, unwiring it completely: the `p:sldId` naming it, the
+    /// presentation's relationship to it, the slide part, its own `.rels`, and its content-type
+    /// `Override`.
+    ///
+    /// **Slide indices shift**: every later slide moves down one index, exactly as
+    /// [`remove_shape`](Self::remove_shape) shifts shapes. Layout and master indices are unaffected —
+    /// they are reached through `p:sldMasterIdLst`, which this does not touch. Slide part names are
+    /// never recycled either: [`add_slide`](Self::add_slide) numbers a new part one past the highest
+    /// `slideN.xml` in the package, so removing `slide2.xml` and adding a slide yields `slide3.xml`.
+    ///
+    /// Parts the slide alone referenced go with it — its notes slide (which holds a relationship
+    /// *back* to the slide, so leaving it behind would leave a dangling reference) and any image no
+    /// other part still shows. Anything shared with the rest of the deck stays. See
+    /// [`Package::remove_part_cascading`](mjx_opc::Package::remove_part_cascading).
+    ///
+    /// # Errors
+    /// Returns [`PptxError::SlideIndexOutOfRange`] if `slide_idx` is out of range,
+    /// [`PptxError::MalformedPresentation`] if `presentation.xml` has no `p:sldIdLst`, no relationship
+    /// to that slide, or no relationships namespace, or another [`PptxError`] if a package edit fails.
+    pub fn remove_slide(&mut self, slide_idx: usize) -> Result<(), PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+
+        // The presentation-scoped relationship naming this slide — matched by resolved target, since
+        // the target string is relative and two spellings can name the same part.
+        let rel_id = {
+            let rels = self
+                .package
+                .relationships_for(Some(&self.presentation_part))
+                .ok_or(PptxError::MalformedPresentation(
+                    "presentation has no relationships",
+                ))?;
+            rels.by_type(constants::REL_SLIDE)
+                .find(|rel| {
+                    rel.mode == TargetMode::Internal
+                        && nav::resolve_target(&self.presentation_part, &rel.target)
+                            .is_ok_and(|resolved| resolved == slide_part)
+                })
+                .map(|rel| rel.id.clone())
+                .ok_or(PptxError::MalformedPresentation(
+                    "no presentation relationship names this slide",
+                ))?
+        };
+
+        // Unwire in the reverse of the order `insert_slide_part` wired it up.
+        self.remove_sld_id(&rel_id)?;
+        self.package
+            .remove_relationship(Some(&self.presentation_part), &rel_id)?;
+        self.package.remove_part_cascading(&slide_part)?;
+        self.slides.remove(slide_idx);
+        Ok(())
+    }
+
+    /// Removes the `p:sldId` whose `r:id` is `rel_id` from `p:sldIdLst`, with the whitespace that
+    /// indented it.
+    fn remove_sld_id(&mut self, rel_id: &str) -> Result<(), PptxError> {
+        let part = self.presentation_part.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+
+        // Attribute namespaces are never resolved, so `r:id` is found through the prefix bound to the
+        // relationships namespace (guardrail C).
+        let rels_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
+            .ok_or(PptxError::MalformedPresentation(
+                "no relationships namespace declared",
+            ))?;
+        let sld_id_lst = nav::child_mut(root, interner, PML, "sldIdLst")
+            .ok_or(PptxError::MalformedPresentation("missing p:sldIdLst"))?;
+
+        let position = sld_id_lst
+            .children
+            .iter()
+            .position(|child| match child {
+                RawNode::Element(element) => {
+                    nav::name_is(&element.name, interner, PML, "sldId")
+                        && nav::prefixed_attr_value(element, interner, rels_prefix, "id")
+                            .and_then(Result::ok)
+                            .is_some_and(|id| id == rel_id)
+                }
+                _ => false,
+            })
+            .ok_or(PptxError::MalformedPresentation(
+                "no p:sldId names this slide's relationship",
+            ))?;
+        sld_id_lst.children.remove(position);
+        if position > 0 && nav::is_whitespace_text(&sld_id_lst.children[position - 1]) {
+            sld_id_lst.children.remove(position - 1);
+        }
+        Ok(())
+    }
+
     /// Appends a picture (`p:pic`) showing `bytes` to `surface`, laid out at `bounds`.
     /// Returns the index of the new shape in the slide's one shape index space (see
     /// [`shape_count`](Self::shape_count)); [`shape_kind`](Self::shape_kind) reports it as
