@@ -59,15 +59,15 @@ See [`CHANGELOG.md`](CHANGELOG.md).
 - **Phase 2 — PowerPoint vertical slice.** ✅ *done.* `mjx-derive` + `mjx-dml` + `mjx-pptx`: open a real
   `.pptx`, read slides + shape text, edit a run, add a shape/slide, write a file PowerPoint &
   LibreOffice open (the office-open canary is a CI gate).
-- **Phase 3 — DrawingML + PPTX depth.** 🚧 *in progress.* ✅ preset geometry (all 117 adjustable shapes
+- **Phase 3 — DrawingML + PPTX depth.** ✅ *done.* ✅ preset geometry (all 117 adjustable shapes
   named), ✅ color model + theme (`clrScheme`/`fmtScheme`, color resolution to concrete RGB), and the
   ✅ `spPr` visual trilogy — fill, outline (`a:ln`), and effects (`a:effectLst`) — each modeled both
   explicitly and *effectively* (style refs + placeholder inheritance), and ✅ **images** (`add_image`
   media parts, `add_picture` `p:pic` shapes, read/replace — on one shape index space covering every
-  shape kind). 🚧 **layout/master**: ✅ PresentationML simple types, the layout/master inventory
-  (enumerate layouts and masters, kind/name, a slide's layout, slide size), and ✅ `Surface`
-  addressing — every shape API works on a slide, layout, or master, so editing a layout reaches every
-  slide that inherits it; ⏳ remaining: creating a slide from a chosen layout.
+  shape kind). ✅ **layout/master** — PresentationML simple types, the layout/master inventory,
+  `Surface` addressing (every shape API works on a slide, layout, or master, so editing a layout
+  reaches every slide that inherits it), and `add_slide_from_layout`, which hands back a slide
+  carrying the layout's placeholders ready to fill.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).

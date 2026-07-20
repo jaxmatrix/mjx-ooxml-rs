@@ -1,11 +1,23 @@
-# Handoff — slide layouts and masters — IN PROGRESS
+# Handoff — slide layouts and masters — COMPLETE
 
-The last Phase 3 workstream. Read after `docs/PHASE2_HANDOFF.md` (§3 guardrails); the images
-workstream (`docs/IMAGES_HANDOFF.md`) is the immediately preceding one and settled the shape-addressing
-model this builds on.
+The last Phase 3 workstream, and with it the PowerPoint slice. Read after `docs/PHASE2_HANDOFF.md`
+(§3 guardrails); the images workstream (`docs/IMAGES_HANDOFF.md`) is the immediately preceding one and
+settled the shape-addressing model this builds on.
 
-**Status: L1 (types), L2 (inventory) and L3 (`Surface` addressing) are done — resume at L4
-(`add_slide_from_layout`).**
+**Status: done — L1 (types), L2 (inventory), L3 (`Surface` addressing) and L4
+(`add_slide_from_layout`) have all shipped.**
+
+## Building a deck, end to end
+
+```rust
+let mut deck = Presentation::open(&bytes)?;
+let layout = (0..deck.layout_count())
+    .find(|&i| deck.layout_kind(i).unwrap() == SlideLayoutKind::TitleAndObject)
+    .unwrap();
+let slide = deck.add_slide_from_layout(layout)?;   // arrives with the layout's placeholders
+deck.set_shape_text(slide, 0, 0, "Quarterly results")?;
+deck.set_shape_text(slide, 1, 0, "Revenue is up")?;
+```
 
 ## What L1 + L2 shipped
 
@@ -69,18 +81,25 @@ deck.theme(Surface::Master(0))?;
 
 ## Remaining roadmap
 
-- **L4 — `add_slide_from_layout(layout_idx)`.** Create a slide bound to a chosen layout and clone that
-  layout's placeholder shapes into it (`p:ph` type/idx preserved, text emptied, no explicit `spPr`), so
-  the new slide is immediately fillable with `set_shape_text`. Today `add_slide` blindly reuses slide
-  0's layout and produces an empty shape tree. Office-open canary + a rendered-PNG check.
-  **Decided: clone *every* placeholder** the layout declares. Worth weighing once at implementation
-  time — a cloned `dt`/`ftr`/`sldNum` shape stops inheriting the layout's date/footer/number content,
-  which is why PowerPoint leaves those three behind. Enumerate them with `shape_placeholder` over
-  `Surface::Layout(idx)`; the shapes to emit are the same `p:sp` skeleton `build_text_box` produces,
-  with a `p:ph` and an empty `p:spPr` so position and size keep inheriting.
+- **L4 — `add_slide_from_layout`.** ✅ *done* — clones one `p:sp` per slot, with the layout's name and
+  `p:ph`, an empty `p:spPr` (position, size and appearance keep inheriting) and a text body holding
+  one **empty run**, which is what lets `set_shape_text` fill it: that method replaces an existing
+  run, so a body with none could not be filled at all.
 - **Later (not this workstream):** master `p:txStyles` feeding *effective text formatting* (run →
   paragraph → placeholder → layout → master → theme font scheme). That is its own workstream, larger
   than all of L1–L4.
+
+## Known follow-ups (not blockers)
+
+- **Every placeholder is cloned, including `dt`/`ftr`/`sldNum`.** Those three render from the layout
+  when a slide does not declare them, so cloned copies show as empty boxes instead. PowerPoint skips
+  them; a `skip_kinds` argument or a `remove_shape` would both close this.
+- **`add_shape` / `add_text_box` build a shape whose paragraph has no run**, so `set_shape_text`
+  cannot fill an added autoshape (`RunIndexOutOfRange`). `build_run` now exists — giving those two the
+  same empty run as a placeholder would fix it.
+- **There is no `remove_shape` or `remove_slide`.** Everything so far adds.
+- **Master `p:txStyles` is unread** — effective *text* formatting (run → paragraph → placeholder →
+  layout → master → theme font scheme) is the natural next PowerPoint workstream, larger than L1–L4.
 
 ## Guardrails
 
