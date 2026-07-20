@@ -277,3 +277,109 @@ fn runs_mut_targets_only_the_selected_run() {
         "{out}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Splitting a run — the primitive behind formatting part of a paragraph
+// ---------------------------------------------------------------------------------------------
+
+const A_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+
+#[test]
+fn splitting_a_run_divides_its_text_and_copies_its_formatting() {
+    let fragment =
+        format!(r#"<a:r xmlns:a="{A_NS}"><a:rPr lang="en-US" b="1"/><a:t>Hello world</a:t></a:r>"#);
+    let (mut run, doc): (TextRun, _) = parse_typed(fragment.as_bytes());
+
+    let tail = run.split_at(6).expect("splits inside the text");
+    assert_eq!(run.text(), "Hello ");
+    assert_eq!(tail.text(), "world");
+    assert_eq!(
+        format!("{}{}", run.text(), tail.text()),
+        "Hello world",
+        "the halves must reconstitute the original"
+    );
+
+    // The tail carries the head's formatting, so splitting alone changes nothing visually.
+    let head_properties = run.properties().expect("head keeps its properties");
+    let tail_properties = tail.properties().expect("tail gets a copy");
+    assert_eq!(head_properties, tail_properties);
+    assert_eq!(tail_properties.is_bold(&doc.interner), Some(true));
+    assert_eq!(tail_properties.language(&doc.interner), Some("en-US"));
+}
+
+#[test]
+fn a_split_that_would_leave_a_side_empty_is_refused() {
+    let fragment = format!(r#"<a:r xmlns:a="{A_NS}"><a:t>Hello</a:t></a:r>"#);
+    for offset in [0, 5, 6, 99] {
+        let (mut run, _doc): (TextRun, _) = parse_typed(fragment.as_bytes());
+        assert!(
+            run.split_at(offset).is_none(),
+            "offset {offset} should be refused"
+        );
+        assert_eq!(run.text(), "Hello", "a refused split must change nothing");
+    }
+}
+
+#[test]
+fn splitting_counts_scalars_not_bytes() {
+    // "café" is 5 bytes but 4 scalars; splitting at 3 must land before the é, not inside it.
+    let fragment = format!(r#"<a:r xmlns:a="{A_NS}"><a:t>café au lait</a:t></a:r>"#);
+    let (mut run, _doc): (TextRun, _) = parse_typed(fragment.as_bytes());
+    let tail = run.split_at(3).expect("splits");
+    assert_eq!(run.text(), "caf");
+    assert_eq!(tail.text(), "é au lait");
+}
+
+#[test]
+fn a_run_without_properties_splits_into_two_without_properties() {
+    let fragment = format!(r#"<a:r xmlns:a="{A_NS}"><a:t>plain text</a:t></a:r>"#);
+    let (mut run, _doc): (TextRun, _) = parse_typed(fragment.as_bytes());
+    let tail = run.split_at(5).expect("splits");
+    assert!(run.properties().is_none());
+    assert!(
+        tail.properties().is_none(),
+        "nothing should be synthesized by a split"
+    );
+}
+
+#[test]
+fn splitting_a_run_leaves_the_paragraphs_other_children_in_place() {
+    // A line break and a field sit between the runs; neither may move.
+    let fragment = format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}">"#,
+            r#"<a:r><a:t>one two</a:t></a:r>"#,
+            r#"<a:br/>"#,
+            r#"<a:fld id="{{GUID}}" type="slidenum"><a:t>3</a:t></a:fld>"#,
+            r#"<a:r><a:t>after</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A_NS
+    );
+    let (mut paragraph, mut doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    assert!(paragraph.split_run_at(0, 3), "run 0 splits at 3");
+
+    let texts: Vec<String> = paragraph.runs().map(|r| r.text().to_owned()).collect();
+    assert_eq!(texts, vec!["one", " two", "after"]);
+
+    doc.root = paragraph.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    // The break and the field are still between the split run and the last one, in that order.
+    let position = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    assert!(position("<a:t> two</a:t>") < position("<a:br/>"), "{out}");
+    assert!(position("<a:br/>") < position("<a:fld"), "{out}");
+    assert!(position("<a:fld") < position("<a:t>after</a:t>"), "{out}");
+}
+
+#[test]
+fn splitting_a_run_that_does_not_exist_changes_nothing() {
+    let fragment = format!(r#"<a:p xmlns:a="{A_NS}"><a:r><a:t>only</a:t></a:r></a:p>"#);
+    let (mut paragraph, _doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    assert!(!paragraph.split_run_at(7, 2), "no such run");
+    assert!(!paragraph.split_run_at(0, 0), "an empty head is refused");
+    assert_eq!(paragraph.runs().count(), 1);
+    assert_eq!(paragraph.text(), "only");
+}

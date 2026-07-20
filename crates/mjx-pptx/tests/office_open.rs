@@ -12,9 +12,10 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, BlipFillMode, ColorSpec, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect,
-    GradientStopSpec, LineCap, LineDash, LineJoin, LineSpec, LineWidth, OuterShadowEffect,
-    PatternType, PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry,
+    Angle, BlipFillMode, CharacterPropertiesSpec, ColorSpec, EffectListSpec, Emu, FillSpec,
+    Fraction, GlowEffect, GradientStopSpec, IndentLevel, LineCap, LineDash, LineJoin, LineSpec,
+    LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetLineDash,
+    RectangleAlignment, SchemeColor, ShapeGeometry, TextAlignment, TextSpacing,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds, Surface};
@@ -476,4 +477,62 @@ fn a_deck_edited_and_pruned_end_to_end_opens() {
 
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "edited_and_pruned");
+}
+
+#[test]
+fn a_deck_with_formatted_text_opens() {
+    // The whole text model through the public API on a real deck: a slide built from a layout, a
+    // title and a multi-level bulleted body, then formatting applied at three different scopes —
+    // shape-wide, paragraph-wide, and one character range.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    let slide = pres.add_slide_from_layout(1).expect("add slide");
+    pres.set_shape_text(slide, 0, 0, "Formatted title")
+        .expect("set the title");
+    pres.set_shape_text(slide, 1, 0, "A bulleted line of body text")
+        .expect("set the body");
+
+    // Shape-wide: size the whole title.
+    pres.set_shape_run_properties(
+        slide,
+        0,
+        &CharacterPropertiesSpec::new()
+            .with_size_points(32.0)
+            .with_color(ColorSpec::Scheme(SchemeColor::Accent1)),
+    )
+    .expect("size the title");
+
+    // Paragraph-wide: lay the body paragraph out, with a bullet at a nested level.
+    pres.set_paragraph_properties(
+        slide,
+        1,
+        0,
+        &ParagraphPropertiesSpec::new()
+            .with_level(IndentLevel::of(1))
+            .with_alignment(TextAlignment::Left)
+            .with_left_margin_points(36.0)
+            .with_indent_points(-18.0)
+            .with_space_before(TextSpacing::points(6.0))
+            .with_bullet_character("•"),
+    )
+    .expect("lay out the body");
+    pres.set_paragraph_run_properties(
+        slide,
+        1,
+        0,
+        &CharacterPropertiesSpec::new().with_size_points(18.0),
+    )
+    .expect("size the body");
+
+    // A character range: bold the word "bulleted".
+    pres.set_text_range_properties(
+        slide,
+        1,
+        0,
+        2..10,
+        &CharacterPropertiesSpec::new().with_bold(true),
+    )
+    .expect("bold one word");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "formatted_text");
 }
