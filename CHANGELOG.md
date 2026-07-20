@@ -15,6 +15,29 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.5] - 2026-07-21
+
+Bullets and numbering — the marks that express a deck's paragraph hierarchy.
+
+### Added
+
+- **`Bullet`** — what marks a paragraph: `None` (an explicit "no bullet", which overrides an
+  inherited one), `Character` (a literal glyph), `AutoNumber` (a scheme plus where its sequence
+  starts), or `Picture` (an image by relationship id).
+- **`BulletColor`, `BulletSize`, `BulletTypeface`** — the bullet's colour, size and font, each with a
+  `FollowText` variant for the schema's "match the text" arm. All four groups are set and inherited
+  **independently**, as the schema defines them.
+- **Builder support** on `ParagraphPropertiesSpec`: `with_bullet`, `with_bullet_color`,
+  `with_bullet_size`, `with_bullet_typeface`, plus `with_bullet_character("•")` and
+  `without_bullet()` for the common cases.
+
+### Notes
+
+- A bullet percentage is written in the form both schemas specify and ECMA §21.1.2.4.9 illustrates
+  (`val="111%"`); the integer spelling found in some files is still read.
+- Setting one bullet group never disturbs the others, and a group left unnamed keeps whatever the
+  file had.
+
 ## [0.0.4] - 2026-07-21
 
 Paragraph formatting: how a paragraph is laid out, and the per-level styles it inherits from.
@@ -161,6 +184,7 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.5]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.5
 [0.0.4]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.4
 [0.0.3]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.3
 [0.0.2]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.2
