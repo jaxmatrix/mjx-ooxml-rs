@@ -202,6 +202,50 @@ pub(crate) fn first_fill_child<'a>(
     })
 }
 
+/// Replaces the first child element whose local name satisfies `matches` with `element`, keeping its
+/// position; inserts it **in schema order** when there is none, using `rank_of` to place it.
+///
+/// The complex types that carry properties (`CT_TextCharacterProperties`, `CT_TextParagraphProperties`)
+/// are `xsd:sequence`s, so child order is validity rather than style: a fill written before the `a:ln`
+/// it belongs after makes the element unreadable to Office. `rank_of` gives a child's position in that
+/// sequence; children it does not recognize are **skipped** when choosing the insertion point rather
+/// than treated as a boundary, so a new child lands beside its ranked neighbours instead of after
+/// something this model does not understand.
+pub(crate) fn replace_or_insert_child(
+    children: &mut Vec<RawNode>,
+    interner: &Interner,
+    element: RawElement,
+    matches: impl Fn(&str) -> bool,
+    rank_of: impl Fn(&str) -> Option<usize>,
+) {
+    let existing = children.iter().position(|node| match node {
+        RawNode::Element(child) => {
+            is_dml(&child.name, interner) && matches(interner.resolve(child.name.local))
+        }
+        _ => false,
+    });
+    if let Some(index) = existing {
+        children[index] = RawNode::Element(element);
+        return;
+    }
+
+    // Sorts after every child the caller knows how to place.
+    let rank = rank_of(interner.resolve(element.name.local)).unwrap_or(usize::MAX);
+    let mut at = 0;
+    for (index, node) in children.iter().enumerate() {
+        if let RawNode::Element(child) = node {
+            if is_dml(&child.name, interner) {
+                match rank_of(interner.resolve(child.name.local)) {
+                    Some(existing) if existing <= rank => at = index + 1,
+                    Some(_) => break,
+                    None => {}
+                }
+            }
+        }
+    }
+    children.insert(at, RawNode::Element(element));
+}
+
 /// Generates the fidelity `FromXml`/`ToXml` impls for a wrapper `struct` whose fields are exactly
 /// `name` / `attributes` / `children` / `empty` — a type that models an element by name and preserves
 /// its attributes, children, and self-closing flag verbatim (like `color::Color`). Each fill kind is
