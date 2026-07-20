@@ -43,6 +43,9 @@ anyhow = "1"
 proc-macro2 = "1"
 quote = "1"
 syn = { version = "2", features = ["full"] }
+# Grapheme-cluster segmentation for text ranges a user selects. Pure Rust: the cross-compile
+# matrix (wasm/Android/iOS) is unaffected.
+unicode-segmentation = "1"
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
