@@ -1,13 +1,17 @@
-# Handoff — text formatting (`a:rPr` / `a:pPr` / bullets / inheritance) — IN PROGRESS
+# Handoff — text formatting (`a:rPr` / `a:pPr` / bullets / inheritance) — COMPLETE
 
 The workstream that makes text *look* like something. Read after `docs/PHASE2_HANDOFF.md` (§3
 guardrails); `docs/LAYOUT_MASTER_HANDOFF.md` is the immediately preceding workstream and left this as
 its one open follow-up.
 
-**Status: T1–T5 shipped (#48, #49, #50, #51, #52 + T5 at `0.0.7`) — 534 tests green.**
-**➡ NEXT: T6 (effective resolution).** T6 is what the workstream is *for*: it answers *what size is
-this title actually rendered at*, which is a question no amount of explicit modeling can answer,
-because the answer lives in the master's `p:txStyles`.
+**Status: COMPLETE — T1–T6 shipped, `0.0.9`, 555 tests green.** T6 was what the workstream was
+*for*: `deck.effective_run_properties(slide, shape, para, run)` answers *what size is this title
+actually rendered at*, a question no amount of explicit modeling could answer, because the answer
+lives in the master's `p:txStyles`.
+
+**➡ NEXT: the follow-ups at the bottom of this document**, none of which block anything: run
+coalescing, hyperlinks (they need the packaging layer, like images did), the underline line/fill
+groups, `a:br` / `a:fld` addressability.
 
 ## Why this workstream exists
 
@@ -144,10 +148,16 @@ Theme font references are `+mj-lt` / `+mn-lt` and the `-ea` / `-cs` forms (ECMA 
 - **T1 enums + measures** ✅ · **T2 character properties** ✅ · **T3 paragraph properties + list
   styles** ✅ · **T3b bullets** ✅ · **T4 the `Presentation` surface** ✅ · **T5 the theme font
   scheme** ✅
-- **➡ T6 — effective text formatting.** `effective_run_properties(surface, shape, para, run)` and
-  `effective_paragraph_properties(surface, shape, para)`, resolving the ladder below.
+- **T6a merges** ✅ — `CharacterPropertiesSpec::merge_under` / `ParagraphPropertiesSpec::merge_under`
+  in `mjx-dml`. Properties merge as whole values, so `b="0"` / `a:noFill` / `<a:buNone/>` block the
+  tier below rather than falling through it. Fonts merge per script slot, tab stops as one list,
+  `a:defRPr` recursively, each bullet group as a unit.
+- **T6b the walk** ✅ — `Presentation::effective_run_properties` and
+  `effective_paragraph_properties`, resolving the ladder below. Tiers 3–6 are collected once by
+  `text_style_tiers`: a tier's `a:lvlNpPr` is the paragraph contribution and its `a:defRPr` the
+  character one, so one walk serves both answers.
 
-### T6's ladder, highest priority first
+### The ladder, highest priority first
 
 Each tier contributes only what the tiers above left unset:
 
@@ -171,15 +181,21 @@ build a candidate list (the shape itself, then the same-slot placeholder on each
 the theme's colour scheme once across the part-interner boundary, then walk. Do not invent a second
 pattern.
 
-**Put the merges in `mjx-dml`**, as `CharacterPropertiesSpec::merge_under(&other)` and
-`ParagraphPropertiesSpec::merge_under(&other)`: each field takes the lower tier's value only where the
-higher tier left it `None`, and **each bullet group merges as a unit** (a tier that sets `buChar`
-supplies the whole bullet, not a field of it). One place, unit-tested there, rather than inside the
-pptx walk.
+**The merges live in `mjx-dml`** (T6a), not inside the pptx walk — `merge_under` on each spec type,
+unit-tested there.
 
-**Fixture work T6 needs:** extend `layouts.pptx`'s master `bodyStyle` from its single `lvl1pPr` to
-three levels with distinct `buChar`/`sz`/`marL`, so a level-0/1/2 paragraph can be shown to resolve to
-*different* answers, each traceable to its `lvlNpPr`. Leave `sample.pptx` without `p:txStyles`.
+**Two rules decided during T6b, both by what PowerPoint does:** a shape that is **not a placeholder**
+takes no master text style and falls straight to `p:defaultTextStyle`; and a font slot the theme's
+scheme leaves undefined **keeps its `+mj-lt` reference** rather than inventing a font. A run naming no
+font at all is likewise left naming none — the default legitimately arrives as tier 5/6's explicit
+`+mn-lt`.
+
+**Fixture, as extended by T6b:** `layouts.pptx`'s master `bodyStyle` now defines **three** levels with
+distinct `buChar`/`sz`/`marL` (`•`/32pt/27pt, `–`/28pt/58.5pt, `»`/24pt/90pt), so a level-0/1/2
+paragraph resolves to *different* answers, each traceable to its `lvlNpPr`; and slideLayout2's
+`idx="1"` placeholder carries an `a:lstStyle` of `b="1"` so the placeholder tier has something to say.
+`sample.pptx` is deliberately left without `p:txStyles` — it is the absent-tier path, and
+`text_inheritance.rs` asserts resolution still answers there.
 
 ## Known follow-ups (not blockers)
 

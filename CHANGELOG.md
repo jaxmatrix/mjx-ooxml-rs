@@ -15,6 +15,32 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.9] - 2026-07-21
+
+What the text actually renders as. The text-formatting workstream is complete.
+
+### Added
+
+- **`Presentation::effective_run_properties`** and **`Presentation::effective_paragraph_properties`**
+  — the formatting a run and a paragraph *render* with, not the formatting they declare. Seven tiers
+  resolve, each contributing only what the tiers above left unset: the run's `a:rPr`, the paragraph's
+  `a:defRPr`, the shape's `a:lstStyle`, the same-slot placeholder's on the layout and master, the
+  master's `p:txStyles`, `p:defaultTextStyle`, and the theme font scheme.
+- **`p:txStyles` and `p:defaultTextStyle` are read** for the first time — the tiers where a
+  placeholder's real size, bullet and alignment have always lived.
+
+### Notes
+
+- The paragraph's level is read **once**, before the walk, and selects which `a:lvlNpPr` every tier
+  from the third down contributes: a level-2 paragraph that declares nothing answers with the master
+  `bodyStyle`'s `a:lvl3pPr`.
+- Colors bake to concrete `RRGGBB`, consistent with `effective_shape_fill`.
+- A shape that is **not a placeholder** takes no master text style; it falls through to
+  `p:defaultTextStyle`, as PowerPoint does. A font slot the theme leaves undefined keeps its
+  `+mj-lt` reference rather than inventing a font.
+- `tests/fixtures/layouts.pptx` gained three distinct `bodyStyle` levels and a layout-placeholder
+  `a:lstStyle`, so the level axis and the placeholder tier are demonstrable on a real deck.
+
 ## [0.0.8] - 2026-07-21
 
 What "inherited" means, made explicit — the merge one tier of the text-formatting ladder performs.
@@ -262,6 +288,7 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.9]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.9
 [0.0.8]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.8
 [0.0.7]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.7
 [0.0.6]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.6
