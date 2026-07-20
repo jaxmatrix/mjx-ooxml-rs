@@ -1161,13 +1161,17 @@ impl Presentation {
     }
 
     /// Appends a new rectangular text-box shape (`p:sp`) to `surface`, laid out at `bounds`
-    /// and containing `text` (one paragraph per line, split on `\n`; an empty line becomes an empty
-    /// paragraph). Returns the index of the new shape in the slide's one shape index space (see
-    /// [`shape_count`](Self::shape_count)). Only that part is marked dirty.
+    /// and containing `text` (one paragraph per line, split on `\n`). Returns the index of the new
+    /// shape in the slide's one shape index space (see [`shape_count`](Self::shape_count)). Only that
+    /// part is marked dirty.
     ///
     /// The shape is a plain text box (`p:cNvSpPr@txBox="1"`, `a:prstGeom@prst="rect"`) with no
     /// placeholder, so it renders as free-standing text. Its non-visual id (`p:cNvPr@id`) is one past
     /// the largest id already present on that part, keeping ids unique.
+    ///
+    /// Every paragraph created here holds exactly **one run**, an empty line included, so each line is
+    /// addressable as run 0 of its paragraph and can be rewritten with
+    /// [`set_shape_text`](Self::set_shape_text).
     ///
     /// # Errors
     /// Returns [`PptxError`] if the surface index is out of range or the part is malformed.
@@ -1200,6 +1204,9 @@ impl Presentation {
     /// The shape is created with the preset's default adjustments; customize them afterward with
     /// [`set_shape_geometry`](Self::set_shape_geometry). Its non-visual id (`p:cNvPr@id`) is one past
     /// the largest id already present on that part, keeping ids unique.
+    ///
+    /// Its text body holds one paragraph with one **empty run**, so the shape can be labelled straight
+    /// away with [`set_shape_text(surface, idx, 0, "…")`](Self::set_shape_text).
     ///
     /// # Errors
     /// Returns [`PptxError`] if the surface index is out of range or the part is malformed.
@@ -2163,7 +2170,8 @@ fn build_text_body(interner: &mut Interner, paragraphs: Vec<RawElement>) -> RawE
 }
 
 /// A whole `p:sp` autoshape: `nvSpPr` (no `txBox`) + `spPr` with the `prst` preset geometry + an
-/// empty `txBody` (`a:bodyPr`, `a:lstStyle`, one empty `a:p`).
+/// empty `txBody` (`a:bodyPr`, `a:lstStyle`, one `a:p` holding one empty run — see
+/// [`build_paragraph`]).
 fn build_shape(interner: &mut Interner, id: u32, prst: &str, bounds: ShapeBounds) -> RawElement {
     let nv_sp_pr = build_nv_sp_pr(interner, id, &format!("Shape {id}"), false);
     let sp_pr = build_sp_pr(interner, prst, bounds);
@@ -2363,12 +2371,14 @@ fn build_picture(
     picture
 }
 
-/// Builds one `a:p`. An empty line yields an empty paragraph (`<a:p/>`); otherwise a single run
-/// (`a:r > a:t`) carrying the line's text.
+/// Builds one `a:p` holding exactly one run (`a:r > a:t`) carrying the line's text — **including when
+/// the line is empty**, which yields an empty run rather than an empty paragraph.
+///
+/// That is what makes a newly added shape fillable: [`set_shape_text`](Presentation::set_shape_text)
+/// *replaces* the `run_idx`-th run, so a paragraph with no runs could not be filled in at all (it
+/// answered [`RunIndexOutOfRange`](PptxError::RunIndexOutOfRange)). An empty run renders exactly like
+/// an empty paragraph, so the blank line a caller asked for still looks blank.
 fn build_paragraph(interner: &mut Interner, line: &str) -> RawElement {
-    if line.is_empty() {
-        return build::leaf(interner, "a", DML_MAIN, "p", Vec::new());
-    }
     let run = build_run(interner, line);
     build::node(
         interner,
