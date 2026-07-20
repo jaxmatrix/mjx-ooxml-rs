@@ -521,3 +521,78 @@ fn resolve_effects_preserves_structural_fields_and_bakes_srgb() {
     assert_eq!(shadow.distance, Some(Emu::from_emu(38100)));
     assert_eq!(shadow.color, ColorSpec::Srgb("FF0000".into()));
 }
+
+// ---------------------------------------------------------------------------------------------
+// Character properties — the whole run baked down
+// ---------------------------------------------------------------------------------------------
+
+/// Parses an `a:rPr` fragment under its own interner.
+fn character_properties(frag: &str) -> (mjx_dml::CharacterProperties, mjx_ooxml_core::RawDocument) {
+    let doc = fidelity::parse(format!(r#"<a:rPr xmlns:a="{A}"{frag}"#).as_bytes()).expect("parses");
+    let typed =
+        mjx_dml::CharacterProperties::from_xml(&doc.root, &doc.interner).expect("rPr is typed");
+    (typed, doc)
+}
+
+#[test]
+fn resolve_character_properties_bakes_every_color_it_carries() {
+    let scheme = office_scheme();
+    let (properties, doc) = character_properties(concat!(
+        r#" sz="1800" b="1">"#,
+        r#"<a:ln w="9525"><a:solidFill><a:schemeClr val="accent1"/></a:solidFill></a:ln>"#,
+        r#"<a:solidFill><a:schemeClr val="accent1"/></a:solidFill>"#,
+        r#"<a:highlight><a:schemeClr val="accent1"/></a:highlight>"#,
+        r#"<a:latin typeface="Calibri"/>"#,
+        r#"</a:rPr>"#
+    ));
+    let spec = mjx_dml::resolve_character_properties(
+        &properties,
+        &scheme,
+        &ColorMap::identity(),
+        None,
+        &doc.interner,
+    );
+
+    // Every color reached concrete RGB — the text fill, the glyph outline's stroke, the highlight.
+    let accent = ColorSpec::Srgb("4472C4".into());
+    assert_eq!(spec.fill(), Some(&FillSpec::Solid(accent.clone())));
+    assert_eq!(
+        spec.outline().and_then(|line| line.fill.clone()),
+        Some(FillSpec::Solid(accent.clone()))
+    );
+    assert_eq!(spec.highlight(), Some(&accent));
+
+    // The non-color properties pass through untouched — nothing about them needs a theme.
+    assert_eq!(spec.size_points(), Some(18.0));
+    assert_eq!(spec.is_bold(), Some(true));
+    assert_eq!(
+        spec.font(mjx_dml::FontSlot::Latin)
+            .map(|f| f.typeface.as_str()),
+        Some("Calibri")
+    );
+}
+
+#[test]
+fn resolve_character_properties_substitutes_the_placeholder_color() {
+    // A run inside a theme text style paints with `phClr` — the placeholder the caller resolved.
+    let scheme = office_scheme();
+    let (properties, doc) =
+        character_properties(r#"><a:solidFill><a:schemeClr val="phClr"/></a:solidFill></a:rPr>"#);
+    let placeholder = ResolvedColor {
+        red: 0xC0,
+        green: 0x00,
+        blue: 0x00,
+        alpha: 1.0,
+    };
+    let spec = mjx_dml::resolve_character_properties(
+        &properties,
+        &scheme,
+        &ColorMap::identity(),
+        Some(placeholder),
+        &doc.interner,
+    );
+    assert_eq!(
+        spec.fill(),
+        Some(&FillSpec::Solid(ColorSpec::Srgb("C00000".into())))
+    );
+}
