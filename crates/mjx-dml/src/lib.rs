@@ -38,8 +38,8 @@ pub use fill::{
     GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
 };
 pub use geometry::{
-    Angle, Emu, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent, LineWidth,
-    PresetGeometry, PresetGeometryContent, ResolvedAdjustment, ShapeGeometry,
+    Angle, Emu, FontSize, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent,
+    LineWidth, PresetGeometry, PresetGeometryContent, ResolvedAdjustment, ShapeGeometry, TextPoint,
 };
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
