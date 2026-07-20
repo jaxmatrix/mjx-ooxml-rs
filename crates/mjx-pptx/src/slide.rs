@@ -3,7 +3,7 @@
 use mjx_dml::{ColorMap, ColorSchemeSlot, Fill, StyleMatrixReference};
 use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
-use mjx_ooxml_types::presentationml::PlaceholderType;
+use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
 use crate::error::PptxError;
 use crate::nav;
@@ -303,6 +303,52 @@ pub(crate) fn shape_placeholder(shape: &RawElement, interner: &Interner) -> Opti
         .and_then(|value| value.parse::<u32>().ok())
         .unwrap_or(0);
     Some(Placeholder { kind, idx })
+}
+
+/// Everything a shape's `p:ph` declares: what the placeholder holds, which slot it occupies, how much
+/// of the layout it fills, which way its text runs, and the shape's own name.
+///
+/// This is what a layout offers a slide to fill in. The slot — [`kind`](PlaceholderInfo::kind) plus
+/// [`index`](PlaceholderInfo::index) — is what inheritance matches on, so a slide placeholder with the
+/// same slot as one on its layout takes that layout shape's properties.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PlaceholderInfo {
+    /// What the placeholder holds (`@type`; `obj` when unstated, per the schema).
+    pub kind: PlaceholderType,
+    /// The slot index (`@idx`, default `0`) that inheritance matches on.
+    pub index: u32,
+    /// How much of the layout the placeholder covers (`@sz`, default `full`).
+    pub size: PlaceholderSize,
+    /// Which way the placeholder's text runs (`@orient`, default `horz`).
+    pub orientation: Orientation,
+    /// The shape's non-visual name (`p:cNvPr@name`, e.g. `Title 1`), or `None` if unnamed.
+    pub name: Option<String>,
+}
+
+/// The full placeholder metadata of `shape`, or `None` if it is not a placeholder.
+pub(crate) fn shape_placeholder_info(
+    shape: &RawElement,
+    interner: &Interner,
+) -> Option<PlaceholderInfo> {
+    let nv_container = non_visual_properties(shape, interner)?;
+    let nv_pr = nav::child(nv_container, interner, PML, "nvPr")?;
+    let ph = nav::child(nv_pr, interner, PML, "ph")?;
+    let Placeholder { kind, idx } = shape_placeholder(shape, interner)?;
+    let name = nav::child(nv_container, interner, PML, "cNvPr")
+        .and_then(|c_nv_pr| nav::attr_value(c_nv_pr, interner, "name"))
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned);
+    Some(PlaceholderInfo {
+        kind,
+        index: idx,
+        size: nav::attr_value(ph, interner, "sz")
+            .and_then(PlaceholderSize::from_wire)
+            .unwrap_or(PlaceholderSize::Full),
+        orientation: nav::attr_value(ph, interner, "orient")
+            .and_then(Orientation::from_wire)
+            .unwrap_or(Orientation::Horizontal),
+        name,
+    })
 }
 
 /// The first `p:sp` in `sp_tree` whose placeholder matches `target` (see [`Placeholder::matches`]).
