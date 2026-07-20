@@ -15,6 +15,29 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.7] - 2026-07-21
+
+The theme's font scheme — where a typeface of `+mj-lt` finally leads.
+
+### Added
+
+- **`FontScheme`** (`mjx-dml`) — `a:fontScheme` modeled as `{ name, major, minor }`, on both `Theme`
+  and the interner-free `ThemeInfo` (`Theme::font_scheme` / `ThemeInfo::font_scheme`), so a deck's
+  font scheme is reachable through the existing `Presentation::theme`.
+- **`FontCollection`** — one collection's latin / East Asian / complex-script fonts, keyed by the
+  existing `FontSlot` (`FontSlot::Symbol` is always absent: a collection has no `a:sym`), plus its
+  `SupplementalFont` per-script fallbacks, looked up by ISO 15924 script tag.
+- **Theme font references** — `TextFont::theme_reference` parses the six spellings the schema
+  defines (`+mj-lt`, `+mj-ea`, `+mj-cs`, `+mn-lt`, `+mn-ea`, `+mn-cs`) into a `ThemeFontReference`;
+  anything else, including other `+…` strings, is not a reference. `FontScheme::resolve` answers
+  what a font is actually drawn with — itself when literal, the scheme's font when a reference.
+
+### Notes
+
+- The theme part stays read-only: the font scheme is a parsed value view, with no write path.
+- This is the last piece the effective-text-formatting resolution needs; the inheritance walk that
+  consumes it follows.
+
 ## [0.0.6] - 2026-07-21
 
 Text formatting reaches the deck. Everything the previous four releases modeled is now callable on a
@@ -218,6 +241,7 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.7]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.7
 [0.0.6]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.6
 [0.0.5]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.5
 [0.0.4]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.4
