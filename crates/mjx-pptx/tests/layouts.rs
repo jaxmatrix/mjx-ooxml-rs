@@ -3,11 +3,14 @@
 //! That fixture is hand-authored so the inventory has something to enumerate: one master
 //! (`Office Theme`) listing three layouts —
 //!
-//! | index | `p:sldLayout@type` | `p:cSld@name`       | placeholders            |
-//! |-------|--------------------|---------------------|-------------------------|
-//! | 0     | `title`            | `Title Slide`       | `ctrTitle`, `subTitle`  |
-//! | 1     | `obj`              | `Title and Content` | `title`, body (`idx=1`) |
-//! | 2     | `blank`            | `Blank`             | none                    |
+//! | index | `p:sldLayout@type` | `p:cSld@name`       | placeholders                                          |
+//! |-------|--------------------|---------------------|-------------------------------------------------------|
+//! | 0     | `title`            | `Title Slide`       | `ctrTitle`, `subTitle`                                |
+//! | 1     | `obj`              | `Title and Content` | `title`, body (`idx=1`), `dt`, `ftr`, `sldNum`        |
+//! | 2     | `blank`            | `Blank`             | none                                                  |
+//!
+//! Layout 1 carries the date / footer / slide-number trio a real PowerPoint layout has — the slots a
+//! slide inherits rather than owns (see `tests/slide_creation.rs`).
 //!
 //! — and two slides deliberately on *different* layouts: slide 0 on layout 1, slide 1 on layout 0.
 
