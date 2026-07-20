@@ -15,6 +15,40 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.6] - 2026-07-21
+
+Text formatting reaches the deck. Everything the previous four releases modeled is now callable on a
+real `.pptx`, at every scope a user can select.
+
+### Added
+
+- **The paragraph axis** on `Presentation` — `paragraph_count`, `run_count`, `paragraph_text`,
+  `run_text`. Run indices are paragraph-local, matching the document tree. The existing flat
+  `set_shape_text` is unchanged.
+- **Reading formatting** — `paragraph_properties`, `run_properties`, `end_run_properties`. Reading
+  never dirties a part.
+- **Writing formatting, one call per selection granularity**:
+  - `set_run_properties` — one run.
+  - `set_paragraph_run_properties` — every run in a paragraph, and its paragraph mark.
+  - `set_shape_run_properties` — every run in the shape, and every mark.
+  - `set_text_range_properties` — an arbitrary character range, splitting runs where the range cuts
+    across them.
+  - `set_text_range_properties_by_grapheme` — the same, addressed in grapheme clusters, so an emoji
+    and its modifier are one unit.
+  - `set_paragraph_properties` — a paragraph's layout (alignment, level, margins, spacing, bullet).
+  - `set_end_run_properties` — the format of an **empty** paragraph, which is what a placeholder
+    added but not yet typed into holds.
+- **`TextRun::split_at` / `Paragraph::split_run_at`** in `mjx-dml` — divide a run's text, giving both
+  halves the original's formatting, so splitting alone changes nothing about how the text renders.
+- **`Paragraph::set_end_properties`** — the write half of the `a:endParaRPr` surface.
+
+### Notes
+
+- Formatting a paragraph or a shape also formats the paragraph mark, so text typed at the end takes
+  the same formatting — what "select and restyle" means to a user.
+- Runs are split but never merged, keeping each edit minimal. A range already aligned to run
+  boundaries splits nothing, so repeated edits do not accumulate runs.
+
 ## [0.0.5] - 2026-07-21
 
 Bullets and numbering — the marks that express a deck's paragraph hierarchy.
@@ -184,6 +218,7 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.6]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.6
 [0.0.5]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.5
 [0.0.4]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.4
 [0.0.3]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.3
