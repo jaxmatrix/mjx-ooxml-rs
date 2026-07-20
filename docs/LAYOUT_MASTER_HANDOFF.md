@@ -104,6 +104,8 @@ deck.theme(Surface::Master(0))?;
 - **Master `p:txStyles` is unread** — effective *text* formatting (run → paragraph → placeholder →
   layout → master → theme font scheme) is the natural next PowerPoint workstream, larger than L1–L4.
   **This is the only PowerPoint item still open.**
+  → **That workstream is underway**: see `docs/TEXT_FORMATTING_HANDOFF.md`. Text is now modeled and
+  editable (T1–T4, `0.0.6`); reading `p:txStyles` is its T6, the last piece.
 
 ## What removal shipped
 
