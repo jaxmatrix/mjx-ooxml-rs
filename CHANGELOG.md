@@ -15,6 +15,31 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.4] - 2026-07-21
+
+Paragraph formatting: how a paragraph is laid out, and the per-level styles it inherits from.
+
+### Added
+
+- **`ParagraphProperties`** (`CT_TextParagraphProperties`) — indent level, alignment, left/right
+  margins, first-line indent, default tab size, reading direction and font alignment, plus line
+  spacing, space before/after, tab stops, and the `a:defRPr` a paragraph's runs default to. One type
+  serves `a:pPr`, `a:defPPr` and `a:lvl1pPr`…`a:lvl9pPr`; the line-breaking attributes, bullets and
+  anything unknown round-trip verbatim.
+- **`ParagraphPropertiesSpec`** — the builder, matching the character-properties conventions.
+  Margins, indents and tab stops are stated **in points**; EMU is the file's unit and stays reachable
+  through `Emu`.
+- **`IndentLevel`** — the 0–8 nesting level a paragraph's inherited bullet, size and indent are
+  selected by. `IndentLevel::of(2)` for a literal, `::new(raw)` for a value off the wire, `::TOP` for
+  the outermost.
+- **`TextSpacing`** — a proportion of the line height (`a:spcPct`) or a fixed distance (`a:spcPts`),
+  kept apart because they are different measurements. **`TabStop`** — position and alignment.
+- **`TextListStyle`** (`a:lstStyle`) — the paragraph properties a container offers at each level, by
+  `level(IndentLevel)`. The same type covers a shape's own list style, a placeholder's, and each of a
+  master's three text styles.
+- **Typed access from the text tree** — `Paragraph::properties` / `set_properties` and
+  `TextBody::list_style`, so `a:pPr` and `a:lstStyle` are no longer opaque.
+
 ## [0.0.3] - 2026-07-20
 
 Text formatting begins: the vocabulary and the run-level model. A run's appearance — its size, weight,
@@ -136,6 +161,7 @@ the schema-type generator, and full documentation. No format models yet.
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and Apple/Windows targets.
 - A broader multi-producer sample corpus and fuzzing are planned for later iterations.
 
+[0.0.4]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.4
 [0.0.3]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.3
 [0.0.2]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.2
 [0.0.1]: https://github.com/jaxmatrix/mjx-ooxml-rs/releases/tag/v0.0.1
