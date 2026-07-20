@@ -130,7 +130,7 @@ impl Theme {
     }
 
     /// This theme as an interner-free [`ThemeInfo`], resolving every color, fill, and line against
-    /// `interner` — the value an interner-less caller (`mjx-pptx`'s `slide_theme`) reads.
+    /// `interner` — the value an interner-less caller (`mjx-pptx`'s `theme`) reads.
     #[must_use]
     pub fn to_info(&self, interner: &Interner) -> ThemeInfo {
         ThemeInfo {
