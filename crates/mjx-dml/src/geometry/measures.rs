@@ -96,6 +96,60 @@ impl LineWidth {
 /// Hundredths of a point — the unit DrawingML writes text measurements in (`sz="4400"` is 44 pt).
 const HUNDREDTHS_PER_POINT: f64 = 100.0;
 
+/// How deeply a paragraph is nested in its list (`a:pPr@lvl`, `ST_TextIndentLevelType`) — **0 to 8**,
+/// where 0 is the outermost.
+///
+/// This is the axis a deck's structure hangs from: demoting a line in PowerPoint changes its level,
+/// and the level then selects which `lvlNpPr` of every inherited style applies — its bullet, its size,
+/// its indent. Because it indexes those nine slots, an out-of-range value is not a value at all, so it
+/// is a checked newtype rather than a bare integer.
+///
+/// ```
+/// use mjx_dml::IndentLevel;
+///
+/// assert_eq!(IndentLevel::TOP.value(), 0);
+/// assert_eq!(IndentLevel::of(2).value(), 2);
+/// assert_eq!(IndentLevel::of(47).value(), 8);   // saturates at the deepest level
+/// assert_eq!(IndentLevel::new(47), None);       // …but a wire value is rejected outright
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+pub struct IndentLevel(u8);
+
+impl IndentLevel {
+    /// The deepest level the format allows (`8`).
+    pub const DEEPEST: u8 = 8;
+
+    /// The outermost level (`0`) — where a paragraph sits when it declares no level at all.
+    pub const TOP: Self = Self(0);
+
+    /// A level from an untrusted value (a file, user input), or `None` if it is out of range.
+    #[must_use]
+    pub const fn new(level: u8) -> Option<Self> {
+        if level <= Self::DEEPEST {
+            Some(Self(level))
+        } else {
+            None
+        }
+    }
+
+    /// A level from a literal, saturating at [`DEEPEST`](Self::DEEPEST) — for call sites where the
+    /// value is plainly in range and an `Option` would only add noise.
+    #[must_use]
+    pub const fn of(level: u8) -> Self {
+        if level <= Self::DEEPEST {
+            Self(level)
+        } else {
+            Self(Self::DEEPEST)
+        }
+    }
+
+    /// The level as a number, always `0..=8`.
+    #[must_use]
+    pub const fn value(self) -> u8 {
+        self.0
+    }
+}
+
 /// A font size **in points** — `FontSize::from_points(10.5)` is what a reader would call "10½ point".
 ///
 /// Points are the only unit this type talks about, because points are the unit every font-size
