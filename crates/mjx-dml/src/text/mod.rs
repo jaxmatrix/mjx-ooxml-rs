@@ -40,9 +40,16 @@
 //! [`CT_TextBody`]: TextBody
 
 mod body;
+mod character;
+mod font;
 mod paragraph;
 mod run;
 
 pub use body::{TextBody, TextBodyContent};
+pub use character::{
+    CharacterProperties, CharacterPropertiesSpec, FontSlot, TextCapitalization, TextStrike,
+    TextUnderline,
+};
+pub use font::TextFont;
 pub use paragraph::{Paragraph, ParagraphContent};
 pub use run::{RunContent, Text, TextRun};
