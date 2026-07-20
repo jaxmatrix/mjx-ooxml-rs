@@ -1230,6 +1230,48 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
+    /// Removes shape `shape_idx` from `surface`, closing the gap in the shape index space: every later
+    /// shape on that surface moves down one index. Only that part is marked dirty.
+    ///
+    /// Shapes are addressed in the one index space [`shape_count`](Self::shape_count) defines, so this
+    /// removes a picture or a group exactly as it removes an autoshape.
+    ///
+    /// Relationships and parts the shape used are **left in place** — removing a picture does not
+    /// remove its image. An unused relationship is valid OOXML, [`add_image`](Self::add_image)
+    /// de-duplicates by content so re-adding the same image reuses the part it already has, and a
+    /// sibling shape may well be showing the same image.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::ShapeIndexOutOfRange`] if `shape_idx` is out of range on that surface, or
+    /// another [`PptxError`] if the surface index is out of range or the part is malformed.
+    pub fn remove_shape(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+
+        let count = slide::shapes(sp_tree, interner).count();
+        let position = slide::nth_shape_position(sp_tree, interner, shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        sp_tree.children.remove(position);
+        // The shape's own indentation goes with it, or repeated removals leave a growing run of blank
+        // lines behind. Only whitespace is dropped — never a comment or a sibling's text.
+        if position > 0 && nav::is_whitespace_text(&sp_tree.children[position - 1]) {
+            sp_tree.children.remove(position - 1);
+        }
+        Ok(())
+    }
+
     /// Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0, and
     /// returns its index. The new slide is a blank shape tree; add content with
     /// [`add_text_box`](Self::add_text_box) or use [`add_slide_with_text`](Self::add_slide_with_text).

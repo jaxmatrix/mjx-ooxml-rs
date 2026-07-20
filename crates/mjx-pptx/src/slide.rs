@@ -136,6 +136,18 @@ pub(crate) fn nth_shape_mut<'a>(
     })
 }
 
+/// The position of the `n`-th shape in `sp_tree.children` — the same index space [`shapes`]
+/// enumerates, mapped back onto the raw child list so the shape can be removed.
+pub(crate) fn nth_shape_position(
+    sp_tree: &RawElement,
+    interner: &Interner,
+    n: usize,
+) -> Option<usize> {
+    nav::nth_child_matching_position(sp_tree, interner, n, |element, interner| {
+        shape_kind(element, interner).is_some()
+    })
+}
+
 /// A shape's `p:txBody`, if it has one.
 pub(crate) fn shape_txbody<'a>(
     shape: &'a RawElement,
