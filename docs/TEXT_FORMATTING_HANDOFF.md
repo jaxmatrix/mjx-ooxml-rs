@@ -4,10 +4,10 @@ The workstream that makes text *look* like something. Read after `docs/PHASE2_HA
 guardrails); `docs/LAYOUT_MASTER_HANDOFF.md` is the immediately preceding workstream and left this as
 its one open follow-up.
 
-**Status: T1–T4 shipped (#48, #49, #50, #51, #52) — `main` at `0.0.6`, 528 tests green.**
-**➡ NEXT: T5 (theme font scheme), then T6 (effective resolution).** T6 is what the workstream is
-*for*: it answers *what size is this title actually rendered at*, which is a question no amount of
-explicit modeling can answer, because the answer lives in the master's `p:txStyles`.
+**Status: T1–T5 shipped (#48, #49, #50, #51, #52 + T5 at `0.0.7`) — 534 tests green.**
+**➡ NEXT: T6 (effective resolution).** T6 is what the workstream is *for*: it answers *what size is
+this title actually rendered at*, which is a question no amount of explicit modeling can answer,
+because the answer lives in the master's `p:txStyles`.
 
 ## Why this workstream exists
 
@@ -56,6 +56,9 @@ Per PR:
   `BulletSize`, `BulletTypeface`.
 - **T4 (#52)** — the `Presentation` surface above, plus `TextRun::split_at` /
   `Paragraph::split_run_at` / `Paragraph::set_end_properties` in `mjx-dml`.
+- **T5** — `FontScheme` / `FontCollection` / `SupplementalFont` / `FontSchemeSlot` /
+  `ThemeFontReference` on `Theme` **and** `ThemeInfo`; `TextFont::theme_reference` and
+  `FontScheme::resolve`.
 
 Tests: `crates/mjx-dml/tests/{character_model,paragraph_model,text_model,text_measures}.rs`,
 `crates/mjx-pptx/tests/text_formatting.rs`, and an `office_open.rs` canary that renders a formatted,
@@ -98,12 +101,14 @@ multi-level bulleted deck through LibreOffice.
 
 ## Current state — verified, not assumed
 
-- **`crates/mjx-dml/src/theme.rs` models `a:clrScheme` and `a:fmtScheme` but NOT `a:fontScheme`.**
-  `Theme` exposes `color_scheme`, `fill_style(s)`, `line_style(s)`, `effect_style`; `ThemeInfo` mirrors
-  them interner-free. That gap is T5.
-- **`TextFont` already models `CT_TextFont`** (`crates/mjx-dml/src/text/font.rs`) with
-  `typeface`/`panose`/`pitch_family`/`charset` and **`is_theme_reference()`**, which spots a `+mj-lt`
-  style reference. It was given its own file precisely so T5 could reuse it.
+- **`crates/mjx-dml/src/theme.rs` now models `a:clrScheme`, `a:fontScheme` and `a:fmtScheme`.**
+  `Theme` exposes `color_scheme`, `font_scheme`, `fill_style(s)`, `line_style(s)`, `effect_style`;
+  `ThemeInfo` mirrors them interner-free. A `FontScheme` owns its strings, so — unlike `ColorScheme` →
+  `SchemeColors` — the *same* value serves both views and `to_info` clones it.
+- **`TextFont` models `CT_TextFont`** (`crates/mjx-dml/src/text/font.rs`) with
+  `typeface`/`panose`/`pitch_family`/`charset`, `is_theme_reference()` (the cheap predicate) and
+  **`theme_reference()`**, which parses a `+mj-lt`-style typeface into the `FontScheme` slot it names.
+  T6 calls `FontScheme::resolve(&font)` for tier 7.
 - **`TextListStyle` reads any `CT_TextListStyle`** — a shape's `a:lstStyle`, a placeholder's, and each
   of a master's three `p:txStyles` children are all the same type, so T6's ladder walks one type at
   every tier.
@@ -137,13 +142,9 @@ Theme font references are `+mj-lt` / `+mn-lt` and the `-ea` / `-cs` forms (ECMA 
 ## Roadmap
 
 - **T1 enums + measures** ✅ · **T2 character properties** ✅ · **T3 paragraph properties + list
-  styles** ✅ · **T3b bullets** ✅ · **T4 the `Presentation` surface** ✅
-- **➡ T5 — the theme font scheme.** Model `a:fontScheme` → `FontScheme { name, major, minor }` with
-  `FontCollection { latin, ea, cs, supplemental }`, on `Theme` **and** on the interner-free
-  `ThemeInfo` (mirror how `ColorScheme` → `SchemeColors` bridges part interners). Then resolve a
-  `+mj-lt`-style typeface to the scheme's actual font — the font analogue of a scheme colour, and the
-  reason a run naming no font still has one.
-- **T6 — effective text formatting.** `effective_run_properties(surface, shape, para, run)` and
+  styles** ✅ · **T3b bullets** ✅ · **T4 the `Presentation` surface** ✅ · **T5 the theme font
+  scheme** ✅
+- **➡ T6 — effective text formatting.** `effective_run_properties(surface, shape, para, run)` and
   `effective_paragraph_properties(surface, shape, para)`, resolving the ladder below.
 
 ### T6's ladder, highest priority first
