@@ -996,7 +996,7 @@ impl Presentation {
 
         let new_part = self.next_slide_part()?;
         let new_rid = self.next_presentation_rid()?;
-        let slide_target = self.slide_rel_target(&new_part);
+        let slide_target = nav::relative_target(&self.presentation_part, &new_part);
 
         // 1. Insert the new slide part (registers its content-type Override).
         self.package.insert_part(
@@ -1080,16 +1080,6 @@ impl Presentation {
             }
         }
         Ok(format!("rId{}", max_n + 1))
-    }
-
-    /// The relationship target for `new_part` relative to the presentation part's directory (falling
-    /// back to the absolute part name if it is not under that directory).
-    fn slide_rel_target(&self, new_part: &PartName) -> String {
-        let pres_dir = dir_of(self.presentation_part.as_str());
-        new_part
-            .as_str()
-            .strip_prefix(pres_dir)
-            .map_or_else(|| new_part.as_str().to_owned(), str::to_owned)
     }
 
     /// Appends `<p:sldId id=".." r:id="new_rid"/>` to `p:sldIdLst`, choosing the next slide id (≥256,
