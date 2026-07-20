@@ -18,11 +18,19 @@ const SHARED_MODULE_DOC: &str =
      //! Each item records its original `ST_*` symbol and exact wire token(s).\n\n";
 
 /// Module-level doc block for the `drawingml` module (see [`file_header`]).
-const DRAWINGML_MODULE_DOC: &str =
+pub const DRAWINGML_MODULE_DOC: &str =
     "//! Comprehensively-named DrawingML simple types (see the naming convention in `PLAN.md`).\n\
      //!\n\
      //! Selected from `dml-main.xsd`; each item records its original `ST_*` symbol and exact wire\n\
      //! token(s). Types join the allowlist as the DrawingML workstream ports them.\n\n";
+
+/// Module-level doc block for the `presentationml` module (see [`file_header`]).
+pub const PRESENTATIONML_MODULE_DOC: &str =
+    "//! Comprehensively-named PresentationML simple types (see the naming convention in \
+     `PLAN.md`).\n\
+     //!\n\
+     //! Selected from `pml.xsd`; each item records its original `ST_*` symbol and exact wire\n\
+     //! token(s). Types join the allowlist as the PresentationML workstream ports them.\n\n";
 
 /// Renders the `shared` module from the `shared-commonSimpleTypes.xsd` bytes.
 pub fn emit_shared_types(xsd: &[u8], source_note: &str) -> Result<String> {
@@ -35,14 +43,21 @@ pub fn emit_shared_types(xsd: &[u8], source_note: &str) -> Result<String> {
     Ok(out)
 }
 
-/// Renders a module holding only the `allowlist`ed simple types from `xsd`, in schema order.
+/// Renders a module holding only the `allowlist`ed simple types from `xsd`, in schema order, under
+/// `module_doc`.
 ///
-/// Used for large schemas (e.g. `dml-main.xsd`) where emitting *every* simple type would produce
-/// hundreds of un-curated names; the allowlist grows as each type is given a comprehensive name.
-pub fn emit_selected_types(xsd: &[u8], source_note: &str, allowlist: &[&str]) -> Result<String> {
+/// Used for large schemas (e.g. `dml-main.xsd`, `pml.xsd`) where emitting *every* simple type would
+/// produce hundreds of un-curated names; the allowlist grows as each type is given a comprehensive
+/// name.
+pub fn emit_selected_types(
+    xsd: &[u8],
+    source_note: &str,
+    module_doc: &str,
+    allowlist: &[&str],
+) -> Result<String> {
     let types = parse_simple_types(xsd)?;
     let mut out = String::new();
-    out.push_str(&file_header(source_note, DRAWINGML_MODULE_DOC));
+    out.push_str(&file_header(source_note, module_doc));
     for st in &types {
         if allowlist.contains(&st.name.as_str()) {
             out.push_str(&emit_simple_type(st));
