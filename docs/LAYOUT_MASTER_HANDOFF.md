@@ -4,8 +4,8 @@ The last Phase 3 workstream. Read after `docs/PHASE2_HANDOFF.md` (§3 guardrails
 workstream (`docs/IMAGES_HANDOFF.md`) is the immediately preceding one and settled the shape-addressing
 model this builds on.
 
-**Status: L1 (PresentationML types) and L2 (inventory) are done — resume at L3 (`Surface`
-addressing).**
+**Status: L1 (types), L2 (inventory) and L3 (`Surface` addressing) are done — resume at L4
+(`add_slide_from_layout`).**
 
 ## What L1 + L2 shipped
 
@@ -35,6 +35,26 @@ deck.master_count(); deck.master_name(0)?; deck.master_part(0);
 - **`slide::Placeholder`** now carries a typed `kind: PlaceholderType`; `is_title_family()` replaces
   the old string match. This is what L3's public placeholder metadata will be built from.
 
+## What L3 shipped
+
+```rust
+deck.shape_fill(0, 2)?;                            // a slide, as before — a bare usize is Surface::Slide
+deck.set_shape_fill(Surface::Layout(1), 0, &red)?; // …and every slide on that layout inherits it
+deck.shape_placeholder(Surface::Layout(1), 0)?;    // what that layout offers a slide to fill
+deck.theme(Surface::Master(0))?;
+```
+
+- **`Surface { Slide | Layout | Master }`** addresses every shape call. `From<usize>` means
+  `Surface::Slide`, so no existing call site changed. `Display` renders `layout 1`, which
+  `ShapeIndexOutOfRange` now carries instead of a slide index that would have been a lie.
+- **`inheritance_chain(surface)`** is the single walk everything resolves along — a slide through its
+  layout then master, a layout through its master, a master alone. The three `effective_shape_*`
+  resolvers, `theme` and `color_map` all use it; none of them hand-rolls the hops any more.
+- **`slide_theme` / `slide_color_map` were renamed to `theme` / `color_map`**, since the old names
+  contradict a layout argument.
+- **`PlaceholderInfo`** (kind, slot index, size, orientation, name) is the public reading of `p:ph`;
+  the internal `Placeholder { kind, idx }` remains the projection inheritance matches on.
+
 ## Settled decisions — do not re-litigate
 
 - **Layout indices are flat across masters**, in (master order, `p:sldLayoutIdLst` order);
@@ -42,21 +62,22 @@ deck.master_count(); deck.master_name(0)?; deck.master_part(0);
   reached through their master, as PowerPoint reaches them.
 - **`p:sldSz@type` and `p:sldLayout@type` fall back to `Custom`** when absent or unrecognized, per the
   XSD defaults, rather than erroring: an unknown token is a forward-compatible file, not a broken one.
-- **No `layout_shape_*` accessors.** Reading a layout's shapes waits for L3's one addressing model
-  (below) rather than growing a parallel API family — the same call made for pictures in `p:pic`.
+- **No `layout_shape_*` accessors.** One `Surface`-addressed API family, never a parallel one — the
+  same call made for pictures in `p:pic`.
+- **A bare `usize` stays a slide.** The ergonomic default is the common case; `impl Into<Surface>` is
+  what keeps that true without a second set of methods.
 
 ## Remaining roadmap
 
-- **L3 — `Surface` addressing.** Every shape API takes `impl Into<Surface>` with
-  `impl From<usize> for Surface = Surface::Slide(n)`, so `deck.shape_text(0, 2)` keeps compiling while
-  `deck.shape_text(Surface::Layout(1), 0)` becomes possible. Covers the readers, the setters, and the
-  `effective_shape_*` chains (a layout shape resolves layout → master; a master shape resolves master
-  only). Exposes `PlaceholderInfo { kind, index, size, orientation, name }` for any surface's shapes —
-  which is how a caller learns what a layout offers to fill.
 - **L4 — `add_slide_from_layout(layout_idx)`.** Create a slide bound to a chosen layout and clone that
   layout's placeholder shapes into it (`p:ph` type/idx preserved, text emptied, no explicit `spPr`), so
   the new slide is immediately fillable with `set_shape_text`. Today `add_slide` blindly reuses slide
   0's layout and produces an empty shape tree. Office-open canary + a rendered-PNG check.
+  **Decided: clone *every* placeholder** the layout declares. Worth weighing once at implementation
+  time — a cloned `dt`/`ftr`/`sldNum` shape stops inheriting the layout's date/footer/number content,
+  which is why PowerPoint leaves those three behind. Enumerate them with `shape_placeholder` over
+  `Surface::Layout(idx)`; the shapes to emit are the same `p:sp` skeleton `build_text_box` produces,
+  with a `p:ph` and an empty `p:spPr` so position and size keep inheriting.
 - **Later (not this workstream):** master `p:txStyles` feeding *effective text formatting* (run →
   paragraph → placeholder → layout → master → theme font scheme). That is its own workstream, larger
   than all of L1–L4.
