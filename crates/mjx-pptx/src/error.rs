@@ -97,13 +97,35 @@ pub enum PptxError {
         count: usize,
     },
 
-    /// A run index was out of range within the shape's text body.
-    #[error("run index {index} out of range in shape (0..{count})")]
+    /// A paragraph index was out of range within the shape's text body.
+    #[error("paragraph index {index} out of range in shape (0..{count})")]
+    ParagraphIndexOutOfRange {
+        /// The requested paragraph index.
+        index: usize,
+        /// The number of paragraphs in the shape's text body.
+        count: usize,
+    },
+
+    /// A run index was out of range within the addressed scope — the whole shape for the flat
+    /// [`set_shape_text`](crate::Presentation::set_shape_text), or one paragraph for the
+    /// paragraph-addressed calls.
+    #[error("run index {index} out of range (0..{count})")]
     RunIndexOutOfRange {
         /// The requested run index.
         index: usize,
-        /// The number of typed runs in the shape.
+        /// The number of typed runs in the addressed scope.
         count: usize,
+    },
+
+    /// A text range ran past the end of the paragraph's text, or ended before it started.
+    #[error("text range {start}..{end} out of bounds (paragraph has {length} characters)")]
+    TextRangeOutOfBounds {
+        /// The requested start offset.
+        start: usize,
+        /// The requested end offset.
+        end: usize,
+        /// The length of the paragraph's text in the offset unit that was used.
+        length: usize,
     },
 
     /// The shape has no `p:txBody`.
