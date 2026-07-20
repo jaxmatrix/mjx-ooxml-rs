@@ -8,7 +8,7 @@ use mjx_dml::{
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
-use mjx_opc::{Package, PartName, Relationship, TargetMode};
+use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
 use crate::geometry::ShapeBounds;
@@ -1031,6 +1031,105 @@ impl Presentation {
         Ok(self.slides.len() - 1)
     }
 
+    /// Stores `bytes` as an image part of the package and relates it to slide `slide_idx`, returning
+    /// the **slide-scoped relationship id** that names the image — the `rel_id` to hand to
+    /// [`FillSpec::Blip`] via [`set_shape_fill`](Self::set_shape_fill).
+    ///
+    /// The format is identified from the bytes ([`ImageFormat::sniff`]), which decides the media part's
+    /// extension and its content type; the bytes themselves are stored verbatim and never re-encoded.
+    /// The part is named `media/image{N}.{ext}` beside the presentation part, with `N` one past the
+    /// largest existing image number.
+    ///
+    /// **Identical images are stored once**: if a media part already holds exactly these bytes it is
+    /// reused, and if this slide already relates to it, the existing relationship id is returned and
+    /// the package is not touched at all. Otherwise only `[Content_Types].xml`, the new media part, and
+    /// this slide's `.rels` change — every other pre-existing part stays byte-identical.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::SlideIndexOutOfRange`] if `slide_idx` is out of range,
+    /// [`PptxError::UnrecognizedImageFormat`] if the bytes match no known image format, or another
+    /// [`PptxError`] if a package edit fails.
+    pub fn add_image(&mut self, slide_idx: usize, bytes: &[u8]) -> Result<String, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        let format = ImageFormat::sniff(bytes).ok_or(PptxError::UnrecognizedImageFormat)?;
+
+        let media_part = match self.media_part_with_bytes(bytes) {
+            Some(existing) => {
+                // Already stored: reuse the slide's relationship to it when there is one.
+                if let Some(id) = self.image_rel_id_for(&slide_part, &existing)? {
+                    return Ok(id);
+                }
+                existing
+            }
+            None => {
+                let part = self.next_media_part(format.file_extension())?;
+                // Registering the Default first means `insert_part` adds no per-part Override.
+                self.package
+                    .set_content_type_default(format.file_extension(), format.content_type())?;
+                self.package
+                    .insert_part(&part, format.content_type(), bytes.to_vec())?;
+                part
+            }
+        };
+
+        let rel_id = self.next_rid_for(&slide_part);
+        self.package.add_relationship(
+            Some(&slide_part),
+            Relationship {
+                id: rel_id.clone(),
+                rel_type: constants::REL_IMAGE.to_owned(),
+                target: nav::relative_target(&slide_part, &media_part),
+                mode: TargetMode::Internal,
+            },
+        )?;
+        Ok(rel_id)
+    }
+
+    /// The media part whose stored bytes equal `bytes`, if the package already holds one. Comparing
+    /// slices short-circuits on length, so this is a cheap scan even for large images.
+    fn media_part_with_bytes(&self, bytes: &[u8]) -> Option<PartName> {
+        let media_dir = format!("{}media/", dir_of(self.presentation_part.as_str()));
+        self.package
+            .part_names()
+            .filter(|part| part.as_str().starts_with(&media_dir))
+            .find(|part| self.package.part_bytes(part) == Some(bytes))
+    }
+
+    /// The id of `source`'s existing [`REL_IMAGE`](constants::REL_IMAGE) relationship pointing at
+    /// `target`, or `None` if it has none.
+    fn image_rel_id_for(
+        &self,
+        source: &PartName,
+        target: &PartName,
+    ) -> Result<Option<String>, PptxError> {
+        let Some(rels) = self.package.relationships_for(Some(source)) else {
+            return Ok(None);
+        };
+        for rel in rels.by_type(constants::REL_IMAGE) {
+            if rel.mode == TargetMode::External {
+                continue; // a linked image never names a part in this package
+            }
+            if &nav::resolve_target(source, &rel.target)? == target {
+                return Ok(Some(rel.id.clone()));
+            }
+        }
+        Ok(None)
+    }
+
+    /// A fresh image part name in the presentation's `media/` directory: `image{N}.{extension}` with
+    /// `N` one past the largest existing image number, whatever its extension.
+    fn next_media_part(&self, extension: &str) -> Result<PartName, PptxError> {
+        let media_dir = format!("{}media/", dir_of(self.presentation_part.as_str()));
+        let mut max_n = 0u32;
+        for part in self.package.part_names() {
+            if let Some(n) = image_number(part.as_str(), &media_dir) {
+                max_n = max_n.max(n);
+            }
+        }
+        let name = format!("{media_dir}image{}.{extension}", max_n + 1);
+        PartName::new(&name).map_err(PptxError::from)
+    }
+
     /// Adds a new slide (via [`add_slide`](Self::add_slide)) carrying a single text box with `text`
     /// laid out at `bounds`, and returns the new slide's index.
     ///
@@ -1063,23 +1162,34 @@ impl Presentation {
 
     /// The next free presentation-scoped relationship id (`rId{N}`), one past the current maximum.
     fn next_presentation_rid(&self) -> Result<String, PptxError> {
-        let rels = self
+        if self
             .package
             .relationships_for(Some(&self.presentation_part))
-            .ok_or(PptxError::MalformedPresentation(
+            .is_none()
+        {
+            return Err(PptxError::MalformedPresentation(
                 "presentation has no relationships",
-            ))?;
+            ));
+        }
+        Ok(self.next_rid_for(&self.presentation_part))
+    }
+
+    /// The next free relationship id (`rId{N}`) in `part`'s `.rels`, one past the current maximum —
+    /// `rId1` when the part has no relationships yet (a slide need not have any).
+    fn next_rid_for(&self, part: &PartName) -> String {
         let mut max_n = 0u32;
-        for rel in rels.iter() {
-            if let Some(n) = rel
-                .id
-                .strip_prefix("rId")
-                .and_then(|s| s.parse::<u32>().ok())
-            {
-                max_n = max_n.max(n);
+        if let Some(rels) = self.package.relationships_for(Some(part)) {
+            for rel in rels.iter() {
+                if let Some(n) = rel
+                    .id
+                    .strip_prefix("rId")
+                    .and_then(|s| s.parse::<u32>().ok())
+                {
+                    max_n = max_n.max(n);
+                }
             }
         }
-        Ok(format!("rId{}", max_n + 1))
+        format!("rId{}", max_n + 1)
     }
 
     /// Appends `<p:sldId id=".." r:id="new_rid"/>` to `p:sldIdLst`, choosing the next slide id (≥256,
@@ -1330,6 +1440,14 @@ fn slide_number(part: &str, dir: &str) -> Option<u32> {
         .strip_suffix(".xml")?
         .parse::<u32>()
         .ok()
+}
+
+/// Extracts `N` from an `image{N}.{ext}` part directly inside `dir` (e.g. `/ppt/media/image3.png`
+/// with `dir = /ppt/media/` → `3`), whatever the extension. Returns `None` for anything else.
+fn image_number(part: &str, dir: &str) -> Option<u32> {
+    let name = part.strip_prefix(dir)?.strip_prefix("image")?;
+    let digits = &name[..name.find('.').unwrap_or(name.len())];
+    digits.parse::<u32>().ok()
 }
 
 /// The largest `p:cNvPr@id` anywhere under `sp_tree` (0 if none). Non-visual ids are unique per
