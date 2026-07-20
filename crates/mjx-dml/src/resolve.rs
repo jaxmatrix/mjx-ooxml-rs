@@ -21,6 +21,7 @@ use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec, GradientStopSpec};
 use crate::line::{LineProperties, LineSpec};
 use crate::style::ColorMap;
+use crate::text::{CharacterProperties, CharacterPropertiesSpec, FontSlot};
 use crate::theme::{ColorScheme, ColorSchemeSlot};
 
 /// A fully resolved color: 8-bit sRGB channels plus an alpha (opacity) in `0.0..=1.0`.
@@ -189,6 +190,85 @@ pub fn resolve_line(
         head_end: line.head_end(interner),
         tail_end: line.tail_end(interner),
     }
+}
+
+/// Resolves the colors of `properties` to concrete RGB, producing an interner-free
+/// [`CharacterPropertiesSpec`] — what a run of text actually looks like, with its text fill, glyph
+/// outline, effects and highlight all baked down through [`resolve_fill`] / [`resolve_line`] /
+/// [`resolve_effects`] / [`resolve_color`].
+///
+/// The non-color properties (size, weight, slant, underline, spacing, fonts) are copied verbatim:
+/// nothing about them needs a theme to interpret. A font *typeface* may still be a `+mj-lt`-style
+/// theme reference — resolving those is the font scheme's job, not this one.
+///
+/// `placeholder` is the resolved `phClr` substitute; pass `None` for properties read off a run.
+#[must_use]
+pub fn resolve_character_properties(
+    properties: &CharacterProperties,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    placeholder: Option<ResolvedColor>,
+    interner: &Interner,
+) -> CharacterPropertiesSpec {
+    let mut spec = CharacterPropertiesSpec::new();
+    if let Some(size) = properties.size(interner) {
+        spec = spec.with_size(size);
+    }
+    if let Some(bold) = properties.is_bold(interner) {
+        spec = spec.with_bold(bold);
+    }
+    if let Some(italic) = properties.is_italic(interner) {
+        spec = spec.with_italic(italic);
+    }
+    if let Some(underline) = properties.underline(interner) {
+        spec = spec.with_underline(underline);
+    }
+    if let Some(strike) = properties.strike(interner) {
+        spec = spec.with_strike(strike);
+    }
+    if let Some(capitalization) = properties.capitalization(interner) {
+        spec = spec.with_capitalization(capitalization);
+    }
+    if let Some(spacing) = properties.spacing(interner) {
+        spec = spec.with_spacing_points(spacing.points());
+    }
+    if let Some(kerning) = properties.kerning(interner) {
+        spec = spec.with_kerning_points(kerning.points());
+    }
+    if let Some(baseline) = properties.baseline(interner) {
+        spec = spec.with_baseline(baseline);
+    }
+    if let Some(language) = properties.language(interner) {
+        spec = spec.with_language(language);
+    }
+    if let Some(fill) = properties.fill(interner) {
+        spec = spec.with_fill(resolve_fill(&fill, scheme, map, placeholder, interner));
+    }
+    if let Some(outline) = properties.outline(interner) {
+        spec = spec.with_outline(resolve_line(&outline, scheme, map, placeholder, interner));
+    }
+    if let Some(effects) = properties.effects(interner) {
+        spec = spec.with_effects(resolve_effects(
+            &effects,
+            scheme,
+            map,
+            placeholder,
+            interner,
+        ));
+    }
+    if let Some(highlight) = properties.highlight(interner) {
+        let resolved = resolve_color(&highlight, scheme, map, placeholder, interner).map_or_else(
+            || highlight.spec(interner),
+            |resolved| ColorSpec::Srgb(resolved.to_hex()),
+        );
+        spec = spec.with_highlight(resolved);
+    }
+    for slot in FontSlot::all_slots() {
+        if let Some(font) = properties.font(interner, slot) {
+            spec = spec.with_font_for(slot, font);
+        }
+    }
+    spec
 }
 
 /// Resolves the colors of `effects` to concrete RGB, producing an interner-free [`EffectListSpec`]. The
