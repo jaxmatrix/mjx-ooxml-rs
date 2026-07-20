@@ -87,9 +87,15 @@ fn preserves_rpr_and_reads_text() {
     const RUN: &[u8] = br#"<a:r xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:rPr b="1"/><a:t>Bold</a:t></a:r>"#;
     let (run, doc): (TextRun, _) = parse_typed(RUN);
     assert_eq!(run.content().len(), 2);
-    assert!(matches!(run.content()[0], RunContent::Raw(_))); // a:rPr kept opaque
+    assert!(matches!(run.content()[0], RunContent::Properties(_))); // a:rPr is typed
     assert!(matches!(run.content()[1], RunContent::Text(_)));
     assert_eq!(run.text(), "Bold"); // text read past the rPr
+    assert_eq!(
+        run.properties()
+            .expect("the run has properties")
+            .is_bold(&doc.interner),
+        Some(true)
+    );
     assert_round_trips(&run, doc, RUN);
 }
 
