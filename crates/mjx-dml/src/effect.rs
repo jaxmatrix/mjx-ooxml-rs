@@ -18,8 +18,8 @@ use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNo
 use mjx_ooxml_types::support::on_off;
 
 use crate::build::{
-    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_color_child,
-    first_fill_child, parse_angle, parse_percentage,
+    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls,
+    first_color_child, first_fill_child, parse_angle, parse_percentage,
 };
 use crate::color::{Color, ColorSpec};
 use crate::fill::{Fill, FillSpec};
@@ -384,7 +384,12 @@ fn attr_bool(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Op
 }
 
 /// Pushes an EMU attribute (native integer form) when set.
-fn push_emu(attrs: &mut Vec<RawAttribute>, interner: &mut Interner, name: &str, value: Option<Emu>) {
+fn push_emu(
+    attrs: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    name: &str,
+    value: Option<Emu>,
+) {
     if let Some(value) = value {
         attrs.push(dml_attr(interner, name, &value.emu().to_string()));
     }
@@ -539,7 +544,9 @@ fn build_blur(interner: &mut Interner, blur: &BlurEffect) -> RawElement {
 
 fn build_fill_overlay(interner: &mut Interner, effect: &FillOverlayEffect) -> RawElement {
     let attrs = vec![dml_attr(interner, "blend", effect.blend.to_wire())];
-    let children = vec![RawNode::Element(effect.fill.to_fill(interner).to_xml(interner))];
+    let children = vec![RawNode::Element(
+        effect.fill.to_fill(interner).to_xml(interner),
+    )];
     dml_element(interner, "fillOverlay", attrs, children)
 }
 
@@ -573,7 +580,12 @@ fn build_outer_shadow(interner: &mut Interner, shadow: &OuterShadowEffect) -> Ra
     if let Some(alignment) = shadow.alignment {
         attrs.push(dml_attr(interner, "algn", alignment.to_wire()));
     }
-    push_bool(&mut attrs, interner, "rotWithShape", shadow.rotate_with_shape);
+    push_bool(
+        &mut attrs,
+        interner,
+        "rotWithShape",
+        shadow.rotate_with_shape,
+    );
     let mut children = Vec::new();
     push_color(&mut children, interner, &shadow.color);
     dml_element(interner, "outerShdw", attrs, children)
@@ -605,11 +617,20 @@ fn build_reflection(interner: &mut Interner, reflection: &ReflectionEffect) -> R
     if let Some(alignment) = reflection.alignment {
         attrs.push(dml_attr(interner, "algn", alignment.to_wire()));
     }
-    push_bool(&mut attrs, interner, "rotWithShape", reflection.rotate_with_shape);
+    push_bool(
+        &mut attrs,
+        interner,
+        "rotWithShape",
+        reflection.rotate_with_shape,
+    );
     dml_element(interner, "reflection", attrs, Vec::new())
 }
 
 fn build_soft_edge(interner: &mut Interner, soft_edge: &SoftEdgeEffect) -> RawElement {
-    let attrs = vec![dml_attr(interner, "rad", &soft_edge.radius.emu().to_string())];
+    let attrs = vec![dml_attr(
+        interner,
+        "rad",
+        &soft_edge.radius.emu().to_string(),
+    )];
     dml_element(interner, "softEdge", attrs, Vec::new())
 }

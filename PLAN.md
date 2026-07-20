@@ -56,10 +56,14 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   byte-identical on every fixture part), and `mjx-mce` (AlternateContent/Ignorable/ProcessContent/
   MustUnderstand resolve + preserve). *(`mjx-derive` moved to Phase 2, where the first typed model
   gives it concrete consumers.)*
-- **Phase 2 — PowerPoint vertical slice.** 🚧 *next.* `mjx-derive` + minimal `mjx-dml` + `mjx-pptx`:
-  open a real `.pptx`, read slides + shape text, edit a run, add a shape/slide, write a file PowerPoint
-  & LibreOffice open.
-- **Phase 3 — DrawingML + PPTX depth.** Images, preset geometry, color model, theme, layout/master.
+- **Phase 2 — PowerPoint vertical slice.** ✅ *done.* `mjx-derive` + `mjx-dml` + `mjx-pptx`: open a real
+  `.pptx`, read slides + shape text, edit a run, add a shape/slide, write a file PowerPoint &
+  LibreOffice open (the office-open canary is a CI gate).
+- **Phase 3 — DrawingML + PPTX depth.** 🚧 *in progress.* ✅ preset geometry (all 117 adjustable shapes
+  named), ✅ color model + theme (`clrScheme`/`fmtScheme`, color resolution to concrete RGB), and the
+  ✅ `spPr` visual trilogy — fill, outline (`a:ln`), and effects (`a:effectLst`) — each modeled both
+  explicitly and *effectively* (style refs + placeholder inheritance). ⏳ Remaining: **images**
+  (`p:pic` + media parts) and **layout/master** modeling.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).

@@ -511,7 +511,10 @@ fn resolve_effects_preserves_structural_fields_and_bakes_srgb() {
     let blur = spec.blur.expect("blur");
     assert_eq!(blur.radius, Some(Emu::from_emu(25400)));
     assert_eq!(blur.grow, Some(true));
-    assert_eq!(spec.soft_edge.expect("soft edge").radius, Emu::from_emu(50800));
+    assert_eq!(
+        spec.soft_edge.expect("soft edge").radius,
+        Emu::from_emu(50800)
+    );
     // The shadow keeps its structural attributes and bakes its explicit sRGB unchanged.
     let shadow = spec.outer_shadow.expect("outer shadow");
     assert_eq!(shadow.blur_radius, Some(Emu::from_emu(12700)));
