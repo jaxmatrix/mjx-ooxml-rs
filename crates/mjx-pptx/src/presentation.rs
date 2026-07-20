@@ -13,7 +13,7 @@ use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
 use crate::geometry::{ShapeBounds, SlideSize};
-use crate::slide::ShapeKind;
+use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::{build, constants, nav, slide};
 
@@ -347,6 +347,35 @@ impl Presentation {
         )?;
         slide::shape_kind(shape, &doc.interner)
             .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))
+    }
+
+    /// The placeholder shape `shape_idx` on `surface` occupies (`p:nvPr > p:ph`), or `None` if it is
+    /// not a placeholder.
+    ///
+    /// Asked of a **layout**, this is how a caller learns what that layout offers a slide to fill —
+    /// its title, body, and content slots, with the names PowerPoint shows. Asked of a **slide**, it
+    /// is the slot the shape inherits through. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or the part is malformed.
+    pub fn shape_placeholder(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<PlaceholderInfo>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        Ok(slide::shape_placeholder_info(shape, &doc.interner))
     }
 
     /// The full text of shape `shape_idx` on `surface` (paragraphs joined by `\n`).
