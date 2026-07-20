@@ -93,31 +93,30 @@ impl LineWidth {
     }
 }
 
-/// Hundredths of a point — the unit DrawingML measures text in (`sz="4400"` is 44 pt).
+/// Hundredths of a point — the unit DrawingML writes text measurements in (`sz="4400"` is 44 pt).
 const HUNDREDTHS_PER_POINT: f64 = 100.0;
 
-/// A font size, stored in **hundredths of a point** (`a:rPr@sz`, `ST_TextFontSize`; the spec's range
-/// is `100..=400000`, i.e. 1 pt to 4000 pt).
+/// A font size **in points** — `FontSize::from_points(10.5)` is what a reader would call "10½ point".
 ///
-/// Construct from and read as points or the raw wire units — every font-size UI in the world is in
-/// points, while the file stores hundredths, and confusing the two is a factor-of-100 bug.
+/// Points are the only unit this type talks about, because points are the unit every font-size
+/// control in every application is in. The file itself stores hundredths of a point (`a:rPr@sz`,
+/// `ST_TextFontSize`), which is why the value is *stored* as an integer and why sizes are exact to
+/// half a point and finer — but that is the wire's business, reachable through [`from_wire`] /
+/// [`to_wire`] where a serializer needs it, and nowhere else.
+///
+/// The schema's range is `100..=400000` (1 pt to 4000 pt). It is documented rather than enforced, as
+/// with every other measure here: a file may carry an out-of-range value, and reading one must not
+/// fail.
+///
+/// [`from_wire`]: FontSize::from_wire
+/// [`to_wire`]: FontSize::to_wire
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FontSize(i32);
 
 impl FontSize {
-    /// Wraps a size given in hundredths of a point — the value exactly as written on the wire.
-    #[must_use]
-    pub const fn from_hundredths_of_a_point(hundredths: i32) -> Self {
-        Self(hundredths)
-    }
-
-    /// The size in hundredths of a point, as written on the wire.
-    #[must_use]
-    pub const fn hundredths_of_a_point(self) -> i32 {
-        self.0
-    }
-
-    /// Wraps a size given in points (`18.0` → `1800`), rounded to the nearest hundredth.
+    /// A size given in points — `18.0` is eighteen point, `10.5` is ten and a half.
+    ///
+    /// Rounded to the nearest hundredth of a point, the finest distinction the format records.
     #[must_use]
     pub fn from_points(points: f64) -> Self {
         Self((points * HUNDREDTHS_PER_POINT).round() as i32)
@@ -128,28 +127,35 @@ impl FontSize {
     pub fn points(self) -> f64 {
         f64::from(self.0) / HUNDREDTHS_PER_POINT
     }
+
+    /// Wraps the value exactly as written in the file (hundredths of a point) — for de/serialization.
+    /// Callers reasoning about type size want [`from_points`](Self::from_points).
+    #[must_use]
+    pub const fn from_wire(hundredths_of_a_point: i32) -> Self {
+        Self(hundredths_of_a_point)
+    }
+
+    /// The value exactly as written in the file (hundredths of a point) — for de/serialization.
+    /// Callers reasoning about type size want [`points`](Self::points).
+    #[must_use]
+    pub const fn to_wire(self) -> i32 {
+        self.0
+    }
 }
 
-/// A text measurement in **hundredths of a point** that is not a font size — character spacing
-/// (`a:rPr@spc`, `ST_TextPoint`, which may be negative to tighten) and kerning threshold
-/// (`a:rPr@kern`, `ST_TextNonNegativePoint`). Both are bounded to ±4000 pt by the schema.
+/// A text measurement **in points** that is not a font size: character spacing (`a:rPr@spc` — a
+/// negative value tightens) and the kerning threshold (`a:rPr@kern` — the size from which kerning
+/// applies).
+///
+/// Points on the surface, hundredths of a point on the wire (`ST_TextPoint` /
+/// `ST_TextNonNegativePoint`, both bounded to ±4000 pt), for the same reason as [`FontSize`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TextPoint(i32);
 
 impl TextPoint {
-    /// Wraps a measurement given in hundredths of a point — the value exactly as written on the wire.
-    #[must_use]
-    pub const fn from_hundredths_of_a_point(hundredths: i32) -> Self {
-        Self(hundredths)
-    }
-
-    /// The measurement in hundredths of a point, as written on the wire.
-    #[must_use]
-    pub const fn hundredths_of_a_point(self) -> i32 {
-        self.0
-    }
-
-    /// Wraps a measurement given in points, rounded to the nearest hundredth.
+    /// A measurement given in points — `-0.5` tightens spacing by half a point.
+    ///
+    /// Rounded to the nearest hundredth of a point, the finest distinction the format records.
     #[must_use]
     pub fn from_points(points: f64) -> Self {
         Self((points * HUNDREDTHS_PER_POINT).round() as i32)
@@ -159,6 +165,20 @@ impl TextPoint {
     #[must_use]
     pub fn points(self) -> f64 {
         f64::from(self.0) / HUNDREDTHS_PER_POINT
+    }
+
+    /// Wraps the value exactly as written in the file (hundredths of a point) — for de/serialization.
+    /// Callers reasoning about spacing want [`from_points`](Self::from_points).
+    #[must_use]
+    pub const fn from_wire(hundredths_of_a_point: i32) -> Self {
+        Self(hundredths_of_a_point)
+    }
+
+    /// The value exactly as written in the file (hundredths of a point) — for de/serialization.
+    /// Callers reasoning about spacing want [`points`](Self::points).
+    #[must_use]
+    pub const fn to_wire(self) -> i32 {
+        self.0
     }
 }
 
