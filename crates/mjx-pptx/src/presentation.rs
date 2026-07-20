@@ -8,7 +8,9 @@ use mjx_dml::{
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
-use mjx_ooxml_types::presentationml::{SlideLayoutKind, SlideSizeKind};
+use mjx_ooxml_types::presentationml::{
+    Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
+};
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
@@ -1251,6 +1253,53 @@ impl Presentation {
         self.insert_slide_part(&layout_target)
     }
 
+    /// Adds a new slide at the end of the deck built on layout `layout_idx`, carrying a copy of every
+    /// placeholder that layout declares, and returns the slide's index.
+    ///
+    /// This is how a deck is normally built: pick a layout (`Title and Content`, say — see
+    /// [`layout_name`](Self::layout_name) and [`layout_kind`](Self::layout_kind)), then fill the
+    /// placeholders it hands you with [`set_shape_text`](Self::set_shape_text). The cloned shapes are
+    /// empty and carry no `p:spPr` content of their own, so their position, size and appearance all
+    /// keep inheriting from the layout — editing the layout still moves them.
+    ///
+    /// **Every** placeholder is cloned, including any date, footer and slide-number slots. Those three
+    /// render from the layout when a slide does *not* declare them, so a deck that wants the layout's
+    /// date or footer text should delete the cloned shapes (or use [`add_slide`](Self::add_slide) and
+    /// build what it needs).
+    ///
+    /// # Errors
+    /// Returns [`PptxError::LayoutIndexOutOfRange`] if `layout_idx` is out of range, or another
+    /// [`PptxError`] if the layout is malformed or a package edit fails.
+    pub fn add_slide_from_layout(&mut self, layout_idx: usize) -> Result<usize, PptxError> {
+        let layout_part = self.layout_part_checked(layout_idx)?.clone();
+
+        // The slots the layout offers, read before anything is inserted.
+        let slots = {
+            let doc = self.package.part_tree(&layout_part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            slide::shapes(sp_tree, &doc.interner)
+                .filter_map(|shape| slide::shape_placeholder_info(shape, &doc.interner))
+                .collect::<Vec<_>>()
+        };
+
+        let new_part = self.next_slide_part()?;
+        let layout_target = nav::relative_target(&new_part, &layout_part);
+        let slide_idx = self.insert_slide_part(&layout_target)?;
+
+        // Clone the slots into the new part, built with *its* interner (symbols are per-part). Ids
+        // start at 2: the shape tree's own `p:cNvPr@id` is 1 (see `build::empty_slide_bytes`).
+        let doc = self.package.part_tree_mut(&new_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        for (n, slot) in slots.iter().enumerate() {
+            let shape = build_placeholder(interner, n as u32 + 2, slot);
+            sp_tree.children.push(RawNode::Element(shape));
+        }
+        sp_tree.empty = false;
+
+        Ok(slide_idx)
+    }
+
     /// Creates an empty slide part at the end of the deck, related to the layout at `layout_target`
     /// (a relationship target relative to the new slide part), and returns its slide index.
     ///
@@ -2121,6 +2170,98 @@ fn build_shape(interner: &mut Interner, id: u32, prst: &str, bounds: ShapeBounds
 
     let empty_p = build_paragraph(interner, "");
     let tx_body = build_text_body(interner, vec![empty_p]);
+
+    build::node(
+        interner,
+        "p",
+        PML,
+        "sp",
+        Vec::new(),
+        vec![
+            RawNode::Element(nv_sp_pr),
+            RawNode::Element(sp_pr),
+            RawNode::Element(tx_body),
+        ],
+    )
+}
+
+/// A `p:sp` placeholder shape for a slide built from a layout: the layout's slot (`p:ph`) and name,
+/// a fresh id, an **empty** `p:spPr` so position, size and geometry keep inheriting from the layout,
+/// and a text body holding one empty run.
+///
+/// The empty run matters: [`set_shape_text`](Presentation::set_shape_text) replaces the `run_idx`-th
+/// run, so a body with no runs could not be filled in at all.
+///
+/// `p:ph` attributes are written only where they differ from the schema defaults (`type` = `obj`,
+/// `idx` = `0`, `sz` = `full`, `orient` = `horz`), which is how Office writes them.
+fn build_placeholder(interner: &mut Interner, id: u32, slot: &PlaceholderInfo) -> RawElement {
+    let mut ph_attrs = Vec::new();
+    if slot.kind != PlaceholderType::Object {
+        ph_attrs.push(build::attr(interner, "type", slot.kind.to_wire()));
+    }
+    if slot.orientation != Orientation::Horizontal {
+        ph_attrs.push(build::attr(interner, "orient", slot.orientation.to_wire()));
+    }
+    if slot.size != PlaceholderSize::Full {
+        ph_attrs.push(build::attr(interner, "sz", slot.size.to_wire()));
+    }
+    if slot.index != 0 {
+        ph_attrs.push(build::attr(interner, "idx", &slot.index.to_string()));
+    }
+    let ph = build::leaf(interner, "p", PML, "ph", ph_attrs);
+
+    let name = slot
+        .name
+        .clone()
+        .unwrap_or_else(|| format!("Placeholder {id}"));
+    let cnvpr_attrs = vec![
+        build::attr(interner, "id", &id.to_string()),
+        build::attr(interner, "name", &name),
+    ];
+    let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+    // Placeholders are not groupable — `a:spLocks@noGrp`, as every Office-written placeholder has.
+    let sp_locks_attrs = vec![build::attr(interner, "noGrp", "1")];
+    let sp_locks = build::leaf(interner, "a", DML_MAIN, "spLocks", sp_locks_attrs);
+    let c_nv_sp_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "cNvSpPr",
+        Vec::new(),
+        vec![RawNode::Element(sp_locks)],
+    );
+    let nv_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "nvPr",
+        Vec::new(),
+        vec![RawNode::Element(ph)],
+    );
+    let nv_sp_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "nvSpPr",
+        Vec::new(),
+        vec![
+            RawNode::Element(c_nv_pr),
+            RawNode::Element(c_nv_sp_pr),
+            RawNode::Element(nv_pr),
+        ],
+    );
+
+    let sp_pr = build::leaf(interner, "p", PML, "spPr", Vec::new());
+    let run = build_run(interner, "");
+    let paragraph = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "p",
+        Vec::new(),
+        vec![RawNode::Element(run)],
+    );
+    let tx_body = build_text_body(interner, vec![paragraph]);
 
     build::node(
         interner,
