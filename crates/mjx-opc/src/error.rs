@@ -23,6 +23,16 @@ pub enum OpcError {
     #[error("unknown part: {0}")]
     UnknownPart(String),
 
+    /// A relationship target points outside the package (an absolute URI such as `http://…`), so it
+    /// names no part. Such a relationship is legitimate — it is simply not resolvable to a part name.
+    #[error("relationship target is external to the package: {0}")]
+    ExternalTarget(String),
+
+    /// A relationship target could not be resolved to a part name — it climbed above the package root
+    /// with `..`, or the result failed part-name validation.
+    #[error("could not resolve relationship target: {0}")]
+    TargetResolution(String),
+
     /// A control part (`[Content_Types].xml` or a `.rels` part) was addressed through the generic
     /// part-tree API. Control parts are edited only through the dedicated content-type and
     /// relationship helpers, so their parsed navigation views can never drift from the raw tree.
