@@ -171,6 +171,101 @@ fn set_content_type_override_roundtrips_and_leaves_others_identical() {
 }
 
 #[test]
+fn set_content_type_default_roundtrips_and_leaves_others_identical() {
+    let bytes = fixture("sample.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("open baseline"));
+    let mut pkg = Package::open(&bytes).expect("open");
+
+    pkg.set_content_type_default("PNG", "image/png")
+        .expect("set default");
+    // The extension is stored lowercased, and now resolves for any part with it.
+    let media = part("/ppt/media/image1.png");
+    assert_eq!(pkg.content_type_of(&media), Some("image/png"));
+
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    assert_eq!(
+        reopened.content_type_of(&media),
+        Some("image/png"),
+        "default lost on reopen"
+    );
+    assert!(reopened
+        .content_types()
+        .defaults()
+        .iter()
+        .any(|d| d.extension == "png" && d.content_type == "image/png"));
+
+    // Only [Content_Types].xml changed.
+    let reopened_map = byte_map(&reopened);
+    for (name, orig) in &original {
+        if name == "[Content_Types].xml" {
+            continue;
+        }
+        assert_eq!(reopened_map.get(name), Some(orig), "part {name} changed");
+    }
+}
+
+#[test]
+fn set_content_type_default_places_the_rule_before_the_overrides() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+    pkg.set_content_type_default("png", "image/png")
+        .expect("set default");
+
+    let saved = String::from_utf8(
+        byte_map(&Package::open(&pkg.save().expect("save")).expect("reopen"))
+            .remove("[Content_Types].xml")
+            .expect("content types"),
+    )
+    .expect("utf-8");
+    let png = saved.find(r#"Extension="png""#).expect("Default emitted");
+    let first_override = saved.find("<Override").expect("fixture has overrides");
+    assert!(png < first_override, "Default must precede the Overrides");
+}
+
+#[test]
+fn set_content_type_default_is_idempotent_and_rejects_conflicts() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+    pkg.set_content_type_default("png", "image/png")
+        .expect("set default");
+    let after_first = byte_map(&pkg);
+    let defaults = pkg.content_types().defaults().len();
+
+    // Same rule again: no second element, no change to the control part.
+    pkg.set_content_type_default("png", "image/png")
+        .expect("idempotent");
+    assert_eq!(pkg.content_types().defaults().len(), defaults);
+    assert_eq!(byte_map(&pkg), after_first);
+
+    // A conflicting type would silently retype every .png part — rejected.
+    assert!(pkg.set_content_type_default("png", "image/jpeg").is_err());
+    assert_eq!(
+        pkg.content_type_of(&part("/ppt/media/i.png")),
+        Some("image/png")
+    );
+}
+
+#[test]
+fn a_part_inserted_after_its_default_gets_no_override() {
+    let bytes = fixture("sample.pptx");
+    let mut pkg = Package::open(&bytes).expect("open");
+    let overrides_before = pkg.content_types().overrides().len();
+
+    pkg.set_content_type_default("png", "image/png")
+        .expect("set default");
+    let media = part("/ppt/media/image1.png");
+    pkg.insert_part(&media, "image/png", vec![0x89, b'P', b'N', b'G'])
+        .expect("insert");
+
+    assert_eq!(
+        pkg.content_types().overrides().len(),
+        overrides_before,
+        "the Default should have covered the part"
+    );
+    assert_eq!(pkg.content_type_of(&media), Some("image/png"));
+}
+
+#[test]
 fn add_relationship_to_existing_rels_roundtrips() {
     let bytes = fixture("sample.pptx");
     let original = byte_map(&Package::open(&bytes).expect("open baseline"));
