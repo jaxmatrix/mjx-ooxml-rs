@@ -97,6 +97,33 @@ fn the_cloned_placeholders_are_fillable_immediately() {
 }
 
 #[test]
+fn the_inherited_date_footer_and_slide_number_slots_are_not_cloned() {
+    // Layout 1 declares five slots; those three render *from the layout* for any slide that does not
+    // declare them, so cloning them would suppress the layout's rendering and leave empty boxes.
+    let mut pres = deck();
+    assert_eq!(
+        pres.shape_count(Surface::Layout(1)).expect("layout count"),
+        5,
+        "precondition: the layout offers title, body, date, footer and slide number"
+    );
+
+    let slide = pres.add_slide_from_layout(1).expect("add slide");
+    let kinds: Vec<PlaceholderType> = (0..pres.shape_count(slide).expect("count"))
+        .map(|idx| {
+            pres.shape_placeholder(slide, idx)
+                .expect("placeholder")
+                .expect("every cloned shape is a placeholder")
+                .kind
+        })
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![PlaceholderType::Title, PlaceholderType::Object],
+        "only the slots a slide fills itself are cloned"
+    );
+}
+
+#[test]
 fn the_cloned_placeholders_still_inherit_from_the_layout() {
     let mut pres = deck();
     let slide = pres.add_slide_from_layout(1).expect("add slide");
