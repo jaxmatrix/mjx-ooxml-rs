@@ -1,4 +1,4 @@
-//! Integration tests for `Presentation::slide_theme`: resolve a slide's theme through the
+//! Integration tests for `Presentation::theme`: resolve a slide's theme through the
 //! slide → layout → master → theme relationship chain, read its (interner-free) color scheme + fill
 //! styles, and confirm reading it dirties nothing.
 
@@ -24,12 +24,9 @@ fn byte_map(pkg: &Package) -> BTreeMap<String, Vec<u8>> {
 }
 
 #[test]
-fn slide_theme_resolves_office_color_scheme() {
+fn theme_resolves_office_color_scheme() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
-    let theme = pres
-        .slide_theme(0)
-        .expect("slide_theme")
-        .expect("fixture has a theme");
+    let theme = pres.theme(0).expect("theme").expect("fixture has a theme");
 
     // The fixture is the standard "Office" theme — assert its known slot colors (interner-free).
     assert_eq!(
@@ -49,9 +46,9 @@ fn slide_theme_resolves_office_color_scheme() {
 }
 
 #[test]
-fn slide_theme_exposes_placeholder_colored_fill_styles() {
+fn theme_exposes_placeholder_colored_fill_styles() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
-    let theme = pres.slide_theme(0).expect("slide_theme").expect("theme");
+    let theme = pres.theme(0).expect("theme").expect("theme");
 
     // The Office theme's fill styles are three placeholder-colored fills.
     assert_eq!(theme.fill_styles().len(), 3);
@@ -70,7 +67,7 @@ fn reading_theme_keeps_all_parts_byte_identical() {
     let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
 
     let mut pres = Presentation::open(&bytes).expect("open");
-    let _ = pres.slide_theme(0).expect("slide_theme");
+    let _ = pres.theme(0).expect("theme");
     let saved = pres.save().expect("save");
 
     // Reading the theme is non-mutating: every part is byte-identical after a save.

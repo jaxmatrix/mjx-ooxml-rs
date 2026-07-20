@@ -267,6 +267,43 @@ impl Presentation {
             })
     }
 
+    /// The part a [`Surface`] addresses, or the typed out-of-range error for its kind.
+    fn surface_part(&self, surface: Surface) -> Result<&PartName, PptxError> {
+        match surface {
+            Surface::Slide(idx) => self.slide_part_checked(idx),
+            Surface::Layout(idx) => self.layout_part_checked(idx),
+            Surface::Master(idx) => self.master_part_checked(idx),
+        }
+    }
+
+    /// The parts a surface inherits from, nearest first: the surface's own part, then the parts a
+    /// placeholder on it falls back to — a slide resolves through its layout then that layout's
+    /// master, a layout through its master, a master stands alone.
+    ///
+    /// This is the spine of every "effective" property: the same chain decides where an inherited
+    /// fill, outline, or effect comes from, and (via its last element) which theme applies.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or a relationship points outside
+    /// the package.
+    fn inheritance_chain(&self, surface: Surface) -> Result<Vec<PartName>, PptxError> {
+        let own = self.surface_part(surface)?.clone();
+        let mut chain = vec![own];
+        if matches!(surface, Surface::Slide(_)) {
+            let Some(layout) = self.follow_rel(&chain[0], constants::REL_SLIDE_LAYOUT)? else {
+                return Ok(chain);
+            };
+            chain.push(layout);
+        }
+        if !matches!(surface, Surface::Master(_)) {
+            let last = chain.last().expect("the chain always holds the own part");
+            if let Some(master) = self.follow_rel(last, constants::REL_SLIDE_MASTER)? {
+                chain.push(master);
+            }
+        }
+        Ok(chain)
+    }
+
     /// The number of shapes on slide `slide_idx` — of **every** [`ShapeKind`] (autoshapes, pictures,
     /// groups, graphic frames, connectors), in document order. A group counts as one shape; its
     /// members are not separately addressable.
@@ -735,16 +772,17 @@ impl Presentation {
         self.set_shape_effects(slide_idx, shape_idx, &EffectListSpec::new())
     }
 
-    /// The theme that governs slide `slide_idx`, as an interner-free [`ThemeInfo`] (its color scheme +
-    /// fill-style matrix) — resolved by following the relationship chain slide → slideLayout →
-    /// slideMaster → theme. Returns `Ok(None)` if any hop in the chain is absent (a deck without a
-    /// theme). Reading does not dirty any part.
+    /// The theme that governs `surface`, as an interner-free [`ThemeInfo`] (its color scheme +
+    /// fill-style matrix) — the theme related to the last part of the surface's inheritance chain
+    /// (slide → slideLayout → slideMaster → theme, and the shorter walks from a layout or master).
+    /// Returns `Ok(None)` if any hop is absent (a deck without a theme). Reading does not dirty any
+    /// part.
     ///
     /// # Errors
-    /// Returns [`PptxError`] if `slide_idx` is out of range, a relationship points outside the package
-    /// ([`ExternalTarget`](PptxError::ExternalTarget)), or the theme part is not well-formed.
-    pub fn slide_theme(&mut self, slide_idx: usize) -> Result<Option<ThemeInfo>, PptxError> {
-        let Some(theme_part) = self.slide_theme_part(slide_idx)? else {
+    /// Returns [`PptxError`] if the surface index is out of range, a relationship points outside the
+    /// package ([`ExternalTarget`](PptxError::ExternalTarget)), or the theme part is not well-formed.
+    pub fn theme(&mut self, surface: impl Into<Surface>) -> Result<Option<ThemeInfo>, PptxError> {
+        let Some(theme_part) = self.theme_part(surface.into())? else {
             return Ok(None);
         };
         let doc = self.package.part_tree(&theme_part)?;
@@ -752,17 +790,14 @@ impl Presentation {
         Ok(Some(theme.to_info(&doc.interner)))
     }
 
-    /// The theme [`PartName`] governing slide `slide_idx`, via slide → slideLayout → slideMaster →
-    /// theme; `None` if any hop is absent.
-    fn slide_theme_part(&self, slide_idx: usize) -> Result<Option<PartName>, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
-        let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? else {
-            return Ok(None);
-        };
-        let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? else {
-            return Ok(None);
-        };
-        self.follow_rel(&master, constants::REL_THEME)
+    /// The theme [`PartName`] governing `surface`: the theme related to the last part of its
+    /// inheritance chain (the master, where there is one); `None` if that part relates to no theme.
+    fn theme_part(&self, surface: Surface) -> Result<Option<PartName>, PptxError> {
+        let chain = self.inheritance_chain(surface)?;
+        let last = chain
+            .last()
+            .expect("a chain always holds the surface's own part");
+        self.follow_rel(last, constants::REL_THEME)
     }
 
     /// The **effective** fill of shape `shape_idx` on slide `slide_idx`, as an interner-free
@@ -783,9 +818,9 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
         let map = self
-            .slide_color_map(slide_idx)?
+            .color_map(slide_idx)?
             .unwrap_or_else(ColorMap::identity);
-        let theme_part = self.slide_theme_part(slide_idx)?;
+        let theme_part = self.theme_part(Surface::Slide(slide_idx))?;
 
         // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
@@ -888,9 +923,9 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<LineSpec>, PptxError> {
         let map = self
-            .slide_color_map(slide_idx)?
+            .color_map(slide_idx)?
             .unwrap_or_else(ColorMap::identity);
-        let theme_part = self.slide_theme_part(slide_idx)?;
+        let theme_part = self.theme_part(Surface::Slide(slide_idx))?;
 
         // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
@@ -993,9 +1028,9 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<EffectListSpec>, PptxError> {
         let map = self
-            .slide_color_map(slide_idx)?
+            .color_map(slide_idx)?
             .unwrap_or_else(ColorMap::identity);
-        let theme_part = self.slide_theme_part(slide_idx)?;
+        let theme_part = self.theme_part(Surface::Slide(slide_idx))?;
 
         // The resolved color scheme (interner-free) — bridges the theme-part vs shape-part interners.
         let scheme = match &theme_part {
@@ -1603,24 +1638,32 @@ impl Presentation {
         Ok(Some(nav::resolve_target(part, &rel.target)?))
     }
 
-    /// The effective theme [`ColorMap`] for slide `slide_idx`: the slide master's `p:clrMap` (reached
-    /// via slide → slideLayout → slideMaster), replaced by the slide's own `p:clrMapOvr >
+    /// The effective theme [`ColorMap`] for `surface`: the master's `p:clrMap` (reached along the
+    /// surface's inheritance chain), replaced by the surface's own `p:clrMapOvr >
     /// a:overrideClrMapping` when it supplies a full mapping (a `masterClrMapping`, an absent override,
     /// or a schema-loose attribute-less override all inherit the master's map). It maps the logical
     /// color names a shape may reference (`bg1`/`tx1`/…) to the theme's concrete scheme slots.
     /// `Ok(None)` when there is no reachable master or no `p:clrMap`. Reading does not dirty a part.
     ///
+    /// A master surface has no override of its own, so it simply reports its `p:clrMap`.
+    ///
     /// # Errors
-    /// Returns [`PptxError`] if `slide_idx` is out of range, a relationship points outside the package
-    /// ([`ExternalTarget`](PptxError::ExternalTarget)), or a part is not well-formed.
-    pub fn slide_color_map(&mut self, slide_idx: usize) -> Result<Option<ColorMap>, PptxError> {
-        let slide_part = self.slide_part_checked(slide_idx)?.clone();
-        let Some(layout) = self.follow_rel(&slide_part, constants::REL_SLIDE_LAYOUT)? else {
-            return Ok(None);
-        };
-        let Some(master) = self.follow_rel(&layout, constants::REL_SLIDE_MASTER)? else {
-            return Ok(None);
-        };
+    /// Returns [`PptxError`] if the surface index is out of range, a relationship points outside the
+    /// package ([`ExternalTarget`](PptxError::ExternalTarget)), or a part is not well-formed.
+    pub fn color_map(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<Option<ColorMap>, PptxError> {
+        let surface = surface.into();
+        let chain = self.inheritance_chain(surface)?;
+        let own = chain[0].clone();
+        let master = chain
+            .last()
+            .expect("a chain always holds the surface's own part")
+            .clone();
+        if master == own && !matches!(surface, Surface::Master(_)) {
+            return Ok(None); // the chain never reached a master
+        }
 
         let base = {
             let doc = self.package.part_tree(&master)?;
@@ -1630,8 +1673,11 @@ impl Presentation {
         let Some(base) = base else {
             return Ok(None);
         };
+        if own == master {
+            return Ok(Some(base));
+        }
 
-        let doc = self.package.part_tree(&slide_part)?;
+        let doc = self.package.part_tree(&own)?;
         let effective = nav::child(&doc.root, &doc.interner, PML, "clrMapOvr")
             .and_then(|ovr| nav::child(ovr, &doc.interner, DML_MAIN, "overrideClrMapping"))
             .and_then(|mapping| slide::parse_color_map(mapping, &doc.interner))
@@ -2153,13 +2199,13 @@ mod tests {
     }
 
     #[test]
-    fn slide_color_map_resolves_master_mapping() {
+    fn color_map_resolves_master_mapping() {
         // The fixture master's p:clrMap is the standard mapping (bg1=lt1, tx1=dk1, …), and slide 0
         // has no p:clrMapOvr — so the effective map is the master's.
         let mut pres = Presentation::open(&fixture()).expect("open");
         let map = pres
-            .slide_color_map(0)
-            .expect("slide_color_map")
+            .color_map(0)
+            .expect("color_map")
             .expect("fixture has a color map");
         assert_eq!(
             map.resolve(SchemeColor::Background1),
