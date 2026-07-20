@@ -403,3 +403,11 @@ fn deck_with_a_picture_shape_opens() {
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "picture_shape");
 }
+
+#[test]
+fn layouts_fixture_opens() {
+    // The hand-authored layouts.pptx (one master, three layouts, two slides on different layouts)
+    // must itself be a valid deck a real Office implementation opens, before anything is asserted
+    // about reading it.
+    let _ = convert_opens(&fixture("layouts.pptx"), "layouts_baseline");
+}
