@@ -14,8 +14,10 @@
 //! read-back path ([`crate::nav::name_is`]) can find the element by `(namespace, local)`.
 
 use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode, Symbol};
-use mjx_ooxml_types::namespaces::SchemaNamespace;
+use mjx_ooxml_types::namespaces::{SchemaNamespace, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_xml::text::escape_text;
+
+use crate::nav;
 
 /// A qualified name with the given literal `prefix`, `local` name, and resolved namespace (interned
 /// as the transitional URI of `ns`).
@@ -43,6 +45,39 @@ pub(crate) fn attr(interner: &mut Interner, name: &str, value: &str) -> RawAttri
         value: escape_attribute(value),
         quote: QuoteStyle::Double,
     }
+}
+
+/// The literal prefix that relationship-referencing attributes (`r:embed`, `r:link`, `r:id`) are
+/// written with here — and by every Office-written part.
+pub(crate) const RELATIONSHIP_PREFIX: &str = "r";
+
+/// An `xmlns:r="…"` declaration to hang on a **newly built subtree** whose relationship-referencing
+/// attributes are written with the literal [`RELATIONSHIP_PREFIX`], or `None` when `part_root`
+/// already binds that prefix to the relationships namespace so the subtree inherits it.
+///
+/// Attribute namespaces are never resolved by the fidelity reader, so an `r:embed` is only meaningful
+/// if some ancestor binds `r`. Nearly every slide does, but a part that binds the namespace to a
+/// *different* prefix (or not at all) would otherwise receive unresolvable markup. Declaring it on
+/// the subtree's own top element is self-contained: it cannot disturb the rest of the part, and it
+/// shadows an unrelated `r` binding only where this subtree uses it.
+pub(crate) fn relationship_prefix_declaration(
+    part_root: &RawElement,
+    interner: &mut Interner,
+) -> Option<RawAttribute> {
+    let bound = nav::namespace_prefix(part_root, interner, SHARED_RELATIONSHIP_REFERENCE)
+        .is_some_and(|prefix| interner.resolve(prefix) == RELATIONSHIP_PREFIX);
+    if bound {
+        return None;
+    }
+    Some(RawAttribute {
+        name: RawName {
+            prefix: Some(interner.intern("xmlns")),
+            local: interner.intern(RELATIONSHIP_PREFIX),
+            namespace: None,
+        },
+        value: escape_attribute(SHARED_RELATIONSHIP_REFERENCE.transitional),
+        quote: QuoteStyle::Double,
+    })
 }
 
 /// A prefixed attribute `prefix:local="value"` (value escaped), reusing an already-interned prefix
@@ -176,6 +211,42 @@ mod tests {
             epilogue: Vec::new(),
         };
         String::from_utf8(mjx_xml::fidelity::serialize_to_vec(&doc)).unwrap()
+    }
+
+    /// Parses a part root and returns it with its interner.
+    fn root(xml: &str) -> RawDocument {
+        mjx_xml::fidelity::parse(xml.as_bytes()).expect("well-formed")
+    }
+
+    const RELS_NS: &str = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
+    #[test]
+    fn no_declaration_when_the_part_already_binds_r() {
+        let mut doc = root(&format!(r#"<p:sld xmlns:p="urn:p" xmlns:r="{RELS_NS}"/>"#));
+        assert!(
+            relationship_prefix_declaration(&doc.root, &mut doc.interner).is_none(),
+            "a redundant xmlns:r must not be emitted"
+        );
+    }
+
+    #[test]
+    fn declares_r_when_the_part_binds_it_to_nothing_or_to_another_namespace() {
+        // Not bound at all.
+        let mut doc = root(r#"<p:sld xmlns:p="urn:p"/>"#);
+        let declaration =
+            relationship_prefix_declaration(&doc.root, &mut doc.interner).expect("declaration");
+        let element = leaf(&mut doc.interner, "a", DML_MAIN, "blip", vec![declaration]);
+        assert_eq!(
+            serialize(doc.interner, element),
+            format!(r#"<a:blip xmlns:r="{RELS_NS}"/>"#)
+        );
+
+        // Bound to an unrelated namespace: the subtree shadows it, which is what makes r:embed mean
+        // the relationship reference here.
+        let mut doc = root(&format!(
+            r#"<p:sld xmlns:p="urn:p" xmlns:r="urn:something-else" xmlns:rel="{RELS_NS}"/>"#
+        ));
+        assert!(relationship_prefix_declaration(&doc.root, &mut doc.interner).is_some());
     }
 
     #[test]

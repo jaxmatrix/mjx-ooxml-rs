@@ -353,7 +353,8 @@ impl Presentation {
     /// one after any geometry and before `a:ln`). Marks only that slide part dirty.
     ///
     /// A [`FillSpec::Blip`] writes only the `a:blip@r:embed` reference; the image part and its
-    /// relationship must already exist in the package.
+    /// relationship must already exist in the package — create both with
+    /// [`add_image`](Self::add_image), which returns the id to use.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
@@ -368,6 +369,12 @@ impl Presentation {
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the fill element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
+        // A picture fill carries an `r:embed`, so the built element must be able to resolve the `r`
+        // prefix — computed from the part root before the borrow descends into the shape tree.
+        let rel_declaration = match fill {
+            FillSpec::Blip { .. } => build::relationship_prefix_declaration(root, interner),
+            _ => None,
+        };
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
         let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
@@ -380,7 +387,10 @@ impl Presentation {
         let sp_pr =
             nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
 
-        let element = fill.to_fill(interner).to_xml(interner);
+        let mut element = fill.to_fill(interner).to_xml(interner);
+        if let Some(declaration) = rel_declaration {
+            element.attributes.push(declaration);
+        }
         let node = RawNode::Element(element);
         match slide::fill_child_index(sp_pr, interner) {
             Some(index) => sp_pr.children[index] = node,
