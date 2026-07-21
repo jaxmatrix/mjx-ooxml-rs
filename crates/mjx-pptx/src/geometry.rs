@@ -5,7 +5,7 @@
 //! numbers so callers never touch the raw `x`/`y`/`cx`/`cy` wire attributes. [`SlideSize`] is the
 //! extent those bounds sit inside.
 
-use mjx_dml::{Position, Size, Transform2D};
+use mjx_dml::{Emu, Position, Size, Transform2D};
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 
 /// A shape's position and size on a slide, in English Metric Units (914 400 EMU = 1 inch).
@@ -80,6 +80,41 @@ impl ShapeBounds {
             position: Some(Position::from_emu(self.offset_x_emu, self.offset_y_emu)),
             size: Some(Size::from_emu(self.width_emu, self.height_emu)),
             ..Transform2D::default()
+        }
+    }
+}
+
+/// The four insets between a table cell's edges and its text (`a:tcPr`'s `@marL` / `@marR` /
+/// `@marT` / `@marB`).
+///
+/// Every field is `Option`, and `None` means the cell does not state that margin — **not** that it
+/// is zero. The schema defaults are non-zero (`0.1"` horizontally, `0.05"` vertically, exposed as
+/// [`TableCellProperties::DEFAULT_MARGIN_HORIZONTAL`](mjx_dml::TableCellProperties::DEFAULT_MARGIN_HORIZONTAL)
+/// and its vertical counterpart), so collapsing the two would silently shrink every cell it touched.
+///
+/// On write, a `None` field is left exactly as it was, so one margin can be set without restating
+/// the other three.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct CellMargins {
+    /// The left inset (`@marL`).
+    pub left: Option<Emu>,
+    /// The right inset (`@marR`).
+    pub right: Option<Emu>,
+    /// The top inset (`@marT`).
+    pub top: Option<Emu>,
+    /// The bottom inset (`@marB`).
+    pub bottom: Option<Emu>,
+}
+
+impl CellMargins {
+    /// The same inset on all four sides.
+    #[must_use]
+    pub fn uniform(margin: Emu) -> Self {
+        Self {
+            left: Some(margin),
+            right: Some(margin),
+            top: Some(margin),
+            bottom: Some(margin),
         }
     }
 }
