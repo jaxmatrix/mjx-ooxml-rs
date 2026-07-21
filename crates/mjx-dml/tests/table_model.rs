@@ -5,7 +5,7 @@
 //! holes), and **round-trip fidelity** — a table carries `extLst`, `cell3D`, a style reference and a
 //! whole text body this tier does not interpret, and all of it has to come back out unchanged.
 
-use mjx_dml::{CellBorder, Table, TableCellProperties, TablePart};
+use mjx_dml::{CellBorder, LineSpec, Table, TableCellProperties, TablePart};
 use mjx_ooxml_core::{FromXml, RawDocument, ToXml};
 use mjx_xml::fidelity;
 
@@ -400,4 +400,95 @@ fn a_cells_text_can_be_edited_through_the_text_tree() {
         out.contains("<a:t>North</a:t>"),
         "other cells untouched: {out}"
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Writing cell properties
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn setting_a_border_keeps_what_this_tier_does_not_model() {
+    // `a:tcPr` carries a `cell3D`, a `headers` and an unknown attribute, none of which this tier
+    // interprets. A writer that rebuilt the element instead of merging into it would drop all three.
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr anchor="ctr" unknown="kept">"#,
+        r#"<a:cell3D prstMaterial="matte"/>"#,
+        r#"<a:headers><a:header>h</a:header></a:headers>"#,
+        r#"</a:tcPr></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr")
+        .set_border(
+            &mut doc.interner,
+            CellBorder::Left,
+            Some(&LineSpec::default()),
+        );
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+
+    assert!(out.contains("<a:lnL"), "the border was written: {out}");
+    assert!(out.contains(r#"unknown="kept""#), "{out}");
+    assert!(out.contains("<a:cell3D"), "{out}");
+    assert!(out.contains("<a:header>h</a:header>"), "{out}");
+    assert!(out.contains(r#"anchor="ctr""#), "{out}");
+}
+
+#[test]
+fn a_new_border_lands_before_the_children_it_must_precede() {
+    // The sequence is the six borders, then `cell3D`, the fill, `headers`, `extLst`. A border added
+    // to a cell that already has the later children must go in front of them, not at the end.
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr>"#,
+        r#"<a:cell3D prstMaterial="matte"/><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#,
+        r#"</a:tcPr></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr")
+        .set_border(
+            &mut doc.interner,
+            CellBorder::Bottom,
+            Some(&LineSpec::default()),
+        );
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    let at = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    assert!(at("<a:lnB") < at("<a:cell3D"), "{out}");
+    assert!(at("<a:cell3D") < at("<a:solidFill"), "{out}");
+}
+
+#[test]
+fn removing_a_border_leaves_the_others() {
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr><a:lnL/><a:lnR/></a:tcPr></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+    let properties = table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr");
+
+    properties.set_border(&mut doc.interner, CellBorder::Left, None);
+    assert!(properties.border(&doc.interner, CellBorder::Left).is_none());
+    assert!(properties
+        .border(&doc.interner, CellBorder::Right)
+        .is_some());
 }
