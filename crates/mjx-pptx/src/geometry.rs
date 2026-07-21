@@ -5,6 +5,7 @@
 //! numbers so callers never touch the raw `x`/`y`/`cx`/`cy` wire attributes. [`SlideSize`] is the
 //! extent those bounds sit inside.
 
+use mjx_dml::{Position, Size, Transform2D};
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 
 /// A shape's position and size on a slide, in English Metric Units (914 400 EMU = 1 inch).
@@ -50,6 +51,35 @@ impl ShapeBounds {
             offset_y_emu: to_emu(y),
             width_emu: to_emu(width),
             height_emu: to_emu(height),
+        }
+    }
+
+    /// The bounds a [`Transform2D`] describes, or `None` unless it carries **both** an `a:off` and an
+    /// `a:ext` — bounds are all four numbers, and a transform that names only one of the two does not
+    /// place the shape on its own.
+    #[must_use]
+    pub fn from_transform(transform: &Transform2D) -> Option<Self> {
+        let position = transform.position?;
+        let size = transform.size?;
+        Some(Self {
+            offset_x_emu: position.x.emu(),
+            offset_y_emu: position.y.emu(),
+            width_emu: size.width.emu(),
+            height_emu: size.height.emu(),
+        })
+    }
+
+    /// These bounds as a [`Transform2D`] that names **only** position and size.
+    ///
+    /// Everything else is left unset, which is what makes setting bounds non-destructive: applying
+    /// this transform moves and resizes a shape without disturbing its rotation, its flips, or the
+    /// child coordinate space a group's members are laid out in.
+    #[must_use]
+    pub fn to_transform(self) -> Transform2D {
+        Transform2D {
+            position: Some(Position::from_emu(self.offset_x_emu, self.offset_y_emu)),
+            size: Some(Size::from_emu(self.width_emu, self.height_emu)),
+            ..Transform2D::default()
         }
     }
 }
