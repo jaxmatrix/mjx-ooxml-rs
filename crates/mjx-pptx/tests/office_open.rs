@@ -12,13 +12,14 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, BlipFillMode, CharacterPropertiesSpec, ColorSpec, EffectListSpec, Emu, FillSpec,
-    Fraction, GlowEffect, GradientStopSpec, IndentLevel, LineCap, LineDash, LineJoin, LineSpec,
-    LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetLineDash,
-    RectangleAlignment, SchemeColor, ShapeGeometry, TextAlignment, TextSpacing, Transform2D,
+    Angle, BlipFillMode, CellBorder, CharacterPropertiesSpec, ColorSpec, EffectListSpec, Emu,
+    FillSpec, Fraction, GlowEffect, GradientStopSpec, IndentLevel, LineCap, LineDash, LineJoin,
+    LineSpec, LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetLineDash,
+    RectangleAlignment, SchemeColor, ShapeGeometry, TextAlignment, TextAnchoring, TextSpacing,
+    Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_pptx::{Presentation, ShapeBounds, Surface};
+use mjx_pptx::{CellMargins, Presentation, ShapeBounds, Surface};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -223,6 +224,35 @@ fn deck_with_a_created_table_opens() {
     }
     pres.set_row_height(0, table, 0, Emu::from_points(30.0))
         .expect("taller header row");
+
+    // Filled header cells, a rule under the header, and roomier insets — the `a:tcPr` a real table
+    // carries. A consumer that rejects any of it drops the formatting without saying so.
+    let header_fill = FillSpec::Solid(ColorSpec::Srgb("1F3864".to_owned()));
+    let rule = LineSpec {
+        width: Some(LineWidth::from_emu(19_050)),
+        fill: Some(FillSpec::Solid(ColorSpec::Srgb("FFFFFF".to_owned()))),
+        ..LineSpec::default()
+    };
+    for column in 0..3 {
+        pres.set_cell_fill(0, table, 0, column, &header_fill)
+            .expect("fill the header");
+        pres.set_cell_border(0, table, 0, column, CellBorder::Bottom, &rule)
+            .expect("rule under the header");
+        pres.set_cell_anchor(0, table, 0, column, TextAnchoring::Center)
+            .expect("centre the header vertically");
+    }
+    for row in 0..3 {
+        for column in 0..3 {
+            pres.set_cell_margins(
+                0,
+                table,
+                row,
+                column,
+                CellMargins::uniform(Emu::from_points(6.0)),
+            )
+            .expect("roomier insets");
+        }
+    }
 
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "created_table");
