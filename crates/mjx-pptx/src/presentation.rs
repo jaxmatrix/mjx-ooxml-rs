@@ -1623,6 +1623,77 @@ impl Presentation {
         Ok(None)
     }
 
+    /// The **effective** transform of shape `shape_idx` on `surface` — where the shape actually
+    /// renders, not what it declares. For a placeholder that places itself nowhere, this is the
+    /// same-slot placeholder's transform on the slide layout, and failing that on the master.
+    ///
+    /// Returns `Ok(None)` when no tier places the shape. Reading does not dirty any part.
+    ///
+    /// # Inheritance is all-or-nothing
+    ///
+    /// Unlike text formatting, whose tiers each contribute what the ones above left unset, a
+    /// transform is inherited **whole**: the first tier that states anything wins entirely. A shape
+    /// cannot take its position from the layout and its size from the master, because PowerPoint
+    /// offers no such thing — a shape that places itself places itself completely.
+    ///
+    /// A **present but empty** `<a:xfrm/>` states nothing, so the walk steps past it exactly as it
+    /// steps past a tier with no transform element at all.
+    ///
+    /// A shape that is **not a placeholder** has no tiers to inherit from, so its effective transform
+    /// is its explicit one.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, a part is malformed, or a relationship in
+    /// the inheritance chain points outside the package.
+    pub fn effective_shape_transform(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<Transform2D>, PptxError> {
+        let surface = surface.into();
+        let candidates = self.placeholder_candidates(surface, shape_idx)?;
+
+        for (part, candidate) in candidates {
+            let doc = self.package.part_tree(&part)?;
+            let Some(shape) = candidate_shape(doc, candidate)? else {
+                continue; // This tier does not define the slot at all.
+            };
+            let Some(element) = slide::shape_transform(shape, &doc.interner) else {
+                continue; // …or defines it without placing it.
+            };
+            let transform = Transform2D::read(element, &doc.interner);
+            if !transform.is_empty() {
+                return Ok(Some(transform));
+            }
+        }
+
+        Ok(None)
+    }
+
+    /// The **effective** position and size of shape `shape_idx` on `surface` — where the shape
+    /// actually renders, with the layout and master consulted for a placeholder that declares no
+    /// bounds of its own.
+    ///
+    /// This is the question [`shape_bounds`](Self::shape_bounds) cannot answer: a title that
+    /// declares no `a:xfrm` still renders somewhere, and where is on its layout. Returns `Ok(None)`
+    /// when no tier places the shape, or when the tier that does names a rotation or a flip without
+    /// naming both an `a:off` and an `a:ext`.
+    ///
+    /// Bounds are absolute within [`slide_size`](Self::slide_size). Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// As [`effective_shape_transform`](Self::effective_shape_transform).
+    pub fn effective_shape_bounds(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<ShapeBounds>, PptxError> {
+        Ok(self
+            .effective_shape_transform(surface, shape_idx)?
+            .as_ref()
+            .and_then(ShapeBounds::from_transform))
+    }
+
     // -----------------------------------------------------------------------------------------
     // Effective text formatting — what the text actually renders as
     //
@@ -2764,10 +2835,10 @@ enum Candidate {
 ///
 /// Takes the document rather than the package so the caller owns the borrow and can extract what it
 /// needs before the next candidate is fetched.
-fn candidate_shape<'a>(
-    doc: &'a RawDocument,
+fn candidate_shape(
+    doc: &RawDocument,
     candidate: Candidate,
-) -> Result<Option<&'a RawElement>, PptxError> {
+) -> Result<Option<&RawElement>, PptxError> {
     let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
     Ok(match candidate {
         Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
