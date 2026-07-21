@@ -15,6 +15,42 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.11] - 2026-07-21
+
+A shape can be moved. The transform reaches the deck.
+
+### Added
+
+- **`Presentation::shape_bounds` / `set_shape_bounds`** — read, move and resize any shape. Until now
+  `ShapeBounds` was written once, at shape creation, and could be neither read back nor changed.
+- **`Presentation::shape_transform` / `set_shape_transform`** — the whole `a:xfrm`: position, size,
+  rotation, the two mirror flags, and a group's child coordinate space. Rotation and flips had no
+  expression at all before this.
+- **`ShapeBounds::from_transform` / `to_transform`** — the bridge to `mjx_dml::Transform2D`.
+- **`PptxError::ShapeCannotBePositioned`** — names the one shape kind (`p:contentPart`) whose schema
+  has nowhere to put a transform, instead of reporting a missing element.
+
+### Notes
+
+- **A transform is not in the same place for every shape kind**, which is what made this its own
+  piece of work: `p:spPr > a:xfrm` for a shape, picture or connector; `p:grpSpPr > a:xfrm` for a
+  group (a `CT_GroupTransform2D`, carrying `a:chOff`/`a:chExt`); and `p:xfrm` for a graphic frame —
+  PresentationML's namespace, a direct child, and required rather than optional. Only the wrapper
+  differs; the `a:off`/`a:ext` inside are DrawingML in every case.
+- **`None` from `shape_bounds` is not "at the origin"** — it means the shape places itself nowhere,
+  and a placeholder's real position is on its layout or master. Resolving that is the next PR.
+- **Setting bounds cannot disturb anything else.** `to_transform` names only position and size, and
+  `Transform2D::apply` writes only named fields, so moving a shape leaves its rotation alone and
+  moving a group keeps the child space its members are laid out in. Resizing a group does rescale
+  its members — a group maps its child space onto its own extent, which is what PowerPoint does.
+- Shape creation now emits its `a:xfrm` through the same writer as shape editing, so the two cannot
+  drift apart. The bytes are unchanged.
+- `tests/fixtures/layouts.pptx` gained a `p:grpSp` and a `p:graphicFrame` (holding a real one-cell
+  table) on slide 2, appended so existing shape indices keep their meaning — the two exotic locator
+  paths now meet a real file, and the tables workstream inherits a fixture.
+- Group members are still not addressable, so bounds are always in the parent tree's coordinate
+  space. Computing an absolute rectangle for a shape inside a group needs group descent.
+
 ## [0.0.10] - 2026-07-21
 
 Where a shape sits, and which way up — the model tier of the transform workstream.
