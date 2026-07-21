@@ -1063,9 +1063,8 @@ mod tests {
     #[test]
     fn the_slot_creates_a_graphic_frames_transform_in_presentationml() {
         // A `p:graphicFrame`'s transform is `p:xfrm`, and sits after `p:nvGraphicFramePr`.
-        let (mut element, mut interner) = shape(concat!(
-            r#"<p:graphicFrame><p:nvGraphicFramePr/><a:graphic/></p:graphicFrame>"#
-        ));
+        let (mut element, mut interner) =
+            shape(r#"<p:graphicFrame><p:nvGraphicFramePr/><a:graphic/></p:graphicFrame>"#);
         let slot = shape_transform_slot_mut(&mut element, &mut interner).expect("slot");
         assert_eq!(interner.resolve(slot.name.local), "xfrm");
         assert!(
