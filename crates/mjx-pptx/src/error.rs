@@ -198,6 +198,20 @@ pub enum PptxError {
         columns: usize,
     },
 
+    /// A merge would cut an existing merged region in half: some cell in the selection belongs to a
+    /// region that reaches outside it.
+    ///
+    /// There is no correct answer to give — truncating the existing merge would leave the table
+    /// claiming spans that no longer fit — so the caller is asked to unmerge first. A region wholly
+    /// inside the selection is absorbed rather than refused.
+    #[error("cell ({row}, {column}) belongs to a merged region reaching outside the selection")]
+    TableMergeCrossesSelection {
+        /// A cell of the offending region.
+        row: usize,
+        /// A cell of the offending region.
+        column: usize,
+    },
+
     /// The addressed shape's kind has no transform in its schema, so it cannot be positioned or
     /// sized. Only a `p:contentPart` (`CT_Rel`, a reference to an external part) is such a kind.
     #[error("a {kind:?} has no transform to set")]

@@ -5,8 +5,8 @@ use mjx_dml::{
     BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Emu, Fill,
     FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties,
     ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table,
-    TableCellProperties, TableColumn, TableRow, TextAnchoring, TextBody, TextDirection, TextFont,
-    TextListStyle, Theme, ThemeInfo, Transform2D,
+    TableCell, TableCellProperties, TableColumn, TableRow, TextAnchoring, TextBody, TextDirection,
+    TextFont, TextListStyle, Theme, ThemeInfo, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -1579,7 +1579,7 @@ impl Presentation {
         if format.is_empty() {
             return Ok(());
         }
-        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner| {
+        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner, _, _| {
             let slot = cell_properties_slot(cell, interner)?;
             let mut properties = TableCellProperties::from_xml(slot, interner)?;
             apply_cell_format(&mut properties, interner, format);
@@ -1603,7 +1603,7 @@ impl Presentation {
         cells: Cells,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
-        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner| {
+        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner, _, _| {
             let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
                 return Ok(()); // A cell with no text body has no runs to format.
             };
@@ -1626,7 +1626,7 @@ impl Presentation {
         cells: Cells,
         spec: &ParagraphPropertiesSpec,
     ) -> Result<(), PptxError> {
-        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner| {
+        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner, _, _| {
             let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
                 return Ok(());
             };
@@ -1647,7 +1647,7 @@ impl Presentation {
         surface: Surface,
         shape_idx: usize,
         cells: &Cells,
-        edit: impl Fn(&mut RawElement, &mut Interner) -> Result<(), PptxError>,
+        edit: impl Fn(&mut RawElement, &mut Interner, usize, usize) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
         let part = self.surface_part(surface)?.clone();
         let doc = self.package.part_tree_mut(&part)?;
@@ -1681,9 +1681,131 @@ impl Presentation {
                 .ok_or(PptxError::MalformedSlide("table row vanished"))?;
             let cell = slide::nth_cell_mut(row_element, interner, column)
                 .ok_or(PptxError::MalformedSlide("table cell vanished"))?;
-            edit(cell, interner)?;
+            edit(cell, interner, row, column)?;
         }
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Merging
+    //
+    // A merged region is anchored at its top-left cell, which states how far it reaches; the cells
+    // it covers stay in the table, each stating that something to its left or above owns it. So the
+    // grid never loses a cell, `(row, column)` addressing keeps working, and unmerging is simply
+    // taking four attributes back off.
+    // -----------------------------------------------------------------------------------------
+
+    /// Merges `cells` into one region. Marks only that part dirty.
+    ///
+    /// The top-left cell becomes the anchor and is what renders; every other cell in the region is
+    /// marked as covered. **No cell is removed and no text is touched** — a covered cell keeps its
+    /// own text body, invisible until the region is unmerged again, so merging loses nothing.
+    ///
+    /// A merged region already **inside** the selection is absorbed into the new one. A selection of
+    /// a single cell, or an empty one, changes nothing.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::TableMergeCrossesSelection`] if a cell in the selection belongs to a
+    /// merged region reaching outside it — unmerge that region first — plus the errors of
+    /// [`format_cells`](Self::format_cells).
+    pub fn merge_cells(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        cells: Cells,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+
+        // Read first: the region to merge, and whether any existing merge would be cut in half.
+        let region = self.with_table(surface, shape_idx, |table, interner| {
+            let (rows, columns) = (table.row_count(), table.column_count());
+            let (row_range, column_range) =
+                cells.bounds(rows, columns).map_err(|(row, column)| {
+                    PptxError::TableCellOutOfRange {
+                        row,
+                        column,
+                        rows,
+                        columns,
+                    }
+                })?;
+            if row_range.is_empty() || column_range.is_empty() {
+                return Ok(None);
+            }
+            check_merges_fit(table, interner, &row_range, &column_range)?;
+            Ok(Some((row_range, column_range)))
+        })?;
+
+        let Some((row_range, column_range)) = region else {
+            return Ok(());
+        };
+        let (first_row, first_column) = (row_range.start, column_range.start);
+        let (height, width) = (row_range.len(), column_range.len());
+        let selection = Cells::rectangle(row_range, column_range);
+
+        self.edit_selected_cells(
+            surface,
+            shape_idx,
+            &selection,
+            |cell, interner, row, column| {
+                let mut typed = TableCell::from_xml(cell, interner)?;
+                if row == first_row && column == first_column {
+                    typed.set_spans(interner, width, height);
+                    typed.set_merged(interner, false, false);
+                } else {
+                    // Covered: it says what owns it, not which cell that is — left, above, or both.
+                    typed.set_spans(interner, 1, 1);
+                    typed.set_merged(interner, column > first_column, row > first_row);
+                }
+                *cell = typed.to_xml(interner);
+                Ok(())
+            },
+        )
+    }
+
+    /// Undoes the merge covering the cell at `(row, column)`, whichever cell of the region is named.
+    /// Marks only that part dirty.
+    ///
+    /// Every cell in the region becomes an ordinary cell again, and each gets back the text it was
+    /// holding all along. A cell that is not merged is left alone.
+    ///
+    /// # Errors
+    /// As [`format_cells`](Self::format_cells).
+    pub fn unmerge_cells(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+
+        // The region is defined by its anchor, which the addressed cell may only point towards.
+        let region = self.with_table(surface, shape_idx, |table, interner| {
+            let (rows, columns) = (table.row_count(), table.column_count());
+            let out_of_range = || PptxError::TableCellOutOfRange {
+                row,
+                column,
+                rows,
+                columns,
+            };
+            let (anchor_row, anchor_column) = table
+                .merge_anchor(interner, row, column)
+                .ok_or_else(out_of_range)?;
+            let anchor = table
+                .cell(anchor_row, anchor_column)
+                .ok_or_else(out_of_range)?;
+            Ok(Cells::rectangle(
+                anchor_row..anchor_row + anchor.row_span(interner),
+                anchor_column..anchor_column + anchor.column_span(interner),
+            ))
+        })?;
+
+        self.edit_selected_cells(surface, shape_idx, &region, |cell, interner, _, _| {
+            let mut typed = TableCell::from_xml(cell, interner)?;
+            typed.clear_merge(interner);
+            *cell = typed.to_xml(interner);
+            Ok(())
+        })
     }
 
     /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
@@ -4071,6 +4193,40 @@ fn set_run_text(body: &mut TextBody, run_idx: usize, text: &str) -> Result<(), P
 /// A `TextSite` naming one cell of the table a shape frames.
 fn cell(shape: usize, row: usize, column: usize) -> TextSite {
     TextSite::Cell { shape, row, column }
+}
+
+/// Checks that no merged region touching the rectangle reaches outside it.
+///
+/// A region wholly inside is fine — it is absorbed. One that crosses the boundary is not, because
+/// truncating it would leave the table claiming a span that no longer fits, and growing the
+/// selection to swallow it would merge cells the caller never named.
+fn check_merges_fit(
+    table: &Table,
+    interner: &Interner,
+    rows: &core::ops::Range<usize>,
+    columns: &core::ops::Range<usize>,
+) -> Result<(), PptxError> {
+    for row in rows.clone() {
+        for column in columns.clone() {
+            let Some((anchor_row, anchor_column)) = table.merge_anchor(interner, row, column)
+            else {
+                continue;
+            };
+            let Some(anchor) = table.cell(anchor_row, anchor_column) else {
+                continue;
+            };
+            let reaches_row = anchor_row + anchor.row_span(interner);
+            let reaches_column = anchor_column + anchor.column_span(interner);
+            let contained = anchor_row >= rows.start
+                && reaches_row <= rows.end
+                && anchor_column >= columns.start
+                && reaches_column <= columns.end;
+            if !contained {
+                return Err(PptxError::TableMergeCrossesSelection { row, column });
+            }
+        }
+    }
+    Ok(())
 }
 
 /// The `a:tcPr` of a raw `a:tc`, creating it when the cell has none — placed after the cell's
