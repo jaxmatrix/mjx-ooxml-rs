@@ -101,16 +101,16 @@ impl Cells {
         Self::All
     }
 
-    /// The positions this selection covers in a `rows` x `columns` table, in row-major order, or
-    /// the first position that falls outside it.
+    /// The rectangle this selection covers in a `rows` x `columns` table, or the first position
+    /// that falls outside it.
     ///
-    /// An empty range selects nothing and is not an error — `Cells::rectangle(0..0, 0..0)` on any
-    /// table is a well-formed way to select nothing at all.
-    pub(crate) fn resolve(
+    /// Every selection is a rectangle — which is why a `Cells` can also describe a merge, the only
+    /// shape a merged region can take. An empty range covers nothing and is not an error.
+    pub(crate) fn bounds(
         &self,
         rows: usize,
         columns: usize,
-    ) -> Result<Vec<(usize, usize)>, (usize, usize)> {
+    ) -> Result<(core::ops::Range<usize>, core::ops::Range<usize>), (usize, usize)> {
         let (row_range, column_range) = match self {
             Self::One { row, column } => (*row..row + 1, *column..column + 1),
             Self::Row(row) => (*row..row + 1, 0..columns),
@@ -126,7 +126,20 @@ impl Cells {
         if !column_range.is_empty() && column_range.end > columns {
             return Err((row_range.start, column_range.end - 1));
         }
+        Ok((row_range, column_range))
+    }
 
+    /// The positions this selection covers in a `rows` x `columns` table, in row-major order, or
+    /// the first position that falls outside it.
+    ///
+    /// An empty range selects nothing and is not an error — `Cells::rectangle(0..0, 0..0)` on any
+    /// table is a well-formed way to select nothing at all.
+    pub(crate) fn resolve(
+        &self,
+        rows: usize,
+        columns: usize,
+    ) -> Result<Vec<(usize, usize)>, (usize, usize)> {
+        let (row_range, column_range) = self.bounds(rows, columns)?;
         let mut positions = Vec::new();
         for row in row_range {
             for column in column_range.clone() {
