@@ -15,6 +15,39 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.13] - 2026-07-21
+
+The table, modeled. The first tier of the tables workstream.
+
+### Added
+
+- **`Table`, `TableProperties`, `TableGrid`, `TableColumn`, `TableRow`, `TableCell`,
+  `TableCellProperties`** (`mjx-dml`) — `a:tbl` and everything under it, typed for the first time.
+  A `p:graphicFrame` could already be positioned; now what it frames can be read.
+- **`TablePart`** — the seven `a:tblPr` flags (`firstRow`, `bandRow`, …), which do not draw anything
+  themselves but tell the table style which parts to emphasize.
+- **`CellBorder`** — the six `CT_LineProperties` edges of a cell, including the two diagonals.
+
+### Notes
+
+- **How little of this is new.** A cell's content is a `CT_TextBody` — the *same* type a shape's
+  `p:txBody` is — so the whole text tree and its formatting model apply inside a cell unchanged.
+  Cell borders are `LineProperties`; cell and table fills are the fill model; widths, heights and
+  margins are `Emu`. The genuinely new part is the two-dimensional shape.
+- **Merging never removes a cell.** A merged region is anchored at its top-left cell, which carries
+  `gridSpan`/`rowSpan`; every covered cell remains present carrying `hMerge`/`vMerge`. So a row holds
+  as many `a:tc` as the grid has `a:gridCol`, `(row, column)` addressing has no holes, and
+  `Table::merge_anchor` answers which cell actually renders at a position by walking left then up.
+- The **grid** is the authority on column count: `a:tblGrid` is where a table declares its width.
+  A table missing it reports no columns rather than inferring one from the rows.
+- A cell's four margins have **non-zero schema defaults** (0.1" horizontal, 0.05" vertical), so an
+  unstated margin is not a zero one; the accessors report what the file states and the defaults are
+  exposed as constants.
+- `a:tableStyleId` is **reported but not resolved** — the `tableStyles.xml` part it names is a later
+  tier of this workstream.
+- Nothing in `mjx-pptx` uses this yet: creating a table, reaching cell text, and formatting cells
+  are the next PRs.
+
 ## [0.0.12] - 2026-07-21
 
 Where a shape actually renders. The transform workstream is complete.
