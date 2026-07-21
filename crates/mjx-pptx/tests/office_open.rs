@@ -15,7 +15,7 @@ use mjx_dml::{
     Angle, BlipFillMode, CharacterPropertiesSpec, ColorSpec, EffectListSpec, Emu, FillSpec,
     Fraction, GlowEffect, GradientStopSpec, IndentLevel, LineCap, LineDash, LineJoin, LineSpec,
     LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetLineDash,
-    RectangleAlignment, SchemeColor, ShapeGeometry, TextAlignment, TextSpacing,
+    RectangleAlignment, SchemeColor, ShapeGeometry, TextAlignment, TextSpacing, Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{Presentation, ShapeBounds, Surface};
@@ -179,6 +179,45 @@ fn deck_with_added_text_box_opens() {
     let saved = pres.save().expect("save");
     // The constructed deck must open in LibreOffice.
     let _ = convert_opens(&saved, "added_text_box");
+}
+
+#[test]
+fn deck_with_moved_and_rotated_shapes_opens() {
+    // The transform write path end-to-end: a shape given bounds it never had, one moved and
+    // resized, and one rotated and mirrored. The `a:xfrm` we emit has to be valid to a real Office
+    // implementation, not merely to our reading of the XSD.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+
+    // The fixture's title declares no transform at all — give it one.
+    pres.set_shape_bounds(0, 0, ShapeBounds::from_inches(0.5, 0.3, 8.0, 1.0))
+        .expect("place the title");
+
+    let moved = pres
+        .add_shape(
+            0,
+            PresetShapeType::RoundedRectangle,
+            ShapeBounds::from_inches(1.0, 2.0, 2.0, 1.0),
+        )
+        .expect("add shape");
+    pres.set_shape_bounds(0, moved, ShapeBounds::from_inches(4.0, 2.0, 3.0, 1.5))
+        .expect("move and resize");
+
+    let spun = pres
+        .add_text_box(0, "Rotated", ShapeBounds::from_inches(1.0, 4.0, 3.0, 1.0))
+        .expect("add text box");
+    pres.set_shape_transform(
+        0,
+        spun,
+        &Transform2D {
+            rotation: Some(Angle::from_degrees(30.0)),
+            flip_horizontal: Some(true),
+            ..Transform2D::default()
+        },
+    )
+    .expect("rotate and mirror");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "moved_and_rotated");
 }
 
 #[test]
