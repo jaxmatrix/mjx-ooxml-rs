@@ -5,7 +5,7 @@ use mjx_dml::{
     BlipFill, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Fill, FillSpec,
     FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties, ParagraphPropertiesSpec,
     PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody, TextFont, TextListStyle,
-    Theme, ThemeInfo,
+    Theme, ThemeInfo, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -850,6 +850,123 @@ impl Presentation {
         let text = self.paragraph_text(surface, shape_idx, para_idx)?;
         let scalars = grapheme_range_to_scalars(&text, &range)?;
         self.set_text_range_properties(surface, shape_idx, para_idx, scalars, spec)
+    }
+
+    /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
+    /// `a:ext` of its transform — or `None` when the shape does not place itself.
+    ///
+    /// A `None` here is not "at the origin": it means the shape declares no bounds of its own, so a
+    /// placeholder takes them from its layout and then its master (resolving that is
+    /// [`effective_shape_bounds`](Self::effective_shape_bounds)). It is also `None` for a transform
+    /// that names only one of the two, since bounds are all four numbers.
+    ///
+    /// Bounds are absolute within [`slide_size`](Self::slide_size), except for a shape inside a
+    /// `p:grpSp` — group members are not addressable, so this never returns one. Reading does not
+    /// dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn shape_bounds(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<ShapeBounds>, PptxError> {
+        Ok(self
+            .shape_transform(surface, shape_idx)?
+            .as_ref()
+            .and_then(ShapeBounds::from_transform))
+    }
+
+    /// Moves and resizes shape `shape_idx` on `surface` to `bounds`, creating its transform element
+    /// if it had none. Marks only that part dirty; everything else re-emits verbatim.
+    ///
+    /// Only the position and size are written — a rotation, a flip, or the child coordinate space of
+    /// a group are left exactly as they were. Note that resizing a **group** rescales its members,
+    /// because a group maps its child space (`a:chOff` / `a:chExt`) onto its own extent; that is what
+    /// PowerPoint does when you drag a group's handle.
+    ///
+    /// # Errors
+    /// As [`set_shape_transform`](Self::set_shape_transform).
+    pub fn set_shape_bounds(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        bounds: ShapeBounds,
+    ) -> Result<(), PptxError> {
+        self.set_shape_transform(surface, shape_idx, &bounds.to_transform())
+    }
+
+    /// The **explicit** transform of shape `shape_idx` on `surface` — its position, size, rotation
+    /// and mirror flags, plus the child coordinate space if it is a group — or `None` when the shape
+    /// declares no transform at all.
+    ///
+    /// Where that transform lives depends on the shape's [`ShapeKind`]: `p:spPr > a:xfrm` for a
+    /// shape, picture or connector, `p:grpSpPr > a:xfrm` for a group, and `p:xfrm` — a direct child,
+    /// in PresentationML's own namespace — for a graphic frame. A `p:contentPart` has none, and
+    /// reads as `None`.
+    ///
+    /// Every field of the returned [`Transform2D`] is itself optional, and an unset one means the
+    /// file does not state it rather than that it is zero. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn shape_transform(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<Transform2D>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        Ok(slide::shape_transform(shape, &doc.interner)
+            .map(|element| Transform2D::read(element, &doc.interner)))
+    }
+
+    /// Applies `transform` to shape `shape_idx` on `surface`, creating its transform element if it
+    /// had none. Marks only that part dirty; everything else re-emits verbatim.
+    ///
+    /// **Only the fields `transform` names are written**, in place — an unset field means *leave it
+    /// alone*, never *clear it*. That is what lets a caller rotate a shape without restating its
+    /// position, and what keeps a group's `a:chOff` / `a:chExt` intact when it is merely moved.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, the shape's kind
+    /// has no transform in its schema
+    /// ([`ShapeCannotBePositioned`](PptxError::ShapeCannotBePositioned) — only a `p:contentPart`), or
+    /// it is missing the properties element its transform would live in
+    /// ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
+    pub fn set_shape_transform(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        transform: &Transform2D,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` names the element, `root` holds the tree it lands in.
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let slot = slide::shape_transform_slot_mut(shape, interner)?;
+        transform.apply(slot, interner);
+        Ok(())
     }
 
     /// The preset geometry of shape `shape_idx` on `surface`, as a typed [`ShapeGeometry`]
@@ -3095,24 +3212,10 @@ fn build_nv_sp_pr(interner: &mut Interner, id: u32, name: &str, tx_box: bool) ->
 /// `p:spPr` — visual shape properties: an `a:xfrm` transform at `bounds` plus `a:prstGeom@prst` with
 /// an empty `a:avLst` (the preset's default adjustments).
 fn build_sp_pr(interner: &mut Interner, prst: &str, bounds: ShapeBounds) -> RawElement {
-    let off_attrs = vec![
-        build::attr(interner, "x", &bounds.offset_x_emu.to_string()),
-        build::attr(interner, "y", &bounds.offset_y_emu.to_string()),
-    ];
-    let off = build::leaf(interner, "a", DML_MAIN, "off", off_attrs);
-    let ext_attrs = vec![
-        build::attr(interner, "cx", &bounds.width_emu.to_string()),
-        build::attr(interner, "cy", &bounds.height_emu.to_string()),
-    ];
-    let ext = build::leaf(interner, "a", DML_MAIN, "ext", ext_attrs);
-    let xfrm = build::node(
-        interner,
-        "a",
-        DML_MAIN,
-        "xfrm",
-        Vec::new(),
-        vec![RawNode::Element(off), RawNode::Element(ext)],
-    );
+    // One spelling of an `a:xfrm` in the crate: creating a shape and moving one go through the
+    // same writer, so a built transform and an edited transform cannot drift apart.
+    let mut xfrm = Transform2D::empty_element(interner);
+    bounds.to_transform().apply(&mut xfrm, interner);
     let av_lst = build::leaf(interner, "a", DML_MAIN, "avLst", Vec::new());
     let prstgeom_attrs = vec![build::attr(interner, "prst", prst)];
     let prst_geom = build::node(
