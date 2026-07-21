@@ -15,6 +15,41 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.12] - 2026-07-21
+
+Where a shape actually renders. The transform workstream is complete.
+
+### Added
+
+- **`Presentation::effective_shape_bounds`** and **`Presentation::effective_shape_transform`** — the
+  position a shape *renders* at, not the one it declares. A placeholder that places itself nowhere
+  resolves through the same-slot placeholder on its layout, and failing that its master.
+
+### Changed
+
+- The candidate walk every effective property starts with — the addressed shape, then the same-slot
+  placeholder on each part the surface inherits from — is now **one** private helper
+  (`placeholder_candidates` + `candidate_shape`) rather than a copy inside `effective_shape_fill`,
+  `_outline` and `_effects`. Behaviour is unchanged; those suites pass untouched.
+
+### Notes
+
+- **Inheritance is all-or-nothing at the `a:xfrm` level.** Text formatting merges tier by tier, each
+  supplying what the ones above left unset; a transform does not. A shape cannot take its position
+  from the layout and its size from the master, so the first tier that states anything wins whole.
+- **A present-but-empty `<a:xfrm/>` states nothing**, so resolution steps past it exactly as it steps
+  past a tier with no transform element at all — what `Transform2D::is_empty` exists for.
+- A shape that is **not a placeholder** has no tier to inherit from, so its effective transform is
+  its explicit one.
+- A tier that answers with only a rotation yields `effective_shape_bounds == None`: bounds are all
+  four numbers, and the all-or-nothing rule means no other tier is consulted.
+- `tests/fixtures/layouts.pptx`'s `slideLayout2` title placeholder no longer declares an `a:xfrm`,
+  so it defers to the master — ordinary in real decks, and the only way the master tier becomes
+  reachable. A slide built from that layout now resolves its title at the master and its body at the
+  layout.
+- `docs/TRANSFORM_HANDOFF.md` closes the workstream; `PLAN.md` now names **tables** and **speaker
+  notes** as what remains before `v0.1`.
+
 ## [0.0.11] - 2026-07-21
 
 A shape can be moved. The transform reaches the deck.
