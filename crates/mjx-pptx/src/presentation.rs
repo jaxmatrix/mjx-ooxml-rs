@@ -20,6 +20,7 @@ use crate::error::PptxError;
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
+use crate::table::{CellFormat, Cells};
 use crate::{build, constants, nav, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
@@ -1539,39 +1540,149 @@ impl Presentation {
         let cell = slide::nth_cell_mut(row_element, interner, column)
             .ok_or(PptxError::MalformedSlide("table cell vanished"))?;
 
-        // `CT_TableCell` is `txBody?`, `tcPr?`, `extLst?` — a created `a:tcPr` goes after the text
-        // body and before anything else, since sequence order is validity.
-        let index = match cell.children.iter().position(|node| match node {
-            RawNode::Element(element) => nav::name_is(&element.name, interner, DML_MAIN, "tcPr"),
-            _ => false,
-        }) {
-            Some(index) => index,
-            None => {
-                let at = cell
-                    .children
-                    .iter()
-                    .position(|node| match node {
-                        RawNode::Element(element) => {
-                            !nav::name_is(&element.name, interner, DML_MAIN, "txBody")
-                        }
-                        _ => false,
-                    })
-                    .unwrap_or(cell.children.len());
-                let element = build::leaf(interner, "a", DML_MAIN, "tcPr", Vec::new());
-                cell.children.insert(at, RawNode::Element(element));
-                cell.empty = false;
-                at
-            }
-        };
-        let RawNode::Element(slot) = &mut cell.children[index] else {
-            return Err(PptxError::MalformedSlide(
-                "cell properties are not an element",
-            ));
-        };
-
+        let slot = cell_properties_slot(cell, interner)?;
         let mut properties = TableCellProperties::from_xml(slot, interner)?;
         edit(&mut properties, interner)?;
         *slot = properties.to_xml(interner);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Formatting many cells at once
+    //
+    // The per-property setters above each say one thing, which is right when a caller means one
+    // thing. A navy header row with a rule under it is *one* intention, and saying it nine times in
+    // a loop reads like nine. These take a `Cells` selection and a spec, in the shape the crate
+    // already uses everywhere else.
+    // -----------------------------------------------------------------------------------------
+
+    /// Applies `format` to every cell in `cells`. Marks only that part dirty.
+    ///
+    /// **Only the properties `format` names are written**, so a fill can be applied across a region
+    /// whose cells carry different borders without flattening them. A format that names nothing
+    /// changes nothing, and creates no `a:tcPr` for a cell that had none.
+    ///
+    /// The table is located once and the selection walked within it, so formatting a whole table
+    /// costs one traversal rather than one per cell.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::ShapeIsNotATable`] if the shape frames no table,
+    /// [`PptxError::TableCellOutOfRange`] if the selection reaches outside it, or another
+    /// [`PptxError`] if an index is out of range or the part is malformed.
+    pub fn format_cells(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        cells: Cells,
+        format: &CellFormat,
+    ) -> Result<(), PptxError> {
+        if format.is_empty() {
+            return Ok(());
+        }
+        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner| {
+            let slot = cell_properties_slot(cell, interner)?;
+            let mut properties = TableCellProperties::from_xml(slot, interner)?;
+            apply_cell_format(&mut properties, interner, format);
+            *slot = properties.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to **every run of every paragraph** in each cell of `cells`, and to each
+    /// paragraph's mark — bolding a header row in one call.
+    ///
+    /// This is the cell-selection form of
+    /// [`set_cell_run_properties_all`](Self::set_cell_run_properties_all).
+    ///
+    /// # Errors
+    /// As [`format_cells`](Self::format_cells), plus a malformed text body.
+    pub fn format_cell_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        cells: Cells,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner| {
+            let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
+                return Ok(()); // A cell with no text body has no runs to format.
+            };
+            let mut body = TextBody::from_xml(slot, interner)?;
+            set_all_run_properties_in(&mut body, interner, spec)?;
+            *slot = body.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to the layout properties of **every paragraph** in each cell of `cells` —
+    /// right-aligning a column of numbers in one call.
+    ///
+    /// # Errors
+    /// As [`format_cell_text`](Self::format_cell_text).
+    pub fn format_cell_paragraphs(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        cells: Cells,
+        spec: &ParagraphPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner| {
+            let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
+                return Ok(());
+            };
+            let mut body = TextBody::from_xml(slot, interner)?;
+            let count = body.paragraphs().count();
+            for index in 0..count {
+                set_paragraph_properties_in(&mut body, interner, index, spec)?;
+            }
+            *slot = body.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// Locates the table once, resolves `cells` against its real dimensions, and hands each selected
+    /// `a:tc` to `edit` in row-major order.
+    fn edit_selected_cells(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        cells: &Cells,
+        edit: impl Fn(&mut RawElement, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+
+        let (rows, columns) = {
+            let table = slide::shape_table(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+            table_dimensions_of(table, interner)
+        };
+        let positions = cells.resolve(rows, columns).map_err(|(row, column)| {
+            PptxError::TableCellOutOfRange {
+                row,
+                column,
+                rows,
+                columns,
+            }
+        })?;
+
+        let table = slide::shape_table_mut(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+        for (row, column) in positions {
+            let row_element = slide::nth_row_mut(table, interner, row)
+                .ok_or(PptxError::MalformedSlide("table row vanished"))?;
+            let cell = slide::nth_cell_mut(row_element, interner, column)
+                .ok_or(PptxError::MalformedSlide("table cell vanished"))?;
+            edit(cell, interner)?;
+        }
         Ok(())
     }
 
@@ -3960,6 +4071,74 @@ fn set_run_text(body: &mut TextBody, run_idx: usize, text: &str) -> Result<(), P
 /// A `TextSite` naming one cell of the table a shape frames.
 fn cell(shape: usize, row: usize, column: usize) -> TextSite {
     TextSite::Cell { shape, row, column }
+}
+
+/// The `a:tcPr` of a raw `a:tc`, creating it when the cell has none — placed after the cell's
+/// `a:txBody`, since `CT_TableCell` is a sequence.
+fn cell_properties_slot<'a>(
+    cell: &'a mut RawElement,
+    interner: &mut Interner,
+) -> Result<&'a mut RawElement, PptxError> {
+    let index = match cell.children.iter().position(|node| match node {
+        RawNode::Element(element) => nav::name_is(&element.name, interner, DML_MAIN, "tcPr"),
+        _ => false,
+    }) {
+        Some(index) => index,
+        None => {
+            let at = cell
+                .children
+                .iter()
+                .position(|node| match node {
+                    RawNode::Element(element) => {
+                        !nav::name_is(&element.name, interner, DML_MAIN, "txBody")
+                    }
+                    _ => false,
+                })
+                .unwrap_or(cell.children.len());
+            let element = build::leaf(interner, "a", DML_MAIN, "tcPr", Vec::new());
+            cell.children.insert(at, RawNode::Element(element));
+            cell.empty = false;
+            at
+        }
+    };
+    match &mut cell.children[index] {
+        RawNode::Element(element) => Ok(element),
+        _ => Err(PptxError::MalformedSlide(
+            "cell properties are not an element",
+        )),
+    }
+}
+
+/// Writes the properties a [`CellFormat`] names onto one cell's `a:tcPr`, leaving the rest alone.
+fn apply_cell_format(
+    properties: &mut TableCellProperties,
+    interner: &mut Interner,
+    format: &CellFormat,
+) {
+    if let Some(fill) = format.fill() {
+        properties.set_fill(interner, fill);
+    }
+    for (edge, line) in format.borders() {
+        properties.set_border(interner, *edge, line.as_ref());
+    }
+    let margins = format.margins();
+    properties.set_margins(
+        interner,
+        margins.left,
+        margins.right,
+        margins.top,
+        margins.bottom,
+    );
+    let (anchor, direction, overflow) = format.framing();
+    if let Some(anchor) = anchor {
+        properties.set_anchor(interner, anchor);
+    }
+    if let Some(direction) = direction {
+        properties.set_text_direction(interner, direction);
+    }
+    if let Some(overflow) = overflow {
+        properties.set_horizontal_overflow(interner, overflow);
+    }
 }
 
 /// Which text body an index-addressed text call is about.
