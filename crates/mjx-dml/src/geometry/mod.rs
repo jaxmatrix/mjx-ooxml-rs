@@ -1,4 +1,8 @@
-//! DrawingML preset-shape geometry: `a:prstGeom` → `a:avLst` → `a:gd`.
+//! What shape a shape is, and where it sits: preset geometry (`a:prstGeom`) and the 2-D transform
+//! that places it ([`Transform2D`], `a:xfrm`), over the friendly measures ([`Emu`], [`Angle`],
+//! [`Fraction`]) both are expressed in.
+//!
+//! # Preset geometry: `a:prstGeom` → `a:avLst` → `a:gd`
 //!
 //! A shape's geometry is `spPr > (prstGeom | custGeom)`. A **preset** shape serializes only its
 //! preset kind plus an optional list of adjustment overrides:
@@ -31,8 +35,10 @@ mod guide;
 mod measures;
 mod preset;
 mod shape;
+mod transform;
 
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
 pub use measures::{Angle, Emu, FontSize, Fraction, IndentLevel, LineWidth, TextPoint};
 pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
 pub use shape::ShapeGeometry;
+pub use transform::{Position, Size, Transform2D};

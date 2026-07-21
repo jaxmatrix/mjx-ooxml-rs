@@ -39,8 +39,8 @@ pub use fill::{
 };
 pub use geometry::{
     Angle, Emu, FontSize, Fraction, GeometryGuide, GeometryGuideList, GeometryGuideListContent,
-    IndentLevel, LineWidth, PresetGeometry, PresetGeometryContent, ResolvedAdjustment,
-    ShapeGeometry, TextPoint,
+    IndentLevel, LineWidth, Position, PresetGeometry, PresetGeometryContent, ResolvedAdjustment,
+    ShapeGeometry, Size, TextPoint, Transform2D,
 };
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,

@@ -97,6 +97,24 @@ pub(crate) fn dml_child<'a>(
     })
 }
 
+/// The first element in `children` named `(DML_MAIN, local)`, mutably — the writer's counterpart to
+/// [`dml_child`], for the models that edit a child **in place** (setting attributes on an existing
+/// `a:off`) rather than rebuilding it, so the child's unmodeled attributes survive the edit.
+pub(crate) fn dml_child_mut<'a>(
+    children: &'a mut [RawNode],
+    interner: &Interner,
+    local: &str,
+) -> Option<&'a mut RawElement> {
+    children.iter_mut().find_map(|node| match node {
+        RawNode::Element(child)
+            if is_dml(&child.name, interner) && interner.resolve(child.name.local) == local =>
+        {
+            Some(child)
+        }
+        _ => None,
+    })
+}
+
 /// Sets an unprefixed attribute `local="value"` on `attributes` — rewriting the existing one in
 /// place (preserving order) or appending it — with `value` escaped for an attribute.
 pub(crate) fn set_attr(
@@ -155,7 +173,11 @@ pub(crate) fn attr_by_local<'a>(
 // exactly one wire spelling on read and one on write.
 
 /// Reads an EMU-valued attribute (`ST_(Positive)Coordinate`) as an [`Emu`].
-pub(crate) fn attr_emu(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Option<Emu> {
+pub(crate) fn attr_emu(
+    attributes: &[RawAttribute],
+    interner: &Interner,
+    name: &str,
+) -> Option<Emu> {
     attr_str(attributes, interner, name)
         .and_then(|s| s.trim().parse::<i64>().ok())
         .map(Emu::from_emu)
