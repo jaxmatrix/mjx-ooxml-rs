@@ -75,9 +75,12 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   ending in the master's `p:txStyles` (`docs/TEXT_FORMATTING_HANDOFF.md`). ✅ **transform** (`a:xfrm`)
   — position, size, rotation and mirror flags, read and written on every shape kind, plus
   `effective_shape_bounds`, so a placeholder's real position resolves through the layout and master
-  (`docs/TRANSFORM_HANDOFF.md`). Still open before `v0.1`: **tables** (`a:tbl` inside a
-  `p:graphicFrame`) and **speaker notes** (the notes slide/master parts). Smaller follow-ups are
-  listed at the end of each workstream's handoff — group descent, hyperlinks, run coalescing.
+  (`docs/TRANSFORM_HANDOFF.md`). 🔨 **tables** (`a:tbl` inside a `p:graphicFrame`) — *in progress*:
+  the model, creation, the cell text and formatting surface, cell selections, and merging have
+  shipped; inserting/removing rows and columns, the `tableStyles.xml` part, and effective cell
+  formatting remain (`docs/TABLES_HANDOFF.md`). Still open after that: **speaker notes** (the notes
+  slide/master parts). Smaller follow-ups are listed at the end of each workstream's handoff —
+  group descent, hyperlinks, run coalescing.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).
