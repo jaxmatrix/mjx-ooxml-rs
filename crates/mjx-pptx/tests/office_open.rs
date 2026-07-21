@@ -182,6 +182,53 @@ fn deck_with_added_text_box_opens() {
 }
 
 #[test]
+fn deck_with_a_created_table_opens() {
+    // The whole `p:graphicFrame` we emit — the non-visual properties, the PresentationML `p:xfrm`,
+    // the `a:graphicData` uri, the grid and every cell — has to be acceptable to a real Office
+    // implementation, not merely to our reading of the schema. A table is also the first thing this
+    // library builds that a consumer will silently drop if any of that is wrong.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let table = pres
+        .add_table(0, 3, 3, ShapeBounds::from_inches(0.5, 1.5, 8.0, 3.0))
+        .expect("add table");
+
+    let cells = [
+        (0, 0, "Region"),
+        (0, 1, "Revenue"),
+        (0, 2, "Change"),
+        (1, 0, "North"),
+        (1, 1, "1,204"),
+        (1, 2, "+12%"),
+        (2, 0, "South"),
+        (2, 1, "987"),
+        (2, 2, "-3%"),
+    ];
+    for (row, column, text) in cells {
+        pres.set_cell_text(0, table, row, column, 0, text)
+            .expect("set cell text");
+    }
+
+    // A header row in bold, and the numbers right-aligned — the formatting a real table carries.
+    let bold = CharacterPropertiesSpec::new().with_bold(true);
+    for column in 0..3 {
+        pres.set_cell_run_properties_all(0, table, 0, column, &bold)
+            .expect("bold the header");
+    }
+    let right = ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Right);
+    for row in 1..3 {
+        for column in 1..3 {
+            pres.set_cell_paragraph_properties(0, table, row, column, 0, &right)
+                .expect("align the numbers");
+        }
+    }
+    pres.set_row_height(0, table, 0, Emu::from_points(30.0))
+        .expect("taller header row");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "created_table");
+}
+
+#[test]
 fn deck_with_moved_and_rotated_shapes_opens() {
     // The transform write path end-to-end: a shape given bounds it never had, one moved and
     // resized, and one rotated and mirrored. The `a:xfrm` we emit has to be valid to a real Office
