@@ -4,8 +4,8 @@ use mjx_dml::{
     resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
     BlipFill, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Fill, FillSpec,
     FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties, ParagraphPropertiesSpec,
-    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, TextBody, TextFont, TextListStyle,
-    Theme, ThemeInfo, Transform2D,
+    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table, TextBody, TextFont,
+    TextListStyle, Theme, ThemeInfo, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -438,21 +438,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<String, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
-        let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
-        let txbody =
-            slide::shape_txbody(shape, &doc.interner).ok_or(PptxError::ShapeHasNoTextBody)?;
-        let body = TextBody::from_xml(txbody, &doc.interner)?;
-        Ok(body.text())
+        self.with_text_body(surface, shape_idx, |body, _| Ok(body.text()))
     }
 
     /// Replaces the text of the `run_idx`-th run (flattened over the shape's paragraphs, in document
@@ -469,41 +455,9 @@ impl Presentation {
         text: &str,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
-        let doc = self.package.part_tree_mut(&slide_part)?;
-        // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
-        let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
-        let slot =
-            nav::child_mut(shape, interner, PML, "txBody").ok_or(PptxError::ShapeHasNoTextBody)?;
-
-        let mut body = TextBody::from_xml(slot, interner)?;
-        let run_count = body
-            .paragraphs()
-            .flat_map(|paragraph| paragraph.runs())
-            .count();
-        let run = body
-            .paragraphs_mut()
-            .flat_map(|paragraph| paragraph.runs_mut())
-            .nth(run_idx)
-            .ok_or(PptxError::RunIndexOutOfRange {
-                index: run_idx,
-                count: run_count,
-            })?;
-        if !run.set_text(text) {
-            return Err(PptxError::RunHasNoText);
-        }
-        // The edit lands here: rebuild the txBody in place, reusing the part's own interner.
-        *slot = body.to_xml(interner);
-        Ok(())
+        self.edit_text_body(surface, shape_idx, |body, _| {
+            set_run_text(body, run_idx, text)
+        })
     }
 
     /// Reads a shape's text body as a typed value. Does **not** dirty the part.
@@ -515,42 +469,64 @@ impl Presentation {
         self.with_text_body(surface, shape_idx, |body, _| Ok(body.clone()))
     }
 
-    /// Reads a shape's text body and hands it, with the part's interner, to `read` — for the
-    /// accessors that need the interner to resolve what they return. Does **not** dirty the part.
-    ///
-    /// The interner is borrowed rather than cloned: a part's interner holds every string in it, and
-    /// copying that per property read would be absurd.
+    /// Reads a shape's text body and hands it, with the part's interner, to `read`. Does **not**
+    /// dirty the part.
     fn with_text_body<R>(
         &mut self,
         surface: Surface,
         shape_idx: usize,
         read: impl FnOnce(&TextBody, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
-        let part = self.surface_part(surface)?.clone();
-        let doc = self.package.part_tree(&part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
-        let txbody =
-            slide::shape_txbody(shape, &doc.interner).ok_or(PptxError::ShapeHasNoTextBody)?;
-        let body = TextBody::from_xml(txbody, &doc.interner)?;
-        read(&body, &doc.interner)
+        self.with_text_body_at(surface, TextSite::Shape(shape_idx), read)
     }
 
-    /// Locates a shape's text body, hands it to `edit`, and writes the result back — the one place
-    /// the text-editing calls share, so the split borrow and the rebuild happen once.
-    ///
-    /// Marks only that part dirty, and only when `edit` succeeds is the body written back.
+    /// Locates a shape's text body, hands it to `edit`, and writes the result back.
     fn edit_text_body(
         &mut self,
         surface: Surface,
         shape_idx: usize,
+        edit: impl FnOnce(&mut TextBody, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(surface, TextSite::Shape(shape_idx), edit)
+    }
+
+    /// Reads the text body at `site` and hands it, with the part's interner, to `read` — for the
+    /// accessors that need the interner to resolve what they return. Does **not** dirty the part.
+    ///
+    /// The interner is borrowed rather than cloned: a part's interner holds every string in it, and
+    /// copying that per property read would be absurd.
+    fn with_text_body_at<R>(
+        &mut self,
+        surface: Surface,
+        site: TextSite,
+        read: impl FnOnce(&TextBody, &Interner) -> Result<R, PptxError>,
+    ) -> Result<R, PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner)
+            .nth(site.shape_index())
+            .ok_or(PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: site.shape_index(),
+                count,
+            })?;
+        let txbody = locate_text_body(shape, &doc.interner, site)?;
+        let body = TextBody::from_xml(txbody, &doc.interner)?;
+        read(&body, &doc.interner)
+    }
+
+    /// Locates the text body at `site`, hands it to `edit`, and writes the result back — the one
+    /// place every text-editing call shares, so the split borrow and the rebuild happen once.
+    ///
+    /// Marks only that part dirty, and only when `edit` succeeds is the body written back. Only the
+    /// addressed `a:txBody` is parsed and rebuilt: reaching a table cell walks the raw tree rather
+    /// than parsing the whole table, so editing one cell costs the same as editing a shape.
+    fn edit_text_body_at(
+        &mut self,
+        surface: Surface,
+        site: TextSite,
         edit: impl FnOnce(&mut TextBody, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
         let part = self.surface_part(surface)?.clone();
@@ -559,15 +535,14 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
         let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
+        let shape = slide::nth_shape_mut(sp_tree, interner, site.shape_index()).ok_or(
             PptxError::ShapeIndexOutOfRange {
                 surface,
-                index: shape_idx,
+                index: site.shape_index(),
                 count,
             },
         )?;
-        let slot =
-            nav::child_mut(shape, interner, PML, "txBody").ok_or(PptxError::ShapeHasNoTextBody)?;
+        let slot = locate_text_body_mut(shape, interner, site)?;
 
         let mut body = TextBody::from_xml(slot, interner)?;
         edit(&mut body, interner)?;
@@ -2818,6 +2793,144 @@ fn master_style_local(slot: slide::Placeholder) -> &'static str {
         | PlaceholderType::Header => "otherStyle",
         _ => "bodyStyle",
     }
+}
+
+/// Replaces the text of the `run_idx`-th run of `body`, flattened over its paragraphs in document
+/// order — what `set_shape_text` and `set_cell_text` both mean by "set the text".
+fn set_run_text(body: &mut TextBody, run_idx: usize, text: &str) -> Result<(), PptxError> {
+    let count = body
+        .paragraphs()
+        .flat_map(|paragraph| paragraph.runs())
+        .count();
+    let run = body
+        .paragraphs_mut()
+        .flat_map(|paragraph| paragraph.runs_mut())
+        .nth(run_idx)
+        .ok_or(PptxError::RunIndexOutOfRange {
+            index: run_idx,
+            count,
+        })?;
+    if !run.set_text(text) {
+        return Err(PptxError::RunHasNoText);
+    }
+    Ok(())
+}
+
+/// Which text body an index-addressed text call is about.
+///
+/// A shape's `p:txBody` and a table cell's `a:txBody` are the *same* `CT_TextBody`, so every text
+/// operation applies to either; this is how the private locators say which one. The public surface
+/// spells the two apart (`shape_text` / `cell_text`), but the logic below them exists once.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TextSite {
+    /// The shape's own text body.
+    Shape(usize),
+    /// A cell of the table the shape frames.
+    Cell {
+        /// The graphic frame's index in the shape tree.
+        shape: usize,
+        /// The cell's row.
+        row: usize,
+        /// The cell's column.
+        column: usize,
+    },
+}
+
+impl TextSite {
+    /// The shape this site is inside, whichever kind it is.
+    fn shape_index(self) -> usize {
+        match self {
+            Self::Shape(index) | Self::Cell { shape: index, .. } => index,
+        }
+    }
+}
+
+/// The text body `site` names within `shape`.
+fn locate_text_body<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+    site: TextSite,
+) -> Result<&'a RawElement, PptxError> {
+    match site {
+        TextSite::Shape(_) => {
+            slide::shape_txbody(shape, interner).ok_or(PptxError::ShapeHasNoTextBody)
+        }
+        TextSite::Cell { row, column, .. } => {
+            let table = slide::shape_table(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+            let cell = table_cell(table, interner, row, column)?;
+            nav::child(cell, interner, DML_MAIN, "txBody").ok_or(PptxError::ShapeHasNoTextBody)
+        }
+    }
+}
+
+/// The text body `site` names within `shape`, mutably.
+fn locate_text_body_mut<'a>(
+    shape: &'a mut RawElement,
+    interner: &Interner,
+    site: TextSite,
+) -> Result<&'a mut RawElement, PptxError> {
+    match site {
+        TextSite::Shape(_) => {
+            nav::child_mut(shape, interner, PML, "txBody").ok_or(PptxError::ShapeHasNoTextBody)
+        }
+        TextSite::Cell { row, column, .. } => {
+            // The bounds are checked against an immutable view first, so the error can report the
+            // table's real shape before the tree is borrowed mutably.
+            let (rows, columns) = {
+                let table =
+                    slide::shape_table(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+                table_dimensions_of(table, interner)
+            };
+            if row >= rows || column >= columns {
+                return Err(PptxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                });
+            }
+            let table =
+                slide::shape_table_mut(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+            let row_element = slide::nth_row_mut(table, interner, row)
+                .ok_or(PptxError::MalformedSlide("table row vanished"))?;
+            let cell = slide::nth_cell_mut(row_element, interner, column)
+                .ok_or(PptxError::MalformedSlide("table cell vanished"))?;
+            nav::child_mut(cell, interner, DML_MAIN, "txBody").ok_or(PptxError::ShapeHasNoTextBody)
+        }
+    }
+}
+
+/// The cell at `(row, column)` of a raw `a:tbl`, or a typed out-of-range error naming the table's
+/// real shape.
+fn table_cell<'a>(
+    table: &'a RawElement,
+    interner: &Interner,
+    row: usize,
+    column: usize,
+) -> Result<&'a RawElement, PptxError> {
+    let (rows, columns) = table_dimensions_of(table, interner);
+    let out_of_range = || PptxError::TableCellOutOfRange {
+        row,
+        column,
+        rows,
+        columns,
+    };
+    if row >= rows || column >= columns {
+        return Err(out_of_range());
+    }
+    let row_element = slide::nth_dml_child(table, interner, "tr", row).ok_or_else(out_of_range)?;
+    slide::nth_dml_child(row_element, interner, "tc", column).ok_or_else(out_of_range)
+}
+
+/// A raw `a:tbl`'s dimensions: its row count, and its column count **as the grid declares it**
+/// (`a:tblGrid` is where a table states its width, not any row's cell count).
+///
+/// A table this model cannot parse reports `(0, 0)` rather than failing — the callers all turn that
+/// into an out-of-range error naming the shape, which is the more useful thing to say.
+fn table_dimensions_of(table: &RawElement, interner: &Interner) -> (usize, usize) {
+    Table::from_xml(table, interner)
+        .map(|table| (table.row_count(), table.column_count()))
+        .unwrap_or_default()
 }
 
 /// How to locate a candidate shape within a part's shape tree while resolving an effective property.
