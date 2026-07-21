@@ -15,11 +15,11 @@
 //! an `effectLst` child and is handled (opaque) at the packaging layer.
 
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
-use mjx_ooxml_types::support::on_off;
 
 use crate::build::{
-    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls,
-    first_color_child, first_fill_child, parse_angle, parse_percentage,
+    attr_angle, attr_bool, attr_emu, attr_fraction, attr_str, dml_attr, dml_child, dml_element,
+    dml_name, fidelity_element_impls, first_color_child, first_fill_child, push_angle, push_bool,
+    push_emu, push_fraction,
 };
 use crate::color::{Color, ColorSpec};
 use crate::fill::{Fill, FillSpec};
@@ -358,80 +358,8 @@ impl EffectListSpec {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Attribute readers/writers (measures & booleans)
+// Effect-specific builders
 // ---------------------------------------------------------------------------------------------
-
-/// Reads an EMU-valued attribute (`ST_(Positive)Coordinate`) as an [`Emu`].
-fn attr_emu(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Option<Emu> {
-    attr_str(attributes, interner, name)
-        .and_then(|s| s.trim().parse::<i64>().ok())
-        .map(Emu::from_emu)
-}
-
-/// Reads an angle attribute (`ST_(Positive)FixedAngle`, 60000ths of a degree) as an [`Angle`].
-fn attr_angle(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Option<Angle> {
-    attr_str(attributes, interner, name).and_then(parse_angle)
-}
-
-/// Reads a percentage attribute (`ST_Percentage` family) as a [`Fraction`].
-fn attr_fraction(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Option<Fraction> {
-    attr_str(attributes, interner, name).and_then(parse_percentage)
-}
-
-/// Reads a boolean attribute (`xsd:boolean`) — accepting every accepted spelling.
-fn attr_bool(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Option<bool> {
-    attr_str(attributes, interner, name).and_then(on_off::from_wire)
-}
-
-/// Pushes an EMU attribute (native integer form) when set.
-fn push_emu(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: Option<Emu>,
-) {
-    if let Some(value) = value {
-        attrs.push(dml_attr(interner, name, &value.emu().to_string()));
-    }
-}
-
-/// Pushes an angle attribute (native 60000ths-of-a-degree form) when set.
-fn push_angle(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: Option<Angle>,
-) {
-    if let Some(value) = value {
-        let native = (value.degrees() * 60_000.0).round() as i64;
-        attrs.push(dml_attr(interner, name, &native.to_string()));
-    }
-}
-
-/// Pushes a percentage attribute (native 1000ths-of-a-percent integer form) when set.
-fn push_fraction(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: Option<Fraction>,
-) {
-    if let Some(value) = value {
-        let native = (value.ratio() * 100_000.0).round() as i64;
-        attrs.push(dml_attr(interner, name, &native.to_string()));
-    }
-}
-
-/// Pushes a boolean attribute (canonical `true`/`false`) when set.
-fn push_bool(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: Option<bool>,
-) {
-    if let Some(value) = value {
-        attrs.push(dml_attr(interner, name, on_off::to_wire(value)));
-    }
-}
 
 /// Pushes the `EG_ColorChoice` child element for `color` when it can be rebuilt.
 fn push_color(children: &mut Vec<RawNode>, interner: &mut Interner, color: &ColorSpec) {

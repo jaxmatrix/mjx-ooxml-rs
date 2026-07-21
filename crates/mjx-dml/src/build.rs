@@ -4,11 +4,12 @@
 
 use mjx_ooxml_core::{FromXml, Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
 use mjx_ooxml_types::namespaces::DML_MAIN;
+use mjx_ooxml_types::support::on_off;
 use mjx_xml::text::escape_attribute;
 
 use crate::color::Color;
 use crate::fill::Fill;
-use crate::geometry::{Angle, Fraction};
+use crate::geometry::{Angle, Emu, Fraction};
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
 /// namespace, so a built element serializes as `a:local` and reads back by `(DML_MAIN, local)`.
@@ -143,6 +144,102 @@ pub(crate) fn attr_by_local<'a>(
         .iter()
         .find(|attribute| interner.resolve(attribute.name.local) == local)
         .and_then(|attribute| std::str::from_utf8(&attribute.value).ok())
+}
+
+// ---------------------------------------------------------------------------------------------
+// Attribute readers/writers (measures & booleans)
+// ---------------------------------------------------------------------------------------------
+//
+// Shared by every typed DrawingML tier that carries measure-valued attributes — the effects
+// (`a:outerShdw@dist`, `@dir`), the transform (`a:off@x`, `a:xfrm@rot`, `@flipH`) — so a measure has
+// exactly one wire spelling on read and one on write.
+
+/// Reads an EMU-valued attribute (`ST_(Positive)Coordinate`) as an [`Emu`].
+pub(crate) fn attr_emu(attributes: &[RawAttribute], interner: &Interner, name: &str) -> Option<Emu> {
+    attr_str(attributes, interner, name)
+        .and_then(|s| s.trim().parse::<i64>().ok())
+        .map(Emu::from_emu)
+}
+
+/// Reads an angle attribute (`ST_(Positive)FixedAngle`, 60000ths of a degree) as an [`Angle`].
+pub(crate) fn attr_angle(
+    attributes: &[RawAttribute],
+    interner: &Interner,
+    name: &str,
+) -> Option<Angle> {
+    attr_str(attributes, interner, name).and_then(parse_angle)
+}
+
+/// Reads a percentage attribute (`ST_Percentage` family) as a [`Fraction`].
+pub(crate) fn attr_fraction(
+    attributes: &[RawAttribute],
+    interner: &Interner,
+    name: &str,
+) -> Option<Fraction> {
+    attr_str(attributes, interner, name).and_then(parse_percentage)
+}
+
+/// Reads a boolean attribute (`xsd:boolean`) — accepting every accepted spelling.
+pub(crate) fn attr_bool(
+    attributes: &[RawAttribute],
+    interner: &Interner,
+    name: &str,
+) -> Option<bool> {
+    attr_str(attributes, interner, name).and_then(on_off::from_wire)
+}
+
+/// Pushes an EMU attribute (native integer form) when set.
+pub(crate) fn push_emu(
+    attrs: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    name: &str,
+    value: Option<Emu>,
+) {
+    if let Some(value) = value {
+        attrs.push(dml_attr(interner, name, &value.emu().to_string()));
+    }
+}
+
+/// Pushes an angle attribute (native 60000ths-of-a-degree form) when set.
+pub(crate) fn push_angle(
+    attrs: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    name: &str,
+    value: Option<Angle>,
+) {
+    if let Some(value) = value {
+        attrs.push(dml_attr(interner, name, &angle_to_wire(value)));
+    }
+}
+
+/// Pushes a percentage attribute (native 1000ths-of-a-percent integer form) when set.
+pub(crate) fn push_fraction(
+    attrs: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    name: &str,
+    value: Option<Fraction>,
+) {
+    if let Some(value) = value {
+        let native = (value.ratio() * 100_000.0).round() as i64;
+        attrs.push(dml_attr(interner, name, &native.to_string()));
+    }
+}
+
+/// Pushes a boolean attribute (canonical `true`/`false`) when set.
+pub(crate) fn push_bool(
+    attrs: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    name: &str,
+    value: Option<bool>,
+) {
+    if let Some(value) = value {
+        attrs.push(dml_attr(interner, name, on_off::to_wire(value)));
+    }
+}
+
+/// An [`Angle`] in its native wire form (60000ths of a degree) — the inverse of [`parse_angle`].
+pub(crate) fn angle_to_wire(angle: Angle) -> String {
+    ((angle.degrees() * 60_000.0).round() as i64).to_string()
 }
 
 /// Parses a DrawingML percentage (`ST_Percentage` family) to a [`Fraction`]: the integer form
