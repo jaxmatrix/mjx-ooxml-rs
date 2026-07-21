@@ -15,6 +15,34 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.10] - 2026-07-21
+
+Where a shape sits, and which way up — the model tier of the transform workstream.
+
+### Added
+
+- **`Transform2D`, `Position` and `Size`** (`mjx-dml`) — `a:xfrm` typed for the first time: an offset
+  (`a:off`), an extent (`a:ext`), a rotation (`@rot`) and the two mirror flags (`@flipH` / `@flipV`).
+  One type covers both `CT_Transform2D` and a group's `CT_GroupTransform2D`, whose `a:chOff` /
+  `a:chExt` child coordinate space is the same sequence with two more members.
+- **`Transform2D::apply`** — writes only the fields a caller names, editing the element in place.
+
+### Notes
+
+- **Every field is optional, and absent is not zero.** A placeholder that declares no `a:xfrm` is
+  asking its layout where it goes; a transform that read as "origin, zero-sized" could not be told
+  from one that means *ask someone else*, and the inheritance walk depends on telling them apart.
+- `apply` **merges rather than rebuilds**, because an `a:xfrm` carries content this model does not
+  describe — a group's child coordinate space, an `extLst`, unknown attributes on the `a:off` itself.
+  Rebuilding it wholesale would move every member of a group whose position was changed. New children
+  are inserted at their rank in the schema's sequence (`off` → `ext` → `chOff` → `chExt`).
+- A transform reads the same whether its wrapper is DrawingML's `a:xfrm` or the `p:xfrm` a
+  `p:graphicFrame` holds — the wrapper's namespace differs, its children do not.
+- The measure attribute readers/writers (`attr_emu`, `push_angle`, …) moved from `effect.rs` to
+  `build.rs`: a measure-valued attribute is not an effect's idea, and now has one spelling on read
+  and one on write rather than one per module.
+- Nothing in `mjx-pptx` uses this yet — reading and writing a shape's bounds is the next PR.
+
 ## [0.0.9] - 2026-07-21
 
 What the text actually renders as. The text-formatting workstream is complete.
