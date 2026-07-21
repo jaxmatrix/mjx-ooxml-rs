@@ -2,15 +2,18 @@
 //! is drawn.
 
 use mjx_derive::{FromXml, ToXml};
-use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode};
+use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode, ToXml as _};
 
 use crate::build::{
-    attr_bool, attr_emu, attr_str, dml_child, fidelity_element_impls, first_fill_child, set_attr,
+    attr_bool, attr_emu, attr_str, dml_child, dml_name, fidelity_element_impls, first_fill_child,
+    is_dml, replace_or_insert_child, set_attr,
 };
-use crate::fill::Fill;
+use crate::fill::{Fill, FillSpec};
 use crate::geometry::Emu;
-use crate::line::LineProperties;
+use crate::line::{LineProperties, LineSpec};
 use crate::text::TextBody;
+
+pub use mjx_ooxml_types::drawingml::{TextAnchoring, TextDirection, TextHorizontalOverflow};
 
 /// `a:tcPr` (`CT_TableCellProperties`) — a cell's margins, text anchoring, borders and fill.
 ///
@@ -130,6 +133,138 @@ impl TableCellProperties {
         attr_bool(&self.attributes, interner, "anchorCtr")
     }
 
+    /// Where the text sits vertically within the cell (`@anchor`; wire default `t`), or `None` if
+    /// unstated.
+    #[must_use]
+    pub fn anchor(&self, interner: &Interner) -> Option<TextAnchoring> {
+        attr_str(&self.attributes, interner, "anchor").and_then(TextAnchoring::from_wire)
+    }
+
+    /// Which way the cell's text flows (`@vert`; wire default `horz`), or `None` if unstated.
+    #[must_use]
+    pub fn text_direction(&self, interner: &Interner) -> Option<TextDirection> {
+        attr_str(&self.attributes, interner, "vert").and_then(TextDirection::from_wire)
+    }
+
+    /// What a character too wide for the cell does (`@horzOverflow`; wire default `clip`), or
+    /// `None` if unstated.
+    #[must_use]
+    pub fn horizontal_overflow(&self, interner: &Interner) -> Option<TextHorizontalOverflow> {
+        attr_str(&self.attributes, interner, "horzOverflow")
+            .and_then(TextHorizontalOverflow::from_wire)
+    }
+
+    /// Sets the four insets between the cell's edges and its text, each independently: a `None`
+    /// leaves that margin exactly as it was, stated or not.
+    pub fn set_margins(
+        &mut self,
+        interner: &mut Interner,
+        left: Option<Emu>,
+        right: Option<Emu>,
+        top: Option<Emu>,
+        bottom: Option<Emu>,
+    ) {
+        for (local, value) in [
+            ("marL", left),
+            ("marR", right),
+            ("marT", top),
+            ("marB", bottom),
+        ] {
+            if let Some(value) = value {
+                set_attr(
+                    &mut self.attributes,
+                    interner,
+                    local,
+                    &value.emu().to_string(),
+                );
+            }
+        }
+    }
+
+    /// Sets where the text sits vertically (`@anchor`).
+    pub fn set_anchor(&mut self, interner: &mut Interner, anchor: TextAnchoring) {
+        set_attr(&mut self.attributes, interner, "anchor", anchor.to_wire());
+    }
+
+    /// Sets which way the text flows (`@vert`).
+    pub fn set_text_direction(&mut self, interner: &mut Interner, direction: TextDirection) {
+        set_attr(&mut self.attributes, interner, "vert", direction.to_wire());
+    }
+
+    /// Sets what a character too wide for the cell does (`@horzOverflow`).
+    pub fn set_horizontal_overflow(
+        &mut self,
+        interner: &mut Interner,
+        overflow: TextHorizontalOverflow,
+    ) {
+        set_attr(
+            &mut self.attributes,
+            interner,
+            "horzOverflow",
+            overflow.to_wire(),
+        );
+    }
+
+    /// Sets the border on `edge`, or removes it when `line` is `None`.
+    ///
+    /// The element is replaced in place when the edge already has one, and otherwise inserted at
+    /// `edge`'s rank in `CT_TableCellProperties`'s sequence — order is validity here, and the five
+    /// other edges, a `cell3D`, a `headers` and an `extLst` all have their own places in it.
+    pub fn set_border(
+        &mut self,
+        interner: &mut Interner,
+        edge: CellBorder,
+        line: Option<&LineSpec>,
+    ) {
+        let local = edge.wire();
+        let Some(line) = line else {
+            self.children.retain(|node| match node {
+                RawNode::Element(element) => {
+                    !(is_dml(&element.name, interner)
+                        && interner.resolve(element.name.local) == local)
+                }
+                _ => true,
+            });
+            return;
+        };
+        // A border is an `a:ln` under another name: same `CT_LineProperties` content, different tag,
+        // which is exactly why one `LineSpec` serves all six edges.
+        let mut element = line.to_line(interner).to_xml(interner);
+        element.name = dml_name(interner, local);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |candidate| candidate == local,
+            tcpr_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// Sets the cell's fill, or removes it when `fill` is `None` — in which case the table style
+    /// decides how the cell is filled.
+    pub fn set_fill(&mut self, interner: &mut Interner, fill: Option<&FillSpec>) {
+        let Some(fill) = fill else {
+            self.children.retain(|node| match node {
+                RawNode::Element(element) => {
+                    !(is_dml(&element.name, interner)
+                        && Fill::is_fill_local(interner.resolve(element.name.local)))
+                }
+                _ => true,
+            });
+            return;
+        };
+        let element = fill.to_fill(interner).to_xml(interner);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            Fill::is_fill_local,
+            tcpr_child_rank,
+        );
+        self.empty = false;
+    }
+
     /// The border on `edge` (`a:lnL` … `a:lnBlToTr`), or `None` if the cell declares none there.
     #[must_use]
     pub fn border(&self, interner: &Interner, edge: CellBorder) -> Option<LineProperties> {
@@ -160,6 +295,24 @@ impl TableCellProperties {
     pub fn set_attribute(&mut self, interner: &mut Interner, local: &str, value: &str) {
         set_attr(&mut self.attributes, interner, local, value);
         self.empty = self.empty && self.children.is_empty();
+    }
+}
+
+/// A child's position in `CT_TableCellProperties`'s `xsd:sequence`: the six borders, then the 3-D
+/// cell style, the fill group, the accessibility headers, and the extension list.
+///
+/// Order is validity here, not style — a fill written before the borders makes the cell unreadable
+/// to Office — so a newly inserted child is placed by this rather than appended.
+fn tcpr_child_rank(local: &str) -> Option<usize> {
+    if let Some(edge) = CellBorder::all().into_iter().find(|e| e.wire() == local) {
+        return Some(edge.rank());
+    }
+    match local {
+        "cell3D" => Some(6),
+        _ if Fill::is_fill_local(local) => Some(7),
+        "headers" => Some(8),
+        "extLst" => Some(9),
+        _ => None,
     }
 }
 
