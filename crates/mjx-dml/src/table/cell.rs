@@ -439,10 +439,59 @@ impl TableCell {
         &self.attributes
     }
 
-    /// Sets an attribute on the cell, rewriting it in place when already present — the merge
-    /// attributes are written through here.
+    /// Sets an attribute on the cell, rewriting it in place when already present.
     pub fn set_attribute(&mut self, interner: &mut Interner, local: &str, value: &str) {
         set_attr(&mut self.attributes, interner, local, value);
+    }
+
+    /// Makes this cell the **anchor** of a merged region `columns` wide and `rows` tall.
+    ///
+    /// A span of `1` is the schema default, so it is **removed** rather than written: a file states
+    /// `gridSpan` only when a cell really does span, and emitting `gridSpan="1"` everywhere would
+    /// add noise to every table this library touches.
+    ///
+    /// This says nothing about the cells being covered — they must be told separately with
+    /// [`set_merged`](Self::set_merged), which is what makes the region a region.
+    pub fn set_spans(&mut self, interner: &mut Interner, columns: usize, rows: usize) {
+        for (local, span) in [("gridSpan", columns), ("rowSpan", rows)] {
+            if span > 1 {
+                set_attr(&mut self.attributes, interner, local, &span.to_string());
+            } else {
+                self.remove_attribute(interner, local);
+            }
+        }
+    }
+
+    /// Marks this cell as **covered** by a merge anchored to its left (`hMerge`) and/or above it
+    /// (`vMerge`). A cell covered from both directions states both.
+    ///
+    /// `false` **removes** the attribute rather than writing `hMerge="0"`: the schema default is
+    /// already false, and "not merged" is the absence of a claim, not a claim of absence.
+    pub fn set_merged(&mut self, interner: &mut Interner, horizontally: bool, vertically: bool) {
+        for (local, merged) in [("hMerge", horizontally), ("vMerge", vertically)] {
+            if merged {
+                set_attr(&mut self.attributes, interner, local, "1");
+            } else {
+                self.remove_attribute(interner, local);
+            }
+        }
+    }
+
+    /// Clears every trace of merging from this cell — both spans and both covered flags — leaving
+    /// an ordinary cell that stands alone.
+    ///
+    /// The cell's text and properties are untouched, which is what lets unmerging give back exactly
+    /// what merging covered up.
+    pub fn clear_merge(&mut self, interner: &mut Interner) {
+        self.set_spans(interner, 1, 1);
+        self.set_merged(interner, false, false);
+    }
+
+    /// Removes an unprefixed attribute, if the cell has one.
+    fn remove_attribute(&mut self, interner: &Interner, local: &str) {
+        self.attributes.retain(|attribute| {
+            attribute.name.prefix.is_some() || interner.resolve(attribute.name.local) != local
+        });
     }
 }
 
