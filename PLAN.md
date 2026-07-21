@@ -69,8 +69,15 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   reaches every slide that inherits it), and `add_slide_from_layout`, which hands back a slide
   carrying the layout's placeholders ready to fill. ✅ **removal** completes the story — `remove_shape`
   on any surface and `remove_slide`, which unwires the deck and takes with it every part only that
-  slide referenced (`Package::remove_part_cascading`). Still open for PowerPoint: master `p:txStyles`
-  feeding *effective text formatting*.
+  slide referenced (`Package::remove_part_cascading`).
+- **Phase 3b — finishing PowerPoint (→ `v0.1`).** ✅ **text formatting** — `a:rPr`/`a:pPr`, bullets and
+  indent levels, editable at four selection scopes, and *effective* resolution up a seven-tier ladder
+  ending in the master's `p:txStyles` (`docs/TEXT_FORMATTING_HANDOFF.md`). ✅ **transform** (`a:xfrm`)
+  — position, size, rotation and mirror flags, read and written on every shape kind, plus
+  `effective_shape_bounds`, so a placeholder's real position resolves through the layout and master
+  (`docs/TRANSFORM_HANDOFF.md`). Still open before `v0.1`: **tables** (`a:tbl` inside a
+  `p:graphicFrame`) and **speaker notes** (the notes slide/master parts). Smaller follow-ups are
+  listed at the end of each workstream's handoff — group descent, hyperlinks, run coalescing.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).
