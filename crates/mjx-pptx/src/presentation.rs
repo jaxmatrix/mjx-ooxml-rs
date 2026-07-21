@@ -2,10 +2,11 @@
 
 use mjx_dml::{
     resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
-    BlipFill, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Emu, Fill, FillSpec,
-    FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties, ParagraphPropertiesSpec,
-    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table, TableColumn, TableRow,
-    TextBody, TextFont, TextListStyle, Theme, ThemeInfo, Transform2D,
+    BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Emu, Fill,
+    FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties,
+    ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table,
+    TableCellProperties, TableColumn, TableRow, TextAnchoring, TextBody, TextDirection, TextFont,
+    TextListStyle, Theme, ThemeInfo, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -16,7 +17,7 @@ use mjx_ooxml_types::presentationml::{
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
-use crate::geometry::{ShapeBounds, SlideSize};
+use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::{build, constants, nav, slide};
@@ -1139,6 +1140,439 @@ impl Presentation {
             cell(shape_idx, row, column),
             |body, interner| set_range_properties_in(body, interner, para_idx, range, spec),
         )
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Cell formatting — what actually draws
+    //
+    // A cell's fill and its six borders are the same `EG_FillProperties` and `CT_LineProperties`
+    // a shape uses, so `FillSpec` and `LineSpec` carry them unchanged; only the element's tag
+    // differs, which is why one `LineSpec` serves all six edges.
+    //
+    // Everything here writes into `a:tcPr`, creating it when the cell has none. An unstated value
+    // reads as `None` rather than as the schema default, because the two are different facts: the
+    // margins default to 0.1"/0.05", not to zero.
+    // -----------------------------------------------------------------------------------------
+
+    /// The fill the cell at `(row, column)` declares, or `None` when it declares none — in which
+    /// case the table style decides. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_fill(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<Option<FillSpec>, PptxError> {
+        self.with_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                Ok(properties
+                    .and_then(|properties| properties.fill(interner))
+                    .map(|fill| fill.spec(interner)))
+            },
+        )
+    }
+
+    /// Fills the cell at `(row, column)`. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_fill(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        fill: &FillSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_fill(interner, Some(fill));
+                Ok(())
+            },
+        )
+    }
+
+    /// Removes the cell's own fill, so the table style decides how it is filled again.
+    ///
+    /// This is **not** the same as filling it with [`FillSpec::None`], which states *no fill at all*
+    /// and blocks the style.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn clear_cell_fill(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_fill(interner, None);
+                Ok(())
+            },
+        )
+    }
+
+    /// The border the cell at `(row, column)` declares on `edge`, or `None` if it declares none
+    /// there. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_border(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        edge: CellBorder,
+    ) -> Result<Option<LineSpec>, PptxError> {
+        self.with_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                Ok(properties
+                    .and_then(|properties| properties.border(interner, edge))
+                    .map(|line| line.spec(interner)))
+            },
+        )
+    }
+
+    /// Draws a border on one edge of the cell at `(row, column)`. Marks only that part dirty.
+    ///
+    /// The five other edges are untouched: each is its own element, and this writes one of them.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_cell_border(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        edge: CellBorder,
+        line: &LineSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_border(interner, edge, Some(line));
+                Ok(())
+            },
+        )
+    }
+
+    /// Removes the border on one edge of the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn clear_cell_border(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        edge: CellBorder,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_border(interner, edge, None);
+                Ok(())
+            },
+        )
+    }
+
+    /// The four insets between the cell's edges and its text, each `None` when the cell does not
+    /// state it. Reading does not dirty the part.
+    ///
+    /// An unstated margin is **not** a zero one — the schema defaults are `0.1"` horizontally and
+    /// `0.05"` vertically, exposed as
+    /// [`TableCellProperties::DEFAULT_MARGIN_HORIZONTAL`](mjx_dml::TableCellProperties::DEFAULT_MARGIN_HORIZONTAL)
+    /// and its vertical counterpart.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_margins(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<CellMargins, PptxError> {
+        self.with_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                let Some(properties) = properties else {
+                    return Ok(CellMargins::default());
+                };
+                Ok(CellMargins {
+                    left: properties.left_margin(interner),
+                    right: properties.right_margin(interner),
+                    top: properties.top_margin(interner),
+                    bottom: properties.bottom_margin(interner),
+                })
+            },
+        )
+    }
+
+    /// Sets the cell's insets. Each field left `None` is **not written**, so a caller can set one
+    /// margin without stating the other three.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_margins(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        margins: CellMargins,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_margins(
+                    interner,
+                    margins.left,
+                    margins.right,
+                    margins.top,
+                    margins.bottom,
+                );
+                Ok(())
+            },
+        )
+    }
+
+    /// Where the text sits vertically in the cell at `(row, column)`, or `None` if unstated (the
+    /// wire default is [`TextAnchoring::Top`]). Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_anchor(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<Option<TextAnchoring>, PptxError> {
+        self.with_cell_properties(surface.into(), shape_idx, row, column, |properties, interner| {
+            Ok(properties.and_then(|properties| properties.anchor(interner)))
+        })
+    }
+
+    /// Sets where the text sits vertically in the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_anchor(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        anchor: TextAnchoring,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_anchor(interner, anchor);
+                Ok(())
+            },
+        )
+    }
+
+    /// Which way the text flows in the cell at `(row, column)`, or `None` if unstated (the wire
+    /// default is [`TextDirection::Horizontal`]). Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_text_direction(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<Option<TextDirection>, PptxError> {
+        self.with_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                Ok(properties.and_then(|properties| properties.text_direction(interner)))
+            },
+        )
+    }
+
+    /// Sets which way the text flows in the cell at `(row, column)` — how a rotated header row is
+    /// made.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_text_direction(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        direction: TextDirection,
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_text_direction(interner, direction);
+                Ok(())
+            },
+        )
+    }
+
+    /// Reads the `a:tcPr` of the cell at `(row, column)` — `None` when the cell declares none — and
+    /// hands it, with the part's interner, to `read`. Does **not** dirty the part.
+    fn with_cell_properties<R>(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        read: impl FnOnce(Option<&TableCellProperties>, &Interner) -> Result<R, PptxError>,
+    ) -> Result<R, PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let table = slide::shape_table(shape, &doc.interner).ok_or(PptxError::ShapeIsNotATable)?;
+        let cell = table_cell(table, &doc.interner, row, column)?;
+        let properties = match nav::child(cell, &doc.interner, DML_MAIN, "tcPr") {
+            Some(element) => Some(TableCellProperties::from_xml(element, &doc.interner)?),
+            None => None,
+        };
+        read(properties.as_ref(), &doc.interner)
+    }
+
+    /// Hands the `a:tcPr` of the cell at `(row, column)` to `edit` and writes it back, **creating
+    /// the element when the cell has none** — inserted after the cell's `a:txBody`, per
+    /// `CT_TableCell`'s sequence.
+    ///
+    /// Only the `a:tcPr` is parsed and rebuilt; the table around it is untouched.
+    fn edit_cell_properties(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        edit: impl FnOnce(&mut TableCellProperties, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+
+        // Bounds first, against an immutable view, so the error can name the table's real shape.
+        let (rows, columns) = {
+            let table = slide::shape_table(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+            table_dimensions_of(table, interner)
+        };
+        if row >= rows || column >= columns {
+            return Err(PptxError::TableCellOutOfRange {
+                row,
+                column,
+                rows,
+                columns,
+            });
+        }
+
+        let table = slide::shape_table_mut(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+        let row_element = slide::nth_row_mut(table, interner, row)
+            .ok_or(PptxError::MalformedSlide("table row vanished"))?;
+        let cell = slide::nth_cell_mut(row_element, interner, column)
+            .ok_or(PptxError::MalformedSlide("table cell vanished"))?;
+
+        // `CT_TableCell` is `txBody?`, `tcPr?`, `extLst?` — a created `a:tcPr` goes after the text
+        // body and before anything else, since sequence order is validity.
+        let index = match cell.children.iter().position(|node| match node {
+            RawNode::Element(element) => nav::name_is(&element.name, interner, DML_MAIN, "tcPr"),
+            _ => false,
+        }) {
+            Some(index) => index,
+            None => {
+                let at = cell
+                    .children
+                    .iter()
+                    .position(|node| match node {
+                        RawNode::Element(element) => {
+                            !nav::name_is(&element.name, interner, DML_MAIN, "txBody")
+                        }
+                        _ => false,
+                    })
+                    .unwrap_or(cell.children.len());
+                let element = build::leaf(interner, "a", DML_MAIN, "tcPr", Vec::new());
+                cell.children.insert(at, RawNode::Element(element));
+                cell.empty = false;
+                at
+            }
+        };
+        let RawNode::Element(slot) = &mut cell.children[index] else {
+            return Err(PptxError::MalformedSlide(
+                "cell properties are not an element",
+            ));
+        };
+
+        let mut properties = TableCellProperties::from_xml(slot, interner)?;
+        edit(&mut properties, interner)?;
+        *slot = properties.to_xml(interner);
+        Ok(())
     }
 
     /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
