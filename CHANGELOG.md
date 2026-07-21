@@ -15,6 +15,41 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.15] - 2026-07-21
+
+A table can be made to look like something.
+
+### Added
+
+- **Cell formatting on `Presentation`** — `cell_fill` / `set_cell_fill` / `clear_cell_fill`,
+  `cell_border` / `set_cell_border` / `clear_cell_border` (all six edges, both diagonals included),
+  `cell_margins` / `set_cell_margins`, `cell_anchor` / `set_cell_anchor`, and
+  `cell_text_direction` / `set_cell_text_direction`.
+- **`CellMargins`** (`mjx-pptx`) — the four insets, each optional.
+- **`TableCellProperties` can now be written** (`mjx-dml`): `set_border`, `set_fill`, `set_margins`,
+  `set_anchor`, `set_text_direction`, `set_horizontal_overflow`, plus the matching typed reads.
+- **`TextAnchoring`, `TextDirection`, `TextHorizontalOverflow`** — generated from
+  `ST_TextAnchoringType`, `ST_TextVerticalType` and `ST_TextHorzOverflowType`.
+
+### Notes
+
+- **A border is an `a:ln` under another name** — same `CT_LineProperties` content, different tag —
+  which is why one `LineSpec` describes all six edges and no border type was needed.
+- **Merge, not rebuild.** `a:tcPr` carries a `cell3D`, a `headers` and an `extLst` this tier does not
+  model, so a child is replaced in place or inserted at its rank in the schema's sequence. Setting
+  one border cannot disturb the other five.
+- **Removing a fill is not writing `FillSpec::None`.** The first lets the table style decide again;
+  the second states that the cell is deliberately unfilled and stops the style. Same for borders.
+- **An unstated margin is absent, not zero.** The schema defaults are `0.1"` horizontally and
+  `0.05"` vertically, so the two are different facts; `CellMargins` keeps every field optional, and
+  a `None` on write leaves that inset exactly as it was.
+- `ST_TextVerticalType` is named **`TextDirection`** because its own values include `horz`
+  (Horizontal) — it selects which way text flows, so a "vertical" name would misdescribe most of its
+  range. `wordArtVertRtl` is `VerticalWordArtRightToLeft`, the title ECMA gives it, even though it
+  reads oddly beside `WordArtVertical`.
+- The seven `a:tblPr` flags are deliberately **not** here: they emphasize nothing on their own, they
+  tell a table style which parts to treat specially, and they land with the `tableStyles.xml` part.
+
 ## [0.0.14] - 2026-07-21
 
 Tables exist on the deck — created, sized, and filled in.
