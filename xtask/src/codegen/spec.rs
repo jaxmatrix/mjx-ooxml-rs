@@ -414,7 +414,11 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_TextVerticalType", "wordArtVert", "WordArtVertical"),
     ("ST_TextVerticalType", "eaVert", "EastAsianVertical"),
     ("ST_TextVerticalType", "mongolianVert", "MongolianVertical"),
-    ("ST_TextVerticalType", "wordArtVertRtl", "VerticalWordArtRightToLeft"),
+    (
+        "ST_TextVerticalType",
+        "wordArtVertRtl",
+        "VerticalWordArtRightToLeft",
+    ),
     // `ST_TextHorzOverflowType` (`a:tcPr@horzOverflow`): §20.1.10.62.
     ("ST_TextHorzOverflowType", "overflow", "Overflow"),
     ("ST_TextHorzOverflowType", "clip", "Clip"),
