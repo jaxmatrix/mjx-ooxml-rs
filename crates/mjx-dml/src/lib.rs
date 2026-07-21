@@ -24,6 +24,7 @@ pub mod geometry;
 pub mod line;
 pub mod resolve;
 pub mod style;
+pub mod table;
 pub mod text;
 pub mod theme;
 
@@ -51,6 +52,10 @@ pub use resolve::{
     ResolvedColor, SchemeColors,
 };
 pub use style::{ColorMap, StyleMatrixReference};
+pub use table::{
+    CellBorder, Table, TableCell, TableCellContent, TableCellProperties, TableColumn, TableContent,
+    TableGrid, TableGridContent, TablePart, TableProperties, TableRow, TableRowContent,
+};
 pub use text::{
     AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,
     BulletSize, BulletTypeface, CharacterProperties, CharacterPropertiesSpec, FontAlignment,
