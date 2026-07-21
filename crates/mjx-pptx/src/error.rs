@@ -167,6 +167,27 @@ pub enum PptxError {
     #[error("picture has no blip fill")]
     PictureHasNoBlipFill,
 
+    /// The addressed shape does not frame a table — it is not a `p:graphicFrame` at all, or the
+    /// graphic it frames is a chart or a diagram rather than an `a:tbl`.
+    #[error("shape is not a table")]
+    ShapeIsNotATable,
+
+    /// The addressed cell is outside the table, which is `rows` by `columns`.
+    ///
+    /// Merged cells do not create holes — every position within the table is addressable — so this
+    /// means the address is genuinely past an edge.
+    #[error("cell ({row}, {column}) is outside a {rows}x{columns} table")]
+    TableCellOutOfRange {
+        /// The row asked for.
+        row: usize,
+        /// The column asked for.
+        column: usize,
+        /// The table's row count.
+        rows: usize,
+        /// The table's column count.
+        columns: usize,
+    },
+
     /// The addressed shape's kind has no transform in its schema, so it cannot be positioned or
     /// sized. Only a `p:contentPart` (`CT_Rel`, a reference to an external part) is such a kind.
     #[error("a {kind:?} has no transform to set")]

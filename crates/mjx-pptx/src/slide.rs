@@ -157,6 +157,77 @@ pub(crate) fn shape_txbody<'a>(
     nav::child(shape, interner, PML, "txBody")
 }
 
+/// The `a:graphicData@uri` a graphic frame carries when what it frames is a table. A frame holding
+/// a chart or a SmartArt diagram names a different one, which is how they are told apart without
+/// looking at the payload.
+pub(crate) const TABLE_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/table";
+
+/// The table a shape frames (`p:graphicFrame > a:graphic > a:graphicData > a:tbl`), if it is a
+/// graphic frame and what it frames is a table.
+///
+/// `None` for any other shape kind, and for a frame holding a chart or diagram instead — the
+/// element is looked for rather than the `uri` trusted, since it is the payload that decides.
+pub(crate) fn shape_table<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let graphic = nav::child(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child(graphic, interner, DML_MAIN, "graphicData")?;
+    nav::child(data, interner, DML_MAIN, "tbl")
+}
+
+/// The table a shape frames, mutably.
+pub(crate) fn shape_table_mut<'a>(
+    shape: &'a mut RawElement,
+    interner: &Interner,
+) -> Option<&'a mut RawElement> {
+    let graphic = nav::child_mut(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child_mut(graphic, interner, DML_MAIN, "graphicData")?;
+    nav::child_mut(data, interner, DML_MAIN, "tbl")
+}
+
+/// The `n`-th `a:tr` of a table, mutably.
+pub(crate) fn nth_row_mut<'a>(
+    table: &'a mut RawElement,
+    interner: &Interner,
+    n: usize,
+) -> Option<&'a mut RawElement> {
+    nav::nth_child_matching_mut(table, interner, n, |element, interner| {
+        nav::name_is(&element.name, interner, DML_MAIN, "tr")
+    })
+}
+
+/// The `n`-th `a:tc` of a row, mutably. A cell covered by a merge is a cell like any other, so the
+/// index space has no holes.
+pub(crate) fn nth_cell_mut<'a>(
+    row: &'a mut RawElement,
+    interner: &Interner,
+    n: usize,
+) -> Option<&'a mut RawElement> {
+    nav::nth_child_matching_mut(row, interner, n, |element, interner| {
+        nav::name_is(&element.name, interner, DML_MAIN, "tc")
+    })
+}
+
+/// The `n`-th child of `parent` named `(DML_MAIN, local)`.
+pub(crate) fn nth_dml_child<'a>(
+    parent: &'a RawElement,
+    interner: &Interner,
+    local: &str,
+    n: usize,
+) -> Option<&'a RawElement> {
+    parent
+        .children
+        .iter()
+        .filter_map(|node| match node {
+            RawNode::Element(element) if nav::name_is(&element.name, interner, DML_MAIN, local) => {
+                Some(element)
+            }
+            _ => None,
+        })
+        .nth(n)
+}
+
 /// A shape's preset geometry (`p:spPr > a:prstGeom`), if it has one. A shape with custom geometry
 /// (`a:custGeom`) or an inherited placeholder geometry returns `None`.
 pub(crate) fn shape_prstgeom<'a>(
