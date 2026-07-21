@@ -492,3 +492,49 @@ fn removing_a_border_leaves_the_others() {
         .border(&doc.interner, CellBorder::Right)
         .is_some());
 }
+
+#[test]
+fn a_default_span_is_removed_rather_than_written() {
+    // `gridSpan="1"` and `hMerge="0"` are what the schema already assumes. Writing them would add
+    // noise to every table this library touches and make a plain cell look like a decision.
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc gridSpan="2" rowSpan="3" hMerge="1" vMerge="1"/></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .clear_merge(&mut doc.interner);
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    for attribute in ["gridSpan", "rowSpan", "hMerge", "vMerge"] {
+        assert!(!out.contains(attribute), "{attribute} survived: {out}");
+    }
+}
+
+#[test]
+fn setting_a_merge_leaves_the_cells_own_content_alone() {
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc id="c1"><a:txBody><a:bodyPr/><a:p><a:r><a:t>kept</a:t></a:r></a:p>"#,
+        r#"</a:txBody><a:tcPr anchor="ctr"/></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    let cell = table.cell_mut(0, 0).expect("0,0");
+    cell.set_spans(&mut doc.interner, 2, 1);
+    cell.set_merged(&mut doc.interner, false, true);
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    assert!(out.contains(r#"gridSpan="2""#), "{out}");
+    assert!(out.contains(r#"vMerge="1""#), "{out}");
+    assert!(!out.contains("hMerge"), "an unset flag is absent: {out}");
+    // The merge attributes are the only change — the text, the properties and the id are untouched.
+    assert!(out.contains("<a:t>kept</a:t>"), "{out}");
+    assert!(out.contains(r#"anchor="ctr""#), "{out}");
+    assert!(out.contains(r#"id="c1""#), "{out}");
+}
