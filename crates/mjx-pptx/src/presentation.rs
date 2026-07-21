@@ -2,10 +2,10 @@
 
 use mjx_dml::{
     resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
-    BlipFill, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Fill, FillSpec,
+    BlipFill, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Emu, Fill, FillSpec,
     FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties, ParagraphPropertiesSpec,
-    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table, TextBody, TextFont,
-    TextListStyle, Theme, ThemeInfo, Transform2D,
+    PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table, TableColumn, TableRow,
+    TextBody, TextFont, TextListStyle, Theme, ThemeInfo, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -460,15 +460,6 @@ impl Presentation {
         })
     }
 
-    /// Reads a shape's text body as a typed value. Does **not** dirty the part.
-    fn read_text_body(
-        &mut self,
-        surface: Surface,
-        shape_idx: usize,
-    ) -> Result<TextBody, PptxError> {
-        self.with_text_body(surface, shape_idx, |body, _| Ok(body.clone()))
-    }
-
     /// Reads a shape's text body and hands it, with the part's interner, to `read`. Does **not**
     /// dirty the part.
     fn with_text_body<R>(
@@ -568,8 +559,9 @@ impl Presentation {
         surface: impl Into<Surface>,
         shape_idx: usize,
     ) -> Result<usize, PptxError> {
-        let body = self.read_text_body(surface.into(), shape_idx)?;
-        Ok(body.paragraphs().count())
+        self.with_text_body(surface.into(), shape_idx, |body, _| {
+            Ok(paragraph_count_of(body))
+        })
     }
 
     /// The number of runs in paragraph `para_idx` of shape `shape_idx`. Reading does not dirty the
@@ -584,9 +576,9 @@ impl Presentation {
         shape_idx: usize,
         para_idx: usize,
     ) -> Result<usize, PptxError> {
-        let body = self.read_text_body(surface.into(), shape_idx)?;
-        let paragraph = nth_paragraph(&body, para_idx)?;
-        Ok(paragraph.runs().count())
+        self.with_text_body(surface.into(), shape_idx, |body, _| {
+            run_count_of(body, para_idx)
+        })
     }
 
     /// The text of paragraph `para_idx` — its runs concatenated. Reading does not dirty the part.
@@ -600,8 +592,9 @@ impl Presentation {
         shape_idx: usize,
         para_idx: usize,
     ) -> Result<String, PptxError> {
-        let body = self.read_text_body(surface.into(), shape_idx)?;
-        Ok(nth_paragraph(&body, para_idx)?.text())
+        self.with_text_body(surface.into(), shape_idx, |body, _| {
+            paragraph_text_of(body, para_idx)
+        })
     }
 
     /// The text of one run. Reading does not dirty the part.
@@ -616,17 +609,9 @@ impl Presentation {
         para_idx: usize,
         run_idx: usize,
     ) -> Result<String, PptxError> {
-        let body = self.read_text_body(surface.into(), shape_idx)?;
-        let paragraph = nth_paragraph(&body, para_idx)?;
-        let count = paragraph.runs().count();
-        let run = paragraph
-            .runs()
-            .nth(run_idx)
-            .ok_or(PptxError::RunIndexOutOfRange {
-                index: run_idx,
-                count,
-            })?;
-        Ok(run.text().to_owned())
+        self.with_text_body(surface.into(), shape_idx, |body, _| {
+            run_text_of(body, para_idx, run_idx)
+        })
     }
 
     /// The layout properties a paragraph declares of its own (`a:pPr`), or `None` if it declares
@@ -646,10 +631,7 @@ impl Presentation {
         para_idx: usize,
     ) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph(body, para_idx)?;
-            Ok(paragraph
-                .properties()
-                .map(|properties| properties.spec(interner)))
+            paragraph_properties_of(body, interner, para_idx)
         })
     }
 
@@ -667,16 +649,7 @@ impl Presentation {
         run_idx: usize,
     ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph(body, para_idx)?;
-            let count = paragraph.runs().count();
-            let run = paragraph
-                .runs()
-                .nth(run_idx)
-                .ok_or(PptxError::RunIndexOutOfRange {
-                    index: run_idx,
-                    count,
-                })?;
-            Ok(run.properties().map(|properties| properties.spec(interner)))
+            run_properties_of(body, interner, para_idx, run_idx)
         })
     }
 
@@ -695,10 +668,7 @@ impl Presentation {
         para_idx: usize,
     ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph(body, para_idx)?;
-            Ok(paragraph
-                .end_properties()
-                .map(|properties| properties.spec(interner)))
+            end_run_properties_of(body, interner, para_idx)
         })
     }
 
@@ -719,17 +689,7 @@ impl Presentation {
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph_mut(body, para_idx)?;
-            let count = paragraph.runs().count();
-            let run = paragraph
-                .runs_mut()
-                .nth(run_idx)
-                .ok_or(PptxError::RunIndexOutOfRange {
-                    index: run_idx,
-                    count,
-                })?;
-            run.set_properties(spec, interner);
-            Ok(())
+            set_run_properties_in(body, interner, para_idx, run_idx, spec)
         })
     }
 
@@ -748,9 +708,7 @@ impl Presentation {
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph_mut(body, para_idx)?;
-            apply_to_paragraph(paragraph, spec, interner);
-            Ok(())
+            set_paragraph_run_properties_in(body, interner, para_idx, spec)
         })
     }
 
@@ -767,10 +725,7 @@ impl Presentation {
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
-            for paragraph in body.paragraphs_mut() {
-                apply_to_paragraph(paragraph, spec, interner);
-            }
-            Ok(())
+            set_all_run_properties_in(body, interner, spec)
         })
     }
 
@@ -791,9 +746,7 @@ impl Presentation {
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph_mut(body, para_idx)?;
-            paragraph.set_end_properties(spec, interner);
-            Ok(())
+            set_end_run_properties_in(body, interner, para_idx, spec)
         })
     }
 
@@ -811,9 +764,7 @@ impl Presentation {
         spec: &ParagraphPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph_mut(body, para_idx)?;
-            paragraph.set_properties(spec, interner);
-            Ok(())
+            set_paragraph_properties_in(body, interner, para_idx, spec)
         })
     }
 
@@ -842,8 +793,7 @@ impl Presentation {
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
-            let paragraph = nth_paragraph_mut(body, para_idx)?;
-            apply_to_scalar_range(paragraph, range, spec, interner)
+            set_range_properties_in(body, interner, para_idx, range, spec)
         })
     }
 
@@ -869,6 +819,326 @@ impl Presentation {
         let text = self.paragraph_text(surface, shape_idx, para_idx)?;
         let scalars = grapheme_range_to_scalars(&text, &range)?;
         self.set_text_range_properties(surface, shape_idx, para_idx, scalars, spec)
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Text in a table cell
+    //
+    // A cell's `a:txBody` is the same `CT_TextBody` as a shape's `p:txBody`, so every one of these
+    // is the corresponding shape method addressed at a cell instead — same operation, same errors,
+    // same guarantees. The pair `(row, column)` addresses the cell; everything after it means what
+    // it means on a shape.
+    //
+    // A cell covered by a merge still holds its own text body, and these reach it. Ask
+    // `merged_cell_anchor` which cell actually renders at a position before reading text from one.
+    // -----------------------------------------------------------------------------------------
+
+    /// The text of the cell at `(row, column)` — its paragraphs joined by newlines.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::ShapeIsNotATable`] if the shape frames no table,
+    /// [`PptxError::TableCellOutOfRange`] if there is no such cell, or another [`PptxError`] if an
+    /// index is out of range, the part is malformed, or the cell has no text body.
+    pub fn cell_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<String, PptxError> {
+        self.with_text_body_at(surface.into(), cell(shape_idx, row, column), |body, _| {
+            Ok(body.text())
+        })
+    }
+
+    /// Replaces the text of the `run_idx`-th run (flattened over the cell's paragraphs) of the cell
+    /// at `(row, column)`. Marks only that part dirty.
+    ///
+    /// A cell created by [`add_table`](Self::add_table) has one empty run, so `run_idx` is `0` for
+    /// the common case of filling in a fresh table.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text), plus [`PptxError::RunHasNoText`] if the selected run has
+    /// no `a:t`.
+    pub fn set_cell_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        run_idx: usize,
+        text: &str,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(surface.into(), cell(shape_idx, row, column), |body, _| {
+            set_run_text(body, run_idx, text)
+        })
+    }
+
+    /// The number of paragraphs in the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_paragraph_count(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<usize, PptxError> {
+        self.with_text_body_at(surface.into(), cell(shape_idx, row, column), |body, _| {
+            Ok(paragraph_count_of(body))
+        })
+    }
+
+    /// The number of runs in one paragraph of the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_run_count(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+    ) -> Result<usize, PptxError> {
+        self.with_text_body_at(surface.into(), cell(shape_idx, row, column), |body, _| {
+            run_count_of(body, para_idx)
+        })
+    }
+
+    /// The text of one paragraph of the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_paragraph_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+    ) -> Result<String, PptxError> {
+        self.with_text_body_at(surface.into(), cell(shape_idx, row, column), |body, _| {
+            paragraph_text_of(body, para_idx)
+        })
+    }
+
+    /// The text of one run of the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_run_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        run_idx: usize,
+    ) -> Result<String, PptxError> {
+        self.with_text_body_at(surface.into(), cell(shape_idx, row, column), |body, _| {
+            run_text_of(body, para_idx, run_idx)
+        })
+    }
+
+    /// The layout properties a paragraph of the cell at `(row, column)` declares of its own.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_paragraph_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+    ) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
+        self.with_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| paragraph_properties_of(body, interner, para_idx),
+        )
+    }
+
+    /// The character properties a run of the cell at `(row, column)` declares of its own.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        run_idx: usize,
+    ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
+        self.with_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| run_properties_of(body, interner, para_idx, run_idx),
+        )
+    }
+
+    /// The paragraph-mark properties (`a:endParaRPr`) of a paragraph of the cell at `(row, column)`
+    /// — the format an empty cell holds, and what text typed into it would take on.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_end_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+    ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
+        self.with_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| end_run_properties_of(body, interner, para_idx),
+        )
+    }
+
+    /// Applies `spec` to one run of the cell at `(row, column)`.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    // The deepest cell addresses take eight parameters: a surface, the frame, a cell's row and
+    // column, a paragraph, a run, and the spec — every one of them a distinct coordinate, and the
+    // price of addressing a cell with plain indices rather than a handle object. Bundling them into
+    // an address struct would be the only way to shorten the list, and would make the common calls
+    // read worse than the deep ones read now.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_cell_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        run_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| set_run_properties_in(body, interner, para_idx, run_idx, spec),
+        )
+    }
+
+    /// Applies `spec` to **every run** of one paragraph of the cell at `(row, column)`, and to its
+    /// paragraph mark.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_paragraph_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| set_paragraph_run_properties_in(body, interner, para_idx, spec),
+        )
+    }
+
+    /// Applies `spec` to **every run of every paragraph** of the cell at `(row, column)` — what
+    /// selecting a whole cell and restyling it means, and the usual way to make a header bold.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_run_properties_all(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| set_all_run_properties_in(body, interner, spec),
+        )
+    }
+
+    /// Applies `spec` to a paragraph mark (`a:endParaRPr`) of the cell at `(row, column)`, creating
+    /// the element if the paragraph has none — how an **empty** cell is formatted.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_end_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| set_end_run_properties_in(body, interner, para_idx, spec),
+        )
+    }
+
+    /// Applies `spec` to a paragraph's layout properties (`a:pPr`) in the cell at `(row, column)`,
+    /// creating the element if it has none. The properties **merge**, as run properties do.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_paragraph_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        spec: &ParagraphPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| set_paragraph_properties_in(body, interner, para_idx, spec),
+        )
+    }
+
+    /// Applies `spec` to part of a paragraph of the cell at `(row, column)` — the characters in
+    /// `range`, counted in **Unicode scalars**. Splits runs at the range's edges, exactly as the
+    /// shape-addressed form does.
+    ///
+    /// # Errors
+    /// As [`set_text_range_properties`](Self::set_text_range_properties), plus the table errors of
+    /// [`cell_text`](Self::cell_text).
+    // The deepest cell addresses take eight parameters: a surface, the frame, a cell's row and
+    // column, a paragraph, a run, and the spec — every one of them a distinct coordinate, and the
+    // price of addressing a cell with plain indices rather than a handle object. Bundling them into
+    // an address struct would be the only way to shorten the list, and would make the common calls
+    // read worse than the deep ones read now.
+    #[allow(clippy::too_many_arguments)]
+    pub fn set_cell_text_range_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        range: core::ops::Range<usize>,
+        spec: &CharacterPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body_at(
+            surface.into(),
+            cell(shape_idx, row, column),
+            |body, interner| set_range_properties_in(body, interner, para_idx, range, spec),
+        )
     }
 
     /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
@@ -2319,6 +2589,299 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Tables
+    //
+    // A table is what a `p:graphicFrame` frames, so it is a shape like any other on the index
+    // space: it is positioned with `set_shape_bounds`, counted by `shape_count`, and removed by
+    // `remove_shape`. What is addressed *inside* it is a cell, by `(row, column)`.
+    //
+    // Merging never removes a cell, so the grid is rectangular and every position within the table
+    // is addressable — a cell covered by a merge is a real cell that simply renders nothing.
+    // -----------------------------------------------------------------------------------------
+
+    /// Adds a `rows` x `columns` table to `surface`, laid out inside `bounds`, and returns its
+    /// index in the shape tree.
+    ///
+    /// Columns share the width evenly and rows the height; resize either afterwards with
+    /// [`set_column_width`](Self::set_column_width) / [`set_row_height`](Self::set_row_height).
+    /// Every cell starts with one empty paragraph, ready for
+    /// [`set_cell_text`](Self::set_cell_text).
+    ///
+    /// The table is a shape: move it with [`set_shape_bounds`](Self::set_shape_bounds), and drop it
+    /// with [`remove_shape`](Self::remove_shape).
+    ///
+    /// # Errors
+    /// Returns [`PptxError::InvalidTableSize`] if either dimension is zero — a table with no cells
+    /// is not something PowerPoint will open — or another [`PptxError`] if the surface index is out
+    /// of range or the part is malformed.
+    pub fn add_table(
+        &mut self,
+        surface: impl Into<Surface>,
+        rows: usize,
+        columns: usize,
+        bounds: ShapeBounds,
+    ) -> Result<usize, PptxError> {
+        if rows == 0 || columns == 0 {
+            return Err(PptxError::InvalidTableSize { rows, columns });
+        }
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+
+        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let frame = build_table_frame(interner, next_id, rows, columns, bounds);
+        sp_tree.children.push(RawNode::Element(frame));
+        sp_tree.empty = false;
+
+        Ok(slide::shapes(sp_tree, interner).count() - 1)
+    }
+
+    /// The shape of the table shape `shape_idx` on `surface` frames, as `(rows, columns)`.
+    ///
+    /// The column count comes from the table's `a:tblGrid`, which is where a table declares its
+    /// width — not from counting some row's cells. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::ShapeIsNotATable`] if the shape frames no table, or another
+    /// [`PptxError`] if an index is out of range or the part is malformed.
+    pub fn table_dimensions(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<(usize, usize), PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            let _ = interner;
+            Ok((table.row_count(), table.column_count()))
+        })
+    }
+
+    /// The width of column `column` of the table shape `shape_idx` frames, or `None` if the column
+    /// states none. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus
+    /// [`PptxError::TableCellOutOfRange`] if there is no such column.
+    pub fn column_width(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        column: usize,
+    ) -> Result<Option<Emu>, PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            let columns = table.column_count();
+            let grid_column = table.grid().and_then(|grid| grid.column(column)).ok_or(
+                PptxError::TableCellOutOfRange {
+                    row: 0,
+                    column,
+                    rows: table.row_count(),
+                    columns,
+                },
+            )?;
+            Ok(grid_column.width(interner))
+        })
+    }
+
+    /// Sets the width of column `column`. Marks only that part dirty.
+    ///
+    /// The frame's own bounds are **not** adjusted: a table whose columns no longer sum to its
+    /// frame width is what PowerPoint itself produces when a column is dragged, and the frame is
+    /// resized separately with [`set_shape_bounds`](Self::set_shape_bounds).
+    ///
+    /// # Errors
+    /// As [`column_width`](Self::column_width).
+    pub fn set_column_width(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        column: usize,
+        width: Emu,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface.into(), shape_idx, |table, interner| {
+            let (rows, columns) = table_dimensions_of(table, interner);
+            if column >= columns {
+                return Err(PptxError::TableCellOutOfRange {
+                    row: 0,
+                    column,
+                    rows,
+                    columns,
+                });
+            }
+            let grid = nav::child_mut(table, interner, DML_MAIN, "tblGrid")
+                .ok_or(PptxError::MalformedSlide("table has no a:tblGrid"))?;
+            let slot = nav::nth_child_matching_mut(grid, interner, column, |element, interner| {
+                nav::name_is(&element.name, interner, DML_MAIN, "gridCol")
+            })
+            .ok_or(PptxError::MalformedSlide("table column vanished"))?;
+            // Through the model's own setter, so a width has one spelling in the codebase.
+            let mut typed = TableColumn::from_xml(slot, interner)?;
+            typed.set_width(interner, width);
+            *slot = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// The height row `row` asks for, or `None` if it states none. PowerPoint grows a row whose
+    /// content does not fit, so a rendered row is never shorter than this but may be taller.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus
+    /// [`PptxError::TableCellOutOfRange`] if there is no such row.
+    pub fn row_height(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+    ) -> Result<Option<Emu>, PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            let rows = table.row_count();
+            let table_row = table.row(row).ok_or(PptxError::TableCellOutOfRange {
+                row,
+                column: 0,
+                rows,
+                columns: table.column_count(),
+            })?;
+            Ok(table_row.height(interner))
+        })
+    }
+
+    /// Sets the height row `row` asks for. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// As [`row_height`](Self::row_height).
+    pub fn set_row_height(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        height: Emu,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface.into(), shape_idx, |table, interner| {
+            let (rows, columns) = table_dimensions_of(table, interner);
+            if row >= rows {
+                return Err(PptxError::TableCellOutOfRange {
+                    row,
+                    column: 0,
+                    rows,
+                    columns,
+                });
+            }
+            let slot = slide::nth_row_mut(table, interner, row)
+                .ok_or(PptxError::MalformedSlide("table row vanished"))?;
+            let mut typed = TableRow::from_xml(slot, interner)?;
+            typed.set_height(interner, height);
+            *slot = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// How many columns and rows the cell at `(row, column)` spans, as `(columns, rows)`.
+    ///
+    /// `(1, 1)` for an ordinary cell. A cell **covered** by a merge also reports `(1, 1)` — ask
+    /// [`merged_cell_anchor`](Self::merged_cell_anchor) which cell actually renders there.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus
+    /// [`PptxError::TableCellOutOfRange`].
+    pub fn cell_span(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<(usize, usize), PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            let cell = table
+                .cell(row, column)
+                .ok_or(PptxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows: table.row_count(),
+                    columns: table.column_count(),
+                })?;
+            Ok((cell.column_span(interner), cell.row_span(interner)))
+        })
+    }
+
+    /// Which cell actually renders at `(row, column)` — itself when it is not merged away, or the
+    /// anchor of the merged region covering it.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus
+    /// [`PptxError::TableCellOutOfRange`].
+    pub fn merged_cell_anchor(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<(usize, usize), PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            table
+                .merge_anchor(interner, row, column)
+                .ok_or(PptxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows: table.row_count(),
+                    columns: table.column_count(),
+                })
+        })
+    }
+
+    /// Reads the table shape `shape_idx` frames as a typed [`Table`] and hands it, with the part's
+    /// interner, to `read`. Does **not** dirty the part.
+    fn with_table<R>(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        read: impl FnOnce(&Table, &Interner) -> Result<R, PptxError>,
+    ) -> Result<R, PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let element =
+            slide::shape_table(shape, &doc.interner).ok_or(PptxError::ShapeIsNotATable)?;
+        let table = Table::from_xml(element, &doc.interner)?;
+        read(&table, &doc.interner)
+    }
+
+    /// Hands the raw `a:tbl` of the table shape `shape_idx` frames to `edit`, which reaches the one
+    /// child it means to change.
+    ///
+    /// The table element itself is not reparsed or rebuilt — only whatever `edit` replaces — so
+    /// resizing a column costs one small element, not the whole table.
+    fn edit_table_child(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        edit: impl FnOnce(&mut RawElement, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        let part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+        let count = slide::shapes(sp_tree, interner).count();
+        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        let table = slide::shape_table_mut(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
+        edit(table, interner)
+    }
+
     /// The relationship id of the image that picture `shape_idx` on `surface` embeds
     /// (`p:blipFill > a:blip@r:embed`), or `None` when the blip embeds nothing — a picture may instead
     /// *link* an external image (`@r:link`), which this does not resolve. Reading does not dirty the
@@ -2795,6 +3358,150 @@ fn master_style_local(slot: slide::Placeholder) -> &'static str {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Text-body operations
+//
+// Each of these is one text operation, named once. A shape's `p:txBody` and a table cell's
+// `a:txBody` are the same `CT_TextBody`, so the public surface spells the two apart while every
+// operation below has exactly one definition — adding a cell method is delegation, not a second
+// implementation, and a new text feature stays a single change.
+// ---------------------------------------------------------------------------------------------
+
+/// The number of typed paragraphs in a body.
+fn paragraph_count_of(body: &TextBody) -> usize {
+    body.paragraphs().count()
+}
+
+/// The number of typed runs in one paragraph.
+fn run_count_of(body: &TextBody, para_idx: usize) -> Result<usize, PptxError> {
+    Ok(nth_paragraph(body, para_idx)?.runs().count())
+}
+
+/// One paragraph's text — its runs concatenated.
+fn paragraph_text_of(body: &TextBody, para_idx: usize) -> Result<String, PptxError> {
+    Ok(nth_paragraph(body, para_idx)?.text())
+}
+
+/// One run's text.
+fn run_text_of(body: &TextBody, para_idx: usize, run_idx: usize) -> Result<String, PptxError> {
+    let paragraph = nth_paragraph(body, para_idx)?;
+    Ok(nth_run(paragraph, run_idx)?.text().to_owned())
+}
+
+/// The layout properties a paragraph declares of its own.
+fn paragraph_properties_of(
+    body: &TextBody,
+    interner: &Interner,
+    para_idx: usize,
+) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
+    Ok(nth_paragraph(body, para_idx)?
+        .properties()
+        .map(|properties| properties.spec(interner)))
+}
+
+/// The character properties a run declares of its own.
+fn run_properties_of(
+    body: &TextBody,
+    interner: &Interner,
+    para_idx: usize,
+    run_idx: usize,
+) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
+    let paragraph = nth_paragraph(body, para_idx)?;
+    Ok(nth_run(paragraph, run_idx)?
+        .properties()
+        .map(|properties| properties.spec(interner)))
+}
+
+/// The paragraph-mark properties (`a:endParaRPr`) a paragraph declares.
+fn end_run_properties_of(
+    body: &TextBody,
+    interner: &Interner,
+    para_idx: usize,
+) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
+    Ok(nth_paragraph(body, para_idx)?
+        .end_properties()
+        .map(|properties| properties.spec(interner)))
+}
+
+/// Applies `spec` to one run.
+fn set_run_properties_in(
+    body: &mut TextBody,
+    interner: &mut Interner,
+    para_idx: usize,
+    run_idx: usize,
+    spec: &CharacterPropertiesSpec,
+) -> Result<(), PptxError> {
+    let paragraph = nth_paragraph_mut(body, para_idx)?;
+    let count = paragraph.runs().count();
+    let run = paragraph
+        .runs_mut()
+        .nth(run_idx)
+        .ok_or(PptxError::RunIndexOutOfRange {
+            index: run_idx,
+            count,
+        })?;
+    run.set_properties(spec, interner);
+    Ok(())
+}
+
+/// Applies `spec` to every run of one paragraph, and to its paragraph mark.
+fn set_paragraph_run_properties_in(
+    body: &mut TextBody,
+    interner: &mut Interner,
+    para_idx: usize,
+    spec: &CharacterPropertiesSpec,
+) -> Result<(), PptxError> {
+    let paragraph = nth_paragraph_mut(body, para_idx)?;
+    apply_to_paragraph(paragraph, spec, interner);
+    Ok(())
+}
+
+/// Applies `spec` to every run of every paragraph, and to each paragraph mark.
+fn set_all_run_properties_in(
+    body: &mut TextBody,
+    interner: &mut Interner,
+    spec: &CharacterPropertiesSpec,
+) -> Result<(), PptxError> {
+    for paragraph in body.paragraphs_mut() {
+        apply_to_paragraph(paragraph, spec, interner);
+    }
+    Ok(())
+}
+
+/// Applies `spec` to a paragraph's mark (`a:endParaRPr`), creating the element if absent.
+fn set_end_run_properties_in(
+    body: &mut TextBody,
+    interner: &mut Interner,
+    para_idx: usize,
+    spec: &CharacterPropertiesSpec,
+) -> Result<(), PptxError> {
+    nth_paragraph_mut(body, para_idx)?.set_end_properties(spec, interner);
+    Ok(())
+}
+
+/// Applies `spec` to a paragraph's layout properties (`a:pPr`), creating the element if absent.
+fn set_paragraph_properties_in(
+    body: &mut TextBody,
+    interner: &mut Interner,
+    para_idx: usize,
+    spec: &ParagraphPropertiesSpec,
+) -> Result<(), PptxError> {
+    nth_paragraph_mut(body, para_idx)?.set_properties(spec, interner);
+    Ok(())
+}
+
+/// Applies `spec` to a scalar-offset range within one paragraph, splitting runs at its edges.
+fn set_range_properties_in(
+    body: &mut TextBody,
+    interner: &mut Interner,
+    para_idx: usize,
+    range: core::ops::Range<usize>,
+    spec: &CharacterPropertiesSpec,
+) -> Result<(), PptxError> {
+    let paragraph = nth_paragraph_mut(body, para_idx)?;
+    apply_to_scalar_range(paragraph, range, spec, interner)
+}
+
 /// Replaces the text of the `run_idx`-th run of `body`, flattened over its paragraphs in document
 /// order — what `set_shape_text` and `set_cell_text` both mean by "set the text".
 fn set_run_text(body: &mut TextBody, run_idx: usize, text: &str) -> Result<(), PptxError> {
@@ -2814,6 +3521,11 @@ fn set_run_text(body: &mut TextBody, run_idx: usize, text: &str) -> Result<(), P
         return Err(PptxError::RunHasNoText);
     }
     Ok(())
+}
+
+/// A `TextSite` naming one cell of the table a shape frames.
+fn cell(shape: usize, row: usize, column: usize) -> TextSite {
+    TextSite::Cell { shape, row, column }
 }
 
 /// Which text body an index-addressed text call is about.
@@ -2982,6 +3694,18 @@ fn nth_paragraph(body: &TextBody, para_idx: usize) -> Result<&mjx_dml::Paragraph
         .nth(para_idx)
         .ok_or(PptxError::ParagraphIndexOutOfRange {
             index: para_idx,
+            count,
+        })
+}
+
+/// The `run_idx`-th run of a paragraph, or a typed out-of-range error.
+fn nth_run(paragraph: &mjx_dml::Paragraph, run_idx: usize) -> Result<&mjx_dml::TextRun, PptxError> {
+    let count = paragraph.runs().count();
+    paragraph
+        .runs()
+        .nth(run_idx)
+        .ok_or(PptxError::RunIndexOutOfRange {
+            index: run_idx,
             count,
         })
 }
@@ -3421,11 +4145,151 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
 
 /// `p:txBody` — the required `a:bodyPr` + `a:lstStyle`, then `paragraphs`.
 fn build_text_body(interner: &mut Interner, paragraphs: Vec<RawElement>) -> RawElement {
+    build_body(interner, "p", PML, paragraphs)
+}
+
+/// A `CT_TextBody` under whichever name its container gives it — `p:txBody` in a shape, `a:txBody`
+/// in a table cell. The content is identical, which is the whole reason one text model serves both.
+fn build_body(
+    interner: &mut Interner,
+    prefix: &str,
+    namespace: mjx_ooxml_types::namespaces::SchemaNamespace,
+    paragraphs: Vec<RawElement>,
+) -> RawElement {
     let body_pr = build::leaf(interner, "a", DML_MAIN, "bodyPr", Vec::new());
     let lst_style = build::leaf(interner, "a", DML_MAIN, "lstStyle", Vec::new());
     let mut children = vec![RawNode::Element(body_pr), RawNode::Element(lst_style)];
     children.extend(paragraphs.into_iter().map(RawNode::Element));
-    build::node(interner, "p", PML, "txBody", Vec::new(), children)
+    build::node(interner, prefix, namespace, "txBody", Vec::new(), children)
+}
+
+/// A whole `p:graphicFrame` holding a `rows` x `columns` table, laid out inside `bounds`.
+///
+/// Columns share the width evenly and rows the height — a caller resizes either afterwards. Each
+/// cell gets an `a:txBody` with one empty paragraph, because PowerPoint expects a cell to have one
+/// and a caller's first act is to put text in it. `firstRow` and `bandRow` are what PowerPoint
+/// itself writes for a new table: they claim nothing about appearance on their own, they tell a
+/// table style which parts to emphasize.
+fn build_table_frame(
+    interner: &mut Interner,
+    id: u32,
+    rows: usize,
+    columns: usize,
+    bounds: ShapeBounds,
+) -> RawElement {
+    // p:nvGraphicFramePr — cNvPr, cNvGraphicFramePr (locked against grouping, as Office writes it),
+    // and an empty nvPr.
+    let cnvpr_attrs = vec![
+        build::attr(interner, "id", &id.to_string()),
+        build::attr(interner, "name", &format!("Table {id}")),
+    ];
+    let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+    let lock_attrs = vec![build::attr(interner, "noGrp", "1")];
+    let frame_locks = build::leaf(interner, "a", DML_MAIN, "graphicFrameLocks", lock_attrs);
+    let c_nv_frame_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "cNvGraphicFramePr",
+        Vec::new(),
+        vec![RawNode::Element(frame_locks)],
+    );
+    let nv_pr = build::leaf(interner, "p", PML, "nvPr", Vec::new());
+    let nv_frame_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "nvGraphicFramePr",
+        Vec::new(),
+        vec![
+            RawNode::Element(c_nv_pr),
+            RawNode::Element(c_nv_frame_pr),
+            RawNode::Element(nv_pr),
+        ],
+    );
+
+    // p:xfrm — a graphic frame's transform is PresentationML's, not DrawingML's, and is required.
+    let mut xfrm = build::node(interner, "p", PML, "xfrm", Vec::new(), Vec::new());
+    bounds.to_transform().apply(&mut xfrm, interner);
+
+    // a:tblGrid — the grid is where a table declares its width.
+    let column_width = bounds.width_emu / columns.max(1) as i64;
+    let grid_columns: Vec<RawNode> = (0..columns)
+        .map(|index| {
+            // The last column absorbs the rounding, so the columns sum to the frame's width.
+            let width = if index + 1 == columns {
+                bounds.width_emu - column_width * (columns as i64 - 1)
+            } else {
+                column_width
+            };
+            let attrs = vec![build::attr(interner, "w", &width.to_string())];
+            RawNode::Element(build::leaf(interner, "a", DML_MAIN, "gridCol", attrs))
+        })
+        .collect();
+    let grid = build::node(interner, "a", DML_MAIN, "tblGrid", Vec::new(), grid_columns);
+
+    let row_height = bounds.height_emu / rows.max(1) as i64;
+    let table_rows: Vec<RawNode> = (0..rows)
+        .map(|_| {
+            let cells: Vec<RawNode> = (0..columns)
+                .map(|_| {
+                    let paragraph = build_paragraph(interner, "");
+                    let body = build_body(interner, "a", DML_MAIN, vec![paragraph]);
+                    let tc_pr = build::leaf(interner, "a", DML_MAIN, "tcPr", Vec::new());
+                    RawNode::Element(build::node(
+                        interner,
+                        "a",
+                        DML_MAIN,
+                        "tc",
+                        Vec::new(),
+                        vec![RawNode::Element(body), RawNode::Element(tc_pr)],
+                    ))
+                })
+                .collect();
+            let attrs = vec![build::attr(interner, "h", &row_height.to_string())];
+            RawNode::Element(build::node(interner, "a", DML_MAIN, "tr", attrs, cells))
+        })
+        .collect();
+
+    let tbl_pr_attrs = vec![
+        build::attr(interner, "firstRow", "1"),
+        build::attr(interner, "bandRow", "1"),
+    ];
+    let tbl_pr = build::leaf(interner, "a", DML_MAIN, "tblPr", tbl_pr_attrs);
+    let mut table_children = vec![RawNode::Element(tbl_pr), RawNode::Element(grid)];
+    table_children.extend(table_rows);
+    let table = build::node(interner, "a", DML_MAIN, "tbl", Vec::new(), table_children);
+
+    let data_attrs = vec![build::attr(interner, "uri", slide::TABLE_GRAPHIC_URI)];
+    let graphic_data = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "graphicData",
+        data_attrs,
+        vec![RawNode::Element(table)],
+    );
+    let graphic = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "graphic",
+        Vec::new(),
+        vec![RawNode::Element(graphic_data)],
+    );
+
+    build::node(
+        interner,
+        "p",
+        PML,
+        "graphicFrame",
+        Vec::new(),
+        vec![
+            RawNode::Element(nv_frame_pr),
+            RawNode::Element(xfrm),
+            RawNode::Element(graphic),
+        ],
+    )
 }
 
 /// A whole `p:sp` autoshape: `nvSpPr` (no `txBox`) + `spPr` with the `prst` preset geometry + an

@@ -167,6 +167,16 @@ pub enum PptxError {
     #[error("picture has no blip fill")]
     PictureHasNoBlipFill,
 
+    /// A table was asked for with no rows or no columns. PowerPoint will not open a table with no
+    /// cells, so this is refused at creation rather than written out.
+    #[error("a table must have at least one row and one column, not {rows}x{columns}")]
+    InvalidTableSize {
+        /// The row count asked for.
+        rows: usize,
+        /// The column count asked for.
+        columns: usize,
+    },
+
     /// The addressed shape does not frame a table — it is not a `p:graphicFrame` at all, or the
     /// graphic it frames is a chart or a diagram rather than an `a:tbl`.
     #[error("shape is not a table")]
