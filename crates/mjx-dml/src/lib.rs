@@ -55,6 +55,7 @@ pub use style::{ColorMap, StyleMatrixReference};
 pub use table::{
     CellBorder, Table, TableCell, TableCellContent, TableCellProperties, TableColumn, TableContent,
     TableGrid, TableGridContent, TablePart, TableProperties, TableRow, TableRowContent,
+    TextAnchoring, TextDirection, TextHorizontalOverflow,
 };
 pub use text::{
     AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,

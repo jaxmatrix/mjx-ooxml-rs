@@ -50,7 +50,10 @@ mod row;
 #[allow(clippy::module_inception)]
 mod table;
 
-pub use cell::{CellBorder, TableCell, TableCellContent, TableCellProperties};
+pub use cell::{
+    CellBorder, TableCell, TableCellContent, TableCellProperties, TextAnchoring, TextDirection,
+    TextHorizontalOverflow,
+};
 pub use grid::{TableColumn, TableGrid, TableGridContent};
 pub use properties::{TablePart, TableProperties};
 pub use row::{TableRow, TableRowContent};
