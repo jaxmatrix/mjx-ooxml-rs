@@ -15,6 +15,46 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.14] - 2026-07-21
+
+Tables exist on the deck — created, sized, and filled in.
+
+### Added
+
+- **`Presentation::add_table`** — builds the whole `p:graphicFrame`: the grid, every row and every
+  cell, ready for text. A table is a shape on the existing index space, so it is positioned with
+  `set_shape_bounds` and dropped with `remove_shape`.
+- **`table_dimensions`, `column_width` / `set_column_width`, `row_height` / `set_row_height`,
+  `cell_span`, `merged_cell_anchor`** — the table's shape, and which cell renders where.
+- **Thirteen `cell_*` text methods** — `cell_text`, `set_cell_text`, the paragraph and run readers,
+  and the formatting setters including the run-splitting `set_cell_text_range_properties`. Each is
+  the corresponding shape method addressed at a cell instead: same operation, same errors.
+- **`PptxError::ShapeIsNotATable`, `TableCellOutOfRange`, `InvalidTableSize`.**
+
+### Changed
+
+- The private text-body locator now takes a *site* — a shape's `p:txBody` or a cell's `a:txBody` —
+  and every text operation is a named function both spellings call. `shape_text` and
+  `set_shape_text` inlined their own copy of the locate and are folded in. No behaviour change; the
+  text suites pass untouched.
+
+### Notes
+
+- **A cell's `a:txBody` is the same `CT_TextBody` as a shape's**, which is why the cell surface is
+  delegation rather than a second implementation — a future text feature stays one change.
+- Reaching a cell **walks the raw tree** rather than parsing the table, so editing one cell costs
+  what editing a shape costs; only the addressed `a:txBody` is parsed and rebuilt.
+- The column count comes from `a:tblGrid`, never from counting a row's cells.
+- A new table's columns share the frame width evenly with the **last absorbing the rounding**, so
+  they sum to exactly the frame rather than leaving it a few EMU short.
+- A new table carries `firstRow` and `bandRow`, as PowerPoint's does: they claim nothing about
+  appearance on their own, they tell a table style which parts to emphasize.
+- `set_column_width` does **not** resize the frame — a table whose columns no longer sum to its
+  frame is what PowerPoint itself produces when a column is dragged.
+- Creating a table adds no parts and no relationships: only the slide changes.
+- Effective (inherited) cell formatting is not here — a cell inherits from the table style, which
+  needs the `tableStyles.xml` part, later in this workstream.
+
 ## [0.0.13] - 2026-07-21
 
 The table, modeled. The first tier of the tables workstream.
