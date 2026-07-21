@@ -62,6 +62,12 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_TextFontAlignType", "FontAlignment"),
     ("ST_TextTabAlignType", "TabAlignment"),
     ("ST_TextAutonumberScheme", "AutonumberScheme"),
+    // DrawingML text framing: `a:tcPr`/`a:bodyPr`'s `@anchor`, `@vert` and `@horzOverflow`. The
+    // vertical one is named `TextDirection` because its own values include `horz` (Horizontal) — it
+    // selects which way text flows, so naming it "vertical" would misdescribe most of its range.
+    ("ST_TextAnchoringType", "TextAnchoring"),
+    ("ST_TextVerticalType", "TextDirection"),
+    ("ST_TextHorzOverflowType", "TextHorizontalOverflow"),
     // PresentationML placeholders: `p:ph`'s `type`, `sz`, and `orient`. `ST_Direction` is PML's own
     // two-valued axis (`horz`/`vert`), named for what it selects rather than the generic "direction".
     ("ST_PlaceholderType", "PlaceholderType"),
@@ -391,6 +397,27 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     // `ST_TextTabAlignType` (`a:tab@algn`, §20.1.10.80).
     ("ST_TextTabAlignType", "l", "Left"),
     ("ST_TextTabAlignType", "ctr", "Center"),
+    // `ST_TextAnchoringType` (`a:tcPr@anchor`, `a:bodyPr@anchor`): the titles ECMA gives each token
+    // in its "Text Anchor Enum" column (§20.1.10.60).
+    ("ST_TextAnchoringType", "t", "Top"),
+    ("ST_TextAnchoringType", "ctr", "Center"),
+    ("ST_TextAnchoringType", "b", "Bottom"),
+    ("ST_TextAnchoringType", "just", "Justified"),
+    ("ST_TextAnchoringType", "dist", "Distributed"),
+    // `ST_TextVerticalType` (`a:tcPr@vert`, `a:bodyPr@vert`): the "Vertical Text Type Enum" titles
+    // (§20.1.10.83). `wordArtVertRtl` is titled "Vertical WordArt Right to Left" rather than
+    // following its siblings' word order, and the prose wins over consistency — the same call the
+    // underline names made for `dashHeavy` ("Heavy Dashed").
+    ("ST_TextVerticalType", "horz", "Horizontal"),
+    ("ST_TextVerticalType", "vert", "Vertical"),
+    ("ST_TextVerticalType", "vert270", "Vertical270"),
+    ("ST_TextVerticalType", "wordArtVert", "WordArtVertical"),
+    ("ST_TextVerticalType", "eaVert", "EastAsianVertical"),
+    ("ST_TextVerticalType", "mongolianVert", "MongolianVertical"),
+    ("ST_TextVerticalType", "wordArtVertRtl", "VerticalWordArtRightToLeft"),
+    // `ST_TextHorzOverflowType` (`a:tcPr@horzOverflow`): §20.1.10.62.
+    ("ST_TextHorzOverflowType", "overflow", "Overflow"),
+    ("ST_TextHorzOverflowType", "clip", "Clip"),
     ("ST_TextTabAlignType", "r", "Right"),
     ("ST_TextTabAlignType", "dec", "Decimal"),
     // `ST_TextAutonumberScheme` (`a:buAutoNum@type`, §20.1.10.61) — the bullet numbering schemes.

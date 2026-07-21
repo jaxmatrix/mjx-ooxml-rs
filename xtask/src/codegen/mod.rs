@@ -81,6 +81,9 @@ pub fn run() -> Result<()> {
             "ST_TextFontAlignType",
             "ST_TextTabAlignType",
             "ST_TextAutonumberScheme",
+            "ST_TextAnchoringType",
+            "ST_TextVerticalType",
+            "ST_TextHorzOverflowType",
         ],
     )?;
     // Append the per-shape adjustment table, extracted from the DrawingML geometry definitions.
