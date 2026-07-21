@@ -19,7 +19,7 @@ use mjx_dml::{
     Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_pptx::{CellMargins, Presentation, ShapeBounds, Surface};
+use mjx_pptx::{CellFormat, CellMargins, Cells, Presentation, ShapeBounds, Surface};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -210,49 +210,47 @@ fn deck_with_a_created_table_opens() {
     }
 
     // A header row in bold, and the numbers right-aligned — the formatting a real table carries.
-    let bold = CharacterPropertiesSpec::new().with_bold(true);
-    for column in 0..3 {
-        pres.set_cell_run_properties_all(0, table, 0, column, &bold)
-            .expect("bold the header");
-    }
-    let right = ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Right);
-    for row in 1..3 {
-        for column in 1..3 {
-            pres.set_cell_paragraph_properties(0, table, row, column, 0, &right)
-                .expect("align the numbers");
-        }
-    }
+    pres.format_cell_text(
+        0,
+        table,
+        Cells::row(0),
+        &CharacterPropertiesSpec::new().with_bold(true),
+    )
+    .expect("bold the header");
+    pres.format_cell_paragraphs(
+        0,
+        table,
+        Cells::rectangle(1..3, 1..3),
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Right),
+    )
+    .expect("align the numbers");
     pres.set_row_height(0, table, 0, Emu::from_points(30.0))
         .expect("taller header row");
 
     // Filled header cells, a rule under the header, and roomier insets — the `a:tcPr` a real table
     // carries. A consumer that rejects any of it drops the formatting without saying so.
-    let header_fill = FillSpec::Solid(ColorSpec::Srgb("1F3864".to_owned()));
     let rule = LineSpec {
         width: Some(LineWidth::from_emu(19_050)),
         fill: Some(FillSpec::Solid(ColorSpec::Srgb("FFFFFF".to_owned()))),
         ..LineSpec::default()
     };
-    for column in 0..3 {
-        pres.set_cell_fill(0, table, 0, column, &header_fill)
-            .expect("fill the header");
-        pres.set_cell_border(0, table, 0, column, CellBorder::Bottom, &rule)
-            .expect("rule under the header");
-        pres.set_cell_anchor(0, table, 0, column, TextAnchoring::Center)
-            .expect("centre the header vertically");
-    }
-    for row in 0..3 {
-        for column in 0..3 {
-            pres.set_cell_margins(
-                0,
-                table,
-                row,
-                column,
-                CellMargins::uniform(Emu::from_points(6.0)),
-            )
-            .expect("roomier insets");
-        }
-    }
+    pres.format_cells(
+        0,
+        table,
+        Cells::row(0),
+        &CellFormat::new()
+            .with_fill(FillSpec::Solid(ColorSpec::Srgb("1F3864".to_owned())))
+            .with_border(CellBorder::Bottom, rule)
+            .with_anchor(TextAnchoring::Center),
+    )
+    .expect("style the header row");
+    pres.format_cells(
+        0,
+        table,
+        Cells::all(),
+        &CellFormat::new().with_margins(CellMargins::uniform(Emu::from_points(6.0))),
+    )
+    .expect("roomier insets");
 
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "created_table");
