@@ -1846,6 +1846,167 @@ impl core::str::FromStr for CompoundLine {
     }
 }
 
+/// `ST_TextAnchoringType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextAnchoring {
+    /// Wire value `t`.
+    Top,
+    /// Wire value `ctr`.
+    Center,
+    /// Wire value `b`.
+    Bottom,
+    /// Wire value `just`.
+    Justified,
+    /// Wire value `dist`.
+    Distributed,
+}
+
+impl TextAnchoring {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "t" => Self::Top,
+            "ctr" => Self::Center,
+            "b" => Self::Bottom,
+            "just" => Self::Justified,
+            "dist" => Self::Distributed,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Top => "t",
+            Self::Center => "ctr",
+            Self::Bottom => "b",
+            Self::Justified => "just",
+            Self::Distributed => "dist",
+        }
+    }
+}
+
+impl core::fmt::Display for TextAnchoring {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextAnchoring {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextHorzOverflowType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextHorizontalOverflow {
+    /// Wire value `overflow`.
+    Overflow,
+    /// Wire value `clip`.
+    Clip,
+}
+
+impl TextHorizontalOverflow {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "overflow" => Self::Overflow,
+            "clip" => Self::Clip,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Overflow => "overflow",
+            Self::Clip => "clip",
+        }
+    }
+}
+
+impl core::fmt::Display for TextHorizontalOverflow {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextHorizontalOverflow {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_TextVerticalType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TextDirection {
+    /// Wire value `horz`.
+    Horizontal,
+    /// Wire value `vert`.
+    Vertical,
+    /// Wire value `vert270`.
+    Vertical270,
+    /// Wire value `wordArtVert`.
+    WordArtVertical,
+    /// Wire value `eaVert`.
+    EastAsianVertical,
+    /// Wire value `mongolianVert`.
+    MongolianVertical,
+    /// Wire value `wordArtVertRtl`.
+    VerticalWordArtRightToLeft,
+}
+
+impl TextDirection {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "horz" => Self::Horizontal,
+            "vert" => Self::Vertical,
+            "vert270" => Self::Vertical270,
+            "wordArtVert" => Self::WordArtVertical,
+            "eaVert" => Self::EastAsianVertical,
+            "mongolianVert" => Self::MongolianVertical,
+            "wordArtVertRtl" => Self::VerticalWordArtRightToLeft,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Horizontal => "horz",
+            Self::Vertical => "vert",
+            Self::Vertical270 => "vert270",
+            Self::WordArtVertical => "wordArtVert",
+            Self::EastAsianVertical => "eaVert",
+            Self::MongolianVertical => "mongolianVert",
+            Self::VerticalWordArtRightToLeft => "wordArtVertRtl",
+        }
+    }
+}
+
+impl core::fmt::Display for TextDirection {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for TextDirection {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_TextAutonumberScheme` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AutonumberScheme {
