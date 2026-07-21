@@ -312,6 +312,50 @@ impl Presentation {
         Ok(chain)
     }
 
+    /// The shapes an **effective** property consults, in inheritance order: the addressed shape
+    /// itself, then — only if it is a placeholder (`p:ph`) — the same-slot placeholder on each part
+    /// the surface inherits from.
+    ///
+    /// This is the spine every `effective_*` property walks. A shape that is not a placeholder
+    /// inherits nothing and yields a one-element list, which is why a plain text box never takes a
+    /// layout's fill, outline, effects or position.
+    ///
+    /// The parts are returned by name rather than borrowed, so a caller can visit each in turn
+    /// without holding a borrow on the package across the walk.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the shape index is out of range, the surface's part is malformed, or
+    /// a relationship in the chain points outside the package.
+    fn placeholder_candidates(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+    ) -> Result<Vec<(PartName, Candidate)>, PptxError> {
+        let own_part = self.surface_part(surface)?.clone();
+        let placeholder = {
+            let doc = self.package.part_tree(&own_part)?;
+            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+            let count = slide::shapes(sp_tree, &doc.interner).count();
+            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+                PptxError::ShapeIndexOutOfRange {
+                    surface,
+                    index: shape_idx,
+                    count,
+                },
+            )?;
+            slide::shape_placeholder(shape, &doc.interner)
+        };
+
+        let mut candidates = vec![(own_part, Candidate::Index(shape_idx))];
+        if let Some(ph) = placeholder {
+            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
+            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
+                candidates.push((ancestor, Candidate::Placeholder(ph)));
+            }
+        }
+        Ok(candidates)
+    }
+
     /// The number of shapes on `surface` — of **every** [`ShapeKind`] (autoshapes, pictures,
     /// groups, graphic frames, connectors), in document order. A group counts as one shape; its
     /// members are not separately addressable.
@@ -1398,43 +1442,13 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
-        // the matching placeholder on each part the surface inherits from.
-        let slide_part = self.surface_part(surface)?.clone();
-        let placeholder = {
-            let doc = self.package.part_tree(&slide_part)?;
-            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let count = slide::shapes(sp_tree, &doc.interner).count();
-            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-                PptxError::ShapeIndexOutOfRange {
-                    surface,
-                    index: shape_idx,
-                    count,
-                },
-            )?;
-            slide::shape_placeholder(shape, &doc.interner)
-        };
-
-        let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
-        if let Some(ph) = placeholder {
-            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
-            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
-                candidates.push((ancestor, Candidate::Placeholder(ph)));
-            }
-        }
+        let candidates = self.placeholder_candidates(surface, shape_idx)?;
 
         for (part, candidate) in candidates {
             // Extract the candidate's own fill while holding its part's borrow (fully owned).
             let own = {
                 let doc = self.package.part_tree(&part)?;
-                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-                let shape = match candidate {
-                    Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
-                    Candidate::Placeholder(ph) => {
-                        slide::find_placeholder(sp_tree, ph, &doc.interner)
-                    }
-                };
-                match shape {
+                match candidate_shape(doc, candidate)? {
                     Some(shape) => shape_own_fill(shape, &doc.interner, &scheme, &map)?,
                     None => OwnFill::Absent,
                 }
@@ -1500,43 +1514,13 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
-        // the matching placeholder on each part the surface inherits from.
-        let slide_part = self.surface_part(surface)?.clone();
-        let placeholder = {
-            let doc = self.package.part_tree(&slide_part)?;
-            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let count = slide::shapes(sp_tree, &doc.interner).count();
-            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-                PptxError::ShapeIndexOutOfRange {
-                    surface,
-                    index: shape_idx,
-                    count,
-                },
-            )?;
-            slide::shape_placeholder(shape, &doc.interner)
-        };
-
-        let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
-        if let Some(ph) = placeholder {
-            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
-            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
-                candidates.push((ancestor, Candidate::Placeholder(ph)));
-            }
-        }
+        let candidates = self.placeholder_candidates(surface, shape_idx)?;
 
         for (part, candidate) in candidates {
             // Extract the candidate's own outline while holding its part's borrow (fully owned).
             let own = {
                 let doc = self.package.part_tree(&part)?;
-                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-                let shape = match candidate {
-                    Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
-                    Candidate::Placeholder(ph) => {
-                        slide::find_placeholder(sp_tree, ph, &doc.interner)
-                    }
-                };
-                match shape {
+                match candidate_shape(doc, candidate)? {
                     Some(shape) => shape_own_line(shape, &doc.interner, &scheme, &map)?,
                     None => OwnLine::Absent,
                 }
@@ -1602,43 +1586,13 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        // The candidate shapes, in inheritance order: the shape itself, then (if it is a placeholder)
-        // the matching placeholder on each part the surface inherits from.
-        let slide_part = self.surface_part(surface)?.clone();
-        let placeholder = {
-            let doc = self.package.part_tree(&slide_part)?;
-            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let count = slide::shapes(sp_tree, &doc.interner).count();
-            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-                PptxError::ShapeIndexOutOfRange {
-                    surface,
-                    index: shape_idx,
-                    count,
-                },
-            )?;
-            slide::shape_placeholder(shape, &doc.interner)
-        };
-
-        let mut candidates = vec![(slide_part.clone(), Candidate::Index(shape_idx))];
-        if let Some(ph) = placeholder {
-            // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
-            for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
-                candidates.push((ancestor, Candidate::Placeholder(ph)));
-            }
-        }
+        let candidates = self.placeholder_candidates(surface, shape_idx)?;
 
         for (part, candidate) in candidates {
             // Extract the candidate's own effects while holding its part's borrow (fully owned).
             let own = {
                 let doc = self.package.part_tree(&part)?;
-                let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-                let shape = match candidate {
-                    Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
-                    Candidate::Placeholder(ph) => {
-                        slide::find_placeholder(sp_tree, ph, &doc.interner)
-                    }
-                };
-                match shape {
+                match candidate_shape(doc, candidate)? {
                     Some(shape) => shape_own_effects(shape, &doc.interner, &scheme, &map)?,
                     None => OwnEffects::Absent,
                 }
@@ -2795,12 +2749,30 @@ fn master_style_local(slot: slide::Placeholder) -> &'static str {
     }
 }
 
-/// How to locate a candidate shape within a part's shape tree during effective-fill resolution.
+/// How to locate a candidate shape within a part's shape tree while resolving an effective property.
+#[derive(Debug, Clone, Copy)]
 enum Candidate {
-    /// The originally-requested shape, by index (the slide itself).
+    /// The originally-requested shape, by index (the surface's own part).
     Index(usize),
     /// The matching placeholder on an ancestor part (layout / master).
     Placeholder(slide::Placeholder),
+}
+
+/// Resolves a [`Candidate`] to the shape it names in `doc`, or `None` when that part has no such
+/// shape — an ancestor that simply does not define the slot, which every effective walk treats as
+/// "this tier says nothing" and steps past.
+///
+/// Takes the document rather than the package so the caller owns the borrow and can extract what it
+/// needs before the next candidate is fetched.
+fn candidate_shape<'a>(
+    doc: &'a RawDocument,
+    candidate: Candidate,
+) -> Result<Option<&'a RawElement>, PptxError> {
+    let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+    Ok(match candidate {
+        Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
+        Candidate::Placeholder(ph) => slide::find_placeholder(sp_tree, ph, &doc.interner),
+    })
 }
 
 /// A candidate shape's own fill, extracted while its part's tree is borrowed (fully owned, so no
