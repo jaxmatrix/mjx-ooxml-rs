@@ -15,6 +15,38 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.16] - 2026-07-21
+
+Say it once. The table surface stops needing loops.
+
+### Added
+
+- **`Cells`** — which cells an operation is about: `one`, `row`, `column`, `rectangle`, `all`.
+- **`CellFormat`** — a builder naming the cell properties to write (`with_fill`, `with_border`,
+  `with_outline`, `with_margins`, `with_anchor`, `with_text_direction`), plus `without_fill` /
+  `without_border` / `without_borders` for removal.
+- **`Presentation::format_cells`, `format_cell_text`, `format_cell_paragraphs`** — apply a spec
+  across a selection in one call.
+
+### Notes
+
+- Styling a header row took nine calls in a loop and read like nine things rather than the one thing
+  it is. In the office-open canary this change turns twenty-two lines and four loops into nine lines
+  and none.
+- **Neither half is a new pattern.** The crate already builds specs with `with_`-prefixed setters
+  (`CharacterPropertiesSpec`, `LineSpec`), and `set_shape_run_properties` already means "every run in
+  this much of the shape". Tables simply never got either.
+- **A format writes only what it names**, so recolouring a region cannot flatten borders it never
+  mentioned. A format naming nothing writes nothing — not even an empty `a:tcPr`.
+- `without_fill` is not `with_fill(FillSpec::None)`: removing lets the table style decide again,
+  stating "none" stops it. Same for borders.
+- The table is located **once** and the selection walked within it, so formatting a whole table is
+  one traversal rather than one per cell.
+- The per-cell, per-property setters remain for the single-property case; both paths now share one
+  get-or-create for `a:tcPr`.
+- Selecting nothing (`Cells::rectangle(1..1, ..)`) is well-formed and changes nothing; a selection
+  reaching past an edge reports the table's real dimensions.
+
 ## [0.0.15] - 2026-07-21
 
 A table can be made to look like something.
