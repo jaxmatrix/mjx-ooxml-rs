@@ -856,9 +856,9 @@ impl Presentation {
     /// `a:ext` of its transform — or `None` when the shape does not place itself.
     ///
     /// A `None` here is not "at the origin": it means the shape declares no bounds of its own, so a
-    /// placeholder takes them from its layout and then its master (resolving that is
-    /// [`effective_shape_bounds`](Self::effective_shape_bounds)). It is also `None` for a transform
-    /// that names only one of the two, since bounds are all four numbers.
+    /// placeholder takes them from its layout and then its master — resolving *that* is a separate,
+    /// future `effective_shape_bounds`. It is also `None` for a transform that names only one of the
+    /// two, since bounds are all four numbers.
     ///
     /// Bounds are absolute within [`slide_size`](Self::slide_size), except for a shape inside a
     /// `p:grpSp` — group members are not addressable, so this never returns one. Reading does not
