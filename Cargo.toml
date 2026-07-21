@@ -22,7 +22,7 @@ members = [
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
 # PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
 # this one line. See CHANGELOG.md.
-version = "0.0.9"
+version = "0.0.10"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
