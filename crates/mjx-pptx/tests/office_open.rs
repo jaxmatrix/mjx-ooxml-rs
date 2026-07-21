@@ -252,6 +252,14 @@ fn deck_with_a_created_table_opens() {
     )
     .expect("roomier insets");
 
+    // A merged cell spanning the last row's two number columns — the merge attributes have to
+    // satisfy a real implementation, and a consumer that disagrees renders a visibly broken grid
+    // rather than failing quietly.
+    pres.merge_cells(0, table, Cells::rectangle(2..3, 1..3))
+        .expect("merge the last row's totals");
+    pres.set_cell_text(0, table, 2, 1, 0, "984 (-3%)")
+        .expect("the merged cell's text");
+
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "created_table");
 }
