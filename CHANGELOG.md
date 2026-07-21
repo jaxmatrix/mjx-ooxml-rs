@@ -15,6 +15,31 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.17] - 2026-07-22
+
+Cells can be merged, and unmerged.
+
+### Added
+
+- **`Presentation::merge_cells`** — takes a `Cells` selection, since every selection is a rectangle
+  and a rectangle is the only shape a merged region can take.
+- **`Presentation::unmerge_cells`** — given **any** cell of a region, not only its anchor.
+- **`TableCell::set_spans`, `set_merged`, `clear_merge`** (`mjx-dml`).
+- **`PptxError::TableMergeCrossesSelection`.**
+
+### Notes
+
+- **Merging never removes a cell.** The anchor states how far it reaches; the covered cells stay in
+  the table, each stating that something to its left or above owns it. So the grid stays
+  rectangular, `(row, column)` addressing keeps working, and a covered cell **keeps its own text** —
+  invisible until unmerged, which is what makes unmerging give everything back.
+- **A merge then an unmerge is byte-identical to no change at all.** A default is *removed* rather
+  than written: `gridSpan="1"` and `hMerge="0"` are what the schema already assumes.
+- **A selection that would cut an existing merge in half is refused.** Truncating it would leave the
+  table claiming a span that no longer fits, and growing the selection would merge cells the caller
+  never named. A region wholly inside the selection is absorbed instead.
+- Merging one cell, or none, changes nothing rather than writing a span of one.
+
 ## [0.0.16] - 2026-07-21
 
 Say it once. The table surface stops needing loops.
