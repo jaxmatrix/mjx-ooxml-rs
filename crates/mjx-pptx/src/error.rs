@@ -4,6 +4,7 @@ use mjx_ooxml_core::FromXmlError;
 use mjx_opc::OpcError;
 use mjx_xml::XmlError;
 
+use crate::slide::ShapeKind;
 use crate::surface::Surface;
 
 /// Errors produced while opening, reading, editing, or saving a presentation.
@@ -165,4 +166,12 @@ pub enum PptxError {
     /// The picture is missing its `p:blipFill` (or its `a:blip`), which the schema requires.
     #[error("picture has no blip fill")]
     PictureHasNoBlipFill,
+
+    /// The addressed shape's kind has no transform in its schema, so it cannot be positioned or
+    /// sized. Only a `p:contentPart` (`CT_Rel`, a reference to an external part) is such a kind.
+    #[error("a {kind:?} has no transform to set")]
+    ShapeCannotBePositioned {
+        /// The kind of shape addressed.
+        kind: ShapeKind,
+    },
 }

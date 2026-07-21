@@ -2,9 +2,10 @@
 
 use mjx_dml::{ColorMap, ColorSchemeSlot, Fill, StyleMatrixReference};
 use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
-use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
+use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
+use crate::build;
 use crate::error::PptxError;
 use crate::nav;
 
@@ -164,6 +165,163 @@ pub(crate) fn shape_prstgeom<'a>(
 ) -> Option<&'a RawElement> {
     let sp_pr = nav::child(shape, interner, PML, "spPr")?;
     nav::child(sp_pr, interner, DML_MAIN, "prstGeom")
+}
+
+// ---------------------------------------------------------------------------------------------
+// The transform (`a:xfrm`) — the one property that is not in the same place for every shape kind
+// ---------------------------------------------------------------------------------------------
+//
+// Fill, outline, effects and geometry all live in `p:spPr`, so their accessors can go straight
+// there. A transform cannot: a group keeps its own in `p:grpSpPr` (as a `CT_GroupTransform2D`, with
+// the child coordinate space its members are laid out in), and a graphic frame keeps its own as a
+// **`p:xfrm`** — PresentationML's namespace, a direct child, and required by the schema rather than
+// optional. Only its wrapper differs; the `a:off`/`a:ext` inside are DrawingML in every case, which
+// is why one `Transform2D` reads them all.
+//
+// A `p:contentPart` is a reference to an external part (`CT_Rel`) and has no transform at all.
+
+/// Where a shape of `kind` keeps its transform: the local name of the container to look inside
+/// (`None` means the shape element itself), and the qualified name of the transform element.
+///
+/// `None` for a kind that cannot carry one.
+fn transform_location(kind: ShapeKind) -> Option<(Option<&'static str>, TransformName)> {
+    match kind {
+        // `p:spPr > a:xfrm` — `CT_Transform2D`.
+        ShapeKind::Shape | ShapeKind::Picture | ShapeKind::ConnectionShape => {
+            Some((Some("spPr"), TransformName::DrawingMl))
+        }
+        // `p:grpSpPr > a:xfrm` — `CT_GroupTransform2D`, carrying `a:chOff` / `a:chExt`.
+        ShapeKind::GroupShape => Some((Some("grpSpPr"), TransformName::DrawingMl)),
+        // `p:graphicFrame > p:xfrm` — a direct child, in PresentationML's own namespace.
+        ShapeKind::GraphicFrame => Some((None, TransformName::PresentationMl)),
+        // `CT_Rel` has nowhere to put one.
+        ShapeKind::ContentPart => None,
+    }
+}
+
+/// Which namespace a shape kind's transform element is written in. Its children are DrawingML
+/// either way — this is only about the wrapper.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum TransformName {
+    /// `a:xfrm`, the usual case.
+    DrawingMl,
+    /// `p:xfrm`, which only a `p:graphicFrame` uses.
+    PresentationMl,
+}
+
+impl TransformName {
+    /// The namespace the transform element is named in.
+    fn namespace(self) -> SchemaNamespace {
+        match self {
+            Self::DrawingMl => DML_MAIN,
+            Self::PresentationMl => PML,
+        }
+    }
+
+    /// The prefix a newly built transform element is written with.
+    fn prefix(self) -> &'static str {
+        match self {
+            Self::DrawingMl => "a",
+            Self::PresentationMl => "p",
+        }
+    }
+}
+
+/// A shape's transform element, whichever of the three places its kind keeps it in, or `None` when
+/// it declares none (its position is then inherited) or its kind cannot carry one.
+pub(crate) fn shape_transform<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let kind = shape_kind(shape, interner)?;
+    let (container, name) = transform_location(kind)?;
+    let holder = match container {
+        Some(local) => nav::child(shape, interner, PML, local)?,
+        None => shape,
+    };
+    nav::child(holder, interner, name.namespace(), "xfrm")
+}
+
+/// A shape's transform element, mutably — **creating an empty one** in the right container, at its
+/// rank in that container's sequence, when the shape declares none.
+///
+/// This is the whole write path's knowledge of where a transform lives, so no caller repeats it.
+/// The returned element is ready for
+/// [`Transform2D::apply`](mjx_dml::Transform2D::apply), which fills in only the fields being set.
+///
+/// # Errors
+/// [`ShapeCannotBePositioned`](PptxError::ShapeCannotBePositioned) for a `p:contentPart`, which has
+/// no transform in its schema, and [`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties) for a
+/// shape missing the `p:spPr` / `p:grpSpPr` its transform would live in.
+pub(crate) fn shape_transform_slot_mut<'a>(
+    shape: &'a mut RawElement,
+    interner: &mut Interner,
+) -> Result<&'a mut RawElement, PptxError> {
+    let kind = shape_kind(shape, interner).ok_or(PptxError::MalformedSlide("not a shape"))?;
+    let (container, name) =
+        transform_location(kind).ok_or(PptxError::ShapeCannotBePositioned { kind })?;
+
+    let holder = match container {
+        Some(local) => {
+            nav::child_mut(shape, interner, PML, local).ok_or(PptxError::ShapeHasNoProperties)?
+        }
+        None => shape,
+    };
+
+    // Insert before everything the transform must precede, rather than appending: in both
+    // `CT_ShapeProperties` and `CT_GroupShapeProperties` the transform is the *first* member of the
+    // sequence, and in `CT_GraphicalObjectFrame` it follows only `p:nvGraphicFramePr`. Order is
+    // validity here, not style.
+    let namespace = name.namespace();
+    let existing = holder.children.iter().position(|node| match node {
+        RawNode::Element(element) => nav::name_is(&element.name, interner, namespace, "xfrm"),
+        _ => false,
+    });
+    let index = match existing {
+        Some(index) => index,
+        None => {
+            let at = transform_insert_index(holder, interner, container.is_none());
+            let element = build::node(interner, name.prefix(), namespace, "xfrm", vec![], vec![]);
+            holder.children.insert(at, RawNode::Element(element));
+            holder.empty = false;
+            at
+        }
+    };
+    match &mut holder.children[index] {
+        RawNode::Element(element) => Ok(element),
+        _ => Err(PptxError::MalformedSlide(
+            "transform slot is not an element",
+        )),
+    }
+}
+
+/// Where a new transform child belongs in `holder`.
+///
+/// In a `p:spPr` / `p:grpSpPr` the transform precedes every other element, so it goes before the
+/// first one. In a `p:graphicFrame` (`is_graphic_frame`) it goes after the required
+/// `p:nvGraphicFramePr` and before the `a:graphic`.
+fn transform_insert_index(
+    holder: &RawElement,
+    interner: &Interner,
+    is_graphic_frame: bool,
+) -> usize {
+    let first_element = holder
+        .children
+        .iter()
+        .position(|node| matches!(node, RawNode::Element(_)));
+    if !is_graphic_frame {
+        return first_element.unwrap_or(holder.children.len());
+    }
+    holder
+        .children
+        .iter()
+        .position(|node| match node {
+            RawNode::Element(element) => {
+                !nav::name_is(&element.name, interner, PML, "nvGraphicFramePr")
+            }
+            _ => false,
+        })
+        .unwrap_or(holder.children.len())
 }
 
 /// Parses a `p:clrMap` / `a:overrideClrMapping` element into a [`ColorMap`] — the twelve logical
@@ -765,5 +923,204 @@ mod tests {
             &interner
         )
         .is_none());
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // The transform locator — the three places a transform lives, and the kind that has none
+    // -----------------------------------------------------------------------------------------
+
+    /// One shape of each kind, each carrying a transform in the place its schema puts it. The `x`
+    /// coordinate identifies which transform was found, so a locator that reaches into the wrong
+    /// container fails loudly instead of silently finding *a* transform.
+    fn shape_of_each_kind() -> Vec<(ShapeKind, String)> {
+        vec![
+            (
+                ShapeKind::Shape,
+                r#"<p:sp><p:spPr><a:xfrm><a:off x="1" y="0"/></a:xfrm></p:spPr></p:sp>"#.to_owned(),
+            ),
+            (
+                ShapeKind::Picture,
+                r#"<p:pic><p:spPr><a:xfrm><a:off x="2" y="0"/></a:xfrm></p:spPr></p:pic>"#
+                    .to_owned(),
+            ),
+            (
+                ShapeKind::ConnectionShape,
+                r#"<p:cxnSp><p:spPr><a:xfrm><a:off x="3" y="0"/></a:xfrm></p:spPr></p:cxnSp>"#
+                    .to_owned(),
+            ),
+            (
+                // A group's is in `p:grpSpPr`, and carries the child coordinate space.
+                ShapeKind::GroupShape,
+                concat!(
+                    r#"<p:grpSp><p:grpSpPr><a:xfrm><a:off x="4" y="0"/>"#,
+                    r#"<a:chOff x="40" y="0"/></a:xfrm></p:grpSpPr>"#,
+                    r#"<p:sp><p:spPr><a:xfrm><a:off x="999" y="0"/></a:xfrm></p:spPr></p:sp>"#,
+                    r#"</p:grpSp>"#
+                )
+                .to_owned(),
+            ),
+            (
+                // A graphic frame's is a `p:xfrm`, a direct child.
+                ShapeKind::GraphicFrame,
+                concat!(
+                    r#"<p:graphicFrame><p:nvGraphicFramePr/>"#,
+                    r#"<p:xfrm><a:off x="5" y="0"/></p:xfrm>"#,
+                    r#"<a:graphic/></p:graphicFrame>"#
+                )
+                .to_owned(),
+            ),
+            (ShapeKind::ContentPart, r#"<p:contentPart/>"#.to_owned()),
+        ]
+    }
+
+    /// Wraps a shape fragment so its namespaces resolve.
+    fn shape(fragment: &str) -> (RawElement, mjx_ooxml_core::Interner) {
+        let (tree, interner) = element(format!(
+            r#"<p:spTree xmlns:p="{P}" xmlns:a="{A}">{fragment}</p:spTree>"#
+        ));
+        let shape = tree
+            .children
+            .iter()
+            .find_map(|node| match node {
+                RawNode::Element(element) => Some(element.clone()),
+                _ => None,
+            })
+            .expect("one shape");
+        (shape, interner)
+    }
+
+    #[test]
+    fn the_locator_finds_each_kinds_transform_where_its_schema_keeps_it() {
+        for (kind, fragment) in shape_of_each_kind() {
+            let (element, interner) = shape(&fragment);
+            let found = shape_transform(&element, &interner);
+
+            if kind == ShapeKind::ContentPart {
+                assert!(found.is_none(), "{kind:?} has no transform in its schema");
+                continue;
+            }
+            let found = found.unwrap_or_else(|| panic!("{kind:?}: no transform found"));
+            let off = nav::child(found, &interner, DML_MAIN, "off").expect("a:off");
+            let x = nav::attr_value(off, &interner, "x").expect("x");
+            let expected = match kind {
+                ShapeKind::Shape => "1",
+                ShapeKind::Picture => "2",
+                ShapeKind::ConnectionShape => "3",
+                ShapeKind::GroupShape => "4",
+                ShapeKind::GraphicFrame => "5",
+                ShapeKind::ContentPart => unreachable!(),
+            };
+            assert_eq!(x, expected, "{kind:?} found the wrong transform");
+        }
+    }
+
+    #[test]
+    fn a_groups_own_transform_is_not_its_first_members() {
+        // `p:grpSp` holds both a `p:grpSpPr > a:xfrm` and member shapes with their own — a locator
+        // that searched descendants rather than the named container would find the member's.
+        let (_, fragment) = shape_of_each_kind()
+            .into_iter()
+            .find(|(kind, _)| *kind == ShapeKind::GroupShape)
+            .expect("the group case");
+        let (element, interner) = shape(&fragment);
+
+        let found = shape_transform(&element, &interner).expect("the group's own transform");
+        let transform = mjx_dml::Transform2D::read(found, &interner);
+        assert_eq!(transform.position.map(|p| p.x.emu()), Some(4));
+        assert_eq!(
+            transform.child_position.map(|p| p.x.emu()),
+            Some(40),
+            "the child coordinate space comes with it"
+        );
+    }
+
+    #[test]
+    fn a_shape_declaring_no_transform_reads_as_none() {
+        let (element, interner) = shape(r#"<p:sp><p:spPr/></p:sp>"#);
+        assert!(shape_transform(&element, &interner).is_none());
+    }
+
+    #[test]
+    fn the_slot_creates_a_transform_before_everything_it_must_precede() {
+        // `a:xfrm` is the first member of `CT_ShapeProperties`'s sequence.
+        let (mut element, mut interner) =
+            shape(r#"<p:sp><p:spPr><a:prstGeom prst="rect"/><a:ln/></p:spPr></p:sp>"#);
+        let slot = shape_transform_slot_mut(&mut element, &mut interner).expect("slot");
+        assert_eq!(interner.resolve(slot.name.local), "xfrm");
+
+        let sp_pr = nav::child(&element, &interner, PML, "spPr").expect("spPr");
+        let locals: Vec<&str> = sp_pr
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(el) => Some(interner.resolve(el.name.local)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(locals, ["xfrm", "prstGeom", "ln"]);
+    }
+
+    #[test]
+    fn the_slot_creates_a_graphic_frames_transform_in_presentationml() {
+        // A `p:graphicFrame`'s transform is `p:xfrm`, and sits after `p:nvGraphicFramePr`.
+        let (mut element, mut interner) = shape(concat!(
+            r#"<p:graphicFrame><p:nvGraphicFramePr/><a:graphic/></p:graphicFrame>"#
+        ));
+        let slot = shape_transform_slot_mut(&mut element, &mut interner).expect("slot");
+        assert_eq!(interner.resolve(slot.name.local), "xfrm");
+        assert!(
+            nav::name_is(&slot.name, &interner, PML, "xfrm"),
+            "a graphic frame's transform is PresentationML's, not DrawingML's"
+        );
+
+        let locals: Vec<&str> = element
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(el) => Some(interner.resolve(el.name.local)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(locals, ["nvGraphicFramePr", "xfrm", "graphic"]);
+    }
+
+    #[test]
+    fn the_slot_returns_an_existing_transform_rather_than_a_second_one() {
+        let (mut element, mut interner) =
+            shape(r#"<p:sp><p:spPr><a:xfrm><a:off x="7" y="0"/></a:xfrm></p:spPr></p:sp>"#);
+        {
+            let slot = shape_transform_slot_mut(&mut element, &mut interner).expect("slot");
+            assert!(nav::child(slot, &interner, DML_MAIN, "off").is_some());
+        }
+        let sp_pr = nav::child(&element, &interner, PML, "spPr").expect("spPr");
+        let count = sp_pr
+            .children
+            .iter()
+            .filter(|node| {
+                matches!(node, RawNode::Element(el)
+                if interner.resolve(el.name.local) == "xfrm")
+            })
+            .count();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn a_content_part_cannot_be_positioned() {
+        let (mut element, mut interner) = shape(r#"<p:contentPart/>"#);
+        assert!(matches!(
+            shape_transform_slot_mut(&mut element, &mut interner),
+            Err(PptxError::ShapeCannotBePositioned {
+                kind: ShapeKind::ContentPart
+            })
+        ));
+    }
+
+    #[test]
+    fn a_shape_missing_its_properties_element_is_a_typed_error() {
+        let (mut element, mut interner) = shape(r#"<p:sp/>"#);
+        assert!(matches!(
+            shape_transform_slot_mut(&mut element, &mut interner),
+            Err(PptxError::ShapeHasNoProperties)
+        ));
     }
 }
