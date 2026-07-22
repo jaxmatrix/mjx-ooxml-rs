@@ -3,7 +3,7 @@
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
-use crate::build::{attr_emu, set_attr};
+use crate::build::{attr_emu, dml_attr, dml_name, set_attr};
 use crate::geometry::Emu;
 
 use super::cell::TableCell;
@@ -33,6 +33,24 @@ pub struct TableRow {
 }
 
 impl TableRow {
+    /// A fresh `a:tr` of `cells`, carrying `height` when one is given (a new row copies its
+    /// neighbour's height, and a row beside one that states none states none too).
+    #[must_use]
+    pub fn new(interner: &mut Interner, height: Option<Emu>, cells: Vec<TableCell>) -> Self {
+        let attributes = match height {
+            Some(height) => vec![dml_attr(interner, "h", &height.emu().to_string())],
+            None => Vec::new(),
+        };
+        let content: Vec<TableRowContent> = cells.into_iter().map(TableRowContent::Cell).collect();
+        let empty = content.is_empty();
+        Self {
+            name: dml_name(interner, "tr"),
+            attributes,
+            empty,
+            content,
+        }
+    }
+
     /// The row's height (`@h`, EMU).
     ///
     /// This is the height the row *asks* for; PowerPoint grows a row whose content does not fit, so
@@ -95,5 +113,29 @@ impl TableRow {
     /// step with the table's grid.
     pub fn content_mut(&mut self) -> &mut Vec<TableRowContent> {
         &mut self.content
+    }
+
+    /// Inserts `cell` so it becomes the row's `at`-th cell (0-based); `at == cell_count` appends it.
+    pub fn insert_cell_at(&mut self, at: usize, cell: TableCell) {
+        let index = super::typed_insert_index(&self.content, at, |item| {
+            matches!(item, TableRowContent::Cell(_))
+        });
+        self.content.insert(index, TableRowContent::Cell(cell));
+        self.empty = false;
+    }
+
+    /// Removes the row's `at`-th cell and returns it, or `None` if the row has fewer.
+    pub fn remove_cell_at(&mut self, at: usize) -> Option<TableCell> {
+        let index = super::nth_typed_index(&self.content, at, |item| {
+            matches!(item, TableRowContent::Cell(_))
+        })?;
+        // `nth_typed_index` only points at a `Cell`; the fallback re-inserts rather than drop.
+        match self.content.remove(index) {
+            TableRowContent::Cell(cell) => Some(cell),
+            other => {
+                self.content.insert(index, other);
+                None
+            }
+        }
     }
 }

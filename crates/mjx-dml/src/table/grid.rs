@@ -6,7 +6,7 @@
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
-use crate::build::{attr_emu, fidelity_element_impls, set_attr};
+use crate::build::{attr_emu, dml_attr, dml_name, fidelity_element_impls, set_attr};
 use crate::geometry::Emu;
 
 /// `a:gridCol` (`CT_TableCol`) — one column of the table grid, carrying its width.
@@ -24,6 +24,18 @@ pub struct TableColumn {
 fidelity_element_impls!(TableColumn);
 
 impl TableColumn {
+    /// A fresh `a:gridCol` carrying just its width — what a newly inserted column is born as, with no
+    /// inherited `extLst` or unknown attribute from the neighbour it copied the width from.
+    #[must_use]
+    pub fn new(interner: &mut Interner, width: Emu) -> Self {
+        Self {
+            name: dml_name(interner, "gridCol"),
+            attributes: vec![dml_attr(interner, "w", &width.emu().to_string())],
+            children: Vec::new(),
+            empty: true,
+        }
+    }
+
     /// The column's width (`@w`, EMU).
     #[must_use]
     pub fn width(&self, interner: &Interner) -> Option<Emu> {
@@ -106,5 +118,31 @@ impl TableGrid {
     /// step with every row's cells.
     pub fn content_mut(&mut self) -> &mut Vec<TableGridContent> {
         &mut self.content
+    }
+
+    /// Inserts `column` so it becomes the grid's `at`-th column (0-based); `at == column_count`
+    /// appends it at the end. The new column lands beside its typed siblings, past any opaque node.
+    pub fn insert_column_at(&mut self, at: usize, column: TableColumn) {
+        let index = super::typed_insert_index(&self.content, at, |item| {
+            matches!(item, TableGridContent::Column(_))
+        });
+        self.content.insert(index, TableGridContent::Column(column));
+        self.empty = false;
+    }
+
+    /// Removes the grid's `at`-th column and returns it, or `None` if the grid has fewer.
+    pub fn remove_column_at(&mut self, at: usize) -> Option<TableColumn> {
+        let index = super::nth_typed_index(&self.content, at, |item| {
+            matches!(item, TableGridContent::Column(_))
+        })?;
+        // `nth_typed_index` only ever points at a `Column`, so the match below always takes the first
+        // arm; the fallback re-inserts rather than dropping anything if that ever changed.
+        match self.content.remove(index) {
+            TableGridContent::Column(column) => Some(column),
+            other => {
+                self.content.insert(index, other);
+                None
+            }
+        }
     }
 }

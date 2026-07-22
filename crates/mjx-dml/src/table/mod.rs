@@ -58,3 +58,41 @@ pub use grid::{TableColumn, TableGrid, TableGridContent};
 pub use properties::{TablePart, TableProperties};
 pub use row::{TableRow, TableRowContent};
 pub use table::{Table, TableContent};
+
+/// The index in an interleaved content list of the `nth` (0-based) element matching `is_target`, or
+/// `None` when there are fewer than `nth + 1` of them.
+///
+/// A structural container keeps its typed children interleaved with opaque nodes (whitespace, an
+/// `extLst`, an unknown element), so the `nth` *row* / *column* / *cell* is not at content index
+/// `nth` — this walks past the opaque nodes to find it.
+pub(super) fn nth_typed_index<T>(
+    content: &[T],
+    nth: usize,
+    is_target: impl Fn(&T) -> bool,
+) -> Option<usize> {
+    content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| is_target(item).then_some(index))
+        .nth(nth)
+}
+
+/// The content-list index at which to insert so a new element becomes the `nth` (0-based) one
+/// matching `is_target`: at the current `nth` match (pushing it and everything after it right), or
+/// right after the last match when `nth` equals the count (appending). Keeps the new element beside
+/// its typed siblings rather than at a blind index that could land it among leading properties.
+pub(super) fn typed_insert_index<T>(
+    content: &[T],
+    nth: usize,
+    is_target: impl Fn(&T) -> bool,
+) -> usize {
+    if let Some(index) = nth_typed_index(content, nth, &is_target) {
+        return index;
+    }
+    content
+        .iter()
+        .enumerate()
+        .filter_map(|(index, item)| is_target(item).then_some(index))
+        .next_back()
+        .map_or(content.len(), |last| last + 1)
+}
