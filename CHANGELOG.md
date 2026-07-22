@@ -15,6 +15,36 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.18] - 2026-07-22
+
+Tables can grow and shrink — rows and columns inserted and removed.
+
+### Added
+
+- **`Presentation::insert_row`, `remove_row`, `insert_column`, `remove_column`** — an index equal to
+  the current count appends; beyond it is `TableCellOutOfRange`. A new row copies the height of the
+  row beside it and a new column the width of the column beside it; the frame's own bounds are left
+  alone, as PowerPoint leaves them.
+- **`Table::insert_row`, `remove_row`, `insert_column`, `remove_column`** (`mjx-dml`) — the
+  span-adjustment logic, plus `TableColumn::new`, `TableRow::new`,
+  `TableCell::set_body_and_properties`, and grid/row/cell insert-and-remove helpers.
+
+### Notes
+
+- **The grid and every row stay in step.** A column edit changes `a:tblGrid` and one `a:tc` in every
+  row together, so the rows never disagree with the width the grid declares.
+- **Merges are adjusted, not left dangling.** A merge the new line falls inside grows by one; a merge
+  the removed line lies inside shrinks by one; a merge whose **anchor** is removed promotes the next
+  cell of the region, which takes over the anchor's `a:txBody` and `a:tcPr` and the reduced span so
+  the table looks unchanged — including a region merged in both directions at once.
+- **Removing the last row or column is refused** with `InvalidTableSize`: PowerPoint will not open a
+  table with no cells.
+- **Insert then remove is byte-identical to no change** — a span that falls back to one loses its
+  attribute rather than being written as `gridSpan="1"`.
+- The structural edit runs on the typed `Table` (parse, mutate, write back), not the raw tree:
+  unlike a single-cell text edit it touches every row anyway, so parsing the whole table costs
+  nothing extra and the merge logic is expressed in terms of the model.
+
 ## [0.0.17] - 2026-07-22
 
 Cells can be merged, and unmerged.
