@@ -113,11 +113,11 @@ fn out_of_range_is_a_typed_error() {
     let mut pres = sample();
     assert!(matches!(
         pres.shape_bounds(0, 99),
-        Err(PptxError::ShapeIndexOutOfRange { index: 99, .. })
+        Err(PptxError::ShapeIndexOutOfRange { ref path, .. }) if path.indices() == [99]
     ));
     assert!(matches!(
         pres.set_shape_bounds(0, 99, ShapeBounds::from_inches(0.0, 0.0, 1.0, 1.0)),
-        Err(PptxError::ShapeIndexOutOfRange { index: 99, .. })
+        Err(PptxError::ShapeIndexOutOfRange { ref path, .. }) if path.indices() == [99]
     ));
 }
 

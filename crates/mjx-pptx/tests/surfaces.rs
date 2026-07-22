@@ -265,10 +265,7 @@ fn an_out_of_range_surface_names_itself_in_the_error() {
     let err = pres
         .shape_fill(Surface::Layout(2), 0)
         .expect_err("the Blank layout has no shapes");
-    assert_eq!(
-        err.to_string(),
-        "shape index 0 out of range on layout 2 (0..0)"
-    );
+    assert_eq!(err.to_string(), "shape 0 out of range on layout 2 (0..0)");
 }
 
 #[test]
