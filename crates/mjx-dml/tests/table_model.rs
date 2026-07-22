@@ -6,7 +6,7 @@
 //! whole text body this tier does not interpret, and all of it has to come back out unchanged.
 
 use mjx_dml::{CellBorder, LineSpec, Table, TableCellProperties, TablePart};
-use mjx_ooxml_core::{FromXml, RawDocument, ToXml};
+use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawName, RawNode, Symbol, ToXml};
 use mjx_xml::fidelity;
 
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -537,4 +537,294 @@ fn setting_a_merge_leaves_the_cells_own_content_alone() {
     assert!(out.contains("<a:t>kept</a:t>"), "{out}");
     assert!(out.contains(r#"anchor="ctr""#), "{out}");
     assert!(out.contains(r#"id="c1""#), "{out}");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Structural edits — inserting and removing rows and columns
+//
+// The two things a structural edit must never get wrong: the grid and every row stay in step (one
+// a:gridCol per a:tc-per-row), and merges are *adjusted* rather than left dangling — a merge the new
+// line falls inside grows, a merge whose anchor is removed promotes the next cell of the region.
+// ---------------------------------------------------------------------------------------------
+
+/// A fresh `a:tc` with one empty paragraph and an empty `a:tcPr`, built in `interner` so its symbols
+/// resolve against the table being edited — what the deck's `build_table_cell` supplies in shipped
+/// code, minimised here to what the model needs.
+fn empty_cell(interner: &mut Interner) -> RawElement {
+    let dml = interner.intern(A);
+    let a = interner.intern("a");
+    fn leaf(
+        interner: &mut Interner,
+        a: Symbol,
+        dml: Symbol,
+        local: &str,
+        children: Vec<RawNode>,
+    ) -> RawElement {
+        let empty = children.is_empty();
+        RawElement {
+            name: RawName {
+                prefix: Some(a),
+                local: interner.intern(local),
+                namespace: Some(dml),
+            },
+            attributes: Vec::new(),
+            children,
+            empty,
+        }
+    }
+    let body_pr = leaf(interner, a, dml, "bodyPr", Vec::new());
+    let lst_style = leaf(interner, a, dml, "lstStyle", Vec::new());
+    let paragraph = leaf(interner, a, dml, "p", Vec::new());
+    let body = leaf(
+        interner,
+        a,
+        dml,
+        "txBody",
+        vec![
+            RawNode::Element(body_pr),
+            RawNode::Element(lst_style),
+            RawNode::Element(paragraph),
+        ],
+    );
+    let tc_pr = leaf(interner, a, dml, "tcPr", Vec::new());
+    leaf(
+        interner,
+        a,
+        dml,
+        "tc",
+        vec![RawNode::Element(body), RawNode::Element(tc_pr)],
+    )
+}
+
+/// Asserts the grid's column count and every row's cell count agree — the invariant a column edit is
+/// most likely to break.
+#[track_caller]
+fn assert_grid_and_rows_agree(table: &Table) {
+    let columns = table.column_count();
+    for (index, row) in table.rows().enumerate() {
+        assert_eq!(
+            row.cell_count(),
+            columns,
+            "row {index} has {} cells but the grid declares {columns}",
+            row.cell_count()
+        );
+    }
+}
+
+/// A horizontally merged 1×3 row: the anchor spans all three columns, carrying a distinctive
+/// `a:tcPr`, and the two cells it covers say `hMerge`.
+fn row_span_of_three() -> String {
+    tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="100"/><a:gridCol w="200"/><a:gridCol w="300"/></a:tblGrid>"#,
+        r#"<a:tr h="10">"#,
+        r#"<a:tc gridSpan="3"><a:txBody><a:bodyPr/><a:p><a:r><a:t>Wide</a:t></a:r></a:p></a:txBody><a:tcPr anchor="ctr"/></a:tc>"#,
+        r#"<a:tc hMerge="1"/>"#,
+        r#"<a:tc hMerge="1"/>"#,
+        r#"</a:tr>"#
+    ))
+}
+
+#[test]
+fn inserting_a_row_keeps_every_row_and_the_grid_in_step() {
+    let (mut table, mut doc) = parse(&simple());
+    table
+        .insert_row(&mut doc.interner, 1, empty_cell)
+        .expect("insert");
+
+    assert_eq!(table.row_count(), 3);
+    assert_grid_and_rows_agree(&table);
+    // The row landed in the middle; the originals kept their order and text.
+    assert_eq!(table.cell(0, 0).expect("0,0").text(), "Region");
+    assert_eq!(table.cell(2, 0).expect("2,0").text(), "North");
+    assert_eq!(table.cell(1, 0).expect("1,0").text(), "", "born empty");
+}
+
+#[test]
+fn a_new_row_copies_its_neighbours_height() {
+    let (mut table, mut doc) = parse(&simple());
+    table
+        .insert_row(&mut doc.interner, 2, empty_cell)
+        .expect("append");
+
+    // Appended past the end: it copies the last row's height rather than gaining a zero-sized band.
+    let height = table
+        .row(2)
+        .expect("row 2")
+        .height(&doc.interner)
+        .expect("a height");
+    assert_eq!(height.emu(), 370_840);
+}
+
+#[test]
+fn inserting_a_column_grows_the_grid_and_every_row_together() {
+    let (mut table, mut doc) = parse(&simple());
+    table
+        .insert_column(&mut doc.interner, 1, empty_cell)
+        .expect("insert");
+
+    assert_eq!(table.column_count(), 3);
+    assert_grid_and_rows_agree(&table);
+    // The new column copies the width of the column it was inserted beside (old column 1).
+    let width = table
+        .grid()
+        .expect("grid")
+        .column(1)
+        .expect("column 1")
+        .width(&doc.interner)
+        .expect("a width");
+    assert_eq!(width.emu(), 1_524_000);
+    assert_eq!(
+        table.cell(0, 2).expect("0,2").text(),
+        "Revenue",
+        "shifted right"
+    );
+}
+
+#[test]
+fn insert_then_remove_a_row_is_byte_identical() {
+    let (mut table, mut doc) = parse(&simple());
+    table
+        .insert_row(&mut doc.interner, 1, empty_cell)
+        .expect("insert");
+    table.remove_row(&mut doc.interner, 1);
+    assert_round_trips(&table, doc, &simple());
+}
+
+#[test]
+fn insert_then_remove_a_column_is_byte_identical() {
+    let (mut table, mut doc) = parse(&simple());
+    table
+        .insert_column(&mut doc.interner, 1, empty_cell)
+        .expect("insert");
+    table.remove_column(&mut doc.interner, 1);
+    assert_round_trips(&table, doc, &simple());
+}
+
+#[test]
+fn removing_a_row_drops_it_and_keeps_the_rest_in_step() {
+    let (mut table, mut doc) = parse(&simple());
+    table.remove_row(&mut doc.interner, 0);
+    assert_eq!(table.row_count(), 1);
+    assert_grid_and_rows_agree(&table);
+    assert_eq!(table.cell(0, 0).expect("0,0").text(), "North");
+}
+
+#[test]
+fn inserting_a_column_inside_a_merge_widens_it() {
+    // The 2×2 `merged()` fixture: top row one 2-wide merge, first column merged down two rows.
+    let (mut table, mut doc) = parse(&merged());
+    table
+        .insert_column(&mut doc.interner, 1, empty_cell)
+        .expect("insert");
+    let interner = &doc.interner;
+
+    assert_eq!(table.column_count(), 3);
+    assert_grid_and_rows_agree(&table);
+    // The horizontal merge absorbed the new column: the anchor now spans three, still two tall.
+    let anchor = table.cell(0, 0).expect("anchor");
+    assert_eq!(anchor.column_span(interner), 3);
+    assert_eq!(anchor.row_span(interner), 2);
+    // The inserted cells are born covered so the region stays rectangular.
+    assert!(table.cell(0, 1).expect("0,1").merged_horizontally(interner));
+    let below = table.cell(1, 1).expect("1,1");
+    assert!(below.merged_horizontally(interner) && below.merged_vertically(interner));
+}
+
+#[test]
+fn removing_the_anchor_column_promotes_the_next_cell_with_its_text() {
+    let (mut table, mut doc) = parse(&row_span_of_three());
+    table.remove_column(&mut doc.interner, 0);
+    let interner = &doc.interner;
+
+    assert_eq!(table.column_count(), 2);
+    assert_grid_and_rows_agree(&table);
+    // The old column-1 cell was promoted: it renders, spans the reduced two columns, and carries the
+    // anchor's text and its distinctive properties so the table looks unchanged.
+    let promoted = table.cell(0, 0).expect("0,0");
+    assert!(
+        !promoted.is_covered_by_merge(interner),
+        "promoted cell renders"
+    );
+    assert_eq!(promoted.column_span(interner), 2);
+    assert_eq!(promoted.text(), "Wide");
+    assert_eq!(
+        promoted
+            .properties()
+            .expect("a:tcPr")
+            .anchor(interner)
+            .map(|a| a.to_wire()),
+        Some("ctr"),
+        "the anchor's a:tcPr came along"
+    );
+    assert!(table.cell(0, 1).expect("0,1").merged_horizontally(interner));
+}
+
+#[test]
+fn removing_an_interior_merged_column_just_shrinks_the_span() {
+    let (mut table, mut doc) = parse(&row_span_of_three());
+    table.remove_column(&mut doc.interner, 1);
+    let interner = &doc.interner;
+
+    assert_eq!(table.column_count(), 2);
+    assert_grid_and_rows_agree(&table);
+    let anchor = table.cell(0, 0).expect("anchor");
+    assert!(!anchor.is_covered_by_merge(interner));
+    assert_eq!(anchor.column_span(interner), 2, "one column narrower");
+    assert_eq!(anchor.text(), "Wide", "the anchor kept its place and text");
+    assert!(table.cell(0, 1).expect("0,1").merged_horizontally(interner));
+}
+
+#[test]
+fn removing_the_anchor_row_of_a_two_way_merge_promotes_below() {
+    // `merged()` is merged in both directions; removing the anchor's row must keep the horizontal
+    // span and lose exactly one row.
+    let (mut table, mut doc) = parse(&merged());
+    table.remove_row(&mut doc.interner, 0);
+    let interner = &doc.interner;
+
+    assert_eq!(table.row_count(), 1);
+    assert_grid_and_rows_agree(&table);
+    let promoted = table.cell(0, 0).expect("0,0");
+    assert!(
+        !promoted.is_covered_by_merge(interner),
+        "promoted cell renders"
+    );
+    assert_eq!(
+        promoted.column_span(interner),
+        2,
+        "horizontal span survives"
+    );
+    assert_eq!(promoted.row_span(interner), 1, "one row shorter");
+    assert_eq!(promoted.text(), "Anchor");
+    // The region's other column is now the top row, so it keeps its horizontal cover and drops the
+    // vertical one.
+    let covered = table.cell(0, 1).expect("0,1");
+    assert!(covered.merged_horizontally(interner));
+    assert!(!covered.merged_vertically(interner));
+}
+
+#[test]
+fn a_span_that_falls_back_to_one_loses_its_attribute() {
+    // A 1×2 horizontal merge; removing an interior covered column brings the span to 1, which is the
+    // schema default and must be *removed*, not written — so nothing merge-related survives.
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="100"/><a:gridCol w="100"/></a:tblGrid>"#,
+        r#"<a:tr h="10">"#,
+        r#"<a:tc gridSpan="2"><a:txBody><a:bodyPr/><a:p><a:r><a:t>Pair</a:t></a:r></a:p></a:txBody></a:tc>"#,
+        r#"<a:tc hMerge="1"/>"#,
+        r#"</a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+    table.remove_column(&mut doc.interner, 1);
+
+    assert_eq!(table.column_count(), 1);
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    for attribute in ["gridSpan", "rowSpan", "hMerge", "vMerge"] {
+        assert!(!out.contains(attribute), "{attribute} survived: {out}");
+    }
+    assert!(
+        out.contains("<a:t>Pair</a:t>"),
+        "the surviving cell kept its text: {out}"
+    );
 }
