@@ -12,9 +12,16 @@ use mjx_dml::{
     ColorSpec, FillSpec, LineSpec, OnOffStyle, TablePart, TableStyleBorder, TableStylePart,
 };
 use mjx_opc::Package;
-use mjx_pptx::{Presentation, ShapeBounds, TableStyleFormat};
+use mjx_pptx::{Presentation, ShapeBounds, TableStyleDefinition, TableStyleFormat};
 
 const GUID: &str = "{7C9E6A1B-4D2F-4A55-9E3C-1122334455AA}";
+
+fn solid_hex(fill: Option<FillSpec>) -> Option<String> {
+    match fill {
+        Some(FillSpec::Solid(ColorSpec::Srgb(hex))) => Some(hex),
+        _ => None,
+    }
+}
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -359,4 +366,174 @@ fn the_tables_fixture_resolves_its_style_and_reading_dirties_nothing() {
     // Reading resolved the style but must not have dirtied a single part.
     let after = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
     assert_eq!(after, before, "reading a styled table dirtied a part");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Inline table styles (MJX-87) — the lean, self-contained styling path
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn an_inline_style_is_authored_resolved_and_rendered_without_a_shared_part() {
+    let (mut pres, table) = deck_with_table();
+    // `add_table` already turned on firstRow + bandRow, so the styled parts render.
+    pres.set_inline_table_style(
+        0,
+        table,
+        &TableStyleDefinition::new()
+            .with_name("Report Style")
+            .with_part(
+                TableStylePart::FirstRow,
+                TableStyleFormat::new()
+                    .with_bold(OnOffStyle::On)
+                    .with_text_color(ColorSpec::Srgb("FFFFFF".to_owned()))
+                    .with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+            )
+            .with_part(
+                TableStylePart::Band1Horizontal,
+                TableStyleFormat::new()
+                    .with_fill(FillSpec::solid(ColorSpec::Srgb("D9E1F2".to_owned()))),
+            ),
+    )
+    .expect("author inline style");
+
+    // Resolves through the same reader a shared style does.
+    let name = pres
+        .with_table_style(0, table, |style, interner| {
+            Ok(style.style_name(interner).map(str::to_owned))
+        })
+        .expect("resolve")
+        .flatten();
+    assert_eq!(name.as_deref(), Some("Report Style"));
+
+    // And renders through the effective readers: header navy + bold white, first data row band1H.
+    assert_eq!(
+        solid_hex(pres.effective_cell_fill(0, table, 0, 1).expect("fill")).as_deref(),
+        Some("1F3864")
+    );
+    assert_eq!(
+        pres.effective_cell_run_properties(0, table, 0, 0, 0, 0)
+            .expect("run")
+            .is_bold(),
+        Some(true)
+    );
+    assert_eq!(
+        solid_hex(pres.effective_cell_fill(0, table, 1, 1).expect("fill")).as_deref(),
+        Some("D9E1F2")
+    );
+
+    // The leanness contract: no shared `tableStyles.xml` part, no presentation relationship to one.
+    let saved = pres.save().expect("save");
+    let pkg = Package::open(&saved).expect("reopen package");
+    assert!(
+        !pkg.entries()
+            .iter()
+            .any(|e| e.name.ends_with("tableStyles.xml")),
+        "an inline style creates no shared part"
+    );
+
+    // Survives a reopen.
+    let mut reopened = Presentation::open(&saved).expect("reopen");
+    assert_eq!(
+        solid_hex(reopened.effective_cell_fill(0, table, 0, 1).expect("fill")).as_deref(),
+        Some("1F3864")
+    );
+}
+
+#[test]
+fn an_inline_style_can_be_built_up_a_part_at_a_time() {
+    let (mut pres, table) = deck_with_table();
+    // The incremental sibling creates the inline style on first use and adds to it after.
+    pres.format_inline_table_style_part(
+        0,
+        table,
+        TableStylePart::WholeTable,
+        &TableStyleFormat::new().with_fill(FillSpec::solid(ColorSpec::Srgb("F2F2F2".to_owned()))),
+    )
+    .expect("first part");
+    pres.format_inline_table_style_part(
+        0,
+        table,
+        TableStylePart::FirstRow,
+        &TableStyleFormat::new().with_bold(OnOffStyle::On),
+    )
+    .expect("second part");
+
+    // Both parts survive in the one inline style.
+    let (whole_fill, header_bold) = pres
+        .with_table_style(0, table, |style, interner| {
+            let whole = style
+                .part(interner, TableStylePart::WholeTable)
+                .and_then(|p| p.cell_style(interner))
+                .and_then(|c| c.fill(interner))
+                .is_some();
+            let bold = style
+                .part(interner, TableStylePart::FirstRow)
+                .and_then(|p| p.text_style(interner))
+                .map(|t| t.bold(interner));
+            Ok((whole, bold))
+        })
+        .expect("resolve")
+        .expect("a style");
+    assert!(whole_fill, "the wholeTbl fill from the first call survived");
+    assert_eq!(
+        header_bold,
+        Some(OnOffStyle::On),
+        "the firstRow bold from the second"
+    );
+}
+
+#[test]
+fn an_inline_style_replaces_a_referenced_one_and_vice_versa() {
+    let (mut pres, table) = deck_with_table();
+    pres.set_table_style(0, table, GUID)
+        .expect("reference a shared style");
+    assert_eq!(
+        pres.table_style_id(0, table).expect("id"),
+        Some(GUID.to_owned())
+    );
+
+    // Authoring an inline style clears the reference.
+    pres.set_inline_table_style(0, table, &TableStyleDefinition::new().with_name("Inline"))
+        .expect("inline");
+    assert_eq!(
+        pres.table_style_id(0, table).expect("id"),
+        None,
+        "the inline style replaced the reference"
+    );
+
+    // Re-assigning a shared style clears the inline one.
+    pres.set_table_style(0, table, GUID).expect("re-reference");
+    assert_eq!(
+        pres.table_style_id(0, table).expect("id"),
+        Some(GUID.to_owned())
+    );
+}
+
+#[test]
+fn authoring_an_inline_style_dirties_only_its_slide() {
+    let before = byte_map(&Package::open(&fixture("layouts.pptx")).expect("baseline"));
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    let count = pres.shape_count(1).expect("count");
+    let table = (0..count)
+        .find(|&idx| pres.table_dimensions(1, idx).is_ok())
+        .expect("a table on slide 2");
+    pres.set_inline_table_style(
+        1,
+        table,
+        &TableStyleDefinition::new().with_part(
+            TableStylePart::WholeTable,
+            TableStyleFormat::new()
+                .with_fill(FillSpec::solid(ColorSpec::Srgb("EEEEEE".to_owned()))),
+        ),
+    )
+    .expect("author");
+
+    let after = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    for (name, original) in &before {
+        if name == "ppt/slides/slide2.xml" {
+            assert_ne!(after.get(name), Some(original), "the slide changed");
+        } else {
+            assert_eq!(after.get(name), Some(original), "dirtied {name}");
+        }
+    }
 }

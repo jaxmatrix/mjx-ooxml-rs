@@ -926,3 +926,38 @@ fn an_inline_table_style_is_reported() {
         .and_then(|c| c.fill(&doc.interner))
         .is_some());
 }
+
+#[test]
+fn setting_an_inline_style_replaces_a_referenced_one() {
+    let (mut table, mut doc) = parse(&tbl(concat!(
+        r#"<a:tblPr><a:tableStyleId>{OLD-GUID}</a:tableStyleId></a:tblPr>"#,
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:txBody><a:bodyPr/><a:p/></a:txBody></a:tc></a:tr>"#
+    )));
+
+    let style = mjx_dml::TableStyle::new(&mut doc.interner, "{NEW-GUID}", "Inline Look");
+    let properties = table.properties_mut().expect("tblPr");
+    properties.set_inline_style(&mut doc.interner, &style);
+
+    assert_eq!(
+        properties.table_style_id(&doc.interner),
+        None,
+        "the tableStyleId reference is replaced by the inline style"
+    );
+    let inline = properties
+        .inline_style(&doc.interner)
+        .expect("an inline style");
+    assert_eq!(inline.style_name(&doc.interner), Some("Inline Look"));
+
+    // It serializes as `a:tableStyle`, not the `a:tblStyle` a shared style is.
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    assert!(
+        out.contains(r#"<a:tableStyle styleId="{NEW-GUID}" styleName="Inline Look""#),
+        "{out}"
+    );
+    assert!(
+        !out.contains("tableStyleId"),
+        "the old reference is gone: {out}"
+    );
+}
