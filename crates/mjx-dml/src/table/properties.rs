@@ -1,11 +1,11 @@
 //! `a:tblPr` (`CT_TableProperties`) — which parts of the table its style should emphasize, plus the
 //! table's own fill and effects.
 
-use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode};
+use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode, ToXml as _};
 
 use super::style::TableStyle;
 use crate::build::{
-    attr_bool, dml_child, dml_element, fidelity_element_impls, first_fill_child,
+    attr_bool, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
     replace_or_insert_child, set_attr,
 };
 use crate::effect::EffectList;
@@ -155,6 +155,26 @@ impl TableProperties {
                 _ => None,
             })
         })
+    }
+
+    /// Writes `style` **inline** on the table (`a:tableStyle`), replacing any inline style or
+    /// `a:tableStyleId` reference it had — the two are a choice, so setting one clears the other.
+    ///
+    /// `style` is a [`TableStyle`] built with the model's own constructors; it is emitted as
+    /// `a:tableStyle` (the tag this choice uses) rather than the `a:tblStyle` a shared style is, since
+    /// they are the same `CT_TableStyle` under different names. Placed at its rank in the sequence —
+    /// after the fill and effects, before an `extLst`.
+    pub fn set_inline_style(&mut self, interner: &mut Interner, style: &TableStyle) {
+        let mut element = style.to_xml(interner);
+        element.name = dml_name(interner, "tableStyle");
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "tableStyle" || local == "tableStyleId",
+            tblpr_child_rank,
+        );
+        self.empty = false;
     }
 
     /// The [`TableStyle`] defined **inline** on the table (`a:tableStyle`), or `None` if the table
