@@ -3,6 +3,7 @@
 
 use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode};
 
+use super::style::TableStyle;
 use crate::build::{
     attr_bool, dml_child, dml_element, fidelity_element_impls, first_fill_child,
     replace_or_insert_child, set_attr,
@@ -142,7 +143,8 @@ impl TableProperties {
     ///
     /// The style itself lives in the presentation's `tableStyles.xml` part (modeled by
     /// [`TableStyleList`](super::TableStyleList)); this reports the reference so a caller can resolve
-    /// it. A table may instead carry a whole `a:tableStyle` inline, which this does not report.
+    /// it. A table may instead carry a whole [`a:tableStyle` inline](Self::inline_style), which this
+    /// does not report.
     #[must_use]
     pub fn table_style_id<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
         dml_child(&self.children, interner, "tableStyleId").and_then(|element| {
@@ -153,6 +155,18 @@ impl TableProperties {
                 _ => None,
             })
         })
+    }
+
+    /// The [`TableStyle`] defined **inline** on the table (`a:tableStyle`), or `None` if the table
+    /// names its style by GUID ([`table_style_id`](Self::table_style_id)) or none at all.
+    ///
+    /// The two are the `(tableStyle | tableStyleId)?` choice of `CT_TableProperties`: a table either
+    /// points at a shared style in `tableStyles.xml` or spells one out here. An inline style is the
+    /// same `CT_TableStyle` a shared one is, so the whole style model applies to it.
+    #[must_use]
+    pub fn inline_style(&self, interner: &Interner) -> Option<TableStyle> {
+        dml_child(&self.children, interner, "tableStyle")
+            .and_then(|element| TableStyle::from_xml(element, interner).ok())
     }
 
     /// The properties' attributes, verbatim.

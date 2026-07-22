@@ -2,11 +2,13 @@
 //! is drawn.
 
 use mjx_derive::{FromXml, ToXml};
-use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode, ToXml as _};
+use mjx_ooxml_core::{
+    FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
+};
 
 use crate::build::{
-    attr_bool, attr_emu, attr_str, dml_child, dml_name, fidelity_element_impls, first_fill_child,
-    is_dml, replace_or_insert_child, set_attr,
+    attr_bool, attr_emu, attr_str, dml_child, dml_element, dml_name, fidelity_element_impls,
+    first_fill_child, is_dml, replace_or_insert_child, set_attr,
 };
 use crate::fill::{Fill, FillSpec};
 use crate::geometry::Emu;
@@ -296,6 +298,73 @@ impl TableCellProperties {
         set_attr(&mut self.attributes, interner, local, value);
         self.empty = self.empty && self.children.is_empty();
     }
+
+    /// The ids of the header cells that describe this cell (`a:headers > a:header`), in order — the
+    /// accessibility association a screen reader reads to announce which headers a data cell sits
+    /// under. Empty when the cell names none.
+    ///
+    /// Each string is another cell's `@id` (see [`TableCell::id`]).
+    #[must_use]
+    pub fn headers(&self, interner: &Interner) -> Vec<String> {
+        let Some(headers) = dml_child(&self.children, interner, "headers") else {
+            return Vec::new();
+        };
+        headers
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(element)
+                    if is_dml(&element.name, interner)
+                        && interner.resolve(element.name.local) == "header" =>
+                {
+                    Some(element_text(element))
+                }
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// Sets the header-cell ids that describe this cell (`a:headers`), replacing whatever it had.
+    /// An empty slice **removes** the `a:headers` child entirely.
+    pub fn set_headers(&mut self, interner: &mut Interner, header_ids: &[&str]) {
+        if header_ids.is_empty() {
+            self.children.retain(|node| match node {
+                RawNode::Element(element) => {
+                    !(is_dml(&element.name, interner)
+                        && interner.resolve(element.name.local) == "headers")
+                }
+                _ => true,
+            });
+            return;
+        }
+        let entries: Vec<RawNode> = header_ids
+            .iter()
+            .map(|id| {
+                let text = RawNode::Text(Box::from(id.as_bytes()));
+                RawNode::Element(dml_element(interner, "header", Vec::new(), vec![text]))
+            })
+            .collect();
+        let element = dml_element(interner, "headers", Vec::new(), entries);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "headers",
+            tcpr_child_rank,
+        );
+        self.empty = false;
+    }
+}
+
+/// The concatenated text of an element's direct text nodes, trimmed.
+fn element_text(element: &RawElement) -> String {
+    let mut text = String::new();
+    for node in &element.children {
+        if let RawNode::Text(bytes) | RawNode::CData(bytes) = node {
+            text.push_str(&String::from_utf8_lossy(bytes));
+        }
+    }
+    text.trim().to_owned()
 }
 
 /// A child's position in `CT_TableCellProperties`'s `xsd:sequence`: the six borders, then the 3-D
@@ -457,6 +526,14 @@ impl TableCell {
         rebuilt.append(&mut self.content);
         self.content = rebuilt;
         self.empty = self.content.is_empty();
+    }
+
+    /// The cell's id (`@id`), or `None` if it has none — the handle another cell's
+    /// [`headers`](TableCellProperties::headers) names to associate it with this one for a screen
+    /// reader.
+    #[must_use]
+    pub fn id<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
+        attr_str(&self.attributes, interner, "id")
     }
 
     /// The cell's attributes, verbatim.
