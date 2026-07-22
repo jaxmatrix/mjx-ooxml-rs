@@ -15,6 +15,25 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.25] - 2026-07-22
+
+Hyperlinks on runs and shapes — set, read, and clear links, external URLs and slide jumps.
+
+### Added
+
+- **`Hyperlink`** — a resolved link: `Hyperlink::Url(String)` (an external target) or
+  `Hyperlink::Slide(usize)` (a jump to another slide in the deck). The relationship indirection
+  (`r:id` → external URL or internal slide part) stays inside `Presentation`.
+- **`Presentation::run_hyperlink` / `set_run_hyperlink` / `clear_run_hyperlink`** — the click
+  hyperlink on a run, read back as a `Hyperlink`; setting adds its relationship (creating the run's
+  `a:rPr` if absent), clearing removes the relationship once nothing else in the part still names it.
+- **`Presentation::set_text_range_hyperlink`** — links a scalar range, splitting runs at the
+  boundaries so exactly the selected text carries the link (one shared relationship).
+- **`Presentation::shape_hyperlink` / `set_shape_hyperlink` / `clear_shape_hyperlink`** — the same on
+  a shape's own `p:cNvPr > a:hlinkClick`.
+- `mjx-dml`: `CharacterProperties` and `TextRun` gain `hyperlink_rel_id` / `set_hyperlink` (the raw
+  `a:hlinkClick` accessors the packaging layer drives).
+
 ## [0.0.24] - 2026-07-22
 
 Speaker notes, part 2 — the ergonomic notes surface: read, set, and clear a slide's notes.
