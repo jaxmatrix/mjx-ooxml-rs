@@ -5,7 +5,8 @@ use mjx_dml::{
     BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Emu, Fill,
     FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties,
     ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table,
-    TableCell, TableCellProperties, TableColumn, TableRow, TextAnchoring, TextBody, TextDirection,
+    TableCell, TableCellProperties, TableColumn, TablePart, TablePartStyle, TableProperties,
+    TableRow, TableStyle, TableStyleList, TableStylePart, TextAnchoring, TextBody, TextDirection,
     TextFont, TextListStyle, Theme, ThemeInfo, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
@@ -20,7 +21,7 @@ use crate::error::PptxError;
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
-use crate::table::{CellFormat, Cells};
+use crate::table::{CellFormat, Cells, TableStyleFormat};
 use crate::{build, constants, nav, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
@@ -3694,6 +3695,217 @@ impl Presentation {
         edit(table, interner)
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Table styles and the seven a:tblPr flags.
+    //
+    // The flags (`firstRow`, `bandRow`, …) live on the table's own `a:tblPr`; they emphasize nothing
+    // by themselves, they tell the table **style** which parts to treat specially. The style lives in
+    // the presentation's `tableStyles.xml` part, named by GUID from `a:tblPr > a:tableStyleId`. This
+    // block reads and writes both: the flags on the table, the style in the shared part.
+    // ---------------------------------------------------------------------------------------------
+
+    /// Whether the table shape `shape_idx` frames declares banding/emphasis `part` (a `a:tblPr` flag),
+    /// or `None` if it does not state the flag. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn table_part(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        part: TablePart,
+    ) -> Result<Option<bool>, PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            Ok(table
+                .properties()
+                .and_then(|props| props.part(interner, part)))
+        })
+    }
+
+    /// Turns a table's banding/emphasis flag `part` on or off, creating its `a:tblPr` if it had none.
+    /// `false` removes the flag rather than writing a `"0"`. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn set_table_part(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        part: TablePart,
+        on: bool,
+    ) -> Result<(), PptxError> {
+        self.edit_table_properties(surface.into(), shape_idx, |props, interner| {
+            props.set_part(interner, part, on);
+            Ok(())
+        })
+    }
+
+    /// The GUID of the table style the table shape `shape_idx` frames names (`a:tableStyleId`), or
+    /// `None` if it names none. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn table_style_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<String>, PptxError> {
+        self.with_table(surface.into(), shape_idx, |table, interner| {
+            Ok(table
+                .properties()
+                .and_then(|props| props.table_style_id(interner))
+                .map(str::to_owned))
+        })
+    }
+
+    /// Points the table shape `shape_idx` frames at the table style `style_id`, creating its
+    /// `a:tblPr` if it had none. Does not check that the style exists — pair it with
+    /// [`create_table_style`](Self::create_table_style). Marks only that part dirty.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn set_table_style(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        style_id: &str,
+    ) -> Result<(), PptxError> {
+        self.edit_table_properties(surface.into(), shape_idx, |props, interner| {
+            props.set_table_style_id(interner, style_id);
+            Ok(())
+        })
+    }
+
+    /// Creates the presentation's `tableStyles.xml` part if it has none, and adds a style with GUID
+    /// `style_id` and gallery name `style_name` — replacing one already carrying that GUID. The style
+    /// is born empty; give its parts formatting with
+    /// [`format_table_style_part`](Self::format_table_style_part), and point a table at it with
+    /// [`set_table_style`](Self::set_table_style).
+    ///
+    /// # Errors
+    /// Returns a [`PptxError`] if the package is malformed or the part cannot be created.
+    pub fn create_table_style(
+        &mut self,
+        style_id: &str,
+        style_name: &str,
+    ) -> Result<(), PptxError> {
+        let part = self.ensure_table_styles_part(style_id)?;
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut list = TableStyleList::from_xml(root, interner)?;
+        let style = TableStyle::new(interner, style_id, style_name);
+        list.upsert_style(interner, &style);
+        *root = list.to_xml(interner);
+        Ok(())
+    }
+
+    /// Sets the formatting the style `style_id` gives table `part` (`wholeTbl`, `firstRow`, a banded
+    /// row, a corner cell). Only the facets `format` sets are written; the part keeps whatever else
+    /// it held. Marks only the `tableStyles.xml` part dirty.
+    ///
+    /// # Errors
+    /// [`PptxError::TableStyleNotFound`] if no `tableStyles.xml` defines `style_id`.
+    pub fn format_table_style_part(
+        &mut self,
+        style_id: &str,
+        part: TableStylePart,
+        format: &TableStyleFormat,
+    ) -> Result<(), PptxError> {
+        let not_found = || PptxError::TableStyleNotFound {
+            style_id: style_id.to_owned(),
+        };
+        let part_name = self.table_styles_part()?.ok_or_else(not_found)?;
+        let doc = self.package.part_tree_mut(&part_name)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut list = TableStyleList::from_xml(root, interner)?;
+        let mut style = list.style(interner, style_id).ok_or_else(not_found)?;
+        let mut part_style = style
+            .part(interner, part)
+            .unwrap_or_else(|| TablePartStyle::new(interner));
+        format.apply(&mut part_style, interner);
+        style.set_part(interner, part, &part_style);
+        list.upsert_style(interner, &style);
+        *root = list.to_xml(interner);
+        Ok(())
+    }
+
+    /// Reads the table style the table shape `shape_idx` frames resolves to and hands it, with the
+    /// `tableStyles.xml` interner, to `read`. `None` when the table names no style or the named style
+    /// is not defined. Reading dirties nothing.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), or if the package is malformed.
+    pub fn with_table_style<R>(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        read: impl FnOnce(&TableStyle, &Interner) -> Result<R, PptxError>,
+    ) -> Result<Option<R>, PptxError> {
+        let Some(style_id) = self.table_style_id(surface, shape_idx)? else {
+            return Ok(None);
+        };
+        let Some(part) = self.table_styles_part()? else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&part)?;
+        let list = TableStyleList::from_xml(&doc.root, &doc.interner)?;
+        match list.style(&doc.interner, &style_id) {
+            Some(style) => read(&style, &doc.interner).map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Reads the table's `a:tblPr` (creating it if absent) as a typed [`TableProperties`], hands it to
+    /// `edit`, and writes it back. Only the `a:tblPr` is reparsed — the rest of the table is untouched.
+    fn edit_table_properties(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        edit: impl FnOnce(&mut TableProperties, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface, shape_idx, |table, interner| {
+            let slot = table_properties_slot(table, interner)?;
+            let mut typed = TableProperties::from_xml(slot, interner)?;
+            edit(&mut typed, interner)?;
+            *slot = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// The presentation's `tableStyles.xml` part, or `None` if it has none.
+    fn table_styles_part(&self) -> Result<Option<PartName>, PptxError> {
+        self.follow_rel(&self.presentation_part, constants::REL_TABLE_STYLES)
+    }
+
+    /// The `tableStyles.xml` part, creating it (with an empty list whose default is `default_style_id`)
+    /// and wiring its relationship and content type if the presentation had none.
+    fn ensure_table_styles_part(&mut self, default_style_id: &str) -> Result<PartName, PptxError> {
+        if let Some(part) = self.table_styles_part()? {
+            return Ok(part);
+        }
+        let part = PartName::new(&format!(
+            "{}tableStyles.xml",
+            dir_of(self.presentation_part.as_str())
+        ))?;
+        self.package.insert_part(
+            &part,
+            constants::CONTENT_TYPE_TABLE_STYLES,
+            build::table_styles_bytes(default_style_id),
+        )?;
+        let rel_id = self.next_presentation_rid()?;
+        let target = nav::relative_target(&self.presentation_part, &part);
+        self.package.add_relationship(
+            Some(&self.presentation_part),
+            Relationship {
+                id: rel_id,
+                rel_type: constants::REL_TABLE_STYLES.to_owned(),
+                target,
+                mode: TargetMode::Internal,
+            },
+        )?;
+        Ok(part)
+    }
+
     /// The relationship id of the image that picture `shape_idx` on `surface` embeds
     /// (`p:blipFill > a:blip@r:embed`), or `None` when the blip embeds nothing — a picture may instead
     /// *link* an external image (`@r:link`), which this does not resolve. Reading does not dirty the
@@ -4406,6 +4618,32 @@ fn cell_properties_slot<'a>(
         RawNode::Element(element) => Ok(element),
         _ => Err(PptxError::MalformedSlide(
             "cell properties are not an element",
+        )),
+    }
+}
+
+/// The `a:tblPr` of a raw `a:tbl`, creating it when the table has none — placed **first**, since
+/// `CT_Table` is a sequence of `tblPr?`, `tblGrid`, `tr*`.
+fn table_properties_slot<'a>(
+    table: &'a mut RawElement,
+    interner: &mut Interner,
+) -> Result<&'a mut RawElement, PptxError> {
+    let index = match table.children.iter().position(|node| match node {
+        RawNode::Element(element) => nav::name_is(&element.name, interner, DML_MAIN, "tblPr"),
+        _ => false,
+    }) {
+        Some(index) => index,
+        None => {
+            let element = build::leaf(interner, "a", DML_MAIN, "tblPr", Vec::new());
+            table.children.insert(0, RawNode::Element(element));
+            table.empty = false;
+            0
+        }
+    };
+    match &mut table.children[index] {
+        RawNode::Element(element) => Ok(element),
+        _ => Err(PptxError::MalformedSlide(
+            "table properties are not an element",
         )),
     }
 }

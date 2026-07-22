@@ -198,6 +198,15 @@ pub enum PptxError {
         columns: usize,
     },
 
+    /// A table style was addressed by a GUID that no `tableStyles.xml` defines — either the part is
+    /// absent or it holds no `a:tblStyle` with that `@styleId`. Create the style first with
+    /// [`create_table_style`](crate::Presentation::create_table_style).
+    #[error("no table style with id {style_id}")]
+    TableStyleNotFound {
+        /// The GUID that resolved to nothing.
+        style_id: String,
+    },
+
     /// A merge would cut an existing merged region in half: some cell in the selection belongs to a
     /// region that reaches outside it.
     ///
