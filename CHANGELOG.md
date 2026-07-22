@@ -15,6 +15,29 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.22] - 2026-07-22
+
+Author inline table styles — a lean, self-contained styling path.
+
+### Added
+
+- **`Presentation::set_inline_table_style(surface, shape, &TableStyleDefinition)`** — gives a table its
+  own **inline** `a:tableStyle`, replacing any inline or referenced style. The whole look is declared
+  up front and travels with the table: no shared `tableStyles.xml` part, relationship, content-type or
+  referenced GUID. Plus the incremental **`format_inline_table_style_part`**.
+- **`TableStyleDefinition`** — a declarative builder (`with_name` / `with_id` / `with_part`) reusing
+  `TableStyleFormat`; the vestigial `styleId` / `styleName` default.
+- **`TableProperties::set_inline_style`** (`mjx-dml`) — writes the style as `a:tableStyle` at its rank,
+  replacing any `a:tableStyle` / `a:tableStyleId`.
+
+### Notes
+
+- The style resolves and renders through the existing `with_table_style` and `effective_cell_*`
+  readers exactly as a shared one does — an inline style is the same `CT_TableStyle`, spelled out on
+  the table.
+- **Flags stay the caller's job**: a styled part renders only when its `a:tblPr` flag is on
+  (`set_table_part`; `add_table` sets `firstRow`/`bandRow`).
+
 ## [0.0.21] - 2026-07-22
 
 Table gaps closed — merge-aware formatting, inline styles, accessibility headers, and more.
