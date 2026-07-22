@@ -353,9 +353,11 @@ impl Presentation {
     /// Returns [`PptxError`] if `slide_idx` is out of range or a package edit fails.
     pub fn set_notes_text(&mut self, slide_idx: usize, text: &str) -> Result<(), PptxError> {
         let notes_part = self.ensure_notes_slide_part(slide_idx)?;
-        let body_idx = self.notes_body_index(&notes_part)?.ok_or(
-            PptxError::MalformedSlide("notes slide has no body placeholder"),
-        )?;
+        let body_idx = self
+            .notes_body_index(&notes_part)?
+            .ok_or(PptxError::MalformedSlide(
+                "notes slide has no body placeholder",
+            ))?;
 
         let doc = self.package.part_tree_mut(&notes_part)?;
         let RawDocument { interner, root, .. } = doc;
@@ -402,7 +404,8 @@ impl Presentation {
                     "no relationship names the notes slide",
                 ))?
         };
-        self.package.remove_relationship(Some(&slide_part), &rel_id)?;
+        self.package
+            .remove_relationship(Some(&slide_part), &rel_id)?;
         self.package.remove_part_cascading(&notes_part)?;
         Ok(())
     }
@@ -3503,8 +3506,9 @@ impl Presentation {
             let master_style = if matches!(surface, Surface::Notes(_) | Surface::NotesMaster) {
                 nav::child(&doc.root, &doc.interner, PML, "notesStyle")
             } else {
-                nav::child(&doc.root, &doc.interner, PML, "txStyles")
-                    .and_then(|styles| nav::child(styles, &doc.interner, PML, master_style_local(slot)))
+                nav::child(&doc.root, &doc.interner, PML, "txStyles").and_then(|styles| {
+                    nav::child(styles, &doc.interner, PML, master_style_local(slot))
+                })
             };
             if let Some(named) = master_style {
                 let list_style = TextListStyle::from_xml(named, &doc.interner)?;

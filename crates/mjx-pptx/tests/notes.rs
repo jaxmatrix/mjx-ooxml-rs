@@ -46,7 +46,8 @@ fn a_notes_slide_exposes_the_same_shape_surface() {
         "the slide-image and the body placeholder"
     );
     assert_eq!(
-        pres.shape_kind(Surface::Notes(0), NOTES_BODY).expect("kind"),
+        pres.shape_kind(Surface::Notes(0), NOTES_BODY)
+            .expect("kind"),
         ShapeKind::Shape
     );
 
@@ -67,7 +68,8 @@ fn a_notes_slide_exposes_the_same_shape_surface() {
 fn notes_body_text_reads_through_the_shape_surface() {
     let mut pres = deck();
     assert_eq!(
-        pres.shape_text(Surface::Notes(0), NOTES_BODY).expect("text"),
+        pres.shape_text(Surface::Notes(0), NOTES_BODY)
+            .expect("text"),
         "Remember to smile."
     );
 }
@@ -104,7 +106,10 @@ fn theme_and_colour_map_resolve_through_the_notes_master() {
     let mut pres = deck();
     // The notes master carries the `p:clrMap` and the `theme` relationship, so both resolve for a
     // notes surface with no extra wiring.
-    assert!(pres.color_map(Surface::Notes(0)).expect("color map").is_some());
+    assert!(pres
+        .color_map(Surface::Notes(0))
+        .expect("color map")
+        .is_some());
     assert!(pres.theme(Surface::Notes(0)).expect("theme").is_some());
     assert!(pres.theme(Surface::NotesMaster).expect("theme").is_some());
 }
@@ -126,7 +131,8 @@ fn reading_notes_leaves_every_part_byte_identical() {
     let mut pres = Presentation::open(&bytes).expect("open");
     // Exercise the whole notes read surface, then save.
     pres.shape_count(Surface::Notes(0)).expect("count");
-    pres.shape_text(Surface::Notes(0), NOTES_BODY).expect("text");
+    pres.shape_text(Surface::Notes(0), NOTES_BODY)
+        .expect("text");
     pres.effective_run_properties(Surface::Notes(0), NOTES_BODY, 0, 0)
         .expect("effective");
     pres.color_map(Surface::Notes(0)).expect("color map");
@@ -152,7 +158,11 @@ fn notes_text_reads_the_body_and_is_none_without_notes() {
         pres.notes_text(0).expect("notes"),
         Some("Remember to smile.".to_owned())
     );
-    assert_eq!(pres.notes_text(1).expect("notes"), None, "slide 1 has no notes");
+    assert_eq!(
+        pres.notes_text(1).expect("notes"),
+        None,
+        "slide 1 has no notes"
+    );
 }
 
 #[test]
@@ -168,16 +178,27 @@ fn set_notes_text_on_a_slide_with_notes_touches_only_that_part() {
     // No part added or removed — the notes slide already existed.
     assert_eq!(names(&snapshot), names(&reopened), "part set changed");
     const NOTES: &str = "ppt/notesSlides/notesSlide1.xml";
-    assert_ne!(reopened.get(NOTES), snapshot.get(NOTES), "the notes slide changed");
+    assert_ne!(
+        reopened.get(NOTES),
+        snapshot.get(NOTES),
+        "the notes slide changed"
+    );
     for (name, original) in &snapshot {
         if name != NOTES {
-            assert_eq!(reopened.get(name), Some(original), "part {name} must be byte-identical");
+            assert_eq!(
+                reopened.get(name),
+                Some(original),
+                "part {name} must be byte-identical"
+            );
         }
     }
 
     // The text reads back.
     let mut reread = Presentation::open(&saved).expect("open");
-    assert_eq!(reread.notes_text(0).expect("notes"), Some("Pause for the demo.".to_owned()));
+    assert_eq!(
+        reread.notes_text(0).expect("notes"),
+        Some("Pause for the demo.".to_owned())
+    );
 }
 
 #[test]
@@ -187,12 +208,17 @@ fn set_notes_text_creates_the_notes_slide_on_demand() {
 
     let mut pres = Presentation::open(&bytes).expect("open");
     // Slide 1 has no notes; the deck already has a notes master to follow.
-    pres.set_notes_text(1, "Speaker note for slide two.").expect("set");
+    pres.set_notes_text(1, "Speaker note for slide two.")
+        .expect("set");
     let saved = pres.save().expect("save");
     let reopened = byte_map(&Package::open(&saved).expect("reopen"));
 
     // Exactly the new notes slide and its .rels appear — the notes master is reused, not recreated.
-    let added: Vec<_> = reopened.keys().filter(|k| !snapshot.contains_key(*k)).cloned().collect();
+    let added: Vec<_> = reopened
+        .keys()
+        .filter(|k| !snapshot.contains_key(*k))
+        .cloned()
+        .collect();
     assert_eq!(
         added,
         vec![
@@ -200,17 +226,33 @@ fn set_notes_text_creates_the_notes_slide_on_demand() {
             "ppt/notesSlides/notesSlide2.xml".to_owned(),
         ]
     );
-    assert!(reopened.keys().all(|k| snapshot.contains_key(k) || added.contains(k)), "nothing else added");
+    assert!(
+        reopened
+            .keys()
+            .all(|k| snapshot.contains_key(k) || added.contains(k)),
+        "nothing else added"
+    );
 
     // The slide's own .rels gained the notesSlide relationship; the content types gained an override.
     const SLIDE_RELS: &str = "ppt/slides/_rels/slide2.xml.rels";
-    assert_ne!(reopened.get(SLIDE_RELS), snapshot.get(SLIDE_RELS), "slide rels changed");
+    assert_ne!(
+        reopened.get(SLIDE_RELS),
+        snapshot.get(SLIDE_RELS),
+        "slide rels changed"
+    );
     let ct = String::from_utf8(reopened["[Content_Types].xml"].clone()).unwrap();
-    assert!(ct.contains("/ppt/notesSlides/notesSlide2.xml"), "content type override added");
+    assert!(
+        ct.contains("/ppt/notesSlides/notesSlide2.xml"),
+        "content type override added"
+    );
 
     // The notes master part and presentation were not touched.
     const MASTER: &str = "ppt/notesMasters/notesMaster1.xml";
-    assert_eq!(reopened.get(MASTER), snapshot.get(MASTER), "notes master untouched");
+    assert_eq!(
+        reopened.get(MASTER),
+        snapshot.get(MASTER),
+        "notes master untouched"
+    );
     assert_eq!(
         reopened.get("ppt/presentation.xml"),
         snapshot.get("ppt/presentation.xml"),
@@ -218,7 +260,10 @@ fn set_notes_text_creates_the_notes_slide_on_demand() {
     );
 
     let mut reread = Presentation::open(&saved).expect("open");
-    assert_eq!(reread.notes_text(1).expect("notes"), Some("Speaker note for slide two.".to_owned()));
+    assert_eq!(
+        reread.notes_text(1).expect("notes"),
+        Some("Speaker note for slide two.".to_owned())
+    );
 }
 
 #[test]
@@ -233,7 +278,11 @@ fn set_notes_text_synthesizes_the_notes_master_when_the_deck_has_none() {
     let reopened = byte_map(&Package::open(&saved).expect("reopen"));
 
     // The notes master and the notes slide are both born, each with its .rels.
-    let added: Vec<_> = reopened.keys().filter(|k| !snapshot.contains_key(*k)).cloned().collect();
+    let added: Vec<_> = reopened
+        .keys()
+        .filter(|k| !snapshot.contains_key(*k))
+        .cloned()
+        .collect();
     assert_eq!(
         added,
         vec![
@@ -249,18 +298,27 @@ fn set_notes_text_synthesizes_the_notes_master_when_the_deck_has_none() {
     let masters = pres_xml.find("sldMasterIdLst").expect("sldMasterIdLst");
     let notes = pres_xml.find("notesMasterIdLst").expect("notesMasterIdLst");
     let slides = pres_xml.find("sldIdLst").expect("sldIdLst");
-    assert!(masters < notes && notes < slides, "notesMasterIdLst must sit between the two");
+    assert!(
+        masters < notes && notes < slides,
+        "notesMasterIdLst must sit between the two"
+    );
 
     // Both content-type overrides are present; the presentation rels gained the notesMaster rel.
     let ct = String::from_utf8(reopened["[Content_Types].xml"].clone()).unwrap();
     assert!(ct.contains("notesMaster1.xml"), "notes master override");
     assert!(ct.contains("notesSlide1.xml"), "notes slide override");
     let pres_rels = String::from_utf8(reopened["ppt/_rels/presentation.xml.rels"].clone()).unwrap();
-    assert!(pres_rels.contains("relationships/notesMaster"), "presentation notesMaster rel");
+    assert!(
+        pres_rels.contains("relationships/notesMaster"),
+        "presentation notesMaster rel"
+    );
 
     // The synthesized deck still opens and reads back.
     let mut reread = Presentation::open(&saved).expect("open");
-    assert_eq!(reread.notes_text(0).expect("notes"), Some("First speaker note.".to_owned()));
+    assert_eq!(
+        reread.notes_text(0).expect("notes"),
+        Some("First speaker note.".to_owned())
+    );
     assert_eq!(reread.shape_count(Surface::NotesMaster).expect("count"), 1);
 }
 
@@ -276,16 +334,32 @@ fn clear_notes_removes_the_part_and_returns_the_part_set() {
     let saved = pres.save().expect("save");
     let reopened = byte_map(&Package::open(&saved).expect("reopen"));
 
-    assert_eq!(names(&baseline), names(&reopened), "the notes slide and its .rels are gone");
+    assert_eq!(
+        names(&baseline),
+        names(&reopened),
+        "the notes slide and its .rels are gone"
+    );
     assert!(!reopened.contains_key("ppt/notesSlides/notesSlide2.xml"));
 
     let mut reread = Presentation::open(&saved).expect("open");
-    assert_eq!(reread.notes_text(1).expect("notes"), None, "slide 1 has no notes again");
+    assert_eq!(
+        reread.notes_text(1).expect("notes"),
+        None,
+        "slide 1 has no notes again"
+    );
     // The slide's own rels no longer names a notes slide, and the parts never touched are unchanged.
-    let slide_rels = String::from_utf8(reopened["ppt/slides/_rels/slide2.xml.rels"].clone()).unwrap();
-    assert!(!slide_rels.contains("notesSlide"), "the notes relationship is gone");
+    let slide_rels =
+        String::from_utf8(reopened["ppt/slides/_rels/slide2.xml.rels"].clone()).unwrap();
+    assert!(
+        !slide_rels.contains("notesSlide"),
+        "the notes relationship is gone"
+    );
     const NOTES1: &str = "ppt/notesSlides/notesSlide1.xml";
-    assert_eq!(reopened.get(NOTES1), baseline.get(NOTES1), "slide 0's notes untouched");
+    assert_eq!(
+        reopened.get(NOTES1),
+        baseline.get(NOTES1),
+        "slide 0's notes untouched"
+    );
 }
 
 #[test]
@@ -296,5 +370,8 @@ fn clear_notes_is_a_no_op_without_notes() {
     let mut pres = Presentation::open(&bytes).expect("open");
     pres.clear_notes(1).expect("clear"); // slide 1 has no notes
     let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
-    assert_eq!(snapshot, reopened, "clearing absent notes must change nothing");
+    assert_eq!(
+        snapshot, reopened,
+        "clearing absent notes must change nothing"
+    );
 }
