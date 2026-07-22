@@ -15,6 +15,16 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.26] - 2026-07-22
+
+Group descent, part 1 — shapes inside a `p:grpSp` are now addressable. Every shape API takes an
+address as `impl Into<ShapePath>`: a bare index is a top-level shape (unchanged), and an array
+`[group, member, …]` descends into nested groups. A group member can be read, edited and removed
+exactly like a top-level shape; `shape_count` still counts only the top level, and a member's
+`shape_bounds` are its own `a:off`/`a:ext` in the group's child space (the absolute-rectangle mapping
+lands in a later atom). `PptxError::ShapeIndexOutOfRange` now carries the requested `ShapePath` and
+the shape count of the container where the address ran out of range.
+
 ## [0.0.25] - 2026-07-22
 
 Hyperlinks on runs and shapes — set, read, and clear links, external URLs and slide jumps.
