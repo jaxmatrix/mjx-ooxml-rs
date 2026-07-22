@@ -366,3 +366,45 @@ fn merging_dirties_only_the_slide_it_is_on() {
         assert_eq!(after.get(name), Some(original), "dirtied {name}");
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Merge-aware formatting (MJX-43)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn formatting_a_selection_over_a_merge_touches_only_the_visible_cells() {
+    use mjx_dml::{ColorSpec, FillSpec};
+    use mjx_pptx::CellFormat;
+
+    let (mut pres, table) = deck_with_table();
+    // Merge the first two header cells; (0,0) anchors, (0,1) is covered.
+    pres.merge_cells(0, table, Cells::rectangle(0..1, 0..2))
+        .expect("merge");
+
+    // Fill the whole selection — the covered cell must be skipped.
+    pres.format_cells(
+        0,
+        table,
+        Cells::rectangle(0..1, 0..2),
+        &CellFormat::new().with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+    )
+    .expect("format");
+
+    // Unmerge and inspect each cell's own fill: the anchor got the fill, the covered cell did not.
+    pres.unmerge_cells(0, table, 0, 1).expect("unmerge");
+    assert!(
+        matches!(
+            pres.cell_fill(0, table, 0, 0).expect("fill"),
+            Some(FillSpec::Solid(_))
+        ),
+        "the anchor cell was filled"
+    );
+    assert_eq!(
+        pres.cell_fill(0, table, 0, 1).expect("fill"),
+        None,
+        "the covered cell kept its own (unfilled) formatting"
+    );
+    // A cell outside the merge in the selection would be filled normally; here the selection was the
+    // merged pair, so (0,2) is untouched.
+    assert_eq!(pres.cell_fill(0, table, 0, 2).expect("fill"), None);
+}
