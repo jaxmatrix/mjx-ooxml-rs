@@ -42,4 +42,4 @@ pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use presentation::Presentation;
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
-pub use table::{CellFormat, Cells, TableStyleFormat};
+pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};

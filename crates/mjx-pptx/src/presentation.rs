@@ -23,7 +23,7 @@ use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::slide::GraphicFrameKind;
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
-use crate::table::{CellFormat, Cells, TableStyleFormat};
+use crate::table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
 use crate::{build, constants, nav, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
@@ -4249,6 +4249,70 @@ impl Presentation {
         list.upsert_style(interner, &style);
         *root = list.to_xml(interner);
         Ok(())
+    }
+
+    /// Gives the table shape `shape_idx` frames its own **inline** style (`a:tableStyle`), replacing
+    /// any inline or referenced style it had — the lean alternative to a shared `tableStyles.xml`
+    /// style: the whole look is spelled out in `definition` and travels with the table, so no shared
+    /// part, relationship or referenced GUID is involved. Marks only that part dirty.
+    ///
+    /// A styled part renders only when the table declares it: pair this with
+    /// [`set_table_part`](Self::set_table_part) to turn on the `firstRow` / `bandRow` / … flags a part
+    /// needs (a table from [`add_table`](Self::add_table) already has `firstRow` and `bandRow` on).
+    /// The style resolves through [`with_table_style`](Self::with_table_style) and the
+    /// `effective_cell_*` readers exactly as a shared one does.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn set_inline_table_style(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        definition: &TableStyleDefinition,
+    ) -> Result<(), PptxError> {
+        self.edit_table_properties(surface.into(), shape_idx, |properties, interner| {
+            let mut style =
+                TableStyle::new(interner, definition.style_id(), definition.style_name());
+            for (part, format) in definition.parts() {
+                let mut part_style = TablePartStyle::new(interner);
+                format.apply(&mut part_style, interner);
+                style.set_part(interner, *part, &part_style);
+            }
+            properties.set_inline_style(interner, &style);
+            Ok(())
+        })
+    }
+
+    /// Sets the formatting the table's **inline** style gives one `part`, creating the inline style if
+    /// the table had none — the incremental sibling of [`set_inline_table_style`](Self::set_inline_table_style),
+    /// mirroring [`format_table_style_part`](Self::format_table_style_part) for a self-contained style.
+    /// Only the facets `format` sets are written. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn format_inline_table_style_part(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        part: TableStylePart,
+        format: &TableStyleFormat,
+    ) -> Result<(), PptxError> {
+        self.edit_table_properties(surface.into(), shape_idx, |properties, interner| {
+            let mut style = properties.inline_style(interner).unwrap_or_else(|| {
+                TableStyle::new(
+                    interner,
+                    crate::table::DEFAULT_INLINE_STYLE_ID,
+                    crate::table::DEFAULT_INLINE_STYLE_NAME,
+                )
+            });
+            let mut part_style = style
+                .part(interner, part)
+                .unwrap_or_else(|| TablePartStyle::new(interner));
+            format.apply(&mut part_style, interner);
+            style.set_part(interner, part, &part_style);
+            properties.set_inline_style(interner, &style);
+            Ok(())
+        })
     }
 
     /// Reads the table style the table shape `shape_idx` frames resolves to and hands it, with the

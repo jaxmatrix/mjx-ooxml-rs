@@ -37,7 +37,8 @@
 
 use mjx_dml::{
     CellBorder, ColorSpec, FillSpec, LineSpec, OnOffStyle, TablePartStyle, TableStyleBorder,
-    TableStyleCellStyle, TableStyleTextStyle, TextAnchoring, TextDirection, TextHorizontalOverflow,
+    TableStyleCellStyle, TableStylePart, TableStyleTextStyle, TextAnchoring, TextDirection,
+    TextHorizontalOverflow,
 };
 use mjx_ooxml_core::Interner;
 
@@ -392,6 +393,81 @@ impl TableStyleFormat {
             }
             part.set_cell_style(interner, &cell);
         }
+    }
+}
+
+/// A default `styleId` for an inline style. It is schema-required (`ST_Guid`) but, being inline,
+/// never referenced by anything, so a fixed placeholder is fine — a caller who cares overrides it.
+pub(crate) const DEFAULT_INLINE_STYLE_ID: &str = "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}";
+
+/// A default gallery name for an inline style.
+pub(crate) const DEFAULT_INLINE_STYLE_NAME: &str = "Custom Table Style";
+
+/// A whole table style, described up front — the lean way to give a table its own look, written
+/// **inline** on the table (`a:tableStyle`) rather than into the shared `tableStyles.xml` part.
+///
+/// Each [`with_part`](Self::with_part) names a [part of the table](TableStylePart) and the
+/// [`TableStyleFormat`] it takes, so an agent can spell out a whole style — a bold, filled header
+/// row; a banded body; ruled cells — in one expression and apply it with
+/// [`set_inline_table_style`](crate::Presentation::set_inline_table_style).
+///
+/// A part only *renders* when the table declares it (`a:tblPr` flags): style
+/// [`FirstRow`](TableStylePart::FirstRow) **and** turn the header row on with
+/// [`set_table_part`](crate::Presentation::set_table_part) (a table from
+/// [`add_table`](crate::Presentation::add_table) already has `firstRow` and `bandRow` on). This keeps
+/// "which parts exist" and "how they look" apart.
+#[derive(Debug, Clone, Default)]
+pub struct TableStyleDefinition {
+    style_id: Option<String>,
+    style_name: Option<String>,
+    parts: Vec<(TableStylePart, TableStyleFormat)>,
+}
+
+impl TableStyleDefinition {
+    /// An empty definition — a style that formats nothing.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the style's GUID (`@styleId`). Optional: an inline style's id is never referenced, so it
+    /// defaults to a placeholder.
+    #[must_use]
+    pub fn with_id(mut self, style_id: &str) -> Self {
+        self.style_id = Some(style_id.to_owned());
+        self
+    }
+
+    /// Sets the style's gallery name (`@styleName`). Optional; defaults to a generic name.
+    #[must_use]
+    pub fn with_name(mut self, style_name: &str) -> Self {
+        self.style_name = Some(style_name.to_owned());
+        self
+    }
+
+    /// Gives `part` the formatting in `format`, replacing any it had named already.
+    #[must_use]
+    pub fn with_part(mut self, part: TableStylePart, format: TableStyleFormat) -> Self {
+        self.parts.retain(|(existing, _)| *existing != part);
+        self.parts.push((part, format));
+        self
+    }
+
+    /// The style id, or the default placeholder.
+    pub(crate) fn style_id(&self) -> &str {
+        self.style_id.as_deref().unwrap_or(DEFAULT_INLINE_STYLE_ID)
+    }
+
+    /// The style name, or the default.
+    pub(crate) fn style_name(&self) -> &str {
+        self.style_name
+            .as_deref()
+            .unwrap_or(DEFAULT_INLINE_STYLE_NAME)
+    }
+
+    /// The parts and their formats, in the order named.
+    pub(crate) fn parts(&self) -> &[(TableStylePart, TableStyleFormat)] {
+        &self.parts
     }
 }
 
