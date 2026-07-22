@@ -33,8 +33,9 @@ use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNo
 use mjx_ooxml_types::support::on_off;
 
 use crate::build::{
-    attr_str, dml_child, fidelity_element_impls, first_color_child, first_fill_child,
-    parse_percentage, replace_or_insert_child, set_attr,
+    attr_by_local, attr_str, dml_attr, dml_child, dml_element, fidelity_element_impls,
+    first_color_child, first_fill_child, is_dml, parse_percentage, prefixed_attr,
+    replace_or_insert_child, set_attr,
 };
 use crate::color::{Color, ColorSpec};
 use crate::effect::{EffectList, EffectListSpec};
@@ -207,6 +208,55 @@ impl CharacterProperties {
     #[must_use]
     pub fn font(&self, interner: &Interner, slot: FontSlot) -> Option<TextFont> {
         dml_child(&self.children, interner, slot.local()).map(|el| TextFont::read(el, interner))
+    }
+
+    /// The relationship id of the run's click hyperlink (`a:hlinkClick@r:id`), or `None` if it
+    /// declares no hyperlink — or its hyperlink names no relationship (an action-only jump). The
+    /// packaging layer resolves the id to a URL or a slide.
+    #[must_use]
+    pub fn hyperlink_rel_id<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
+        dml_child(&self.children, interner, "hlinkClick")
+            .and_then(|el| attr_by_local(&el.attributes, interner, "id"))
+    }
+
+    /// The action of the run's click hyperlink (`a:hlinkClick@action`, e.g. `ppaction://hlinksldjump`
+    /// for a slide jump), or `None` if it declares no hyperlink or the hyperlink carries no action.
+    #[must_use]
+    pub fn hyperlink_action<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
+        dml_child(&self.children, interner, "hlinkClick")
+            .and_then(|el| attr_str(&el.attributes, interner, "action"))
+    }
+
+    /// Sets the click hyperlink (`a:hlinkClick`) to name relationship `rel_id` and/or carry `action`,
+    /// or **removes** it when both are `None`.
+    ///
+    /// A set replaces the link wholesale: any other attributes an existing `a:hlinkClick` carried
+    /// (`tooltip`, `history`) are dropped. The element is placed in `CT_TextCharacterProperties` order
+    /// (after the font slots), so a run's other properties are undisturbed.
+    pub fn set_hyperlink(
+        &mut self,
+        interner: &mut Interner,
+        rel_id: Option<&str>,
+        action: Option<&str>,
+    ) {
+        if rel_id.is_none() && action.is_none() {
+            self.children.retain(|node| {
+                !matches!(node, RawNode::Element(child)
+                    if is_dml(&child.name, interner)
+                        && interner.resolve(child.name.local) == "hlinkClick")
+            });
+            self.empty = self.attributes.is_empty() && self.children.is_empty();
+            return;
+        }
+        let mut attributes = Vec::new();
+        if let Some(rel_id) = rel_id {
+            attributes.push(prefixed_attr(interner, "r", "id", rel_id));
+        }
+        if let Some(action) = action {
+            attributes.push(dml_attr(interner, "action", action));
+        }
+        let element = dml_element(interner, "hlinkClick", attributes, Vec::new());
+        self.replace_child(interner, element, |local| local == "hlinkClick");
     }
 
     /// The interner-free description of these properties. Colors are **not** resolved — a scheme color
