@@ -114,6 +114,35 @@ impl TextRun {
         self.empty = false;
     }
 
+    /// The relationship id of the run's click hyperlink (`a:rPr > a:hlinkClick@r:id`), or `None` if
+    /// the run declares no `a:rPr` or its properties carry no hyperlink.
+    #[must_use]
+    pub fn hyperlink_rel_id<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
+        self.properties()
+            .and_then(|properties| properties.hyperlink_rel_id(interner))
+    }
+
+    /// Sets (or clears) the run's click hyperlink, creating the `a:rPr` if the run has none. Clearing
+    /// (both `None`) a run that has no `a:rPr` is a no-op — there is nothing to remove.
+    pub fn set_hyperlink(
+        &mut self,
+        interner: &mut Interner,
+        rel_id: Option<&str>,
+        action: Option<&str>,
+    ) {
+        if let Some(properties) = self.properties_mut() {
+            properties.set_hyperlink(interner, rel_id, action);
+            return;
+        }
+        if rel_id.is_none() && action.is_none() {
+            return;
+        }
+        let mut properties = CharacterPropertiesSpec::new().to_properties(interner, "rPr");
+        properties.set_hyperlink(interner, rel_id, action);
+        self.content.insert(0, RunContent::Properties(properties));
+        self.empty = false;
+    }
+
     /// Splits this run in two at `offset` **Unicode scalars** into its text, returning the tail.
     ///
     /// This run keeps the text before `offset`; the returned run holds the rest and carries a **clone
