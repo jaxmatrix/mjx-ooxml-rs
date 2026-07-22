@@ -15,6 +15,31 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.21] - 2026-07-22
+
+Table gaps closed — merge-aware formatting, inline styles, accessibility headers, and more.
+
+### Added
+
+- **`Presentation::cell_headers` / `set_cell_headers`** — the accessibility header associations of a
+  cell (`a:tcPr > a:headers`), plus `TableCellProperties::headers` / `set_headers` and `TableCell::id`
+  in `mjx-dml`.
+- **`Presentation::visible_cell_text`** — the text that renders at a position: the cell's own, or its
+  merge anchor's when it is covered.
+- **`Presentation::graphic_frame_kind`** returning **`GraphicFrameKind`** (`Table` / `Chart` /
+  `Diagram` / `Other`) — tells "not a table" from "a graphic not modeled yet"; a chart or diagram
+  frame still answers `ShapeIsNotATable` to the table methods.
+- **`TableProperties::inline_style`** (`mjx-dml`) — reports a style defined **inline** on the table
+  (`a:tableStyle`); `with_table_style` and the effective-formatting resolvers now resolve an inline
+  style as well as a referenced one.
+
+### Changed
+
+- **Formatting a cell selection is merge-aware**: `format_cells` / `format_cell_text` /
+  `format_cell_paragraphs` skip merge-covered cells (which render nothing), so unmerging restores a
+  covered cell's own formatting. Merging and unmerging still reach covered cells; single-cell methods
+  addressed by `(row, column)` are unchanged.
+
 ## [0.0.20] - 2026-07-22
 
 Effective cell formatting — what a table cell actually renders as. Closes the tables workstream.
