@@ -1,13 +1,14 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
 use mjx_dml::{
-    resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
-    BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, EffectList, EffectListSpec, Emu, Fill,
-    FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, ParagraphProperties,
-    ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, SchemeColors, ShapeGeometry, Table,
-    TableCell, TableCellProperties, TableColumn, TablePart, TablePartStyle, TableProperties,
-    TableRow, TableStyle, TableStyleList, TableStylePart, TextAnchoring, TextBody, TextDirection,
-    TextFont, TextListStyle, Theme, ThemeInfo, Transform2D,
+    applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
+    resolve_line, BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
+    EffectListSpec, Emu, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec,
+    OnOffStyle, ParagraphProperties, ParagraphPropertiesSpec, PresetGeometry, ResolvedColor,
+    SchemeColors, ShapeGeometry, Table, TableCell, TableCellProperties, TableColumn, TablePart,
+    TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder, TableStyleCellStyle,
+    TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody,
+    TextDirection, TextFont, TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -2733,6 +2734,311 @@ impl Presentation {
             .fold(own, |resolved, tier| resolved.merge_under(tier)))
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Effective cell formatting — what a table cell actually renders as.
+    //
+    // Resolution order: the cell's own `a:tcPr` wins; then the table style's parts, selected by the
+    // cell's position and the `a:tblPr` flags (`applicable_parts`), most specific first; then the
+    // theme, for an `lnRef` / `fillRef`. Colours bake to concrete `RRGGBB`, exactly as the shape
+    // resolvers do. Every read walks three parts (slide, `tableStyles.xml`, theme), extracting owned
+    // values while each is borrowed. Reading dirties nothing.
+    // ---------------------------------------------------------------------------------------------
+
+    /// The **effective** fill of the cell at `(row, column)` of the table shape `shape_idx` frames — an
+    /// interner-free [`FillSpec`] with its colour baked to concrete `RRGGBB`, or `None` if nothing
+    /// fills the cell. The cell's own `a:tcPr` fill wins; else the first applicable style part with a
+    /// fill (explicit or a theme `fillRef`).
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus [`PptxError::TableCellOutOfRange`].
+    pub fn effective_cell_fill(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<Option<FillSpec>, PptxError> {
+        let surface = surface.into();
+        let scheme = self.resolved_scheme_colors(surface)?;
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+        let theme_part = self.theme_part(surface)?;
+
+        let (own, dims, flags, style_id) =
+            self.with_table(surface, shape_idx, |table, interner| {
+                let (rows, columns) = (table.row_count(), table.column_count());
+                let cell = cell_at(table, row, column)?;
+                let own = cell
+                    .properties()
+                    .and_then(|tcpr| tcpr.fill(interner))
+                    .map(|fill| resolve_fill(&fill, &scheme, &map, None, interner));
+                Ok((
+                    own,
+                    (rows, columns),
+                    table_flags(table, interner),
+                    table_style_of(table, interner),
+                ))
+            })?;
+
+        if let Some(spec) = own {
+            return Ok(Some(spec));
+        }
+
+        let parts = applicable_parts(row, column, dims.0, dims.1, flags);
+        let Some(part_fills) =
+            self.cell_style_candidates(&style_id, &parts, |cell_style, interner| {
+                part_own_fill(cell_style, interner, &scheme, &map)
+            })?
+        else {
+            return Ok(None);
+        };
+
+        for own in part_fills {
+            match own {
+                OwnFill::Resolved(spec) => return Ok(Some(spec)),
+                OwnFill::StyleRef(idx, color) => {
+                    if let Some(theme_part) = &theme_part {
+                        let doc = self.package.part_tree(theme_part)?;
+                        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                        if let Some(style) = theme.fill_style(idx) {
+                            return Ok(Some(resolve_fill(
+                                style,
+                                &scheme,
+                                &map,
+                                color,
+                                &doc.interner,
+                            )));
+                        }
+                    }
+                }
+                OwnFill::Absent => {}
+            }
+        }
+        Ok(None)
+    }
+
+    /// The **effective** border on one `edge` of the cell at `(row, column)` — an interner-free
+    /// [`LineSpec`] with its stroke colour baked, or `None`. The cell's own `a:tcPr` edge wins; else
+    /// the applicable style parts' `a:tcBdr`, taking the outer edge (`top`/`left`/…) for a cell on the
+    /// table's rim and the interior edge (`insideH`/`insideV`) for one within it.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus [`PptxError::TableCellOutOfRange`].
+    pub fn effective_cell_border(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        edge: CellBorder,
+    ) -> Result<Option<LineSpec>, PptxError> {
+        let surface = surface.into();
+        let scheme = self.resolved_scheme_colors(surface)?;
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+        let theme_part = self.theme_part(surface)?;
+
+        let (own, dims, flags, style_id) =
+            self.with_table(surface, shape_idx, |table, interner| {
+                let (rows, columns) = (table.row_count(), table.column_count());
+                let cell = cell_at(table, row, column)?;
+                let own = cell
+                    .properties()
+                    .and_then(|tcpr| tcpr.border(interner, edge))
+                    .map(|line| resolve_line(&line, &scheme, &map, None, interner));
+                Ok((
+                    own,
+                    (rows, columns),
+                    table_flags(table, interner),
+                    table_style_of(table, interner),
+                ))
+            })?;
+
+        if let Some(spec) = own {
+            return Ok(Some(spec));
+        }
+
+        let (rows, columns) = dims;
+        let style_edge = style_border_key(edge, row, column, rows, columns);
+        let parts = applicable_parts(row, column, rows, columns, flags);
+        let Some(part_lines) =
+            self.cell_style_candidates(&style_id, &parts, |cell_style, interner| {
+                cell_style
+                    .borders(interner)
+                    .and_then(|borders| borders.border(interner, style_edge))
+                    .map_or(OwnLine::Absent, |themeable| {
+                        part_own_line(themeable, interner, &scheme, &map)
+                    })
+            })?
+        else {
+            return Ok(None);
+        };
+
+        for own in part_lines {
+            match own {
+                OwnLine::Resolved(spec) => return Ok(Some(spec)),
+                OwnLine::StyleRef(idx, color) => {
+                    if let Some(theme_part) = &theme_part {
+                        let doc = self.package.part_tree(theme_part)?;
+                        let theme = Theme::from_xml(&doc.root, &doc.interner)?;
+                        if let Some(style) = theme.line_style(idx) {
+                            return Ok(Some(resolve_line(
+                                style,
+                                &scheme,
+                                &map,
+                                color,
+                                &doc.interner,
+                            )));
+                        }
+                    }
+                }
+                OwnLine::Absent => {}
+            }
+        }
+        Ok(None)
+    }
+
+    /// The **effective** run properties of a cell's text run — the [`CharacterPropertiesSpec`] it
+    /// actually renders with, colours baked. A shorter ladder than a shape's (a cell inherits from its
+    /// table style, not a placeholder chain), highest first: the run's own `a:rPr`, the paragraph's
+    /// `a:defRPr`, the table style's `a:tcTxStyle` for each applicable part (bold / italic / colour),
+    /// then the presentation's `p:defaultTextStyle`.
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions), plus [`PptxError::TableCellOutOfRange`] and the
+    /// paragraph/run index errors.
+    pub fn effective_cell_run_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        para_idx: usize,
+        run_idx: usize,
+    ) -> Result<CharacterPropertiesSpec, PptxError> {
+        let surface = surface.into();
+        let scheme = self.resolved_scheme_colors(surface)?;
+        let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
+
+        let (level, own, para_default, dims, flags, style_id) =
+            self.with_table(surface, shape_idx, |table, interner| {
+                let (rows, columns) = (table.row_count(), table.column_count());
+                let cell = cell_at(table, row, column)?;
+                let body = cell
+                    .text_body()
+                    .ok_or(PptxError::MalformedSlide("table cell has no text body"))?;
+                let level = paragraph_level(body, para_idx, interner);
+                let paragraph = nth_paragraph(body, para_idx)?;
+                let run = nth_run(paragraph, run_idx)?;
+                let own = run
+                    .properties()
+                    .map(|rpr| resolve_character_properties(rpr, &scheme, &map, None, interner))
+                    .unwrap_or_default();
+                let para_default = paragraph
+                    .properties()
+                    .and_then(|ppr| ppr.default_run_properties(interner))
+                    .map(|def| resolve_character_properties(&def, &scheme, &map, None, interner))
+                    .unwrap_or_default();
+                Ok((
+                    level,
+                    own,
+                    para_default,
+                    (rows, columns),
+                    table_flags(table, interner),
+                    table_style_of(table, interner),
+                ))
+            })?;
+
+        let parts = applicable_parts(row, column, dims.0, dims.1, flags);
+        let style_text = self.cell_style_text(&style_id, &parts, &scheme, &map)?;
+        let default_text = self.default_text_run_properties(level, &scheme, &map)?;
+
+        let effective = own
+            .merge_under(&para_default)
+            .merge_under(&style_text)
+            .merge_under(&default_text);
+        self.resolve_theme_fonts(surface, effective)
+    }
+
+    /// Runs `extract` over each applicable style part's `a:tcStyle`, most specific first, returning the
+    /// results in that order — or `None` when the table names no resolvable style (so the caller stops
+    /// at the cell's own properties). One borrow of the `tableStyles.xml` part serves them all.
+    fn cell_style_candidates<T>(
+        &mut self,
+        style_id: &Option<String>,
+        parts: &[TableStylePart],
+        extract: impl Fn(&TableStyleCellStyle, &Interner) -> T,
+    ) -> Result<Option<Vec<T>>, PptxError> {
+        let (Some(style_id), Some(part_name)) = (style_id.as_deref(), self.table_styles_part()?)
+        else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&part_name)?;
+        let list = TableStyleList::from_xml(&doc.root, &doc.interner)?;
+        let Some(style) = list.style(&doc.interner, style_id) else {
+            return Ok(None);
+        };
+        let results = parts
+            .iter()
+            .filter_map(|&part| {
+                let cell_style = style.part(&doc.interner, part)?.cell_style(&doc.interner)?;
+                Some(extract(&cell_style, &doc.interner))
+            })
+            .collect();
+        Ok(Some(results))
+    }
+
+    /// The table style's text contribution for a cell — the `a:tcTxStyle` of each applicable part,
+    /// merged most-specific-first. Empty when the table names no resolvable style.
+    fn cell_style_text(
+        &mut self,
+        style_id: &Option<String>,
+        parts: &[TableStylePart],
+        scheme: &SchemeColors,
+        map: &ColorMap,
+    ) -> Result<CharacterPropertiesSpec, PptxError> {
+        let (Some(style_id), Some(part_name)) = (style_id.as_deref(), self.table_styles_part()?)
+        else {
+            return Ok(CharacterPropertiesSpec::new());
+        };
+        let doc = self.package.part_tree(&part_name)?;
+        let list = TableStyleList::from_xml(&doc.root, &doc.interner)?;
+        let Some(style) = list.style(&doc.interner, style_id) else {
+            return Ok(CharacterPropertiesSpec::new());
+        };
+        let mut spec = CharacterPropertiesSpec::new();
+        for &part in parts {
+            if let Some(text_style) = style
+                .part(&doc.interner, part)
+                .and_then(|part| part.text_style(&doc.interner))
+            {
+                spec = spec.merge_under(&style_text_spec(&text_style, scheme, map, &doc.interner));
+            }
+        }
+        Ok(spec)
+    }
+
+    /// The presentation's `p:defaultTextStyle` run properties at `level`, colours baked — the bottom
+    /// tier of a cell's text ladder. Empty when the presentation declares none.
+    fn default_text_run_properties(
+        &mut self,
+        level: IndentLevel,
+        scheme: &SchemeColors,
+        map: &ColorMap,
+    ) -> Result<CharacterPropertiesSpec, PptxError> {
+        let presentation_part = self.presentation_part.clone();
+        let doc = self.package.part_tree(&presentation_part)?;
+        let Some(default) = nav::child(&doc.root, &doc.interner, PML, "defaultTextStyle") else {
+            return Ok(CharacterPropertiesSpec::new());
+        };
+        let list_style = TextListStyle::from_xml(default, &doc.interner)?;
+        let spec = list_style_tier(Some(&list_style), level, scheme, map, &doc.interner)
+            .iter()
+            .filter_map(ParagraphPropertiesSpec::default_run_properties)
+            .fold(CharacterPropertiesSpec::new(), |resolved, tier| {
+                resolved.merge_under(tier)
+            });
+        Ok(spec)
+    }
+
     /// Tiers 3–6 of the ladder, in order and already interner-free: the shape's own `a:lstStyle`, the
     /// same-slot placeholder's on each ancestor part, the master's `p:txStyles`, and the
     /// presentation's `p:defaultTextStyle` — each taken at `level`.
@@ -5039,6 +5345,136 @@ fn shape_own_line(
         }
     }
     Ok(OwnLine::Absent)
+}
+
+// --- Effective cell formatting helpers -----------------------------------------------------------
+
+/// The cell at `(row, column)`, or a typed out-of-range error naming the table's shape.
+fn cell_at(table: &Table, row: usize, column: usize) -> Result<&TableCell, PptxError> {
+    let (rows, columns) = (table.row_count(), table.column_count());
+    table
+        .cell(row, column)
+        .ok_or(PptxError::TableCellOutOfRange {
+            row,
+            column,
+            rows,
+            columns,
+        })
+}
+
+/// The table's banding/emphasis flags, or all-false when it declares no `a:tblPr`.
+fn table_flags(table: &Table, interner: &Interner) -> TableStyleFlags {
+    table
+        .properties()
+        .map(|properties| TableStyleFlags::from_properties(properties, interner))
+        .unwrap_or_default()
+}
+
+/// The GUID of the table's style (`a:tableStyleId`), or `None`.
+fn table_style_of(table: &Table, interner: &Interner) -> Option<String> {
+    table
+        .properties()
+        .and_then(|properties| properties.table_style_id(interner))
+        .map(str::to_owned)
+}
+
+/// A style part's cell fill: an explicit fill (baked) or a theme `a:fillRef` (index + resolved
+/// `phClr` substitute), mirroring [`shape_own_fill`] for a `a:tcStyle`.
+fn part_own_fill(
+    cell_style: &TableStyleCellStyle,
+    interner: &Interner,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+) -> OwnFill {
+    if let Some(fill) = cell_style.fill(interner) {
+        return OwnFill::Resolved(resolve_fill(&fill, scheme, map, None, interner));
+    }
+    if let Some(reference) = cell_style.fill_reference(interner) {
+        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+            let color = reference
+                .color()
+                .and_then(|color| resolve_color(color, scheme, map, None, interner));
+            return OwnFill::StyleRef(idx, color);
+        }
+    }
+    OwnFill::Absent
+}
+
+/// A themeable border line: an explicit `a:ln` (baked) or a theme `a:lnRef` (index + resolved colour).
+fn part_own_line(
+    border: ThemeableLineStyle,
+    interner: &Interner,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+) -> OwnLine {
+    match border {
+        ThemeableLineStyle::Line(line) => {
+            OwnLine::Resolved(resolve_line(&line, scheme, map, None, interner))
+        }
+        ThemeableLineStyle::Reference(reference) => match reference.idx().filter(|idx| *idx > 0) {
+            Some(idx) => {
+                let color = reference
+                    .color()
+                    .and_then(|color| resolve_color(color, scheme, map, None, interner));
+                OwnLine::StyleRef(idx, color)
+            }
+            None => OwnLine::Absent,
+        },
+    }
+}
+
+/// Which `a:tcBdr` edge draws a cell's `edge`: the outer edge (`top`/`left`/…) for a cell on the
+/// table's rim, the interior edge (`insideH`/`insideV`) for one within it; diagonals map straight
+/// across.
+fn style_border_key(
+    edge: CellBorder,
+    row: usize,
+    column: usize,
+    rows: usize,
+    columns: usize,
+) -> TableStyleBorder {
+    match edge {
+        CellBorder::Left if column == 0 => TableStyleBorder::Left,
+        CellBorder::Left => TableStyleBorder::InsideVertical,
+        CellBorder::Right if column + 1 == columns => TableStyleBorder::Right,
+        CellBorder::Right => TableStyleBorder::InsideVertical,
+        CellBorder::Top if row == 0 => TableStyleBorder::Top,
+        CellBorder::Top => TableStyleBorder::InsideHorizontal,
+        CellBorder::Bottom if row + 1 == rows => TableStyleBorder::Bottom,
+        CellBorder::Bottom => TableStyleBorder::InsideHorizontal,
+        CellBorder::TopLeftToBottomRight => TableStyleBorder::TopLeftToBottomRight,
+        CellBorder::BottomLeftToTopRight => TableStyleBorder::TopRightToBottomLeft,
+        // `CellBorder` is `#[non_exhaustive]`; the six edges above are its entire present set, so this
+        // is unreachable today — a future edge falls back to an interior vertical rather than panic.
+        _ => TableStyleBorder::InsideVertical,
+    }
+}
+
+/// A table style's text contribution as an interner-free spec: its take on bold/italic (the tri-state
+/// [`OnOffStyle`], `Default` contributing nothing) and its text colour, baked to concrete `RRGGBB`.
+fn style_text_spec(
+    text_style: &TableStyleTextStyle,
+    scheme: &SchemeColors,
+    map: &ColorMap,
+    interner: &Interner,
+) -> CharacterPropertiesSpec {
+    let mut spec = CharacterPropertiesSpec::new();
+    match text_style.bold(interner) {
+        OnOffStyle::On => spec = spec.with_bold(true),
+        OnOffStyle::Off => spec = spec.with_bold(false),
+        OnOffStyle::Default => {}
+    }
+    match text_style.italic(interner) {
+        OnOffStyle::On => spec = spec.with_italic(true),
+        OnOffStyle::Off => spec = spec.with_italic(false),
+        OnOffStyle::Default => {}
+    }
+    if let Some(color) = text_style.color(interner) {
+        if let Some(resolved) = resolve_color(&color, scheme, map, None, interner) {
+            spec = spec.with_fill(FillSpec::Solid(ColorSpec::Srgb(resolved.to_hex())));
+        }
+    }
+    spec
 }
 
 /// A candidate shape's own effects, extracted while its part's tree is borrowed (fully owned, so no
