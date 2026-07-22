@@ -14,12 +14,14 @@ use std::time::{Duration, Instant};
 use mjx_dml::{
     Angle, BlipFillMode, CellBorder, CharacterPropertiesSpec, ColorSpec, EffectListSpec, Emu,
     FillSpec, Fraction, GlowEffect, GradientStopSpec, IndentLevel, LineCap, LineDash, LineJoin,
-    LineSpec, LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetLineDash,
-    RectangleAlignment, SchemeColor, ShapeGeometry, TextAlignment, TextAnchoring, TextSpacing,
-    Transform2D,
+    LineSpec, LineWidth, OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, PatternType,
+    PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry, TablePart, TableStyleBorder,
+    TableStylePart, TextAlignment, TextAnchoring, TextSpacing, Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_pptx::{CellFormat, CellMargins, Cells, Presentation, ShapeBounds, Surface};
+use mjx_pptx::{
+    CellFormat, CellMargins, Cells, Presentation, ShapeBounds, Surface, TableStyleFormat,
+};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -275,6 +277,68 @@ fn deck_with_a_created_table_opens() {
 
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "created_table");
+}
+
+#[test]
+fn deck_with_a_table_style_opens() {
+    // The whole tableStyles.xml path end-to-end: a new part hung off the presentation, a style with
+    // whole-table borders and a filled, bold header row, the seven a:tblPr flags, and a table pointed
+    // at the style by GUID. A real Office implementation has to accept the new part, its content-type
+    // override and relationship, and render the styled table — a consumer drops the styling silently
+    // if any of it is wrong.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let table = pres
+        .add_table(0, 3, 3, ShapeBounds::from_inches(0.5, 1.5, 8.0, 3.0))
+        .expect("add table");
+    for (row, column, text) in [
+        (0, 0, "Region"),
+        (0, 1, "Revenue"),
+        (0, 2, "Change"),
+        (1, 0, "North"),
+        (1, 1, "1,204"),
+        (1, 2, "+12%"),
+        (2, 0, "South"),
+        (2, 1, "987"),
+        (2, 2, "-3%"),
+    ] {
+        pres.set_cell_text(0, table, row, column, 0, text)
+            .expect("cell text");
+    }
+    pres.set_table_part(0, table, TablePart::FirstRow, true)
+        .expect("header flag");
+    pres.set_table_part(0, table, TablePart::BandedRows, true)
+        .expect("banding flag");
+
+    let style_id = "{9A8B7C6D-5E4F-4A3B-8C2D-1E0F9A8B7C6D}";
+    pres.create_table_style(style_id, "Report Style")
+        .expect("create style");
+    pres.format_table_style_part(
+        style_id,
+        TableStylePart::WholeTable,
+        &TableStyleFormat::new()
+            .with_border(TableStyleBorder::InsideHorizontal, LineSpec::default()),
+    )
+    .expect("whole-table borders");
+    pres.format_table_style_part(
+        style_id,
+        TableStylePart::FirstRow,
+        &TableStyleFormat::new()
+            .with_bold(OnOffStyle::On)
+            .with_text_color(ColorSpec::Srgb("FFFFFF".to_owned()))
+            .with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+    )
+    .expect("header style");
+    pres.format_table_style_part(
+        style_id,
+        TableStylePart::Band1Horizontal,
+        &TableStyleFormat::new().with_fill(FillSpec::solid(ColorSpec::Srgb("D9E1F2".to_owned()))),
+    )
+    .expect("banded style");
+    pres.set_table_style(0, table, style_id)
+        .expect("assign style");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "table_style");
 }
 
 #[test]
