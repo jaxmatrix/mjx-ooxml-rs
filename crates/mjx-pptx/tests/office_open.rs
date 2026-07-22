@@ -260,6 +260,19 @@ fn deck_with_a_created_table_opens() {
     pres.set_cell_text(0, table, 2, 1, 0, "984 (-3%)")
         .expect("the merged cell's text");
 
+    // Grow then shrink the table: a column inserted between two others, a row appended, and a column
+    // removed — the grid and every row have to stay in step through all of it, and the merge above
+    // has to survive being widened and then left alone. A real implementation renders a visibly
+    // broken grid if any `a:gridCol`/`a:tc` count falls out of step.
+    pres.insert_column(0, table, 1).expect("insert a column");
+    pres.set_cell_text(0, table, 0, 1, 0, "Q1")
+        .expect("label the new column");
+    pres.insert_row(0, table, 3).expect("append a row");
+    pres.set_cell_text(0, table, 3, 0, 0, "Total")
+        .expect("label the new row");
+    pres.remove_column(0, table, 1)
+        .expect("remove the column again");
+
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "created_table");
 }
