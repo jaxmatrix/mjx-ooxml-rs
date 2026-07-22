@@ -3444,6 +3444,151 @@ impl Presentation {
         })
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Structural edits — grow and shrink a table by whole rows and columns.
+    //
+    // Unlike a cell text edit (which reaches one `a:tc` in the raw tree), a row or column edit
+    // touches every row, so the whole `a:tbl` is parsed to the typed `Table`, mutated there — where
+    // merge adjustment and anchor promotion are expressed in terms of the model — and written back.
+    // Round-tripping the fidelity wrappers preserves everything this workstream does not model, and
+    // the span-adjustment logic itself lives in `mjx-dml`. These wrappers own only the range checks,
+    // which need the dimensions the model already reports.
+    // ---------------------------------------------------------------------------------------------
+
+    /// Inserts a row into the table shape `shape_idx` frames so it becomes row `row`; `row` equal to
+    /// the current row count appends at the end. The new row copies the height of the row beside it
+    /// and its cells are empty and ready for [`set_cell_text`](Self::set_cell_text). A merge the new
+    /// row falls inside grows to include it. Marks only that part dirty; the frame's own bounds are
+    /// **not** enlarged (as PowerPoint does not either — resize with
+    /// [`set_shape_bounds`](Self::set_shape_bounds)).
+    ///
+    /// # Errors
+    /// [`PptxError::TableCellOutOfRange`] if `row` is past the end, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn insert_row(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface.into(), shape_idx, |table, interner| {
+            let mut typed = Table::from_xml(table, interner)?;
+            let rows = typed.row_count();
+            if row > rows {
+                return Err(PptxError::TableCellOutOfRange {
+                    row,
+                    column: 0,
+                    rows,
+                    columns: typed.column_count(),
+                });
+            }
+            typed.insert_row(interner, row, build_table_cell)?;
+            *table = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// Removes row `row` from the table shape `shape_idx` frames. A merge the row lies inside shrinks;
+    /// a merge anchored in the row promotes the cell below it, which takes over the anchor's text and
+    /// formatting so the table looks unchanged. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// [`PptxError::InvalidTableSize`] if `row` is the table's only row (a table cannot have none),
+    /// [`PptxError::TableCellOutOfRange`] if `row` is out of range, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn remove_row(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface.into(), shape_idx, |table, interner| {
+            let mut typed = Table::from_xml(table, interner)?;
+            let (rows, columns) = (typed.row_count(), typed.column_count());
+            if row >= rows {
+                return Err(PptxError::TableCellOutOfRange {
+                    row,
+                    column: 0,
+                    rows,
+                    columns,
+                });
+            }
+            if rows == 1 {
+                return Err(PptxError::InvalidTableSize { rows: 0, columns });
+            }
+            typed.remove_row(interner, row);
+            *table = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// Inserts a column into the table shape `shape_idx` frames so it becomes column `column`;
+    /// `column` equal to the current column count appends. The grid gains one `a:gridCol` (width
+    /// copied from the column beside it) and every row gains one empty cell, so the grid and rows
+    /// stay in step. A merge the new column falls inside grows to include it. Marks only that part
+    /// dirty; the frame's own bounds are **not** enlarged.
+    ///
+    /// # Errors
+    /// [`PptxError::TableCellOutOfRange`] if `column` is past the end, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn insert_column(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        column: usize,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface.into(), shape_idx, |table, interner| {
+            let mut typed = Table::from_xml(table, interner)?;
+            let columns = typed.column_count();
+            if column > columns {
+                return Err(PptxError::TableCellOutOfRange {
+                    row: 0,
+                    column,
+                    rows: typed.row_count(),
+                    columns,
+                });
+            }
+            typed.insert_column(interner, column, build_table_cell)?;
+            *table = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
+    /// Removes column `column` from the table shape `shape_idx` frames: its `a:gridCol` and one cell
+    /// from every row, together. A merge the column lies inside shrinks; a merge anchored in the
+    /// column promotes the cell to its right, which takes over the anchor's text and formatting.
+    /// Marks only that part dirty.
+    ///
+    /// # Errors
+    /// [`PptxError::InvalidTableSize`] if `column` is the table's only column,
+    /// [`PptxError::TableCellOutOfRange`] if `column` is out of range, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn remove_column(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        column: usize,
+    ) -> Result<(), PptxError> {
+        self.edit_table_child(surface.into(), shape_idx, |table, interner| {
+            let mut typed = Table::from_xml(table, interner)?;
+            let (rows, columns) = (typed.row_count(), typed.column_count());
+            if column >= columns {
+                return Err(PptxError::TableCellOutOfRange {
+                    row: 0,
+                    column,
+                    rows,
+                    columns,
+                });
+            }
+            if columns == 1 {
+                return Err(PptxError::InvalidTableSize { rows, columns: 0 });
+            }
+            typed.remove_column(interner, column);
+            *table = typed.to_xml(interner);
+            Ok(())
+        })
+    }
+
     /// How many columns and rows the cell at `(row, column)` spans, as `(columns, rows)`.
     ///
     /// `(1, 1)` for an ordinary cell. A cell **covered** by a merge also reports `(1, 1)` — ask
@@ -4932,6 +5077,23 @@ fn build_body(
     build::node(interner, prefix, namespace, "txBody", Vec::new(), children)
 }
 
+/// One fresh `a:tc`: an `a:txBody` with one empty paragraph and an empty `a:tcPr` — what both a
+/// created table's cells and a cell inserted by a row/column edit are born as. A caller's first act
+/// is `set_cell_text`; formatting is added afterwards with `format_cells`, never inherited here.
+fn build_table_cell(interner: &mut Interner) -> RawElement {
+    let paragraph = build_paragraph(interner, "");
+    let body = build_body(interner, "a", DML_MAIN, vec![paragraph]);
+    let tc_pr = build::leaf(interner, "a", DML_MAIN, "tcPr", Vec::new());
+    build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "tc",
+        Vec::new(),
+        vec![RawNode::Element(body), RawNode::Element(tc_pr)],
+    )
+}
+
 /// A whole `p:graphicFrame` holding a `rows` x `columns` table, laid out inside `bounds`.
 ///
 /// Columns share the width evenly and rows the height — a caller resizes either afterwards. Each
@@ -5001,19 +5163,7 @@ fn build_table_frame(
     let table_rows: Vec<RawNode> = (0..rows)
         .map(|_| {
             let cells: Vec<RawNode> = (0..columns)
-                .map(|_| {
-                    let paragraph = build_paragraph(interner, "");
-                    let body = build_body(interner, "a", DML_MAIN, vec![paragraph]);
-                    let tc_pr = build::leaf(interner, "a", DML_MAIN, "tcPr", Vec::new());
-                    RawNode::Element(build::node(
-                        interner,
-                        "a",
-                        DML_MAIN,
-                        "tc",
-                        Vec::new(),
-                        vec![RawNode::Element(body), RawNode::Element(tc_pr)],
-                    ))
-                })
+                .map(|_| RawNode::Element(build_table_cell(interner)))
                 .collect();
             let attrs = vec![build::attr(interner, "h", &row_height.to_string())];
             RawNode::Element(build::node(interner, "a", DML_MAIN, "tr", attrs, cells))
