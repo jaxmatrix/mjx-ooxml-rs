@@ -135,3 +135,166 @@ fn reading_notes_leaves_every_part_byte_identical() {
     let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
     assert_eq!(snapshot, reopened, "reading notes must not change any part");
 }
+
+// ---------------------------------------------------------------------------------------------
+// N2 — the ergonomic notes surface: notes_text / set_notes_text / clear_notes
+// ---------------------------------------------------------------------------------------------
+
+/// The sorted part names of a package — the "which parts exist" set a fidelity delta is asserted on.
+fn names(map: &BTreeMap<String, Vec<u8>>) -> Vec<String> {
+    map.keys().cloned().collect()
+}
+
+#[test]
+fn notes_text_reads_the_body_and_is_none_without_notes() {
+    let mut pres = deck();
+    assert_eq!(
+        pres.notes_text(0).expect("notes"),
+        Some("Remember to smile.".to_owned())
+    );
+    assert_eq!(pres.notes_text(1).expect("notes"), None, "slide 1 has no notes");
+}
+
+#[test]
+fn set_notes_text_on_a_slide_with_notes_touches_only_that_part() {
+    let bytes = fixture("notes.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.set_notes_text(0, "Pause for the demo.").expect("set");
+    let saved = pres.save().expect("save");
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+
+    // No part added or removed — the notes slide already existed.
+    assert_eq!(names(&snapshot), names(&reopened), "part set changed");
+    const NOTES: &str = "ppt/notesSlides/notesSlide1.xml";
+    assert_ne!(reopened.get(NOTES), snapshot.get(NOTES), "the notes slide changed");
+    for (name, original) in &snapshot {
+        if name != NOTES {
+            assert_eq!(reopened.get(name), Some(original), "part {name} must be byte-identical");
+        }
+    }
+
+    // The text reads back.
+    let mut reread = Presentation::open(&saved).expect("open");
+    assert_eq!(reread.notes_text(0).expect("notes"), Some("Pause for the demo.".to_owned()));
+}
+
+#[test]
+fn set_notes_text_creates_the_notes_slide_on_demand() {
+    let bytes = fixture("notes.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    // Slide 1 has no notes; the deck already has a notes master to follow.
+    pres.set_notes_text(1, "Speaker note for slide two.").expect("set");
+    let saved = pres.save().expect("save");
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+
+    // Exactly the new notes slide and its .rels appear — the notes master is reused, not recreated.
+    let added: Vec<_> = reopened.keys().filter(|k| !snapshot.contains_key(*k)).cloned().collect();
+    assert_eq!(
+        added,
+        vec![
+            "ppt/notesSlides/_rels/notesSlide2.xml.rels".to_owned(),
+            "ppt/notesSlides/notesSlide2.xml".to_owned(),
+        ]
+    );
+    assert!(reopened.keys().all(|k| snapshot.contains_key(k) || added.contains(k)), "nothing else added");
+
+    // The slide's own .rels gained the notesSlide relationship; the content types gained an override.
+    const SLIDE_RELS: &str = "ppt/slides/_rels/slide2.xml.rels";
+    assert_ne!(reopened.get(SLIDE_RELS), snapshot.get(SLIDE_RELS), "slide rels changed");
+    let ct = String::from_utf8(reopened["[Content_Types].xml"].clone()).unwrap();
+    assert!(ct.contains("/ppt/notesSlides/notesSlide2.xml"), "content type override added");
+
+    // The notes master part and presentation were not touched.
+    const MASTER: &str = "ppt/notesMasters/notesMaster1.xml";
+    assert_eq!(reopened.get(MASTER), snapshot.get(MASTER), "notes master untouched");
+    assert_eq!(
+        reopened.get("ppt/presentation.xml"),
+        snapshot.get("ppt/presentation.xml"),
+        "presentation untouched — the notes master already existed"
+    );
+
+    let mut reread = Presentation::open(&saved).expect("open");
+    assert_eq!(reread.notes_text(1).expect("notes"), Some("Speaker note for slide two.".to_owned()));
+}
+
+#[test]
+fn set_notes_text_synthesizes_the_notes_master_when_the_deck_has_none() {
+    // `sample.pptx` has a single slide and no notes master at all.
+    let bytes = fixture("sample.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.set_notes_text(0, "First speaker note.").expect("set");
+    let saved = pres.save().expect("save");
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+
+    // The notes master and the notes slide are both born, each with its .rels.
+    let added: Vec<_> = reopened.keys().filter(|k| !snapshot.contains_key(*k)).cloned().collect();
+    assert_eq!(
+        added,
+        vec![
+            "ppt/notesMasters/_rels/notesMaster1.xml.rels".to_owned(),
+            "ppt/notesMasters/notesMaster1.xml".to_owned(),
+            "ppt/notesSlides/_rels/notesSlide1.xml.rels".to_owned(),
+            "ppt/notesSlides/notesSlide1.xml".to_owned(),
+        ]
+    );
+
+    // The presentation gained a `p:notesMasterIdLst`, in schema order right after `p:sldMasterIdLst`.
+    let pres_xml = String::from_utf8(reopened["ppt/presentation.xml"].clone()).unwrap();
+    let masters = pres_xml.find("sldMasterIdLst").expect("sldMasterIdLst");
+    let notes = pres_xml.find("notesMasterIdLst").expect("notesMasterIdLst");
+    let slides = pres_xml.find("sldIdLst").expect("sldIdLst");
+    assert!(masters < notes && notes < slides, "notesMasterIdLst must sit between the two");
+
+    // Both content-type overrides are present; the presentation rels gained the notesMaster rel.
+    let ct = String::from_utf8(reopened["[Content_Types].xml"].clone()).unwrap();
+    assert!(ct.contains("notesMaster1.xml"), "notes master override");
+    assert!(ct.contains("notesSlide1.xml"), "notes slide override");
+    let pres_rels = String::from_utf8(reopened["ppt/_rels/presentation.xml.rels"].clone()).unwrap();
+    assert!(pres_rels.contains("relationships/notesMaster"), "presentation notesMaster rel");
+
+    // The synthesized deck still opens and reads back.
+    let mut reread = Presentation::open(&saved).expect("open");
+    assert_eq!(reread.notes_text(0).expect("notes"), Some("First speaker note.".to_owned()));
+    assert_eq!(reread.shape_count(Surface::NotesMaster).expect("count"), 1);
+}
+
+#[test]
+fn clear_notes_removes_the_part_and_returns_the_part_set() {
+    let bytes = fixture("notes.pptx");
+    let baseline = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    // Create notes on slide 1, then clear them: the part set must return to the baseline.
+    pres.set_notes_text(1, "Transient note.").expect("set");
+    pres.clear_notes(1).expect("clear");
+    let saved = pres.save().expect("save");
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+
+    assert_eq!(names(&baseline), names(&reopened), "the notes slide and its .rels are gone");
+    assert!(!reopened.contains_key("ppt/notesSlides/notesSlide2.xml"));
+
+    let mut reread = Presentation::open(&saved).expect("open");
+    assert_eq!(reread.notes_text(1).expect("notes"), None, "slide 1 has no notes again");
+    // The slide's own rels no longer names a notes slide, and the parts never touched are unchanged.
+    let slide_rels = String::from_utf8(reopened["ppt/slides/_rels/slide2.xml.rels"].clone()).unwrap();
+    assert!(!slide_rels.contains("notesSlide"), "the notes relationship is gone");
+    const NOTES1: &str = "ppt/notesSlides/notesSlide1.xml";
+    assert_eq!(reopened.get(NOTES1), baseline.get(NOTES1), "slide 0's notes untouched");
+}
+
+#[test]
+fn clear_notes_is_a_no_op_without_notes() {
+    let bytes = fixture("notes.pptx");
+    let snapshot = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.clear_notes(1).expect("clear"); // slide 1 has no notes
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    assert_eq!(snapshot, reopened, "clearing absent notes must change nothing");
+}
