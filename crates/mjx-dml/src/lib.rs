@@ -53,12 +53,12 @@ pub use resolve::{
 };
 pub use style::{ColorMap, StyleMatrixReference};
 pub use table::{
-    Cell3D, CellBorder, FontCollectionIndex, FontReference, OnOffStyle, Table,
+    applicable_parts, Cell3D, CellBorder, FontCollectionIndex, FontReference, OnOffStyle, Table,
     TableBackgroundStyle, TableCell, TableCellBorderStyle, TableCellContent, TableCellProperties,
     TableColumn, TableContent, TableGrid, TableGridContent, TablePart, TablePartStyle,
     TableProperties, TableRow, TableRowContent, TableStyle, TableStyleBorder, TableStyleCellStyle,
-    TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextDirection,
-    TextHorizontalOverflow, ThemeableLineStyle,
+    TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring,
+    TextDirection, TextHorizontalOverflow, ThemeableLineStyle,
 };
 pub use text::{
     AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,

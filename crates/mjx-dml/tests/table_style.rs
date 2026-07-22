@@ -287,3 +287,115 @@ fn a_default_bold_take_writes_no_attribute() {
         .any(|a| interner.resolve(a.name.local) == "b");
     assert!(!has_b, "a default take leaves no @b");
 }
+
+// ---------------------------------------------------------------------------------------------
+// Position → applicable style parts (the resolution substance)
+// ---------------------------------------------------------------------------------------------
+
+use mjx_dml::{applicable_parts, TableStyleFlags};
+
+/// A 4×4 table with a header row and column, banding on both axes — every kind of cell is present.
+fn all_flags() -> TableStyleFlags {
+    TableStyleFlags {
+        first_row: true,
+        last_row: false,
+        first_column: true,
+        last_column: false,
+        banded_rows: true,
+        banded_columns: true,
+    }
+}
+
+#[test]
+fn the_top_left_cell_is_the_nw_corner_over_its_edges() {
+    // (0,0) is the header row and header column at once: NW corner, then column, then row, then whole.
+    let parts = applicable_parts(0, 0, 4, 4, all_flags());
+    assert_eq!(
+        parts,
+        [
+            TableStylePart::NorthWestCell,
+            TableStylePart::FirstColumn,
+            TableStylePart::FirstRow,
+            TableStylePart::WholeTable,
+        ]
+    );
+}
+
+#[test]
+fn a_header_cell_takes_first_row_not_banding() {
+    // (0,2): header row, a data column — firstRow wins, and the header row is not banded.
+    let parts = applicable_parts(0, 2, 4, 4, all_flags());
+    // Column 2 is the second data column (data index 1 → band2V), stacking beneath the row edge.
+    assert_eq!(
+        parts,
+        [
+            TableStylePart::FirstRow,
+            TableStylePart::Band2Vertical,
+            TableStylePart::WholeTable,
+        ],
+        "a header cell is firstRow, with column banding beneath, over wholeTbl"
+    );
+}
+
+#[test]
+fn columns_override_rows_but_both_stack() {
+    // (0,0) already covered; check a non-corner header-column data-row cell keeps firstColumn top.
+    let parts = applicable_parts(2, 0, 4, 4, all_flags());
+    // Row 2 is the second data row (data index 1 → band2H), stacking beneath the column edge.
+    assert_eq!(
+        parts,
+        [
+            TableStylePart::FirstColumn,
+            TableStylePart::Band2Horizontal,
+            TableStylePart::WholeTable,
+        ]
+    );
+}
+
+#[test]
+fn banding_parity_counts_data_cells_from_the_first() {
+    let flags = all_flags();
+    // Row 0 is the header; data rows 1,2,3 map to band1H, band2H, band1H. Column 2 is a data column
+    // (data index 1 → band2V), and row banding stacks over column banding.
+    assert_eq!(
+        applicable_parts(1, 2, 4, 4, flags),
+        [
+            TableStylePart::Band1Horizontal,
+            TableStylePart::Band2Vertical,
+            TableStylePart::WholeTable,
+        ]
+    );
+    assert_eq!(
+        applicable_parts(2, 2, 4, 4, flags),
+        [
+            TableStylePart::Band2Horizontal,
+            TableStylePart::Band2Vertical,
+            TableStylePart::WholeTable,
+        ]
+    );
+}
+
+#[test]
+fn a_plain_cell_with_no_flags_is_just_the_whole_table() {
+    let parts = applicable_parts(1, 1, 4, 4, TableStyleFlags::default());
+    assert_eq!(parts, [TableStylePart::WholeTable]);
+}
+
+#[test]
+fn the_bottom_right_cell_is_the_se_corner() {
+    let flags = TableStyleFlags {
+        last_row: true,
+        last_column: true,
+        ..TableStyleFlags::default()
+    };
+    let parts = applicable_parts(3, 3, 4, 4, flags);
+    assert_eq!(
+        parts,
+        [
+            TableStylePart::SouthEastCell,
+            TableStylePart::LastColumn,
+            TableStylePart::LastRow,
+            TableStylePart::WholeTable,
+        ]
+    );
+}
