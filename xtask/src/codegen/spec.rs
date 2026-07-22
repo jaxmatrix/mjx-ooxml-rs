@@ -68,6 +68,10 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_TextAnchoringType", "TextAnchoring"),
     ("ST_TextVerticalType", "TextDirection"),
     ("ST_TextHorzOverflowType", "TextHorizontalOverflow"),
+    // DrawingML table styles: the tri-state take on a style property (`a:tcTxStyle@b`/`@i`), named
+    // for its three-way on/off/inherit sense rather than the schema's generic "…Type" suffix.
+    // `ST_FontCollectionIndex` (major/minor/none) needs no override — it auto-expands cleanly.
+    ("ST_OnOffStyleType", "OnOffStyle"),
     // PresentationML placeholders: `p:ph`'s `type`, `sz`, and `orient`. `ST_Direction` is PML's own
     // two-valued axis (`horz`/`vert`), named for what it selects rather than the generic "direction".
     ("ST_PlaceholderType", "PlaceholderType"),
@@ -633,6 +637,9 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "thaiNumParenBoth",
         "ThaiNumberParenthesesBoth",
     ),
+    // `ST_OnOffStyleType` (§20.1.10.36): `on`/`off` auto-expand; `def` means "follow parent / theme
+    // settings", which the ECMA prose titles "Default".
+    ("ST_OnOffStyleType", "def", "Default"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
