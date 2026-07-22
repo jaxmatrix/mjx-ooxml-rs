@@ -1,7 +1,7 @@
 //! Navigation of a slide's shape tree (`p:sld > p:cSld > p:spTree > p:sp > p:txBody`).
 
 use mjx_dml::{ColorMap, ColorSchemeSlot, Fill, StyleMatrixReference};
-use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
+use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode, Symbol};
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
@@ -575,6 +575,80 @@ fn non_visual_properties<'a>(shape: &'a RawElement, interner: &Interner) -> Opti
     CONTAINERS
         .iter()
         .find_map(|local| nav::child(shape, interner, PML, local))
+}
+
+/// The non-visual properties container of a shape, mutably — the writer's counterpart to
+/// [`non_visual_properties`].
+fn non_visual_properties_mut<'a>(
+    shape: &'a mut RawElement,
+    interner: &Interner,
+) -> Option<&'a mut RawElement> {
+    const CONTAINERS: [&str; 5] = [
+        "nvSpPr",
+        "nvPicPr",
+        "nvGrpSpPr",
+        "nvCxnSpPr",
+        "nvGraphicFramePr",
+    ];
+    // Find which container this shape kind uses (an immutable probe), then borrow it mutably.
+    let local = CONTAINERS
+        .iter()
+        .find(|local| nav::child(shape, interner, PML, local).is_some())?;
+    nav::child_mut(shape, interner, PML, local)
+}
+
+/// The relationship id of a shape's click hyperlink (`p:cNvPr > a:hlinkClick@r:id`), or `None` if the
+/// shape has no hyperlink. The `r:id` is matched by local name — an `a:hlinkClick` carries no other
+/// `id`-local attribute, so the relationship prefix need not be resolved.
+pub(crate) fn shape_hyperlink_rel_id<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a str> {
+    let nv = non_visual_properties(shape, interner)?;
+    let c_nv_pr = nav::child(nv, interner, PML, "cNvPr")?;
+    let hlink = nav::child(c_nv_pr, interner, DML_MAIN, "hlinkClick")?;
+    hlink
+        .attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == "id")
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
+/// Sets (or, when both are `None`, clears) a shape's click hyperlink (`p:cNvPr > a:hlinkClick`),
+/// naming relationship `rel_id` — written with the literal `rel_prefix` bound to the relationships
+/// namespace — and/or carrying `action`. Any existing `a:hlinkClick` is replaced. `a:hlinkClick` is
+/// the first child `CT_NonVisualDrawingProps` allows, so a fresh one is inserted at the front.
+pub(crate) fn set_shape_hyperlink(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    rel_prefix: Symbol,
+    rel_id: Option<&str>,
+    action: Option<&str>,
+) -> Result<(), PptxError> {
+    let nv = non_visual_properties_mut(shape, interner).ok_or(PptxError::MalformedSlide(
+        "shape has no non-visual properties",
+    ))?;
+    let c_nv_pr = nav::child_mut(nv, interner, PML, "cNvPr")
+        .ok_or(PptxError::MalformedSlide("shape has no p:cNvPr"))?;
+    c_nv_pr.children.retain(|node| {
+        !matches!(node, RawNode::Element(child)
+            if nav::name_is(&child.name, interner, DML_MAIN, "hlinkClick"))
+    });
+    if rel_id.is_none() && action.is_none() {
+        c_nv_pr.empty = c_nv_pr.children.is_empty();
+        return Ok(());
+    }
+    let mut attributes = Vec::new();
+    if let Some(rel_id) = rel_id {
+        attributes.push(build::attr_prefixed(interner, rel_prefix, "id", rel_id));
+    }
+    if let Some(action) = action {
+        attributes.push(build::attr(interner, "action", action));
+    }
+    let hlink = build::leaf(interner, "a", DML_MAIN, "hlinkClick", attributes);
+    c_nv_pr.children.insert(0, RawNode::Element(hlink));
+    c_nv_pr.empty = false;
+    Ok(())
 }
 
 /// The placeholder identity of `shape` (`p:nv*Pr > p:nvPr > p:ph`), or `None` if it is not a

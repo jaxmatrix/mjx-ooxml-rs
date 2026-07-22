@@ -31,6 +31,7 @@ mod build;
 pub mod constants;
 mod error;
 mod geometry;
+mod hyperlink;
 mod nav;
 mod presentation;
 mod slide;
@@ -39,6 +40,7 @@ mod table;
 
 pub use error::PptxError;
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
+pub use hyperlink::Hyperlink;
 pub use presentation::Presentation;
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
