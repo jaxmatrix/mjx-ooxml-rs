@@ -828,3 +828,101 @@ fn a_span_that_falls_back_to_one_loses_its_attribute() {
         "the surviving cell kept its text: {out}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Table gaps — accessibility headers, cell id, and an inline table style
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn a_cell_reports_its_id_and_header_associations() {
+    let (table, doc) = parse(&tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc id="dataA1">"#,
+        r#"<a:tcPr><a:headers><a:header>hRegion</a:header><a:header>hYear</a:header></a:headers></a:tcPr>"#,
+        r#"</a:tc></a:tr>"#
+    )));
+    let cell = table.cell(0, 0).expect("0,0");
+    assert_eq!(cell.id(&doc.interner), Some("dataA1"));
+    assert_eq!(
+        cell.properties().expect("tcPr").headers(&doc.interner),
+        vec!["hRegion".to_owned(), "hYear".to_owned()]
+    );
+}
+
+#[test]
+fn header_associations_round_trip_and_clear() {
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr anchor="ctr"/></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    // Set headers; they land in `a:headers > a:header`, placed after the anchor attribute's element
+    // slot (headers is a child, so the anchor attribute is untouched).
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("tcPr")
+        .set_headers(&mut doc.interner, &["h1", "h2"]);
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    assert!(
+        out.contains(r#"<a:headers><a:header>h1</a:header><a:header>h2</a:header></a:headers>"#),
+        "{out}"
+    );
+    assert!(
+        out.contains(r#"anchor="ctr""#),
+        "the anchor is untouched: {out}"
+    );
+
+    // Re-read from the serialized form, then clear.
+    let mut table = Table::from_xml(&doc.root, &doc.interner).expect("re-parse");
+    assert_eq!(
+        table
+            .cell(0, 0)
+            .and_then(|c| c.properties())
+            .map(|p| p.headers(&doc.interner)),
+        Some(vec!["h1".to_owned(), "h2".to_owned()])
+    );
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("tcPr")
+        .set_headers(&mut doc.interner, &[]);
+    assert!(table
+        .cell(0, 0)
+        .and_then(|c| c.properties())
+        .map(|p| p.headers(&doc.interner))
+        .unwrap()
+        .is_empty());
+}
+
+#[test]
+fn an_inline_table_style_is_reported() {
+    let (table, doc) = parse(&tbl(concat!(
+        r#"<a:tblPr firstRow="1">"#,
+        r#"<a:tableStyle styleId="{ABC}" styleName="Inline Look">"#,
+        r#"<a:wholeTbl><a:tcStyle><a:fill><a:solidFill><a:srgbClr val="EEEEEE"/></a:solidFill></a:fill></a:tcStyle></a:wholeTbl>"#,
+        r#"</a:tableStyle></a:tblPr>"#,
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:txBody><a:bodyPr/><a:p/></a:txBody></a:tc></a:tr>"#
+    )));
+    let properties = table.properties().expect("tblPr");
+    assert_eq!(
+        properties.table_style_id(&doc.interner),
+        None,
+        "no GUID reference"
+    );
+    let inline = properties
+        .inline_style(&doc.interner)
+        .expect("an inline style");
+    assert_eq!(inline.style_name(&doc.interner), Some("Inline Look"));
+    assert!(inline
+        .part(&doc.interner, mjx_dml::TableStylePart::WholeTable)
+        .and_then(|p| p.cell_style(&doc.interner))
+        .and_then(|c| c.fill(&doc.interner))
+        .is_some());
+}
