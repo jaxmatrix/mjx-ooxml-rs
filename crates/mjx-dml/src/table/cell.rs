@@ -433,6 +433,32 @@ impl TableCell {
         &mut self.content
     }
 
+    /// Replaces the cell's text body and properties, keeping any opaque children (an `extLst`,
+    /// whitespace) it already had, in `CT_TableCell` sequence order (`txBody?`, `tcPr?`, then the
+    /// rest).
+    ///
+    /// This is how a cell **promoted** to a merge anchor takes the old anchor's `a:txBody` and
+    /// `a:tcPr` so the table looks unchanged: the promoted cell's own (previously hidden) text is
+    /// discarded in favour of what was rendering there.
+    pub fn set_body_and_properties(
+        &mut self,
+        body: Option<TextBody>,
+        properties: Option<TableCellProperties>,
+    ) {
+        self.content
+            .retain(|item| matches!(item, TableCellContent::Raw(_)));
+        let mut rebuilt = Vec::with_capacity(self.content.len() + 2);
+        if let Some(body) = body {
+            rebuilt.push(TableCellContent::TextBody(body));
+        }
+        if let Some(properties) = properties {
+            rebuilt.push(TableCellContent::Properties(properties));
+        }
+        rebuilt.append(&mut self.content);
+        self.content = rebuilt;
+        self.empty = self.content.is_empty();
+    }
+
     /// The cell's attributes, verbatim.
     #[must_use]
     pub fn attributes(&self) -> &[RawAttribute] {
