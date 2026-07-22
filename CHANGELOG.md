@@ -15,9 +15,37 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
-## [0.0.18] - 2026-07-22
+## [0.0.19] - 2026-07-22
 
-Tables can grow and shrink — rows and columns inserted and removed.
+The `tableStyles.xml` part is modeled, and table styles can be authored and resolved.
+
+### Added
+
+- **The table-style model** (`mjx-dml`) — `TableStyleList`, `TableStyle`, the thirteen part slots
+  (`TableStylePart`) plus `tblBg`, and the `TablePartStyle` / `TableStyleTextStyle` /
+  `TableStyleCellStyle` / `TableCellBorderStyle` / `TableBackgroundStyle` / `FontReference` / `Cell3D`
+  leaves. Every accessor reuses the DrawingML already modeled (fills, `LineProperties`, `Color`,
+  `EffectList`, theme references via `StyleMatrixReference`). Two new generated types: the tri-state
+  `OnOffStyle` (`on`/`off`/`def`) and `FontCollectionIndex`. `Cell3D`'s `a:bevel`/`a:lightRig` are
+  preserved opaque pending the 3-D workstream.
+- **Authoring the style tree** (`mjx-dml`) — constructors and setters that build a style from parts
+  (fill, borders, text emphasis), each merge-not-rebuild and default-dropping.
+- **`Presentation` surface** (`mjx-pptx`):
+  - the seven `a:tblPr` flags — `table_part` / `set_table_part` (`TablePart`).
+  - `table_style_id` / `set_table_style` — read and assign a table's `a:tableStyleId`.
+  - `create_table_style`, creating the `tableStyles.xml` part on demand (relationship + content-type
+    wired like an image part), and `format_table_style_part` with the new `TableStyleFormat` builder.
+  - `with_table_style` — resolve a table's style through the shared part.
+  - `PptxError::TableStyleNotFound`.
+- **`tests/fixtures/tables.pptx`** — a deck carrying a real `tableStyles.xml` and a table naming its
+  style.
+
+### Notes
+
+- A table style is layered formatting keyed by which part of the table a cell is in; modeling the
+  part is what makes a `tableStyleId` resolve — the basis for effective cell formatting (next).
+- Authoring a style touches exactly the content-types manifest, the presentation's relationships, and
+  the new part; every other part stays byte-identical, and reading a styled table dirties nothing.
 
 ### Added
 
