@@ -98,14 +98,20 @@ pub enum PptxError {
     #[error("presentation has no notes master")]
     SurfaceHasNoNotesMaster,
 
-    /// A shape index was out of range on the given surface.
-    #[error("shape index {index} out of range on {surface} (0..{count})")]
+    /// A shape address was out of range on the given surface.
+    ///
+    /// [`path`](Self::ShapeIndexOutOfRange::path) is the address asked for — a bare index for a
+    /// top-level shape, a bracketed path (`[2, 1]`) for a group member — and
+    /// [`count`](Self::ShapeIndexOutOfRange::count) is the number of shapes in the container where the
+    /// walk ran out of range (the top-level tree, or the group that was descended into). Stepping into
+    /// a shape that is not a group leaves a zero-member container, so `count` is `0` there.
+    #[error("shape {path} out of range on {surface} (0..{count})")]
     ShapeIndexOutOfRange {
         /// The surface addressed (slide, layout, or master).
         surface: Surface,
-        /// The requested shape index.
-        index: usize,
-        /// The number of shapes on that surface.
+        /// The requested shape address.
+        path: crate::address::ShapePath,
+        /// The number of shapes in the container where the address ran out of range.
         count: usize,
     },
 

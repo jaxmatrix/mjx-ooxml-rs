@@ -5,6 +5,7 @@ use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode, Symbol};
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
+use crate::address::ShapePath;
 use crate::build;
 use crate::error::PptxError;
 use crate::nav;
@@ -59,7 +60,8 @@ pub enum ShapeKind {
     Shape,
     /// `p:pic` — a picture (`CT_Picture`).
     Picture,
-    /// `p:grpSp` — a group of shapes (`CT_GroupShape`). Its children are not themselves enumerated.
+    /// `p:grpSp` — a group of shapes (`CT_GroupShape`). Its members are not on the top-level index
+    /// space; they are addressed by descending into it with a [`ShapePath`](crate::ShapePath).
     GroupShape,
     /// `p:graphicFrame` — a frame holding a table, chart, or other graphical object
     /// (`CT_GraphicalObjectFrame`).
@@ -144,7 +146,8 @@ pub(crate) fn shape_kind(element: &RawElement, interner: &Interner) -> Option<Sh
 /// space, so a picture is simply shape *n* on the slide.
 ///
 /// Skips the tree's own `p:nvGrpSpPr` / `p:grpSpPr` / `p:extLst`, and does not descend into a
-/// `p:grpSp`: a group is one shape, its members are not separately addressable.
+/// `p:grpSp`: a group is one shape here. Because the same shape-kind filter enumerates a group's own
+/// members, this doubles as the member enumerator that [`resolve_shape`] descends through.
 pub(crate) fn shapes<'a>(
     sp_tree: &'a RawElement,
     interner: &'a Interner,
@@ -176,6 +179,97 @@ pub(crate) fn nth_shape_position(
     nav::nth_child_matching_position(sp_tree, interner, n, |element, interner| {
         shape_kind(element, interner).is_some()
     })
+}
+
+// ---------------------------------------------------------------------------------------------
+// Descent — resolving a `ShapePath` through nested groups
+// ---------------------------------------------------------------------------------------------
+//
+// A group's members are exactly `shapes(group_element)`: the same shape-kind filter that enumerates
+// a shape tree's top-level children enumerates a `p:grpSp`'s members, because `shape_kind` already
+// rejects the group's own `p:nvGrpSpPr` / `p:grpSpPr` / `p:extLst`. A shape that is *not* a group has
+// no shape-kind children at all, so descending into one finds zero members — which is exactly the
+// "that index has nothing to descend into" answer we want, with no special-casing. Every resolver
+// therefore treats "the members of X" as "the shapes of X", uniformly, at every depth.
+//
+// On a miss each resolver returns the number of addressable shapes at the container where the walk
+// stopped, so the caller can report `0..count` for the level that was actually out of range.
+
+/// Resolves a [`ShapePath`] to the shape it addresses, descending through nested groups.
+///
+/// `Err(count)` carries the number of shapes in the container where the walk ran out of range — the
+/// top-level tree for a length-1 path, or the group reached for a deeper one. Stepping into a
+/// non-group leaves a zero-member container, so the next index misses with `count == 0`.
+pub(crate) fn resolve_shape<'a>(
+    sp_tree: &'a RawElement,
+    interner: &'a Interner,
+    path: &ShapePath,
+) -> Result<&'a RawElement, usize> {
+    let indices = path.indices();
+    if indices.is_empty() {
+        return Err(shapes(sp_tree, interner).count());
+    }
+    let mut container: &'a RawElement = sp_tree;
+    for (depth, &index) in indices.iter().enumerate() {
+        match shapes(container, interner).nth(index) {
+            Some(shape) if depth + 1 == indices.len() => return Ok(shape),
+            Some(shape) => container = shape,
+            None => return Err(shapes(container, interner).count()),
+        }
+    }
+    unreachable!("the loop returns once it reaches the last index")
+}
+
+/// Resolves a [`ShapePath`] to the shape it addresses, mutably — the write counterpart of
+/// [`resolve_shape`], with the same `Err(count)` contract.
+pub(crate) fn resolve_shape_mut<'a>(
+    sp_tree: &'a mut RawElement,
+    interner: &Interner,
+    path: &ShapePath,
+) -> Result<&'a mut RawElement, usize> {
+    let indices = path.indices();
+    if indices.is_empty() {
+        return Err(shapes(sp_tree, interner).count());
+    }
+    let mut container: &'a mut RawElement = sp_tree;
+    for (depth, &index) in indices.iter().enumerate() {
+        // The count is read before the mutable borrow, since the miss branch cannot borrow the
+        // container again once `nth_shape_mut` has taken it.
+        let count = shapes(container, interner).count();
+        let last = depth + 1 == indices.len();
+        match nth_shape_mut(container, interner, index) {
+            Some(shape) if last => return Ok(shape),
+            Some(shape) => container = shape,
+            None => return Err(count),
+        }
+    }
+    unreachable!("the loop returns once it reaches the last index")
+}
+
+/// Resolves a [`ShapePath`] to the shape's **parent container** and its position in that container's
+/// raw child list — what removal needs, since a shape is dropped from its parent's `children`, not
+/// edited in place. For a top-level shape the parent is the shape tree itself.
+///
+/// `Err(count)` follows [`resolve_shape`]: the addressable-shape count at the level that missed.
+pub(crate) fn resolve_shape_position<'a>(
+    sp_tree: &'a mut RawElement,
+    interner: &Interner,
+    path: &ShapePath,
+) -> Result<(&'a mut RawElement, usize), usize> {
+    let indices = path.indices();
+    let Some((&last_index, parent_indices)) = indices.split_last() else {
+        return Err(shapes(sp_tree, interner).count());
+    };
+    let parent: &'a mut RawElement = if parent_indices.is_empty() {
+        sp_tree
+    } else {
+        resolve_shape_mut(sp_tree, interner, &ShapePath::from(parent_indices))?
+    };
+    let count = shapes(parent, interner).count();
+    match nth_shape_position(parent, interner, last_index) {
+        Some(position) => Ok((parent, position)),
+        None => Err(count),
+    }
 }
 
 /// A shape's `p:txBody`, if it has one.
@@ -996,6 +1090,71 @@ mod tests {
             Some(ShapeKind::ConnectionShape)
         );
         assert!(nth_shape_mut(&mut tree, &interner, 5).is_none());
+    }
+
+    #[test]
+    fn resolve_shape_descends_into_a_group() {
+        // In `mixed_sp_tree` the group is top-level index 2, holding a `p:sp` (member 0) and a
+        // `p:pic` (member 1).
+        let (tree, interner) = mixed_sp_tree();
+        let member0 =
+            resolve_shape(&tree, &interner, &ShapePath::from([2, 0])).expect("group member 0");
+        assert_eq!(shape_kind(member0, &interner), Some(ShapeKind::Shape));
+        let member1 =
+            resolve_shape(&tree, &interner, &ShapePath::from([2, 1])).expect("group member 1");
+        assert_eq!(shape_kind(member1, &interner), Some(ShapeKind::Picture));
+        // A bare top-level index still resolves the group itself.
+        let group = resolve_shape(&tree, &interner, &ShapePath::from(2)).expect("the group");
+        assert_eq!(shape_kind(group, &interner), Some(ShapeKind::GroupShape));
+    }
+
+    #[test]
+    fn resolve_shape_reports_the_failing_containers_count() {
+        let (tree, interner) = mixed_sp_tree();
+        // Past the end of the top-level space (five shapes: sp, pic, grpSp, cxnSp, graphicFrame).
+        assert_eq!(resolve_shape(&tree, &interner, &ShapePath::from(5)), Err(5));
+        // Past the end of the group's two members.
+        assert_eq!(
+            resolve_shape(&tree, &interner, &ShapePath::from([2, 9])),
+            Err(2)
+        );
+        // Descending into a non-group (index 0 is a `p:sp`) finds a zero-member container.
+        assert_eq!(
+            resolve_shape(&tree, &interner, &ShapePath::from([0, 0])),
+            Err(0)
+        );
+    }
+
+    #[test]
+    fn resolve_shape_mut_reaches_the_same_member() {
+        let (mut tree, interner) = mixed_sp_tree();
+        let member1 =
+            resolve_shape_mut(&mut tree, &interner, &ShapePath::from([2, 1])).expect("member 1");
+        assert_eq!(shape_kind(member1, &interner), Some(ShapeKind::Picture));
+        assert_eq!(
+            resolve_shape_mut(&mut tree, &interner, &ShapePath::from([0, 0])),
+            Err(0)
+        );
+    }
+
+    #[test]
+    fn resolve_shape_position_names_the_parent_container_and_child_slot() {
+        let (mut tree, interner) = mixed_sp_tree();
+        // The member's parent is the group, not the shape tree — so removal drops it from the group.
+        let (parent, position) =
+            resolve_shape_position(&mut tree, &interner, &ShapePath::from([2, 1]))
+                .expect("member 1 position");
+        assert_eq!(shape_kind(parent, &interner), Some(ShapeKind::GroupShape));
+        let removed = match &parent.children[position] {
+            RawNode::Element(element) => shape_kind(element, &interner),
+            _ => None,
+        };
+        assert_eq!(removed, Some(ShapeKind::Picture));
+
+        // A top-level shape's parent is the shape tree itself.
+        let (parent, _) = resolve_shape_position(&mut tree, &interner, &ShapePath::from(0))
+            .expect("top-level position");
+        assert!(nav::name_is(&parent.name, &interner, PML, "spTree"));
     }
 
     #[test]
