@@ -15,6 +15,25 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.24] - 2026-07-22
+
+Speaker notes, part 2 — the ergonomic notes surface: read, set, and clear a slide's notes.
+
+### Added
+
+- **`Presentation::notes_text(slide)`** — the speaker notes of a slide, read from its notes slide's
+  `body` placeholder by kind (the caller never needs the shape index); `None` when the slide has no
+  notes.
+- **`Presentation::set_notes_text(slide, text)`** — sets the notes, **creating the notes slide on
+  demand** (and, when the deck has none, **synthesizing a notes master** for it to follow) with its
+  relationships and content-type overrides. Creating a notes slide adds exactly that part, its
+  `.rels`, the slide → notes-slide relationship and the override — every pre-existing part stays
+  byte-identical.
+- **`Presentation::clear_notes(slide)`** — removes a slide's notes slide (and its `.rels` and
+  override); the shared notes master and the slide survive. A no-op when the slide has no notes.
+
+This completes MJX-34 — the last feature before the `v0.1` PowerPoint milestone.
+
 ## [0.0.23] - 2026-07-22
 
 Speaker notes, part 1 — a notes slide and the notes master become addressable surfaces.
