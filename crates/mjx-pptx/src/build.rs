@@ -196,6 +196,75 @@ pub(crate) fn empty_slide_bytes() -> Vec<u8> {
     .to_vec()
 }
 
+/// The bytes of a minimal, Office-valid empty notes slide: a `p:notes` whose shape tree carries the
+/// slide-image placeholder (`type="sldImg"`) and the speaker-notes body placeholder
+/// (`type="body" idx="1"`) with an empty text body, plus a master colour-map override. A fresh part
+/// with its own root, so it declares its own namespaces.
+///
+/// The body placeholder is where `set_notes_text` writes; its slot (`body`/`idx="1"`) matches the
+/// notes master's body placeholder, so notes text inherits the master's `p:notesStyle`.
+pub(crate) fn empty_notes_slide_bytes() -> Vec<u8> {
+    concat!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+        "\n",
+        r#"<p:notes xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main""#,
+        r#" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
+        r#" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
+        r#"<p:cSld><p:spTree>"#,
+        r#"<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"#,
+        r#"<p:grpSpPr/>"#,
+        r#"<p:sp>"#,
+        r#"<p:nvSpPr><p:cNvPr id="2" name="Slide Image Placeholder 1"/>"#,
+        r#"<p:cNvSpPr><a:spLocks noGrp="1" noRot="1" noChangeAspect="1"/></p:cNvSpPr>"#,
+        r#"<p:nvPr><p:ph type="sldImg"/></p:nvPr></p:nvSpPr>"#,
+        r#"<p:spPr/>"#,
+        r#"</p:sp>"#,
+        r#"<p:sp>"#,
+        r#"<p:nvSpPr><p:cNvPr id="3" name="Notes Placeholder 2"/>"#,
+        r#"<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>"#,
+        r#"<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>"#,
+        r#"<p:spPr/>"#,
+        r#"<p:txBody><a:bodyPr/><a:lstStyle/><a:p/></p:txBody>"#,
+        r#"</p:sp>"#,
+        r#"</p:spTree></p:cSld>"#,
+        r#"<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"#,
+        r#"</p:notes>"#,
+    )
+    .as_bytes()
+    .to_vec()
+}
+
+/// The bytes of a minimal, Office-valid notes master: a `p:notesMaster` whose shape tree carries a
+/// body placeholder, an identity `p:clrMap`, and a `p:notesStyle`. Synthesized on demand
+/// ([`Presentation::set_notes_text`]) when a deck has no notes master for a new notes slide to follow.
+pub(crate) fn notes_master_bytes() -> Vec<u8> {
+    concat!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+        "\n",
+        r#"<p:notesMaster xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main""#,
+        r#" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
+        r#" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
+        r#"<p:cSld><p:spTree>"#,
+        r#"<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>"#,
+        r#"<p:grpSpPr/>"#,
+        r#"<p:sp>"#,
+        r#"<p:nvSpPr><p:cNvPr id="2" name="Notes Placeholder 1"/>"#,
+        r#"<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>"#,
+        r#"<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>"#,
+        r#"<p:spPr/>"#,
+        r#"<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US"/></a:p></p:txBody>"#,
+        r#"</p:sp>"#,
+        r#"</p:spTree></p:cSld>"#,
+        r#"<p:clrMap bg1="lt1" tx1="dk1" bg2="lt2" tx2="dk2" accent1="accent1" accent2="accent2""#,
+        r#" accent3="accent3" accent4="accent4" accent5="accent5" accent6="accent6""#,
+        r#" hlink="hlink" folHlink="folHlink"/>"#,
+        r#"<p:notesStyle><a:lvl1pPr><a:defRPr sz="1200"/></a:lvl1pPr></p:notesStyle>"#,
+        r#"</p:notesMaster>"#,
+    )
+    .as_bytes()
+    .to_vec()
+}
+
 /// Escapes `value` as bytes for a double-quoted XML attribute (`&`, `<`, `"`). The fidelity writer
 /// emits attribute bytes verbatim, so a value injected from a Rust string must be escaped here.
 fn escape_attribute(value: &str) -> Box<[u8]> {
