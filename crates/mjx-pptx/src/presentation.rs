@@ -280,13 +280,43 @@ impl Presentation {
             })
     }
 
-    /// The part a [`Surface`] addresses, or the typed out-of-range error for its kind.
-    fn surface_part(&self, surface: Surface) -> Result<&PartName, PptxError> {
+    /// The part a [`Surface`] addresses, or the typed error for its kind (index out of range, or a
+    /// notes surface the deck does not have).
+    ///
+    /// A slide/layout/master part is stored, so this clones a name out of the owning `Vec`; a notes
+    /// part is resolved lazily by relationship. Either way the result is owned, which is what every
+    /// caller needs — none holds the borrow across the package edit that follows.
+    fn surface_part(&self, surface: Surface) -> Result<PartName, PptxError> {
         match surface {
-            Surface::Slide(idx) => self.slide_part_checked(idx),
-            Surface::Layout(idx) => self.layout_part_checked(idx),
-            Surface::Master(idx) => self.master_part_checked(idx),
+            Surface::Slide(idx) => self.slide_part_checked(idx).cloned(),
+            Surface::Layout(idx) => self.layout_part_checked(idx).cloned(),
+            Surface::Master(idx) => self.master_part_checked(idx).cloned(),
+            Surface::Notes(slide) => self
+                .notes_part(slide)?
+                .ok_or(PptxError::SurfaceHasNoNotes { slide }),
+            Surface::NotesMaster => self
+                .notes_master_part()?
+                .ok_or(PptxError::SurfaceHasNoNotesMaster),
         }
+    }
+
+    /// The notes slide part of slide `slide_idx`, or `None` if the slide owns none. Reading does not
+    /// touch the package tree.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `slide_idx` is out of range or the relationship points outside the
+    /// package.
+    fn notes_part(&self, slide_idx: usize) -> Result<Option<PartName>, PptxError> {
+        let slide_part = self.slide_part_checked(slide_idx)?.clone();
+        self.follow_rel(&slide_part, constants::REL_NOTES_SLIDE)
+    }
+
+    /// The presentation's notes master part, or `None` if the deck has none.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the relationship points outside the package.
+    fn notes_master_part(&self) -> Result<Option<PartName>, PptxError> {
+        self.follow_rel(&self.presentation_part, constants::REL_NOTES_MASTER)
     }
 
     /// The parts a surface inherits from, nearest first: the surface's own part, then the parts a
@@ -300,15 +330,25 @@ impl Presentation {
     /// Returns [`PptxError`] if the surface index is out of range or a relationship points outside
     /// the package.
     fn inheritance_chain(&self, surface: Surface) -> Result<Vec<PartName>, PptxError> {
-        let own = self.surface_part(surface)?.clone();
+        let own = self.surface_part(surface)?;
         let mut chain = vec![own];
+
+        // A notes slide follows the notes master directly (there is no notes layout); every other
+        // non-master surface climbs the slide → layout → slide-master spine.
+        if matches!(surface, Surface::Notes(_)) {
+            if let Some(master) = self.follow_rel(&chain[0], constants::REL_NOTES_MASTER)? {
+                chain.push(master);
+            }
+            return Ok(chain);
+        }
+
         if matches!(surface, Surface::Slide(_)) {
             let Some(layout) = self.follow_rel(&chain[0], constants::REL_SLIDE_LAYOUT)? else {
                 return Ok(chain);
             };
             chain.push(layout);
         }
-        if !matches!(surface, Surface::Master(_)) {
+        if !surface.is_master_like() {
             let last = chain.last().expect("the chain always holds the own part");
             if let Some(master) = self.follow_rel(last, constants::REL_SLIDE_MASTER)? {
                 chain.push(master);
@@ -336,7 +376,7 @@ impl Presentation {
         surface: Surface,
         shape_idx: usize,
     ) -> Result<Vec<(PartName, Candidate)>, PptxError> {
-        let own_part = self.surface_part(surface)?.clone();
+        let own_part = self.surface_part(surface)?;
         let placeholder = {
             let doc = self.package.part_tree(&own_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
@@ -369,7 +409,7 @@ impl Presentation {
     /// Returns [`PptxError`] if the index is out of range or the slide is malformed.
     pub fn shape_count(&mut self, surface: impl Into<Surface>) -> Result<usize, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         Ok(slide::shapes(sp_tree, &doc.interner).count())
@@ -387,7 +427,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<ShapeKind, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -417,7 +457,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<PlaceholderInfo>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -497,7 +537,7 @@ impl Presentation {
         site: TextSite,
         read: impl FnOnce(&TextBody, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -525,7 +565,7 @@ impl Presentation {
         site: TextSite,
         edit: impl FnOnce(&mut TextBody, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         // Split the borrow: `interner` for names and rebuilding, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
@@ -1550,7 +1590,7 @@ impl Presentation {
         column: usize,
         read: impl FnOnce(Option<&TableCellProperties>, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -1583,7 +1623,7 @@ impl Presentation {
         column: usize,
         edit: impl FnOnce(&mut TableCellProperties, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -1749,7 +1789,7 @@ impl Presentation {
         visible_only: bool,
         edit: impl Fn(&mut RawElement, &mut Interner, usize, usize) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -1982,7 +2022,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<Transform2D>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -2017,7 +2057,7 @@ impl Presentation {
         transform: &Transform2D,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` names the element, `root` holds the tree it lands in.
         let RawDocument { interner, root, .. } = doc;
@@ -2048,7 +2088,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<ShapeGeometry, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -2081,7 +2121,7 @@ impl Presentation {
         geometry: ShapeGeometry,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
@@ -2120,7 +2160,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -2158,7 +2198,7 @@ impl Presentation {
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the fill element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
@@ -2223,7 +2263,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<LineSpec>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -2257,7 +2297,7 @@ impl Presentation {
         line: &LineSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the outline element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
@@ -2320,7 +2360,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<EffectListSpec>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -2356,7 +2396,7 @@ impl Presentation {
         effects: &EffectListSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the effect element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
@@ -3142,7 +3182,7 @@ impl Presentation {
 
         // Tier 3 — the shape's own list style, and the placeholder slot the rest are matched on.
         let placeholder = {
-            let part = self.surface_part(surface)?.clone();
+            let part = self.surface_part(surface)?;
             let doc = self.package.part_tree(&part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -3189,27 +3229,30 @@ impl Presentation {
                 ));
             }
 
-            // Tier 5 — the master's `p:txStyles`, whichever style this slot is styled by.
+            // Tier 5 — the master's text styles. A slide master names them by slot in `p:txStyles`
+            // (`p:titleStyle` / `p:otherStyle` / `p:bodyStyle`); a notes master instead carries a
+            // single `p:notesStyle` that styles its body text. An absent element simply means the
+            // chain never reached a master (or it declares no text styles).
             let chain = self.inheritance_chain(surface)?;
             let master = chain
                 .last()
                 .expect("a chain always holds the surface's own part");
             let doc = self.package.part_tree(master)?;
-            // `p:txStyles` exists only on a `p:sldMaster`, so an absent one simply means the chain
-            // never reached a master (or that master declares no text styles).
-            if let Some(styles) = nav::child(&doc.root, &doc.interner, PML, "txStyles") {
-                if let Some(named) =
-                    nav::child(styles, &doc.interner, PML, master_style_local(slot))
-                {
-                    let list_style = TextListStyle::from_xml(named, &doc.interner)?;
-                    tiers.extend(list_style_tier(
-                        Some(&list_style),
-                        level,
-                        scheme,
-                        map,
-                        &doc.interner,
-                    ));
-                }
+            let master_style = if matches!(surface, Surface::Notes(_) | Surface::NotesMaster) {
+                nav::child(&doc.root, &doc.interner, PML, "notesStyle")
+            } else {
+                nav::child(&doc.root, &doc.interner, PML, "txStyles")
+                    .and_then(|styles| nav::child(styles, &doc.interner, PML, master_style_local(slot)))
+            };
+            if let Some(named) = master_style {
+                let list_style = TextListStyle::from_xml(named, &doc.interner)?;
+                tiers.extend(list_style_tier(
+                    Some(&list_style),
+                    level,
+                    scheme,
+                    map,
+                    &doc.interner,
+                ));
             }
         }
 
@@ -3303,7 +3346,7 @@ impl Presentation {
         bounds: ShapeBounds,
     ) -> Result<usize, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the new names, `root` receives the new subtree.
         let RawDocument { interner, root, .. } = doc;
@@ -3338,7 +3381,7 @@ impl Presentation {
         bounds: ShapeBounds,
     ) -> Result<usize, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -3371,7 +3414,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -3634,7 +3677,7 @@ impl Presentation {
         // The image part and relationship first: if the bytes are not an image, nothing is edited.
         let rel_id = self.add_image(surface, bytes)?;
 
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let rel_declaration = build::relationship_prefix_declaration(root, interner);
@@ -3685,7 +3728,7 @@ impl Presentation {
             return Err(PptxError::InvalidTableSize { rows, columns });
         }
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -3715,7 +3758,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<GraphicFrameKind>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -4073,7 +4116,7 @@ impl Presentation {
         shape_idx: usize,
         read: impl FnOnce(&Table, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let count = slide::shapes(sp_tree, &doc.interner).count();
@@ -4101,7 +4144,7 @@ impl Presentation {
         shape_idx: usize,
         edit: impl FnOnce(&mut RawElement, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
-        let part = self.surface_part(surface)?.clone();
+        let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
@@ -4348,7 +4391,7 @@ impl Presentation {
                 .and_then(|properties| properties.inline_style(interner)))
         })?;
         if let Some(style) = inline {
-            let part = self.surface_part(surface)?.clone();
+            let part = self.surface_part(surface)?;
             let doc = self.package.part_tree(&part)?;
             return read(&style, &doc.interner).map(Some);
         }
@@ -4433,7 +4476,7 @@ impl Presentation {
         shape_idx: usize,
     ) -> Result<Option<String>, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
@@ -4459,7 +4502,7 @@ impl Presentation {
         let Some(rel_id) = self.picture_image_rel_id(surface, shape_idx)? else {
             return Ok(None);
         };
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let Some(part) = self.image_part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
@@ -4488,7 +4531,7 @@ impl Presentation {
         let surface = surface.into();
         // Validate the shape kind before editing the package, so a wrong index adds no image part.
         {
-            let slide_part = self.surface_part(surface)?.clone();
+            let slide_part = self.surface_part(surface)?;
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
@@ -4498,7 +4541,7 @@ impl Presentation {
         }
         let rel_id = self.add_image(surface, bytes)?;
 
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
         let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
@@ -4571,7 +4614,7 @@ impl Presentation {
         bytes: &[u8],
     ) -> Result<String, PptxError> {
         let surface = surface.into();
-        let slide_part = self.surface_part(surface)?.clone();
+        let slide_part = self.surface_part(surface)?;
         let format = ImageFormat::sniff(bytes).ok_or(PptxError::UnrecognizedImageFormat)?;
 
         let media_part = match self.media_part_with_bytes(bytes) {
@@ -4809,7 +4852,7 @@ impl Presentation {
             .last()
             .expect("a chain always holds the surface's own part")
             .clone();
-        if master == own && !matches!(surface, Surface::Master(_)) {
+        if master == own && !surface.is_master_like() {
             return Ok(None); // the chain never reached a master
         }
 

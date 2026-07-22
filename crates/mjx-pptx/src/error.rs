@@ -87,6 +87,17 @@ pub enum PptxError {
         count: usize,
     },
 
+    /// A notes surface was addressed but the slide owns no notes slide part.
+    #[error("slide {slide} has no notes slide")]
+    SurfaceHasNoNotes {
+        /// The slide whose notes were addressed.
+        slide: usize,
+    },
+
+    /// The notes master surface was addressed but the presentation has no notes master.
+    #[error("presentation has no notes master")]
+    SurfaceHasNoNotesMaster,
+
     /// A shape index was out of range on the given surface.
     #[error("shape index {index} out of range on {surface} (0..{count})")]
     ShapeIndexOutOfRange {

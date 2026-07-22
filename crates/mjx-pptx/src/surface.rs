@@ -9,6 +9,10 @@
 //! Editing a layout or master is how a change reaches *many* slides at once: a slide placeholder with
 //! no explicit property of its own inherits from the same-slot placeholder on its layout, then its
 //! master (see `Presentation::effective_shape_fill`).
+//!
+//! A slide's **notes slide** carries the same shape surface too, so [`Surface::Notes`] addresses it —
+//! indexed by the slide it belongs to, since a notes slide belongs to exactly one — and
+//! [`Surface::NotesMaster`] addresses the single notes master every notes slide inherits from.
 
 use std::fmt;
 
@@ -25,25 +29,41 @@ pub enum Surface {
     Layout(usize),
     /// A slide master, indexed as in `Presentation::master_count`.
     Master(usize),
+    /// The notes slide of the slide at this index (a notes slide belongs to exactly one slide).
+    Notes(usize),
+    /// The single notes master every notes slide inherits from.
+    NotesMaster,
 }
 
 impl Surface {
-    /// The index within this surface's own kind.
+    /// The index within this surface's own kind. The [`NotesMaster`](Surface::NotesMaster) is unique
+    /// and reports `0`.
     #[must_use]
     pub fn index(self) -> usize {
         match self {
-            Self::Slide(idx) | Self::Layout(idx) | Self::Master(idx) => idx,
+            Self::Slide(idx) | Self::Layout(idx) | Self::Master(idx) | Self::Notes(idx) => idx,
+            Self::NotesMaster => 0,
         }
     }
 
-    /// The kind's name, as it appears in error messages (`slide`, `layout`, `master`).
+    /// The kind's name, as it appears in error messages (`slide`, `layout`, `master`, `notes`,
+    /// `notes master`).
     #[must_use]
     pub fn kind_name(self) -> &'static str {
         match self {
             Self::Slide(_) => "slide",
             Self::Layout(_) => "layout",
             Self::Master(_) => "master",
+            Self::Notes(_) => "notes",
+            Self::NotesMaster => "notes master",
         }
+    }
+
+    /// Whether this surface stands at the head of its own inheritance chain — a slide master or the
+    /// notes master, neither of which inherits from a further part.
+    #[must_use]
+    pub fn is_master_like(self) -> bool {
+        matches!(self, Self::Master(_) | Self::NotesMaster)
     }
 }
 
@@ -55,9 +75,12 @@ impl From<usize> for Surface {
 }
 
 impl fmt::Display for Surface {
-    /// `slide 0`, `layout 1`, `master 0`.
+    /// `slide 0`, `layout 1`, `master 0`, `notes 2`, `notes master`.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} {}", self.kind_name(), self.index())
+        match self {
+            Self::NotesMaster => f.write_str(self.kind_name()),
+            _ => write!(f, "{} {}", self.kind_name(), self.index()),
+        }
     }
 }
 
@@ -76,8 +99,21 @@ mod tests {
     fn index_and_display_name_the_addressed_part() {
         assert_eq!(Surface::Layout(1).index(), 1);
         assert_eq!(Surface::Master(0).index(), 0);
+        assert_eq!(Surface::Notes(3).index(), 3);
+        assert_eq!(Surface::NotesMaster.index(), 0);
         assert_eq!(Surface::Slide(2).to_string(), "slide 2");
         assert_eq!(Surface::Layout(1).to_string(), "layout 1");
         assert_eq!(Surface::Master(0).to_string(), "master 0");
+        assert_eq!(Surface::Notes(2).to_string(), "notes 2");
+        assert_eq!(Surface::NotesMaster.to_string(), "notes master");
+    }
+
+    #[test]
+    fn only_masters_are_master_like() {
+        assert!(Surface::Master(0).is_master_like());
+        assert!(Surface::NotesMaster.is_master_like());
+        assert!(!Surface::Slide(0).is_master_like());
+        assert!(!Surface::Layout(0).is_master_like());
+        assert!(!Surface::Notes(0).is_master_like());
     }
 }
