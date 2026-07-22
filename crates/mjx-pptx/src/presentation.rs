@@ -20,6 +20,7 @@ use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::error::PptxError;
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
+use crate::slide::GraphicFrameKind;
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::table::{CellFormat, Cells, TableStyleFormat};
@@ -855,6 +856,27 @@ impl Presentation {
         })
     }
 
+    /// The text that actually **renders** at `(row, column)` — the text of the cell if it stands
+    /// alone, or of the merge **anchor** covering it if it is merged away.
+    ///
+    /// [`cell_text`](Self::cell_text) returns a covered cell's own (hidden) text, which is what an
+    /// unmerge restores; this follows the merge to what a reader sees. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text), plus [`PptxError::TableCellOutOfRange`].
+    pub fn visible_cell_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<String, PptxError> {
+        let surface = surface.into();
+        let (anchor_row, anchor_column) =
+            self.merged_cell_anchor(surface, shape_idx, row, column)?;
+        self.cell_text(surface, shape_idx, anchor_row, anchor_column)
+    }
+
     /// Replaces the text of the `run_idx`-th run (flattened over the cell's paragraphs) of the cell
     /// at `(row, column)`. Marks only that part dirty.
     ///
@@ -1286,6 +1308,58 @@ impl Presentation {
         )
     }
 
+    /// The ids of the header cells that describe the cell at `(row, column)` (`a:tcPr > a:headers`),
+    /// in order — the accessibility association a screen reader announces. Empty when the cell names
+    /// none. Reading does not dirty the part.
+    ///
+    /// Each id is another cell's `@id`; a table that uses headers gives its header cells ids and
+    /// points each data cell at the ones above and beside it.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn cell_headers(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<Vec<String>, PptxError> {
+        self.with_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                Ok(properties.map_or_else(Vec::new, |properties| properties.headers(interner)))
+            },
+        )
+    }
+
+    /// Sets the header-cell ids that describe the cell at `(row, column)`, replacing whatever it had;
+    /// an empty slice removes the association. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// As [`cell_text`](Self::cell_text).
+    pub fn set_cell_headers(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+        row: usize,
+        column: usize,
+        header_ids: &[&str],
+    ) -> Result<(), PptxError> {
+        self.edit_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                properties.set_headers(interner, header_ids);
+                Ok(())
+            },
+        )
+    }
+
     /// Removes the border on one edge of the cell at `(row, column)`.
     ///
     /// # Errors
@@ -1581,13 +1655,19 @@ impl Presentation {
         if format.is_empty() {
             return Ok(());
         }
-        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner, _, _| {
-            let slot = cell_properties_slot(cell, interner)?;
-            let mut properties = TableCellProperties::from_xml(slot, interner)?;
-            apply_cell_format(&mut properties, interner, format);
-            *slot = properties.to_xml(interner);
-            Ok(())
-        })
+        self.edit_selected_cells(
+            surface.into(),
+            shape_idx,
+            &cells,
+            true,
+            |cell, interner, _, _| {
+                let slot = cell_properties_slot(cell, interner)?;
+                let mut properties = TableCellProperties::from_xml(slot, interner)?;
+                apply_cell_format(&mut properties, interner, format);
+                *slot = properties.to_xml(interner);
+                Ok(())
+            },
+        )
     }
 
     /// Applies `spec` to **every run of every paragraph** in each cell of `cells`, and to each
@@ -1605,15 +1685,21 @@ impl Presentation {
         cells: Cells,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
-        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner, _, _| {
-            let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
-                return Ok(()); // A cell with no text body has no runs to format.
-            };
-            let mut body = TextBody::from_xml(slot, interner)?;
-            set_all_run_properties_in(&mut body, interner, spec)?;
-            *slot = body.to_xml(interner);
-            Ok(())
-        })
+        self.edit_selected_cells(
+            surface.into(),
+            shape_idx,
+            &cells,
+            true,
+            |cell, interner, _, _| {
+                let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
+                    return Ok(()); // A cell with no text body has no runs to format.
+                };
+                let mut body = TextBody::from_xml(slot, interner)?;
+                set_all_run_properties_in(&mut body, interner, spec)?;
+                *slot = body.to_xml(interner);
+                Ok(())
+            },
+        )
     }
 
     /// Applies `spec` to the layout properties of **every paragraph** in each cell of `cells` —
@@ -1628,27 +1714,39 @@ impl Presentation {
         cells: Cells,
         spec: &ParagraphPropertiesSpec,
     ) -> Result<(), PptxError> {
-        self.edit_selected_cells(surface.into(), shape_idx, &cells, |cell, interner, _, _| {
-            let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
-                return Ok(());
-            };
-            let mut body = TextBody::from_xml(slot, interner)?;
-            let count = body.paragraphs().count();
-            for index in 0..count {
-                set_paragraph_properties_in(&mut body, interner, index, spec)?;
-            }
-            *slot = body.to_xml(interner);
-            Ok(())
-        })
+        self.edit_selected_cells(
+            surface.into(),
+            shape_idx,
+            &cells,
+            true,
+            |cell, interner, _, _| {
+                let Some(slot) = nav::child_mut(cell, interner, DML_MAIN, "txBody") else {
+                    return Ok(());
+                };
+                let mut body = TextBody::from_xml(slot, interner)?;
+                let count = body.paragraphs().count();
+                for index in 0..count {
+                    set_paragraph_properties_in(&mut body, interner, index, spec)?;
+                }
+                *slot = body.to_xml(interner);
+                Ok(())
+            },
+        )
     }
 
     /// Locates the table once, resolves `cells` against its real dimensions, and hands each selected
     /// `a:tc` to `edit` in row-major order.
+    ///
+    /// When `visible_only`, a cell covered by a merge (which renders nothing) is skipped — so
+    /// formatting a selection touches only the anchors that actually show, and unmerging restores a
+    /// covered cell's own formatting. Merging and unmerging pass `false`: they must reach covered
+    /// cells to set and clear the merge flags.
     fn edit_selected_cells(
         &mut self,
         surface: Surface,
         shape_idx: usize,
         cells: &Cells,
+        visible_only: bool,
         edit: impl Fn(&mut RawElement, &mut Interner, usize, usize) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
         let part = self.surface_part(surface)?.clone();
@@ -1683,6 +1781,9 @@ impl Presentation {
                 .ok_or(PptxError::MalformedSlide("table row vanished"))?;
             let cell = slide::nth_cell_mut(row_element, interner, column)
                 .ok_or(PptxError::MalformedSlide("table cell vanished"))?;
+            if visible_only && raw_cell_is_covered(cell, interner) {
+                continue;
+            }
             edit(cell, interner, row, column)?;
         }
         Ok(())
@@ -1748,6 +1849,7 @@ impl Presentation {
             surface,
             shape_idx,
             &selection,
+            false, // merging must reach the cells it covers, to mark them merged
             |cell, interner, row, column| {
                 let mut typed = TableCell::from_xml(cell, interner)?;
                 if row == first_row && column == first_column {
@@ -1802,12 +1904,18 @@ impl Presentation {
             ))
         })?;
 
-        self.edit_selected_cells(surface, shape_idx, &region, |cell, interner, _, _| {
-            let mut typed = TableCell::from_xml(cell, interner)?;
-            typed.clear_merge(interner);
-            *cell = typed.to_xml(interner);
-            Ok(())
-        })
+        self.edit_selected_cells(
+            surface,
+            shape_idx,
+            &region,
+            false,
+            |cell, interner, _, _| {
+                let mut typed = TableCell::from_xml(cell, interner)?;
+                typed.clear_merge(interner);
+                *cell = typed.to_xml(interner);
+                Ok(())
+            },
+        )
     }
 
     /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
@@ -2763,21 +2871,15 @@ impl Presentation {
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
-        let (own, dims, flags, style_id) =
-            self.with_table(surface, shape_idx, |table, interner| {
-                let (rows, columns) = (table.row_count(), table.column_count());
-                let cell = cell_at(table, row, column)?;
-                let own = cell
-                    .properties()
-                    .and_then(|tcpr| tcpr.fill(interner))
-                    .map(|fill| resolve_fill(&fill, &scheme, &map, None, interner));
-                Ok((
-                    own,
-                    (rows, columns),
-                    table_flags(table, interner),
-                    table_style_of(table, interner),
-                ))
-            })?;
+        let (own, dims, flags) = self.with_table(surface, shape_idx, |table, interner| {
+            let (rows, columns) = (table.row_count(), table.column_count());
+            let cell = cell_at(table, row, column)?;
+            let own = cell
+                .properties()
+                .and_then(|tcpr| tcpr.fill(interner))
+                .map(|fill| resolve_fill(&fill, &scheme, &map, None, interner));
+            Ok((own, (rows, columns), table_flags(table, interner)))
+        })?;
 
         if let Some(spec) = own {
             return Ok(Some(spec));
@@ -2785,7 +2887,7 @@ impl Presentation {
 
         let parts = applicable_parts(row, column, dims.0, dims.1, flags);
         let Some(part_fills) =
-            self.cell_style_candidates(&style_id, &parts, |cell_style, interner| {
+            self.cell_style_candidates(surface, shape_idx, &parts, |cell_style, interner| {
                 part_own_fill(cell_style, interner, &scheme, &map)
             })?
         else {
@@ -2836,21 +2938,15 @@ impl Presentation {
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
-        let (own, dims, flags, style_id) =
-            self.with_table(surface, shape_idx, |table, interner| {
-                let (rows, columns) = (table.row_count(), table.column_count());
-                let cell = cell_at(table, row, column)?;
-                let own = cell
-                    .properties()
-                    .and_then(|tcpr| tcpr.border(interner, edge))
-                    .map(|line| resolve_line(&line, &scheme, &map, None, interner));
-                Ok((
-                    own,
-                    (rows, columns),
-                    table_flags(table, interner),
-                    table_style_of(table, interner),
-                ))
-            })?;
+        let (own, dims, flags) = self.with_table(surface, shape_idx, |table, interner| {
+            let (rows, columns) = (table.row_count(), table.column_count());
+            let cell = cell_at(table, row, column)?;
+            let own = cell
+                .properties()
+                .and_then(|tcpr| tcpr.border(interner, edge))
+                .map(|line| resolve_line(&line, &scheme, &map, None, interner));
+            Ok((own, (rows, columns), table_flags(table, interner)))
+        })?;
 
         if let Some(spec) = own {
             return Ok(Some(spec));
@@ -2860,7 +2956,7 @@ impl Presentation {
         let style_edge = style_border_key(edge, row, column, rows, columns);
         let parts = applicable_parts(row, column, rows, columns, flags);
         let Some(part_lines) =
-            self.cell_style_candidates(&style_id, &parts, |cell_style, interner| {
+            self.cell_style_candidates(surface, shape_idx, &parts, |cell_style, interner| {
                 cell_style
                     .borders(interner)
                     .and_then(|borders| borders.border(interner, style_edge))
@@ -2918,7 +3014,7 @@ impl Presentation {
         let scheme = self.resolved_scheme_colors(surface)?;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
 
-        let (level, own, para_default, dims, flags, style_id) =
+        let (level, own, para_default, dims, flags) =
             self.with_table(surface, shape_idx, |table, interner| {
                 let (rows, columns) = (table.row_count(), table.column_count());
                 let cell = cell_at(table, row, column)?;
@@ -2943,12 +3039,11 @@ impl Presentation {
                     para_default,
                     (rows, columns),
                     table_flags(table, interner),
-                    table_style_of(table, interner),
                 ))
             })?;
 
         let parts = applicable_parts(row, column, dims.0, dims.1, flags);
-        let style_text = self.cell_style_text(&style_id, &parts, &scheme, &map)?;
+        let style_text = self.cell_style_text(surface, shape_idx, &parts, &scheme, &map)?;
         let default_text = self.default_text_run_properties(level, &scheme, &map)?;
 
         let effective = own
@@ -2959,61 +3054,51 @@ impl Presentation {
     }
 
     /// Runs `extract` over each applicable style part's `a:tcStyle`, most specific first, returning the
-    /// results in that order — or `None` when the table names no resolvable style (so the caller stops
-    /// at the cell's own properties). One borrow of the `tableStyles.xml` part serves them all.
+    /// results in that order — or `None` when the table resolves to no style (so the caller stops at
+    /// the cell's own properties). Resolves an inline `a:tableStyle` or a shared one alike.
     fn cell_style_candidates<T>(
         &mut self,
-        style_id: &Option<String>,
+        surface: Surface,
+        shape_idx: usize,
         parts: &[TableStylePart],
         extract: impl Fn(&TableStyleCellStyle, &Interner) -> T,
     ) -> Result<Option<Vec<T>>, PptxError> {
-        let (Some(style_id), Some(part_name)) = (style_id.as_deref(), self.table_styles_part()?)
-        else {
-            return Ok(None);
-        };
-        let doc = self.package.part_tree(&part_name)?;
-        let list = TableStyleList::from_xml(&doc.root, &doc.interner)?;
-        let Some(style) = list.style(&doc.interner, style_id) else {
-            return Ok(None);
-        };
-        let results = parts
-            .iter()
-            .filter_map(|&part| {
-                let cell_style = style.part(&doc.interner, part)?.cell_style(&doc.interner)?;
-                Some(extract(&cell_style, &doc.interner))
-            })
-            .collect();
-        Ok(Some(results))
+        self.with_resolved_style(surface, shape_idx, |style, interner| {
+            Ok(parts
+                .iter()
+                .filter_map(|&part| {
+                    let cell_style = style.part(interner, part)?.cell_style(interner)?;
+                    Some(extract(&cell_style, interner))
+                })
+                .collect())
+        })
     }
 
     /// The table style's text contribution for a cell — the `a:tcTxStyle` of each applicable part,
-    /// merged most-specific-first. Empty when the table names no resolvable style.
+    /// merged most-specific-first. Empty when the table resolves to no style.
     fn cell_style_text(
         &mut self,
-        style_id: &Option<String>,
+        surface: Surface,
+        shape_idx: usize,
         parts: &[TableStylePart],
         scheme: &SchemeColors,
         map: &ColorMap,
     ) -> Result<CharacterPropertiesSpec, PptxError> {
-        let (Some(style_id), Some(part_name)) = (style_id.as_deref(), self.table_styles_part()?)
-        else {
-            return Ok(CharacterPropertiesSpec::new());
-        };
-        let doc = self.package.part_tree(&part_name)?;
-        let list = TableStyleList::from_xml(&doc.root, &doc.interner)?;
-        let Some(style) = list.style(&doc.interner, style_id) else {
-            return Ok(CharacterPropertiesSpec::new());
-        };
-        let mut spec = CharacterPropertiesSpec::new();
-        for &part in parts {
-            if let Some(text_style) = style
-                .part(&doc.interner, part)
-                .and_then(|part| part.text_style(&doc.interner))
-            {
-                spec = spec.merge_under(&style_text_spec(&text_style, scheme, map, &doc.interner));
-            }
-        }
-        Ok(spec)
+        Ok(self
+            .with_resolved_style(surface, shape_idx, |style, interner| {
+                let mut spec = CharacterPropertiesSpec::new();
+                for &part in parts {
+                    if let Some(text_style) = style
+                        .part(interner, part)
+                        .and_then(|part| part.text_style(interner))
+                    {
+                        spec =
+                            spec.merge_under(&style_text_spec(&text_style, scheme, map, interner));
+                    }
+                }
+                Ok(spec)
+            })?
+            .unwrap_or_default())
     }
 
     /// The presentation's `p:defaultTextStyle` run properties at `level`, colours baked — the bottom
@@ -3613,6 +3698,37 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
+    /// What the graphic frame `shape_idx` on `surface` frames — a [`Table`](GraphicFrameKind::Table),
+    /// a [`Chart`](GraphicFrameKind::Chart), a [`Diagram`](GraphicFrameKind::Diagram) or something
+    /// else — or `None` when the shape is not a `p:graphicFrame` at all. Reading does not dirty the
+    /// part.
+    ///
+    /// The table methods answer [`ShapeIsNotATable`](PptxError::ShapeIsNotATable) for a chart or
+    /// diagram frame exactly as for a non-frame; this tells "not a table" from "a graphic this
+    /// library does not model yet".
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn graphic_frame_kind(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: usize,
+    ) -> Result<Option<GraphicFrameKind>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?.clone();
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let count = slide::shapes(sp_tree, &doc.interner).count();
+        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
+            PptxError::ShapeIndexOutOfRange {
+                surface,
+                index: shape_idx,
+                count,
+            },
+        )?;
+        Ok(slide::graphic_frame_uri(shape, &doc.interner).map(GraphicFrameKind::from_uri))
+    }
+
     /// The shape of the table shape `shape_idx` on `surface` frames, as `(rows, columns)`.
     ///
     /// The column count comes from the table's `a:tblGrid`, which is where a table declares its
@@ -4147,6 +4263,32 @@ impl Presentation {
         shape_idx: usize,
         read: impl FnOnce(&TableStyle, &Interner) -> Result<R, PptxError>,
     ) -> Result<Option<R>, PptxError> {
+        self.with_resolved_style(surface.into(), shape_idx, read)
+    }
+
+    /// The style a table resolves to, handed to `read` — an **inline** `a:tableStyle` if the table
+    /// carries one, else the shared style its `a:tableStyleId` names. `None` when it resolves to
+    /// neither. An inline style is read against the slide part's interner (where it lives), a shared
+    /// one against the `tableStyles.xml` interner; either way the [`TableStyle`] model is the same.
+    fn with_resolved_style<R>(
+        &mut self,
+        surface: Surface,
+        shape_idx: usize,
+        read: impl FnOnce(&TableStyle, &Interner) -> Result<R, PptxError>,
+    ) -> Result<Option<R>, PptxError> {
+        // An inline style wins, and lives in the slide part — the `TableStyle` is owned, but its
+        // symbols resolve against that part's interner, which re-opening the part hands back.
+        let inline = self.with_table(surface, shape_idx, |table, interner| {
+            Ok(table
+                .properties()
+                .and_then(|properties| properties.inline_style(interner)))
+        })?;
+        if let Some(style) = inline {
+            let part = self.surface_part(surface)?.clone();
+            let doc = self.package.part_tree(&part)?;
+            return read(&style, &doc.interner).map(Some);
+        }
+
         let Some(style_id) = self.table_style_id(surface, shape_idx)? else {
             return Ok(None);
         };
@@ -5349,6 +5491,20 @@ fn shape_own_line(
 
 // --- Effective cell formatting helpers -----------------------------------------------------------
 
+/// Whether a raw `a:tc` is covered by a merge (states a truthy `hMerge` or `vMerge`), so it renders
+/// nothing. A checked cheaply off the attributes, without parsing the whole cell — formatting a
+/// selection skips such cells, though merging and unmerging must still reach them.
+fn raw_cell_is_covered(cell: &RawElement, interner: &Interner) -> bool {
+    cell.attributes.iter().any(|attribute| {
+        attribute.name.prefix.is_none()
+            && matches!(interner.resolve(attribute.name.local), "hMerge" | "vMerge")
+            && matches!(
+                std::str::from_utf8(&attribute.value).map(str::trim),
+                Ok("1" | "true" | "on")
+            )
+    })
+}
+
 /// The cell at `(row, column)`, or a typed out-of-range error naming the table's shape.
 fn cell_at(table: &Table, row: usize, column: usize) -> Result<&TableCell, PptxError> {
     let (rows, columns) = (table.row_count(), table.column_count());
@@ -5368,14 +5524,6 @@ fn table_flags(table: &Table, interner: &Interner) -> TableStyleFlags {
         .properties()
         .map(|properties| TableStyleFlags::from_properties(properties, interner))
         .unwrap_or_default()
-}
-
-/// The GUID of the table's style (`a:tableStyleId`), or `None`.
-fn table_style_of(table: &Table, interner: &Interner) -> Option<String> {
-    table
-        .properties()
-        .and_then(|properties| properties.table_style_id(interner))
-        .map(str::to_owned)
 }
 
 /// A style part's cell fill: an explicit fill (baked) or a theme `a:fillRef` (index + resolved

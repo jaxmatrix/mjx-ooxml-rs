@@ -40,6 +40,6 @@ mod table;
 pub use error::PptxError;
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use presentation::Presentation;
-pub use slide::{PlaceholderInfo, ShapeKind};
+pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleFormat};

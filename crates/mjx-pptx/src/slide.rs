@@ -99,6 +99,35 @@ impl ShapeKind {
     }
 }
 
+/// What a `p:graphicFrame` frames, told from its `a:graphicData@uri` — so a caller can distinguish
+/// "not a table" from "a graphical object this library does not model yet".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum GraphicFrameKind {
+    /// A table (`a:tbl`) — the one kind with a full surface here.
+    Table,
+    /// A chart — modeled in Phase 6 (`mjx-chart`), not reachable through this crate yet.
+    Chart,
+    /// A SmartArt diagram — unscheduled.
+    Diagram,
+    /// Some other graphical object (OLE, an unknown extension): the frame states a `uri` this does
+    /// not recognize.
+    Other,
+}
+
+impl GraphicFrameKind {
+    /// The kind a graphic frame's `a:graphicData@uri` names.
+    #[must_use]
+    pub(crate) fn from_uri(uri: &str) -> Self {
+        match uri {
+            TABLE_GRAPHIC_URI => Self::Table,
+            CHART_GRAPHIC_URI => Self::Chart,
+            DIAGRAM_GRAPHIC_URI => Self::Diagram,
+            _ => Self::Other,
+        }
+    }
+}
+
 /// The kind of a shape-tree child, or `None` if it is not a PresentationML shape element.
 pub(crate) fn shape_kind(element: &RawElement, interner: &Interner) -> Option<ShapeKind> {
     let namespace = element
@@ -161,6 +190,24 @@ pub(crate) fn shape_txbody<'a>(
 /// a chart or a SmartArt diagram names a different one, which is how they are told apart without
 /// looking at the payload.
 pub(crate) const TABLE_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/table";
+
+/// The `a:graphicData@uri` of a frame holding a chart.
+pub(crate) const CHART_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+/// The `a:graphicData@uri` of a frame holding a SmartArt diagram.
+pub(crate) const DIAGRAM_GRAPHIC_URI: &str =
+    "http://schemas.openxmlformats.org/drawingml/2006/diagram";
+
+/// The `a:graphicData@uri` a graphic frame declares — what kind of object it frames — or `None` when
+/// the shape is not a `p:graphicFrame` or the frame states no `uri`.
+pub(crate) fn graphic_frame_uri<'a>(
+    shape: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a str> {
+    let graphic = nav::child(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child(graphic, interner, DML_MAIN, "graphicData")?;
+    nav::attr_value(data, interner, "uri")
+}
 
 /// The table a shape frames (`p:graphicFrame > a:graphic > a:graphicData > a:tbl`), if it is a
 /// graphic frame and what it frames is a table.
@@ -1192,5 +1239,25 @@ mod tests {
             shape_transform_slot_mut(&mut element, &mut interner),
             Err(PptxError::ShapeHasNoProperties)
         ));
+    }
+
+    #[test]
+    fn graphic_frame_kind_is_told_from_the_graphic_data_uri() {
+        assert_eq!(
+            GraphicFrameKind::from_uri(TABLE_GRAPHIC_URI),
+            GraphicFrameKind::Table
+        );
+        assert_eq!(
+            GraphicFrameKind::from_uri(CHART_GRAPHIC_URI),
+            GraphicFrameKind::Chart
+        );
+        assert_eq!(
+            GraphicFrameKind::from_uri(DIAGRAM_GRAPHIC_URI),
+            GraphicFrameKind::Diagram
+        );
+        assert_eq!(
+            GraphicFrameKind::from_uri("urn:something:else"),
+            GraphicFrameKind::Other
+        );
     }
 }
