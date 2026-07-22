@@ -133,9 +133,12 @@ fn an_out_of_range_shape_is_rejected_and_names_its_surface() {
     match err {
         PptxError::ShapeIndexOutOfRange {
             surface,
-            index: 9,
+            path,
             count: 5,
-        } => assert_eq!(surface.to_string(), "layout 1"),
+        } => {
+            assert_eq!(surface.to_string(), "layout 1");
+            assert_eq!(path.indices(), [9]);
+        }
         other => panic!("unexpected error: {other:?}"),
     }
     assert_eq!(
