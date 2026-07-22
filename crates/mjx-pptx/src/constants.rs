@@ -23,6 +23,11 @@ pub const REL_SLIDE_MASTER: &str =
 pub const REL_THEME: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
 
+/// The relationship type from a part to an external hyperlink target (a URL). Always
+/// `TargetMode="External"`.
+pub const REL_HYPERLINK: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
 /// The relationship type from a slide to its notes slide.
 pub const REL_NOTES_SLIDE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide";
