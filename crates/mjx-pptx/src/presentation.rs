@@ -18,6 +18,7 @@ use mjx_ooxml_types::presentationml::{
 };
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
+use crate::address::ShapePath;
 use crate::error::PptxError;
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
@@ -640,24 +641,16 @@ impl Presentation {
     fn placeholder_candidates(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        path: &ShapePath,
     ) -> Result<Vec<(PartName, Candidate)>, PptxError> {
         let own_part = self.surface_part(surface)?;
         let placeholder = {
             let doc = self.package.part_tree(&own_part)?;
-            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let count = slide::shapes(sp_tree, &doc.interner).count();
-            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-                PptxError::ShapeIndexOutOfRange {
-                    surface,
-                    index: shape_idx,
-                    count,
-                },
-            )?;
+            let shape = resolve_shape_ref(doc, surface, path)?;
             slide::shape_placeholder(shape, &doc.interner)
         };
 
-        let mut candidates = vec![(own_part, Candidate::Index(shape_idx))];
+        let mut candidates = vec![(own_part, Candidate::Address(path.clone()))];
         if let Some(ph) = placeholder {
             // The rest of the surface's inheritance chain, each searched for the same-slot placeholder.
             for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
@@ -667,9 +660,10 @@ impl Presentation {
         Ok(candidates)
     }
 
-    /// The number of shapes on `surface` — of **every** [`ShapeKind`] (autoshapes, pictures,
-    /// groups, graphic frames, connectors), in document order. A group counts as one shape; its
-    /// members are not separately addressable.
+    /// The number of **top-level** shapes on `surface` — of **every** [`ShapeKind`] (autoshapes,
+    /// pictures, groups, graphic frames, connectors), in document order. A group counts as one shape
+    /// here; its own members are addressed by descending into it with a [`ShapePath`] and are not
+    /// included in this count.
     ///
     /// # Errors
     /// Returns [`PptxError`] if the index is out of range or the slide is malformed.
@@ -690,20 +684,12 @@ impl Presentation {
     pub fn shape_kind(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<ShapeKind, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         slide::shape_kind(shape, &doc.interner)
             .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))
     }
@@ -720,20 +706,12 @@ impl Presentation {
     pub fn shape_placeholder(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<PlaceholderInfo>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         Ok(slide::shape_placeholder_info(shape, &doc.interner))
     }
 
@@ -746,7 +724,7 @@ impl Presentation {
     pub fn shape_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<String, PptxError> {
         let surface = surface.into();
         self.with_text_body(surface, shape_idx, |body, _| Ok(body.text()))
@@ -761,7 +739,7 @@ impl Presentation {
     pub fn set_shape_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         run_idx: usize,
         text: &str,
     ) -> Result<(), PptxError> {
@@ -776,20 +754,20 @@ impl Presentation {
     fn with_text_body<R>(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape: impl Into<ShapePath>,
         read: impl FnOnce(&TextBody, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
-        self.with_text_body_at(surface, TextSite::Shape(shape_idx), read)
+        self.with_text_body_at(surface, TextSite::Shape(shape.into()), read)
     }
 
     /// Locates a shape's text body, hands it to `edit`, and writes the result back.
     fn edit_text_body(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape: impl Into<ShapePath>,
         edit: impl FnOnce(&mut TextBody, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
-        self.edit_text_body_at(surface, TextSite::Shape(shape_idx), edit)
+        self.edit_text_body_at(surface, TextSite::Shape(shape.into()), edit)
     }
 
     /// Reads the text body at `site` and hands it, with the part's interner, to `read` — for the
@@ -805,15 +783,7 @@ impl Presentation {
     ) -> Result<R, PptxError> {
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner)
-            .nth(site.shape_index())
-            .ok_or(PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: site.shape_index(),
-                count,
-            })?;
+        let shape = resolve_shape_ref(doc, surface, site.shape_path())?;
         let txbody = locate_text_body(shape, &doc.interner, site)?;
         let body = TextBody::from_xml(txbody, &doc.interner)?;
         read(&body, &doc.interner)
@@ -835,15 +805,7 @@ impl Presentation {
         let doc = self.package.part_tree_mut(&part)?;
         // Split the borrow: `interner` for names and rebuilding, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, site.shape_index()).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: site.shape_index(),
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, site.shape_path())?;
         let slot = locate_text_body_mut(shape, interner, site)?;
 
         let mut body = TextBody::from_xml(slot, interner)?;
@@ -868,7 +830,7 @@ impl Presentation {
     pub fn paragraph_count(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<usize, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, _| {
             Ok(paragraph_count_of(body))
@@ -884,7 +846,7 @@ impl Presentation {
     pub fn run_count(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
     ) -> Result<usize, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, _| {
@@ -900,7 +862,7 @@ impl Presentation {
     pub fn paragraph_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
     ) -> Result<String, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, _| {
@@ -916,7 +878,7 @@ impl Presentation {
     pub fn run_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
     ) -> Result<String, PptxError> {
@@ -938,7 +900,7 @@ impl Presentation {
     pub fn paragraph_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
     ) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, interner| {
@@ -955,7 +917,7 @@ impl Presentation {
     pub fn run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
     ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
@@ -975,7 +937,7 @@ impl Presentation {
     pub fn end_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
     ) -> Result<Option<CharacterPropertiesSpec>, PptxError> {
         self.with_text_body(surface.into(), shape_idx, |body, interner| {
@@ -994,7 +956,7 @@ impl Presentation {
     pub fn set_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
         spec: &CharacterPropertiesSpec,
@@ -1014,7 +976,7 @@ impl Presentation {
     pub fn set_paragraph_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
@@ -1032,7 +994,7 @@ impl Presentation {
     pub fn set_shape_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
@@ -1052,7 +1014,7 @@ impl Presentation {
     pub fn set_end_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
@@ -1070,7 +1032,7 @@ impl Presentation {
     pub fn set_paragraph_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         spec: &ParagraphPropertiesSpec,
     ) -> Result<(), PptxError> {
@@ -1098,7 +1060,7 @@ impl Presentation {
     pub fn set_text_range_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         range: core::ops::Range<usize>,
         spec: &CharacterPropertiesSpec,
@@ -1127,7 +1089,7 @@ impl Presentation {
     pub fn run_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
     ) -> Result<Option<Hyperlink>, PptxError> {
@@ -1149,16 +1111,17 @@ impl Presentation {
     pub fn set_run_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
         link: &Hyperlink,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         let part = self.surface_part(surface)?;
-        let previous = self.run_hyperlink_rel_id(surface, shape_idx, para_idx, run_idx)?;
+        let previous = self.run_hyperlink_rel_id(surface, &path, para_idx, run_idx)?;
         let (rel_id, action) = self.add_hyperlink_rel(&part, link)?;
-        self.edit_text_body(surface, shape_idx, |body, interner| {
+        self.edit_text_body(surface, &path, |body, interner| {
             set_run_hyperlink_in(body, interner, para_idx, run_idx, Some(&rel_id), action)
         })?;
         if let Some(previous) = previous {
@@ -1177,17 +1140,17 @@ impl Presentation {
     pub fn clear_run_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         let part = self.surface_part(surface)?;
-        let Some(previous) = self.run_hyperlink_rel_id(surface, shape_idx, para_idx, run_idx)?
-        else {
+        let Some(previous) = self.run_hyperlink_rel_id(surface, &path, para_idx, run_idx)? else {
             return Ok(());
         };
-        self.edit_text_body(surface, shape_idx, |body, interner| {
+        self.edit_text_body(surface, &path, |body, interner| {
             set_run_hyperlink_in(body, interner, para_idx, run_idx, None, None)
         })?;
         self.remove_hyperlink_rel_if_unreferenced(&part, &previous)
@@ -1207,15 +1170,16 @@ impl Presentation {
     pub fn set_text_range_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         range: core::ops::Range<usize>,
         link: &Hyperlink,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         // Validate the range before adding a relationship, so a bad call leaves the package untouched.
         let length = self
-            .paragraph_text(surface, shape_idx, para_idx)?
+            .paragraph_text(surface, &path, para_idx)?
             .chars()
             .count();
         if range.start > range.end || range.end > length {
@@ -1230,7 +1194,7 @@ impl Presentation {
         }
         let part = self.surface_part(surface)?;
         let (rel_id, action) = self.add_hyperlink_rel(&part, link)?;
-        self.edit_text_body(surface, shape_idx, |body, interner| {
+        self.edit_text_body(surface, &path, |body, interner| {
             set_range_hyperlink_in(body, interner, para_idx, range, &rel_id, action)
         })
     }
@@ -1245,21 +1209,13 @@ impl Presentation {
     pub fn shape_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<Hyperlink>, PptxError> {
         let surface = surface.into();
         let part = self.surface_part(surface)?;
         let rel_id = {
             let doc = self.package.part_tree(&part)?;
-            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let count = slide::shapes(sp_tree, &doc.interner).count();
-            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-                PptxError::ShapeIndexOutOfRange {
-                    surface,
-                    index: shape_idx,
-                    count,
-                },
-            )?;
+            let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
             slide::shape_hyperlink_rel_id(shape, &doc.interner).map(str::to_owned)
         };
         match rel_id {
@@ -1277,14 +1233,15 @@ impl Presentation {
     pub fn set_shape_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         link: &Hyperlink,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         let part = self.surface_part(surface)?;
-        let previous = self.shape_hyperlink_rel_id(&part, shape_idx)?;
+        let previous = self.shape_hyperlink_rel_id(&part, &path)?;
         let (rel_id, action) = self.add_hyperlink_rel(&part, link)?;
-        self.edit_shape_hyperlink(surface, &part, shape_idx, Some(&rel_id), action)?;
+        self.edit_shape_hyperlink(surface, &part, &path, Some(&rel_id), action)?;
         if let Some(previous) = previous {
             self.remove_hyperlink_rel_if_unreferenced(&part, &previous)?;
         }
@@ -1300,14 +1257,15 @@ impl Presentation {
     pub fn clear_shape_hyperlink(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         let part = self.surface_part(surface)?;
-        let Some(previous) = self.shape_hyperlink_rel_id(&part, shape_idx)? else {
+        let Some(previous) = self.shape_hyperlink_rel_id(&part, &path)? else {
             return Ok(());
         };
-        self.edit_shape_hyperlink(surface, &part, shape_idx, None, None)?;
+        self.edit_shape_hyperlink(surface, &part, &path, None, None)?;
         self.remove_hyperlink_rel_if_unreferenced(&part, &previous)
     }
 
@@ -1315,7 +1273,7 @@ impl Presentation {
     fn run_hyperlink_rel_id(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
     ) -> Result<Option<String>, PptxError> {
@@ -1330,11 +1288,11 @@ impl Presentation {
     fn shape_hyperlink_rel_id(
         &mut self,
         part: &PartName,
-        shape_idx: usize,
+        path: &ShapePath,
     ) -> Result<Option<String>, PptxError> {
         let doc = self.package.part_tree(part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx);
+        let shape = slide::resolve_shape(sp_tree, &doc.interner, path).ok();
         Ok(shape.and_then(|shape| {
             slide::shape_hyperlink_rel_id(shape, &doc.interner).map(str::to_owned)
         }))
@@ -1346,7 +1304,7 @@ impl Presentation {
         &mut self,
         surface: Surface,
         part: &PartName,
-        shape_idx: usize,
+        path: &ShapePath,
         rel_id: Option<&str>,
         action: Option<&str>,
     ) -> Result<(), PptxError> {
@@ -1354,15 +1312,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
             .unwrap_or_else(|| interner.intern(build::RELATIONSHIP_PREFIX));
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, path)?;
         slide::set_shape_hyperlink(shape, interner, rel_prefix, rel_id, action)
     }
 
@@ -1464,15 +1414,16 @@ impl Presentation {
     pub fn set_text_range_properties_by_grapheme(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         range: core::ops::Range<usize>,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
-        let text = self.paragraph_text(surface, shape_idx, para_idx)?;
+        let path = shape_idx.into();
+        let text = self.paragraph_text(surface, &path, para_idx)?;
         let scalars = grapheme_range_to_scalars(&text, &range)?;
-        self.set_text_range_properties(surface, shape_idx, para_idx, scalars, spec)
+        self.set_text_range_properties(surface, &path, para_idx, scalars, spec)
     }
 
     // -----------------------------------------------------------------------------------------
@@ -1496,7 +1447,7 @@ impl Presentation {
     pub fn cell_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<String, PptxError> {
@@ -1516,14 +1467,14 @@ impl Presentation {
     pub fn visible_cell_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<String, PptxError> {
         let surface = surface.into();
-        let (anchor_row, anchor_column) =
-            self.merged_cell_anchor(surface, shape_idx, row, column)?;
-        self.cell_text(surface, shape_idx, anchor_row, anchor_column)
+        let path = shape_idx.into();
+        let (anchor_row, anchor_column) = self.merged_cell_anchor(surface, &path, row, column)?;
+        self.cell_text(surface, &path, anchor_row, anchor_column)
     }
 
     /// Replaces the text of the `run_idx`-th run (flattened over the cell's paragraphs) of the cell
@@ -1538,7 +1489,7 @@ impl Presentation {
     pub fn set_cell_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         run_idx: usize,
@@ -1556,7 +1507,7 @@ impl Presentation {
     pub fn cell_paragraph_count(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<usize, PptxError> {
@@ -1572,7 +1523,7 @@ impl Presentation {
     pub fn cell_run_count(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1589,7 +1540,7 @@ impl Presentation {
     pub fn cell_paragraph_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1606,7 +1557,7 @@ impl Presentation {
     pub fn cell_run_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1624,7 +1575,7 @@ impl Presentation {
     pub fn cell_paragraph_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1643,7 +1594,7 @@ impl Presentation {
     pub fn cell_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1664,7 +1615,7 @@ impl Presentation {
     pub fn cell_end_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1689,7 +1640,7 @@ impl Presentation {
     pub fn set_cell_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1711,7 +1662,7 @@ impl Presentation {
     pub fn set_cell_paragraph_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1732,7 +1683,7 @@ impl Presentation {
     pub fn set_cell_run_properties_all(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         spec: &CharacterPropertiesSpec,
@@ -1752,7 +1703,7 @@ impl Presentation {
     pub fn set_cell_end_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1773,7 +1724,7 @@ impl Presentation {
     pub fn set_cell_paragraph_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1802,7 +1753,7 @@ impl Presentation {
     pub fn set_cell_text_range_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -1836,7 +1787,7 @@ impl Presentation {
     pub fn cell_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
@@ -1860,7 +1811,7 @@ impl Presentation {
     pub fn set_cell_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         fill: &FillSpec,
@@ -1887,7 +1838,7 @@ impl Presentation {
     pub fn clear_cell_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<(), PptxError> {
@@ -1911,7 +1862,7 @@ impl Presentation {
     pub fn cell_border(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         edge: CellBorder,
@@ -1939,7 +1890,7 @@ impl Presentation {
     pub fn set_cell_border(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         edge: CellBorder,
@@ -1969,7 +1920,7 @@ impl Presentation {
     pub fn cell_headers(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<Vec<String>, PptxError> {
@@ -1992,7 +1943,7 @@ impl Presentation {
     pub fn set_cell_headers(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         header_ids: &[&str],
@@ -2016,7 +1967,7 @@ impl Presentation {
     pub fn clear_cell_border(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         edge: CellBorder,
@@ -2046,7 +1997,7 @@ impl Presentation {
     pub fn cell_margins(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<CellMargins, PptxError> {
@@ -2077,7 +2028,7 @@ impl Presentation {
     pub fn set_cell_margins(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         margins: CellMargins,
@@ -2108,7 +2059,7 @@ impl Presentation {
     pub fn cell_anchor(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<Option<TextAnchoring>, PptxError> {
@@ -2124,7 +2075,7 @@ impl Presentation {
     pub fn set_cell_anchor(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         anchor: TextAnchoring,
@@ -2149,7 +2100,7 @@ impl Presentation {
     pub fn cell_text_direction(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<Option<TextDirection>, PptxError> {
@@ -2172,7 +2123,7 @@ impl Presentation {
     pub fn set_cell_text_direction(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         direction: TextDirection,
@@ -2194,22 +2145,14 @@ impl Presentation {
     fn with_cell_properties<R>(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         read: impl FnOnce(Option<&TableCellProperties>, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         let table = slide::shape_table(shape, &doc.interner).ok_or(PptxError::ShapeIsNotATable)?;
         let cell = table_cell(table, &doc.interner, row, column)?;
         let properties = match nav::child(cell, &doc.interner, DML_MAIN, "tcPr") {
@@ -2227,7 +2170,7 @@ impl Presentation {
     fn edit_cell_properties(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         edit: impl FnOnce(&mut TableCellProperties, &mut Interner) -> Result<(), PptxError>,
@@ -2235,15 +2178,7 @@ impl Presentation {
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
 
         // Bounds first, against an immutable view, so the error can name the table's real shape.
         let (rows, columns) = {
@@ -2297,7 +2232,7 @@ impl Presentation {
     pub fn format_cells(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         cells: Cells,
         format: &CellFormat,
     ) -> Result<(), PptxError> {
@@ -2330,7 +2265,7 @@ impl Presentation {
     pub fn format_cell_text(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         cells: Cells,
         spec: &CharacterPropertiesSpec,
     ) -> Result<(), PptxError> {
@@ -2359,7 +2294,7 @@ impl Presentation {
     pub fn format_cell_paragraphs(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         cells: Cells,
         spec: &ParagraphPropertiesSpec,
     ) -> Result<(), PptxError> {
@@ -2393,7 +2328,7 @@ impl Presentation {
     fn edit_selected_cells(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         cells: &Cells,
         visible_only: bool,
         edit: impl Fn(&mut RawElement, &mut Interner, usize, usize) -> Result<(), PptxError>,
@@ -2401,15 +2336,7 @@ impl Presentation {
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
 
         let (rows, columns) = {
             let table = slide::shape_table(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
@@ -2463,13 +2390,14 @@ impl Presentation {
     pub fn merge_cells(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         cells: Cells,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
 
         // Read first: the region to merge, and whether any existing merge would be cut in half.
-        let region = self.with_table(surface, shape_idx, |table, interner| {
+        let region = self.with_table(surface, &path, |table, interner| {
             let (rows, columns) = (table.row_count(), table.column_count());
             let (row_range, column_range) =
                 cells.bounds(rows, columns).map_err(|(row, column)| {
@@ -2496,7 +2424,7 @@ impl Presentation {
 
         self.edit_selected_cells(
             surface,
-            shape_idx,
+            &path,
             &selection,
             false, // merging must reach the cells it covers, to mark them merged
             |cell, interner, row, column| {
@@ -2526,14 +2454,15 @@ impl Presentation {
     pub fn unmerge_cells(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
 
         // The region is defined by its anchor, which the addressed cell may only point towards.
-        let region = self.with_table(surface, shape_idx, |table, interner| {
+        let region = self.with_table(surface, &path, |table, interner| {
             let (rows, columns) = (table.row_count(), table.column_count());
             let out_of_range = || PptxError::TableCellOutOfRange {
                 row,
@@ -2553,18 +2482,12 @@ impl Presentation {
             ))
         })?;
 
-        self.edit_selected_cells(
-            surface,
-            shape_idx,
-            &region,
-            false,
-            |cell, interner, _, _| {
-                let mut typed = TableCell::from_xml(cell, interner)?;
-                typed.clear_merge(interner);
-                *cell = typed.to_xml(interner);
-                Ok(())
-            },
-        )
+        self.edit_selected_cells(surface, &path, &region, false, |cell, interner, _, _| {
+            let mut typed = TableCell::from_xml(cell, interner)?;
+            typed.clear_merge(interner);
+            *cell = typed.to_xml(interner);
+            Ok(())
+        })
     }
 
     /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
@@ -2575,16 +2498,18 @@ impl Presentation {
     /// future `effective_shape_bounds`. It is also `None` for a transform that names only one of the
     /// two, since bounds are all four numbers.
     ///
-    /// Bounds are absolute within [`slide_size`](Self::slide_size), except for a shape inside a
-    /// `p:grpSp` — group members are not addressable, so this never returns one. Reading does not
-    /// dirty the part.
+    /// For a top-level shape these bounds are absolute within [`slide_size`](Self::slide_size). For a
+    /// **group member** (addressed with a [`ShapePath`]) they are the member's own `a:off` / `a:ext`
+    /// in the group's child coordinate space (`a:chOff` / `a:chExt`), **not** an absolute slide
+    /// rectangle — mapping that child space onto the group's extent is a separate step. Reading does
+    /// not dirty the part.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
     pub fn shape_bounds(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<ShapeBounds>, PptxError> {
         Ok(self
             .shape_transform(surface, shape_idx)?
@@ -2605,7 +2530,7 @@ impl Presentation {
     pub fn set_shape_bounds(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         bounds: ShapeBounds,
     ) -> Result<(), PptxError> {
         self.set_shape_transform(surface, shape_idx, &bounds.to_transform())
@@ -2628,20 +2553,12 @@ impl Presentation {
     pub fn shape_transform(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<Transform2D>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         Ok(slide::shape_transform(shape, &doc.interner)
             .map(|element| Transform2D::read(element, &doc.interner)))
     }
@@ -2662,7 +2579,7 @@ impl Presentation {
     pub fn set_shape_transform(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         transform: &Transform2D,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
@@ -2670,15 +2587,7 @@ impl Presentation {
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` names the element, `root` holds the tree it lands in.
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
         let slot = slide::shape_transform_slot_mut(shape, interner)?;
         transform.apply(slot, interner);
         Ok(())
@@ -2694,20 +2603,12 @@ impl Presentation {
     pub fn shape_geometry(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<ShapeGeometry, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         let prst_geom =
             slide::shape_prstgeom(shape, &doc.interner).ok_or(PptxError::ShapeHasNoGeometry)?;
         let geometry = PresetGeometry::from_xml(prst_geom, &doc.interner)?;
@@ -2726,7 +2627,7 @@ impl Presentation {
     pub fn set_shape_geometry(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         geometry: ShapeGeometry,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
@@ -2734,15 +2635,7 @@ impl Presentation {
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
         let sp_pr =
             nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoGeometry)?;
         let slot = nav::child_mut(sp_pr, interner, DML_MAIN, "prstGeom")
@@ -2766,20 +2659,12 @@ impl Presentation {
     pub fn shape_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<FillSpec>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         match slide::shape_fill(shape, &doc.interner) {
             Some(fill) => {
                 let fill = Fill::from_xml(fill, &doc.interner)?;
@@ -2803,7 +2688,7 @@ impl Presentation {
     pub fn set_shape_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
@@ -2817,15 +2702,7 @@ impl Presentation {
             FillSpec::Blip { .. } => build::relationship_prefix_declaration(root, interner),
             _ => None,
         };
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
         let sp_pr =
             nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
 
@@ -2853,7 +2730,7 @@ impl Presentation {
     pub fn set_shape_no_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         self.set_shape_fill(surface, shape_idx, &FillSpec::None)
@@ -2869,20 +2746,12 @@ impl Presentation {
     pub fn shape_outline(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<LineSpec>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         match slide::shape_line(shape, &doc.interner) {
             Some(line) => {
                 let line = LineProperties::from_xml(line, &doc.interner)?;
@@ -2902,7 +2771,7 @@ impl Presentation {
     pub fn set_shape_outline(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         line: &LineSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
@@ -2910,15 +2779,7 @@ impl Presentation {
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the outline element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
         let sp_pr =
             nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
 
@@ -2944,7 +2805,7 @@ impl Presentation {
     pub fn set_shape_no_outline(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         let line = LineSpec {
@@ -2966,20 +2827,12 @@ impl Presentation {
     pub fn shape_effects(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<EffectListSpec>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         match slide::shape_effects(shape, &doc.interner) {
             Some(effects) => {
                 let effects = EffectList::from_xml(effects, &doc.interner)?;
@@ -3001,7 +2854,7 @@ impl Presentation {
     pub fn set_shape_effects(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         effects: &EffectListSpec,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
@@ -3009,15 +2862,7 @@ impl Presentation {
         let doc = self.package.part_tree_mut(&slide_part)?;
         // Split the borrow: `interner` builds the effect element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
         let sp_pr =
             nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
 
@@ -3044,7 +2889,7 @@ impl Presentation {
     pub fn set_shape_no_effects(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         self.set_shape_effects(surface, shape_idx, &EffectListSpec::new())
@@ -3094,7 +2939,7 @@ impl Presentation {
     pub fn effective_shape_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<FillSpec>, PptxError> {
         let surface = surface.into();
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
@@ -3113,7 +2958,7 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        let candidates = self.placeholder_candidates(surface, shape_idx)?;
+        let candidates = self.placeholder_candidates(surface, &shape_idx.into())?;
 
         for (part, candidate) in candidates {
             // Extract the candidate's own fill while holding its part's borrow (fully owned).
@@ -3166,7 +3011,7 @@ impl Presentation {
     pub fn effective_shape_outline(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<LineSpec>, PptxError> {
         let surface = surface.into();
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
@@ -3185,7 +3030,7 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        let candidates = self.placeholder_candidates(surface, shape_idx)?;
+        let candidates = self.placeholder_candidates(surface, &shape_idx.into())?;
 
         for (part, candidate) in candidates {
             // Extract the candidate's own outline while holding its part's borrow (fully owned).
@@ -3238,7 +3083,7 @@ impl Presentation {
     pub fn effective_shape_effects(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<EffectListSpec>, PptxError> {
         let surface = surface.into();
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
@@ -3257,7 +3102,7 @@ impl Presentation {
             None => SchemeColors::default(),
         };
 
-        let candidates = self.placeholder_candidates(surface, shape_idx)?;
+        let candidates = self.placeholder_candidates(surface, &shape_idx.into())?;
 
         for (part, candidate) in candidates {
             // Extract the candidate's own effects while holding its part's borrow (fully owned).
@@ -3319,10 +3164,10 @@ impl Presentation {
     pub fn effective_shape_transform(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<Transform2D>, PptxError> {
         let surface = surface.into();
-        let candidates = self.placeholder_candidates(surface, shape_idx)?;
+        let candidates = self.placeholder_candidates(surface, &shape_idx.into())?;
 
         for (part, candidate) in candidates {
             let doc = self.package.part_tree(&part)?;
@@ -3357,7 +3202,7 @@ impl Presentation {
     pub fn effective_shape_bounds(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<ShapeBounds>, PptxError> {
         Ok(self
             .effective_shape_transform(surface, shape_idx)?
@@ -3402,17 +3247,18 @@ impl Presentation {
     pub fn effective_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
         run_idx: usize,
     ) -> Result<CharacterPropertiesSpec, PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         let scheme = self.resolved_scheme_colors(surface)?;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
 
         // Tiers 1 and 2, and the level the rest are read at — all from the shape's own body.
         let (level, own, paragraph_default) =
-            self.with_text_body(surface, shape_idx, |body, interner| {
+            self.with_text_body(surface, &path, |body, interner| {
                 let paragraph = nth_paragraph(body, para_idx)?;
                 let count = paragraph.runs().count();
                 let run = paragraph
@@ -3439,7 +3285,7 @@ impl Presentation {
 
         // Tiers 3–6 contribute their level's `a:defRPr`.
         let effective = self
-            .text_style_tiers(surface, shape_idx, level, &scheme, &map)?
+            .text_style_tiers(surface, &path, level, &scheme, &map)?
             .iter()
             .filter_map(ParagraphPropertiesSpec::default_run_properties)
             .fold(own.merge_under(&paragraph_default), |resolved, tier| {
@@ -3469,14 +3315,15 @@ impl Presentation {
     pub fn effective_paragraph_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         para_idx: usize,
     ) -> Result<ParagraphPropertiesSpec, PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         let scheme = self.resolved_scheme_colors(surface)?;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
 
-        let (level, own) = self.with_text_body(surface, shape_idx, |body, interner| {
+        let (level, own) = self.with_text_body(surface, &path, |body, interner| {
             let level = paragraph_level(body, para_idx, interner);
             let own = nth_paragraph(body, para_idx)?
                 .properties()
@@ -3486,7 +3333,7 @@ impl Presentation {
         })?;
 
         Ok(self
-            .text_style_tiers(surface, shape_idx, level, &scheme, &map)?
+            .text_style_tiers(surface, &path, level, &scheme, &map)?
             .iter()
             .fold(own, |resolved, tier| resolved.merge_under(tier)))
     }
@@ -3511,7 +3358,7 @@ impl Presentation {
     pub fn effective_cell_fill(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
@@ -3520,7 +3367,8 @@ impl Presentation {
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
-        let (own, dims, flags) = self.with_table(surface, shape_idx, |table, interner| {
+        let path = shape_idx.into();
+        let (own, dims, flags) = self.with_table(surface, &path, |table, interner| {
             let (rows, columns) = (table.row_count(), table.column_count());
             let cell = cell_at(table, row, column)?;
             let own = cell
@@ -3536,7 +3384,7 @@ impl Presentation {
 
         let parts = applicable_parts(row, column, dims.0, dims.1, flags);
         let Some(part_fills) =
-            self.cell_style_candidates(surface, shape_idx, &parts, |cell_style, interner| {
+            self.cell_style_candidates(surface, &path, &parts, |cell_style, interner| {
                 part_own_fill(cell_style, interner, &scheme, &map)
             })?
         else {
@@ -3577,7 +3425,7 @@ impl Presentation {
     pub fn effective_cell_border(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         edge: CellBorder,
@@ -3587,7 +3435,8 @@ impl Presentation {
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
         let theme_part = self.theme_part(surface)?;
 
-        let (own, dims, flags) = self.with_table(surface, shape_idx, |table, interner| {
+        let path = shape_idx.into();
+        let (own, dims, flags) = self.with_table(surface, &path, |table, interner| {
             let (rows, columns) = (table.row_count(), table.column_count());
             let cell = cell_at(table, row, column)?;
             let own = cell
@@ -3605,7 +3454,7 @@ impl Presentation {
         let style_edge = style_border_key(edge, row, column, rows, columns);
         let parts = applicable_parts(row, column, rows, columns, flags);
         let Some(part_lines) =
-            self.cell_style_candidates(surface, shape_idx, &parts, |cell_style, interner| {
+            self.cell_style_candidates(surface, &path, &parts, |cell_style, interner| {
                 cell_style
                     .borders(interner)
                     .and_then(|borders| borders.border(interner, style_edge))
@@ -3653,7 +3502,7 @@ impl Presentation {
     pub fn effective_cell_run_properties(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
         para_idx: usize,
@@ -3663,8 +3512,9 @@ impl Presentation {
         let scheme = self.resolved_scheme_colors(surface)?;
         let map = self.color_map(surface)?.unwrap_or_else(ColorMap::identity);
 
+        let path = shape_idx.into();
         let (level, own, para_default, dims, flags) =
-            self.with_table(surface, shape_idx, |table, interner| {
+            self.with_table(surface, &path, |table, interner| {
                 let (rows, columns) = (table.row_count(), table.column_count());
                 let cell = cell_at(table, row, column)?;
                 let body = cell
@@ -3692,7 +3542,7 @@ impl Presentation {
             })?;
 
         let parts = applicable_parts(row, column, dims.0, dims.1, flags);
-        let style_text = self.cell_style_text(surface, shape_idx, &parts, &scheme, &map)?;
+        let style_text = self.cell_style_text(surface, &path, &parts, &scheme, &map)?;
         let default_text = self.default_text_run_properties(level, &scheme, &map)?;
 
         let effective = own
@@ -3708,7 +3558,7 @@ impl Presentation {
     fn cell_style_candidates<T>(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         parts: &[TableStylePart],
         extract: impl Fn(&TableStyleCellStyle, &Interner) -> T,
     ) -> Result<Option<Vec<T>>, PptxError> {
@@ -3728,7 +3578,7 @@ impl Presentation {
     fn cell_style_text(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         parts: &[TableStylePart],
         scheme: &SchemeColors,
         map: &ColorMap,
@@ -3782,7 +3632,7 @@ impl Presentation {
     fn text_style_tiers(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         level: IndentLevel,
         scheme: &SchemeColors,
         map: &ColorMap,
@@ -3793,15 +3643,7 @@ impl Presentation {
         let placeholder = {
             let part = self.surface_part(surface)?;
             let doc = self.package.part_tree(&part)?;
-            let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let count = slide::shapes(sp_tree, &doc.interner).count();
-            let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-                PptxError::ShapeIndexOutOfRange {
-                    surface,
-                    index: shape_idx,
-                    count,
-                },
-            )?;
+            let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
             if let Some(txbody) = slide::shape_txbody(shape, &doc.interner) {
                 let body = TextBody::from_xml(txbody, &doc.interner)?;
                 tiers.extend(list_style_tier(
@@ -4021,27 +3863,19 @@ impl Presentation {
     pub fn remove_shape(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-
-        let count = slide::shapes(sp_tree, interner).count();
-        let position = slide::nth_shape_position(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
-        sp_tree.children.remove(position);
+        let (parent, position) =
+            resolve_shape_position_in(root, interner, surface, &shape_idx.into())?;
+        parent.children.remove(position);
         // The shape's own indentation goes with it, or repeated removals leave a growing run of blank
         // lines behind. Only whitespace is dropped — never a comment or a sibling's text.
-        if position > 0 && nav::is_whitespace_text(&sp_tree.children[position - 1]) {
-            sp_tree.children.remove(position - 1);
+        if position > 0 && nav::is_whitespace_text(&parent.children[position - 1]) {
+            parent.children.remove(position - 1);
         }
         Ok(())
     }
@@ -4365,20 +4199,12 @@ impl Presentation {
     pub fn graphic_frame_kind(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<GraphicFrameKind>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         Ok(slide::graphic_frame_uri(shape, &doc.interner).map(GraphicFrameKind::from_uri))
     }
 
@@ -4393,7 +4219,7 @@ impl Presentation {
     pub fn table_dimensions(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<(usize, usize), PptxError> {
         self.with_table(surface.into(), shape_idx, |table, interner| {
             let _ = interner;
@@ -4410,7 +4236,7 @@ impl Presentation {
     pub fn column_width(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         column: usize,
     ) -> Result<Option<Emu>, PptxError> {
         self.with_table(surface.into(), shape_idx, |table, interner| {
@@ -4438,7 +4264,7 @@ impl Presentation {
     pub fn set_column_width(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         column: usize,
         width: Emu,
     ) -> Result<(), PptxError> {
@@ -4475,7 +4301,7 @@ impl Presentation {
     pub fn row_height(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
     ) -> Result<Option<Emu>, PptxError> {
         self.with_table(surface.into(), shape_idx, |table, interner| {
@@ -4497,7 +4323,7 @@ impl Presentation {
     pub fn set_row_height(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         height: Emu,
     ) -> Result<(), PptxError> {
@@ -4544,7 +4370,7 @@ impl Presentation {
     pub fn insert_row(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
     ) -> Result<(), PptxError> {
         self.edit_table_child(surface.into(), shape_idx, |table, interner| {
@@ -4575,7 +4401,7 @@ impl Presentation {
     pub fn remove_row(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
     ) -> Result<(), PptxError> {
         self.edit_table_child(surface.into(), shape_idx, |table, interner| {
@@ -4610,7 +4436,7 @@ impl Presentation {
     pub fn insert_column(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         column: usize,
     ) -> Result<(), PptxError> {
         self.edit_table_child(surface.into(), shape_idx, |table, interner| {
@@ -4642,7 +4468,7 @@ impl Presentation {
     pub fn remove_column(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         column: usize,
     ) -> Result<(), PptxError> {
         self.edit_table_child(surface.into(), shape_idx, |table, interner| {
@@ -4676,7 +4502,7 @@ impl Presentation {
     pub fn cell_span(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<(usize, usize), PptxError> {
@@ -4702,7 +4528,7 @@ impl Presentation {
     pub fn merged_cell_anchor(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         row: usize,
         column: usize,
     ) -> Result<(usize, usize), PptxError> {
@@ -4723,20 +4549,12 @@ impl Presentation {
     fn with_table<R>(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         read: impl FnOnce(&Table, &Interner) -> Result<R, PptxError>,
     ) -> Result<R, PptxError> {
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&part)?;
-        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let count = slide::shapes(sp_tree, &doc.interner).count();
-        let shape = slide::shapes(sp_tree, &doc.interner).nth(shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         let element =
             slide::shape_table(shape, &doc.interner).ok_or(PptxError::ShapeIsNotATable)?;
         let table = Table::from_xml(element, &doc.interner)?;
@@ -4751,21 +4569,13 @@ impl Presentation {
     fn edit_table_child(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         edit: impl FnOnce(&mut RawElement, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
         let part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&part)?;
         let RawDocument { interner, root, .. } = doc;
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let count = slide::shapes(sp_tree, interner).count();
-        let shape = slide::nth_shape_mut(sp_tree, interner, shape_idx).ok_or(
-            PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            },
-        )?;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
         let table = slide::shape_table_mut(shape, interner).ok_or(PptxError::ShapeIsNotATable)?;
         edit(table, interner)
     }
@@ -4787,7 +4597,7 @@ impl Presentation {
     pub fn table_part(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         part: TablePart,
     ) -> Result<Option<bool>, PptxError> {
         self.with_table(surface.into(), shape_idx, |table, interner| {
@@ -4805,7 +4615,7 @@ impl Presentation {
     pub fn set_table_part(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         part: TablePart,
         on: bool,
     ) -> Result<(), PptxError> {
@@ -4823,7 +4633,7 @@ impl Presentation {
     pub fn table_style_id(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<String>, PptxError> {
         self.with_table(surface.into(), shape_idx, |table, interner| {
             Ok(table
@@ -4842,7 +4652,7 @@ impl Presentation {
     pub fn set_table_style(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         style_id: &str,
     ) -> Result<(), PptxError> {
         self.edit_table_properties(surface.into(), shape_idx, |props, interner| {
@@ -4920,7 +4730,7 @@ impl Presentation {
     pub fn set_inline_table_style(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         definition: &TableStyleDefinition,
     ) -> Result<(), PptxError> {
         self.edit_table_properties(surface.into(), shape_idx, |properties, interner| {
@@ -4946,7 +4756,7 @@ impl Presentation {
     pub fn format_inline_table_style_part(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         part: TableStylePart,
         format: &TableStyleFormat,
     ) -> Result<(), PptxError> {
@@ -4977,7 +4787,7 @@ impl Presentation {
     pub fn with_table_style<R>(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         read: impl FnOnce(&TableStyle, &Interner) -> Result<R, PptxError>,
     ) -> Result<Option<R>, PptxError> {
         self.with_resolved_style(surface.into(), shape_idx, read)
@@ -4990,12 +4800,13 @@ impl Presentation {
     fn with_resolved_style<R>(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         read: impl FnOnce(&TableStyle, &Interner) -> Result<R, PptxError>,
     ) -> Result<Option<R>, PptxError> {
+        let path = shape_idx.into();
         // An inline style wins, and lives in the slide part — the `TableStyle` is owned, but its
         // symbols resolve against that part's interner, which re-opening the part hands back.
-        let inline = self.with_table(surface, shape_idx, |table, interner| {
+        let inline = self.with_table(surface, &path, |table, interner| {
             Ok(table
                 .properties()
                 .and_then(|properties| properties.inline_style(interner)))
@@ -5006,7 +4817,7 @@ impl Presentation {
             return read(&style, &doc.interner).map(Some);
         }
 
-        let Some(style_id) = self.table_style_id(surface, shape_idx)? else {
+        let Some(style_id) = self.table_style_id(surface, &path)? else {
             return Ok(None);
         };
         let Some(part) = self.table_styles_part()? else {
@@ -5025,7 +4836,7 @@ impl Presentation {
     fn edit_table_properties(
         &mut self,
         surface: Surface,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         edit: impl FnOnce(&mut TableProperties, &mut Interner) -> Result<(), PptxError>,
     ) -> Result<(), PptxError> {
         self.edit_table_child(surface, shape_idx, |table, interner| {
@@ -5083,13 +4894,13 @@ impl Presentation {
     pub fn picture_image_rel_id(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<String>, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
+        let picture = picture_at(sp_tree, &doc.interner, surface, &shape_idx.into())?;
         let blip_fill = nav::child(picture, &doc.interner, PML, "blipFill")
             .ok_or(PptxError::PictureHasNoBlipFill)?;
         let blip_fill = BlipFill::from_xml(blip_fill, &doc.interner)?;
@@ -5106,7 +4917,7 @@ impl Presentation {
     pub fn picture_image_bytes(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<&[u8]>, PptxError> {
         let surface = surface.into();
         let Some(rel_id) = self.picture_image_rel_id(surface, shape_idx)? else {
@@ -5135,16 +4946,17 @@ impl Presentation {
     pub fn set_picture_image(
         &mut self,
         surface: impl Into<Surface>,
-        shape_idx: usize,
+        shape_idx: impl Into<ShapePath>,
         bytes: &[u8],
     ) -> Result<(), PptxError> {
         let surface = surface.into();
+        let path = shape_idx.into();
         // Validate the shape kind before editing the package, so a wrong index adds no image part.
         {
             let slide_part = self.surface_part(surface)?;
             let doc = self.package.part_tree(&slide_part)?;
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-            let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
+            let picture = picture_at(sp_tree, &doc.interner, surface, &path)?;
             if nav::child(picture, &doc.interner, PML, "blipFill").is_none() {
                 return Err(PptxError::PictureHasNoBlipFill);
             }
@@ -5156,9 +4968,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
             .unwrap_or_else(|| interner.intern(build::RELATIONSHIP_PREFIX));
-        let sp_tree = slide::sp_tree_mut(root, interner)?;
-        let picture = slide::nth_shape_mut(sp_tree, interner, shape_idx)
-            .ok_or(PptxError::ShapeIsNotAPicture)?;
+        let picture = resolve_shape_in(root, interner, surface, &path)?;
         let blip_fill = nav::child_mut(picture, interner, PML, "blipFill")
             .ok_or(PptxError::PictureHasNoBlipFill)?;
         let blip = nav::child_mut(blip_fill, interner, DML_MAIN, "blip")
@@ -5806,8 +5616,12 @@ fn set_run_text(body: &mut TextBody, run_idx: usize, text: &str) -> Result<(), P
 }
 
 /// A `TextSite` naming one cell of the table a shape frames.
-fn cell(shape: usize, row: usize, column: usize) -> TextSite {
-    TextSite::Cell { shape, row, column }
+fn cell(shape: impl Into<ShapePath>, row: usize, column: usize) -> TextSite {
+    TextSite::Cell {
+        shape: shape.into(),
+        row,
+        column,
+    }
 }
 
 /// Checks that no merged region touching the rectangle reaches outside it.
@@ -5943,14 +5757,14 @@ fn apply_cell_format(
 /// A shape's `p:txBody` and a table cell's `a:txBody` are the *same* `CT_TextBody`, so every text
 /// operation applies to either; this is how the private locators say which one. The public surface
 /// spells the two apart (`shape_text` / `cell_text`), but the logic below them exists once.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum TextSite {
     /// The shape's own text body.
-    Shape(usize),
+    Shape(ShapePath),
     /// A cell of the table the shape frames.
     Cell {
-        /// The graphic frame's index in the shape tree.
-        shape: usize,
+        /// The graphic frame's address in the shape tree.
+        shape: ShapePath,
         /// The cell's row.
         row: usize,
         /// The cell's column.
@@ -5960,9 +5774,9 @@ enum TextSite {
 
 impl TextSite {
     /// The shape this site is inside, whichever kind it is.
-    fn shape_index(self) -> usize {
+    fn shape_path(&self) -> &ShapePath {
         match self {
-            Self::Shape(index) | Self::Cell { shape: index, .. } => index,
+            Self::Shape(path) | Self::Cell { shape: path, .. } => path,
         }
     }
 }
@@ -6055,11 +5869,64 @@ fn table_dimensions_of(table: &RawElement, interner: &Interner) -> (usize, usize
         .unwrap_or_default()
 }
 
+/// Resolves `path` to a shape in `doc`, wrapping a miss as the typed error naming `surface`. The one
+/// read-side entry point every `shape_*` accessor shares, so the descent and the error wording live
+/// in one place.
+fn resolve_shape_ref<'a>(
+    doc: &'a RawDocument,
+    surface: Surface,
+    path: &ShapePath,
+) -> Result<&'a RawElement, PptxError> {
+    let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+    slide::resolve_shape(sp_tree, &doc.interner, path).map_err(|count| {
+        PptxError::ShapeIndexOutOfRange {
+            surface,
+            path: path.clone(),
+            count,
+        }
+    })
+}
+
+/// Resolves `path` to a shape mutably, from a part's already-split `root` and `interner` — so the
+/// caller keeps the `&mut Interner` it needs to name any new elements the edit inserts.
+fn resolve_shape_in<'a>(
+    root: &'a mut RawElement,
+    interner: &Interner,
+    surface: Surface,
+    path: &ShapePath,
+) -> Result<&'a mut RawElement, PptxError> {
+    let sp_tree = slide::sp_tree_mut(root, interner)?;
+    slide::resolve_shape_mut(sp_tree, interner, path).map_err(|count| {
+        PptxError::ShapeIndexOutOfRange {
+            surface,
+            path: path.clone(),
+            count,
+        }
+    })
+}
+
+/// Resolves `path` to a shape's parent container and its child position, for removal.
+fn resolve_shape_position_in<'a>(
+    root: &'a mut RawElement,
+    interner: &Interner,
+    surface: Surface,
+    path: &ShapePath,
+) -> Result<(&'a mut RawElement, usize), PptxError> {
+    let sp_tree = slide::sp_tree_mut(root, interner)?;
+    slide::resolve_shape_position(sp_tree, interner, path).map_err(|count| {
+        PptxError::ShapeIndexOutOfRange {
+            surface,
+            path: path.clone(),
+            count,
+        }
+    })
+}
+
 /// How to locate a candidate shape within a part's shape tree while resolving an effective property.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum Candidate {
-    /// The originally-requested shape, by index (the surface's own part).
-    Index(usize),
+    /// The originally-requested shape, by address (the surface's own part).
+    Address(ShapePath),
     /// The matching placeholder on an ancestor part (layout / master).
     Placeholder(slide::Placeholder),
 }
@@ -6076,7 +5943,7 @@ fn candidate_shape(
 ) -> Result<Option<&RawElement>, PptxError> {
     let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
     Ok(match candidate {
-        Candidate::Index(idx) => slide::shapes(sp_tree, &doc.interner).nth(idx),
+        Candidate::Address(path) => slide::resolve_shape(sp_tree, &doc.interner, &path).ok(),
         Candidate::Placeholder(ph) => slide::find_placeholder(sp_tree, ph, &doc.interner),
     })
 }
@@ -6555,23 +6422,21 @@ fn referenced_parts(
     Ok(parts)
 }
 
-/// The `p:pic` at `shape_idx` in `sp_tree`, or [`PptxError::ShapeIsNotAPicture`] when that index
-/// addresses a shape of another kind (the one index space covers every kind).
+/// The `p:pic` addressed by `path` in `sp_tree`, or [`PptxError::ShapeIsNotAPicture`] when that
+/// address names a shape of another kind (the one index space covers every kind).
 fn picture_at<'a>(
     sp_tree: &'a RawElement,
     interner: &'a Interner,
     surface: Surface,
-    shape_idx: usize,
+    path: &ShapePath,
 ) -> Result<&'a RawElement, PptxError> {
-    let count = slide::shapes(sp_tree, interner).count();
-    let shape =
-        slide::shapes(sp_tree, interner)
-            .nth(shape_idx)
-            .ok_or(PptxError::ShapeIndexOutOfRange {
-                surface,
-                index: shape_idx,
-                count,
-            })?;
+    let shape = slide::resolve_shape(sp_tree, interner, path).map_err(|count| {
+        PptxError::ShapeIndexOutOfRange {
+            surface,
+            path: path.clone(),
+            count,
+        }
+    })?;
     match slide::shape_kind(shape, interner) {
         Some(ShapeKind::Picture) => Ok(shape),
         _ => Err(PptxError::ShapeIsNotAPicture),

@@ -9,11 +9,14 @@
 //! # Addressing shapes
 //!
 //! A slide's shapes live in **one index space covering every [`ShapeKind`]** — autoshapes (`p:sp`),
-//! pictures (`p:pic`), groups, graphic frames, connectors — in document order, so `shape_idx` means
-//! the same thing to every API. A group counts as one shape; its members are not separately
-//! addressable. Ask [`Presentation::shape_kind`] what a given index is: the `p:spPr` surface (fill,
-//! outline, effects, geometry) applies to shapes, pictures and connectors alike, while text APIs
-//! return [`PptxError::ShapeHasNoTextBody`] for a kind that has none.
+//! pictures (`p:pic`), groups, graphic frames, connectors — in document order. Every shape API takes
+//! an address as [`impl Into<ShapePath>`](ShapePath): a bare index for a top-level shape, so
+//! `deck.shape_fill(0, 2)` reads the third shape, and an array `[2, 1]` to descend into a group —
+//! member `1` of the group at index `2`, nesting as deep as the groups do. A group counts as one
+//! shape on the top-level space; its members are reached by descending into it. Ask
+//! [`Presentation::shape_kind`] what a given address is: the `p:spPr` surface (fill, outline,
+//! effects, geometry) applies to shapes, pictures and connectors alike, while text APIs return
+//! [`PptxError::ShapeHasNoTextBody`] for a kind that has none.
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,6 +30,7 @@
 //! # }
 //! ```
 
+mod address;
 mod build;
 pub mod constants;
 mod error;
@@ -38,6 +42,7 @@ mod slide;
 mod surface;
 mod table;
 
+pub use address::ShapePath;
 pub use error::PptxError;
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
