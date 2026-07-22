@@ -8,6 +8,53 @@
 //! Selected from `dml-main.xsd`; each item records its original `ST_*` symbol and exact wire
 //! token(s). Types join the allowlist as the DrawingML workstream ports them.
 
+/// `ST_FontCollectionIndex` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum FontCollectionIndex {
+    /// Wire value `major`.
+    Major,
+    /// Wire value `minor`.
+    Minor,
+    /// Wire value `none`.
+    None,
+}
+
+impl FontCollectionIndex {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "major" => Self::Major,
+            "minor" => Self::Minor,
+            "none" => Self::None,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::Major => "major",
+            Self::Minor => "minor",
+            Self::None => "none",
+        }
+    }
+}
+
+impl core::fmt::Display for FontCollectionIndex {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for FontCollectionIndex {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_ColorSchemeIndex` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ColorSchemeSlot {
@@ -1840,6 +1887,53 @@ impl core::fmt::Display for CompoundLine {
 }
 
 impl core::str::FromStr for CompoundLine {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_OnOffStyleType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum OnOffStyle {
+    /// Wire value `on`.
+    On,
+    /// Wire value `off`.
+    Off,
+    /// Wire value `def`.
+    Default,
+}
+
+impl OnOffStyle {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "on" => Self::On,
+            "off" => Self::Off,
+            "def" => Self::Default,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::On => "on",
+            Self::Off => "off",
+            Self::Default => "def",
+        }
+    }
+}
+
+impl core::fmt::Display for OnOffStyle {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for OnOffStyle {
     type Err = crate::UnknownWireValue;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
