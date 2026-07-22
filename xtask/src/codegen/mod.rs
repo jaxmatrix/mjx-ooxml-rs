@@ -84,6 +84,10 @@ pub fn run() -> Result<()> {
             "ST_TextAnchoringType",
             "ST_TextVerticalType",
             "ST_TextHorzOverflowType",
+            // DrawingML table styles (`tableStyles.xml`): the tri-state a table style's bold/italic
+            // take (`a:tcTxStyle@b`/`@i`), and the theme font slot a `a:fontRef` names.
+            "ST_OnOffStyleType",
+            "ST_FontCollectionIndex",
         ],
     )?;
     // Append the per-shape adjustment table, extracted from the DrawingML geometry definitions.
