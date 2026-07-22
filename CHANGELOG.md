@@ -15,6 +15,29 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.20] - 2026-07-22
+
+Effective cell formatting — what a table cell actually renders as. Closes the tables workstream.
+
+### Added
+
+- **`applicable_parts`** and **`TableStyleFlags`** (`mjx-dml`) — the style parts that cover a cell,
+  most specific first, per the ECMA-376 §17.7.6 layering (corner cells > first/last column >
+  first/last row > row bands > column bands > `wholeTbl`), with banding over data cells only.
+- **`Presentation::effective_cell_fill` / `effective_cell_border`** — the fill or border a cell
+  renders, resolving the cell's own `a:tcPr`, then the applicable style parts (explicit or a theme
+  `fillRef`/`lnRef`), then the theme, colours baked to concrete `RRGGBB`. A border takes the outer
+  edge for a rim cell and the interior edge (`insideH`/`insideV`) for one within the table.
+- **`Presentation::effective_cell_run_properties`** — a cell's text run resolved down a
+  table-specific ladder: the run's own `a:rPr`, the paragraph default, the table style's `a:tcTxStyle`
+  for each applicable part (bold / italic / colour), then the presentation `p:defaultTextStyle`.
+
+### Notes
+
+- This is what the modeled `tableStyles.xml` exists for: everything before reported what a file
+  *states*; this resolves what a renderer would show. An explicit property on the cell always wins.
+- Reading resolves nothing into the file — every effective read leaves the package byte-identical.
+
 ## [0.0.19] - 2026-07-22
 
 The `tableStyles.xml` part is modeled, and table styles can be authored and resolved.
