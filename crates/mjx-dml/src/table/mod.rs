@@ -59,9 +59,9 @@ pub use grid::{TableColumn, TableGrid, TableGridContent};
 pub use properties::{TablePart, TableProperties};
 pub use row::{TableRow, TableRowContent};
 pub use style::{
-    Cell3D, FontCollectionIndex, FontReference, OnOffStyle, TableBackgroundStyle,
+    applicable_parts, Cell3D, FontCollectionIndex, FontReference, OnOffStyle, TableBackgroundStyle,
     TableCellBorderStyle, TablePartStyle, TableStyle, TableStyleBorder, TableStyleCellStyle,
-    TableStyleList, TableStylePart, TableStyleTextStyle, ThemeableLineStyle,
+    TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, ThemeableLineStyle,
 };
 pub use table::{Table, TableContent};
 

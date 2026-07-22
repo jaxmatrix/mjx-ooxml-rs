@@ -26,6 +26,7 @@ use mjx_ooxml_core::{
     FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
 };
 
+use super::properties::{TablePart, TableProperties};
 use crate::build::{
     attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
     is_dml, replace_or_insert_child, set_attr,
@@ -270,6 +271,115 @@ impl TableStylePart {
             Self::NorthWestCell => 13,
         }
     }
+}
+
+/// The six `a:tblPr` banding/emphasis flags a table states — the flags that decide which style parts
+/// a cell picks up. Unstated flags are `false`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TableStyleFlags {
+    /// `@firstRow` — the table has a header row.
+    pub first_row: bool,
+    /// `@lastRow` — the table has a total row.
+    pub last_row: bool,
+    /// `@firstCol` — the table has a header column.
+    pub first_column: bool,
+    /// `@lastCol` — the table has a total column.
+    pub last_column: bool,
+    /// `@bandRow` — rows alternate between two banded formats.
+    pub banded_rows: bool,
+    /// `@bandCol` — columns alternate between two banded formats.
+    pub banded_columns: bool,
+}
+
+impl TableStyleFlags {
+    /// The flags a table's `a:tblPr` states (an unstated flag is `false`).
+    #[must_use]
+    pub fn from_properties(properties: &TableProperties, interner: &Interner) -> Self {
+        Self {
+            first_row: properties.has_part(interner, TablePart::FirstRow),
+            last_row: properties.has_part(interner, TablePart::LastRow),
+            first_column: properties.has_part(interner, TablePart::FirstColumn),
+            last_column: properties.has_part(interner, TablePart::LastColumn),
+            banded_rows: properties.has_part(interner, TablePart::BandedRows),
+            banded_columns: properties.has_part(interner, TablePart::BandedColumns),
+        }
+    }
+}
+
+/// The style parts that cover the cell at `(row, column)` of a `rows`×`columns` table, **most
+/// specific first** — the order a resolver tries them, and the reverse of the order a renderer layers
+/// them.
+///
+/// The layering is fixed by ECMA-376 (§17.7.6: "these conditional formats shall be applied in the
+/// following order … subsequent formats override previous"): whole table, banded columns, banded
+/// rows, first/last row, first/last column, corner cells. Reversed, the precedence is corner cells >
+/// first/last **column** > first/last **row** > **row** bands > **column** bands > `wholeTbl`.
+///
+/// - A corner part applies only where **both** its edge flags do (`nwCell` needs `firstRow` and
+///   `firstCol` at `(0, 0)`); a corner cell still stacks the edge and whole-table parts beneath it.
+/// - Banding covers only the **data** rows/columns — the first/last row/column, when flagged, are
+///   excluded — and the first data row/column is `band1*` (an odd grouping), then `band2*`.
+#[must_use]
+pub fn applicable_parts(
+    row: usize,
+    column: usize,
+    rows: usize,
+    columns: usize,
+    flags: TableStyleFlags,
+) -> Vec<TableStylePart> {
+    let is_first_row = flags.first_row && row == 0;
+    let is_last_row = flags.last_row && row + 1 == rows;
+    let is_first_col = flags.first_column && column == 0;
+    let is_last_col = flags.last_column && column + 1 == columns;
+
+    let mut parts = Vec::new();
+
+    // Corner cells — highest precedence, and only where both edge flags meet.
+    if is_first_row && is_first_col {
+        parts.push(TableStylePart::NorthWestCell);
+    } else if is_first_row && is_last_col {
+        parts.push(TableStylePart::NorthEastCell);
+    } else if is_last_row && is_first_col {
+        parts.push(TableStylePart::SouthWestCell);
+    } else if is_last_row && is_last_col {
+        parts.push(TableStylePart::SouthEastCell);
+    }
+
+    // Column edges override row edges.
+    if is_first_col {
+        parts.push(TableStylePart::FirstColumn);
+    }
+    if is_last_col {
+        parts.push(TableStylePart::LastColumn);
+    }
+    if is_first_row {
+        parts.push(TableStylePart::FirstRow);
+    }
+    if is_last_row {
+        parts.push(TableStylePart::LastRow);
+    }
+
+    // Row banding overrides column banding; both cover data cells only.
+    if flags.banded_rows && !is_first_row && !is_last_row {
+        let data_row = row - usize::from(flags.first_row);
+        parts.push(if data_row.is_multiple_of(2) {
+            TableStylePart::Band1Horizontal
+        } else {
+            TableStylePart::Band2Horizontal
+        });
+    }
+    if flags.banded_columns && !is_first_col && !is_last_col {
+        let data_column = column - usize::from(flags.first_column);
+        parts.push(if data_column.is_multiple_of(2) {
+            TableStylePart::Band1Vertical
+        } else {
+            TableStylePart::Band2Vertical
+        });
+    }
+
+    // The whole table underlies everything.
+    parts.push(TableStylePart::WholeTable);
+    parts
 }
 
 /// `a:*` (`CT_TablePartStyle`) — the formatting a table style gives one part: its text style and its
