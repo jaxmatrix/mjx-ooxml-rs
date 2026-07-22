@@ -7,10 +7,11 @@
 //! theme references this tier reuses but does not rebuild.
 
 use mjx_dml::{
-    FontCollectionIndex, OnOffStyle, TableStyleBorder, TableStyleList, TableStylePart,
+    ColorSpec, FillSpec, FontCollectionIndex, LineSpec, OnOffStyle, TablePartStyle, TableStyle,
+    TableStyleBorder, TableStyleCellStyle, TableStyleList, TableStylePart, TableStyleTextStyle,
     ThemeableLineStyle,
 };
-use mjx_ooxml_core::{FromXml, RawDocument, ToXml};
+use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
 
 const A: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -180,4 +181,109 @@ fn a_table_style_list_round_trips_byte_for_byte() {
     let (list, doc) = parse(&styles());
     let expected = styles();
     assert_round_trips(&list, doc, &expected);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Authoring — building a style up from parts
+// ---------------------------------------------------------------------------------------------
+
+const GUID: &str = "{11111111-2222-3333-4444-555555555555}";
+
+#[test]
+fn a_style_can_be_authored_from_parts_and_read_back() {
+    let mut interner = Interner::new();
+
+    let mut text = TableStyleTextStyle::new(&mut interner);
+    text.set_bold(&mut interner, OnOffStyle::On);
+    text.set_color(&mut interner, &ColorSpec::Srgb("FFFFFF".to_owned()));
+
+    let mut cell = TableStyleCellStyle::new(&mut interner);
+    cell.set_fill(
+        &mut interner,
+        &FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned())),
+    );
+    cell.set_border(
+        &mut interner,
+        TableStyleBorder::Bottom,
+        &LineSpec::default(),
+    );
+
+    let mut part = TablePartStyle::new(&mut interner);
+    part.set_text_style(&mut interner, &text);
+    part.set_cell_style(&mut interner, &cell);
+
+    let mut style = TableStyle::new(&mut interner, GUID, "Authored");
+    style.set_part(&mut interner, TableStylePart::FirstRow, &part);
+
+    let mut list = TableStyleList::new(&mut interner, GUID);
+    list.upsert_style(&mut interner, &style);
+
+    // Round-trip the built element through the reader, then read it back with the accessors.
+    let element = list.to_xml(&mut interner);
+    let reparsed = TableStyleList::from_xml(&element, &interner).expect("re-parse");
+
+    assert_eq!(reparsed.default_style_id(&interner), Some(GUID));
+    let read = reparsed.style(&interner, GUID).expect("the authored style");
+    assert_eq!(read.style_name(&interner), Some("Authored"));
+
+    let header = read
+        .part(&interner, TableStylePart::FirstRow)
+        .expect("firstRow");
+    let text = header.text_style(&interner).expect("tcTxStyle");
+    assert_eq!(text.bold(&interner), OnOffStyle::On);
+    assert_eq!(
+        text.italic(&interner),
+        OnOffStyle::Default,
+        "unset stays default"
+    );
+    assert!(text.color(&interner).is_some());
+
+    let cell = header.cell_style(&interner).expect("tcStyle");
+    assert!(
+        cell.fill(&interner).is_some(),
+        "the authored fill reads back"
+    );
+    assert!(matches!(
+        cell.borders(&interner)
+            .and_then(|b| b.border(&interner, TableStyleBorder::Bottom)),
+        Some(ThemeableLineStyle::Line(_))
+    ));
+}
+
+#[test]
+fn authoring_the_same_style_id_twice_updates_it() {
+    let mut interner = Interner::new();
+    let mut list = TableStyleList::new(&mut interner, GUID);
+
+    let first = TableStyle::new(&mut interner, GUID, "First");
+    list.upsert_style(&mut interner, &first);
+    let second = TableStyle::new(&mut interner, GUID, "Second");
+    list.upsert_style(&mut interner, &second);
+
+    assert_eq!(list.styles(&interner).len(), 1, "not duplicated");
+    assert_eq!(
+        list.style(&interner, GUID)
+            .and_then(|s| s.style_name(&interner).map(str::to_owned)),
+        Some("Second".to_owned()),
+        "the later authoring won"
+    );
+}
+
+#[test]
+fn a_default_bold_take_writes_no_attribute() {
+    // OnOffStyle::Default is the schema default (def = follow the parent), so it must not be written.
+    let mut interner = Interner::new();
+    let mut text = TableStyleTextStyle::new(&mut interner);
+    text.set_bold(&mut interner, OnOffStyle::On);
+    text.set_bold(&mut interner, OnOffStyle::Default); // back to default → the attribute goes away
+
+    let element = text.to_xml(&mut interner);
+    let reparsed = TableStyleTextStyle::from_xml(&element, &interner).expect("re-parse");
+    assert_eq!(reparsed.bold(&interner), OnOffStyle::Default);
+    // No @b survived.
+    let has_b = element
+        .attributes
+        .iter()
+        .any(|a| interner.resolve(a.name.local) == "b");
+    assert!(!has_b, "a default take leaves no @b");
 }

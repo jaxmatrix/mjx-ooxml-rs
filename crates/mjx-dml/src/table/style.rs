@@ -22,13 +22,18 @@
 //!
 //! [`a:tcPr`]: super::TableCellProperties
 
-use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode};
+use mjx_ooxml_core::{
+    FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
+};
 
-use crate::build::{attr_str, dml_child, fidelity_element_impls, first_fill_child, is_dml};
-use crate::color::Color;
+use crate::build::{
+    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
+    is_dml, replace_or_insert_child, set_attr,
+};
+use crate::color::{Color, ColorSpec};
 use crate::effect::EffectList;
-use crate::fill::Fill;
-use crate::line::LineProperties;
+use crate::fill::{Fill, FillSpec};
+use crate::line::{LineProperties, LineSpec};
 use crate::style::StyleMatrixReference;
 use crate::theme::FontCollection;
 
@@ -659,5 +664,349 @@ impl Cell3D {
     #[must_use]
     pub fn children(&self) -> &[RawNode] {
         &self.children
+    }
+}
+
+// =================================================================================================
+// Authoring — building a table style up from parts.
+//
+// Every setter is **merge, not rebuild**: a child is replaced in place or inserted at its rank in the
+// schema sequence, so content this tier does not model (an `extLst`, a `cell3D`, an unknown child)
+// survives. The ranks below *are* those sequences — extend them, never append.
+// =================================================================================================
+
+/// A child's rank in `CT_TableStyle`'s sequence: `tblBg`, the thirteen part slots, then `extLst`.
+fn table_style_child_rank(local: &str) -> Option<usize> {
+    if local == "tblBg" {
+        return Some(0);
+    }
+    if let Some(part) = TableStylePart::all()
+        .into_iter()
+        .find(|p| p.wire() == local)
+    {
+        return Some(part.rank());
+    }
+    if local == "extLst" {
+        return Some(14);
+    }
+    None
+}
+
+/// A child's rank in `CT_TablePartStyle`'s sequence: `tcTxStyle`, then `tcStyle`.
+fn part_style_child_rank(local: &str) -> Option<usize> {
+    match local {
+        "tcTxStyle" => Some(0),
+        "tcStyle" => Some(1),
+        _ => None,
+    }
+}
+
+/// A child's rank in `CT_TableStyleCellStyle`'s sequence: `tcBdr`, the fill choice, then `cell3D`.
+fn cell_style_child_rank(local: &str) -> Option<usize> {
+    match local {
+        "tcBdr" => Some(0),
+        "fill" | "fillRef" => Some(1),
+        "cell3D" => Some(2),
+        _ => None,
+    }
+}
+
+/// A child's rank in `CT_TableStyleTextStyle`'s sequence: the font choice, the colour, then `extLst`.
+fn text_style_child_rank(local: &str) -> Option<usize> {
+    if local == "font" || local == "fontRef" {
+        return Some(0);
+    }
+    if Color::is_choice_local(local) {
+        return Some(1);
+    }
+    if local == "extLst" {
+        return Some(2);
+    }
+    None
+}
+
+/// A child's rank in `CT_TableCellBorderStyle`'s sequence: the eight edges, then `extLst`.
+fn border_style_child_rank(local: &str) -> Option<usize> {
+    match local {
+        "left" => Some(0),
+        "right" => Some(1),
+        "top" => Some(2),
+        "bottom" => Some(3),
+        "insideH" => Some(4),
+        "insideV" => Some(5),
+        "tl2br" => Some(6),
+        "tr2bl" => Some(7),
+        "extLst" => Some(8),
+        _ => None,
+    }
+}
+
+/// Removes an unprefixed attribute, if present.
+fn remove_unprefixed_attr(attributes: &mut Vec<RawAttribute>, interner: &Interner, local: &str) {
+    attributes.retain(|attribute| {
+        attribute.name.prefix.is_some() || interner.resolve(attribute.name.local) != local
+    });
+}
+
+/// Sets an `ST_OnOffStyleType` attribute (`@b` / `@i`), **removing** it for [`OnOffStyle::Default`]
+/// — the wire and schema default is `def`, so "follow the parent" is the absence of a claim.
+fn set_on_off(
+    attributes: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    local: &str,
+    value: OnOffStyle,
+) {
+    match value {
+        OnOffStyle::Default => remove_unprefixed_attr(attributes, interner, local),
+        other => set_attr(attributes, interner, local, other.to_wire()),
+    }
+}
+
+impl TableStyleList {
+    /// A fresh, empty `a:tblStyleLst` whose default style (`@def`) is `default_style_id`.
+    #[must_use]
+    pub fn new(interner: &mut Interner, default_style_id: &str) -> Self {
+        Self {
+            name: dml_name(interner, "tblStyleLst"),
+            attributes: vec![dml_attr(interner, "def", default_style_id)],
+            children: Vec::new(),
+            empty: false,
+        }
+    }
+
+    /// Sets the default style GUID (`@def`).
+    pub fn set_default_style_id(&mut self, interner: &mut Interner, style_id: &str) {
+        set_attr(&mut self.attributes, interner, "def", style_id);
+    }
+
+    /// Adds `style`, replacing any existing style with the same `@styleId` in place — so authoring
+    /// the same style twice updates it rather than duplicating it.
+    pub fn upsert_style(&mut self, interner: &mut Interner, style: &TableStyle) {
+        if let Some(style_id) = style.style_id(interner).map(str::to_owned) {
+            let existing = self.children.iter().position(|node| match node {
+                RawNode::Element(element) => {
+                    is_dml(&element.name, interner)
+                        && interner.resolve(element.name.local) == "tblStyle"
+                        && attr_str(&element.attributes, interner, "styleId") == Some(&style_id)
+                }
+                _ => false,
+            });
+            let element = RawNode::Element(style.to_xml(interner));
+            match existing {
+                Some(index) => self.children[index] = element,
+                None => self.children.push(element),
+            }
+        } else {
+            self.children.push(RawNode::Element(style.to_xml(interner)));
+        }
+        self.empty = false;
+    }
+}
+
+impl TableStyle {
+    /// A fresh, empty `a:tblStyle` with the given GUID and gallery name.
+    #[must_use]
+    pub fn new(interner: &mut Interner, style_id: &str, style_name: &str) -> Self {
+        Self {
+            name: dml_name(interner, "tblStyle"),
+            attributes: vec![
+                dml_attr(interner, "styleId", style_id),
+                dml_attr(interner, "styleName", style_name),
+            ],
+            children: Vec::new(),
+            empty: false,
+        }
+    }
+
+    /// Sets the formatting for `part`, replacing whatever the slot held.
+    pub fn set_part(
+        &mut self,
+        interner: &mut Interner,
+        part: TableStylePart,
+        part_style: &TablePartStyle,
+    ) {
+        let mut element = part_style.to_xml(interner);
+        element.name = dml_name(interner, part.wire());
+        let wire = part.wire();
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == wire,
+            table_style_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// Sets the whole-table background (`a:tblBg`).
+    pub fn set_background(&mut self, interner: &mut Interner, background: &TableBackgroundStyle) {
+        let mut element = background.to_xml(interner);
+        element.name = dml_name(interner, "tblBg");
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "tblBg",
+            table_style_child_rank,
+        );
+        self.empty = false;
+    }
+}
+
+impl TablePartStyle {
+    /// A fresh, empty part style. Its slot name is set when [`TableStyle::set_part`] places it.
+    #[must_use]
+    pub fn new(interner: &mut Interner) -> Self {
+        Self {
+            name: dml_name(interner, "wholeTbl"),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: false,
+        }
+    }
+
+    /// Sets the part's text style (`a:tcTxStyle`).
+    pub fn set_text_style(&mut self, interner: &mut Interner, text: &TableStyleTextStyle) {
+        let mut element = text.to_xml(interner);
+        element.name = dml_name(interner, "tcTxStyle");
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "tcTxStyle",
+            part_style_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// Sets the part's cell style (`a:tcStyle`).
+    pub fn set_cell_style(&mut self, interner: &mut Interner, cell: &TableStyleCellStyle) {
+        let mut element = cell.to_xml(interner);
+        element.name = dml_name(interner, "tcStyle");
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "tcStyle",
+            part_style_child_rank,
+        );
+        self.empty = false;
+    }
+}
+
+impl TableStyleTextStyle {
+    /// A fresh, empty text style — bold and italic follow the parent, no colour or font stated.
+    #[must_use]
+    pub fn new(interner: &mut Interner) -> Self {
+        Self {
+            name: dml_name(interner, "tcTxStyle"),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: false,
+        }
+    }
+
+    /// Sets the take on bold (`@b`).
+    pub fn set_bold(&mut self, interner: &mut Interner, value: OnOffStyle) {
+        set_on_off(&mut self.attributes, interner, "b", value);
+    }
+
+    /// Sets the take on italic (`@i`).
+    pub fn set_italic(&mut self, interner: &mut Interner, value: OnOffStyle) {
+        set_on_off(&mut self.attributes, interner, "i", value);
+    }
+
+    /// Sets the text colour (`EG_ColorChoice`).
+    pub fn set_color(&mut self, interner: &mut Interner, color: &ColorSpec) {
+        if let Some(color) = Color::from_spec(interner, color) {
+            let element = color.to_xml(interner);
+            replace_or_insert_child(
+                &mut self.children,
+                interner,
+                element,
+                Color::is_choice_local,
+                text_style_child_rank,
+            );
+            self.empty = false;
+        }
+    }
+}
+
+impl TableStyleCellStyle {
+    /// A fresh, empty cell style.
+    #[must_use]
+    pub fn new(interner: &mut Interner) -> Self {
+        Self {
+            name: dml_name(interner, "tcStyle"),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: false,
+        }
+    }
+
+    /// Sets the cell fill (`a:fill` wrapping an `EG_FillProperties`), replacing any explicit fill or
+    /// theme fill reference.
+    pub fn set_fill(&mut self, interner: &mut Interner, fill: &FillSpec) {
+        let group = fill.to_fill(interner).to_xml(interner);
+        let wrapper = dml_element(interner, "fill", Vec::new(), vec![RawNode::Element(group)]);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            wrapper,
+            |local| local == "fill" || local == "fillRef",
+            cell_style_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// Sets the line on one border `edge`, creating the `a:tcBdr` set if the style had none.
+    pub fn set_border(&mut self, interner: &mut Interner, edge: TableStyleBorder, line: &LineSpec) {
+        let mut borders = dml_child(&self.children, interner, "tcBdr")
+            .and_then(|element| TableCellBorderStyle::from_xml(element, interner).ok())
+            .unwrap_or_else(|| TableCellBorderStyle::new(interner));
+        borders.set_border(interner, edge, line);
+        let element = borders.to_xml(interner);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "tcBdr",
+            cell_style_child_rank,
+        );
+        self.empty = false;
+    }
+}
+
+impl TableCellBorderStyle {
+    /// A fresh, empty border set.
+    #[must_use]
+    pub fn new(interner: &mut Interner) -> Self {
+        Self {
+            name: dml_name(interner, "tcBdr"),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: false,
+        }
+    }
+
+    /// Sets the line on `edge` — an explicit `a:ln` inside the edge element.
+    pub fn set_border(&mut self, interner: &mut Interner, edge: TableStyleBorder, line: &LineSpec) {
+        let mut ln = line.to_line(interner).to_xml(interner);
+        ln.name = dml_name(interner, "ln");
+        let edge_element = dml_element(
+            interner,
+            edge.wire(),
+            Vec::new(),
+            vec![RawNode::Element(ln)],
+        );
+        let wire = edge.wire();
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            edge_element,
+            |local| local == wire,
+            border_style_child_rank,
+        );
+        self.empty = false;
     }
 }
