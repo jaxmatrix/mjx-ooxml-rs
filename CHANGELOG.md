@@ -15,6 +15,24 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.23] - 2026-07-22
+
+Speaker notes, part 1 — a notes slide and the notes master become addressable surfaces.
+
+### Added
+
+- **`Surface::Notes(slide)`** and **`Surface::NotesMaster`** — a slide's notes slide carries the same
+  `p:cSld > p:spTree` a slide does, so every existing shape, text, fill, outline, effect, transform and
+  table method now works on it unchanged, addressed by the slide it belongs to. `Surface::NotesMaster`
+  addresses the single notes master every notes slide inherits from.
+- Notes text inherits from the notes master's **`p:notesStyle`** exactly as slide text inherits from a
+  slide master's `p:txStyles`; `color_map` and `theme` resolve through the notes master too.
+
+### Changed
+
+- `Presentation::surface_part` now returns an owned `PartName` (a notes part is resolved lazily by
+  relationship, not stored), simplifying every call site that previously cloned the borrow.
+
 ## [0.0.22] - 2026-07-22
 
 Author inline table styles — a lean, self-contained styling path.
