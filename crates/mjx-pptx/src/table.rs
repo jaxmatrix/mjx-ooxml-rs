@@ -36,8 +36,10 @@
 //! caller did not mention — the same rule the transform and cell-property writers follow.
 
 use mjx_dml::{
-    CellBorder, FillSpec, LineSpec, TextAnchoring, TextDirection, TextHorizontalOverflow,
+    CellBorder, ColorSpec, FillSpec, LineSpec, OnOffStyle, TablePartStyle, TableStyleBorder,
+    TableStyleCellStyle, TableStyleTextStyle, TextAnchoring, TextDirection, TextHorizontalOverflow,
 };
+use mjx_ooxml_core::Interner;
 
 use crate::geometry::CellMargins;
 
@@ -297,6 +299,99 @@ impl CellFormat {
         Option<TextHorizontalOverflow>,
     ) {
         (self.anchor, self.text_direction, self.horizontal_overflow)
+    }
+}
+
+/// The formatting a table **style** gives one part of a table (`wholeTbl`, `firstRow`, a banded row,
+/// a corner cell) — a fill, text emphasis (bold / italic as the tri-state, plus a colour), and
+/// borders.
+///
+/// This is the style-level counterpart of [`CellFormat`]: `CellFormat` overrides one cell directly,
+/// while a `TableStyleFormat` is applied to a *named part* of a table style with
+/// [`format_table_style_part`](crate::Presentation::format_table_style_part), so every cell that part
+/// covers picks it up. Only the properties you set are written; a part keeps whatever else it held.
+#[derive(Debug, Clone, Default)]
+pub struct TableStyleFormat {
+    fill: Option<FillSpec>,
+    bold: Option<OnOffStyle>,
+    italic: Option<OnOffStyle>,
+    text_color: Option<ColorSpec>,
+    borders: Vec<(TableStyleBorder, LineSpec)>,
+}
+
+impl TableStyleFormat {
+    /// An empty format that changes nothing.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Fills the part's cells.
+    #[must_use]
+    pub fn with_fill(mut self, fill: FillSpec) -> Self {
+        self.fill = Some(fill);
+        self
+    }
+
+    /// Takes bold on, off, or back to the default (follow the parent) for the part's text.
+    #[must_use]
+    pub fn with_bold(mut self, bold: OnOffStyle) -> Self {
+        self.bold = Some(bold);
+        self
+    }
+
+    /// Takes italic on, off, or back to the default for the part's text.
+    #[must_use]
+    pub fn with_italic(mut self, italic: OnOffStyle) -> Self {
+        self.italic = Some(italic);
+        self
+    }
+
+    /// Colours the part's text.
+    #[must_use]
+    pub fn with_text_color(mut self, color: ColorSpec) -> Self {
+        self.text_color = Some(color);
+        self
+    }
+
+    /// Draws `line` on one border `edge` of the part's cells. Repeated edges take the last line.
+    #[must_use]
+    pub fn with_border(mut self, edge: TableStyleBorder, line: LineSpec) -> Self {
+        self.borders.retain(|(existing, _)| *existing != edge);
+        self.borders.push((edge, line));
+        self
+    }
+
+    /// Merges this format into `part`, creating the text and cell styles only for the facets set —
+    /// so a format that touches only the fill leaves the part's text style untouched.
+    pub(crate) fn apply(&self, part: &mut TablePartStyle, interner: &mut Interner) {
+        if self.bold.is_some() || self.italic.is_some() || self.text_color.is_some() {
+            let mut text = part
+                .text_style(interner)
+                .unwrap_or_else(|| TableStyleTextStyle::new(interner));
+            if let Some(bold) = self.bold {
+                text.set_bold(interner, bold);
+            }
+            if let Some(italic) = self.italic {
+                text.set_italic(interner, italic);
+            }
+            if let Some(color) = &self.text_color {
+                text.set_color(interner, color);
+            }
+            part.set_text_style(interner, &text);
+        }
+        if self.fill.is_some() || !self.borders.is_empty() {
+            let mut cell = part
+                .cell_style(interner)
+                .unwrap_or_else(|| TableStyleCellStyle::new(interner));
+            if let Some(fill) = &self.fill {
+                cell.set_fill(interner, fill);
+            }
+            for (edge, line) in &self.borders {
+                cell.set_border(interner, *edge, line);
+            }
+            part.set_cell_style(interner, &cell);
+        }
     }
 }
 

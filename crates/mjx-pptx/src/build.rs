@@ -161,6 +161,23 @@ pub(crate) fn text_leaf(
 /// master colour-map override (`a:masterClrMapping` = inherit the master's colours). This is a fresh
 /// part with its own root, so — unlike a subtree spliced into an existing slide — it must declare its
 /// own namespaces.
+/// The initial bytes of a fresh `tableStyles.xml`: a `tblStyleLst` naming `default_style_id` as its
+/// default, with no styles yet — the caller adds one immediately, so the dangling default is never
+/// persisted. Editing the part later parses these bytes and appends styles built by `mjx-dml`.
+pub(crate) fn table_styles_bytes(default_style_id: &str) -> Vec<u8> {
+    format!(
+        concat!(
+            r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+            "\n",
+            r#"<a:tblStyleLst"#,
+            r#" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
+            r#" def="{def}"/>"#,
+        ),
+        def = default_style_id,
+    )
+    .into_bytes()
+}
+
 pub(crate) fn empty_slide_bytes() -> Vec<u8> {
     concat!(
         r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,

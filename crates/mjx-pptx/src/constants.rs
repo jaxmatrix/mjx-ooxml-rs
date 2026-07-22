@@ -27,6 +27,10 @@ pub const REL_THEME: &str =
 pub const REL_IMAGE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
 
+/// The relationship type from the presentation part to its `tableStyles.xml`.
+pub const REL_TABLE_STYLES: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
@@ -37,3 +41,8 @@ pub const CONTENT_TYPE_SLIDE: &str =
 
 /// The content type of a theme part.
 pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
+
+/// The content type of the `tableStyles.xml` part. Shares the `xml` extension with every other part,
+/// so it is registered as a per-part Override, not a Default.
+pub const CONTENT_TYPE_TABLE_STYLES: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml";
