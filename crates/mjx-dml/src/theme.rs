@@ -159,8 +159,9 @@ impl FontCollection {
         self.supplemental.iter().find(|font| font.script == script)
     }
 
-    /// Reads an `a:majorFont` / `a:minorFont` element.
-    fn read(element: &RawElement, interner: &Interner) -> Self {
+    /// Reads an `a:majorFont` / `a:minorFont` element (or a table style's `a:font`, which is the same
+    /// `CT_FontCollection`).
+    pub(crate) fn read(element: &RawElement, interner: &Interner) -> Self {
         let font = |local: &str| {
             dml_child(&element.children, interner, local)
                 .map(|child| TextFont::read(child, interner))

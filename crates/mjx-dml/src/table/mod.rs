@@ -47,6 +47,7 @@ mod cell;
 mod grid;
 mod properties;
 mod row;
+mod style;
 #[allow(clippy::module_inception)]
 mod table;
 
@@ -57,6 +58,11 @@ pub use cell::{
 pub use grid::{TableColumn, TableGrid, TableGridContent};
 pub use properties::{TablePart, TableProperties};
 pub use row::{TableRow, TableRowContent};
+pub use style::{
+    Cell3D, FontCollectionIndex, FontReference, OnOffStyle, TableBackgroundStyle,
+    TableCellBorderStyle, TablePartStyle, TableStyle, TableStyleBorder, TableStyleCellStyle,
+    TableStyleList, TableStylePart, TableStyleTextStyle, ThemeableLineStyle,
+};
 pub use table::{Table, TableContent};
 
 /// The index in an interleaved content list of the `nth` (0-based) element matching `is_target`, or
