@@ -21,6 +21,7 @@ use mjx_ooxml_types::presentationml::{
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 
 use crate::address::ShapePath;
+use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
@@ -694,6 +695,189 @@ impl Presentation {
         let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
         slide::shape_kind(shape, &doc.interner)
             .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))
+    }
+
+    /// How many member shapes the group at `shape_idx` holds — `0` for anything that is not a group,
+    /// since only a `p:grpSp` has members. This is the range a [`ShapePath`] may descend into.
+    ///
+    /// Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn shape_member_count(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<usize, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        // A group's members are exactly the shape-kind children of its element, which is what
+        // `shapes` enumerates at every level; a leaf shape simply has none.
+        Ok(slide::shapes(shape, &doc.interner).count())
+    }
+
+    /// Opens a [`ShapeCursor`] on shape `shape_idx` of `surface`: the address is stated once, the
+    /// edits after it, and nothing is written until [`apply`](ShapeCursor::apply).
+    ///
+    /// This is the ergonomic layer over the `set_shape_*` methods — the same edits, said once instead
+    /// of once per call, with group descent (`.member`, `.sibling`, `.parent`) built in. See the
+    /// [cursor docs](crate::ShapeCursor) for what it does and does not do.
+    ///
+    /// ```no_run
+    /// # use mjx_pptx::{Presentation, PptxError};
+    /// # use mjx_dml::{FillSpec, LineSpec};
+    /// # fn f(deck: &mut Presentation, navy: FillSpec, rule: LineSpec) -> Result<(), PptxError> {
+    /// deck.shape(0, 2)?                          // the group at top-level index 2
+    ///     .member(0)?.fill(navy).outline(rule)   // its first member
+    ///     .apply()?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the address is out of range or the part is malformed — a cursor is
+    /// never opened on a shape that is not there.
+    pub fn shape(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<ShapeCursor<'_>, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        self.shape_kind(surface, &path)?;
+        Ok(ShapeCursor::new(self, surface, path))
+    }
+
+    /// Writes a cursor's recorded edits — the single commit point behind
+    /// [`ShapeCursor::apply`](crate::ShapeCursor::apply), in three passes:
+    ///
+    /// 1. **package work** — the relationships and media parts the rel-bearing edits need, which
+    ///    cannot happen while the part tree is borrowed;
+    /// 2. **one mutable borrow**, applying every edit in the order it was recorded and dirtying the
+    ///    part exactly once;
+    /// 3. **sweep** the hyperlink relationships nothing names any more.
+    ///
+    /// There is no address-validation pass, because there is nothing for one to catch: a cursor
+    /// checks every address as it moves onto it, holds the deck exclusively while it records, and no
+    /// edit here adds or removes a shape — so an address recorded is an address that still resolves.
+    pub(crate) fn apply_shape_edits(
+        &mut self,
+        surface: Surface,
+        edits: Vec<(ShapePath, ShapeEdit)>,
+    ) -> Result<(), PptxError> {
+        if edits.is_empty() {
+            return Ok(());
+        }
+        let part = self.surface_part(surface)?;
+
+        // 1 — the package work each rel-bearing edit needs, turning intents into relationship ids.
+        // Every hyperlink id involved (the ones already on the shapes, and the ones added here) is
+        // remembered for the sweep: an id superseded by a later edit in the same pass is
+        // unreferenced by the end of the write and must go with it.
+        let mut prepared: Vec<(ShapePath, PreparedEdit)> = Vec::with_capacity(edits.len());
+        let mut hyperlink_ids: Vec<String> = Vec::new();
+        for (path, edit) in edits {
+            let prepared_edit = match edit {
+                ShapeEdit::Hyperlink(link) => {
+                    if let Some(previous) = self.shape_hyperlink_rel_id(&part, &path)? {
+                        hyperlink_ids.push(previous);
+                    }
+                    match link {
+                        Some(link) => {
+                            let (rel_id, action) = self.add_hyperlink_rel(&part, &link)?;
+                            hyperlink_ids.push(rel_id.clone());
+                            PreparedEdit::Hyperlink {
+                                rel_id: Some(rel_id),
+                                action,
+                            }
+                        }
+                        None => PreparedEdit::Hyperlink {
+                            rel_id: None,
+                            action: None,
+                        },
+                    }
+                }
+                ShapeEdit::Image(bytes) => {
+                    // The picture is checked before the package grows, so a wrong address adds no
+                    // image part — as `set_picture_image` does.
+                    self.check_picture_blip_fill(surface, &path)?;
+                    PreparedEdit::Image(self.add_image(surface, &bytes)?)
+                }
+                other => PreparedEdit::Element(other),
+            };
+            prepared.push((path, prepared_edit));
+        }
+
+        // 2 — the write itself.
+        let written = self.write_shape_edits(surface, &part, &prepared);
+
+        // 3 — a link nothing names any more takes its relationship with it. This runs even when the
+        // write failed, so a relationship added for an edit that never landed is not left orphaned;
+        // the write's own error is the one reported.
+        let mut swept = Ok(());
+        for rel_id in hyperlink_ids {
+            let removed = self.remove_hyperlink_rel_if_unreferenced(&part, &rel_id);
+            if swept.is_ok() {
+                swept = removed;
+            }
+        }
+        written.and(swept)
+    }
+
+    /// Applies every prepared edit to `part` under **one** mutable borrow, in the order recorded, so
+    /// the part is parsed once, dirtied once, and re-serialized once.
+    fn write_shape_edits(
+        &mut self,
+        surface: Surface,
+        part: &PartName,
+        prepared: &[(ShapePath, PreparedEdit)],
+    ) -> Result<(), PptxError> {
+        let doc = self.package.part_tree_mut(part)?;
+        // Split the borrow: `interner` names what the edits build, `root` holds the tree.
+        let RawDocument { interner, root, .. } = doc;
+        // Both read the part *root*, so they are taken before the borrow descends into the shape
+        // tree. Taking them unconditionally is free: interning a prefix nothing ends up using adds a
+        // symbol to the table and nothing to the output, which is written by walking the tree.
+        let rel_prefix = relationship_prefix(root, interner);
+        let blip_declaration = build::relationship_prefix_declaration(root, interner);
+
+        let mut at = 0;
+        while at < prepared.len() {
+            // Consecutive edits on one shape share a single resolution of its address.
+            let path = &prepared[at].0;
+            let run_end = prepared[at..]
+                .iter()
+                .position(|(other, _)| other != path)
+                .map_or(prepared.len(), |offset| at + offset);
+            let shape = resolve_shape_in(root, interner, surface, path)?;
+            apply_edits_to_shape(
+                shape,
+                interner,
+                &prepared[at..run_end],
+                rel_prefix,
+                blip_declaration.as_ref(),
+            )?;
+            at = run_end;
+        }
+        Ok(())
+    }
+
+    /// Checks that `path` addresses a picture that has the `p:blipFill` an image edit rewrites.
+    fn check_picture_blip_fill(
+        &mut self,
+        surface: Surface,
+        path: &ShapePath,
+    ) -> Result<(), PptxError> {
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        let picture = picture_at(sp_tree, &doc.interner, surface, path)?;
+        if nav::child(picture, &doc.interner, PML, "blipFill").is_none() {
+            return Err(PptxError::PictureHasNoBlipFill);
+        }
+        Ok(())
     }
 
     /// The placeholder shape `shape_idx` on `surface` occupies (`p:nvPr > p:ph`), or `None` if it is
@@ -5833,6 +6017,157 @@ fn table_dimensions_of(table: &RawElement, interner: &Interner) -> (usize, usize
 /// Resolves `path` to a shape in `doc`, wrapping a miss as the typed error naming `surface`. The one
 /// read-side entry point every `shape_*` accessor shares, so the descent and the error wording live
 /// in one place.
+/// A recorded [`ShapeEdit`] with whatever package work it needed already done — the form the write
+/// pass of [`Presentation::apply_shape_edits`] consumes.
+///
+/// Only the two rel-bearing intents change shape: a hyperlink becomes the relationship id (and
+/// action) to stamp, an image becomes the id of the media relationship it was stored as. Everything
+/// else is carried through untouched, because everything else is pure element work.
+enum PreparedEdit {
+    /// An edit that needs nothing from the package.
+    Element(ShapeEdit),
+    /// A shape's own click hyperlink: the relationship to name, or `None` to clear it.
+    Hyperlink {
+        rel_id: Option<String>,
+        action: Option<&'static str>,
+    },
+    /// A picture's embedded image, as the relationship id that now names it.
+    Image(String),
+}
+
+impl PreparedEdit {
+    /// Whether this edit is applied against the parsed text model — see
+    /// [`ShapeEdit::edits_text_model`].
+    fn edits_text_model(&self) -> bool {
+        matches!(self, Self::Element(edit) if edit.edits_text_model())
+    }
+}
+
+/// Applies a run of edits that all address `shape`, in order, against one resolution of it.
+///
+/// A maximal stretch of text-model edits is applied against a single `TextBody` parse and rebuild;
+/// everything else is one raw-tree edit each.
+fn apply_edits_to_shape(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    edits: &[(ShapePath, PreparedEdit)],
+    rel_prefix: Symbol,
+    blip_declaration: Option<&RawAttribute>,
+) -> Result<(), PptxError> {
+    let mut at = 0;
+    while at < edits.len() {
+        if edits[at].1.edits_text_model() {
+            let end = edits[at..]
+                .iter()
+                .position(|(_, edit)| !edit.edits_text_model())
+                .map_or(edits.len(), |offset| at + offset);
+            apply_text_model_edits(shape, interner, &edits[at..end])?;
+            at = end;
+        } else {
+            apply_edit_to_element(shape, interner, &edits[at].1, rel_prefix, blip_declaration)?;
+            at += 1;
+        }
+    }
+    Ok(())
+}
+
+/// Applies one raw-tree edit to an already-resolved shape, by handing it to the same `slide`
+/// primitive the corresponding flat setter calls.
+fn apply_edit_to_element(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    edit: &PreparedEdit,
+    rel_prefix: Symbol,
+    blip_declaration: Option<&RawAttribute>,
+) -> Result<(), PptxError> {
+    match edit {
+        PreparedEdit::Element(ShapeEdit::Fill(fill)) => {
+            // Only a picture fill carries an `r:embed`, so only it needs the prefix declaration.
+            let declaration = match fill {
+                FillSpec::Blip { .. } => blip_declaration.cloned(),
+                _ => None,
+            };
+            slide::set_fill(shape, interner, fill, declaration)
+        }
+        PreparedEdit::Element(ShapeEdit::Outline(line)) => slide::set_line(shape, interner, line),
+        PreparedEdit::Element(ShapeEdit::Effects(effects)) => {
+            slide::set_effects(shape, interner, effects)
+        }
+        PreparedEdit::Element(ShapeEdit::Geometry(geometry)) => {
+            slide::set_prstgeom(shape, interner, *geometry)
+        }
+        PreparedEdit::Element(ShapeEdit::Transform(transform)) => {
+            let slot = slide::shape_transform_slot_mut(shape, interner)?;
+            transform.apply(slot, interner);
+            Ok(())
+        }
+        PreparedEdit::Element(ShapeEdit::Text(text)) => set_text_content_in(shape, interner, text),
+        PreparedEdit::Hyperlink { rel_id, action } => {
+            slide::set_shape_hyperlink(shape, interner, rel_prefix, rel_id.as_deref(), *action)
+        }
+        PreparedEdit::Image(rel_id) => slide::set_blip_embed(shape, interner, rel_prefix, rel_id),
+        // The text-model edits: `apply_edits_to_shape` routes those to `apply_text_model_edits`,
+        // which applies them against the parsed body rather than the raw tree.
+        PreparedEdit::Element(_) => Ok(()),
+    }
+}
+
+/// Applies a run of text-model edits against **one** parse and rebuild of the shape's text body —
+/// so formatting a paragraph and then a range within it costs a single round trip.
+fn apply_text_model_edits(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    edits: &[(ShapePath, PreparedEdit)],
+) -> Result<(), PptxError> {
+    let slot =
+        nav::child_mut(shape, interner, PML, "txBody").ok_or(PptxError::ShapeHasNoTextBody)?;
+    let mut body = TextBody::from_xml(slot, interner)?;
+    for (_, edit) in edits {
+        let PreparedEdit::Element(edit) = edit else {
+            continue;
+        };
+        match edit {
+            ShapeEdit::RunProperties {
+                paragraph,
+                run,
+                spec,
+            } => set_run_properties_in(&mut body, interner, *paragraph, *run, spec)?,
+            ShapeEdit::ParagraphRunProperties { paragraph, spec } => {
+                set_paragraph_run_properties_in(&mut body, interner, *paragraph, spec)?;
+            }
+            ShapeEdit::AllRunProperties(spec) => {
+                set_all_run_properties_in(&mut body, interner, spec)?;
+            }
+            ShapeEdit::EndRunProperties { paragraph, spec } => {
+                set_end_run_properties_in(&mut body, interner, *paragraph, spec)?;
+            }
+            ShapeEdit::ParagraphProperties { paragraph, spec } => {
+                set_paragraph_properties_in(&mut body, interner, *paragraph, spec)?;
+            }
+            ShapeEdit::TextRangeProperties {
+                paragraph,
+                range,
+                spec,
+                graphemes,
+            } => {
+                // A grapheme range is converted here, against the body as the earlier edits in this
+                // run have left it — the same text the flat method reads before converting.
+                let range = if *graphemes {
+                    let text = paragraph_text_of(&body, *paragraph)?;
+                    grapheme_range_to_scalars(&text, range)?
+                } else {
+                    range.clone()
+                };
+                set_range_properties_in(&mut body, interner, *paragraph, range, spec)?;
+            }
+            // Not a text-model edit; `apply_edits_to_shape` never routes one here.
+            _ => {}
+        }
+    }
+    *slot = body.to_xml(interner);
+    Ok(())
+}
+
 /// The prefix a part's root binds to the relationships namespace, or the conventional `r` when it
 /// binds none — what an `r:id` / `r:embed` attribute must be written with.
 fn relationship_prefix(part_root: &RawElement, interner: &mut Interner) -> Symbol {
