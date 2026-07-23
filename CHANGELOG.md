@@ -15,6 +15,42 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.28] - 2026-07-24
+
+Group descent, part 3 — a group member now says **where it is on the slide**. Addressing it, styling
+it and measuring it are finally the same three things they are for a top-level shape.
+
+### Changed
+
+- **`Presentation::shape_bounds` answers in absolute slide EMU for a group member**, composing every
+  enclosing group's child coordinate space instead of returning the member's raw `a:off` / `a:ext`.
+  `set_shape_bounds` takes the same absolute rectangle and maps it back, so read and write stay in
+  one space. This is a **behaviour change** for nested addresses only — a top-level shape reads and
+  writes exactly as before, because composing over no ancestors is the identity. `shape_transform` /
+  `set_shape_transform` are untouched and remain the accessors for what the file literally states, in
+  the shape's own space. `effective_shape_bounds` / `effective_shape_transform` compose too, after
+  resolving placeholder inheritance; the latter is where the composed rotation and mirror flags are
+  read, since an axis-aligned `ShapeBounds` cannot hold a rotation.
+- The shape cursor's `.bounds(…)` is slide-absolute to match, and runs the same conversion;
+  `.transform(…)` still writes verbatim in the shape's own space.
+
+### Added
+
+- **`mjx-dml`: `Transform2D::child_scale` / `child_to_parent` / `parent_to_child`** — one rung of the
+  mapping between a group's child coordinate space and its parent's, and its exact inverse.
+- `PptxError::ShapeCannotBePlaced`, when an enclosing group states no `a:chOff` / `a:chExt`: there is
+  then no mapping to invert, so the member reads as unplaced and the write is refused rather than
+  putting the shape somewhere wrong.
+
+### Notes
+
+The composition follows **ECMA-376 Part 1 §L.4.7.4**, not the naive "apply each ancestor transform in
+turn": a nested shape is scaled and mirrored by the *product* of its ancestors' factors, rotated by
+their *sum*, and translated so its **centre** lands where the whole chain — rotations included — puts
+it. A mirrored or rotated group therefore places its members correctly, which composing corners would
+not. Round-tripping `set_shape_bounds(shape_bounds(…))` is exact whenever the groups' scales are, and
+within a few EMU — millionths of an inch — when they are not.
+
 ## [0.0.27] - 2026-07-24
 
 Group descent, part 2 — the **shape cursor**: a shape is addressed once and edited fluently, and a
