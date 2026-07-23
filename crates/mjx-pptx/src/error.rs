@@ -127,6 +127,22 @@ pub enum PptxError {
         path: crate::address::ShapePath,
     },
 
+    /// A slide rectangle could not be converted into the space the shape states its transform in,
+    /// because an enclosing group states no child coordinate space (`a:chOff` / `a:chExt`).
+    ///
+    /// A group maps that child box onto the box it occupies; without one there is no mapping to
+    /// invert, so the member cannot be placed by slide coordinates. Its own space is still reachable
+    /// through [`set_shape_transform`](crate::Presentation::set_shape_transform).
+    #[error(
+        "shape {path} on {surface} cannot be placed: an enclosing group states no child space"
+    )]
+    ShapeCannotBePlaced {
+        /// The surface addressed.
+        surface: Surface,
+        /// The address of the shape being placed.
+        path: crate::address::ShapePath,
+    },
+
     /// An ascent was asked for from a top-level shape, which has no parent group — the shape tree
     /// itself is not a shape.
     #[error("shape {path} on {surface} is top-level and has no parent group")]

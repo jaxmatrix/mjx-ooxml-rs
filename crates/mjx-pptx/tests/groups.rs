@@ -85,24 +85,26 @@ fn a_path_addresses_a_member_by_its_kind_and_geometry() {
 }
 
 #[test]
-fn a_members_explicit_transform_is_read_in_the_groups_child_space() {
+fn a_members_stated_transform_stays_in_the_groups_child_space() {
+    // `shape_transform` reads what the file says, and a member says it in the space its group lays
+    // members out in (chOff = 1000000, 2000000). This is the accessor that never converts — see
+    // `tests/placement.rs` for `shape_bounds`, which answers in slide coordinates.
     let mut pres = layouts();
-    // Rectangle 4 sits at the child-space origin the group declares (chOff = 1000000, 2000000).
     let rect = pres
-        .shape_bounds(SLIDE2, [2, 0])
-        .expect("member 0 bounds")
+        .shape_transform(SLIDE2, [2, 0])
+        .expect("member 0 transform")
         .expect("the member places itself");
-    assert_eq!(rect.offset_x_emu, 1_000_000);
-    assert_eq!(rect.offset_y_emu, 2_000_000);
-    assert_eq!(rect.width_emu, 1_828_800);
-    assert_eq!(rect.height_emu, 1_828_800);
+    assert_eq!(rect.position.expect("off").x.emu(), 1_000_000);
+    assert_eq!(rect.position.expect("off").y.emu(), 2_000_000);
+    assert_eq!(rect.size.expect("ext").width.emu(), 1_828_800);
+    assert_eq!(rect.size.expect("ext").height.emu(), 1_828_800);
 
     // Rectangle 5 (the ellipse) is one rectangle-width to the right, in that same child space.
     let ellipse = pres
-        .shape_bounds(SLIDE2, [2, 1])
-        .expect("member 1 bounds")
+        .shape_transform(SLIDE2, [2, 1])
+        .expect("member 1 transform")
         .expect("the member places itself");
-    assert_eq!(ellipse.offset_x_emu, 2_828_800);
+    assert_eq!(ellipse.position.expect("off").x.emu(), 2_828_800);
 }
 
 // ---------------------------------------------------------------------------------------------

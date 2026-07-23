@@ -29,7 +29,7 @@ use crate::slide::GraphicFrameKind;
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
-use crate::{build, constants, nav, slide};
+use crate::{build, constants, nav, placement, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
 /// ordered list of slide parts.
@@ -845,11 +845,28 @@ impl Presentation {
 
         let mut at = 0;
         while at < prepared.len() {
-            // Consecutive edits on one shape share a single resolution of its address.
             let path = &prepared[at].0;
+
+            // A bounds edit is stated in *slide* coordinates, so for a group member it must be
+            // mapped back through the enclosing groups — which means reading them from the part
+            // root, and so cannot happen from inside the borrow of a single shape. It is converted
+            // against the tree as the edits before it have left it, which is what makes "move the
+            // member, then move its group" mean what it says.
+            if let PreparedEdit::Element(ShapeEdit::Bounds(bounds)) = &prepared[at].1 {
+                let stated = child_space_bounds(root, interner, surface, path, *bounds)?;
+                let shape = resolve_shape_in(root, interner, surface, path)?;
+                let slot = slide::shape_transform_slot_mut(shape, interner)?;
+                stated.to_transform().apply(slot, interner);
+                at += 1;
+                continue;
+            }
+
+            // Otherwise consecutive edits on one shape share a single resolution of its address.
             let run_end = prepared[at..]
                 .iter()
-                .position(|(other, _)| other != path)
+                .position(|(other, edit)| {
+                    other != path || matches!(edit, PreparedEdit::Element(ShapeEdit::Bounds(_)))
+                })
                 .map_or(prepared.len(), |offset| at + offset);
             let shape = resolve_shape_in(root, interner, surface, path)?;
             apply_edits_to_shape(
@@ -2707,19 +2724,25 @@ impl Presentation {
         })
     }
 
-    /// The **explicit** position and size of shape `shape_idx` on `surface` — the `a:off` and
-    /// `a:ext` of its transform — or `None` when the shape does not place itself.
+    /// The position and size of shape `shape_idx` on `surface` **on the slide** — absolute within
+    /// [`slide_size`](Self::slide_size), whether the shape is top-level or nested inside groups.
     ///
     /// A `None` here is not "at the origin": it means the shape declares no bounds of its own, so a
-    /// placeholder takes them from its layout and then its master — resolving *that* is a separate,
-    /// future `effective_shape_bounds`. It is also `None` for a transform that names only one of the
-    /// two, since bounds are all four numbers.
+    /// placeholder takes them from its layout and then its master — resolve *that* with
+    /// [`effective_shape_bounds`](Self::effective_shape_bounds). It is also `None` for a transform
+    /// that names only one of the two (bounds are all four numbers), and for a member whose enclosing
+    /// group states no child coordinate space, since there is then no way to place it.
     ///
-    /// For a top-level shape these bounds are absolute within [`slide_size`](Self::slide_size). For a
-    /// **group member** (addressed with a [`ShapePath`]) they are the member's own `a:off` / `a:ext`
-    /// in the group's child coordinate space (`a:chOff` / `a:chExt`), **not** an absolute slide
-    /// rectangle — mapping that child space onto the group's extent is a separate step. Reading does
-    /// not dirty the part.
+    /// For a **group member** the member's own `a:off` / `a:ext` are written in the group's child
+    /// coordinate space (`a:chOff` / `a:chExt`); this composes every enclosing group's mapping —
+    /// scale, mirror and rotation alike — and answers in slide EMU. To read what the file literally
+    /// states instead, use [`shape_transform`](Self::shape_transform), which is left in the shape's
+    /// own space.
+    ///
+    /// The rectangle is axis-aligned and, as for any shape, describes the box **before** the shape's
+    /// own rotation; the composed rotation is on
+    /// [`effective_shape_transform`](Self::effective_shape_transform). Reading does not dirty the
+    /// part.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
@@ -2728,14 +2751,30 @@ impl Presentation {
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<ShapeBounds>, PptxError> {
-        Ok(self
-            .shape_transform(surface, shape_idx)?
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &path)?;
+        let Some(element) = slide::shape_transform(shape, &doc.interner) else {
+            return Ok(None);
+        };
+        let own = Transform2D::read(element, &doc.interner);
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        Ok(placement::compose(sp_tree, &doc.interner, &path, &own)
             .as_ref()
             .and_then(ShapeBounds::from_transform))
     }
 
-    /// Moves and resizes shape `shape_idx` on `surface` to `bounds`, creating its transform element
-    /// if it had none. Marks only that part dirty; everything else re-emits verbatim.
+    /// Moves and resizes shape `shape_idx` on `surface` to `bounds`, given **on the slide** — the
+    /// same absolute space [`shape_bounds`](Self::shape_bounds) answers in. Creates the shape's
+    /// transform element if it had none, and marks only that part dirty.
+    ///
+    /// For a **group member** the absolute rectangle is mapped back through every enclosing group's
+    /// child coordinate space before it is written, so a caller places a member where it wants it on
+    /// the slide and never converts by hand. Round-tripping `set_shape_bounds(shape_bounds(…))` is
+    /// exact whenever the groups' scales are (a group at half size, say) and within a few EMU —
+    /// millionths of an inch — when they are not.
     ///
     /// Only the position and size are written — a rotation, a flip, or the child coordinate space of
     /// a group are left exactly as they were. Note that resizing a **group** rescales its members,
@@ -2743,14 +2782,27 @@ impl Presentation {
     /// PowerPoint does when you drag a group's handle.
     ///
     /// # Errors
-    /// As [`set_shape_transform`](Self::set_shape_transform).
+    /// As [`set_shape_transform`](Self::set_shape_transform), plus
+    /// [`ShapeCannotBePlaced`](PptxError::ShapeCannotBePlaced) when an enclosing group states no
+    /// child coordinate space, leaving no way to convert the rectangle.
     pub fn set_shape_bounds(
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
         bounds: ShapeBounds,
     ) -> Result<(), PptxError> {
-        self.set_shape_transform(surface, shape_idx, &bounds.to_transform())
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` names what the write builds, `root` holds the tree — and the
+        // ancestor groups the conversion reads live in that same tree.
+        let RawDocument { interner, root, .. } = doc;
+        let stated = child_space_bounds(root, interner, surface, &path, bounds)?;
+        let shape = resolve_shape_in(root, interner, surface, &path)?;
+        let slot = slide::shape_transform_slot_mut(shape, interner)?;
+        stated.to_transform().apply(slot, interner);
+        Ok(())
     }
 
     /// The **explicit** transform of shape `shape_idx` on `surface` — its position, size, rotation
@@ -3330,8 +3382,10 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<Transform2D>, PptxError> {
         let surface = surface.into();
-        let candidates = self.placeholder_candidates(surface, &shape_idx.into())?;
+        let path = shape_idx.into();
+        let candidates = self.placeholder_candidates(surface, &path)?;
 
+        let mut own = None;
         for (part, candidate) in candidates {
             let doc = self.package.part_tree(&part)?;
             let Some(shape) = candidate_shape(doc, candidate)? else {
@@ -3342,11 +3396,24 @@ impl Presentation {
             };
             let transform = Transform2D::read(element, &doc.interner);
             if !transform.is_empty() {
-                return Ok(Some(transform));
+                own = Some(transform);
+                break;
             }
         }
+        let Some(own) = own else {
+            return Ok(None);
+        };
 
-        Ok(None)
+        // Whichever tier placed the shape did so in the shape's *own* space; composing the enclosing
+        // groups is what turns that into a slide rectangle. For a top-level shape this is the
+        // identity, so nothing about the inheritance walk changes.
+        if path.is_top_level() {
+            return Ok(Some(own));
+        }
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        Ok(placement::compose(sp_tree, &doc.interner, &path, &own))
     }
 
     /// The **effective** position and size of shape `shape_idx` on `surface` — where the shape
@@ -6106,8 +6173,10 @@ fn apply_edit_to_element(
             slide::set_shape_hyperlink(shape, interner, rel_prefix, rel_id.as_deref(), *action)
         }
         PreparedEdit::Image(rel_id) => slide::set_blip_embed(shape, interner, rel_prefix, rel_id),
-        // The text-model edits: `apply_edits_to_shape` routes those to `apply_text_model_edits`,
-        // which applies them against the parsed body rather than the raw tree.
+        // The remaining variants are applied elsewhere, because they need more than a resolved
+        // shape: the text-model edits go through `apply_text_model_edits`, against the parsed body
+        // rather than the raw tree, and a bounds edit is converted from slide coordinates against
+        // the part root before `write_shape_edits` ever resolves the shape.
         PreparedEdit::Element(_) => Ok(()),
     }
 }
@@ -6166,6 +6235,30 @@ fn apply_text_model_edits(
     }
     *slot = body.to_xml(interner);
     Ok(())
+}
+
+/// Converts slide-absolute `bounds` into the space the shape at `path` states its own transform in,
+/// reading the enclosing groups from the part `root` the caller already holds.
+///
+/// The one place the write half of the mapping lives: `set_shape_bounds` and the shape cursor's
+/// `bounds` edit both land here, so a member is placed the same way whichever surface asked.
+fn child_space_bounds(
+    root: &RawElement,
+    interner: &Interner,
+    surface: Surface,
+    path: &ShapePath,
+    bounds: ShapeBounds,
+) -> Result<ShapeBounds, PptxError> {
+    if path.is_top_level() {
+        return Ok(bounds); // A top-level shape states slide coordinates directly.
+    }
+    let sp_tree = slide::sp_tree(root, interner)?;
+    placement::to_child_space(sp_tree, interner, path, bounds).ok_or_else(|| {
+        PptxError::ShapeCannotBePlaced {
+            surface,
+            path: path.clone(),
+        }
+    })
 }
 
 /// The prefix a part's root binds to the relationships namespace, or the conventional `r` when it
