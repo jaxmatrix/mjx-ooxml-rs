@@ -154,6 +154,29 @@ impl ShapeEdit {
 /// nothing is pinned between edits. Edits stay bound to the address they were recorded at, so one
 /// `.apply()` commits work spread over a group and its members.
 ///
+/// # Structural steps are commit points
+///
+/// [`into_group`](Self::into_group), [`out_of_group`](Self::out_of_group),
+/// [`group_with`](Self::group_with) and [`ungroup`](Self::ungroup) change **which shapes there are
+/// and where they sit**, so an address recorded before one of them can name a different shape after
+/// it. Each therefore writes everything recorded so far *before* it moves anything, and then
+/// re-anchors onto the shape the cursor was following. No recorded edit is ever applied against a
+/// tree it was not recorded against, and the chain reads as though it had all been deferred:
+///
+/// ```no_run
+/// # use mjx_pptx::{Presentation, PptxError, ShapePath};
+/// # use mjx_dml::{FillSpec, LineSpec};
+/// # fn f(deck: &mut Presentation, group: ShapePath, navy: FillSpec, rule: LineSpec)
+/// # -> Result<(), PptxError> {
+/// deck.shape(0, 3)?
+///     .fill(navy)             // recorded
+///     .into_group(group)?     // ← writes the fill, moves the shape, follows it
+///     .outline(rule)          // recorded against the new address
+///     .apply()?;
+/// # Ok(())
+/// # }
+/// ```
+///
 /// # What it is not
 ///
 /// It does not **read**. A getter on a cursor holding unapplied edits would answer with the state
@@ -463,6 +486,78 @@ impl<'deck> ShapeCursor<'deck> {
     }
 
     // ---------------------------------------------------------------------------------------
+    // Structure — the steps that move addresses
+    //
+    // Each of these changes which shapes there are and where they sit, so every address in flight
+    // can mean a different shape afterwards. They are therefore **commit points**: they write what
+    // has been recorded, perform the change, and re-anchor onto the shape the cursor was following.
+    // Nothing is ever applied against a tree it was not recorded against.
+    // ---------------------------------------------------------------------------------------
+
+    /// Moves this shape into the group at `group`, as its last member, and follows it there.
+    ///
+    /// A **commit point**: everything recorded so far is written first (see the [type
+    /// docs](Self)). The shape does not move on screen. Mirrors
+    /// [`Presentation::move_shape_into_group`].
+    ///
+    /// # Errors
+    /// As [`Presentation::move_shape_into_group`], plus anything the recorded edits raise as they
+    /// are written.
+    pub fn into_group(mut self, group: impl Into<ShapePath>) -> Result<Self, PptxError> {
+        self.commit()?;
+        let shape = self.path.clone();
+        self.path = self
+            .deck
+            .move_shape_into_group(self.surface, shape, group)?;
+        Ok(self)
+    }
+
+    /// Moves this shape out of the group holding it and follows it, landing directly after that
+    /// group in z-order.
+    ///
+    /// A **commit point**, as [`into_group`](Self::into_group). Mirrors
+    /// [`Presentation::move_shape_out_of_group`].
+    ///
+    /// # Errors
+    /// As [`Presentation::move_shape_out_of_group`], plus anything the recorded edits raise.
+    pub fn out_of_group(mut self) -> Result<Self, PptxError> {
+        self.commit()?;
+        let shape = self.path.clone();
+        self.path = self.deck.move_shape_out_of_group(self.surface, shape)?;
+        Ok(self)
+    }
+
+    /// Wraps this shape and `others` — all siblings of it — in a new group, and moves onto **the
+    /// group**, so what follows addresses the group rather than this shape.
+    ///
+    /// A **commit point**, as [`into_group`](Self::into_group). Nothing moves on screen. Mirrors
+    /// [`Presentation::group_shapes`].
+    ///
+    /// # Errors
+    /// As [`Presentation::group_shapes`], plus anything the recorded edits raise.
+    pub fn group_with(mut self, others: &[ShapePath]) -> Result<Self, PptxError> {
+        self.commit()?;
+        let mut members = Vec::with_capacity(others.len() + 1);
+        members.push(self.path.clone());
+        members.extend(others.iter().cloned());
+        self.path = self.deck.group_shapes(self.surface, &members)?;
+        Ok(self)
+    }
+
+    /// Dissolves the group this cursor is on, returning where its members now are.
+    ///
+    /// A **commit point**, and a terminal one: the addressed shape ceases to exist, so there is
+    /// nothing left to follow and the cursor is consumed. Mirrors [`Presentation::ungroup`].
+    ///
+    /// # Errors
+    /// As [`Presentation::ungroup`], plus anything the recorded edits raise.
+    pub fn ungroup(mut self) -> Result<Vec<ShapePath>, PptxError> {
+        self.commit()?;
+        let group = self.path.clone();
+        self.deck.ungroup(self.surface, group)
+    }
+
+    // ---------------------------------------------------------------------------------------
     // Finishing
     // ---------------------------------------------------------------------------------------
 
@@ -470,6 +565,13 @@ impl<'deck> ShapeCursor<'deck> {
     fn record(mut self, edit: ShapeEdit) -> Self {
         self.edits.push((self.path.clone(), edit));
         self
+    }
+
+    /// Writes what has been recorded and leaves the cursor empty — what a structural step does
+    /// before it moves anything, so no recorded edit ever lands on a tree it did not name.
+    fn commit(&mut self) -> Result<(), PptxError> {
+        let edits = std::mem::take(&mut self.edits);
+        self.deck.apply_shape_edits(self.surface, edits)
     }
 
     /// Writes every recorded edit, in the order it was recorded, and marks the part dirty once.
