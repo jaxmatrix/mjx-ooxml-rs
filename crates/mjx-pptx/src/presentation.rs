@@ -10,7 +10,9 @@ use mjx_dml::{
     TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody,
     TextDirection, TextFont, TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
 };
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
+use mjx_ooxml_core::{
+    FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, Symbol, ToXml,
+};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_ooxml_types::presentationml::{
@@ -1310,8 +1312,7 @@ impl Presentation {
     ) -> Result<(), PptxError> {
         let doc = self.package.part_tree_mut(part)?;
         let RawDocument { interner, root, .. } = doc;
-        let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
-            .unwrap_or_else(|| interner.intern(build::RELATIONSHIP_PREFIX));
+        let rel_prefix = relationship_prefix(root, interner);
         let shape = resolve_shape_in(root, interner, surface, path)?;
         slide::set_shape_hyperlink(shape, interner, rel_prefix, rel_id, action)
     }
@@ -2636,16 +2637,7 @@ impl Presentation {
         // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
         let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
-        let sp_pr =
-            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoGeometry)?;
-        let slot = nav::child_mut(sp_pr, interner, DML_MAIN, "prstGeom")
-            .ok_or(PptxError::ShapeHasNoGeometry)?;
-
-        let mut geom = PresetGeometry::from_xml(slot, interner)?;
-        geom.set_shape(interner, geometry);
-        // The edit lands here: rebuild the prstGeom in place, reusing the part's own interner.
-        *slot = geom.to_xml(interner);
-        Ok(())
+        slide::set_prstgeom(shape, interner, geometry)
     }
 
     /// The explicit fill of shape `shape_idx` on `surface`, as an interner-free [`FillSpec`],
@@ -2698,28 +2690,9 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         // A picture fill carries an `r:embed`, so the built element must be able to resolve the `r`
         // prefix — computed from the part root before the borrow descends into the shape tree.
-        let rel_declaration = match fill {
-            FillSpec::Blip { .. } => build::relationship_prefix_declaration(root, interner),
-            _ => None,
-        };
+        let rel_declaration = fill_relationship_declaration(fill, root, interner);
         let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
-        let sp_pr =
-            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
-
-        let mut element = fill.to_fill(interner).to_xml(interner);
-        if let Some(declaration) = rel_declaration {
-            element.attributes.push(declaration);
-        }
-        let node = RawNode::Element(element);
-        match slide::fill_child_index(sp_pr, interner) {
-            Some(index) => sp_pr.children[index] = node,
-            None => {
-                let at = slide::fill_insert_index(sp_pr, interner);
-                sp_pr.children.insert(at, node);
-                sp_pr.empty = false;
-            }
-        }
-        Ok(())
+        slide::set_fill(shape, interner, fill, rel_declaration)
     }
 
     /// Sets shape `shape_idx` on `surface` to an explicit "no fill" (`a:noFill`). A shorthand
@@ -2780,20 +2753,7 @@ impl Presentation {
         // Split the borrow: `interner` builds the outline element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
         let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
-        let sp_pr =
-            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
-
-        let element = line.to_line(interner).to_xml(interner);
-        let node = RawNode::Element(element);
-        match slide::line_child_index(sp_pr, interner) {
-            Some(index) => sp_pr.children[index] = node,
-            None => {
-                let at = slide::line_insert_index(sp_pr, interner);
-                sp_pr.children.insert(at, node);
-                sp_pr.empty = false;
-            }
-        }
-        Ok(())
+        slide::set_line(shape, interner, line)
     }
 
     /// Sets shape `shape_idx` on `surface` to an explicit "no outline" (`<a:ln><a:noFill/></a:ln>`).
@@ -2863,20 +2823,7 @@ impl Presentation {
         // Split the borrow: `interner` builds the effect element, `root` receives it.
         let RawDocument { interner, root, .. } = doc;
         let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
-        let sp_pr =
-            nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
-
-        let element = effects.to_effect_list(interner).to_xml(interner);
-        let node = RawNode::Element(element);
-        match slide::effect_child_index(sp_pr, interner) {
-            Some(index) => sp_pr.children[index] = node,
-            None => {
-                let at = slide::effect_insert_index(sp_pr, interner);
-                sp_pr.children.insert(at, node);
-                sp_pr.empty = false;
-            }
-        }
-        Ok(())
+        slide::set_effects(shape, interner, effects)
     }
 
     /// Sets shape `shape_idx` on `surface` to explicit "no effects" (an empty `<a:effectLst/>`).
@@ -4966,27 +4913,9 @@ impl Presentation {
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree_mut(&slide_part)?;
         let RawDocument { interner, root, .. } = doc;
-        let rel_prefix = nav::namespace_prefix(root, interner, SHARED_RELATIONSHIP_REFERENCE)
-            .unwrap_or_else(|| interner.intern(build::RELATIONSHIP_PREFIX));
+        let rel_prefix = relationship_prefix(root, interner);
         let picture = resolve_shape_in(root, interner, surface, &path)?;
-        let blip_fill = nav::child_mut(picture, interner, PML, "blipFill")
-            .ok_or(PptxError::PictureHasNoBlipFill)?;
-        let blip = nav::child_mut(blip_fill, interner, DML_MAIN, "blip")
-            .ok_or(PptxError::PictureHasNoBlipFill)?;
-
-        // Attribute namespaces are unresolved, so the embed/link attributes are matched by local name.
-        blip.attributes
-            .retain(|attr| interner.resolve(attr.name.local) != "link");
-        let embed = build::attr_prefixed(interner, rel_prefix, "embed", &rel_id);
-        match blip
-            .attributes
-            .iter()
-            .position(|attr| interner.resolve(attr.name.local) == "embed")
-        {
-            Some(index) => blip.attributes[index] = embed,
-            None => blip.attributes.push(embed),
-        }
-        Ok(())
+        slide::set_blip_embed(picture, interner, rel_prefix, &rel_id)
     }
 
     /// The part an image relationship of `source` points at, or `None` if there is no such
@@ -5872,6 +5801,29 @@ fn table_dimensions_of(table: &RawElement, interner: &Interner) -> (usize, usize
 /// Resolves `path` to a shape in `doc`, wrapping a miss as the typed error naming `surface`. The one
 /// read-side entry point every `shape_*` accessor shares, so the descent and the error wording live
 /// in one place.
+/// The prefix a part's root binds to the relationships namespace, or the conventional `r` when it
+/// binds none — what an `r:id` / `r:embed` attribute must be written with.
+fn relationship_prefix(part_root: &RawElement, interner: &mut Interner) -> Symbol {
+    nav::namespace_prefix(part_root, interner, SHARED_RELATIONSHIP_REFERENCE)
+        .unwrap_or_else(|| interner.intern(build::RELATIONSHIP_PREFIX))
+}
+
+/// The `xmlns:r` declaration a fill element needs, or `None` when it needs none: only a picture fill
+/// carries an `r:embed`, and only a part that does not already bind the prefix needs the declaration.
+///
+/// It is computed from the part **root**, so it must be taken before the borrow descends into the
+/// shape tree.
+fn fill_relationship_declaration(
+    fill: &FillSpec,
+    part_root: &RawElement,
+    interner: &mut Interner,
+) -> Option<RawAttribute> {
+    match fill {
+        FillSpec::Blip { .. } => build::relationship_prefix_declaration(part_root, interner),
+        _ => None,
+    }
+}
+
 fn resolve_shape_ref<'a>(
     doc: &'a RawDocument,
     surface: Surface,

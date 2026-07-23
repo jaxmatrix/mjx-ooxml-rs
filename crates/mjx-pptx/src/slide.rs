@@ -1,7 +1,10 @@
 //! Navigation of a slide's shape tree (`p:sld > p:cSld > p:spTree > p:sp > p:txBody`).
 
-use mjx_dml::{ColorMap, ColorSchemeSlot, Fill, StyleMatrixReference};
-use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode, Symbol};
+use mjx_dml::{
+    ColorMap, ColorSchemeSlot, EffectListSpec, Fill, FillSpec, LineSpec, PresetGeometry,
+    ShapeGeometry, StyleMatrixReference,
+};
+use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawNode, Symbol, ToXml};
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
@@ -902,6 +905,135 @@ pub(crate) fn effect_insert_index(sp_pr: &RawElement, interner: &Interner) -> us
                 .is_some_and(|local| AFTER_EFFECT_LOCALS.contains(&local))
         })
         .unwrap_or(sp_pr.children.len())
+}
+
+// ---------------------------------------------------------------------------------------------
+// The element edits themselves
+// ---------------------------------------------------------------------------------------------
+//
+// Each of these is the *whole* of one edit, expressed against an already-resolved shape and the
+// part's interner — nothing above them knows how the element is built or where it is inserted.
+// `Presentation`'s flat setters resolve an address and call one; the shape cursor resolves once and
+// calls several. There is exactly one implementation of each edit, and this is it.
+
+/// Writes `fill` into `shape`'s `p:spPr`, replacing an existing fill child in place or inserting a
+/// new one after any geometry and before `a:ln`.
+///
+/// `rel_declaration` is the `xmlns:r` binding a picture fill's `r:embed` needs when the part root
+/// does not already bind the relationships namespace to that prefix; it is computed from the part
+/// root (which this function cannot see) and simply stamped on the built element.
+pub(crate) fn set_fill(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    fill: &FillSpec,
+    rel_declaration: Option<RawAttribute>,
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    let mut element = fill.to_fill(interner).to_xml(interner);
+    if let Some(declaration) = rel_declaration {
+        element.attributes.push(declaration);
+    }
+    let node = RawNode::Element(element);
+    match fill_child_index(sp_pr, interner) {
+        Some(index) => sp_pr.children[index] = node,
+        None => {
+            let at = fill_insert_index(sp_pr, interner);
+            sp_pr.children.insert(at, node);
+            sp_pr.empty = false;
+        }
+    }
+    Ok(())
+}
+
+/// Writes `line` into `shape`'s `p:spPr` as its `a:ln`, replacing an existing one in place or
+/// inserting a new one after any geometry and fill, before effects.
+pub(crate) fn set_line(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    line: &LineSpec,
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    let node = RawNode::Element(line.to_line(interner).to_xml(interner));
+    match line_child_index(sp_pr, interner) {
+        Some(index) => sp_pr.children[index] = node,
+        None => {
+            let at = line_insert_index(sp_pr, interner);
+            sp_pr.children.insert(at, node);
+            sp_pr.empty = false;
+        }
+    }
+    Ok(())
+}
+
+/// Writes `effects` into `shape`'s `p:spPr` as its `a:effectLst`, replacing whichever effect
+/// container is present (an `a:effectDag` is overwritten) or inserting a new one after any geometry,
+/// fill and outline, before the 3-D and extension children.
+pub(crate) fn set_effects(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    effects: &EffectListSpec,
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    let node = RawNode::Element(effects.to_effect_list(interner).to_xml(interner));
+    match effect_child_index(sp_pr, interner) {
+        Some(index) => sp_pr.children[index] = node,
+        None => {
+            let at = effect_insert_index(sp_pr, interner);
+            sp_pr.children.insert(at, node);
+            sp_pr.empty = false;
+        }
+    }
+    Ok(())
+}
+
+/// Rewrites `shape`'s `a:prstGeom` — its shape type and adjustment `a:gd`s — from a typed
+/// [`ShapeGeometry`]. The shape must already have a preset geometry to edit.
+pub(crate) fn set_prstgeom(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    geometry: ShapeGeometry,
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoGeometry)?;
+    let slot = nav::child_mut(sp_pr, interner, DML_MAIN, "prstGeom")
+        .ok_or(PptxError::ShapeHasNoGeometry)?;
+    let mut geom = PresetGeometry::from_xml(slot, interner)?;
+    geom.set_shape(interner, geometry);
+    // The edit lands here: rebuild the prstGeom in place, reusing the part's own interner.
+    *slot = geom.to_xml(interner);
+    Ok(())
+}
+
+/// Points a picture's `p:blipFill > a:blip` at relationship `rel_id`, written with the literal
+/// `rel_prefix` bound to the relationships namespace. Any `@r:link` is dropped — the picture now
+/// embeds its image — and the rest of the `p:blipFill` (source rect, tile/stretch) is preserved.
+pub(crate) fn set_blip_embed(
+    picture: &mut RawElement,
+    interner: &mut Interner,
+    rel_prefix: Symbol,
+    rel_id: &str,
+) -> Result<(), PptxError> {
+    let blip_fill = nav::child_mut(picture, interner, PML, "blipFill")
+        .ok_or(PptxError::PictureHasNoBlipFill)?;
+    let blip = nav::child_mut(blip_fill, interner, DML_MAIN, "blip")
+        .ok_or(PptxError::PictureHasNoBlipFill)?;
+
+    // Attribute namespaces are unresolved, so the embed/link attributes are matched by local name.
+    blip.attributes
+        .retain(|attr| interner.resolve(attr.name.local) != "link");
+    let embed = build::attr_prefixed(interner, rel_prefix, "embed", rel_id);
+    match blip
+        .attributes
+        .iter()
+        .position(|attr| interner.resolve(attr.name.local) == "embed")
+    {
+        Some(index) => blip.attributes[index] = embed,
+        None => blip.attributes.push(embed),
+    }
+    Ok(())
 }
 
 #[cfg(test)]
