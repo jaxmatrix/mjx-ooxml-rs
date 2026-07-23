@@ -533,3 +533,93 @@ fn a_layouts_text_can_be_formatted_like_a_slides() {
         Some(TextAlignment::Right)
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Replacing a shape's text wholesale
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn setting_a_shapes_text_content_round_trips_line_for_line() {
+    // One paragraph per line, one run per paragraph — so what `shape_text` reads back is exactly
+    // what was written, and every line is addressable as run 0 of its paragraph.
+    let (mut pres, shape) = deck_with_lines();
+    pres.set_shape_text_content(0, shape, "alpha\nbeta")
+        .expect("set text content");
+
+    assert_eq!(pres.shape_text(0, shape).expect("text"), "alpha\nbeta");
+    assert_eq!(pres.paragraph_count(0, shape).expect("paragraphs"), 2);
+    assert_eq!(pres.run_count(0, shape, 1).expect("runs"), 1);
+    assert_eq!(pres.run_text(0, shape, 1, 0).expect("run"), "beta");
+}
+
+#[test]
+fn replacing_the_text_keeps_the_bodys_own_layout() {
+    // Only the paragraphs are swapped: `a:bodyPr` (and `a:lstStyle`) survive, so restating a
+    // placeholder's text does not disturb how that placeholder is laid out.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let before = String::from_utf8(
+        Package::open(&fixture("sample.pptx"))
+            .expect("package")
+            .entries()
+            .iter()
+            .find(|e| e.name == "ppt/slides/slide1.xml")
+            .and_then(|e| e.bytes())
+            .expect("slide bytes")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    let body_pr_before = before.matches("<a:bodyPr").count();
+
+    pres.set_shape_text_content(0, 0, "replaced").expect("set");
+    let saved = pres.save().expect("save");
+    let after = String::from_utf8(
+        Package::open(&saved)
+            .expect("package")
+            .entries()
+            .iter()
+            .find(|e| e.name == "ppt/slides/slide1.xml")
+            .and_then(|e| e.bytes())
+            .expect("slide bytes")
+            .to_vec(),
+    )
+    .expect("utf-8");
+
+    assert_eq!(
+        after.matches("<a:bodyPr").count(),
+        body_pr_before,
+        "no body properties element is added or dropped"
+    );
+    assert!(after.contains("replaced"));
+}
+
+#[test]
+fn only_a_shape_can_be_given_a_text_body() {
+    // A picture, a group, a graphic frame and a connector have no `p:txBody` in their schema, so
+    // there is nothing to replace and nothing may be created.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    let group = mjx_pptx::Surface::Slide(1);
+    assert!(matches!(
+        pres.set_shape_text_content(group, 2, "nope"),
+        Err(PptxError::ShapeHasNoTextBody)
+    ));
+}
+
+#[test]
+fn replacing_the_text_dirties_only_that_slide() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let original = byte_map(&Package::open(&fixture("sample.pptx")).expect("package"));
+    pres.set_shape_text_content(0, 0, "one edit").expect("set");
+    let saved = pres.save().expect("save");
+
+    let reopened = byte_map(&Package::open(&saved).expect("reopen"));
+    for (name, bytes) in &original {
+        if name == "ppt/slides/slide1.xml" {
+            continue;
+        }
+        assert_eq!(
+            reopened.get(name),
+            Some(bytes),
+            "part {name} must be byte-identical"
+        );
+    }
+}
