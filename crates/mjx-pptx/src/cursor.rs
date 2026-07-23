@@ -1,73 +1,7 @@
 //! [`ShapeCursor`] — one shape, addressed once, edited fluently.
 //!
-//! The flat API states an address on every call, which is right when a caller means one thing and
-//! wrong the moment they mean several. Restyling a member of a group reads as a column of calls, each
-//! repeating the surface and the path, each re-resolving the shape tree:
-//!
-//! ```no_run
-//! # use mjx_pptx::{Presentation, PptxError};
-//! # use mjx_dml::{FillSpec, LineSpec};
-//! # fn f(deck: &mut Presentation, navy: FillSpec, rule: LineSpec) -> Result<(), PptxError> {
-//! deck.set_shape_fill(0, [2, 0], &navy)?;
-//! deck.set_shape_outline(0, [2, 0], &rule)?;
-//! deck.set_shape_text_content(0, [2, 0], "Q3")?;
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! A cursor says the address once and the edits after it. `.member(i)` descends into a group,
-//! `.sibling(i)` moves across to another member of the same container, and `.parent()` steps back
-//! out — so a whole group is restyled in one expression:
-//!
-//! ```no_run
-//! # use mjx_pptx::{Presentation, PptxError};
-//! # use mjx_dml::{CharacterPropertiesSpec, EffectListSpec, FillSpec, LineSpec};
-//! # fn f(
-//! #     deck: &mut Presentation,
-//! #     navy: FillSpec,
-//! #     gold: FillSpec,
-//! #     rule: LineSpec,
-//! #     shadow: EffectListSpec,
-//! #     bold: CharacterPropertiesSpec,
-//! # ) -> Result<(), PptxError> {
-//! deck.shape(0, 2)?                                  // the group at top-level index 2
-//!     .effects(shadow)
-//!     .member(0)?.fill(navy).outline(rule)           // its first member
-//!     .sibling(1)?.fill(gold).text("Q3").all_run_properties(bold)
-//!     .apply()?;                                     // one resolve pass, one dirty part
-//! # Ok(())
-//! # }
-//! ```
-//!
-//! # What a cursor is
-//!
-//! It **records intent**. An edit method returns the cursor and writes nothing; [`apply`] consumes it,
-//! resolves every recorded address once and applies the edits **in the order they were recorded**,
-//! marking the part dirty exactly once. Dropping a cursor without applying it changes nothing at all
-//! — which is why it is `#[must_use]`.
-//!
-//! Every edit it records is executed by the same code the corresponding `Presentation::set_shape_*`
-//! method calls; a cursor is a way of *saying* the edits, never a second way of *doing* them. Each
-//! method below names the flat method it mirrors.
-//!
-//! The cursor holds only `(surface, path)` — never a borrowed element — so navigating is free and
-//! nothing is pinned between edits. Edits stay bound to the address they were recorded at, so one
-//! `.apply()` commits work spread over a group and its members.
-//!
-//! # What it is not
-//!
-//! It does not **read**. A getter on a cursor holding unapplied edits would answer with the state
-//! before them, which is a trap; reads stay on [`Presentation`], which always answers about the file
-//! as it is. The exceptions are the three questions navigation itself needs —
-//! [`kind`](ShapeCursor::kind), [`member_count`](ShapeCursor::member_count) and
-//! [`path`](ShapeCursor::path).
-//!
-//! Hyperlinks on a **run** or a text range are addressed by paragraph and run rather than by shape,
-//! and stay on the flat API ([`Presentation::set_run_hyperlink`],
-//! [`Presentation::set_text_range_hyperlink`]). A cursor's [`hyperlink`](ShapeCursor::hyperlink) is
-//! the link on the shape itself.
-//!
-//! [`apply`]: ShapeCursor::apply
+//! The type carries the documentation, since it is what a reader of this crate sees; this module is
+//! private and holds only it and the [`ShapeEdit`] intent it records.
 
 use mjx_dml::{
     CharacterPropertiesSpec, EffectListSpec, FillSpec, LineSpec, ParagraphPropertiesSpec,
@@ -161,10 +95,73 @@ impl ShapeEdit {
     }
 }
 
-/// A shape addressed once and edited fluently — see the [module docs](self).
+/// One shape, addressed once and edited fluently.
 ///
-/// Open one with [`Presentation::shape`], record edits, and finish with [`apply`](Self::apply).
-/// Nothing is written until then.
+/// The flat API states an address on every call, which is right when a caller means one thing and
+/// wrong the moment they mean several. Restyling a member of a group reads as a column of calls, each
+/// repeating the surface and the path, each re-resolving the shape tree:
+///
+/// ```no_run
+/// # use mjx_pptx::{Presentation, PptxError};
+/// # use mjx_dml::{FillSpec, LineSpec};
+/// # fn f(deck: &mut Presentation, navy: FillSpec, rule: LineSpec) -> Result<(), PptxError> {
+/// deck.set_shape_fill(0, [2, 0], &navy)?;
+/// deck.set_shape_outline(0, [2, 0], &rule)?;
+/// deck.set_shape_text_content(0, [2, 0], "Q3")?;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// A cursor says the address once and the edits after it. [`member(i)`](Self::member) descends into a
+/// group, [`sibling(i)`](Self::sibling) moves across to another member of the same container, and
+/// [`parent()`](Self::parent) steps back out — so a whole group is restyled in one expression:
+///
+/// ```no_run
+/// # use mjx_pptx::{Presentation, PptxError};
+/// # use mjx_dml::{CharacterPropertiesSpec, EffectListSpec, FillSpec, LineSpec};
+/// # fn f(
+/// #     deck: &mut Presentation,
+/// #     navy: FillSpec,
+/// #     gold: FillSpec,
+/// #     rule: LineSpec,
+/// #     shadow: EffectListSpec,
+/// #     bold: CharacterPropertiesSpec,
+/// # ) -> Result<(), PptxError> {
+/// deck.shape(0, 2)?                                  // the group at top-level index 2
+///     .effects(shadow)
+///     .member(0)?.fill(navy).outline(rule)           // its first member
+///     .sibling(1)?.fill(gold).text("Q3").all_run_properties(bold)
+///     .apply()?;                                     // one write pass, one dirty part
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # What a cursor is
+///
+/// It **records intent**. An edit method returns the cursor and writes nothing; [`apply`](Self::apply)
+/// consumes it and applies the edits **in the order they were recorded**, marking the part dirty
+/// exactly once. Dropping a cursor without applying it changes nothing at all — which is why it is
+/// `#[must_use]`.
+///
+/// Every edit it records is executed by the same code the corresponding `Presentation::set_shape_*`
+/// method calls; a cursor is a way of *saying* the edits, never a second way of *doing* them. Each
+/// method below names the flat method it mirrors.
+///
+/// The cursor holds only `(surface, path)` — never a borrowed element — so navigating is free and
+/// nothing is pinned between edits. Edits stay bound to the address they were recorded at, so one
+/// `.apply()` commits work spread over a group and its members.
+///
+/// # What it is not
+///
+/// It does not **read**. A getter on a cursor holding unapplied edits would answer with the state
+/// before them, which is a trap; reads stay on [`Presentation`], which always answers about the file
+/// as it is. The exceptions are the three questions navigation itself needs — [`kind`](Self::kind),
+/// [`member_count`](Self::member_count) and [`path`](Self::path).
+///
+/// Hyperlinks on a **run** or a text range are addressed by paragraph and run rather than by shape,
+/// and stay on the flat API ([`Presentation::set_run_hyperlink`],
+/// [`Presentation::set_text_range_hyperlink`]). A cursor's [`hyperlink`](Self::hyperlink) is the link
+/// on the shape itself.
 #[derive(Debug)]
 #[must_use = "a ShapeCursor only records edits; call .apply() to write them"]
 pub struct ShapeCursor<'deck> {
