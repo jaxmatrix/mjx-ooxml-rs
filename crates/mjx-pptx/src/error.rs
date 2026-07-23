@@ -115,6 +115,28 @@ pub enum PptxError {
         count: usize,
     },
 
+    /// A descent was asked for into a shape that is not a group (`p:grpSp`), so it has no members.
+    ///
+    /// Only a group holds member shapes; every other kind is a leaf of the shape tree. Ask
+    /// [`shape_kind`](crate::Presentation::shape_kind) what an address is before descending into it.
+    #[error("shape {path} on {surface} is not a group")]
+    ShapeIsNotAGroup {
+        /// The surface addressed.
+        surface: Surface,
+        /// The address of the shape that was descended into.
+        path: crate::address::ShapePath,
+    },
+
+    /// An ascent was asked for from a top-level shape, which has no parent group — the shape tree
+    /// itself is not a shape.
+    #[error("shape {path} on {surface} is top-level and has no parent group")]
+    ShapeHasNoParent {
+        /// The surface addressed.
+        surface: Surface,
+        /// The address of the top-level shape.
+        path: crate::address::ShapePath,
+    },
+
     /// A paragraph index was out of range within the shape's text body.
     #[error("paragraph index {index} out of range in shape (0..{count})")]
     ParagraphIndexOutOfRange {

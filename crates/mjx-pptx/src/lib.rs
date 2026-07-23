@@ -29,10 +29,30 @@
 //! # Ok(())
 //! # }
 //! ```
+//!
+//! # Editing one shape several ways
+//!
+//! Each `set_shape_*` method states the address again, which reads badly once a caller means more
+//! than one thing. [`Presentation::shape`] opens a [`ShapeCursor`] instead: the address once, the
+//! edits after it, applied together in one pass over the part — with `.member(i)` / `.sibling(i)` /
+//! `.parent()` to move around a group while doing it.
+//!
+//! ```no_run
+//! # use mjx_pptx::{Presentation, PptxError};
+//! # use mjx_dml::{FillSpec, LineSpec};
+//! # fn f(deck: &mut Presentation, navy: FillSpec, gold: FillSpec) -> Result<(), PptxError> {
+//! deck.shape(0, 2)?                    // the group at top-level index 2
+//!     .member(0)?.fill(navy)
+//!     .sibling(1)?.fill(gold).text("Q3")
+//!     .apply()?;
+//! # Ok(())
+//! # }
+//! ```
 
 mod address;
 mod build;
 pub mod constants;
+mod cursor;
 mod error;
 mod geometry;
 mod hyperlink;
@@ -43,6 +63,7 @@ mod surface;
 mod table;
 
 pub use address::ShapePath;
+pub use cursor::ShapeCursor;
 pub use error::PptxError;
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
