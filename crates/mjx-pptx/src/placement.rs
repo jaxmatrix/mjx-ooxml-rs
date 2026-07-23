@@ -160,6 +160,75 @@ pub(crate) fn to_child_space(
     })
 }
 
+/// What a shape must state, at `path`, to render exactly where `absolute` says — the full inverse of
+/// [`compose`], orientation included.
+///
+/// [`to_child_space`] answers this for the rectangle alone, which is all
+/// [`set_shape_bounds`](crate::Presentation::set_shape_bounds) ever has in hand. Moving a shape
+/// between groups needs the rest of it: the new ancestors contribute their own rotation and mirrors,
+/// so the shape's own must be adjusted to cancel them or it turns and flips as it lands.
+///
+/// The returned transform keeps `absolute`'s child coordinate space verbatim — a group carries its
+/// members' space with it wherever it is moved.
+///
+/// `None` under the same conditions as [`compose`].
+pub(crate) fn restate(
+    sp_tree: &RawElement,
+    interner: &Interner,
+    path: &ShapePath,
+    absolute: &Transform2D,
+) -> Option<Transform2D> {
+    let bounds = ShapeBounds::from_transform(absolute)?;
+    let stated = to_child_space(sp_tree, interner, path, bounds)?;
+    let ancestors = ancestors(sp_tree, interner, path)?;
+
+    // The ancestors rotate by their sum and mirror by their exclusive or, so cancelling them is a
+    // subtraction and a second exclusive or.
+    let inherited_rotation: f64 = ancestors
+        .iter()
+        .filter_map(|group| group.rotation)
+        .map(|angle| angle.radians())
+        .sum();
+    let rotation = match absolute.rotation {
+        Some(angle) => Some(mjx_dml::Angle::from_radians(
+            angle.radians() - inherited_rotation,
+        )),
+        // Nothing stated a rotation, but an ancestor turns the shape: state the cancelling angle.
+        None if inherited_rotation != 0.0 => {
+            Some(mjx_dml::Angle::from_radians(-inherited_rotation))
+        }
+        None => None,
+    };
+
+    Some(Transform2D {
+        position: Some(Position::from_emu(stated.offset_x_emu, stated.offset_y_emu)),
+        size: Some(Size::from_emu(stated.width_emu, stated.height_emu)),
+        rotation,
+        flip_horizontal: cancel_flip(absolute.flip_horizontal, &ancestors, |g| g.flip_horizontal),
+        flip_vertical: cancel_flip(absolute.flip_vertical, &ancestors, |g| g.flip_vertical),
+        child_position: absolute.child_position,
+        child_size: absolute.child_size,
+    })
+}
+
+/// The flip a shape must state so that, mirrored again by its ancestors, it ends up as `absolute`
+/// says. Mirroring is its own inverse, so cancelling is the same exclusive or that composed it.
+fn cancel_flip(
+    absolute: Option<bool>,
+    ancestors: &[Transform2D],
+    field: fn(&Transform2D) -> Option<bool>,
+) -> Option<bool> {
+    let inherited = ancestors
+        .iter()
+        .filter_map(field)
+        .fold(false, |acc, flip| acc ^ flip);
+    match absolute {
+        Some(flip) => Some(flip ^ inherited),
+        None if inherited => Some(inherited),
+        None => None,
+    }
+}
+
 /// Multiplies a length by a scale factor, rounding to whole EMU and saturating rather than wrapping.
 fn scale_length(length: i64, scale: f64) -> i64 {
     let scaled = (length as f64 * scale).round();

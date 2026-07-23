@@ -143,6 +143,54 @@ pub enum PptxError {
         path: crate::address::ShapePath,
     },
 
+    /// Shapes that do not share a container were asked to be grouped, or one was named twice.
+    ///
+    /// A group takes one place in the tree, so its members must all come from one place. Move a
+    /// shape next to the others first
+    /// ([`move_shape_out_of_group`](crate::Presentation::move_shape_out_of_group)).
+    #[error("shape {path} on {surface} is not a sibling of the others, or was named twice")]
+    ShapesAreNotSiblings {
+        /// The surface addressed.
+        surface: Surface,
+        /// The address that does not belong with the rest.
+        path: crate::address::ShapePath,
+    },
+
+    /// Fewer than two shapes were asked to be grouped.
+    ///
+    /// ECMA-376 Part 1 §L.4.7.4: a group with no shapes is degenerate and produces no visible
+    /// output, and one with a single shape "has no representational power beyond that of the one
+    /// shape".
+    #[error("a group needs at least two shapes, not {count}")]
+    GroupNeedsTwoShapes {
+        /// The surface addressed.
+        surface: Surface,
+        /// How many shapes were named.
+        count: usize,
+    },
+
+    /// A shape was asked to be moved inside itself, or inside a group it contains.
+    #[error("shape {path} on {surface} cannot be moved inside itself")]
+    ShapeCannotContainItself {
+        /// The surface addressed.
+        surface: Surface,
+        /// The address of the shape being moved.
+        path: crate::address::ShapePath,
+    },
+
+    /// A shape that states no position and size of its own was asked to join a group, which has no
+    /// box to compute without it.
+    ///
+    /// A placeholder inheriting its bounds is the usual case; give it explicit bounds with
+    /// [`set_shape_bounds`](crate::Presentation::set_shape_bounds) first.
+    #[error("shape {path} on {surface} states no bounds of its own")]
+    ShapeHasNoBounds {
+        /// The surface addressed.
+        surface: Surface,
+        /// The address of the shape.
+        path: crate::address::ShapePath,
+    },
+
     /// An ascent was asked for from a top-level shape, which has no parent group — the shape tree
     /// itself is not a shape.
     #[error("shape {path} on {surface} is top-level and has no parent group")]
