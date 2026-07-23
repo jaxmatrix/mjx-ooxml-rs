@@ -29,7 +29,7 @@ use crate::slide::GraphicFrameKind;
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
-use crate::{build, constants, nav, placement, slide};
+use crate::{build, constants, group, nav, placement, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
 /// ordered list of slide parts.
@@ -4034,7 +4034,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
 
-        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let next_id = slide::max_cnvpr_id(sp_tree, interner).max(1) + 1;
         let shape = build_text_box(interner, next_id, text, bounds);
         sp_tree.children.push(RawNode::Element(shape));
         sp_tree.empty = false;
@@ -4068,7 +4068,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
 
-        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let next_id = slide::max_cnvpr_id(sp_tree, interner).max(1) + 1;
         let shape = build_shape(interner, next_id, preset.to_wire(), bounds);
         sp_tree.children.push(RawNode::Element(shape));
         sp_tree.empty = false;
@@ -4108,6 +4108,127 @@ impl Presentation {
             parent.children.remove(position - 1);
         }
         Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Group structure — which shapes there are, and where they sit in the tree
+    //
+    // Everything above edits a shape once it has been found. These four change the tree itself, so
+    // they move addresses: after any of them, an index taken beforehand may name a different shape.
+    // Each preserves what the slide *looks* like — a shape that changes parent changes coordinate
+    // system, and its transform is restated so it does not move a pixel.
+    // -----------------------------------------------------------------------------------------
+
+    /// Wraps `members` — which must be siblings — in a new group, returning the group's address.
+    ///
+    /// This is "select these shapes and group them". The group's box is the union of the members'
+    /// own boxes, and its child coordinate space is set identical to it, so the mapping is the
+    /// identity: **the members keep their coordinates exactly** and nothing moves on screen, with no
+    /// rounding anywhere. The group takes the z-order position of the earliest member, and the
+    /// members keep their relative order inside it whatever order they were named in.
+    ///
+    /// Address the members afterwards through the returned path — `group.child(0)` is the first.
+    ///
+    /// ```no_run
+    /// # use mjx_pptx::{Presentation, PptxError};
+    /// # use mjx_dml::FillSpec;
+    /// # fn f(deck: &mut Presentation, navy: FillSpec) -> Result<(), PptxError> {
+    /// let group = deck.group_shapes(0, &[1.into(), 2.into()])?;
+    /// deck.set_shape_fill(0, group.child(0), &navy)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`GroupNeedsTwoShapes`](PptxError::GroupNeedsTwoShapes) for fewer than two members
+    /// (ECMA-376 Part 1 §L.4.7.4 calls a smaller group degenerate),
+    /// [`ShapesAreNotSiblings`](PptxError::ShapesAreNotSiblings) if they do not share a container or
+    /// one is named twice, [`ShapeHasNoBounds`](PptxError::ShapeHasNoBounds) for a member that states
+    /// no position and size of its own, or another [`PptxError`] if an address is out of range or the
+    /// part is malformed.
+    pub fn group_shapes(
+        &mut self,
+        surface: impl Into<Surface>,
+        members: &[ShapePath],
+    ) -> Result<ShapePath, PptxError> {
+        let surface = surface.into();
+        let part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        group::group_shapes(root, interner, surface, members)
+    }
+
+    /// Dissolves the group at `shape_idx`, returning where its members now are.
+    ///
+    /// The inverse of [`group_shapes`](Self::group_shapes): every member keeps its absolute
+    /// placement, because the group's mapping is unwound into each member's own transform. The
+    /// members take the group's place in z-order, in the order they were in it.
+    ///
+    /// # Errors
+    /// Returns [`ShapeIsNotAGroup`](PptxError::ShapeIsNotAGroup) if the address is not a `p:grpSp`,
+    /// or another [`PptxError`] if it is out of range or the part is malformed.
+    pub fn ungroup(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Vec<ShapePath>, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        group::ungroup(root, interner, surface, &path)
+    }
+
+    /// Moves shape `shape_idx` into the group at `group_idx`, as its last member, and returns its
+    /// new address.
+    ///
+    /// The shape does not move on screen: its transform is restated for the group's coordinate
+    /// space, mirrors and rotation included, so joining a scaled, turned or flipped group leaves it
+    /// exactly where it was.
+    ///
+    /// # Errors
+    /// Returns [`ShapeIsNotAGroup`](PptxError::ShapeIsNotAGroup) if the destination is not a group,
+    /// [`ShapeCannotContainItself`](PptxError::ShapeCannotContainItself) if the destination is the
+    /// shape or something inside it, [`ShapeCannotBePlaced`](PptxError::ShapeCannotBePlaced) if the
+    /// group states no child coordinate space, or another [`PptxError`] if an address is out of range
+    /// or the part is malformed.
+    pub fn move_shape_into_group(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        group_idx: impl Into<ShapePath>,
+    ) -> Result<ShapePath, PptxError> {
+        let surface = surface.into();
+        let shape = shape_idx.into();
+        let group = group_idx.into();
+        let part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        group::move_into_group(root, interner, surface, &shape, &group)
+    }
+
+    /// Moves shape `shape_idx` out of the group holding it, into that group's own container and
+    /// directly after it in z-order. Returns its new address.
+    ///
+    /// The shape does not move on screen, as with
+    /// [`move_shape_into_group`](Self::move_shape_into_group).
+    ///
+    /// # Errors
+    /// Returns [`ShapeHasNoParent`](PptxError::ShapeHasNoParent) for a top-level shape, which is not
+    /// inside anything, or another [`PptxError`] if the address is out of range or the part is
+    /// malformed.
+    pub fn move_shape_out_of_group(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<ShapePath, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        group::move_out_of_group(root, interner, surface, &path)
     }
 
     /// Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0, and
@@ -4357,7 +4478,7 @@ impl Presentation {
         let rel_declaration = build::relationship_prefix_declaration(root, interner);
         let sp_tree = slide::sp_tree_mut(root, interner)?;
 
-        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let next_id = slide::max_cnvpr_id(sp_tree, interner).max(1) + 1;
         let picture = build_picture(interner, next_id, &rel_id, bounds, rel_declaration);
         sp_tree.children.push(RawNode::Element(picture));
         sp_tree.empty = false;
@@ -4407,7 +4528,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let sp_tree = slide::sp_tree_mut(root, interner)?;
 
-        let next_id = max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let next_id = slide::max_cnvpr_id(sp_tree, interner).max(1) + 1;
         let frame = build_table_frame(interner, next_id, rows, columns, bounds);
         sp_tree.children.push(RawNode::Element(frame));
         sp_tree.empty = false;
@@ -6861,34 +6982,6 @@ fn image_number(part: &str, dir: &str) -> Option<u32> {
     let name = part.strip_prefix(dir)?.strip_prefix("image")?;
     let digits = &name[..name.find('.').unwrap_or(name.len())];
     digits.parse::<u32>().ok()
-}
-
-/// The largest `p:cNvPr@id` anywhere under `sp_tree` (0 if none). Non-visual ids are unique per
-/// slide, so the next free id is one past this maximum.
-fn max_cnvpr_id(sp_tree: &RawElement, interner: &Interner) -> u32 {
-    fn walk(element: &RawElement, interner: &Interner, max: &mut u32) {
-        if nav::name_is(&element.name, interner, PML, "cNvPr") {
-            if let Some(id) = element
-                .attributes
-                .iter()
-                .find(|attr| {
-                    attr.name.prefix.is_none() && interner.resolve(attr.name.local) == "id"
-                })
-                .and_then(|attr| std::str::from_utf8(&attr.value).ok())
-                .and_then(|value| value.parse::<u32>().ok())
-            {
-                *max = (*max).max(id);
-            }
-        }
-        for child in &element.children {
-            if let RawNode::Element(child) = child {
-                walk(child, interner, max);
-            }
-        }
-    }
-    let mut max = 0;
-    walk(sp_tree, interner, &mut max);
-    max
 }
 
 /// Builds a plain text-box `p:sp` with non-visual id `id`, laid out at `bounds`, whose text body

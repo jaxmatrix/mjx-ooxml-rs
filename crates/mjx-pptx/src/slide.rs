@@ -907,6 +907,34 @@ pub(crate) fn effect_insert_index(sp_pr: &RawElement, interner: &Interner) -> us
         .unwrap_or(sp_pr.children.len())
 }
 
+/// The largest `p:cNvPr@id` anywhere under `sp_tree` (0 if none). Non-visual ids are unique per
+/// slide, so the next free id is one past this maximum.
+pub(crate) fn max_cnvpr_id(sp_tree: &RawElement, interner: &Interner) -> u32 {
+    fn walk(element: &RawElement, interner: &Interner, max: &mut u32) {
+        if nav::name_is(&element.name, interner, PML, "cNvPr") {
+            if let Some(id) = element
+                .attributes
+                .iter()
+                .find(|attr| {
+                    attr.name.prefix.is_none() && interner.resolve(attr.name.local) == "id"
+                })
+                .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+                .and_then(|value| value.parse::<u32>().ok())
+            {
+                *max = (*max).max(id);
+            }
+        }
+        for child in &element.children {
+            if let RawNode::Element(child) = child {
+                walk(child, interner, max);
+            }
+        }
+    }
+    let mut max = 0;
+    walk(sp_tree, interner, &mut max);
+    max
+}
+
 // ---------------------------------------------------------------------------------------------
 // The element edits themselves
 // ---------------------------------------------------------------------------------------------

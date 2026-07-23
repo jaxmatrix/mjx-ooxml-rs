@@ -61,6 +61,29 @@ impl ShapePath {
     pub fn is_top_level(&self) -> bool {
         self.depth() == 1
     }
+
+    /// The address of member `index` of the group this addresses — one step deeper.
+    ///
+    /// What a caller does with the group returned by
+    /// [`group_shapes`](crate::Presentation::group_shapes): `group.child(0)` addresses its first
+    /// member, wherever the group itself sits.
+    #[must_use]
+    pub fn child(&self, index: usize) -> Self {
+        let mut indices = self.indices().to_vec();
+        indices.push(index);
+        Self::from(indices)
+    }
+
+    /// The address of the group this shape is a member of, or `None` for a top-level shape — the
+    /// shape tree is not itself a shape.
+    #[must_use]
+    pub fn parent(&self) -> Option<Self> {
+        let indices = self.indices();
+        match indices.len() {
+            0 | 1 => None,
+            len => Some(Self::from(&indices[..len - 1])),
+        }
+    }
 }
 
 impl From<usize> for ShapePath {

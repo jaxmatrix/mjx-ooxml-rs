@@ -54,6 +54,24 @@ impl ShapeBounds {
         }
     }
 
+    /// The smallest rectangle containing both — what a group's box is, since ECMA-376 Part 1
+    /// §L.4.7.4 defines a group's child bounding box as the union of its members' boxes taken before
+    /// their individual rotations.
+    #[must_use]
+    pub fn union(self, other: Self) -> Self {
+        let left = self.offset_x_emu.min(other.offset_x_emu);
+        let top = self.offset_y_emu.min(other.offset_y_emu);
+        let right = (self.offset_x_emu + self.width_emu).max(other.offset_x_emu + other.width_emu);
+        let bottom =
+            (self.offset_y_emu + self.height_emu).max(other.offset_y_emu + other.height_emu);
+        Self {
+            offset_x_emu: left,
+            offset_y_emu: top,
+            width_emu: right - left,
+            height_emu: bottom - top,
+        }
+    }
+
     /// The bounds a [`Transform2D`] describes, or `None` unless it carries **both** an `a:off` and an
     /// `a:ext` — bounds are all four numbers, and a transform that names only one of the two does not
     /// place the shape on its own.

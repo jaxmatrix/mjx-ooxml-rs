@@ -55,6 +55,7 @@ pub mod constants;
 mod cursor;
 mod error;
 mod geometry;
+mod group;
 mod hyperlink;
 mod nav;
 mod placement;
