@@ -15,6 +15,49 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.29] - 2026-07-24
+
+Group descent, part 4 — **group structure**, and with it the group workstream is complete. A
+`p:grpSp` is now addressable, measurable, editable *and* something a caller can make, dissolve and
+move shapes through.
+
+```rust
+let group = deck.group_shapes(0, &[1.into(), 2.into()])?;  // select these, group them
+deck.move_shape_into_group(0, 3, &group)?;                 // and take that one too
+deck.set_shape_fill(0, group.child(0), &navy)?;
+```
+
+### Added
+
+- **`Presentation::group_shapes(surface, members)`** — wraps sibling shapes in a new group, returning
+  its [`ShapePath`]. The group's box is the union of the members' own boxes (how ECMA-376 Part 1
+  §L.4.7.4 defines a child bounding box) and its child space is set **identical** to it, so the
+  mapping is the identity: the members keep their coordinates exactly, with no rounding anywhere. The
+  group takes the earliest member's z-order slot, and the members keep their relative order inside it
+  whatever order they were named in.
+- **`Presentation::ungroup(surface, group)`** — dissolves a group, returning where its members now
+  are. Each keeps its absolute placement, the group's mapping unwound into its own transform.
+- **`Presentation::move_shape_into_group` / `move_shape_out_of_group`** — move one shape one level,
+  in or out. The shape does not move on screen: its transform is restated for its new coordinate
+  system, **mirrors and rotation included**, so joining a scaled, turned or flipped group leaves it
+  exactly where it was.
+- **`ShapeCursor::into_group` / `out_of_group` / `group_with` / `ungroup`** — the same, said mid-chain
+  and following the shape. Each is a **commit point**: it writes what has been recorded so far,
+  performs the change, then re-anchors, so no recorded edit is ever applied against a tree it was not
+  recorded against.
+- **`ShapePath::child` / `parent`** — step down to a member or up to the enclosing group, which is
+  how the group returned by `group_shapes` is addressed.
+- **`ShapeBounds::union`** — the smallest rectangle containing both.
+- `PptxError::GroupNeedsTwoShapes`, `ShapesAreNotSiblings`, `ShapeCannotContainItself`,
+  `ShapeHasNoBounds`.
+
+### Notes
+
+There is deliberately **no empty-group constructor**. §L.4.7.4 records that a group with no shapes is
+degenerate and produces no visible output, and one with a single shape "has no representational power
+beyond that of the one shape" — and an empty group has no honest `chOff`/`chExt` to be given. Every
+group these create is well-formed by construction.
+
 ## [0.0.28] - 2026-07-24
 
 Group descent, part 3 — a group member now says **where it is on the slide**. Addressing it, styling
