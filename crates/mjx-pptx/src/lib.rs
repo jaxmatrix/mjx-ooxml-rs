@@ -57,6 +57,7 @@ mod error;
 mod geometry;
 mod hyperlink;
 mod nav;
+mod placement;
 mod presentation;
 mod slide;
 mod surface;

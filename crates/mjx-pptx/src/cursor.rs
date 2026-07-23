@@ -32,9 +32,12 @@ pub(crate) enum ShapeEdit {
     Effects(Box<EffectListSpec>),
     /// `set_shape_geometry`.
     Geometry(ShapeGeometry),
-    /// `set_shape_transform` — and `set_shape_bounds`, which is a transform naming only offset and
-    /// extent.
+    /// `set_shape_transform` — written verbatim, in the shape's own coordinate space.
     Transform(Transform2D),
+    /// `set_shape_bounds` — slide-absolute, so for a group member it is mapped back through the
+    /// enclosing groups before it is written. Distinct from [`Transform`](ShapeEdit::Transform)
+    /// precisely because the two are in different spaces.
+    Bounds(ShapeBounds),
     /// `set_shape_text_content`.
     Text(String),
     /// `set_run_properties`.
@@ -331,14 +334,17 @@ impl<'deck> ShapeCursor<'deck> {
         self.record(ShapeEdit::Geometry(geometry))
     }
 
-    /// Moves and resizes the shape. Mirrors [`Presentation::set_shape_bounds`] — only offset and
-    /// extent are written, so a rotation or a group's child coordinate space is left alone.
+    /// Moves and resizes the shape, in **slide** coordinates. Mirrors
+    /// [`Presentation::set_shape_bounds`] — only offset and extent are written, so a rotation or a
+    /// group's child coordinate space is left alone, and a group member's rectangle is mapped back
+    /// through its enclosing groups on the way in.
     pub fn bounds(self, bounds: ShapeBounds) -> Self {
-        self.record(ShapeEdit::Transform(bounds.to_transform()))
+        self.record(ShapeEdit::Bounds(bounds))
     }
 
-    /// Applies a transform to the shape. Mirrors [`Presentation::set_shape_transform`] — only the
-    /// fields the transform names are written.
+    /// Applies a transform to the shape, in the shape's **own** coordinate space — the child space of
+    /// its group, for a member. Mirrors [`Presentation::set_shape_transform`] — only the fields the
+    /// transform names are written.
     pub fn transform(self, transform: Transform2D) -> Self {
         self.record(ShapeEdit::Transform(transform))
     }
