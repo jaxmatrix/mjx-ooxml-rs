@@ -15,6 +15,53 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.27] - 2026-07-24
+
+Group descent, part 2 — the **shape cursor**: a shape is addressed once and edited fluently, and a
+group is restyled in one expression.
+
+```rust
+deck.shape(0, 2)?                                  // the group at top-level index 2
+    .effects(shadow)
+    .member(0)?.fill(navy).outline(rule)           // its first member
+    .sibling(1)?.fill(gold).text("Q3").all_run_properties(bold)
+    .apply()?;                                     // one write pass, one dirty part
+```
+
+### Added
+
+- **`Presentation::shape(surface, path)` → `ShapeCursor`** — the ergonomic layer over the
+  `set_shape_*` methods. Edit methods record intent and return the cursor; `.apply()` consumes it,
+  writes every edit in the order it was recorded, and marks the part dirty once. A cursor that is
+  never applied changes nothing, so it is `#[must_use]`. Every edit it records is executed by the
+  code the mirrored flat method calls — a cursor is a way of *saying* the edits, not a second way of
+  doing them.
+- **Moving through a group** — `.member(i)` descends into a `p:grpSp`, `.sibling(i)` moves to another
+  shape in the same container, `.parent()` steps back out; `.kind()`, `.member_count()` and `.path()`
+  say where the cursor is. Each move checks the address as it lands, so a bad one fails where it was
+  written. Recorded edits stay bound to the address they were recorded at, so one `.apply()` commits
+  work spread over a group and its members.
+- **What a cursor records** — the `p:spPr` surface (`fill` / `no_fill`, `outline` / `no_outline`,
+  `effects` / `no_effects`, `geometry`, `bounds`, `transform`), `text`, the text-formatting specs
+  (`run_properties`, `paragraph_run_properties`, `all_run_properties`, `end_run_properties`,
+  `paragraph_properties`, `text_range_properties` and its `_by_grapheme` sibling), the shape's own
+  `hyperlink` / `clear_hyperlink`, and a picture's `image`. Hyperlinks on a *run* or a text range are
+  addressed by paragraph and run and stay on the flat API.
+- **`Presentation::set_shape_text_content(surface, shape, text)`** — replaces a shape's whole text
+  with one paragraph per line, each holding one run, so `shape_text` reads back exactly what was
+  written. Only the paragraphs are swapped: the body's own `a:bodyPr` and `a:lstStyle` survive, so
+  restating a placeholder's text does not disturb how it is laid out.
+- **`Presentation::shape_member_count(surface, shape)`** — how many members a group holds (`0` for
+  anything that is not a group).
+- `PptxError::ShapeIsNotAGroup` and `PptxError::ShapeHasNoParent`, the two ways a cursor move is
+  refused.
+
+### Changed
+
+- The per-shape element edits (fill, outline, effects, preset geometry, a picture's blip) moved into
+  `slide.rs` as primitives taking an already-resolved shape, so the flat setters and the cursor share
+  one implementation each. No behaviour change.
+
 ## [0.0.26] - 2026-07-22
 
 Group descent, part 1 — shapes inside a `p:grpSp` are now addressable. Every shape API takes an
