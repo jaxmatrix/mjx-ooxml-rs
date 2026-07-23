@@ -751,6 +751,38 @@ impl Presentation {
         })
     }
 
+    /// Replaces the **whole text** of shape `shape_idx` on `surface` with `text` — one paragraph per
+    /// line, each holding exactly one run, so [`shape_text`](Self::shape_text) reads back exactly what
+    /// was written. Marks only that part dirty.
+    ///
+    /// This is the wholesale counterpart of [`set_shape_text`](Self::set_shape_text), which rewrites
+    /// one existing run: use this when the new text is the point and whatever was there is not. Any
+    /// per-run formatting the old text carried is discarded with it; the body's own layout (`a:bodyPr`
+    /// — autofit, insets, anchoring — and `a:lstStyle`) is **kept**, so restating a placeholder's text
+    /// does not disturb how that placeholder is laid out. Restyle the new text afterwards with
+    /// [`set_shape_run_properties`](Self::set_shape_run_properties).
+    ///
+    /// A shape with no `p:txBody` is given one, which only a `p:sp` ([`ShapeKind::Shape`]) may have.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape is of a
+    /// kind that cannot hold text ([`ShapeHasNoTextBody`](PptxError::ShapeHasNoTextBody) — a picture,
+    /// a group, a graphic frame, a connector).
+    pub fn set_shape_text_content(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        text: &str,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` builds the paragraphs, `root` holds the body they land in.
+        let RawDocument { interner, root, .. } = doc;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
+        set_text_content_in(shape, interner, text)
+    }
+
     /// Reads a shape's text body and hands it, with the part's interner, to `read`. Does **not**
     /// dirty the part.
     fn with_text_body<R>(
@@ -6519,6 +6551,52 @@ fn build_text_box(interner: &mut Interner, id: u32, text: &str, bounds: ShapeBou
 /// `p:txBody` — the required `a:bodyPr` + `a:lstStyle`, then `paragraphs`.
 fn build_text_body(interner: &mut Interner, paragraphs: Vec<RawElement>) -> RawElement {
     build_body(interner, "p", PML, paragraphs)
+}
+
+/// Replaces the text of `shape` with one `a:p` per line of `text`, each holding exactly one run.
+///
+/// The body's own `a:bodyPr` and `a:lstStyle` survive — only the paragraphs are swapped — so
+/// restating a shape's text leaves how that text is laid out alone. A shape with no `p:txBody` is
+/// given a whole new one, which only a `p:sp` may have.
+///
+/// This is the one implementation of the edit: [`Presentation::set_shape_text_content`] and the shape
+/// cursor's `text` both land here.
+fn set_text_content_in(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    text: &str,
+) -> Result<(), PptxError> {
+    // Built before the body is located, so the `&mut Interner` is free of the tree borrow.
+    let paragraphs: Vec<RawElement> = text
+        .split('\n')
+        .map(|line| build_paragraph(interner, line))
+        .collect();
+
+    if nav::child(shape, interner, PML, "txBody").is_some() {
+        let body =
+            nav::child_mut(shape, interner, PML, "txBody").ok_or(PptxError::ShapeHasNoTextBody)?;
+        replace_paragraphs(body, interner, paragraphs);
+        return Ok(());
+    }
+    if slide::shape_kind(shape, interner) != Some(ShapeKind::Shape) {
+        return Err(PptxError::ShapeHasNoTextBody);
+    }
+    let body = build_text_body(interner, paragraphs);
+    replace_txbody(shape, interner, body);
+    Ok(())
+}
+
+/// Swaps every `a:p` of a text body for `paragraphs`, keeping every other child — `a:bodyPr`,
+/// `a:lstStyle` — exactly where and as it was. Paragraphs are last in `CT_TextBody`, so appending
+/// them after the survivors restores the schema's content order.
+fn replace_paragraphs(body: &mut RawElement, interner: &Interner, paragraphs: Vec<RawElement>) {
+    body.children.retain(|node| {
+        !matches!(node, RawNode::Element(element)
+            if nav::name_is(&element.name, interner, DML_MAIN, "p"))
+    });
+    body.children
+        .extend(paragraphs.into_iter().map(RawNode::Element));
+    body.empty = body.children.is_empty();
 }
 
 /// Replaces `shape`'s `p:txBody` with `new_body`, preserving its position among the shape's children;
