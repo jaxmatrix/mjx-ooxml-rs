@@ -328,3 +328,199 @@ fn a_transform_element_is_not_required_to_be_drawingml() {
     assert_eq!(transform.position, Some(Position::from_emu(7, 8)));
     assert_eq!(transform.size, Some(Size::from_emu(9, 10)));
 }
+
+// ---------------------------------------------------------------------------------------------
+// A group's child coordinate space (ECMA-376 Part 1 §L.4.7.4)
+//
+// A group maps the box its members are laid out in onto the box it occupies in its own parent. The
+// tests below take the four operations one at a time — scale, flip, rotate, and the degenerate flat
+// child box — then check that the inverse really is one, and that groups compose.
+// ---------------------------------------------------------------------------------------------
+
+/// A group whose 4000×2000 child box maps onto a 2000×1000 box at (1000, 500) — a clean 0.5× scale.
+fn half_scale_group() -> Transform2D {
+    Transform2D {
+        position: Some(Position::from_emu(1000, 500)),
+        size: Some(Size::from_emu(2000, 1000)),
+        child_position: Some(Position::from_emu(4000, 8000)),
+        child_size: Some(Size::from_emu(4000, 2000)),
+        ..Transform2D::default()
+    }
+}
+
+#[test]
+fn a_group_scales_and_translates_its_child_space() {
+    let group = half_scale_group();
+    assert_eq!(group.child_scale(), Some((0.5, 0.5)));
+
+    // The child origin lands on the group's own origin.
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(4000, 8000)),
+        Some(Position::from_emu(1000, 500))
+    );
+    // The far corner of the child box lands on the far corner of the group box.
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(8000, 10000)),
+        Some(Position::from_emu(3000, 1500))
+    );
+    // And a point halfway across is halfway across.
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(6000, 9000)),
+        Some(Position::from_emu(2000, 1000))
+    );
+}
+
+#[test]
+fn a_flip_mirrors_about_the_group_box_centre() {
+    // The group box spans x 1000..3000, so its centre is x = 2000: a point mapping to 1000 mirrors
+    // to 3000. A flip is exact and axis-aligned, which is why it can be folded into bounds at all.
+    let group = Transform2D {
+        flip_horizontal: Some(true),
+        ..half_scale_group()
+    };
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(4000, 8000)),
+        Some(Position::from_emu(3000, 500))
+    );
+
+    let group = Transform2D {
+        flip_vertical: Some(true),
+        ..half_scale_group()
+    };
+    // The vertical centre is y = 1000, so 500 mirrors to 1500.
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(4000, 8000)),
+        Some(Position::from_emu(1000, 1500))
+    );
+}
+
+#[test]
+fn a_rotation_turns_clockwise_about_the_group_box_centre() {
+    // §L.4.7.3.2: the y axis points down, so a positive `rot` is clockwise. The child origin maps to
+    // the group box's top-left (1000, 500), which stands left-and-up of the box centre (2000, 1000).
+    // A clockwise quarter-turn sends *left* to *up* and *up* to *right*, so it lands at (2500, 0) —
+    // outside the box, as a quarter-turned wide rectangle must be.
+    let group = Transform2D {
+        rotation: Some(Angle::from_degrees(90.0)),
+        ..half_scale_group()
+    };
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(4000, 8000)),
+        Some(Position::from_emu(2500, 0))
+    );
+    // A half-turn is the same as flipping both ways: the top-left corner becomes the bottom-right.
+    let group = Transform2D {
+        rotation: Some(Angle::from_degrees(180.0)),
+        ..half_scale_group()
+    };
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(4000, 8000)),
+        Some(Position::from_emu(3000, 1500))
+    );
+}
+
+#[test]
+fn a_flat_child_box_is_not_scaled_on_that_axis() {
+    // §L.4.7.3.1: a zero extent means that axis's scaling is skipped, not that the mapping fails —
+    // a group around a horizontal line has a flat child box and still places its members.
+    let group = Transform2D {
+        child_size: Some(Size::from_emu(4000, 0)),
+        ..half_scale_group()
+    };
+    assert_eq!(group.child_scale(), Some((0.5, 1.0)));
+    assert_eq!(
+        group.child_to_parent(Position::from_emu(6000, 8000)),
+        Some(Position::from_emu(2000, 500))
+    );
+}
+
+#[test]
+fn a_group_that_states_no_child_box_maps_nothing() {
+    // Without `a:chOff` / `a:chExt` the mapping is defined only implicitly, so it is refused rather
+    // than guessed — a wrong rectangle is worse than no rectangle.
+    let group = Transform2D {
+        child_size: None,
+        ..half_scale_group()
+    };
+    assert_eq!(group.child_scale(), None);
+    assert_eq!(group.child_to_parent(Position::from_emu(4000, 8000)), None);
+
+    let group = Transform2D {
+        child_position: None,
+        ..half_scale_group()
+    };
+    assert_eq!(group.child_to_parent(Position::from_emu(4000, 8000)), None);
+
+    // A shape that is not a group at all states neither, and maps nothing.
+    assert_eq!(
+        Transform2D::default().child_to_parent(Position::from_emu(0, 0)),
+        None
+    );
+}
+
+#[test]
+fn a_group_of_zero_extent_places_nothing() {
+    // Every member would collapse onto one point, and the mapping could never be inverted.
+    let group = Transform2D {
+        size: Some(Size::from_emu(0, 1000)),
+        ..half_scale_group()
+    };
+    assert_eq!(group.child_to_parent(Position::from_emu(4000, 8000)), None);
+    assert_eq!(group.parent_to_child(Position::from_emu(1000, 500)), None);
+}
+
+#[test]
+fn mapping_out_and_back_returns_the_same_point() {
+    // Exact for a scale that divides evenly, which is what makes `set_shape_bounds(shape_bounds())`
+    // a no-op on a typical group.
+    for group in [
+        half_scale_group(),
+        Transform2D {
+            flip_horizontal: Some(true),
+            flip_vertical: Some(true),
+            ..half_scale_group()
+        },
+        Transform2D {
+            rotation: Some(Angle::from_degrees(90.0)),
+            ..half_scale_group()
+        },
+    ] {
+        for point in [
+            Position::from_emu(4000, 8000),
+            Position::from_emu(6000, 9000),
+            Position::from_emu(8000, 10000),
+        ] {
+            let mapped = group.child_to_parent(point).expect("maps out");
+            assert_eq!(
+                group.parent_to_child(mapped),
+                Some(point),
+                "{point:?} did not survive the round trip"
+            );
+        }
+    }
+}
+
+#[test]
+fn nested_groups_compose_one_rung_at_a_time() {
+    // The inner group's own box lives in the outer group's child space, so mapping a member's point
+    // out through the inner group and then the outer one is what places it on the slide. Each rung
+    // halves, so the pair quarters.
+    let outer = half_scale_group();
+    let inner = Transform2D {
+        position: Some(Position::from_emu(4000, 8000)),
+        size: Some(Size::from_emu(4000, 2000)),
+        child_position: Some(Position::from_emu(0, 0)),
+        child_size: Some(Size::from_emu(8000, 4000)),
+        ..Transform2D::default()
+    };
+    assert_eq!(inner.child_scale(), Some((0.5, 0.5)));
+
+    let in_outer_child_space = inner
+        .child_to_parent(Position::from_emu(8000, 4000))
+        .expect("inner maps");
+    assert_eq!(in_outer_child_space, Position::from_emu(8000, 10000));
+    assert_eq!(
+        outer.child_to_parent(in_outer_child_space),
+        Some(Position::from_emu(3000, 1500))
+    );
+}

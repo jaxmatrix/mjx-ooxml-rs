@@ -140,6 +140,149 @@ impl Transform2D {
         *self == Self::default()
     }
 
+    // -----------------------------------------------------------------------------------------
+    // A group's child coordinate space
+    //
+    // A group maps the box its members are laid out in (`a:chOff` / `a:chExt`) onto the box it
+    // occupies in its own parent (`a:off` / `a:ext`), then flips and rotates the result. ECMA-376
+    // Part 1 §L.4.7.4 defines the sequence; §L.4.7.3.2 fixes the sign of the rotation (the y axis
+    // points down, so a positive `rot` is clockwise and the ordinary rotation matrix applies), and
+    // §L.4.7.3.1 the degenerate case (an extent of zero means that axis is not scaled at all).
+    //
+    // These three answer the question a member cannot answer for itself: where on the slide it is.
+    // -----------------------------------------------------------------------------------------
+
+    /// How much this group scales its members, per axis — `ext / chExt`.
+    ///
+    /// An axis whose `chExt` is zero is **not scaled** (`1.0`) rather than undefined: a child box can
+    /// legitimately be flat, "the `cx` attribute of `a:ext` is ignored and the horizontal scaling is
+    /// skipped" (ECMA-376 Part 1 §L.4.7.3.1).
+    ///
+    /// `None` unless the group states both its own extent and its child extent — without them there
+    /// is no mapping to describe. The factors are magnitudes; a mirror is
+    /// [`flip_horizontal`](Self::flip_horizontal), never a negative scale.
+    #[must_use]
+    pub fn child_scale(&self) -> Option<(f64, f64)> {
+        let extent = self.size?;
+        let child = self.child_size?;
+        let axis = |extent: Emu, child: Emu| {
+            if child.emu() == 0 {
+                1.0
+            } else {
+                extent.emu() as f64 / child.emu() as f64
+            }
+        };
+        Some((
+            axis(extent.width, child.width),
+            axis(extent.height, child.height),
+        ))
+    }
+
+    /// Maps a point from this group's **child** coordinate space into the space the group itself sits
+    /// in — one rung of the ladder from a member's `a:off` to a slide coordinate.
+    ///
+    /// The point is placed by the fraction of the child box it stands at, then flipped and rotated
+    /// about the centre of the group's own box, exactly as ECMA-376 Part 1 §L.4.7.4 specifies.
+    ///
+    /// `None` unless the group states all four of `a:off`, `a:ext`, `a:chOff` and `a:chExt`: without
+    /// its child box a group's mapping is defined only implicitly (as the union of its members'
+    /// boxes), and inventing one would put shapes in the wrong place rather than admit it cannot say.
+    #[must_use]
+    pub fn child_to_parent(&self, point: Position) -> Option<Position> {
+        let (offset, extent, child_offset, scale) = self.mapping()?;
+        // Scale about the child origin, into the group's own box.
+        let x = offset.x.emu() as f64 + (point.x.emu() - child_offset.x.emu()) as f64 * scale.0;
+        let y = offset.y.emu() as f64 + (point.y.emu() - child_offset.y.emu()) as f64 * scale.1;
+        let (x, y) = self.flip_and_rotate(offset, extent, (x, y));
+        Some(Position::from_emu(round_emu(x), round_emu(y)))
+    }
+
+    /// Maps a point from the space this group sits in back into its **child** coordinate space — the
+    /// exact inverse of [`child_to_parent`](Self::child_to_parent), which is what placing a member at
+    /// a slide coordinate needs.
+    ///
+    /// Rounds to whole EMU at each rung, so a round trip is exact whenever the scale is (a group at
+    /// half size, say) and within a few EMU — a few millionths of an inch — when it is not.
+    ///
+    /// `None` under the same conditions as [`child_to_parent`](Self::child_to_parent).
+    #[must_use]
+    pub fn parent_to_child(&self, point: Position) -> Option<Position> {
+        let (offset, extent, child_offset, scale) = self.mapping()?;
+        // Undo the rotation and the flip about the group box centre, then the scale.
+        let (x, y) =
+            self.unrotate_and_unflip(offset, extent, (point.x.emu() as f64, point.y.emu() as f64));
+        let x = child_offset.x.emu() as f64 + (x - offset.x.emu() as f64) / scale.0;
+        let y = child_offset.y.emu() as f64 + (y - offset.y.emu() as f64) / scale.1;
+        Some(Position::from_emu(round_emu(x), round_emu(y)))
+    }
+
+    /// The four things a child-space mapping needs, or `None` if the group does not state them all.
+    fn mapping(&self) -> Option<(Position, Size, Position, (f64, f64))> {
+        let scale = self.child_scale()?;
+        // A zero scale cannot be inverted, and would collapse every member onto one point going the
+        // other way; such a group places nothing.
+        if scale.0 == 0.0 || scale.1 == 0.0 {
+            return None;
+        }
+        Some((self.position?, self.size?, self.child_position?, scale))
+    }
+
+    /// The centre of the group's own box, which its flip and rotation are about.
+    fn box_centre(offset: Position, extent: Size) -> (f64, f64) {
+        (
+            offset.x.emu() as f64 + extent.width.emu() as f64 / 2.0,
+            offset.y.emu() as f64 + extent.height.emu() as f64 / 2.0,
+        )
+    }
+
+    /// Mirrors then rotates `point` about the group box centre (the order §L.4.7.4 gives).
+    fn flip_and_rotate(&self, offset: Position, extent: Size, point: (f64, f64)) -> (f64, f64) {
+        let (cx, cy) = Self::box_centre(offset, extent);
+        let x = if self.flip_horizontal == Some(true) {
+            2.0 * cx - point.0
+        } else {
+            point.0
+        };
+        let y = if self.flip_vertical == Some(true) {
+            2.0 * cy - point.1
+        } else {
+            point.1
+        };
+        match self.rotation {
+            Some(rotation) if rotation.radians() != 0.0 => {
+                let (sin, cos) = rotation.radians().sin_cos();
+                let (dx, dy) = (x - cx, y - cy);
+                // The y axis points down, so this is a clockwise rotation (§L.4.7.3.2).
+                (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+            }
+            _ => (x, y),
+        }
+    }
+
+    /// Undoes [`flip_and_rotate`](Self::flip_and_rotate): unrotate first, then unmirror.
+    fn unrotate_and_unflip(&self, offset: Position, extent: Size, point: (f64, f64)) -> (f64, f64) {
+        let (cx, cy) = Self::box_centre(offset, extent);
+        let (x, y) = match self.rotation {
+            Some(rotation) if rotation.radians() != 0.0 => {
+                let (sin, cos) = (-rotation.radians()).sin_cos();
+                let (dx, dy) = (point.0 - cx, point.1 - cy);
+                (cx + dx * cos - dy * sin, cy + dx * sin + dy * cos)
+            }
+            _ => point,
+        };
+        let x = if self.flip_horizontal == Some(true) {
+            2.0 * cx - x
+        } else {
+            x
+        };
+        let y = if self.flip_vertical == Some(true) {
+            2.0 * cy - y
+        } else {
+            y
+        };
+        (x, y)
+    }
+
     /// Writes the fields this transform **names** onto an existing `a:xfrm`, in place; a field left
     /// `None` is not touched.
     ///
@@ -196,6 +339,22 @@ impl Transform2D {
     #[must_use]
     pub fn empty_element(interner: &mut Interner) -> RawElement {
         dml_element(interner, "xfrm", Vec::new(), Vec::new())
+    }
+}
+
+/// Rounds a computed coordinate to whole EMU, saturating rather than wrapping on a value no `i64`
+/// can hold — a transform read from a hostile file must not turn arithmetic into nonsense.
+fn round_emu(value: f64) -> i64 {
+    if value.is_nan() {
+        return 0;
+    }
+    let rounded = value.round();
+    if rounded >= i64::MAX as f64 {
+        i64::MAX
+    } else if rounded <= i64::MIN as f64 {
+        i64::MIN
+    } else {
+        rounded as i64
     }
 }
 
