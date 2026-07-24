@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_opc::{Package, PartName};
-use mjx_pptx::{GraphicFrameKind, Presentation};
+use mjx_pptx::{ChartSeriesData, GraphicFrameKind, PptxError, Presentation};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -128,4 +128,110 @@ fn editing_another_slide_leaves_the_chart_parts_byte_identical() {
         original.get("ppt/slides/slide1.xml"),
         "the edited slide should have changed"
     );
+}
+
+// -------------------------------------------------------------------------------------------------
+// C3 — editing series data
+// -------------------------------------------------------------------------------------------------
+
+#[test]
+fn chart_series_reads_the_series() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    let series = pres.chart_series(CHART_SURFACE, 0).expect("read series");
+
+    assert_eq!(
+        series,
+        vec![ChartSeriesData {
+            name: Some("Sales".to_owned()),
+            categories: vec!["North".to_owned(), "South".to_owned(), "West".to_owned()],
+            values: vec![19.2, 21.4, 16.7],
+        }]
+    );
+
+    // A shape that frames no chart is an error, not empty data.
+    assert!(matches!(
+        pres.chart_series(0, 0),
+        Err(PptxError::ShapeIsNotAChart)
+    ));
+}
+
+#[test]
+fn set_chart_series_values_rewrites_and_persists() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    pres.set_chart_series_values(CHART_SURFACE, 0, 0, &[1.0, 2.5, 3.0])
+        .expect("set values");
+
+    // Visible immediately through the read surface...
+    assert_eq!(
+        pres.chart_series(CHART_SURFACE, 0).expect("read")[0].values,
+        vec![1.0, 2.5, 3.0]
+    );
+
+    // ...and after a save + reopen round-trip.
+    let saved = pres.save().expect("save");
+    let mut reopened = Presentation::open(&saved).expect("reopen");
+    assert_eq!(
+        reopened.chart_series(CHART_SURFACE, 0).expect("read")[0].values,
+        vec![1.0, 2.5, 3.0]
+    );
+}
+
+#[test]
+fn set_chart_series_categories_rewrites() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    pres.set_chart_series_categories(CHART_SURFACE, 0, 0, &["Q1", "Q2", "Q3"])
+        .expect("set categories");
+    assert_eq!(
+        pres.chart_series(CHART_SURFACE, 0).expect("read")[0].categories,
+        vec!["Q1".to_owned(), "Q2".to_owned(), "Q3".to_owned()]
+    );
+}
+
+#[test]
+fn editing_a_chart_dirties_only_the_chart_xml() {
+    let bytes = fixture("charts.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.set_chart_series_values(CHART_SURFACE, 0, 0, &[1.0, 2.0, 3.0])
+        .expect("set values");
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    // The chart XML changed...
+    assert_ne!(
+        reopened.get("ppt/charts/chart1.xml"),
+        original.get("ppt/charts/chart1.xml"),
+        "the edited chart part must have changed"
+    );
+    // ...but everything else — including the now-stale embedded workbook — is untouched.
+    for name in [
+        "ppt/charts/_rels/chart1.xml.rels",
+        "ppt/embeddings/Microsoft_Excel_Sheet1.xlsx",
+        "ppt/slides/slide2.xml",
+        "ppt/slides/_rels/slide2.xml.rels",
+        "ppt/slides/slide1.xml",
+    ] {
+        assert_eq!(
+            reopened.get(name),
+            original.get(name),
+            "editing chart data must leave {name} byte-identical"
+        );
+    }
+}
+
+#[test]
+fn editing_a_non_chart_or_out_of_range_series_errors() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+
+    // The text box on slide 1 is not a chart.
+    assert!(matches!(
+        pres.set_chart_series_values(0, 0, 0, &[1.0]),
+        Err(PptxError::ShapeIsNotAChart)
+    ));
+
+    // The chart has one series; index 5 is out of range.
+    assert!(matches!(
+        pres.set_chart_series_values(CHART_SURFACE, 0, 5, &[1.0]),
+        Err(PptxError::ChartSeriesOutOfRange { index: 5, count: 1 })
+    ));
 }
