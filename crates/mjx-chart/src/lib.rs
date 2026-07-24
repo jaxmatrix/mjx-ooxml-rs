@@ -42,11 +42,13 @@
 //! through the `Raw` bucket and reads as empty/absent for now. Editing (C3) and authoring (C4) are
 //! later tiers.
 
+mod author;
 mod build;
 mod data;
 mod plot;
 mod space;
 
+pub use author::ChartData;
 pub use data::{
     CacheContent, CategoryData, CategoryDataContent, DataPoint, DataPointContent, Formula,
     NumberCache, NumberReference, NumberReferenceContent, NumericData, NumericDataContent,
