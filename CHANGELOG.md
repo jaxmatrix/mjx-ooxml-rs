@@ -15,6 +15,48 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.35] - 2026-07-25
+
+Charts, tier C2 (MJX-112) — the remaining common plot types. C1 modeled the bar plot; this release
+extends the same read-only, byte-identical model to **line** (`c:lineChart`), **pie** (`c:pieChart`),
+**area** (`c:areaChart`), **scatter** (`c:scatterChart`) and **doughnut** (`c:doughnutChart`), and to
+**combo charts** — a `c:plotArea` may legitimately hold more than one plot.
+
+```rust
+use mjx_ooxml_core::FromXml;
+
+let doc = mjx_xml::fidelity::parse(chart_part_bytes)?;
+let space = mjx_chart::ChartSpace::from_xml(&doc.root, &doc.interner)?;
+for kind in space.chart_kinds() {          // e.g. [Bar, Line] for a combo chart
+    println!("{kind:?}");
+}
+if let Some(scatter) = space.plot_area().and_then(|p| p.scatter_chart()) {
+    for series in scatter.series() {
+        let xs = series.x_data().map(|x| x.values());   // c:xVal, not c:cat
+        let ys = series.y_data().map(|y| y.values());   // c:yVal, not c:val
+    }
+}
+```
+
+### Added
+
+- **Plot types** — `LineChart`, `PieChart`, `AreaChart`, `ScatterChart`, `DoughnutChart` alongside the
+  existing `BarChart`, each with `series()`/`series_at()`/`series_count()`/`kind()`. `ChartKind` gains
+  `Line`, `Pie`, `Area`, `Scatter`, `Doughnut`.
+- **`PlotArea` accessors** — `line_chart()`/`pie_chart()`/`area_chart()`/`scatter_chart()`/
+  `doughnut_chart()` beside `bar_chart()`; `chart_kinds()` (one entry per plot, for combo charts) and
+  `all_series()` (every plot's series, flattened). `ChartSpace::chart_kinds()` mirrors it.
+- **Scatter data** — `Series::x_data()` (`c:xVal`) and `y_data()` (`c:yVal`), plus
+  `CategoryData::values()` (the numeric companion to `labels()`), for the one series type that carries
+  X/Y data instead of `c:cat`/`c:val`.
+
+### Fidelity
+
+Each plot type is its own struct but they share one `Series` type and one `PlotContent` bucket; every
+plot preserves its own element name and buckets its type-specific scalars (`barDir`, `grouping`,
+`firstSliceAng`, `holeSize`, `scatterStyle`) and axes into `Raw`, so a chart of any modeled type — or
+a combo — round-trips byte-for-byte. Unmodeled plot types (radar, bubble, 3-D, …) ride through `Raw`.
+
 ## [0.0.34] - 2026-07-25
 
 Charts, tier C1 (MJX-111) — the chart XML gets a typed home. C0 recognized a chart frame and handed
