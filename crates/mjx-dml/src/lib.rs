@@ -23,6 +23,7 @@ pub mod fill;
 pub mod geometry;
 pub mod line;
 pub mod resolve;
+pub mod shape3d;
 pub mod style;
 pub mod table;
 pub mod text;
@@ -50,6 +51,10 @@ pub use line::{
 pub use resolve::{
     resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
     ResolvedColor, SchemeColors,
+};
+pub use shape3d::{
+    Bevel, BevelPreset, Camera, LightRig, LightRigDirection, LightRigType, PresetCamera,
+    PresetMaterial, Scene3D, Scene3DSpec, Shape3D, Shape3DSpec, SphereCoordinates,
 };
 pub use style::{ColorMap, StyleMatrixReference};
 pub use table::{
