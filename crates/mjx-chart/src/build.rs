@@ -136,6 +136,32 @@ pub(crate) fn chart_text_leaf(interner: &mut Interner, local: &str, text: &str) 
     chart_element(interner, local, Vec::new(), children)
 }
 
+/// Builds a `<c:local val="value"/>` scalar leaf — the shape of the chart's many single-attribute
+/// children (`c:barDir`, `c:grouping`, `c:ptCount`, `c:axId`, `c:delete`, `c:orientation`, …).
+pub(crate) fn chart_val_leaf(interner: &mut Interner, local: &str, value: &str) -> RawElement {
+    let attr = chart_attr(interner, "val", value);
+    chart_element(interner, local, vec![attr], Vec::new())
+}
+
+/// Builds an `xmlns:prefix="uri"` namespace declaration attribute. A freshly authored chart part is
+/// its own root — unlike a subtree spliced into a slide, which inherits the slide's declarations — so
+/// it must declare the namespaces its `c:`/`a:` elements use.
+pub(crate) fn namespace_declaration(
+    interner: &mut Interner,
+    prefix: &str,
+    uri: &str,
+) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: Some(interner.intern("xmlns")),
+            local: interner.intern(prefix),
+            namespace: None,
+        },
+        value: escape_attribute(uri).as_bytes().into(),
+        quote: QuoteStyle::Double,
+    }
+}
+
 /// Sets an unprefixed attribute `local="value"` on `attributes` — rewriting the existing one in
 /// place (preserving order) or appending it.
 pub(crate) fn set_attr(
