@@ -15,6 +15,34 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.32] - 2026-07-24
+
+DrawingML 3-D, part 3 (MJX-49 D4) — and with it the 3-D workstream is complete. `Cell3D`
+(`CT_Cell3D`, a table cell's 3-D corner), until now a fidelity wrapper that kept its `a:bevel` /
+`a:lightRig` opaque, becomes the **first consumer** of the typed model: it reads and authors them
+through the same `Bevel` / `LightRig` the shape surface uses.
+
+```rust
+// a header row whose cells stand up in metal, bevelled and lit
+deck.format_table_style_part(style_id, TableStylePart::FirstRow,
+    &TableStyleFormat::new()
+        .with_cell_material(PresetMaterial::Metal)
+        .with_cell_bevel(Bevel { width: Some(Emu::from_emu(76_200)), ..Bevel::default() })
+        .with_cell_light_rig(LightRig { rig: LightRigType::ThreePoint, direction: LightRigDirection::Top, rotation: None }))?;
+```
+
+### Added
+
+- **`mjx-dml`: `Cell3D` decomposed** — typed `material()` (a `PresetMaterial`, alongside the retained
+  raw `preset_material()`), `bevel()` and `light_rig()` accessors, and authoring via `Cell3D::new`
+  (seeded with the schema-required empty bevel) + `set_material` / `set_bevel` / `set_light_rig`, with
+  `TableStyleCellStyle::set_cell_3d` placing the child at its schema rank. The `a:bevel` / `a:lightRig`
+  wire helpers are shared with the shape surface; `extLst` stays opaque, so a `cell3D` still
+  round-trips byte-for-byte.
+- **`mjx-pptx`: cell-3-D on the table-style builder** — `TableStyleFormat::with_cell_material`,
+  `with_cell_bevel` and `with_cell_light_rig` give a styled part's cells an `a:cell3D`, applied
+  through the shared and inline `tableStyles` paths alike.
+
 ## [0.0.31] - 2026-07-24
 
 DrawingML 3-D, part 2 (MJX-49 D3) — the `mjx-pptx` shape surface. The typed 3-D model from 0.0.30
