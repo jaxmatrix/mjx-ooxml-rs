@@ -15,6 +15,26 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.30] - 2026-07-24
+
+DrawingML 3-D, part 1 of the workstream (MJX-49 D1+D2) — the `a:scene3d` / `a:sp3d` subsystem, until
+now round-tripped opaquely, gains a typed model. Mirrors the effects/outline/fill workstreams:
+generated preset enums, then the `mjx-dml` value types and fidelity wrappers. The `mjx-pptx` shape
+surface (D3) and the `Cell3D` upgrade (D4) follow.
+
+### Added
+
+- **`mjx-ooxml-types::drawingml`** — five generated preset enums: `BevelPreset` (12),
+  `LightRigType` (27), `LightRigDirection` (8), `PresetMaterial` (15) and `PresetCamera` (62). Each
+  cryptic token is expanded to a self-explanatory name sourced from the ECMA-376 token (the light
+  direction's compass abbreviations, `threePt`/`twoPt`, `dkEdge`, `softmetal`).
+- **`mjx-dml`: the 3-D model** — value types `Bevel`, `SphereCoordinates`, `Camera` (preset view +
+  field of view + zoom + rotation) and `LightRig`; fidelity wrappers `Scene3D` (`CT_Scene3D`) and
+  `Shape3D` (`CT_Shape3D`) with typed accessors and interner-free `Scene3DSpec` / `Shape3DSpec`. The
+  camera and light rig, and a shape's bevels, extrusion/contour colors and material, are read typed;
+  the rarer `a:backdrop` and any `extLst` stay opaque, so an element round-trips byte-for-byte. Every
+  measure is `Option`, so an unstated attribute reads `None`, not the schema default.
+
 ## [0.0.29] - 2026-07-24
 
 Group descent, part 4 — **group structure**, and with it the group workstream is complete. A
