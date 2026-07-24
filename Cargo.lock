@@ -234,6 +234,7 @@ dependencies = [
 name = "mjx-pptx"
 version = "0.0.35"
 dependencies = [
+ "mjx-chart",
  "mjx-derive",
  "mjx-dml",
  "mjx-mce",

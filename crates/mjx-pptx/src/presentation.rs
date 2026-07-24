@@ -1,5 +1,6 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
+use mjx_chart::ChartSpace;
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
     resolve_line, BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
@@ -4749,6 +4750,162 @@ impl Presentation {
         Ok(self.package.part_bytes(&part))
     }
 
+    /// The part name of the chart the frame `shape_idx` on `surface` references, or `None` when the
+    /// shape frames no chart.
+    fn chart_part(
+        &mut self,
+        surface: Surface,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<PartName>, PptxError> {
+        let Some(rel_id) = self.chart_rel_id(surface, shape_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        self.part_for_rel(&slide_part, &rel_id)
+    }
+
+    /// Reads the chart the frame `shape_idx` on `surface` references as a typed [`ChartSpace`] and
+    /// hands it, with the part's interner, to `read`. Does **not** dirty the part.
+    fn with_chart<R>(
+        &mut self,
+        surface: Surface,
+        shape_idx: impl Into<ShapePath>,
+        read: impl FnOnce(&ChartSpace, &Interner) -> Result<R, PptxError>,
+    ) -> Result<R, PptxError> {
+        let part = self
+            .chart_part(surface, shape_idx)?
+            .ok_or(PptxError::ShapeIsNotAChart)?;
+        let doc = self.package.part_tree(&part)?;
+        let space = ChartSpace::from_xml(&doc.root, &doc.interner)?;
+        read(&space, &doc.interner)
+    }
+
+    /// Parses the chart part the frame `shape_idx` on `surface` references, hands the whole
+    /// [`ChartSpace`] to `edit`, and writes the mutated tree back — dirtying **only** the chart part.
+    ///
+    /// The chart part's root *is* the `c:chartSpace`, so the edit replaces the whole part tree from
+    /// the model; the untouched parts of the chart (axes, styling, other series) survive because the
+    /// model round-trips them verbatim.
+    fn edit_chart(
+        &mut self,
+        surface: Surface,
+        shape_idx: impl Into<ShapePath>,
+        edit: impl FnOnce(&mut ChartSpace, &mut Interner) -> Result<(), PptxError>,
+    ) -> Result<(), PptxError> {
+        let part = self
+            .chart_part(surface, shape_idx)?
+            .ok_or(PptxError::ShapeIsNotAChart)?;
+        let doc = self.package.part_tree_mut(&part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut space = ChartSpace::from_xml(root, interner)?;
+        edit(&mut space, interner)?;
+        *root = space.to_xml(interner);
+        Ok(())
+    }
+
+    /// The series of the chart the frame `shape_idx` on `surface` references — for each, its name,
+    /// category labels and values (for a scatter series, its X labels and Y values), flattened across
+    /// the chart's plots. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// [`PptxError::ShapeIsNotAChart`] if the shape frames no chart, or another [`PptxError`] if an
+    /// index is out of range or the chart part is malformed.
+    pub fn chart_series(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Vec<ChartSeriesData>, PptxError> {
+        self.with_chart(surface.into(), shape_idx, |space, _interner| {
+            let Some(area) = space.plot_area() else {
+                return Ok(Vec::new());
+            };
+            Ok(area
+                .all_series()
+                .map(|series| ChartSeriesData {
+                    name: series.name(),
+                    categories: series
+                        .categories()
+                        .map(mjx_chart::CategoryData::labels)
+                        .or_else(|| series.x_data().map(mjx_chart::CategoryData::labels))
+                        .unwrap_or_default(),
+                    values: series
+                        .values()
+                        .map(mjx_chart::NumericData::values)
+                        .or_else(|| series.y_data().map(mjx_chart::NumericData::values))
+                        .unwrap_or_default(),
+                })
+                .collect())
+        })
+    }
+
+    /// Rewrites the cached values of series `series_idx` (0-based across the chart's plots) of the
+    /// chart the frame `shape_idx` on `surface` references. Marks only the chart part dirty.
+    ///
+    /// The values are the numbers that **render**; the chart's embedded workbook (if any) is not
+    /// rewritten and goes stale (a separate follow-up). A non-finite value is skipped.
+    ///
+    /// # Errors
+    /// [`PptxError::ShapeIsNotAChart`] if the shape frames no chart,
+    /// [`PptxError::ChartSeriesOutOfRange`] if `series_idx` is past the last series, or
+    /// [`PptxError::ChartSeriesNotEditable`] if the series has no cached numeric values to rewrite.
+    pub fn set_chart_series_values(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        series_idx: usize,
+        values: &[f64],
+    ) -> Result<(), PptxError> {
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            let count = space.series_count();
+            let series = space
+                .series_mut(series_idx)
+                .ok_or(PptxError::ChartSeriesOutOfRange {
+                    index: series_idx,
+                    count,
+                })?;
+            if series.set_values(interner, values) {
+                Ok(())
+            } else {
+                Err(PptxError::ChartSeriesNotEditable {
+                    index: series_idx,
+                    kind: "values",
+                })
+            }
+        })
+    }
+
+    /// Rewrites the cached category labels of series `series_idx` (0-based across the chart's plots)
+    /// of the chart the frame `shape_idx` on `surface` references. Marks only the chart part dirty.
+    ///
+    /// # Errors
+    /// As [`set_chart_series_values`](Self::set_chart_series_values), with
+    /// [`PptxError::ChartSeriesNotEditable`] when the series has no string category cache to rewrite.
+    pub fn set_chart_series_categories(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        series_idx: usize,
+        labels: &[&str],
+    ) -> Result<(), PptxError> {
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            let count = space.series_count();
+            let series = space
+                .series_mut(series_idx)
+                .ok_or(PptxError::ChartSeriesOutOfRange {
+                    index: series_idx,
+                    count,
+                })?;
+            if series.set_categories(interner, labels) {
+                Ok(())
+            } else {
+                Err(PptxError::ChartSeriesNotEditable {
+                    index: series_idx,
+                    kind: "categories",
+                })
+            }
+        })
+    }
+
     /// The shape of the table shape `shape_idx` on `surface` frames, as `(rows, columns)`.
     ///
     /// The column count comes from the table's `a:tblGrid`, which is where a table declares its
@@ -7732,6 +7889,18 @@ fn build_run(interner: &mut Interner, text: &str) -> RawElement {
         Vec::new(),
         vec![RawNode::Element(t)],
     )
+}
+
+/// One series of a chart, as read by [`Presentation::chart_series`]: its name and the labels and
+/// values it draws (for a scatter series, its X labels and Y values).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ChartSeriesData {
+    /// The series name (`c:tx`), or `None` when it has none.
+    pub name: Option<String>,
+    /// The category labels the series draws (`c:cat`, or a scatter series' `c:xVal`), in order.
+    pub categories: Vec<String>,
+    /// The values the series draws (`c:val`, or a scatter series' `c:yVal`), in order.
+    pub values: Vec<f64>,
 }
 
 #[cfg(test)]
