@@ -7,9 +7,10 @@
 //! theme references this tier reuses but does not rebuild.
 
 use mjx_dml::{
-    ColorSpec, FillSpec, FontCollectionIndex, LineSpec, OnOffStyle, TablePartStyle, TableStyle,
-    TableStyleBorder, TableStyleCellStyle, TableStyleList, TableStylePart, TableStyleTextStyle,
-    ThemeableLineStyle,
+    Bevel, BevelPreset, Cell3D, ColorSpec, Emu, FillSpec, FontCollectionIndex, LightRig,
+    LightRigDirection, LightRigType, LineSpec, OnOffStyle, PresetMaterial, TablePartStyle,
+    TableStyle, TableStyleBorder, TableStyleCellStyle, TableStyleList, TableStylePart,
+    TableStyleTextStyle, ThemeableLineStyle,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
@@ -158,9 +159,65 @@ fn a_cell_3d_reports_its_material_and_keeps_its_bevel() {
         .expect("firstRow cell");
 
     let cell_3d = header_cell.cell_3d(interner).expect("cell3D");
+    // The material reads both raw and typed.
     assert_eq!(cell_3d.preset_material(interner), Some("matte"));
-    // The bevel is preserved though this tier does not decompose it (that is the 3-D workstream).
-    assert!(!cell_3d.children().is_empty(), "the a:bevel round-trips");
+    assert_eq!(cell_3d.material(interner), Some(PresetMaterial::Matte));
+    // The bevel is decomposed into the typed 3-D model; the fixture states only its size.
+    assert_eq!(
+        cell_3d.bevel(interner),
+        Some(Bevel {
+            width: Some(Emu::from_emu(38100)),
+            height: Some(Emu::from_emu(38100)),
+            preset: None,
+        })
+    );
+    // No light rig in the fixture cell.
+    assert_eq!(cell_3d.light_rig(interner), None);
+}
+
+#[test]
+fn a_cell_3d_builds_and_reads_back_typed() {
+    let (_, mut doc) = parse(&styles());
+    let interner = &mut doc.interner;
+
+    // Author a cell style with a typed 3-D corner: material, bevel, and a light rig.
+    let mut cell = TableStyleCellStyle::new(interner);
+    let mut cell_3d = Cell3D::new(interner);
+    cell_3d.set_material(interner, PresetMaterial::Metal);
+    cell_3d.set_bevel(
+        interner,
+        &Bevel {
+            width: Some(Emu::from_emu(50800)),
+            height: None,
+            preset: Some(BevelPreset::Circle),
+        },
+    );
+    cell_3d.set_light_rig(
+        interner,
+        &LightRig {
+            rig: LightRigType::ThreePoint,
+            direction: LightRigDirection::Top,
+            rotation: None,
+        },
+    );
+    cell.set_cell_3d(interner, &cell_3d);
+
+    // Serialize and re-parse the cell style — the typed pieces survive the round trip.
+    let element = cell.to_xml(interner);
+    let reparsed = TableStyleCellStyle::from_xml(&element, interner).expect("cell style parses");
+    let read = reparsed.cell_3d(interner).expect("cell3D");
+    assert_eq!(read.material(interner), Some(PresetMaterial::Metal));
+    assert_eq!(
+        read.bevel(interner),
+        Some(Bevel {
+            width: Some(Emu::from_emu(50800)),
+            height: None,
+            preset: Some(BevelPreset::Circle),
+        })
+    );
+    let light_rig = read.light_rig(interner).expect("light rig");
+    assert_eq!(light_rig.rig, LightRigType::ThreePoint);
+    assert_eq!(light_rig.direction, LightRigDirection::Top);
 }
 
 #[test]
