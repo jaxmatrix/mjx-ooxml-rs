@@ -1039,10 +1039,7 @@ pub(crate) fn shape_scene_3d<'a>(
 
 /// A shape's explicit 3-D properties (`p:spPr > a:sp3d`), if present. Returns `None` when the shape
 /// has no `p:spPr` or no `a:sp3d`.
-pub(crate) fn shape_sp3d<'a>(
-    shape: &'a RawElement,
-    interner: &Interner,
-) -> Option<&'a RawElement> {
+pub(crate) fn shape_sp3d<'a>(shape: &'a RawElement, interner: &Interner) -> Option<&'a RawElement> {
     let sp_pr = nav::child(shape, interner, PML, "spPr")?;
     nav::child(sp_pr, interner, DML_MAIN, "sp3d")
 }

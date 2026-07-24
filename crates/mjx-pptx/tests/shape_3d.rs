@@ -8,8 +8,8 @@ use std::path::PathBuf;
 
 use mjx_dml::{
     Angle, Bevel, BevelPreset, Camera, ColorSpec, Emu, FillSpec, Fraction, LightRig,
-    LightRigDirection, LightRigType, LineSpec, LineWidth, PresetCamera, PresetMaterial, Scene3DSpec,
-    Shape3DSpec, SphereCoordinates,
+    LightRigDirection, LightRigType, LineSpec, LineWidth, PresetCamera, PresetMaterial,
+    Scene3DSpec, Shape3DSpec, SphereCoordinates,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_opc::Package;
@@ -108,7 +108,8 @@ fn fresh_shape_has_no_3d() {
 fn set_scene_3d_reads_back_and_persists() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let idx = added_shape(&mut pres);
-    pres.set_shape_scene_3d(0, idx, &scene()).expect("set scene");
+    pres.set_shape_scene_3d(0, idx, &scene())
+        .expect("set scene");
 
     assert_eq!(pres.shape_scene_3d(0, idx).expect("scene"), Some(scene()));
 
@@ -159,7 +160,11 @@ fn set_scene_3d_replaces_in_place() {
         .expect("set second scene");
 
     let xml = slide1_xml(&pres.save().expect("save"));
-    assert_eq!(xml.matches("<a:scene3d").count(), 1, "exactly one a:scene3d");
+    assert_eq!(
+        xml.matches("<a:scene3d").count(),
+        1,
+        "exactly one a:scene3d"
+    );
 
     let mut reread = Presentation::open(&pres.save().expect("save")).expect("reopen");
     assert_eq!(reread.shape_scene_3d(0, idx).expect("scene"), Some(second));
@@ -169,7 +174,8 @@ fn set_scene_3d_replaces_in_place() {
 fn clear_removes_scene_and_props() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let idx = added_shape(&mut pres);
-    pres.set_shape_scene_3d(0, idx, &scene()).expect("set scene");
+    pres.set_shape_scene_3d(0, idx, &scene())
+        .expect("set scene");
     pres.set_shape_3d_properties(0, idx, &properties())
         .expect("set props");
 
@@ -200,12 +206,19 @@ fn clear_when_absent_is_a_no_op() {
 fn three_d_coexists_with_fill_outline_effects_and_is_ordered() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let idx = added_shape(&mut pres);
-    pres.set_shape_fill(0, idx, &FillSpec::solid(ColorSpec::Srgb("FFFF00".to_owned())))
-        .expect("fill");
+    pres.set_shape_fill(
+        0,
+        idx,
+        &FillSpec::solid(ColorSpec::Srgb("FFFF00".to_owned())),
+    )
+    .expect("fill");
     pres.set_shape_outline(
         0,
         idx,
-        &LineSpec::solid(LineWidth::from_points(1.5), ColorSpec::Srgb("FF0000".to_owned())),
+        &LineSpec::solid(
+            LineWidth::from_points(1.5),
+            ColorSpec::Srgb("FF0000".to_owned()),
+        ),
     )
     .expect("outline");
     pres.set_shape_no_effects(0, idx).expect("effects");
@@ -225,9 +238,15 @@ fn three_d_coexists_with_fill_outline_effects_and_is_ordered() {
 
     // The `CT_ShapeProperties` content order is respected: ln → effectLst → scene3d → sp3d.
     let xml = slide1_xml(&pres.save().expect("save"));
-    let at = |needle: &str| xml.find(needle).unwrap_or_else(|| panic!("{needle} present"));
+    let at = |needle: &str| {
+        xml.find(needle)
+            .unwrap_or_else(|| panic!("{needle} present"))
+    };
     assert!(at("<a:ln") < at("<a:effectLst"), "ln before effectLst");
-    assert!(at("<a:effectLst") < at("<a:scene3d"), "effectLst before scene3d");
+    assert!(
+        at("<a:effectLst") < at("<a:scene3d"),
+        "effectLst before scene3d"
+    );
     assert!(at("<a:scene3d") < at("<a:sp3d"), "scene3d before sp3d");
 }
 
