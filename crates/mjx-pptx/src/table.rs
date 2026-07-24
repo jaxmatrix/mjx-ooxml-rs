@@ -36,9 +36,9 @@
 //! caller did not mention — the same rule the transform and cell-property writers follow.
 
 use mjx_dml::{
-    CellBorder, ColorSpec, FillSpec, LineSpec, OnOffStyle, TablePartStyle, TableStyleBorder,
-    TableStyleCellStyle, TableStylePart, TableStyleTextStyle, TextAnchoring, TextDirection,
-    TextHorizontalOverflow,
+    Bevel, Cell3D, CellBorder, ColorSpec, FillSpec, LightRig, LineSpec, OnOffStyle, PresetMaterial,
+    TablePartStyle, TableStyleBorder, TableStyleCellStyle, TableStylePart, TableStyleTextStyle,
+    TextAnchoring, TextDirection, TextHorizontalOverflow,
 };
 use mjx_ooxml_core::Interner;
 
@@ -318,6 +318,9 @@ pub struct TableStyleFormat {
     italic: Option<OnOffStyle>,
     text_color: Option<ColorSpec>,
     borders: Vec<(TableStyleBorder, LineSpec)>,
+    cell_material: Option<PresetMaterial>,
+    cell_bevel: Option<Bevel>,
+    cell_light_rig: Option<LightRig>,
 }
 
 impl TableStyleFormat {
@@ -363,6 +366,37 @@ impl TableStyleFormat {
         self
     }
 
+    /// Gives the part's cells a 3-D surface material (`a:cell3D@prstMaterial`). Any 3-D facet set
+    /// gives the part a `cell3D` (with the schema-required bevel defaulting to a stated-nothing one).
+    #[must_use]
+    pub fn with_cell_material(mut self, material: PresetMaterial) -> Self {
+        self.cell_material = Some(material);
+        self
+    }
+
+    /// Gives the part's cells a 3-D bevel (`a:cell3D > a:bevel`).
+    #[must_use]
+    pub fn with_cell_bevel(mut self, bevel: Bevel) -> Self {
+        self.cell_bevel = Some(bevel);
+        self
+    }
+
+    /// Lights the part's cells with a 3-D light rig (`a:cell3D > a:lightRig`).
+    #[must_use]
+    pub fn with_cell_light_rig(mut self, light_rig: LightRig) -> Self {
+        self.cell_light_rig = Some(light_rig);
+        self
+    }
+
+    /// Whether any facet carried by the cell style (`a:tcStyle`) — fill, borders, or 3-D — is set.
+    fn touches_cell_style(&self) -> bool {
+        self.fill.is_some()
+            || !self.borders.is_empty()
+            || self.cell_material.is_some()
+            || self.cell_bevel.is_some()
+            || self.cell_light_rig.is_some()
+    }
+
     /// Merges this format into `part`, creating the text and cell styles only for the facets set —
     /// so a format that touches only the fill leaves the part's text style untouched.
     pub(crate) fn apply(&self, part: &mut TablePartStyle, interner: &mut Interner) {
@@ -381,7 +415,7 @@ impl TableStyleFormat {
             }
             part.set_text_style(interner, &text);
         }
-        if self.fill.is_some() || !self.borders.is_empty() {
+        if self.touches_cell_style() {
             let mut cell = part
                 .cell_style(interner)
                 .unwrap_or_else(|| TableStyleCellStyle::new(interner));
@@ -390,6 +424,22 @@ impl TableStyleFormat {
             }
             for (edge, line) in &self.borders {
                 cell.set_border(interner, *edge, line);
+            }
+            if self.cell_material.is_some()
+                || self.cell_bevel.is_some()
+                || self.cell_light_rig.is_some()
+            {
+                let mut cell_3d = Cell3D::new(interner);
+                if let Some(material) = self.cell_material {
+                    cell_3d.set_material(interner, material);
+                }
+                if let Some(bevel) = self.cell_bevel {
+                    cell_3d.set_bevel(interner, &bevel);
+                }
+                if let Some(light_rig) = self.cell_light_rig {
+                    cell_3d.set_light_rig(interner, &light_rig);
+                }
+                cell.set_cell_3d(interner, &cell_3d);
             }
             part.set_cell_style(interner, &cell);
         }

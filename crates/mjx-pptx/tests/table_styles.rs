@@ -9,7 +9,8 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_dml::{
-    ColorSpec, FillSpec, LineSpec, OnOffStyle, TablePart, TableStyleBorder, TableStylePart,
+    Bevel, BevelPreset, ColorSpec, Emu, FillSpec, LightRig, LightRigDirection, LightRigType,
+    LineSpec, OnOffStyle, PresetMaterial, TablePart, TableStyleBorder, TableStylePart,
 };
 use mjx_opc::Package;
 use mjx_pptx::{Presentation, ShapeBounds, TableStyleDefinition, TableStyleFormat};
@@ -154,6 +155,64 @@ fn a_style_can_be_authored_formatted_and_resolved() {
     assert!(resolved.2, "header has a fill");
     assert!(resolved.3, "header has a bottom border");
     assert_eq!(resolved.4.as_deref(), Some("Report Style"));
+}
+
+#[test]
+fn a_style_part_takes_a_typed_cell_3d() {
+    let (mut pres, table) = deck_with_table();
+
+    pres.create_table_style(GUID, "3-D Style").expect("create");
+    pres.format_table_style_part(
+        GUID,
+        TableStylePart::FirstRow,
+        &TableStyleFormat::new()
+            .with_cell_material(PresetMaterial::Metal)
+            .with_cell_bevel(Bevel {
+                width: Some(Emu::from_emu(50800)),
+                height: Some(Emu::from_emu(25400)),
+                preset: Some(BevelPreset::Circle),
+            })
+            .with_cell_light_rig(LightRig {
+                rig: LightRigType::ThreePoint,
+                direction: LightRigDirection::Top,
+                rotation: None,
+            }),
+    )
+    .expect("format the header part with 3-D");
+    pres.set_table_style(0, table, GUID).expect("assign");
+
+    // Survives a save and reopen, and the typed 3-D pieces resolve back through tableStyles.xml.
+    let saved = pres.save().expect("save");
+    let mut reopened = Presentation::open(&saved).expect("reopen");
+    let resolved = reopened
+        .with_table_style(0, table, |style, interner| {
+            let cell = style
+                .part(interner, TableStylePart::FirstRow)
+                .and_then(|p| p.cell_style(interner))
+                .expect("firstRow cell style");
+            let cell_3d = cell.cell_3d(interner).expect("cell3D");
+            let light_rig = cell_3d.light_rig(interner).expect("light rig");
+            Ok((
+                cell_3d.material(interner),
+                cell_3d.bevel(interner),
+                light_rig.rig,
+                light_rig.direction,
+            ))
+        })
+        .expect("resolve")
+        .expect("a style is resolved");
+
+    assert_eq!(resolved.0, Some(PresetMaterial::Metal));
+    assert_eq!(
+        resolved.1,
+        Some(Bevel {
+            width: Some(Emu::from_emu(50800)),
+            height: Some(Emu::from_emu(25400)),
+            preset: Some(BevelPreset::Circle),
+        })
+    );
+    assert_eq!(resolved.2, LightRigType::ThreePoint);
+    assert_eq!(resolved.3, LightRigDirection::Top);
 }
 
 #[test]

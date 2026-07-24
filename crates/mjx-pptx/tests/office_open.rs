@@ -344,6 +344,48 @@ fn deck_with_a_table_style_opens() {
 }
 
 #[test]
+fn deck_with_a_cell_3d_style_opens() {
+    // The table-style cell-3-D path end-to-end: a style whose header cells carry an a:cell3D (a
+    // material, a bevel, a light rig), applied to a table and saved. A real Office implementation has
+    // to accept and render the cell3D — a malformed one is silently dropped or breaks the table.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let table = pres
+        .add_table(0, 2, 2, ShapeBounds::from_inches(0.5, 1.5, 8.0, 2.0))
+        .expect("add table");
+    pres.set_cell_text(0, table, 0, 0, 0, "Header")
+        .expect("cell text");
+    pres.set_table_part(0, table, TablePart::FirstRow, true)
+        .expect("header flag");
+
+    let style_id = "{3D3D3D3D-1111-2222-3333-444455556666}";
+    pres.create_table_style(style_id, "3-D Header")
+        .expect("create style");
+    pres.format_table_style_part(
+        style_id,
+        TableStylePart::FirstRow,
+        &TableStyleFormat::new()
+            .with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned())))
+            .with_cell_material(PresetMaterial::Metal)
+            .with_cell_bevel(Bevel {
+                width: Some(Emu::from_emu(76_200)),
+                height: Some(Emu::from_emu(38_100)),
+                preset: Some(BevelPreset::Circle),
+            })
+            .with_cell_light_rig(LightRig {
+                rig: LightRigType::ThreePoint,
+                direction: LightRigDirection::Top,
+                rotation: None,
+            }),
+    )
+    .expect("format the header with 3-D");
+    pres.set_table_style(0, table, style_id)
+        .expect("assign style");
+
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "cell_3d_style");
+}
+
+#[test]
 fn deck_with_moved_and_rotated_shapes_opens() {
     // The transform write path end-to-end: a shape given bounds it never had, one moved and
     // resized, and one rotated and mirrored. The `a:xfrm` we emit has to be valid to a real Office
