@@ -1,13 +1,13 @@
-//! Small shared readers for chart (`c:`-prefixed) elements, and the fidelity macro for the two
-//! text-bearing leaves (`c:v`, `c:f`).
+//! Small shared readers and builders for chart (`c:`-prefixed) elements, and the fidelity macro for
+//! the two text-bearing leaves (`c:v`, `c:f`).
 //!
 //! These mirror `mjx-dml`'s `build.rs`, which keeps its equivalents `pub(crate)` — a sibling crate
-//! cannot borrow them, so the handful this tier needs are re-stated here. C1 is **read-only**: there
-//! are no element/attribute *builders*, only readers over the parsed [`RawElement`] tree and the
-//! `fidelity_element_impls!` macro that clones a leaf's subtree verbatim.
+//! cannot borrow them, so the handful this tier needs are re-stated here. The readers back the C1/C2
+//! read model; the builders (added in C3) construct the `c:pt` / `c:v` a cache edit rewrites.
 
-use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
+use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
 use mjx_ooxml_types::namespaces::DML_CHART;
+use mjx_xml::text::{escape_attribute, escape_text};
 
 /// Whether `name` is in the chart namespace (accepting both its transitional and strict URIs),
 /// regardless of prefix — the same both-URI match the derive uses for a typed child.
@@ -78,6 +78,88 @@ pub(crate) fn element_text(nodes: &[RawNode]) -> String {
         }
     }
     text
+}
+
+// -------------------------------------------------------------------------------------------------
+// Builders (C3 — editing caches)
+// -------------------------------------------------------------------------------------------------
+
+/// Builds a chart qualified name `c:local` — literal prefix `c` plus the resolved transitional
+/// namespace, so a built element serializes as `c:local` and reads back by `(DML_CHART, local)`.
+pub(crate) fn chart_name(interner: &mut Interner, local: &str) -> RawName {
+    RawName {
+        prefix: Some(interner.intern("c")),
+        local: interner.intern(local),
+        namespace: Some(interner.intern(DML_CHART.transitional)),
+    }
+}
+
+/// Builds an unprefixed, double-quoted attribute `local="value"`, escaping `value` for an attribute.
+pub(crate) fn chart_attr(interner: &mut Interner, local: &str, value: &str) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: None,
+            local: interner.intern(local),
+            namespace: None,
+        },
+        value: escape_attribute(value).as_bytes().into(),
+        quote: QuoteStyle::Double,
+    }
+}
+
+/// Builds a `c:`-prefixed element with `attributes` and `children` (self-closing when it has no
+/// children).
+pub(crate) fn chart_element(
+    interner: &mut Interner,
+    local: &str,
+    attributes: Vec<RawAttribute>,
+    children: Vec<RawNode>,
+) -> RawElement {
+    let empty = children.is_empty();
+    RawElement {
+        name: chart_name(interner, local),
+        attributes,
+        children,
+        empty,
+    }
+}
+
+/// Builds a text-bearing `c:local` leaf (`c:v`, `c:f`) carrying `text` as an escaped `Text` child.
+/// Empty text yields a self-closing element, matching how the fidelity reader would present it.
+pub(crate) fn chart_text_leaf(interner: &mut Interner, local: &str, text: &str) -> RawElement {
+    let escaped = escape_text(text);
+    let children = if escaped.is_empty() {
+        Vec::new()
+    } else {
+        vec![RawNode::Text(escaped.as_bytes().into())]
+    };
+    chart_element(interner, local, Vec::new(), children)
+}
+
+/// Sets an unprefixed attribute `local="value"` on `attributes` — rewriting the existing one in
+/// place (preserving order) or appending it.
+pub(crate) fn set_attr(
+    attributes: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    local: &str,
+    value: &str,
+) {
+    let sym = interner.intern(local);
+    if let Some(attribute) = attributes
+        .iter_mut()
+        .find(|attribute| attribute.name.prefix.is_none() && attribute.name.local == sym)
+    {
+        attribute.value = escape_attribute(value).as_bytes().into();
+    } else {
+        attributes.push(chart_attr(interner, local, value));
+    }
+}
+
+/// Formats a finite `f64` as its wire string — Rust's shortest round-trip representation, the exact
+/// inverse of the read side's parse (`19.2` ↔ `"19.2"`, `5.0` → `"5"`). A non-finite value
+/// (`NaN`/`±inf`) has no valid XML spelling, so it yields `None` and the caller skips it.
+pub(crate) fn f64_wire(value: f64) -> Option<String> {
+    value.is_finite().then(|| value.to_string())
 }
 
 /// Generates the fidelity `FromXml`/`ToXml` impls for a wrapper `struct` whose fields are exactly
