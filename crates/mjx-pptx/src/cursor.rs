@@ -5,7 +5,7 @@
 
 use mjx_dml::{
     CharacterPropertiesSpec, EffectListSpec, FillSpec, LineSpec, ParagraphPropertiesSpec,
-    ShapeGeometry, Transform2D,
+    Scene3DSpec, Shape3DSpec, ShapeGeometry, Transform2D,
 };
 
 use crate::address::ShapePath;
@@ -30,6 +30,14 @@ pub(crate) enum ShapeEdit {
     Outline(LineSpec),
     /// `set_shape_effects` (and `set_shape_no_effects`, as an empty list).
     Effects(Box<EffectListSpec>),
+    /// `set_shape_scene_3d`.
+    Scene3D(Box<Scene3DSpec>),
+    /// `clear_shape_scene_3d` — removes the `a:scene3d` element.
+    ClearScene3D,
+    /// `set_shape_3d_properties`.
+    Shape3DProperties(Box<Shape3DSpec>),
+    /// `clear_shape_3d_properties` — removes the `a:sp3d` element.
+    ClearShape3DProperties,
     /// `set_shape_geometry`.
     Geometry(ShapeGeometry),
     /// `set_shape_transform` — written verbatim, in the shape's own coordinate space.
@@ -350,6 +358,27 @@ impl<'deck> ShapeCursor<'deck> {
     /// Gives the shape explicitly empty effects. Mirrors [`Presentation::set_shape_no_effects`].
     pub fn no_effects(self) -> Self {
         self.record(ShapeEdit::Effects(Box::new(EffectListSpec::new())))
+    }
+
+    /// Sets the shape's 3-D scene (`a:scene3d`). Mirrors [`Presentation::set_shape_scene_3d`].
+    pub fn scene_3d(self, scene: Scene3DSpec) -> Self {
+        self.record(ShapeEdit::Scene3D(Box::new(scene)))
+    }
+
+    /// Removes the shape's 3-D scene. Mirrors [`Presentation::clear_shape_scene_3d`].
+    pub fn clear_scene_3d(self) -> Self {
+        self.record(ShapeEdit::ClearScene3D)
+    }
+
+    /// Sets the shape's 3-D properties (`a:sp3d`). Mirrors
+    /// [`Presentation::set_shape_3d_properties`].
+    pub fn shape_3d_properties(self, properties: Shape3DSpec) -> Self {
+        self.record(ShapeEdit::Shape3DProperties(Box::new(properties)))
+    }
+
+    /// Removes the shape's 3-D properties. Mirrors [`Presentation::clear_shape_3d_properties`].
+    pub fn clear_shape_3d_properties(self) -> Self {
+        self.record(ShapeEdit::ClearShape3DProperties)
     }
 
     /// Sets the shape's preset geometry. Mirrors [`Presentation::set_shape_geometry`].
