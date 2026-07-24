@@ -2,7 +2,7 @@
 
 use mjx_dml::{
     ColorMap, ColorSchemeSlot, EffectListSpec, Fill, FillSpec, LineSpec, PresetGeometry,
-    ShapeGeometry, StyleMatrixReference,
+    Scene3DSpec, Shape3DSpec, ShapeGeometry, StyleMatrixReference,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawNode, Symbol, ToXml};
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_MAIN, PML};
@@ -27,6 +27,16 @@ const AFTER_LINE_LOCALS: [&str; 5] = ["effectLst", "effectDag", "scene3d", "sp3d
 /// leading effect-container names, so a new effect list lands after any geometry, fill, and outline
 /// (none of which is in the set) and before the 3-D/extension children.
 const AFTER_EFFECT_LOCALS: [&str; 3] = ["scene3d", "sp3d", "extLst"];
+
+/// The `p:spPr` child elements that the 3-D scene (`a:scene3d`) must precede, per
+/// `CT_ShapeProperties`'s content order (the shape's own 3-D, extensions). A new `a:scene3d` lands
+/// after any geometry, fill, outline, and effects (none of which is in the set) and before `a:sp3d`.
+const AFTER_SCENE3D_LOCALS: [&str; 2] = ["sp3d", "extLst"];
+
+/// The `p:spPr` child elements that the shape's 3-D properties (`a:sp3d`) must precede, per
+/// `CT_ShapeProperties`'s content order (extensions only). `a:sp3d` is the last visual property, so a
+/// new one lands after everything else and before only any `a:extLst`.
+const AFTER_SP3D_LOCALS: [&str; 1] = ["extLst"];
 
 /// The `p:spTree` of a slide (`slide_root` is the `p:sld`).
 pub(crate) fn sp_tree<'a>(
@@ -1015,6 +1025,134 @@ pub(crate) fn set_effects(
         }
     }
     Ok(())
+}
+
+/// A shape's explicit 3-D scene (`p:spPr > a:scene3d`), if present. Returns `None` when the shape has
+/// no `p:spPr` or no `a:scene3d` (3-D has no inheritance chain — an absent scene is simply flat).
+pub(crate) fn shape_scene_3d<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    nav::child(sp_pr, interner, DML_MAIN, "scene3d")
+}
+
+/// A shape's explicit 3-D properties (`p:spPr > a:sp3d`), if present. Returns `None` when the shape
+/// has no `p:spPr` or no `a:sp3d`.
+pub(crate) fn shape_sp3d<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    nav::child(sp_pr, interner, DML_MAIN, "sp3d")
+}
+
+/// The index of `sp_pr`'s existing 3-D scene child (`a:scene3d`), if any. Unique in
+/// `CT_ShapeProperties`, so setting a scene replaces it in place.
+pub(crate) fn scene3d_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| dml_element_local(node, interner) == Some("scene3d"))
+}
+
+/// Where a new 3-D scene (`a:scene3d`) should be inserted in `sp_pr`: before the first
+/// `a:sp3d`/extension child (so it lands after any geometry, fill, outline, and effects), or at the
+/// end when none is present.
+pub(crate) fn scene3d_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| {
+            dml_element_local(node, interner)
+                .is_some_and(|local| AFTER_SCENE3D_LOCALS.contains(&local))
+        })
+        .unwrap_or(sp_pr.children.len())
+}
+
+/// The index of `sp_pr`'s existing 3-D properties child (`a:sp3d`), if any. Unique in
+/// `CT_ShapeProperties`, so setting them replaces the element in place.
+pub(crate) fn sp3d_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| dml_element_local(node, interner) == Some("sp3d"))
+}
+
+/// Where a new 3-D properties element (`a:sp3d`) should be inserted in `sp_pr`: before any
+/// `a:extLst` (so it lands after everything else), or at the end when none is present.
+pub(crate) fn sp3d_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| {
+            dml_element_local(node, interner)
+                .is_some_and(|local| AFTER_SP3D_LOCALS.contains(&local))
+        })
+        .unwrap_or(sp_pr.children.len())
+}
+
+/// Writes `scene` into `shape`'s `p:spPr` as its `a:scene3d`, replacing an existing one in place or
+/// inserting a new one after any geometry, fill, outline, and effects, before `a:sp3d`.
+pub(crate) fn set_scene_3d(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    scene: &Scene3DSpec,
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    let node = RawNode::Element(scene.to_scene_3d(interner).to_xml(interner));
+    match scene3d_child_index(sp_pr, interner) {
+        Some(index) => sp_pr.children[index] = node,
+        None => {
+            let at = scene3d_insert_index(sp_pr, interner);
+            sp_pr.children.insert(at, node);
+            sp_pr.empty = false;
+        }
+    }
+    Ok(())
+}
+
+/// Writes `sp3d` into `shape`'s `p:spPr` as its `a:sp3d`, replacing an existing one in place or
+/// inserting a new one after every other visual property, before any `a:extLst`.
+pub(crate) fn set_sp3d(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    sp3d: &Shape3DSpec,
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    let node = RawNode::Element(sp3d.to_shape_3d(interner).to_xml(interner));
+    match sp3d_child_index(sp_pr, interner) {
+        Some(index) => sp_pr.children[index] = node,
+        None => {
+            let at = sp3d_insert_index(sp_pr, interner);
+            sp_pr.children.insert(at, node);
+            sp_pr.empty = false;
+        }
+    }
+    Ok(())
+}
+
+/// Removes `shape`'s `a:scene3d` if present. A shape with no `p:spPr` or no scene has nothing to
+/// remove, so this is a no-op that succeeds — 3-D has no inheritance to override, so clearing simply
+/// drops the element rather than writing an (schema-invalid) empty one.
+pub(crate) fn remove_scene_3d(shape: &mut RawElement, interner: &Interner) {
+    if let Some(sp_pr) = nav::child_mut(shape, interner, PML, "spPr") {
+        if let Some(index) = scene3d_child_index(sp_pr, interner) {
+            sp_pr.children.remove(index);
+        }
+    }
+}
+
+/// Removes `shape`'s `a:sp3d` if present. As [`remove_scene_3d`], a no-op that succeeds when there is
+/// nothing to remove.
+pub(crate) fn remove_sp3d(shape: &mut RawElement, interner: &Interner) {
+    if let Some(sp_pr) = nav::child_mut(shape, interner, PML, "spPr") {
+        if let Some(index) = sp3d_child_index(sp_pr, interner) {
+            sp_pr.children.remove(index);
+        }
+    }
 }
 
 /// Rewrites `shape`'s `a:prstGeom` — its shape type and adjustment `a:gd`s — from a typed
