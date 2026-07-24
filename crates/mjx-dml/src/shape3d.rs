@@ -311,8 +311,9 @@ impl Shape3DSpec {
 // ---------------------------------------------------------------------------------------------
 
 /// Reads a `CT_Bevel` element (`a:bevel` / `a:bevelT` / `a:bevelB`). Every field is optional, so a
-/// bare `<a:bevelT/>` is a valid bevel that states nothing.
-fn read_bevel(element: &RawElement, interner: &Interner) -> Bevel {
+/// bare `<a:bevelT/>` is a valid bevel that states nothing. `pub(crate)` so the table `a:cell3D`
+/// reuses it.
+pub(crate) fn read_bevel(element: &RawElement, interner: &Interner) -> Bevel {
     Bevel {
         width: attr_emu(&element.attributes, interner, "w"),
         height: attr_emu(&element.attributes, interner, "h"),
@@ -345,8 +346,8 @@ fn read_camera(element: &RawElement, interner: &Interner) -> Option<Camera> {
 }
 
 /// Reads an `a:lightRig` (`CT_LightRig`), or `None` if it states no rig or no direction (both
-/// required).
-fn read_light_rig(element: &RawElement, interner: &Interner) -> Option<LightRig> {
+/// required). `pub(crate)` so the table `a:cell3D` reuses it.
+pub(crate) fn read_light_rig(element: &RawElement, interner: &Interner) -> Option<LightRig> {
     let rig = attr_str(&element.attributes, interner, "rig").and_then(LightRigType::from_wire)?;
     let direction =
         attr_str(&element.attributes, interner, "dir").and_then(LightRigDirection::from_wire)?;
@@ -370,7 +371,8 @@ fn color_child(children: &[RawNode], interner: &Interner, local: &str) -> Option
 // ---------------------------------------------------------------------------------------------
 
 /// Builds a `CT_Bevel` element with the given local name, writing only the attributes that are set.
-fn build_bevel(interner: &mut Interner, local: &str, bevel: &Bevel) -> RawElement {
+/// `pub(crate)` so the table `a:cell3D` reuses it (with `local` = `"bevel"`).
+pub(crate) fn build_bevel(interner: &mut Interner, local: &str, bevel: &Bevel) -> RawElement {
     let mut attrs = Vec::new();
     push_emu(&mut attrs, interner, "w", bevel.width);
     push_emu(&mut attrs, interner, "h", bevel.height);
@@ -401,8 +403,8 @@ fn build_camera(interner: &mut Interner, camera: &Camera) -> RawElement {
     dml_element(interner, "camera", attrs, children)
 }
 
-/// Builds an `a:lightRig` (`CT_LightRig`).
-fn build_light_rig(interner: &mut Interner, light_rig: &LightRig) -> RawElement {
+/// Builds an `a:lightRig` (`CT_LightRig`). `pub(crate)` so the table `a:cell3D` reuses it.
+pub(crate) fn build_light_rig(interner: &mut Interner, light_rig: &LightRig) -> RawElement {
     let attrs = vec![
         dml_attr(interner, "rig", light_rig.rig.to_wire()),
         dml_attr(interner, "dir", light_rig.direction.to_wire()),
