@@ -80,6 +80,26 @@ pub(crate) fn relationship_prefix_declaration(
     })
 }
 
+/// An `xmlns:prefix="uri"` declaration to hang on a **newly built subtree** whose root introduces a
+/// prefix the surrounding part does not bind. A slide binds `p`/`a`/`r` but not `c` (the chart
+/// namespace), so a spliced-in `c:chart` must declare it itself, exactly as Office writes
+/// `<c:chart xmlns:c="…" r:id="…"/>` inside a graphic frame.
+pub(crate) fn namespace_declaration(
+    interner: &mut Interner,
+    prefix: &str,
+    uri: &str,
+) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: Some(interner.intern("xmlns")),
+            local: interner.intern(prefix),
+            namespace: None,
+        },
+        value: escape_attribute(uri),
+        quote: QuoteStyle::Double,
+    }
+}
+
 /// A prefixed attribute `prefix:local="value"` (value escaped), reusing an already-interned prefix
 /// symbol — used for attributes whose namespace the fidelity reader does not resolve (e.g. the `r`
 /// bound to the relationships namespace, for `r:id`).

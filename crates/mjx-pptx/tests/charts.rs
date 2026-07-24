@@ -11,7 +11,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_opc::{Package, PartName};
-use mjx_pptx::{ChartSeriesData, GraphicFrameKind, PptxError, Presentation};
+use mjx_pptx::{
+    ChartData, ChartKind, ChartSeriesData, GraphicFrameKind, PptxError, Presentation, ShapeBounds,
+};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -234,4 +236,188 @@ fn editing_a_non_chart_or_out_of_range_series_errors() {
         pres.set_chart_series_values(CHART_SURFACE, 0, 5, &[1.0]),
         Err(PptxError::ChartSeriesOutOfRange { index: 5, count: 1 })
     ));
+}
+
+// -------------------------------------------------------------------------------------------------
+// C4 — authoring a brand-new chart (cached data only)
+//
+// These build a chart on the single-slide `sample.pptx` (no chart of its own), so the new chart part
+// is `chart1.xml` and the touched slide is `slide1.xml`.
+// -------------------------------------------------------------------------------------------------
+
+fn bounds() -> ShapeBounds {
+    ShapeBounds::from_inches(1.0, 1.0, 6.0, 4.0)
+}
+
+fn bar_chart() -> ChartData {
+    ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Revenue", [10.0, 20.5, 15.0])
+        .series("Cost", [5.0, 8.0, 7.25])
+}
+
+#[test]
+fn add_chart_authors_a_readable_chart() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+
+    // It is a chart-framing graphic frame on the slide.
+    assert_eq!(
+        pres.graphic_frame_kind(0, idx).expect("kind"),
+        Some(GraphicFrameKind::Chart)
+    );
+    assert!(pres.chart_rel_id(0, idx).expect("rel id").is_some());
+
+    // Its series read back exactly as authored.
+    assert_eq!(
+        pres.chart_series(0, idx).expect("series"),
+        vec![
+            ChartSeriesData {
+                name: Some("Revenue".to_owned()),
+                categories: vec!["Q1".to_owned(), "Q2".to_owned(), "Q3".to_owned()],
+                values: vec![10.0, 20.5, 15.0],
+            },
+            ChartSeriesData {
+                name: Some("Cost".to_owned()),
+                categories: vec!["Q1".to_owned(), "Q2".to_owned(), "Q3".to_owned()],
+                values: vec![5.0, 8.0, 7.25],
+            },
+        ]
+    );
+}
+
+#[test]
+fn added_chart_survives_save_and_reopen() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    let saved = pres.save().expect("save");
+
+    let mut reopened = Presentation::open(&saved).expect("reopen");
+    assert_eq!(
+        reopened.graphic_frame_kind(0, idx).expect("kind"),
+        Some(GraphicFrameKind::Chart)
+    );
+    assert_eq!(
+        reopened.chart_series(0, idx).expect("series")[0].values,
+        vec![10.0, 20.5, 15.0]
+    );
+}
+
+#[test]
+fn add_chart_creates_the_chart_part_with_its_content_type_and_relationship() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+
+    // The chart part exists...
+    assert!(
+        pkg.part_bytes(&part("/ppt/charts/chart1.xml")).is_some(),
+        "the chart part was written"
+    );
+    // ...registered as a per-part Override in [Content_Types].xml...
+    let content_types = String::from_utf8(
+        pkg.part_bytes(&part("/[Content_Types].xml"))
+            .expect("content types")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    assert!(
+        content_types.contains("/ppt/charts/chart1.xml")
+            && content_types.contains("drawingml.chart+xml"),
+        "the chart part has a content-type Override"
+    );
+    // ...and named by a chart relationship from the slide.
+    let rels = String::from_utf8(
+        pkg.part_bytes(&part("/ppt/slides/_rels/slide1.xml.rels"))
+            .expect("slide rels")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    assert!(
+        rels.contains("relationships/chart") && rels.contains("../charts/chart1.xml"),
+        "the slide relates to the chart part"
+    );
+}
+
+#[test]
+fn adding_a_chart_leaves_pre_existing_parts_untouched() {
+    let bytes = fixture("sample.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    // A brand-new part.
+    assert!(!original.contains_key("ppt/charts/chart1.xml"));
+    assert!(reopened.contains_key("ppt/charts/chart1.xml"));
+
+    // Only the wiring parts change; every other pre-existing part is byte-identical.
+    let touched = [
+        "ppt/slides/slide1.xml",
+        "ppt/slides/_rels/slide1.xml.rels",
+        "[Content_Types].xml",
+    ];
+    for (name, bytes) in &original {
+        if touched.contains(&name.as_str()) {
+            continue;
+        }
+        assert_eq!(
+            reopened.get(name),
+            Some(bytes),
+            "adding a chart must leave {name} byte-identical"
+        );
+    }
+}
+
+#[test]
+fn every_chart_kind_authors_a_frame_of_that_kind() {
+    for kind in [
+        ChartKind::Bar,
+        ChartKind::Line,
+        ChartKind::Area,
+        ChartKind::Pie,
+        ChartKind::Doughnut,
+        ChartKind::Scatter,
+    ] {
+        let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+        let chart = ChartData::new(kind)
+            .categories(["A", "B"])
+            .series("S", [1.0, 2.0]);
+        let idx = pres.add_chart(0, &chart, bounds()).expect("add chart");
+
+        // Round-trips through a save, and reads back as a chart with its one series' values.
+        let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
+        assert_eq!(
+            reopened.graphic_frame_kind(0, idx).expect("kind"),
+            Some(GraphicFrameKind::Chart),
+            "kind {kind:?} frames a chart"
+        );
+        assert_eq!(
+            reopened.chart_series(0, idx).expect("series")[0].values,
+            vec![1.0, 2.0],
+            "kind {kind:?} values survive"
+        );
+    }
+}
+
+#[test]
+fn add_chart_rejects_empty_data() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let empty = ChartData::new(ChartKind::Bar)
+        .categories(["A"])
+        .series("S", []);
+    assert!(matches!(
+        pres.add_chart(0, &empty, bounds()),
+        Err(PptxError::InvalidChartData)
+    ));
+    // Nothing was written — no chart part leaked.
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    assert!(pkg.part_bytes(&part("/ppt/charts/chart1.xml")).is_none());
 }

@@ -285,6 +285,11 @@ pub enum PptxError {
     #[error("shape is not a table")]
     ShapeIsNotATable,
 
+    /// A chart was asked for with nothing to draw — no series, or every series empty. PowerPoint will
+    /// not open a chart with no data, so this is refused at creation rather than written out.
+    #[error("a chart must have at least one series with at least one value")]
+    InvalidChartData,
+
     /// The addressed shape does not frame a chart — it is not a `p:graphicFrame` at all, or the
     /// graphic it frames is a table or a diagram rather than a `c:chart`.
     #[error("shape is not a chart")]
