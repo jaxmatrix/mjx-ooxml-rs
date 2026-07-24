@@ -1,51 +1,156 @@
 //! The chart-space spine — `c:chartSpace → c:chart → c:plotArea`.
 //!
 //! Every chart part (`/ppt/charts/chartN.xml`) is rooted at `c:chartSpace`, whose `c:chart` holds a
-//! `c:plotArea`, and the plot area holds the plots (this tier: one `c:barChart`). The spine is thin:
-//! its job is to reach the plot, so a caller can ask a chart its kind and read its series. Everything
-//! it does not model — `c:date1904`, `c:txPr`, `c:externalData` at the space; `c:autoTitleDeleted`,
+//! `c:plotArea`, and the plot area holds the plots. A plot area may hold **more than one** plot (a
+//! combo chart), so a chart is described by a set of kinds. The spine is thin: its job is to reach
+//! the plots, so a caller can ask a chart its kind(s) and read each plot's series. Everything it does
+//! not model — `c:date1904`, `c:txPr`, `c:externalData` at the space; `c:autoTitleDeleted`,
 //! `c:dispBlanksAs` at the chart; `c:catAx`, `c:valAx` at the plot area — rides through the `Raw`
 //! bucket byte-for-byte.
 
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{RawAttribute, RawName, RawNode};
 
-use crate::plot::{BarChart, ChartKind};
+use crate::plot::{
+    AreaChart, BarChart, ChartKind, DoughnutChart, LineChart, PieChart, ScatterChart, Series,
+};
 
 /// One ordered child of a [`PlotArea`]: a typed plot, or an opaque node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PlotAreaContent {
     /// A bar/column plot (`c:barChart`).
     Bar(BarChart),
-    /// Any other child — another plot type, `c:catAx`, `c:valAx`, `c:layout`, unknown — kept verbatim.
+    /// A line plot (`c:lineChart`).
+    Line(LineChart),
+    /// A pie plot (`c:pieChart`).
+    Pie(PieChart),
+    /// An area plot (`c:areaChart`).
+    Area(AreaChart),
+    /// An X/Y scatter plot (`c:scatterChart`).
+    Scatter(ScatterChart),
+    /// A doughnut plot (`c:doughnutChart`).
+    Doughnut(DoughnutChart),
+    /// Any other child — an unmodeled plot type, `c:catAx`, `c:valAx`, `c:layout`, unknown — kept
+    /// verbatim.
     Raw(RawNode),
 }
 
-/// `c:plotArea` (`CT_PlotArea`) — the plots and axes a chart draws. This tier reads the bar plot.
+/// `c:plotArea` (`CT_PlotArea`) — the plots and axes a chart draws. A plot area may hold more than
+/// one plot (a combo chart); unmodeled plot types (radar, bubble, 3-D, …) and the axes ride through
+/// the `Raw` bucket.
 #[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(namespace = DML_CHART)]
 pub struct PlotArea {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "barChart", variant = Bar, ty = BarChart))]
+    #[xml(
+        children,
+        child(local = "barChart", variant = Bar, ty = BarChart),
+        child(local = "lineChart", variant = Line, ty = LineChart),
+        child(local = "pieChart", variant = Pie, ty = PieChart),
+        child(local = "areaChart", variant = Area, ty = AreaChart),
+        child(local = "scatterChart", variant = Scatter, ty = ScatterChart),
+        child(local = "doughnutChart", variant = Doughnut, ty = DoughnutChart)
+    )]
     content: Vec<PlotAreaContent>,
 }
 
 impl PlotArea {
-    /// The bar plot (`c:barChart`), or `None` if the plot area holds none.
+    /// The first bar plot (`c:barChart`), or `None` if the plot area holds none.
     #[must_use]
     pub fn bar_chart(&self) -> Option<&BarChart> {
         self.content.iter().find_map(|item| match item {
             PlotAreaContent::Bar(bar) => Some(bar),
-            PlotAreaContent::Raw(_) => None,
+            _ => None,
         })
     }
 
-    /// The kind of plot this area draws, or `None` for a plot type this tier does not model yet.
+    /// The first line plot (`c:lineChart`), or `None` if the plot area holds none.
+    #[must_use]
+    pub fn line_chart(&self) -> Option<&LineChart> {
+        self.content.iter().find_map(|item| match item {
+            PlotAreaContent::Line(line) => Some(line),
+            _ => None,
+        })
+    }
+
+    /// The first pie plot (`c:pieChart`), or `None` if the plot area holds none.
+    #[must_use]
+    pub fn pie_chart(&self) -> Option<&PieChart> {
+        self.content.iter().find_map(|item| match item {
+            PlotAreaContent::Pie(pie) => Some(pie),
+            _ => None,
+        })
+    }
+
+    /// The first area plot (`c:areaChart`), or `None` if the plot area holds none.
+    #[must_use]
+    pub fn area_chart(&self) -> Option<&AreaChart> {
+        self.content.iter().find_map(|item| match item {
+            PlotAreaContent::Area(area) => Some(area),
+            _ => None,
+        })
+    }
+
+    /// The first scatter plot (`c:scatterChart`), or `None` if the plot area holds none.
+    #[must_use]
+    pub fn scatter_chart(&self) -> Option<&ScatterChart> {
+        self.content.iter().find_map(|item| match item {
+            PlotAreaContent::Scatter(scatter) => Some(scatter),
+            _ => None,
+        })
+    }
+
+    /// The first doughnut plot (`c:doughnutChart`), or `None` if the plot area holds none.
+    #[must_use]
+    pub fn doughnut_chart(&self) -> Option<&DoughnutChart> {
+        self.content.iter().find_map(|item| match item {
+            PlotAreaContent::Doughnut(doughnut) => Some(doughnut),
+            _ => None,
+        })
+    }
+
+    /// The kind of the plot area's first plot, or `None` for a plot type this tier does not model.
+    /// For a combo chart, see [`chart_kinds`](Self::chart_kinds).
     #[must_use]
     pub fn chart_kind(&self) -> Option<ChartKind> {
-        self.bar_chart().map(|_| ChartKind::Bar)
+        self.chart_kinds().into_iter().next()
+    }
+
+    /// The kind of every modeled plot, in document order — one entry per plot element, so a combo
+    /// chart yields several (e.g. `[Bar, Line]`).
+    #[must_use]
+    pub fn chart_kinds(&self) -> Vec<ChartKind> {
+        self.content
+            .iter()
+            .filter_map(|item| match item {
+                PlotAreaContent::Bar(plot) => Some(plot.kind()),
+                PlotAreaContent::Line(plot) => Some(plot.kind()),
+                PlotAreaContent::Pie(plot) => Some(plot.kind()),
+                PlotAreaContent::Area(plot) => Some(plot.kind()),
+                PlotAreaContent::Scatter(plot) => Some(plot.kind()),
+                PlotAreaContent::Doughnut(plot) => Some(plot.kind()),
+                PlotAreaContent::Raw(_) => None,
+            })
+            .collect()
+    }
+
+    /// Every series of every modeled plot, in document order — flattened across the plots so a combo
+    /// chart's series read as one sequence.
+    pub fn all_series(&self) -> impl Iterator<Item = &Series> {
+        self.content.iter().flat_map(|item| {
+            let plot: Box<dyn Iterator<Item = &Series>> = match item {
+                PlotAreaContent::Bar(plot) => Box::new(plot.series()),
+                PlotAreaContent::Line(plot) => Box::new(plot.series()),
+                PlotAreaContent::Pie(plot) => Box::new(plot.series()),
+                PlotAreaContent::Area(plot) => Box::new(plot.series()),
+                PlotAreaContent::Scatter(plot) => Box::new(plot.series()),
+                PlotAreaContent::Doughnut(plot) => Box::new(plot.series()),
+                PlotAreaContent::Raw(_) => Box::new(std::iter::empty()),
+            };
+            plot
+        })
     }
 }
 
@@ -125,9 +230,19 @@ impl ChartSpace {
         self.plot_area().and_then(PlotArea::bar_chart)
     }
 
-    /// The kind of plot this chart draws, or `None` for a plot type this tier does not model.
+    /// The kind of this chart's first plot, or `None` for a plot type this tier does not model. For
+    /// a combo chart, see [`chart_kinds`](Self::chart_kinds).
     #[must_use]
     pub fn chart_kind(&self) -> Option<ChartKind> {
         self.plot_area().and_then(PlotArea::chart_kind)
+    }
+
+    /// The kind of every modeled plot this chart draws, in order — one entry per plot element (a
+    /// combo chart yields several), or empty when there is no plot area.
+    #[must_use]
+    pub fn chart_kinds(&self) -> Vec<ChartKind> {
+        self.plot_area()
+            .map(PlotArea::chart_kinds)
+            .unwrap_or_default()
     }
 }

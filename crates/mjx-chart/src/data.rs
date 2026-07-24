@@ -422,6 +422,16 @@ impl CategoryData {
         }
         Vec::new()
     }
+
+    /// The numeric category values, in order — the companion to [`labels`](Self::labels) for numeric
+    /// axis data (a scatter series' `c:xVal`, or numeric categories). Empty when the data is a string
+    /// source or one this tier does not model.
+    #[must_use]
+    pub fn values(&self) -> Vec<f64> {
+        self.number_reference()
+            .map(NumberReference::values)
+            .unwrap_or_default()
+    }
 }
 
 /// One ordered child of a [`SeriesText`]: a string reference (`c:strRef`), a literal value (`c:v`),
