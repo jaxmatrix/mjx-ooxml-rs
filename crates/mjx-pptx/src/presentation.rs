@@ -6,10 +6,10 @@ use mjx_dml::{
     EffectListSpec, Emu, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec,
     OnOffStyle, ParagraphProperties, ParagraphPropertiesSpec, PresetGeometry, ResolvedColor,
     Scene3D, Scene3DSpec, SchemeColors, Shape3D, Shape3DSpec, ShapeGeometry, Table, TableCell,
-    TableCellProperties, TableColumn, TablePart,
-    TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder, TableStyleCellStyle,
-    TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody,
-    TextDirection, TextFont, TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
+    TableCellProperties, TableColumn, TablePart, TablePartStyle, TableProperties, TableRow,
+    TableStyle, TableStyleBorder, TableStyleCellStyle, TableStyleFlags, TableStyleList,
+    TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody, TextDirection, TextFont,
+    TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{
     FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, Symbol, ToXml,
