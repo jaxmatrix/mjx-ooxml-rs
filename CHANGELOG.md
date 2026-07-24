@@ -15,6 +15,41 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.37] - 2026-07-25
+
+Charts, tier C4 (MJX-114) — **authoring** a brand-new chart. C0–C3 recognized, modeled and edited an
+existing chart; this release creates one from scratch. A chart is described fluently with `ChartData`
+(a kind, shared categories, named series) and added to a slide with `Presentation::add_chart`, which
+writes a new chart part (`ppt/charts/chartN.xml`) and a `p:graphicFrame` that references it. All six
+kinds are supported: bar, line, area, pie, doughnut and scatter.
+
+```rust
+use mjx_pptx::{ChartData, ChartKind, ShapeBounds};
+
+let chart = ChartData::new(ChartKind::Bar)
+    .categories(["Q1", "Q2", "Q3"])
+    .series("Revenue", [10.0, 20.5, 15.0])
+    .series("Cost", [5.0, 8.0, 7.25]);
+let shape = deck.add_chart(slide, &chart, ShapeBounds::from_inches(1.0, 1.0, 6.0, 4.0))?;
+```
+
+### Added
+
+- **`Presentation::add_chart`** — authors a chart on a surface from a `ChartData`, returning its shape
+  index. Creates the chart part with its `CONTENT_TYPE_CHART` Override and a `REL_CHART` relationship
+  from the slide; every pre-existing part stays byte-identical.
+- **`ChartData`** (re-exported from `mjx-pptx`, alongside `ChartKind`) — a fluent builder
+  (`new(kind).categories(...).series(name, values)`) that serializes a complete `c:chartSpace` part.
+- Error **`InvalidChartData`** — a chart with no series (or only empty series) is refused at creation.
+
+### Scope
+
+Authoring writes **cached data only** (`c:strCache`/`c:numCache`, with synthesized `c:f` formulas so
+the references are schema-valid) and **no embedded workbook**: the chart renders everywhere from its
+cache, while PowerPoint's "Edit Data" is degraded until the embedded-workbook follow-up (MJX-116).
+Scatter's shared categories become numeric X values, falling back to the point position for a
+non-numeric label. This completes the chart arc except for VML (V1) and the embedded workbook.
+
 ## [0.0.36] - 2026-07-25
 
 Charts, tier C3 (MJX-113) — the first **mutating** chart tier. C1/C2 modeled a chart read-only; this
