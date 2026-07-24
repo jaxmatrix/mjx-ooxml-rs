@@ -12,11 +12,13 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, BlipFillMode, CellBorder, CharacterPropertiesSpec, ColorSpec, EffectListSpec, Emu,
-    FillSpec, Fraction, GlowEffect, GradientStopSpec, IndentLevel, LineCap, LineDash, LineJoin,
-    LineSpec, LineWidth, OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, PatternType,
-    PresetLineDash, RectangleAlignment, SchemeColor, ShapeGeometry, TablePart, TableStyleBorder,
-    TableStylePart, TextAlignment, TextAnchoring, TextSpacing, Transform2D,
+    Angle, Bevel, BevelPreset, BlipFillMode, Camera, CellBorder, CharacterPropertiesSpec,
+    ColorSpec, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect, GradientStopSpec, IndentLevel,
+    LightRig, LightRigDirection, LightRigType, LineCap, LineDash, LineJoin, LineSpec, LineWidth,
+    OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetCamera,
+    PresetLineDash, PresetMaterial, RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec,
+    ShapeGeometry, TablePart, TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring,
+    TextSpacing, Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{
@@ -403,6 +405,60 @@ fn deck_with_added_shape_opens() {
     .expect("set geometry");
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "added_shape");
+}
+
+#[test]
+fn deck_with_3d_shape_opens() {
+    // Adds an autoshape, gives it a 3-D scene (camera + light rig) and 3-D shape properties
+    // (extrusion, bevels, material, edge colors), and checks the deck opens in LibreOffice —
+    // exercises the a:scene3d / a:sp3d write path end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::RoundedRectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 3.0, 2.0),
+        )
+        .expect("add shape");
+    pres.set_shape_scene_3d(
+        0,
+        idx,
+        &Scene3DSpec {
+            camera: Camera {
+                preset: PresetCamera::OrthographicFront,
+                field_of_view: None,
+                zoom: Some(Fraction::from_ratio(1.0)),
+                rotation: None,
+            },
+            light_rig: LightRig {
+                rig: LightRigType::ThreePoint,
+                direction: LightRigDirection::Top,
+                rotation: None,
+            },
+        },
+    )
+    .expect("set scene");
+    pres.set_shape_3d_properties(
+        0,
+        idx,
+        &Shape3DSpec {
+            z: None,
+            extrusion_height: Some(Emu::from_emu(190_500)),
+            contour_width: Some(Emu::from_emu(12_700)),
+            material: Some(PresetMaterial::Metal),
+            bevel_top: Some(Bevel {
+                width: Some(Emu::from_emu(76_200)),
+                height: Some(Emu::from_emu(38_100)),
+                preset: Some(BevelPreset::Circle),
+            }),
+            bevel_bottom: None,
+            extrusion_color: Some(ColorSpec::Srgb("C0C0C0".to_owned())),
+            contour_color: Some(ColorSpec::Srgb("404040".to_owned())),
+        },
+    )
+    .expect("set 3-D properties");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "3d_shape");
 }
 
 #[test]
