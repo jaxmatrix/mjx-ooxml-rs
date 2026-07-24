@@ -15,6 +15,36 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.31] - 2026-07-24
+
+DrawingML 3-D, part 2 (MJX-49 D3) — the `mjx-pptx` shape surface. The typed 3-D model from 0.0.30
+gains its `Presentation` accessors, a 1:1 mirror of the shape-effects surface (E3): a shape's 3-D
+scene and its own 3-D properties are now readable, writable and clearable, on a group member as on a
+top-level shape.
+
+```rust
+deck.set_shape_scene_3d(0, shape, &Scene3DSpec { camera, light_rig })?;   // how it is lit and viewed
+deck.set_shape_3d_properties(0, shape, &Shape3DSpec { extrusion_height, bevel_top, .. })?;
+deck.shape(0, shape)?.scene_3d(scene).shape_3d_properties(props).apply()?; // or fluently, one commit
+```
+
+### Added
+
+- **`Presentation::shape_scene_3d` / `set_shape_scene_3d` / `clear_shape_scene_3d`** — a shape's
+  `p:spPr > a:scene3d` (`CT_Scene3D`) as an interner-free [`Scene3DSpec`]. Reading is non-dirtying and
+  returns `None` when the shape is flat (3-D has no inheritance chain) or the scene omits a
+  schema-required camera/light rig. Setting rebuilds the element in `CT_ShapeProperties` order — after
+  any fill, outline and effects, before `a:sp3d`. Clearing **removes** the element (an empty
+  `a:scene3d` would be schema-invalid), a no-op when absent.
+- **`Presentation::shape_3d_properties` / `set_shape_3d_properties` / `clear_shape_3d_properties`** —
+  a shape's `p:spPr > a:sp3d` (`CT_Shape3D`: extrusion, contour, bevels, material, edge colors) as a
+  [`Shape3DSpec`]. `a:sp3d` is the last visual property, so it lands after everything else and before
+  any `a:extLst`. An unstated attribute reads `None`, not the schema default.
+- **`ShapeCursor::scene_3d` / `clear_scene_3d` / `shape_3d_properties` / `clear_shape_3d_properties`**
+  — the same edits recorded on the fluent cursor, applied in one commit alongside fill/outline/effects.
+- All six flat methods and the cursor take `impl Into<ShapePath>`, so a group member is addressed the
+  same as a top-level shape.
+
 ## [0.0.30] - 2026-07-24
 
 DrawingML 3-D, part 1 of the workstream (MJX-49 D1+D2) — the `a:scene3d` / `a:sp3d` subsystem, until
