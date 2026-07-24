@@ -193,6 +193,33 @@ impl Series {
         })
     }
 
+    /// Rewrites the series' cached numeric values — its `c:val` (category/value plots) or, failing
+    /// that, its `c:yVal` (scatter). Returns `false` (unchanged) when the series has no numeric slot
+    /// to rewrite. The embedded workbook, if any, is **not** updated and goes stale; the cache is what
+    /// renders.
+    pub fn set_values(&mut self, interner: &mut Interner, values: &[f64]) -> bool {
+        for item in &mut self.content {
+            match item {
+                SeriesContent::Values(data) | SeriesContent::YValues(data) => {
+                    return data.set_values(interner, values);
+                }
+                _ => {}
+            }
+        }
+        false
+    }
+
+    /// Rewrites the series' cached category labels — its `c:cat` (`c:strRef`). Returns `false`
+    /// (unchanged) when the series has no string category cache to rewrite.
+    pub fn set_categories(&mut self, interner: &mut Interner, labels: &[&str]) -> bool {
+        for item in &mut self.content {
+            if let SeriesContent::Categories(data) = item {
+                return data.set_labels(interner, labels);
+            }
+        }
+        false
+    }
+
     /// Reads the `@val` of a raw scalar child (`c:idx`, `c:order`) as a `u32`.
     fn raw_val(&self, interner: &Interner, local: &str) -> Option<u32> {
         let raw = self.content.iter().filter_map(|item| match item {
@@ -226,6 +253,14 @@ macro_rules! series_plot_impls {
             /// The plot's series, in order.
             pub fn series(&self) -> impl Iterator<Item = &Series> {
                 self.content.iter().filter_map(|item| match item {
+                    PlotContent::Series(series) => Some(series),
+                    PlotContent::Raw(_) => None,
+                })
+            }
+
+            /// The plot's series, in order, mutably — for rewriting a series' cached data.
+            pub fn series_mut(&mut self) -> impl Iterator<Item = &mut Series> {
+                self.content.iter_mut().filter_map(|item| match item {
                     PlotContent::Series(series) => Some(series),
                     PlotContent::Raw(_) => None,
                 })

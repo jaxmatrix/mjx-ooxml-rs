@@ -152,6 +152,23 @@ impl PlotArea {
             plot
         })
     }
+
+    /// Every series of every modeled plot, in document order, mutably — the write counterpart of
+    /// [`all_series`](Self::all_series), for rewriting a series' cached data.
+    pub fn all_series_mut(&mut self) -> impl Iterator<Item = &mut Series> {
+        self.content.iter_mut().flat_map(|item| {
+            let plot: Box<dyn Iterator<Item = &mut Series>> = match item {
+                PlotAreaContent::Bar(plot) => Box::new(plot.series_mut()),
+                PlotAreaContent::Line(plot) => Box::new(plot.series_mut()),
+                PlotAreaContent::Pie(plot) => Box::new(plot.series_mut()),
+                PlotAreaContent::Area(plot) => Box::new(plot.series_mut()),
+                PlotAreaContent::Scatter(plot) => Box::new(plot.series_mut()),
+                PlotAreaContent::Doughnut(plot) => Box::new(plot.series_mut()),
+                PlotAreaContent::Raw(_) => Box::new(std::iter::empty()),
+            };
+            plot
+        })
+    }
 }
 
 /// One ordered child of a [`Chart`]: the plot area, or an opaque node.
@@ -179,6 +196,14 @@ impl Chart {
     #[must_use]
     pub fn plot_area(&self) -> Option<&PlotArea> {
         self.content.iter().find_map(|item| match item {
+            ChartContent::PlotArea(plot_area) => Some(plot_area),
+            ChartContent::Raw(_) => None,
+        })
+    }
+
+    /// The chart's plot area, mutably.
+    pub fn plot_area_mut(&mut self) -> Option<&mut PlotArea> {
+        self.content.iter_mut().find_map(|item| match item {
             ChartContent::PlotArea(plot_area) => Some(plot_area),
             ChartContent::Raw(_) => None,
         })
@@ -244,5 +269,29 @@ impl ChartSpace {
         self.plot_area()
             .map(PlotArea::chart_kinds)
             .unwrap_or_default()
+    }
+
+    /// The chart's plot area, mutably — the write path down the spine.
+    pub fn plot_area_mut(&mut self) -> Option<&mut PlotArea> {
+        self.content
+            .iter_mut()
+            .find_map(|item| match item {
+                ChartSpaceContent::Chart(chart) => Some(chart),
+                ChartSpaceContent::Raw(_) => None,
+            })
+            .and_then(Chart::plot_area_mut)
+    }
+
+    /// How many series the chart draws across every plot — the addressing space of
+    /// [`series_mut`](Self::series_mut).
+    #[must_use]
+    pub fn series_count(&self) -> usize {
+        self.plot_area().map_or(0, |area| area.all_series().count())
+    }
+
+    /// The `n`-th series across every plot (document order), mutably — `None` when the chart draws
+    /// fewer. This is what a `set_chart_series_*` edit addresses.
+    pub fn series_mut(&mut self, n: usize) -> Option<&mut Series> {
+        self.plot_area_mut()?.all_series_mut().nth(n)
     }
 }

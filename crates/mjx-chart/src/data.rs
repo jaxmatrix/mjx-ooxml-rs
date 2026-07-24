@@ -32,7 +32,10 @@
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
-use crate::build::{attr_u32, element_text, fidelity_element_impls};
+use crate::build::{
+    attr_u32, chart_attr, chart_element, chart_name, chart_text_leaf, element_text, f64_wire,
+    fidelity_element_impls, is_chart, set_attr,
+};
 
 // -------------------------------------------------------------------------------------------------
 // Text-bearing leaves — opaque, byte-verbatim
@@ -53,6 +56,17 @@ pub struct Value {
 fidelity_element_impls!(Value);
 
 impl Value {
+    /// A fresh `c:v` carrying `text` (escaped) — the value a rewritten cache point holds.
+    pub(crate) fn new(interner: &mut Interner, text: &str) -> Self {
+        let element = chart_text_leaf(interner, "v", text);
+        Self {
+            name: element.name,
+            attributes: element.attributes,
+            children: element.children,
+            empty: element.empty,
+        }
+    }
+
     /// The decoded text of the value (entities resolved).
     #[must_use]
     pub fn text(&self) -> String {
@@ -104,6 +118,20 @@ pub struct DataPoint {
 }
 
 impl DataPoint {
+    /// A fresh `c:pt idx="idx"` carrying a single `c:v` of `value` (escaped) — one point of a
+    /// rewritten cache.
+    pub(crate) fn new(interner: &mut Interner, idx: u32, value: &str) -> Self {
+        let name = chart_name(interner, "pt");
+        let idx_attr = chart_attr(interner, "idx", &idx.to_string());
+        let value = Value::new(interner, value);
+        Self {
+            name,
+            attributes: vec![idx_attr],
+            empty: false,
+            content: vec![DataPointContent::Value(value)],
+        }
+    }
+
     /// The point's index within its cache (`@idx`) — the position it occupies among the values.
     #[must_use]
     pub fn index(&self, interner: &Interner) -> Option<u32> {
@@ -172,6 +200,32 @@ impl NumberCache {
     pub fn values(&self) -> Vec<f64> {
         self.points().filter_map(DataPoint::value_f64).collect()
     }
+
+    /// Rewrites the cache to hold exactly `values` (each formatted as its canonical wire text),
+    /// updating `c:ptCount` and leaving `c:formatCode` and any other child untouched. A non-finite
+    /// value (`NaN`/`±inf`) has no valid spelling and is skipped.
+    pub fn set_values(&mut self, interner: &mut Interner, values: &[f64]) {
+        let points = values
+            .iter()
+            .enumerate()
+            .filter_map(|(index, &value)| {
+                f64_wire(value)
+                    .map(|text| CacheContent::Point(DataPoint::new(interner, index as u32, &text)))
+            })
+            .collect();
+        rebuild_cache_points(&mut self.content, interner, points);
+        self.empty = false;
+    }
+
+    /// A fresh empty `c:numCache` — what a numeric reference gets when it had no cache before an edit.
+    pub(crate) fn empty(interner: &mut Interner) -> Self {
+        Self {
+            name: chart_name(interner, "numCache"),
+            attributes: Vec::new(),
+            empty: true,
+            content: Vec::new(),
+        }
+    }
 }
 
 /// `c:strCache` (`CT_StrData`) — the cached string values of a reference.
@@ -202,6 +256,75 @@ impl StringCache {
             .map(|point| point.value_str().unwrap_or_default())
             .collect()
     }
+
+    /// Rewrites the cache to hold exactly `labels` (each escaped), updating `c:ptCount` and leaving
+    /// any other child untouched.
+    pub fn set_labels(&mut self, interner: &mut Interner, labels: &[&str]) {
+        let points = labels
+            .iter()
+            .enumerate()
+            .map(|(index, label)| {
+                CacheContent::Point(DataPoint::new(interner, index as u32, label))
+            })
+            .collect();
+        rebuild_cache_points(&mut self.content, interner, points);
+        self.empty = false;
+    }
+
+    /// A fresh empty `c:strCache` — what a string reference gets when it had no cache before an edit.
+    pub(crate) fn empty(interner: &mut Interner) -> Self {
+        Self {
+            name: chart_name(interner, "strCache"),
+            attributes: Vec::new(),
+            empty: true,
+            content: Vec::new(),
+        }
+    }
+}
+
+/// Replaces every `c:pt` in a cache's `content` with `points`, keeping `c:formatCode` and any other
+/// child, and updating (or inserting) `c:ptCount@val` to the new count. The new points land where
+/// the old ones were — after `c:formatCode`/`c:ptCount`, before a trailing `c:extLst`.
+fn rebuild_cache_points(
+    content: &mut Vec<CacheContent>,
+    interner: &mut Interner,
+    points: Vec<CacheContent>,
+) {
+    let count = points.len();
+    let mut at = content
+        .iter()
+        .position(|item| matches!(item, CacheContent::Point(_)))
+        .unwrap_or(content.len());
+    content.retain(|item| !matches!(item, CacheContent::Point(_)));
+    // Only points were removed, and every item before the first point was a non-point, so `at` still
+    // indexes the same boundary in the retained list — clamp only for the no-points-at-all case.
+    at = at.min(content.len());
+    at = set_or_insert_ptcount(content, interner, count, at);
+    content.splice(at..at, points);
+}
+
+/// Sets `c:ptCount@val` to `count` in place if the cache has one, else inserts a `c:ptCount` at `at`.
+/// Returns the index new points should be inserted at — past a freshly inserted `c:ptCount`.
+fn set_or_insert_ptcount(
+    content: &mut Vec<CacheContent>,
+    interner: &mut Interner,
+    count: usize,
+    at: usize,
+) -> usize {
+    for item in content.iter_mut() {
+        if let CacheContent::Raw(RawNode::Element(element)) = item {
+            if is_chart(&element.name, interner)
+                && interner.resolve(element.name.local) == "ptCount"
+            {
+                set_attr(&mut element.attributes, interner, "val", &count.to_string());
+                return at;
+            }
+        }
+    }
+    let count_attr = chart_attr(interner, "val", &count.to_string());
+    let element = chart_element(interner, "ptCount", vec![count_attr], Vec::new());
+    content.insert(at, CacheContent::Raw(RawNode::Element(element)));
+    at + 1
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -259,6 +382,22 @@ impl NumberReference {
     pub fn values(&self) -> Vec<f64> {
         self.cache().map(NumberCache::values).unwrap_or_default()
     }
+
+    /// Rewrites the reference's cached values, creating the `c:numCache` if it had none (its `c:f`
+    /// formula still names the — now stale — workbook range).
+    pub fn set_values(&mut self, interner: &mut Interner, values: &[f64]) {
+        if let Some(cache) = self.content.iter_mut().find_map(|item| match item {
+            NumberReferenceContent::Cache(cache) => Some(cache),
+            _ => None,
+        }) {
+            cache.set_values(interner, values);
+        } else {
+            let mut cache = NumberCache::empty(interner);
+            cache.set_values(interner, values);
+            self.content.push(NumberReferenceContent::Cache(cache));
+            self.empty = false;
+        }
+    }
 }
 
 /// One ordered child of a [`StringReference`]: the formula (`c:f`), the cache (`c:strCache`), or an
@@ -312,6 +451,21 @@ impl StringReference {
     pub fn labels(&self) -> Vec<String> {
         self.cache().map(StringCache::labels).unwrap_or_default()
     }
+
+    /// Rewrites the reference's cached labels, creating the `c:strCache` if it had none.
+    pub fn set_labels(&mut self, interner: &mut Interner, labels: &[&str]) {
+        if let Some(cache) = self.content.iter_mut().find_map(|item| match item {
+            StringReferenceContent::Cache(cache) => Some(cache),
+            _ => None,
+        }) {
+            cache.set_labels(interner, labels);
+        } else {
+            let mut cache = StringCache::empty(interner);
+            cache.set_labels(interner, labels);
+            self.content.push(StringReferenceContent::Cache(cache));
+            self.empty = false;
+        }
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -354,6 +508,21 @@ impl NumericData {
         self.reference()
             .map(NumberReference::values)
             .unwrap_or_default()
+    }
+
+    /// Rewrites the cached values through the `c:numRef`, returning `false` (unchanged) when the
+    /// source is a literal or one this tier does not model — there is no cache to rewrite.
+    pub fn set_values(&mut self, interner: &mut Interner, values: &[f64]) -> bool {
+        match self.content.iter_mut().find_map(|item| match item {
+            NumericDataContent::Reference(reference) => Some(reference),
+            NumericDataContent::Raw(_) => None,
+        }) {
+            Some(reference) => {
+                reference.set_values(interner, values);
+                true
+            }
+            None => false,
+        }
     }
 }
 
@@ -431,6 +600,21 @@ impl CategoryData {
         self.number_reference()
             .map(NumberReference::values)
             .unwrap_or_default()
+    }
+
+    /// Rewrites the cached category labels through the `c:strRef`, returning `false` (unchanged) when
+    /// the categories are numeric or from a source this tier does not model.
+    pub fn set_labels(&mut self, interner: &mut Interner, labels: &[&str]) -> bool {
+        match self.content.iter_mut().find_map(|item| match item {
+            CategoryDataContent::StringReference(reference) => Some(reference),
+            _ => None,
+        }) {
+            Some(reference) => {
+                reference.set_labels(interner, labels);
+                true
+            }
+            None => false,
+        }
     }
 }
 
