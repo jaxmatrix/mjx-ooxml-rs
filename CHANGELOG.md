@@ -15,6 +15,54 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.34] - 2026-07-25
+
+Charts, tier C1 (MJX-111) — the chart XML gets a typed home. C0 recognized a chart frame and handed
+back the chart part's raw bytes; this release **models** that part in `mjx-chart` (until now a
+scaffold stub). It derives the chart-space spine `c:chartSpace → c:chart → c:plotArea` and one plot
+type end to end — the bar/column plot (`c:barChart` / `c:ser` / `c:cat` / `c:val`) — with read-only
+accessors for a chart's kind, its series, and each series' category labels and values, read down
+through the `c:strCache` / `c:numCache`.
+
+```rust
+use mjx_ooxml_core::FromXml;
+
+let doc = mjx_xml::fidelity::parse(chart_part_bytes)?;      // the /ppt/charts/chartN.xml bytes
+let space = mjx_chart::ChartSpace::from_xml(&doc.root, &doc.interner)?;
+if let Some(bar) = space.bar_chart() {                       // c:chart → c:plotArea → c:barChart
+    for series in bar.series() {
+        let name = series.name();                            // "Sales", from c:tx
+        let labels = series.categories().map(|c| c.labels()); // ["North", "South", "West"]
+        let values = series.values().map(|v| v.values());     // [19.2, 21.4, 16.7]
+    }
+}
+```
+
+### Added
+
+- **`mjx-chart` chart model** — `ChartSpace` (`c:chartSpace`), `Chart`, `PlotArea`, `BarChart`,
+  `Series`, and the data layer (`NumericData`/`CategoryData`/`SeriesText`,
+  `NumberReference`/`StringReference`, `NumberCache`/`StringCache`, `DataPoint`, `Value`, `Formula`),
+  each parsed with `FromXml` and re-emitted byte-for-byte with `ToXml`.
+- **Read accessors** — `ChartSpace::{chart, plot_area, bar_chart, chart_kind}`;
+  `BarChart::{series, series_at, series_count, direction, grouping}`;
+  `Series::{name, categories, values, index, order}`; `CategoryData::labels`, `NumericData::values`,
+  and the underlying reference/cache/point accessors. Chart kinds are the extensible `ChartKind`
+  enum; a bar plot's `BarDirection` and `BarGrouping` are typed.
+
+### Fidelity
+
+Every modeled container keeps an ordered `content` list of typed children plus a `Raw` catch-all
+(mirroring the `mjx-dml` table model), so the axes, text properties, an external-data reference, a
+literal data source or an `extLst` this tier does not interpret round-trip byte-for-byte. A cached
+value is parsed on demand from its point's preserved wire text — never reformatted on write.
+
+### Scope
+
+Read-only, bar plot only. Cached data (`c:numCache` / `c:strCache`) is the read path; a literal
+source (`c:numLit` / `c:strLit`) or a multi-level category rides through the `Raw` bucket for now.
+Other plot types are tier C2; editing (C3) and authoring (C4) are later tiers.
+
 ## [0.0.33] - 2026-07-25
 
 Charts, tier C0 (MJX-47) — the first step of the chart workstream. A `p:graphicFrame` that frames a
