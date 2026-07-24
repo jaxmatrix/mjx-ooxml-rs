@@ -312,6 +312,677 @@ impl core::str::FromStr for RectangleAlignment {
     }
 }
 
+/// `ST_PresetCameraType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PresetCamera {
+    /// Wire value `legacyObliqueTopLeft`.
+    LegacyObliqueTopLeft,
+    /// Wire value `legacyObliqueTop`.
+    LegacyObliqueTop,
+    /// Wire value `legacyObliqueTopRight`.
+    LegacyObliqueTopRight,
+    /// Wire value `legacyObliqueLeft`.
+    LegacyObliqueLeft,
+    /// Wire value `legacyObliqueFront`.
+    LegacyObliqueFront,
+    /// Wire value `legacyObliqueRight`.
+    LegacyObliqueRight,
+    /// Wire value `legacyObliqueBottomLeft`.
+    LegacyObliqueBottomLeft,
+    /// Wire value `legacyObliqueBottom`.
+    LegacyObliqueBottom,
+    /// Wire value `legacyObliqueBottomRight`.
+    LegacyObliqueBottomRight,
+    /// Wire value `legacyPerspectiveTopLeft`.
+    LegacyPerspectiveTopLeft,
+    /// Wire value `legacyPerspectiveTop`.
+    LegacyPerspectiveTop,
+    /// Wire value `legacyPerspectiveTopRight`.
+    LegacyPerspectiveTopRight,
+    /// Wire value `legacyPerspectiveLeft`.
+    LegacyPerspectiveLeft,
+    /// Wire value `legacyPerspectiveFront`.
+    LegacyPerspectiveFront,
+    /// Wire value `legacyPerspectiveRight`.
+    LegacyPerspectiveRight,
+    /// Wire value `legacyPerspectiveBottomLeft`.
+    LegacyPerspectiveBottomLeft,
+    /// Wire value `legacyPerspectiveBottom`.
+    LegacyPerspectiveBottom,
+    /// Wire value `legacyPerspectiveBottomRight`.
+    LegacyPerspectiveBottomRight,
+    /// Wire value `orthographicFront`.
+    OrthographicFront,
+    /// Wire value `isometricTopUp`.
+    IsometricTopUp,
+    /// Wire value `isometricTopDown`.
+    IsometricTopDown,
+    /// Wire value `isometricBottomUp`.
+    IsometricBottomUp,
+    /// Wire value `isometricBottomDown`.
+    IsometricBottomDown,
+    /// Wire value `isometricLeftUp`.
+    IsometricLeftUp,
+    /// Wire value `isometricLeftDown`.
+    IsometricLeftDown,
+    /// Wire value `isometricRightUp`.
+    IsometricRightUp,
+    /// Wire value `isometricRightDown`.
+    IsometricRightDown,
+    /// Wire value `isometricOffAxis1Left`.
+    IsometricOffAxis1Left,
+    /// Wire value `isometricOffAxis1Right`.
+    IsometricOffAxis1Right,
+    /// Wire value `isometricOffAxis1Top`.
+    IsometricOffAxis1Top,
+    /// Wire value `isometricOffAxis2Left`.
+    IsometricOffAxis2Left,
+    /// Wire value `isometricOffAxis2Right`.
+    IsometricOffAxis2Right,
+    /// Wire value `isometricOffAxis2Top`.
+    IsometricOffAxis2Top,
+    /// Wire value `isometricOffAxis3Left`.
+    IsometricOffAxis3Left,
+    /// Wire value `isometricOffAxis3Right`.
+    IsometricOffAxis3Right,
+    /// Wire value `isometricOffAxis3Bottom`.
+    IsometricOffAxis3Bottom,
+    /// Wire value `isometricOffAxis4Left`.
+    IsometricOffAxis4Left,
+    /// Wire value `isometricOffAxis4Right`.
+    IsometricOffAxis4Right,
+    /// Wire value `isometricOffAxis4Bottom`.
+    IsometricOffAxis4Bottom,
+    /// Wire value `obliqueTopLeft`.
+    ObliqueTopLeft,
+    /// Wire value `obliqueTop`.
+    ObliqueTop,
+    /// Wire value `obliqueTopRight`.
+    ObliqueTopRight,
+    /// Wire value `obliqueLeft`.
+    ObliqueLeft,
+    /// Wire value `obliqueRight`.
+    ObliqueRight,
+    /// Wire value `obliqueBottomLeft`.
+    ObliqueBottomLeft,
+    /// Wire value `obliqueBottom`.
+    ObliqueBottom,
+    /// Wire value `obliqueBottomRight`.
+    ObliqueBottomRight,
+    /// Wire value `perspectiveFront`.
+    PerspectiveFront,
+    /// Wire value `perspectiveLeft`.
+    PerspectiveLeft,
+    /// Wire value `perspectiveRight`.
+    PerspectiveRight,
+    /// Wire value `perspectiveAbove`.
+    PerspectiveAbove,
+    /// Wire value `perspectiveBelow`.
+    PerspectiveBelow,
+    /// Wire value `perspectiveAboveLeftFacing`.
+    PerspectiveAboveLeftFacing,
+    /// Wire value `perspectiveAboveRightFacing`.
+    PerspectiveAboveRightFacing,
+    /// Wire value `perspectiveContrastingLeftFacing`.
+    PerspectiveContrastingLeftFacing,
+    /// Wire value `perspectiveContrastingRightFacing`.
+    PerspectiveContrastingRightFacing,
+    /// Wire value `perspectiveHeroicLeftFacing`.
+    PerspectiveHeroicLeftFacing,
+    /// Wire value `perspectiveHeroicRightFacing`.
+    PerspectiveHeroicRightFacing,
+    /// Wire value `perspectiveHeroicExtremeLeftFacing`.
+    PerspectiveHeroicExtremeLeftFacing,
+    /// Wire value `perspectiveHeroicExtremeRightFacing`.
+    PerspectiveHeroicExtremeRightFacing,
+    /// Wire value `perspectiveRelaxed`.
+    PerspectiveRelaxed,
+    /// Wire value `perspectiveRelaxedModerately`.
+    PerspectiveRelaxedModerately,
+}
+
+impl PresetCamera {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "legacyObliqueTopLeft" => Self::LegacyObliqueTopLeft,
+            "legacyObliqueTop" => Self::LegacyObliqueTop,
+            "legacyObliqueTopRight" => Self::LegacyObliqueTopRight,
+            "legacyObliqueLeft" => Self::LegacyObliqueLeft,
+            "legacyObliqueFront" => Self::LegacyObliqueFront,
+            "legacyObliqueRight" => Self::LegacyObliqueRight,
+            "legacyObliqueBottomLeft" => Self::LegacyObliqueBottomLeft,
+            "legacyObliqueBottom" => Self::LegacyObliqueBottom,
+            "legacyObliqueBottomRight" => Self::LegacyObliqueBottomRight,
+            "legacyPerspectiveTopLeft" => Self::LegacyPerspectiveTopLeft,
+            "legacyPerspectiveTop" => Self::LegacyPerspectiveTop,
+            "legacyPerspectiveTopRight" => Self::LegacyPerspectiveTopRight,
+            "legacyPerspectiveLeft" => Self::LegacyPerspectiveLeft,
+            "legacyPerspectiveFront" => Self::LegacyPerspectiveFront,
+            "legacyPerspectiveRight" => Self::LegacyPerspectiveRight,
+            "legacyPerspectiveBottomLeft" => Self::LegacyPerspectiveBottomLeft,
+            "legacyPerspectiveBottom" => Self::LegacyPerspectiveBottom,
+            "legacyPerspectiveBottomRight" => Self::LegacyPerspectiveBottomRight,
+            "orthographicFront" => Self::OrthographicFront,
+            "isometricTopUp" => Self::IsometricTopUp,
+            "isometricTopDown" => Self::IsometricTopDown,
+            "isometricBottomUp" => Self::IsometricBottomUp,
+            "isometricBottomDown" => Self::IsometricBottomDown,
+            "isometricLeftUp" => Self::IsometricLeftUp,
+            "isometricLeftDown" => Self::IsometricLeftDown,
+            "isometricRightUp" => Self::IsometricRightUp,
+            "isometricRightDown" => Self::IsometricRightDown,
+            "isometricOffAxis1Left" => Self::IsometricOffAxis1Left,
+            "isometricOffAxis1Right" => Self::IsometricOffAxis1Right,
+            "isometricOffAxis1Top" => Self::IsometricOffAxis1Top,
+            "isometricOffAxis2Left" => Self::IsometricOffAxis2Left,
+            "isometricOffAxis2Right" => Self::IsometricOffAxis2Right,
+            "isometricOffAxis2Top" => Self::IsometricOffAxis2Top,
+            "isometricOffAxis3Left" => Self::IsometricOffAxis3Left,
+            "isometricOffAxis3Right" => Self::IsometricOffAxis3Right,
+            "isometricOffAxis3Bottom" => Self::IsometricOffAxis3Bottom,
+            "isometricOffAxis4Left" => Self::IsometricOffAxis4Left,
+            "isometricOffAxis4Right" => Self::IsometricOffAxis4Right,
+            "isometricOffAxis4Bottom" => Self::IsometricOffAxis4Bottom,
+            "obliqueTopLeft" => Self::ObliqueTopLeft,
+            "obliqueTop" => Self::ObliqueTop,
+            "obliqueTopRight" => Self::ObliqueTopRight,
+            "obliqueLeft" => Self::ObliqueLeft,
+            "obliqueRight" => Self::ObliqueRight,
+            "obliqueBottomLeft" => Self::ObliqueBottomLeft,
+            "obliqueBottom" => Self::ObliqueBottom,
+            "obliqueBottomRight" => Self::ObliqueBottomRight,
+            "perspectiveFront" => Self::PerspectiveFront,
+            "perspectiveLeft" => Self::PerspectiveLeft,
+            "perspectiveRight" => Self::PerspectiveRight,
+            "perspectiveAbove" => Self::PerspectiveAbove,
+            "perspectiveBelow" => Self::PerspectiveBelow,
+            "perspectiveAboveLeftFacing" => Self::PerspectiveAboveLeftFacing,
+            "perspectiveAboveRightFacing" => Self::PerspectiveAboveRightFacing,
+            "perspectiveContrastingLeftFacing" => Self::PerspectiveContrastingLeftFacing,
+            "perspectiveContrastingRightFacing" => Self::PerspectiveContrastingRightFacing,
+            "perspectiveHeroicLeftFacing" => Self::PerspectiveHeroicLeftFacing,
+            "perspectiveHeroicRightFacing" => Self::PerspectiveHeroicRightFacing,
+            "perspectiveHeroicExtremeLeftFacing" => Self::PerspectiveHeroicExtremeLeftFacing,
+            "perspectiveHeroicExtremeRightFacing" => Self::PerspectiveHeroicExtremeRightFacing,
+            "perspectiveRelaxed" => Self::PerspectiveRelaxed,
+            "perspectiveRelaxedModerately" => Self::PerspectiveRelaxedModerately,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::LegacyObliqueTopLeft => "legacyObliqueTopLeft",
+            Self::LegacyObliqueTop => "legacyObliqueTop",
+            Self::LegacyObliqueTopRight => "legacyObliqueTopRight",
+            Self::LegacyObliqueLeft => "legacyObliqueLeft",
+            Self::LegacyObliqueFront => "legacyObliqueFront",
+            Self::LegacyObliqueRight => "legacyObliqueRight",
+            Self::LegacyObliqueBottomLeft => "legacyObliqueBottomLeft",
+            Self::LegacyObliqueBottom => "legacyObliqueBottom",
+            Self::LegacyObliqueBottomRight => "legacyObliqueBottomRight",
+            Self::LegacyPerspectiveTopLeft => "legacyPerspectiveTopLeft",
+            Self::LegacyPerspectiveTop => "legacyPerspectiveTop",
+            Self::LegacyPerspectiveTopRight => "legacyPerspectiveTopRight",
+            Self::LegacyPerspectiveLeft => "legacyPerspectiveLeft",
+            Self::LegacyPerspectiveFront => "legacyPerspectiveFront",
+            Self::LegacyPerspectiveRight => "legacyPerspectiveRight",
+            Self::LegacyPerspectiveBottomLeft => "legacyPerspectiveBottomLeft",
+            Self::LegacyPerspectiveBottom => "legacyPerspectiveBottom",
+            Self::LegacyPerspectiveBottomRight => "legacyPerspectiveBottomRight",
+            Self::OrthographicFront => "orthographicFront",
+            Self::IsometricTopUp => "isometricTopUp",
+            Self::IsometricTopDown => "isometricTopDown",
+            Self::IsometricBottomUp => "isometricBottomUp",
+            Self::IsometricBottomDown => "isometricBottomDown",
+            Self::IsometricLeftUp => "isometricLeftUp",
+            Self::IsometricLeftDown => "isometricLeftDown",
+            Self::IsometricRightUp => "isometricRightUp",
+            Self::IsometricRightDown => "isometricRightDown",
+            Self::IsometricOffAxis1Left => "isometricOffAxis1Left",
+            Self::IsometricOffAxis1Right => "isometricOffAxis1Right",
+            Self::IsometricOffAxis1Top => "isometricOffAxis1Top",
+            Self::IsometricOffAxis2Left => "isometricOffAxis2Left",
+            Self::IsometricOffAxis2Right => "isometricOffAxis2Right",
+            Self::IsometricOffAxis2Top => "isometricOffAxis2Top",
+            Self::IsometricOffAxis3Left => "isometricOffAxis3Left",
+            Self::IsometricOffAxis3Right => "isometricOffAxis3Right",
+            Self::IsometricOffAxis3Bottom => "isometricOffAxis3Bottom",
+            Self::IsometricOffAxis4Left => "isometricOffAxis4Left",
+            Self::IsometricOffAxis4Right => "isometricOffAxis4Right",
+            Self::IsometricOffAxis4Bottom => "isometricOffAxis4Bottom",
+            Self::ObliqueTopLeft => "obliqueTopLeft",
+            Self::ObliqueTop => "obliqueTop",
+            Self::ObliqueTopRight => "obliqueTopRight",
+            Self::ObliqueLeft => "obliqueLeft",
+            Self::ObliqueRight => "obliqueRight",
+            Self::ObliqueBottomLeft => "obliqueBottomLeft",
+            Self::ObliqueBottom => "obliqueBottom",
+            Self::ObliqueBottomRight => "obliqueBottomRight",
+            Self::PerspectiveFront => "perspectiveFront",
+            Self::PerspectiveLeft => "perspectiveLeft",
+            Self::PerspectiveRight => "perspectiveRight",
+            Self::PerspectiveAbove => "perspectiveAbove",
+            Self::PerspectiveBelow => "perspectiveBelow",
+            Self::PerspectiveAboveLeftFacing => "perspectiveAboveLeftFacing",
+            Self::PerspectiveAboveRightFacing => "perspectiveAboveRightFacing",
+            Self::PerspectiveContrastingLeftFacing => "perspectiveContrastingLeftFacing",
+            Self::PerspectiveContrastingRightFacing => "perspectiveContrastingRightFacing",
+            Self::PerspectiveHeroicLeftFacing => "perspectiveHeroicLeftFacing",
+            Self::PerspectiveHeroicRightFacing => "perspectiveHeroicRightFacing",
+            Self::PerspectiveHeroicExtremeLeftFacing => "perspectiveHeroicExtremeLeftFacing",
+            Self::PerspectiveHeroicExtremeRightFacing => "perspectiveHeroicExtremeRightFacing",
+            Self::PerspectiveRelaxed => "perspectiveRelaxed",
+            Self::PerspectiveRelaxedModerately => "perspectiveRelaxedModerately",
+        }
+    }
+}
+
+impl core::fmt::Display for PresetCamera {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PresetCamera {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_LightRigDirection` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LightRigDirection {
+    /// Wire value `tl`.
+    TopLeft,
+    /// Wire value `t`.
+    Top,
+    /// Wire value `tr`.
+    TopRight,
+    /// Wire value `l`.
+    Left,
+    /// Wire value `r`.
+    Right,
+    /// Wire value `bl`.
+    BottomLeft,
+    /// Wire value `b`.
+    Bottom,
+    /// Wire value `br`.
+    BottomRight,
+}
+
+impl LightRigDirection {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "tl" => Self::TopLeft,
+            "t" => Self::Top,
+            "tr" => Self::TopRight,
+            "l" => Self::Left,
+            "r" => Self::Right,
+            "bl" => Self::BottomLeft,
+            "b" => Self::Bottom,
+            "br" => Self::BottomRight,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::TopLeft => "tl",
+            Self::Top => "t",
+            Self::TopRight => "tr",
+            Self::Left => "l",
+            Self::Right => "r",
+            Self::BottomLeft => "bl",
+            Self::Bottom => "b",
+            Self::BottomRight => "br",
+        }
+    }
+}
+
+impl core::fmt::Display for LightRigDirection {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for LightRigDirection {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_LightRigType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LightRigType {
+    /// Wire value `legacyFlat1`.
+    LegacyFlat1,
+    /// Wire value `legacyFlat2`.
+    LegacyFlat2,
+    /// Wire value `legacyFlat3`.
+    LegacyFlat3,
+    /// Wire value `legacyFlat4`.
+    LegacyFlat4,
+    /// Wire value `legacyNormal1`.
+    LegacyNormal1,
+    /// Wire value `legacyNormal2`.
+    LegacyNormal2,
+    /// Wire value `legacyNormal3`.
+    LegacyNormal3,
+    /// Wire value `legacyNormal4`.
+    LegacyNormal4,
+    /// Wire value `legacyHarsh1`.
+    LegacyHarsh1,
+    /// Wire value `legacyHarsh2`.
+    LegacyHarsh2,
+    /// Wire value `legacyHarsh3`.
+    LegacyHarsh3,
+    /// Wire value `legacyHarsh4`.
+    LegacyHarsh4,
+    /// Wire value `threePt`.
+    ThreePoint,
+    /// Wire value `balanced`.
+    Balanced,
+    /// Wire value `soft`.
+    Soft,
+    /// Wire value `harsh`.
+    Harsh,
+    /// Wire value `flood`.
+    Flood,
+    /// Wire value `contrasting`.
+    Contrasting,
+    /// Wire value `morning`.
+    Morning,
+    /// Wire value `sunrise`.
+    Sunrise,
+    /// Wire value `sunset`.
+    Sunset,
+    /// Wire value `chilly`.
+    Chilly,
+    /// Wire value `freezing`.
+    Freezing,
+    /// Wire value `flat`.
+    Flat,
+    /// Wire value `twoPt`.
+    TwoPoint,
+    /// Wire value `glow`.
+    Glow,
+    /// Wire value `brightRoom`.
+    BrightRoom,
+}
+
+impl LightRigType {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "legacyFlat1" => Self::LegacyFlat1,
+            "legacyFlat2" => Self::LegacyFlat2,
+            "legacyFlat3" => Self::LegacyFlat3,
+            "legacyFlat4" => Self::LegacyFlat4,
+            "legacyNormal1" => Self::LegacyNormal1,
+            "legacyNormal2" => Self::LegacyNormal2,
+            "legacyNormal3" => Self::LegacyNormal3,
+            "legacyNormal4" => Self::LegacyNormal4,
+            "legacyHarsh1" => Self::LegacyHarsh1,
+            "legacyHarsh2" => Self::LegacyHarsh2,
+            "legacyHarsh3" => Self::LegacyHarsh3,
+            "legacyHarsh4" => Self::LegacyHarsh4,
+            "threePt" => Self::ThreePoint,
+            "balanced" => Self::Balanced,
+            "soft" => Self::Soft,
+            "harsh" => Self::Harsh,
+            "flood" => Self::Flood,
+            "contrasting" => Self::Contrasting,
+            "morning" => Self::Morning,
+            "sunrise" => Self::Sunrise,
+            "sunset" => Self::Sunset,
+            "chilly" => Self::Chilly,
+            "freezing" => Self::Freezing,
+            "flat" => Self::Flat,
+            "twoPt" => Self::TwoPoint,
+            "glow" => Self::Glow,
+            "brightRoom" => Self::BrightRoom,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::LegacyFlat1 => "legacyFlat1",
+            Self::LegacyFlat2 => "legacyFlat2",
+            Self::LegacyFlat3 => "legacyFlat3",
+            Self::LegacyFlat4 => "legacyFlat4",
+            Self::LegacyNormal1 => "legacyNormal1",
+            Self::LegacyNormal2 => "legacyNormal2",
+            Self::LegacyNormal3 => "legacyNormal3",
+            Self::LegacyNormal4 => "legacyNormal4",
+            Self::LegacyHarsh1 => "legacyHarsh1",
+            Self::LegacyHarsh2 => "legacyHarsh2",
+            Self::LegacyHarsh3 => "legacyHarsh3",
+            Self::LegacyHarsh4 => "legacyHarsh4",
+            Self::ThreePoint => "threePt",
+            Self::Balanced => "balanced",
+            Self::Soft => "soft",
+            Self::Harsh => "harsh",
+            Self::Flood => "flood",
+            Self::Contrasting => "contrasting",
+            Self::Morning => "morning",
+            Self::Sunrise => "sunrise",
+            Self::Sunset => "sunset",
+            Self::Chilly => "chilly",
+            Self::Freezing => "freezing",
+            Self::Flat => "flat",
+            Self::TwoPoint => "twoPt",
+            Self::Glow => "glow",
+            Self::BrightRoom => "brightRoom",
+        }
+    }
+}
+
+impl core::fmt::Display for LightRigType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for LightRigType {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_BevelPresetType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BevelPreset {
+    /// Wire value `relaxedInset`.
+    RelaxedInset,
+    /// Wire value `circle`.
+    Circle,
+    /// Wire value `slope`.
+    Slope,
+    /// Wire value `cross`.
+    Cross,
+    /// Wire value `angle`.
+    Angle,
+    /// Wire value `softRound`.
+    SoftRound,
+    /// Wire value `convex`.
+    Convex,
+    /// Wire value `coolSlant`.
+    CoolSlant,
+    /// Wire value `divot`.
+    Divot,
+    /// Wire value `riblet`.
+    Riblet,
+    /// Wire value `hardEdge`.
+    HardEdge,
+    /// Wire value `artDeco`.
+    ArtDeco,
+}
+
+impl BevelPreset {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "relaxedInset" => Self::RelaxedInset,
+            "circle" => Self::Circle,
+            "slope" => Self::Slope,
+            "cross" => Self::Cross,
+            "angle" => Self::Angle,
+            "softRound" => Self::SoftRound,
+            "convex" => Self::Convex,
+            "coolSlant" => Self::CoolSlant,
+            "divot" => Self::Divot,
+            "riblet" => Self::Riblet,
+            "hardEdge" => Self::HardEdge,
+            "artDeco" => Self::ArtDeco,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::RelaxedInset => "relaxedInset",
+            Self::Circle => "circle",
+            Self::Slope => "slope",
+            Self::Cross => "cross",
+            Self::Angle => "angle",
+            Self::SoftRound => "softRound",
+            Self::Convex => "convex",
+            Self::CoolSlant => "coolSlant",
+            Self::Divot => "divot",
+            Self::Riblet => "riblet",
+            Self::HardEdge => "hardEdge",
+            Self::ArtDeco => "artDeco",
+        }
+    }
+}
+
+impl core::fmt::Display for BevelPreset {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for BevelPreset {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
+/// `ST_PresetMaterialType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PresetMaterial {
+    /// Wire value `legacyMatte`.
+    LegacyMatte,
+    /// Wire value `legacyPlastic`.
+    LegacyPlastic,
+    /// Wire value `legacyMetal`.
+    LegacyMetal,
+    /// Wire value `legacyWireframe`.
+    LegacyWireframe,
+    /// Wire value `matte`.
+    Matte,
+    /// Wire value `plastic`.
+    Plastic,
+    /// Wire value `metal`.
+    Metal,
+    /// Wire value `warmMatte`.
+    WarmMatte,
+    /// Wire value `translucentPowder`.
+    TranslucentPowder,
+    /// Wire value `powder`.
+    Powder,
+    /// Wire value `dkEdge`.
+    DarkEdge,
+    /// Wire value `softEdge`.
+    SoftEdge,
+    /// Wire value `clear`.
+    Clear,
+    /// Wire value `flat`.
+    Flat,
+    /// Wire value `softmetal`.
+    SoftMetal,
+}
+
+impl PresetMaterial {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "legacyMatte" => Self::LegacyMatte,
+            "legacyPlastic" => Self::LegacyPlastic,
+            "legacyMetal" => Self::LegacyMetal,
+            "legacyWireframe" => Self::LegacyWireframe,
+            "matte" => Self::Matte,
+            "plastic" => Self::Plastic,
+            "metal" => Self::Metal,
+            "warmMatte" => Self::WarmMatte,
+            "translucentPowder" => Self::TranslucentPowder,
+            "powder" => Self::Powder,
+            "dkEdge" => Self::DarkEdge,
+            "softEdge" => Self::SoftEdge,
+            "clear" => Self::Clear,
+            "flat" => Self::Flat,
+            "softmetal" => Self::SoftMetal,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::LegacyMatte => "legacyMatte",
+            Self::LegacyPlastic => "legacyPlastic",
+            Self::LegacyMetal => "legacyMetal",
+            Self::LegacyWireframe => "legacyWireframe",
+            Self::Matte => "matte",
+            Self::Plastic => "plastic",
+            Self::Metal => "metal",
+            Self::WarmMatte => "warmMatte",
+            Self::TranslucentPowder => "translucentPowder",
+            Self::Powder => "powder",
+            Self::DarkEdge => "dkEdge",
+            Self::SoftEdge => "softEdge",
+            Self::Clear => "clear",
+            Self::Flat => "flat",
+            Self::SoftMetal => "softmetal",
+        }
+    }
+}
+
+impl core::fmt::Display for PresetMaterial {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PresetMaterial {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_PresetShadowVal` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PresetShadow {

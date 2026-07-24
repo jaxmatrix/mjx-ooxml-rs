@@ -72,6 +72,14 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     // for its three-way on/off/inherit sense rather than the schema's generic "…Type" suffix.
     // `ST_FontCollectionIndex` (major/minor/none) needs no override — it auto-expands cleanly.
     ("ST_OnOffStyleType", "OnOffStyle"),
+    // DrawingML 3-D: the bevel preset (`a:bevel@prst`), the light-rig kind (`a:lightRig@rig`) and
+    // its direction (`@dir`), the surface material (`a:sp3d`/`a:cell3D@prstMaterial`), and the preset
+    // camera view (`a:camera@prst`). Each is named for what it selects, dropping the `…Type` suffix.
+    ("ST_BevelPresetType", "BevelPreset"),
+    ("ST_LightRigType", "LightRigType"),
+    ("ST_LightRigDirection", "LightRigDirection"),
+    ("ST_PresetMaterialType", "PresetMaterial"),
+    ("ST_PresetCameraType", "PresetCamera"),
     // PresentationML placeholders: `p:ph`'s `type`, `sz`, and `orient`. `ST_Direction` is PML's own
     // two-valued axis (`horz`/`vert`), named for what it selects rather than the generic "direction".
     ("ST_PlaceholderType", "PlaceholderType"),
@@ -640,6 +648,25 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     // `ST_OnOffStyleType` (§20.1.10.36): `on`/`off` auto-expand; `def` means "follow parent / theme
     // settings", which the ECMA prose titles "Default".
     ("ST_OnOffStyleType", "def", "Default"),
+    // `ST_LightRigDirection` (`a:lightRig@dir`, §20.1.10.31): the compass-abbreviation tokens, as
+    // `ST_RectAlignment` above (there is no `ctr` here — a light has a direction, not a centre).
+    ("ST_LightRigDirection", "tl", "TopLeft"),
+    ("ST_LightRigDirection", "t", "Top"),
+    ("ST_LightRigDirection", "tr", "TopRight"),
+    ("ST_LightRigDirection", "l", "Left"),
+    ("ST_LightRigDirection", "r", "Right"),
+    ("ST_LightRigDirection", "bl", "BottomLeft"),
+    ("ST_LightRigDirection", "b", "Bottom"),
+    ("ST_LightRigDirection", "br", "BottomRight"),
+    // `ST_LightRigType` (`a:lightRig@rig`, §20.1.10.32): the `nPt` tokens abbreviate "point". Every
+    // other token (`legacyFlat1`, `brightRoom`, `sunset`, …) auto-expands cleanly.
+    ("ST_LightRigType", "threePt", "ThreePoint"),
+    ("ST_LightRigType", "twoPt", "TwoPoint"),
+    // `ST_PresetMaterialType` (`@prstMaterial`, §20.1.10.50): `dk` abbreviates "dark", and `softmetal`
+    // has no camel hump to split on. The rest (`legacyMatte`, `warmMatte`, `translucentPowder`, …)
+    // auto-expand.
+    ("ST_PresetMaterialType", "dkEdge", "DarkEdge"),
+    ("ST_PresetMaterialType", "softmetal", "SoftMetal"),
 ];
 
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.

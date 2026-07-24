@@ -88,6 +88,13 @@ pub fn run() -> Result<()> {
             // take (`a:tcTxStyle@b`/`@i`), and the theme font slot a `a:fontRef` names.
             "ST_OnOffStyleType",
             "ST_FontCollectionIndex",
+            // DrawingML 3-D (`a:scene3d` / `a:sp3d` / `a:cell3D`): the bevel and light-rig presets,
+            // the light direction, the surface material, and the preset camera view.
+            "ST_BevelPresetType",
+            "ST_LightRigType",
+            "ST_LightRigDirection",
+            "ST_PresetMaterialType",
+            "ST_PresetCameraType",
         ],
     )?;
     // Append the per-shape adjustment table, extracted from the DrawingML geometry definitions.
