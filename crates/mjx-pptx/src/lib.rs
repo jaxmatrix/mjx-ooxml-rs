@@ -69,6 +69,8 @@ pub use cursor::ShapeCursor;
 pub use error::PptxError;
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
+// Chart authoring types, re-exported so a caller of `add_chart` need not depend on `mjx-chart`.
+pub use mjx_chart::{ChartData, ChartKind};
 pub use presentation::{ChartSeriesData, Presentation};
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;

@@ -1,6 +1,6 @@
 //! The [`Presentation`] entry point: open, read shape text, edit a run, save.
 
-use mjx_chart::ChartSpace;
+use mjx_chart::{ChartData, ChartSpace};
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
     resolve_line, BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
@@ -16,7 +16,7 @@ use mjx_ooxml_core::{
     FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, Symbol, ToXml,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
+use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
 };
@@ -4676,6 +4676,64 @@ impl Presentation {
         Ok(slide::shapes(sp_tree, interner).count() - 1)
     }
 
+    /// Adds `chart` to `surface` as a new chart, laid out inside `bounds`, and returns its index in
+    /// the shape tree.
+    ///
+    /// The chart is authored from **cached data only** (see [`ChartData`]): a new chart part
+    /// (`ppt/charts/chartN.xml`) holds the series' `c:strCache`/`c:numCache` values, and a
+    /// `p:graphicFrame` on the slide references it. It renders everywhere; PowerPoint's "Edit Data"
+    /// is degraded (there is no embedded workbook) until a later tier adds one.
+    ///
+    /// The chart is a shape: move it with [`set_shape_bounds`](Self::set_shape_bounds), drop it with
+    /// [`remove_shape`](Self::remove_shape), and read it back with [`chart_series`](Self::chart_series).
+    ///
+    /// # Errors
+    /// Returns [`PptxError::InvalidChartData`] if `chart` has nothing to draw (no series, or every
+    /// series empty), or another [`PptxError`] if the surface index is out of range or a package edit
+    /// fails.
+    pub fn add_chart(
+        &mut self,
+        surface: impl Into<Surface>,
+        chart: &ChartData,
+        bounds: ShapeBounds,
+    ) -> Result<usize, PptxError> {
+        if chart.is_empty() {
+            return Err(PptxError::InvalidChartData);
+        }
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+
+        // The chart part and its slide relationship first: if anything fails, the slide is untouched.
+        let chart_part = self.next_chart_part()?;
+        self.package.insert_part(
+            &chart_part,
+            constants::CONTENT_TYPE_CHART,
+            chart.to_part_bytes(),
+        )?;
+        let rel_id = self.next_rid_for(&slide_part);
+        self.package.add_relationship(
+            Some(&slide_part),
+            Relationship {
+                id: rel_id.clone(),
+                rel_type: constants::REL_CHART.to_owned(),
+                target: nav::relative_target(&slide_part, &chart_part),
+                mode: TargetMode::Internal,
+            },
+        )?;
+
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let rel_declaration = build::relationship_prefix_declaration(root, interner);
+        let sp_tree = slide::sp_tree_mut(root, interner)?;
+
+        let next_id = slide::max_cnvpr_id(sp_tree, interner).max(1) + 1;
+        let frame = build_chart_frame(interner, next_id, &rel_id, bounds, rel_declaration);
+        sp_tree.children.push(RawNode::Element(frame));
+        sp_tree.empty = false;
+
+        Ok(slide::shapes(sp_tree, interner).count() - 1)
+    }
+
     /// What the graphic frame `shape_idx` on `surface` frames — a [`Table`](GraphicFrameKind::Table),
     /// a [`Chart`](GraphicFrameKind::Chart), a [`Diagram`](GraphicFrameKind::Diagram) or something
     /// else — or `None` when the shape is not a `p:graphicFrame` at all. Reading does not dirty the
@@ -5788,6 +5846,20 @@ impl Presentation {
             }
         }
         let name = format!("{media_dir}image{}.{extension}", max_n + 1);
+        PartName::new(&name).map_err(PptxError::from)
+    }
+
+    /// A fresh chart part name in the presentation's `charts/` directory: `chart{N}.xml` with `N` one
+    /// past the largest existing chart number.
+    fn next_chart_part(&self) -> Result<PartName, PptxError> {
+        let charts_dir = format!("{}charts/", dir_of(self.presentation_part.as_str()));
+        let mut max_n = 0u32;
+        for part in self.package.part_names() {
+            if let Some(n) = chart_number(part.as_str(), &charts_dir) {
+                max_n = max_n.max(n);
+            }
+        }
+        let name = format!("{charts_dir}chart{}.xml", max_n + 1);
         PartName::new(&name).map_err(PptxError::from)
     }
 
@@ -7342,6 +7414,16 @@ fn image_number(part: &str, dir: &str) -> Option<u32> {
     digits.parse::<u32>().ok()
 }
 
+/// Extracts `N` from a `chart{N}.xml` part directly inside `dir` (e.g. `/ppt/charts/chart2.xml` with
+/// `dir = /ppt/charts/` → `2`). Returns `None` for anything else (e.g. the `_rels` subfolder).
+fn chart_number(part: &str, dir: &str) -> Option<u32> {
+    part.strip_prefix(dir)?
+        .strip_prefix("chart")?
+        .strip_suffix(".xml")?
+        .parse::<u32>()
+        .ok()
+}
+
 /// Builds a plain text-box `p:sp` with non-visual id `id`, laid out at `bounds`, whose text body
 /// holds one paragraph per line of `text`.
 /// `p:nvSpPr` — non-visual shape properties: `p:cNvPr@id,name`, `p:cNvSpPr` (with `txBox="1"` iff
@@ -7618,6 +7700,100 @@ fn build_table_frame(
         "graphicData",
         data_attrs,
         vec![RawNode::Element(table)],
+    );
+    let graphic = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "graphic",
+        Vec::new(),
+        vec![RawNode::Element(graphic_data)],
+    );
+
+    build::node(
+        interner,
+        "p",
+        PML,
+        "graphicFrame",
+        Vec::new(),
+        vec![
+            RawNode::Element(nv_frame_pr),
+            RawNode::Element(xfrm),
+            RawNode::Element(graphic),
+        ],
+    )
+}
+
+/// A `p:graphicFrame` that frames a chart: the same non-visual + transform scaffolding as
+/// [`build_table_frame`], but its `a:graphicData@uri` is [`CHART_GRAPHIC_URI`](slide::CHART_GRAPHIC_URI)
+/// and its payload is a self-closing `c:chart` naming the chart part by `r:id = rel_id`.
+///
+/// The slide binds `p`/`a`/`r` but not `c`, so the `c:chart` declares `xmlns:c` itself; `rel_declaration`
+/// (an `xmlns:r`, usually `None` because the slide already binds `r`) is added when the slide does not
+/// bind `r` — exactly how Office writes `<c:chart xmlns:c="…" r:id="…"/>`.
+fn build_chart_frame(
+    interner: &mut Interner,
+    id: u32,
+    rel_id: &str,
+    bounds: ShapeBounds,
+    rel_declaration: Option<RawAttribute>,
+) -> RawElement {
+    // p:nvGraphicFramePr — cNvPr, cNvGraphicFramePr (locked against grouping), and an empty nvPr.
+    let cnvpr_attrs = vec![
+        build::attr(interner, "id", &id.to_string()),
+        build::attr(interner, "name", &format!("Chart {id}")),
+    ];
+    let c_nv_pr = build::leaf(interner, "p", PML, "cNvPr", cnvpr_attrs);
+    let lock_attrs = vec![build::attr(interner, "noGrp", "1")];
+    let frame_locks = build::leaf(interner, "a", DML_MAIN, "graphicFrameLocks", lock_attrs);
+    let c_nv_frame_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "cNvGraphicFramePr",
+        Vec::new(),
+        vec![RawNode::Element(frame_locks)],
+    );
+    let nv_pr = build::leaf(interner, "p", PML, "nvPr", Vec::new());
+    let nv_frame_pr = build::node(
+        interner,
+        "p",
+        PML,
+        "nvGraphicFramePr",
+        Vec::new(),
+        vec![
+            RawNode::Element(c_nv_pr),
+            RawNode::Element(c_nv_frame_pr),
+            RawNode::Element(nv_pr),
+        ],
+    );
+
+    // p:xfrm — a graphic frame's transform is PresentationML's, not DrawingML's, and is required.
+    let mut xfrm = build::node(interner, "p", PML, "xfrm", Vec::new(), Vec::new());
+    bounds.to_transform().apply(&mut xfrm, interner);
+
+    // c:chart — references the chart part by r:id, declaring the chart namespace it introduces (and
+    // the relationships prefix when the slide does not already bind it).
+    let mut chart_attrs = vec![build::namespace_declaration(
+        interner,
+        "c",
+        DML_CHART.transitional,
+    )];
+    if let Some(declaration) = rel_declaration {
+        chart_attrs.push(declaration);
+    }
+    let rel_prefix = interner.intern(build::RELATIONSHIP_PREFIX);
+    chart_attrs.push(build::attr_prefixed(interner, rel_prefix, "id", rel_id));
+    let chart = build::leaf(interner, "c", DML_CHART, "chart", chart_attrs);
+
+    let data_attrs = vec![build::attr(interner, "uri", slide::CHART_GRAPHIC_URI)];
+    let graphic_data = build::node(
+        interner,
+        "a",
+        DML_MAIN,
+        "graphicData",
+        data_attrs,
+        vec![RawNode::Element(chart)],
     );
     let graphic = build::node(
         interner,
