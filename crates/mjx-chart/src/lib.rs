@@ -1,10 +1,12 @@
 //! `mjx-chart` — DrawingML charts (shared by all formats).
 //!
 //! A chart lives in its own part (`/ppt/charts/chartN.xml`), rooted at `c:chartSpace`, which a
-//! `p:graphicFrame` references by relationship id. This crate models that part. Tier **C1** derives
-//! the chart-space spine `c:chartSpace → c:chart → c:plotArea` and one plot type end to end — the
-//! bar/column plot (`c:barChart`) — with read-only accessors for a chart's kind, its series, and
-//! each series' category labels and values.
+//! `p:graphicFrame` references by relationship id. This crate models that part. It derives the
+//! chart-space spine `c:chartSpace → c:chart → c:plotArea` and the common plot types — bar
+//! (`c:barChart`), line, pie, area, scatter and doughnut — with read-only accessors for a chart's
+//! kind(s), its series, and each series' category labels and values (or X/Y data, for scatter). A
+//! plot area may hold more than one plot (a combo chart), read through [`PlotArea::chart_kinds`] and
+//! [`PlotArea::all_series`].
 //!
 //! ```no_run
 //! use mjx_ooxml_core::FromXml;
@@ -32,11 +34,13 @@
 //! value read as a number is parsed on demand from that preserved wire text, never reformatted. This
 //! mirrors the DrawingML table model in `mjx-dml`.
 //!
-//! # Scope of C1
+//! # Scope
 //!
-//! Read-only, bar plot only. Cached data (`c:numCache`/`c:strCache`) is the read path — a literal
-//! source (`c:numLit`/`c:strLit`) or a multi-level category (`c:multiLvlStrRef`) rides through the
-//! `Raw` bucket and reads as empty for now. Editing (C3) and authoring (C4) are later tiers.
+//! Read-only, the common plot types (bar, line, pie, area, scatter, doughnut). Cached data
+//! (`c:numCache`/`c:strCache`) is the read path — a literal source (`c:numLit`/`c:strLit`), a
+//! multi-level category (`c:multiLvlStrRef`), or an unmodeled plot type (radar, bubble, 3-D, …) rides
+//! through the `Raw` bucket and reads as empty/absent for now. Editing (C3) and authoring (C4) are
+//! later tiers.
 
 mod build;
 mod data;
@@ -49,6 +53,7 @@ pub use data::{
     SeriesText, SeriesTextContent, StringCache, StringReference, StringReferenceContent, Value,
 };
 pub use plot::{
-    BarChart, BarChartContent, BarDirection, BarGrouping, ChartKind, Series, SeriesContent,
+    AreaChart, BarChart, BarDirection, BarGrouping, ChartKind, DoughnutChart, LineChart, PieChart,
+    PlotContent, ScatterChart, Series, SeriesContent,
 };
 pub use space::{Chart, ChartContent, ChartSpace, ChartSpaceContent, PlotArea, PlotAreaContent};
