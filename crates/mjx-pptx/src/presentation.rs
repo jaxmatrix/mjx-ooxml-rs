@@ -5,7 +5,8 @@ use mjx_dml::{
     resolve_line, BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
     EffectListSpec, Emu, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec,
     OnOffStyle, ParagraphProperties, ParagraphPropertiesSpec, PresetGeometry, ResolvedColor,
-    SchemeColors, ShapeGeometry, Table, TableCell, TableCellProperties, TableColumn, TablePart,
+    Scene3D, Scene3DSpec, SchemeColors, Shape3D, Shape3DSpec, ShapeGeometry, Table, TableCell,
+    TableCellProperties, TableColumn, TablePart,
     TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder, TableStyleCellStyle,
     TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody,
     TextDirection, TextFont, TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
@@ -3108,6 +3109,144 @@ impl Presentation {
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         self.set_shape_effects(surface, shape_idx, &EffectListSpec::new())
+    }
+
+    /// The **explicit** 3-D scene of shape `shape_idx` on `surface` — its `p:spPr > a:scene3d`
+    /// (`CT_Scene3D`) as an interner-free [`Scene3DSpec`] — or `None` when the shape declares no
+    /// `a:scene3d`. 3-D has no inheritance chain, so an absent scene means the shape is flat, not that
+    /// it inherits one. A scene present but missing a schema-required part (its `a:camera` or
+    /// `a:lightRig`) also reads as `None`. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the `a:scene3d`
+    /// element is not well-formed.
+    pub fn shape_scene_3d(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<Scene3DSpec>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        match slide::shape_scene_3d(shape, &doc.interner) {
+            Some(scene) => {
+                let scene = Scene3D::from_xml(scene, &doc.interner)?;
+                Ok(scene.spec(&doc.interner))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Sets the 3-D scene of shape `shape_idx` on `surface` from an interner-free [`Scene3DSpec`],
+    /// rebuilding the `p:spPr` `a:scene3d` (replacing an existing one in place, or inserting a new one
+    /// after any geometry, fill, outline, and effects, before `a:sp3d`). Rebuilding from a spec drops
+    /// any opaque scene internals (`a:backdrop`, `extLst`). Marks only that part dirty.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
+    pub fn set_shape_scene_3d(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        scene: &Scene3DSpec,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
+        slide::set_scene_3d(shape, interner, scene)
+    }
+
+    /// Clears the 3-D scene of shape `shape_idx` on `surface` by **removing** its `a:scene3d`
+    /// entirely — a shape without a scene is flat. Unlike effects, there is no "explicitly empty"
+    /// scene: `CT_Scene3D` requires a camera and light rig, and 3-D does not inherit, so clearing
+    /// removes rather than empties. A no-op (still `Ok`) when the shape has no scene. Marks the part
+    /// dirty only if it removed something.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn clear_shape_scene_3d(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
+        slide::remove_scene_3d(shape, interner);
+        Ok(())
+    }
+
+    /// The **explicit** 3-D properties of shape `shape_idx` on `surface` — its `p:spPr > a:sp3d`
+    /// (`CT_Shape3D`: extrusion, contour, bevels, material) as an interner-free [`Shape3DSpec`] — or
+    /// `None` when the shape declares no `a:sp3d`. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the `a:sp3d`
+    /// element is not well-formed.
+    pub fn shape_3d_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<Shape3DSpec>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        match slide::shape_sp3d(shape, &doc.interner) {
+            Some(sp3d) => {
+                let sp3d = Shape3D::from_xml(sp3d, &doc.interner)?;
+                Ok(Some(sp3d.spec(&doc.interner)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Sets the 3-D properties of shape `shape_idx` on `surface` from an interner-free
+    /// [`Shape3DSpec`], rebuilding the `p:spPr` `a:sp3d` (replacing an existing one in place, or
+    /// inserting a new one after every other visual property, before any `a:extLst`). Rebuilding from
+    /// a spec drops any opaque `extLst`. Marks only that part dirty.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
+    pub fn set_shape_3d_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        properties: &Shape3DSpec,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
+        slide::set_sp3d(shape, interner, properties)
+    }
+
+    /// Clears the 3-D properties of shape `shape_idx` on `surface` by **removing** its `a:sp3d`
+    /// entirely. A no-op (still `Ok`) when the shape has none. Marks the part dirty only if it removed
+    /// something.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn clear_shape_3d_properties(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
+        slide::remove_sp3d(shape, interner);
+        Ok(())
     }
 
     /// The theme that governs `surface`, as an interner-free [`ThemeInfo`] (its color scheme +
@@ -6280,6 +6419,20 @@ fn apply_edit_to_element(
         PreparedEdit::Element(ShapeEdit::Outline(line)) => slide::set_line(shape, interner, line),
         PreparedEdit::Element(ShapeEdit::Effects(effects)) => {
             slide::set_effects(shape, interner, effects)
+        }
+        PreparedEdit::Element(ShapeEdit::Scene3D(scene)) => {
+            slide::set_scene_3d(shape, interner, scene)
+        }
+        PreparedEdit::Element(ShapeEdit::ClearScene3D) => {
+            slide::remove_scene_3d(shape, interner);
+            Ok(())
+        }
+        PreparedEdit::Element(ShapeEdit::Shape3DProperties(properties)) => {
+            slide::set_sp3d(shape, interner, properties)
+        }
+        PreparedEdit::Element(ShapeEdit::ClearShape3DProperties) => {
+            slide::remove_sp3d(shape, interner);
+            Ok(())
         }
         PreparedEdit::Element(ShapeEdit::Geometry(geometry)) => {
             slide::set_prstgeom(shape, interner, *geometry)

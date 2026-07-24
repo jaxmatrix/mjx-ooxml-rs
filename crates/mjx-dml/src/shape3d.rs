@@ -5,7 +5,7 @@
 //! children and self-closing flag preserved verbatim); the modeled facets are read through typed
 //! accessors, while an unmodeled child (`a:backdrop`, `extLst`, an MCE bucket) stays opaque so the
 //! element round-trips byte-for-byte. [`Scene3DSpec`] / [`Shape3DSpec`] are the interner-free values
-//! `mjx-pptx`'s future `shape_scene_3d` / `shape_shape_3d` read and write.
+//! `mjx-pptx`'s `shape_scene_3d` / `shape_3d_properties` read and write.
 //!
 //! The pieces, from the schema:
 //! - [`Bevel`] (`CT_Bevel`) — a rounded/chamfered edge: a size (`@w`/`@h`) and a [`BevelPreset`]
