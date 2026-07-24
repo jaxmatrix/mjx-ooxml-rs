@@ -15,6 +15,45 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.36] - 2026-07-25
+
+Charts, tier C3 (MJX-113) — the first **mutating** chart tier. C1/C2 modeled a chart read-only; this
+release rewrites a series' cached values and category labels (`c:numCache` / `c:strCache`) on an
+existing chart, through a `mjx-pptx` surface. The cached values are what **render**; a chart's
+embedded workbook is **not** rewritten and goes stale (a separate follow-up). Only the edited chart
+part is dirtied — every other part, the embedded workbook included, is left byte-identical.
+
+```rust
+// read the series, then rewrite the first series' values
+for s in deck.chart_series(slide, shape)? {           // name, categories, values per series
+    println!("{:?}: {:?} = {:?}", s.name, s.categories, s.values);
+}
+deck.set_chart_series_values(slide, shape, 0, &[1.0, 2.5, 3.0])?;
+deck.set_chart_series_categories(slide, shape, 0, &["Q1", "Q2", "Q3"])?;
+```
+
+### Added
+
+- **`Presentation::chart_series`** — each series of a chart as a `ChartSeriesData` (`name`,
+  `categories`, `values`; a scatter series' `xVal`/`yVal`), flattened across the chart's plots.
+  Non-dirtying.
+- **`Presentation::set_chart_series_values` / `set_chart_series_categories`** — rewrite the cached
+  data of the `series_idx`-th series (0-based across the plots), dirtying only the chart part.
+  `set_chart_series_values` targets `c:val`, or a scatter series' `c:yVal`.
+- **`ChartSeriesData`** — the read DTO.
+- **`mjx-chart` mutation** — `NumberCache::set_values` / `StringCache::set_labels`, the
+  reference/data-source `set_values`/`set_labels`, `Series::set_values`/`set_categories`, and the
+  mutable navigation (`series_mut`, `all_series_mut`, `ChartSpace::series_mut`/`series_count`).
+- Errors **`ShapeIsNotAChart`**, **`ChartSeriesOutOfRange`**, **`ChartSeriesNotEditable`**.
+
+### Fidelity
+
+A cache edit rebuilds only its `c:pt` points and its `c:ptCount`; the `c:formatCode` and everything
+outside the edited cache (the axes, other series, styling) survive verbatim. A rewritten number is
+formatted with Rust's shortest round-trip representation (the exact inverse of the read parse); a
+non-finite value, which has no valid spelling, is skipped. `mjx-pptx` gains a dependency on
+`mjx-chart` (both shared-markup/format tiers, cycle-free).
+
 ## [0.0.35] - 2026-07-25
 
 Charts, tier C2 (MJX-112) — the remaining common plot types. C1 modeled the bar plot; this release
