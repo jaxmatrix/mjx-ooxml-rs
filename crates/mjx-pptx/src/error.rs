@@ -285,6 +285,30 @@ pub enum PptxError {
     #[error("shape is not a table")]
     ShapeIsNotATable,
 
+    /// The addressed shape does not frame a chart — it is not a `p:graphicFrame` at all, or the
+    /// graphic it frames is a table or a diagram rather than a `c:chart`.
+    #[error("shape is not a chart")]
+    ShapeIsNotAChart,
+
+    /// The addressed series is outside the chart, which draws `count` series across its plots.
+    #[error("chart series {index} is outside a chart with {count} series")]
+    ChartSeriesOutOfRange {
+        /// The series index asked for.
+        index: usize,
+        /// The number of series the chart draws.
+        count: usize,
+    },
+
+    /// The addressed series has no cached numeric values (`c:val`/`c:yVal`) — or no string category
+    /// cache (`c:cat`) — to rewrite; its data comes from a source this build does not edit.
+    #[error("chart series {index} has no {kind} to edit")]
+    ChartSeriesNotEditable {
+        /// The series index asked for.
+        index: usize,
+        /// What was being edited — `"values"` or `"categories"`.
+        kind: &'static str,
+    },
+
     /// The addressed cell is outside the table, which is `rows` by `columns`.
     ///
     /// Merged cells do not create holes — every position within the table is addressable — so this

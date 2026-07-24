@@ -19,5 +19,6 @@ mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
+mjx-chart.workspace = true
 thiserror.workspace = true
 unicode-segmentation.workspace = true

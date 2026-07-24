@@ -69,7 +69,7 @@ pub use cursor::ShapeCursor;
 pub use error::PptxError;
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
-pub use presentation::Presentation;
+pub use presentation::{ChartSeriesData, Presentation};
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
