@@ -35,8 +35,11 @@ use crate::color::{Color, ColorSpec};
 use crate::effect::EffectList;
 use crate::fill::{Fill, FillSpec};
 use crate::line::{LineProperties, LineSpec};
+use crate::shape3d::{build_bevel, build_light_rig, read_bevel, read_light_rig, Bevel, LightRig};
 use crate::style::StyleMatrixReference;
 use crate::theme::FontCollection;
+
+use mjx_ooxml_types::drawingml::PresetMaterial;
 
 pub use mjx_ooxml_types::drawingml::{FontCollectionIndex, OnOffStyle};
 
@@ -749,9 +752,10 @@ impl FontReference {
 
 /// `a:cell3D` (`CT_Cell3D`) — a cell's 3-D bevel and lighting.
 ///
-/// The preset material is exposed; the `a:bevel` and `a:lightRig` children are **preserved opaque**
-/// pending the DrawingML 3-D subsystem (its own workstream), so they round-trip untouched but are not
-/// yet decomposed.
+/// A fidelity wrapper: the preset material, the `a:bevel` and the optional `a:lightRig` are read
+/// typed (reusing the DrawingML 3-D model in [`crate::shape3d`]); any `a:extLst` stays opaque and
+/// re-emits verbatim, so the element round-trips byte-for-byte. Unlike `a:sp3d`, a cell carries a
+/// single `a:bevel` (not a top and bottom), which the schema requires.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Cell3D {
     name: RawName,
@@ -764,16 +768,92 @@ fidelity_element_impls!(Cell3D);
 
 impl Cell3D {
     /// The preset material the cell's surface imitates (`@prstMaterial`; wire default `plastic`), as
-    /// its raw wire token — the typed `ST_PresetMaterialType` arrives with the 3-D workstream.
+    /// its raw wire token. Kept alongside the typed [`material`](Self::material) while the accessor
+    /// API is reviewed (a token outside `ST_PresetMaterialType` reads as `Some` here but `None`
+    /// there).
     #[must_use]
     pub fn preset_material<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
         attr_str(&self.attributes, interner, "prstMaterial")
     }
 
-    /// The cell-3D's children, verbatim — the still-opaque `a:bevel` and `a:lightRig`.
+    /// The preset material the cell's surface imitates (`@prstMaterial`; schema default `plastic`),
+    /// typed. `None` when unstated or not a known `ST_PresetMaterialType`. Mirrors
+    /// [`Shape3D::material`](crate::Shape3D::material).
+    #[must_use]
+    pub fn material(&self, interner: &Interner) -> Option<PresetMaterial> {
+        attr_str(&self.attributes, interner, "prstMaterial").and_then(PresetMaterial::from_wire)
+    }
+
+    /// The cell's bevel (`a:bevel`), or `None` if absent (a malformed cell without the schema-required
+    /// bevel).
+    #[must_use]
+    pub fn bevel(&self, interner: &Interner) -> Option<Bevel> {
+        dml_child(&self.children, interner, "bevel").map(|element| read_bevel(element, interner))
+    }
+
+    /// The cell's light rig (`a:lightRig`), or `None` if absent or stating no rig / direction.
+    #[must_use]
+    pub fn light_rig(&self, interner: &Interner) -> Option<LightRig> {
+        dml_child(&self.children, interner, "lightRig")
+            .and_then(|element| read_light_rig(element, interner))
+    }
+
+    /// The cell-3D's children, verbatim — the modeled `a:bevel`/`a:lightRig` plus any opaque
+    /// `a:extLst`.
     #[must_use]
     pub fn children(&self) -> &[RawNode] {
         &self.children
+    }
+
+    /// A fresh `a:cell3D`, seeded with an empty `<a:bevel/>` — `CT_Cell3D` requires a bevel, and every
+    /// `CT_Bevel` attribute is optional, so a stated-nothing bevel is the valid empty starting point.
+    /// Refine it with [`set_material`](Self::set_material), [`set_bevel`](Self::set_bevel) and
+    /// [`set_light_rig`](Self::set_light_rig).
+    #[must_use]
+    pub fn new(interner: &mut Interner) -> Self {
+        let bevel = RawNode::Element(dml_element(interner, "bevel", Vec::new(), Vec::new()));
+        Self {
+            name: dml_name(interner, "cell3D"),
+            attributes: Vec::new(),
+            children: vec![bevel],
+            empty: false,
+        }
+    }
+
+    /// Sets the surface material (`@prstMaterial`).
+    pub fn set_material(&mut self, interner: &mut Interner, material: PresetMaterial) {
+        set_attr(
+            &mut self.attributes,
+            interner,
+            "prstMaterial",
+            material.to_wire(),
+        );
+    }
+
+    /// Sets the cell's bevel (`a:bevel`), replacing the existing one in place.
+    pub fn set_bevel(&mut self, interner: &mut Interner, bevel: &Bevel) {
+        let element = build_bevel(interner, "bevel", bevel);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "bevel",
+            cell_3d_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// Sets the cell's light rig (`a:lightRig`), replacing any existing one in place.
+    pub fn set_light_rig(&mut self, interner: &mut Interner, light_rig: &LightRig) {
+        let element = build_light_rig(interner, light_rig);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "lightRig",
+            cell_3d_child_rank,
+        );
+        self.empty = false;
     }
 }
 
@@ -817,6 +897,17 @@ fn cell_style_child_rank(local: &str) -> Option<usize> {
         "tcBdr" => Some(0),
         "fill" | "fillRef" => Some(1),
         "cell3D" => Some(2),
+        _ => None,
+    }
+}
+
+/// A child's rank in `CT_Cell3D`'s sequence: `bevel` (required), then the optional `lightRig`, then
+/// `extLst`.
+fn cell_3d_child_rank(local: &str) -> Option<usize> {
+    match local {
+        "bevel" => Some(0),
+        "lightRig" => Some(1),
+        "extLst" => Some(2),
         _ => None,
     }
 }
@@ -1081,6 +1172,19 @@ impl TableStyleCellStyle {
             interner,
             element,
             |local| local == "tcBdr",
+            cell_style_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// Sets the cell's 3-D (`a:cell3D`), replacing any existing one in place.
+    pub fn set_cell_3d(&mut self, interner: &mut Interner, cell_3d: &Cell3D) {
+        let element = cell_3d.to_xml(interner);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "cell3D",
             cell_style_child_rank,
         );
         self.empty = false;
