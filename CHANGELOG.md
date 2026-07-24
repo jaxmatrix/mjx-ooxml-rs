@@ -15,6 +15,42 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.33] - 2026-07-25
+
+Charts, tier C0 (MJX-47) — the first step of the chart workstream. A `p:graphicFrame` that frames a
+chart (its `a:graphicData@uri` is the chart URI and its payload is a `c:chart`) points at a **separate
+part** (`/ppt/charts/chartN.xml`) by relationship id, unlike a table, whose `a:tbl` is inline. This
+release recognizes such a frame, resolves that relationship, and reads the chart part's bytes — the
+chart XML itself is not modeled yet; it and its satellites (an embedded workbook, colour and style
+parts) are carried through a round-trip **verbatim**.
+
+```rust
+if deck.graphic_frame_kind(slide, shape)? == Some(GraphicFrameKind::Chart) {
+    let rel = deck.chart_rel_id(slide, shape)?;        // the slide relationship the frame names
+    let xml = deck.chart_part_bytes(slide, shape)?;    // the /ppt/charts/chartN.xml bytes, borrowed
+}
+```
+
+### Added
+
+- **`Presentation::chart_rel_id`** — the relationship id a chart frame names
+  (`p:graphicFrame > a:graphic > a:graphicData > c:chart@r:id`), or `None` for any shape that frames
+  no chart. The `c:chart` element is looked for rather than the frame's `uri` trusted — the payload
+  decides. Reading is non-dirtying.
+- **`Presentation::chart_part_bytes`** — the raw XML of the chart part that frame references, borrowed
+  from the package exactly as stored (never re-serialized), or `None` when the shape frames no chart.
+  The read window onto a chart until `mjx-chart` models it.
+- **`constants::REL_CHART` and `constants::CONTENT_TYPE_CHART`** — the chart relationship type and the
+  chart part's content type, for the authoring tiers to come.
+- A `tests/fixtures/charts.pptx` fixture (two slides, one clustered-column chart with an embedded
+  workbook) and integration tests proving a chart deck round-trips byte-identically, that reading a
+  chart dirties nothing, and that editing another slide leaves every chart part untouched.
+
+### Changed
+
+- The private `image_part_for_rel` helper is generalized to `part_for_rel` (it resolves any
+  relationship id to its part), now shared by the image and chart read paths.
+
 ## [0.0.32] - 2026-07-24
 
 DrawingML 3-D, part 3 (MJX-49 D4) — and with it the 3-D workstream is complete. `Cell3D`
