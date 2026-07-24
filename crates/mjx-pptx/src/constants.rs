@@ -44,6 +44,11 @@ pub const REL_IMAGE: &str =
 pub const REL_TABLE_STYLES: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableStyles";
 
+/// The relationship type from a slide (or other part) to a chart part (`/ppt/charts/chartN.xml`) —
+/// the target a chart frame's `c:chart@r:id` names.
+pub const REL_CHART: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
@@ -67,3 +72,8 @@ pub const CONTENT_TYPE_NOTES_MASTER: &str =
 /// so it is registered as a per-part Override, not a Default.
 pub const CONTENT_TYPE_TABLE_STYLES: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.tableStyles+xml";
+
+/// The content type of a chart part (`/ppt/charts/chartN.xml`). Shares the `xml` extension with every
+/// other part, so it is registered as a per-part Override, not a Default.
+pub const CONTENT_TYPE_CHART: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
