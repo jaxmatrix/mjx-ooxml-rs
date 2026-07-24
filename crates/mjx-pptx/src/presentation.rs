@@ -4698,6 +4698,57 @@ impl Presentation {
         Ok(slide::graphic_frame_uri(shape, &doc.interner).map(GraphicFrameKind::from_uri))
     }
 
+    /// The relationship id the chart frame `shape_idx` on `surface` names
+    /// (`p:graphicFrame > a:graphic > a:graphicData > c:chart@r:id`), or `None` when the shape is not
+    /// a graphic frame holding a chart. Reading does not dirty the part.
+    ///
+    /// The chart itself lives in a separate part (`/ppt/charts/chartN.xml`); this returns the id of
+    /// the slide relationship that names it. [`chart_part_bytes`](Self::chart_part_bytes) resolves
+    /// that relationship to the chart's bytes.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn chart_rel_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        Ok(slide::chart_rel_id(shape, &doc.interner).map(str::to_owned))
+    }
+
+    /// The raw XML bytes of the chart part the chart frame `shape_idx` on `surface` references
+    /// (`/ppt/charts/chartN.xml`), exactly as the package holds them, or `None` when the shape frames
+    /// no chart. Borrowed from the package, so the part is not copied.
+    ///
+    /// The chart part is **not modeled** yet — it and its satellites (an embedded workbook, colour and
+    /// style parts) are carried through a round-trip verbatim. This is the read window onto a chart
+    /// until [`mjx-chart`] models it; reading does not dirty anything.
+    ///
+    /// # Errors
+    /// As [`chart_rel_id`](Self::chart_rel_id), plus [`PptxError::ExternalTarget`] if the relationship
+    /// points outside the package.
+    ///
+    /// [`mjx-chart`]: https://docs.rs/mjx-chart
+    pub fn chart_part_bytes(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let surface = surface.into();
+        let Some(rel_id) = self.chart_rel_id(surface, shape_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&part))
+    }
+
     /// The shape of the table shape `shape_idx` on `surface` frames, as `(rows, columns)`.
     ///
     /// The column count comes from the table's `a:tblGrid`, which is where a table declares its
@@ -5414,7 +5465,7 @@ impl Presentation {
             return Ok(None);
         };
         let slide_part = self.surface_part(surface)?;
-        let Some(part) = self.image_part_for_rel(&slide_part, &rel_id)? else {
+        let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
         Ok(self.package.part_bytes(&part))
@@ -5461,13 +5512,10 @@ impl Presentation {
         slide::set_blip_embed(picture, interner, rel_prefix, &rel_id)
     }
 
-    /// The part an image relationship of `source` points at, or `None` if there is no such
-    /// relationship. Errors if it points outside the package.
-    fn image_part_for_rel(
-        &self,
-        source: &PartName,
-        rel_id: &str,
-    ) -> Result<Option<PartName>, PptxError> {
+    /// The part relationship `rel_id` of `source` points at, or `None` if `source` has no such
+    /// relationship. Errors if it points outside the package. Used to resolve an image blip's
+    /// `r:embed` and a chart frame's `c:chart@r:id` alike — both name a part by id.
+    fn part_for_rel(&self, source: &PartName, rel_id: &str) -> Result<Option<PartName>, PptxError> {
         let Some(rels) = self.package.relationships_for(Some(source)) else {
             return Ok(None);
         };

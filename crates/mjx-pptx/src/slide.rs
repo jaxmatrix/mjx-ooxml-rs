@@ -5,7 +5,7 @@ use mjx_dml::{
     Scene3DSpec, Shape3DSpec, ShapeGeometry, StyleMatrixReference,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawNode, Symbol, ToXml};
-use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_MAIN, PML};
+use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_CHART, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
 use crate::address::ShapePath;
@@ -338,6 +338,25 @@ pub(crate) fn shape_table_mut<'a>(
     let graphic = nav::child_mut(shape, interner, DML_MAIN, "graphic")?;
     let data = nav::child_mut(graphic, interner, DML_MAIN, "graphicData")?;
     nav::child_mut(data, interner, DML_MAIN, "tbl")
+}
+
+/// The relationship id a chart frame names (`p:graphicFrame > a:graphic > a:graphicData >
+/// c:chart@r:id`), or `None` for any other shape kind and for a frame holding a table or diagram
+/// instead — the `c:chart` element is looked for rather than the `uri` trusted, since it is the
+/// payload that decides.
+///
+/// The `r:id` is matched by local name — a `c:chart` in a graphic frame carries no other `id`-local
+/// attribute — so the relationships prefix need not be resolved (as with `a:hlinkClick`, see
+/// [`shape_hyperlink_rel_id`]).
+pub(crate) fn chart_rel_id<'a>(shape: &'a RawElement, interner: &Interner) -> Option<&'a str> {
+    let graphic = nav::child(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child(graphic, interner, DML_MAIN, "graphicData")?;
+    let chart = nav::child(data, interner, DML_CHART, "chart")?;
+    chart
+        .attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == "id")
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
 }
 
 /// The `n`-th `a:tr` of a table, mutably.
