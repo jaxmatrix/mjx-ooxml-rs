@@ -49,6 +49,16 @@ pub const REL_TABLE_STYLES: &str =
 pub const REL_CHART: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
 
+/// The relationship type from a slide to an embedded OLE object part (`/ppt/embeddings/oleObjectN.bin`)
+/// — the target a `p:oleObj@r:id` names.
+pub const REL_OLE_OBJECT: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject";
+
+/// The relationship type from a slide to an embedded Office **package** (`.xlsx`/`.docx`/…), the other
+/// way an OLE object's data is carried (an embedded document rather than a raw OLE `.bin` stream).
+pub const REL_PACKAGE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
@@ -77,3 +87,8 @@ pub const CONTENT_TYPE_TABLE_STYLES: &str =
 /// other part, so it is registered as a per-part Override, not a Default.
 pub const CONTENT_TYPE_CHART: &str =
     "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
+
+/// The content type of a raw OLE object part (`/ppt/embeddings/oleObjectN.bin`). Its `.bin` extension
+/// is shared with other binary parts (e.g. `printerSettings`), so it is registered as a per-part
+/// Override, not a Default.
+pub const CONTENT_TYPE_OLE_OBJECT: &str = "application/vnd.openxmlformats-officedocument.oleObject";
