@@ -21,6 +21,8 @@ use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
 };
 use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
+#[cfg(feature = "vml")]
+use mjx_vml::is_vml_content_type;
 
 use crate::address::ShapePath;
 use crate::cursor::{ShapeCursor, ShapeEdit};
@@ -4806,6 +4808,46 @@ impl Presentation {
             return Ok(None);
         };
         Ok(self.package.part_bytes(&part))
+    }
+
+    /// The names of every legacy **VML** drawing part in the package (`ppt/drawings/vmlDrawingN.vml`
+    /// and the like), in package order.
+    ///
+    /// VML is Transitional-only legacy markup that producers still emit for OLE-object fallbacks,
+    /// comment authoring shapes, ink, and legacy form controls. It is recognized by content type
+    /// ([`is_vml_content_type`]) rather than navigated from a shape, so this finds VML referenced from
+    /// any part — slides, notes, masters, handout — uniformly.
+    ///
+    /// Preserve-first: the parts are **not modeled**. Read their raw bytes with
+    /// [`vml_part_bytes`](Self::vml_part_bytes); untouched, they round-trip verbatim. Reading does not
+    /// dirty anything.
+    ///
+    /// Requires the `vml` crate feature.
+    #[cfg(feature = "vml")]
+    #[must_use]
+    pub fn vml_part_names(&self) -> Vec<PartName> {
+        self.package
+            .part_names()
+            .filter(|part| {
+                self.package
+                    .content_type_of(part)
+                    .is_some_and(is_vml_content_type)
+            })
+            .collect()
+    }
+
+    /// The raw bytes of the VML drawing `part`, exactly as the package holds them, or `None` when the
+    /// package has no such part (or it has been edited elsewhere). Borrowed from the package, so the
+    /// part is not copied and nothing is dirtied.
+    ///
+    /// Pair with [`vml_part_names`](Self::vml_part_names). Preserve-first: the bytes are the legacy VML
+    /// XML verbatim, not a model.
+    ///
+    /// Requires the `vml` crate feature.
+    #[cfg(feature = "vml")]
+    #[must_use]
+    pub fn vml_part_bytes(&self, part: &PartName) -> Option<&[u8]> {
+        self.package.part_bytes(part)
     }
 
     /// The part name of the chart the frame `shape_idx` on `surface` references, or `None` when the
