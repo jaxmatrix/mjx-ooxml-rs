@@ -15,6 +15,47 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.40] - 2026-07-26
+
+ActiveX controls (MJX-137, second tier of MJX-135) — **preserve-first** recognition of legacy ActiveX
+form controls. Unlike an OLE object (a graphic frame in the shape tree), a control lives in
+`p:cSld > p:controls > p:control` — beside the shape tree — so it is addressed per-slide by a control
+index. Its persisted state is a **two-hop** chain: `p:control@r:id` names the control part
+(`/ppt/activeX/activeXN.xml`, `ax:ocx` markup), which in turn relates to its binary blob
+(`/ppt/activeX/activeXN.bin`). The control markup, its binary, and its fallback snapshot image are each
+carried through a round-trip verbatim, none modeled. Unconditional, like OLE.
+
+```rust
+use mjx_pptx::Presentation;
+
+let mut deck = Presentation::open(&bytes)?;
+for i in 0..deck.activex_control_count(slide)? {
+    let name = deck.activex_control_name(slide, i)?;          // e.g. "CommandButton1"
+    let ocx = deck.activex_part_bytes(slide, i)?;             // ax:ocx markup, verbatim
+    let blob = deck.activex_binary_bytes(slide, i)?;          // persisted state (.bin), two-hop
+    let snapshot = deck.activex_snapshot_image_bytes(slide, i)?; // fallback image for rendering
+}
+```
+
+### Added
+
+- **`Presentation::activex_control_count`** — the number of ActiveX controls on a surface.
+- **`Presentation::activex_control_rel_id` / `activex_control_name`** — a control's control-part
+  relationship id and its declared `name`.
+- **`Presentation::activex_part_bytes`** — the `ax:ocx` control part's verbatim bytes.
+- **`Presentation::activex_binary_bytes`** — the control's binary blob, resolved across the two-hop
+  `activeXControlBinary` chain.
+- **`Presentation::activex_snapshot_rel_id` / `activex_snapshot_image_bytes`** — the fallback snapshot
+  image a renderer draws in place of the (never-executed) control.
+- Constants `REL_CONTROL`, `REL_ACTIVEX_CONTROL_BINARY`, `CONTENT_TYPE_ACTIVEX`,
+  `CONTENT_TYPE_ACTIVEX_BINARY`.
+
+### Scope
+
+Recognition + preserve + a read window only — no authoring, and the control is not modeled (opaque
+`ax:ocx` markup + binary state). The last MJX-135 tier is ink (MJX-138); producer-authentic fixture
+validation is a follow-up (MJX-140).
+
 ## [0.0.39] - 2026-07-26
 
 OLE objects (MJX-136, first tier of MJX-135) — **preserve-first** recognition of legacy embedded OLE
