@@ -21,3 +21,7 @@ mjx-dml.workspace = true
 mjx-pptx.workspace = true
 mjx-docx.workspace = true
 mjx-xlsx.workspace = true
+
+[features]
+# Re-exposes mjx-pptx's preserve-first legacy VML recognition surface (opt-in).
+vml = ["mjx-pptx/vml"]

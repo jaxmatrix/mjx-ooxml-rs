@@ -20,5 +20,11 @@ mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
 mjx-chart.workspace = true
+mjx-vml = { workspace = true, optional = true }
 thiserror.workspace = true
 unicode-segmentation.workspace = true
+
+[features]
+# Preserve-first legacy VML recognition (opt-in). Off by default: VML parts round-trip
+# byte-identically regardless; this feature only surfaces them for reading.
+vml = ["dep:mjx-vml"]
