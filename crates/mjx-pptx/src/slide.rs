@@ -411,15 +411,15 @@ pub(crate) fn ole_object_rel_id<'a>(
         .and_then(|attr| std::str::from_utf8(&attr.value).ok())
 }
 
-/// The relationship id of an OLE object's **fallback snapshot** image
-/// (`p:oleObj > p:pic > p:blipFill > a:blip@r:embed`), or `None` if the frame carries no such snapshot.
-/// This is the image a renderer draws in place of the (unexecuted) embedded object.
-pub(crate) fn ole_snapshot_rel_id<'a>(
-    shape: &'a RawElement,
+/// The relationship id of a **fallback snapshot** image nested directly in `container`
+/// (`container > p:pic > p:blipFill > a:blip@r:embed`), or `None` if there is no such snapshot. Shared
+/// by OLE objects and ActiveX controls, which both carry a `p:pic` snapshot the same way — the image a
+/// renderer draws in place of the (unexecuted) object or control.
+pub(crate) fn pic_snapshot_rel_id<'a>(
+    container: &'a RawElement,
     interner: &'a Interner,
 ) -> Option<&'a str> {
-    let ole = ole_object(shape, interner)?;
-    let picture = nav::child(ole, interner, PML, "pic")?;
+    let picture = nav::child(container, interner, PML, "pic")?;
     let blip_fill = nav::child(picture, interner, PML, "blipFill")?;
     let blip = nav::child(blip_fill, interner, DML_MAIN, "blip")?;
     blip.attributes
@@ -428,10 +428,58 @@ pub(crate) fn ole_snapshot_rel_id<'a>(
         .and_then(|attr| std::str::from_utf8(&attr.value).ok())
 }
 
+/// The relationship id of an OLE object's fallback snapshot image
+/// (`p:oleObj > p:pic > p:blipFill > a:blip@r:embed`), or `None` if the frame carries no such snapshot.
+pub(crate) fn ole_snapshot_rel_id<'a>(
+    shape: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a str> {
+    pic_snapshot_rel_id(ole_object(shape, interner)?, interner)
+}
+
 /// The `progId` an OLE frame declares (e.g. `Excel.Sheet.12`) — the app that owns the embedded object —
 /// or `None` if absent. An unprefixed attribute, matched by local name.
 pub(crate) fn ole_prog_id<'a>(shape: &'a RawElement, interner: &'a Interner) -> Option<&'a str> {
     nav::attr_value(ole_object(shape, interner)?, interner, "progId")
+}
+
+/// The ActiveX form controls a slide carries (`p:sld > p:cSld > p:controls > p:control`), in order.
+///
+/// A `p:control` is a sibling of `p:spTree` under `p:cSld`, so it is **not** in the shape index space —
+/// controls are addressed by their own per-slide index. Empty when the slide has no `p:controls`.
+pub(crate) fn controls<'a>(
+    slide_root: &'a RawElement,
+    interner: &'a Interner,
+) -> impl Iterator<Item = &'a RawElement> {
+    nav::child(slide_root, interner, PML, "cSld")
+        .and_then(|c_sld| nav::child(c_sld, interner, PML, "controls"))
+        .into_iter()
+        .flat_map(move |controls| nav::children(controls, interner, PML, "control"))
+}
+
+/// The `idx`-th ActiveX `p:control` on a slide, or `None` when the slide has fewer.
+pub(crate) fn nth_control<'a>(
+    slide_root: &'a RawElement,
+    interner: &'a Interner,
+    idx: usize,
+) -> Option<&'a RawElement> {
+    controls(slide_root, interner).nth(idx)
+}
+
+/// The relationship id a `p:control` names for its ActiveX control part (`p:control@r:id`), or `None`.
+/// Matched by local name, as [`chart_rel_id`].
+pub(crate) fn control_rel_id<'a>(control: &'a RawElement, interner: &Interner) -> Option<&'a str> {
+    control
+        .attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == "id")
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
+/// The `name` a `p:control` declares (e.g. `CommandButton1`), or `None`. An unprefixed attribute,
+/// matched by local name.
+pub(crate) fn control_name<'a>(control: &'a RawElement, interner: &'a Interner) -> Option<&'a str> {
+    nav::attr_value(control, interner, "name")
 }
 
 /// The `n`-th `a:tr` of a table, mutably.
