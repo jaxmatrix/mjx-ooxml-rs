@@ -8,7 +8,13 @@ use std::path::PathBuf;
 
 use mjx_opc::Package;
 
-const FIXTURES: &[&str] = &["sample.pptx", "sample.docx", "sample.xlsx", "vml.pptx"];
+const FIXTURES: &[&str] = &[
+    "sample.pptx",
+    "sample.docx",
+    "sample.xlsx",
+    "vml.pptx",
+    "ole.pptx",
+];
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
