@@ -15,6 +15,40 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.38] - 2026-07-26
+
+VML, tier V1 (MJX-115) — **preserve-first** legacy VML round-trip. VML is the Transitional-only drawing
+markup producers still emit for OLE-object fallbacks, comment shapes, ink and legacy controls, carried
+as standalone `vmlDrawingN.vml` parts. Such parts already round-trip byte-identically through the
+generic part-level copy-on-write; this release adds a **recognition surface** so callers can find and
+read them — behind the new `vml` crate feature (opt-in, off by default). The VML XML is **not modeled**.
+
+```rust
+// with `mjx-pptx` (or `mjx-ooxml`) built with the `vml` feature
+let deck = Presentation::open(&bytes)?;
+for part in deck.vml_part_names() {
+    let xml = deck.vml_part_bytes(&part); // raw legacy VML, verbatim
+}
+```
+
+### Added
+
+- **`mjx-vml`** becomes real (was a scaffold stub): the VML vocabulary — `CONTENT_TYPE_VML`,
+  `REL_VML_DRAWING`, `VML_DEFAULT_EXTENSION` — and an `is_vml_content_type` recognition predicate.
+- **`Presentation::vml_part_names`** / **`vml_part_bytes`** (behind the `vml` feature) — enumerate the
+  legacy VML drawing parts a package carries (by content type, so VML referenced from any part is
+  found) and read a part's bytes verbatim, without dirtying anything.
+- **`vml` Cargo feature** on `mjx-pptx` (the repo's first), re-exposed by the `mjx-ooxml` facade.
+
+### Scope
+
+Preserve-first only: VML is recognized and readable as raw bytes, never parsed or modeled, and never
+authored. Recognition is package-level (content type), not yet shape/relationship-level — the OLE /
+ActiveX / ink references that cite a specific VML shape are the next tier (MJX-135), and Word-side
+legacy VML (`w:pict`, header/footer fallback) is tracked under the Word slice (MJX-139). The fixture is
+hand-crafted; validation against genuine producer decks is a follow-up (MJX-140). This completes the
+chart + VML arc (MJX-47) except for the chart embedded workbook (MJX-116).
+
 ## [0.0.37] - 2026-07-25
 
 Charts, tier C4 (MJX-114) — **authoring** a brand-new chart. C0–C3 recognized, modeled and edited an
