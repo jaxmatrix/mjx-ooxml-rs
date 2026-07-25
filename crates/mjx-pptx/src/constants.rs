@@ -59,6 +59,16 @@ pub const REL_OLE_OBJECT: &str =
 pub const REL_PACKAGE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
 
+/// The relationship type from a slide to an ActiveX control part (`/ppt/activeX/activeXN.xml`) — the
+/// target a `p:control@r:id` names.
+pub const REL_CONTROL: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/control";
+
+/// The relationship type from an ActiveX control part to its binary blob (`/ppt/activeX/activeXN.bin`),
+/// which holds the control's persisted state.
+pub const REL_ACTIVEX_CONTROL_BINARY: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/activeXControlBinary";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
@@ -92,3 +102,12 @@ pub const CONTENT_TYPE_CHART: &str =
 /// is shared with other binary parts (e.g. `printerSettings`), so it is registered as a per-part
 /// Override, not a Default.
 pub const CONTENT_TYPE_OLE_OBJECT: &str = "application/vnd.openxmlformats-officedocument.oleObject";
+
+/// The content type of an ActiveX control part (`/ppt/activeX/activeXN.xml`, `ax:ocx` markup). Shares
+/// the `xml` extension with every other part, so it is registered as a per-part Override, not a Default.
+pub const CONTENT_TYPE_ACTIVEX: &str = "application/vnd.ms-office.activeX+xml";
+
+/// The content type of an ActiveX control's binary blob (`/ppt/activeX/activeXN.bin`). Its `.bin`
+/// extension is shared with other binary parts, so it is registered as a per-part Override, not a
+/// Default.
+pub const CONTENT_TYPE_ACTIVEX_BINARY: &str = "application/vnd.ms-office.activeX";

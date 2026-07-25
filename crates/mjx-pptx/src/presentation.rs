@@ -4920,6 +4920,171 @@ impl Presentation {
         Ok(slide::ole_prog_id(shape, &doc.interner).map(str::to_owned))
     }
 
+    /// The number of legacy **ActiveX** form controls on `surface` (`p:cSld > p:controls > p:control`).
+    ///
+    /// A control is not a shape — it lives beside the shape tree, so it is addressed by its own index in
+    /// `0..count`, not the shape index space. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or the slide is malformed.
+    pub fn activex_control_count(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<usize, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        Ok(slide::controls(&doc.root, &doc.interner).count())
+    }
+
+    /// The relationship id the ActiveX control `control_idx` on `surface` names for its control part
+    /// (`p:control@r:id`), or `None` when there is no such control. Reading does not dirty the part.
+    ///
+    /// The control part (`/ppt/activeX/activeXN.xml`, `ax:ocx` markup) lives separately;
+    /// [`activex_part_bytes`](Self::activex_part_bytes) resolves this id to its bytes.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or the slide is malformed.
+    pub fn activex_control_rel_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        control_idx: usize,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let Some(control) = slide::nth_control(&doc.root, &doc.interner, control_idx) else {
+            return Ok(None);
+        };
+        Ok(slide::control_rel_id(control, &doc.interner).map(str::to_owned))
+    }
+
+    /// The `name` the ActiveX control `control_idx` on `surface` declares (e.g. `"CommandButton1"`), or
+    /// `None` when there is no such control or it is unnamed. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or the slide is malformed.
+    pub fn activex_control_name(
+        &mut self,
+        surface: impl Into<Surface>,
+        control_idx: usize,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let Some(control) = slide::nth_control(&doc.root, &doc.interner, control_idx) else {
+            return Ok(None);
+        };
+        Ok(slide::control_name(control, &doc.interner).map(str::to_owned))
+    }
+
+    /// The control part (`/ppt/activeX/activeXN.xml`) the ActiveX control `control_idx` on `surface`
+    /// references, or `None` when there is no such control.
+    fn activex_part(
+        &mut self,
+        surface: Surface,
+        control_idx: usize,
+    ) -> Result<Option<PartName>, PptxError> {
+        let Some(rel_id) = self.activex_control_rel_id(surface, control_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        self.part_for_rel(&slide_part, &rel_id)
+    }
+
+    /// The raw bytes of the ActiveX control part (`ax:ocx` markup) the control `control_idx` on
+    /// `surface` references, exactly as the package holds them, or `None` when there is no such control.
+    /// Borrowed from the package; reading does not dirty anything.
+    ///
+    /// The control markup is **not modeled** — it is carried through a round-trip verbatim.
+    ///
+    /// # Errors
+    /// As [`activex_control_rel_id`](Self::activex_control_rel_id), plus [`PptxError::ExternalTarget`]
+    /// if the relationship points outside the package.
+    pub fn activex_part_bytes(
+        &mut self,
+        surface: impl Into<Surface>,
+        control_idx: usize,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let surface = surface.into();
+        let Some(part) = self.activex_part(surface, control_idx)? else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&part))
+    }
+
+    /// The raw bytes of the ActiveX control's **binary blob** (`/ppt/activeX/activeXN.bin`, the control's
+    /// persisted state) for the control `control_idx` on `surface`, or `None` when there is no such
+    /// control or it has no binary. Borrowed from the package; reading does not dirty anything.
+    ///
+    /// This resolves the two-hop chain: `p:control@r:id` → the control part, then that part's
+    /// `activeXControlBinary` relationship → the `.bin`. Not modeled — carried through verbatim.
+    ///
+    /// # Errors
+    /// As [`activex_control_rel_id`](Self::activex_control_rel_id), plus [`PptxError::ExternalTarget`]
+    /// if either relationship points outside the package.
+    pub fn activex_binary_bytes(
+        &mut self,
+        surface: impl Into<Surface>,
+        control_idx: usize,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let surface = surface.into();
+        let Some(activex_part) = self.activex_part(surface, control_idx)? else {
+            return Ok(None);
+        };
+        let Some(binary_part) =
+            self.follow_rel(&activex_part, constants::REL_ACTIVEX_CONTROL_BINARY)?
+        else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&binary_part))
+    }
+
+    /// The relationship id of the **fallback snapshot** image the ActiveX control `control_idx` on
+    /// `surface` carries (`p:control > p:pic > p:blipFill > a:blip@r:embed`), or `None` when there is no
+    /// such control or snapshot. Reading does not dirty the part.
+    ///
+    /// This is the image a renderer draws in place of the (never-executed) control.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface index is out of range or the slide is malformed.
+    pub fn activex_snapshot_rel_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        control_idx: usize,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let Some(control) = slide::nth_control(&doc.root, &doc.interner, control_idx) else {
+            return Ok(None);
+        };
+        Ok(slide::pic_snapshot_rel_id(control, &doc.interner).map(str::to_owned))
+    }
+
+    /// The stored bytes of the ActiveX control's fallback snapshot image for the control `control_idx`
+    /// on `surface`, exactly as the package holds them (never decoded or re-encoded), or `None` when
+    /// there is no such control or snapshot. Borrowed from the package.
+    ///
+    /// # Errors
+    /// As [`activex_snapshot_rel_id`](Self::activex_snapshot_rel_id), plus [`PptxError::ExternalTarget`]
+    /// if the relationship points outside the package.
+    pub fn activex_snapshot_image_bytes(
+        &mut self,
+        surface: impl Into<Surface>,
+        control_idx: usize,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let surface = surface.into();
+        let Some(rel_id) = self.activex_snapshot_rel_id(surface, control_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&part))
+    }
+
     /// The names of every legacy **VML** drawing part in the package (`ppt/drawings/vmlDrawingN.vml`
     /// and the like), in package order.
     ///
