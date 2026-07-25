@@ -15,6 +15,45 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.39] - 2026-07-26
+
+OLE objects (MJX-136, first tier of MJX-135) — **preserve-first** recognition of legacy embedded OLE
+objects. An OLE object is an embedded document (a legacy `.xls`/`.doc` or an OLE `.bin` stream)
+referenced from a `p:graphicFrame` via `p:oleObj@r:id`, drawn from a fallback image snapshot. Such a
+frame previously surfaced only as the opaque `GraphicFrameKind::Other`; it now reads as `OleObject`,
+with accessors for the embedded object's bytes and the snapshot image — both carried through a
+round-trip verbatim, neither modeled. Unlike VML this is **not** feature-gated: an OLE frame is ordinary
+PresentationML, so it mirrors the (unconditional) chart surface.
+
+```rust
+use mjx_pptx::{GraphicFrameKind, Presentation};
+
+let mut deck = Presentation::open(&bytes)?;
+if deck.graphic_frame_kind(slide, shape)? == Some(GraphicFrameKind::OleObject) {
+    let prog = deck.ole_prog_id(slide, shape)?;               // e.g. "Excel.Sheet.12"
+    let object = deck.ole_object_part_bytes(slide, shape)?;   // embedded object, verbatim
+    let snapshot = deck.ole_snapshot_image_bytes(slide, shape)?; // fallback image for rendering
+}
+```
+
+### Added
+
+- **`GraphicFrameKind::OleObject`** — a graphic frame framing a `p:oleObj` (refines the former `Other`).
+- **`Presentation::ole_object_rel_id` / `ole_object_part_bytes`** — the embedded object's relationship
+  and its verbatim bytes (`/ppt/embeddings/oleObjectN.bin` or an embedded package).
+- **`Presentation::ole_snapshot_rel_id` / `ole_snapshot_image_bytes`** — the fallback snapshot image a
+  renderer draws in place of the (never-executed) object.
+- **`Presentation::ole_prog_id`** — the owning application's `progId`.
+- Constants `REL_OLE_OBJECT`, `REL_PACKAGE`, `CONTENT_TYPE_OLE_OBJECT`.
+
+### Scope
+
+Recognition + preserve + a read window only — no authoring, and the embedded object is not modeled
+(it is an opaque OLE stream or embedded document). The `p:oleObj` is reached through its
+`mc:AlternateContent` wrapper (preferring the `mc:Choice` branch) by a bounded structural descent, not
+by running full MCE resolution. The remaining MJX-135 tiers are ActiveX controls (MJX-137) and ink
+(MJX-138); producer-authentic fixture validation is a follow-up (MJX-140).
+
 ## [0.0.38] - 2026-07-26
 
 VML, tier V1 (MJX-115) — **preserve-first** legacy VML round-trip. VML is the Transitional-only drawing
