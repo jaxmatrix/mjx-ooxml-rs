@@ -4810,6 +4810,116 @@ impl Presentation {
         Ok(self.package.part_bytes(&part))
     }
 
+    /// The relationship id the OLE frame `shape_idx` on `surface` names for its embedded object
+    /// (`p:oleObj@r:id`), or `None` when the shape is not a graphic frame holding an OLE object.
+    /// Reading does not dirty the part.
+    ///
+    /// The embedded object lives in a separate part (`/ppt/embeddings/oleObjectN.bin`, or an embedded
+    /// `.xlsx`/`.docx`); this returns the id of the slide relationship that names it, which
+    /// [`ole_object_part_bytes`](Self::ole_object_part_bytes) resolves to bytes.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn ole_object_rel_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        Ok(slide::ole_object_rel_id(shape, &doc.interner).map(str::to_owned))
+    }
+
+    /// The raw bytes of the embedded object the OLE frame `shape_idx` on `surface` references
+    /// (`/ppt/embeddings/oleObjectN.bin` or an embedded package), exactly as the package holds them, or
+    /// `None` when the shape frames no OLE object. Borrowed from the package, so the part is not copied.
+    ///
+    /// The embedded object is **not modeled** — it is an opaque OLE stream or embedded document, carried
+    /// through a round-trip verbatim. Reading does not dirty anything.
+    ///
+    /// # Errors
+    /// As [`ole_object_rel_id`](Self::ole_object_rel_id), plus [`PptxError::ExternalTarget`] if the
+    /// relationship points outside the package.
+    pub fn ole_object_part_bytes(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let surface = surface.into();
+        let Some(rel_id) = self.ole_object_rel_id(surface, shape_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&part))
+    }
+
+    /// The relationship id of the **fallback snapshot** image the OLE frame `shape_idx` on `surface`
+    /// carries (`p:oleObj > p:pic > p:blipFill > a:blip@r:embed`), or `None` when the frame is not an
+    /// OLE object or has no snapshot. Reading does not dirty the part.
+    ///
+    /// This is the image a renderer draws in place of the (never-executed) embedded object.
+    /// [`ole_snapshot_image_bytes`](Self::ole_snapshot_image_bytes) resolves it to bytes.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn ole_snapshot_rel_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        Ok(slide::ole_snapshot_rel_id(shape, &doc.interner).map(str::to_owned))
+    }
+
+    /// The stored bytes of the OLE fallback snapshot image the frame `shape_idx` on `surface` embeds,
+    /// exactly as the package holds them (never decoded or re-encoded), or `None` when the frame is not
+    /// an OLE object or carries no snapshot. Borrowed from the package.
+    ///
+    /// # Errors
+    /// As [`ole_snapshot_rel_id`](Self::ole_snapshot_rel_id), plus [`PptxError::ExternalTarget`] if the
+    /// relationship points outside the package.
+    pub fn ole_snapshot_image_bytes(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<&[u8]>, PptxError> {
+        let surface = surface.into();
+        let Some(rel_id) = self.ole_snapshot_rel_id(surface, shape_idx)? else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
+            return Ok(None);
+        };
+        Ok(self.package.part_bytes(&part))
+    }
+
+    /// The `progId` the OLE frame `shape_idx` on `surface` declares (e.g. `"Excel.Sheet.12"`) — the
+    /// application that owns the embedded object — or `None` when the shape frames no OLE object or the
+    /// attribute is absent. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn ole_prog_id(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<String>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        Ok(slide::ole_prog_id(shape, &doc.interner).map(str::to_owned))
+    }
+
     /// The names of every legacy **VML** drawing part in the package (`ppt/drawings/vmlDrawingN.vml`
     /// and the like), in package order.
     ///

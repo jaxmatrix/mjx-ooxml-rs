@@ -4,6 +4,7 @@ use mjx_dml::{
     ColorMap, ColorSchemeSlot, EffectListSpec, Fill, FillSpec, LineSpec, PresetGeometry,
     Scene3DSpec, Shape3DSpec, ShapeGeometry, StyleMatrixReference,
 };
+use mjx_mce::MARKUP_COMPATIBILITY_2006;
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawNode, Symbol, ToXml};
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_CHART, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
@@ -125,8 +126,11 @@ pub enum GraphicFrameKind {
     Chart,
     /// A SmartArt diagram — unscheduled.
     Diagram,
-    /// Some other graphical object (OLE, an unknown extension): the frame states a `uri` this does
-    /// not recognize.
+    /// A legacy embedded **OLE object** (`p:oleObj`) — an embedded document or OLE stream in a separate
+    /// part, drawn from a fallback image snapshot. Preserve-first: recognized and readable, not modeled.
+    OleObject,
+    /// Some other graphical object (an unknown extension): the frame states a `uri` this does not
+    /// recognize.
     Other,
 }
 
@@ -138,6 +142,7 @@ impl GraphicFrameKind {
             TABLE_GRAPHIC_URI => Self::Table,
             CHART_GRAPHIC_URI => Self::Chart,
             DIAGRAM_GRAPHIC_URI => Self::Diagram,
+            OLE_GRAPHIC_URI => Self::OleObject,
             _ => Self::Other,
         }
     }
@@ -305,6 +310,18 @@ pub(crate) const CHART_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/dr
 pub(crate) const DIAGRAM_GRAPHIC_URI: &str =
     "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 
+/// The `a:graphicData@uri` of a frame holding a legacy OLE object (`p:oleObj`).
+pub(crate) const OLE_GRAPHIC_URI: &str =
+    "http://schemas.openxmlformats.org/presentationml/2006/ole";
+
+/// The Markup Compatibility namespace as a [`SchemaNamespace`] (single URI, no Strict variant) so the
+/// `nav` helpers can match `mc:AlternateContent` / `mc:Choice` / `mc:Fallback` the same way they match
+/// schema elements. An OLE object's `p:oleObj` is wrapped in this MCE machinery in real decks.
+const MCE: SchemaNamespace = SchemaNamespace {
+    transitional: MARKUP_COMPATIBILITY_2006,
+    strict: None,
+};
+
 /// The `a:graphicData@uri` a graphic frame declares — what kind of object it frames — or `None` when
 /// the shape is not a `p:graphicFrame` or the frame states no `uri`.
 pub(crate) fn graphic_frame_uri<'a>(
@@ -357,6 +374,64 @@ pub(crate) fn chart_rel_id<'a>(shape: &'a RawElement, interner: &Interner) -> Op
         .iter()
         .find(|attr| interner.resolve(attr.name.local) == "id")
         .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
+/// The `p:oleObj` a graphic frame frames, or `None` for any other shape.
+///
+/// Unlike a chart (`c:chart` directly under `a:graphicData`), an OLE object is wrapped in the MCE
+/// machinery: `a:graphicData > mc:AlternateContent > mc:Choice`/`mc:Fallback > p:oleObj`. This finds
+/// it whether it sits directly under `graphicData` (rare) or in an `mc:Choice` (preferred, the live
+/// object) or `mc:Fallback` branch. Preserve-first: the element is returned raw, never resolved.
+pub(crate) fn ole_object<'a>(
+    shape: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a RawElement> {
+    let graphic = nav::child(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child(graphic, interner, DML_MAIN, "graphicData")?;
+    if let Some(ole) = nav::child(data, interner, PML, "oleObj") {
+        return Some(ole);
+    }
+    let alternate = nav::child(data, interner, MCE, "AlternateContent")?;
+    ["Choice", "Fallback"].into_iter().find_map(|branch| {
+        nav::children(alternate, interner, MCE, branch)
+            .find_map(|candidate| nav::child(candidate, interner, PML, "oleObj"))
+    })
+}
+
+/// The relationship id an OLE frame names for its embedded object part (`p:oleObj@r:id`), or `None` for
+/// any other shape. Matched by local name, as [`chart_rel_id`].
+pub(crate) fn ole_object_rel_id<'a>(
+    shape: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a str> {
+    ole_object(shape, interner)?
+        .attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == "id")
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
+/// The relationship id of an OLE object's **fallback snapshot** image
+/// (`p:oleObj > p:pic > p:blipFill > a:blip@r:embed`), or `None` if the frame carries no such snapshot.
+/// This is the image a renderer draws in place of the (unexecuted) embedded object.
+pub(crate) fn ole_snapshot_rel_id<'a>(
+    shape: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a str> {
+    let ole = ole_object(shape, interner)?;
+    let picture = nav::child(ole, interner, PML, "pic")?;
+    let blip_fill = nav::child(picture, interner, PML, "blipFill")?;
+    let blip = nav::child(blip_fill, interner, DML_MAIN, "blip")?;
+    blip.attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == "embed")
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
+/// The `progId` an OLE frame declares (e.g. `Excel.Sheet.12`) — the app that owns the embedded object —
+/// or `None` if absent. An unprefixed attribute, matched by local name.
+pub(crate) fn ole_prog_id<'a>(shape: &'a RawElement, interner: &'a Interner) -> Option<&'a str> {
+    nav::attr_value(ole_object(shape, interner)?, interner, "progId")
 }
 
 /// The `n`-th `a:tr` of a table, mutably.
