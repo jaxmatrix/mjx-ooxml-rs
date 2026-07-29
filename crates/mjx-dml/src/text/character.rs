@@ -333,6 +333,46 @@ impl CharacterProperties {
         self.replace_child(interner, element, |local| local == "hlinkClick");
     }
 
+    /// The attributes and children this model does **not** describe — the residual left once the
+    /// modeled properties and the ignorable housekeeping attributes are removed. Two runs may be
+    /// coalesced only when their residuals match, so a merge never silently drops a hyperlink, an
+    /// `rtl`, an `extLst`, or a foreign attribute one run carried and the other did not.
+    fn unmodeled_residual<'a>(
+        &'a self,
+        interner: &Interner,
+    ) -> (Vec<&'a RawAttribute>, Vec<&'a RawNode>) {
+        let attributes = self
+            .attributes
+            .iter()
+            .filter(|attribute| !is_modeled_or_housekeeping_attr(attribute, interner))
+            .collect();
+        let children = self
+            .children
+            .iter()
+            .filter(|child| !is_modeled_child(child, interner))
+            .collect();
+        (attributes, children)
+    }
+
+    /// Whether these properties carry nothing beyond what this model describes — no hyperlink, no
+    /// `rtl`, no `extLst`, no foreign attribute or child. A run with only modeled state can be merged
+    /// with an adjacent run of equal effective formatting that also has only modeled state.
+    #[must_use]
+    pub fn has_only_modeled_state(&self, interner: &Interner) -> bool {
+        let (attributes, children) = self.unmodeled_residual(interner);
+        attributes.is_empty() && children.is_empty()
+    }
+
+    /// Whether these properties and `other` carry the **same** state this model does not describe.
+    /// Used by run coalescing: two runs with identical effective formatting may be merged only when
+    /// this also holds, so the merge cannot drop distinguishing unmodeled state. Both are read against
+    /// the same `interner`. Housekeeping that does not affect rendering (`dirty`, `err`, `smtClean`)
+    /// is ignored, so it never blocks a merge.
+    #[must_use]
+    pub fn unmodeled_state_eq(&self, other: &CharacterProperties, interner: &Interner) -> bool {
+        self.unmodeled_residual(interner) == other.unmodeled_residual(interner)
+    }
+
     /// The interner-free description of these properties. Colors are **not** resolved — a scheme color
     /// stays a scheme color; see `resolve_character_properties` for the resolved form.
     #[must_use]
@@ -509,6 +549,52 @@ fn known_rank(local: &str) -> Option<usize> {
         _ => return None,
     };
     Some(rank)
+}
+
+/// Whether `attribute` is one this model resolves into a spec (so it is compared via *effective*
+/// formatting, not raw) or a rendering-irrelevant housekeeping flag (so a difference must not block a
+/// merge). Everything else — an `rtl`, a `kumimoji`, a foreign or prefixed attribute — is unmodeled
+/// and stays in the residual.
+fn is_modeled_or_housekeeping_attr(attribute: &RawAttribute, interner: &Interner) -> bool {
+    // A prefixed attribute is foreign to this model; keep it in the residual.
+    if attribute.name.prefix.is_some() {
+        return false;
+    }
+    matches!(
+        interner.resolve(attribute.name.local),
+        // Modeled by CharacterPropertiesSpec.
+        "sz" | "b" | "i" | "u" | "strike" | "cap" | "spc" | "kern" | "baseline" | "lang"
+            // Housekeeping that does not affect how text renders.
+            | "dirty" | "err" | "smtClean"
+    )
+}
+
+/// Whether `node` is a child this model resolves into a spec (`a:ln`, a fill, `a:effectLst`,
+/// `a:highlight`, the underline groups, the script fonts). Anything else — a hyperlink, `a:effectDag`,
+/// `a:extLst`, a foreign element, or a text node — is unmodeled and stays in the residual.
+fn is_modeled_child(node: &RawNode, interner: &Interner) -> bool {
+    let RawNode::Element(element) = node else {
+        return false;
+    };
+    if !is_dml(&element.name, interner) {
+        return false;
+    }
+    let local = interner.resolve(element.name.local);
+    local == "ln"
+        || Fill::is_fill_local(local)
+        || matches!(
+            local,
+            "effectLst"
+                | "highlight"
+                | "uLn"
+                | "uLnTx"
+                | "uFill"
+                | "uFillTx"
+                | "latin"
+                | "ea"
+                | "cs"
+                | "sym"
+        )
 }
 
 fidelity_element_impls!(CharacterProperties);

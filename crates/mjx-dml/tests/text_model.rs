@@ -429,3 +429,68 @@ fn splitting_a_run_that_does_not_exist_changes_nothing() {
     assert_eq!(paragraph.runs().count(), 1);
     assert_eq!(paragraph.text(), "only");
 }
+
+// ---------------------------------------------------------------------------------------------
+// Run coalescing (the content-vec mechanics; the merge decision is the caller's)
+// ---------------------------------------------------------------------------------------------
+
+const A_MAIN: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
+
+#[test]
+fn coalescing_merges_a_flagged_run_and_concatenates_text() {
+    let fragment = format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}">"#,
+            r#"<a:r><a:rPr b="1"/><a:t>one</a:t></a:r>"#,
+            r#"<a:r><a:rPr b="1"/><a:t> two</a:t></a:r>"#,
+            r#"<a:r><a:rPr b="1"/><a:t> three</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A_MAIN
+    );
+    let (mut paragraph, _doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    // Runs 1 and 2 both merge left into run 0.
+    let merged = paragraph.coalesce_adjacent_runs(&[false, true, true]);
+    assert_eq!(merged, 2);
+    assert_eq!(paragraph.runs().count(), 1);
+    assert_eq!(paragraph.text(), "one two three");
+}
+
+#[test]
+fn coalescing_does_not_cross_a_line_break() {
+    // Even though run 1 is flagged, a break sits between the two runs, so they must not merge.
+    let fragment = format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}">"#,
+            r#"<a:r><a:t>A</a:t></a:r>"#,
+            r#"<a:br/>"#,
+            r#"<a:r><a:t>B</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A_MAIN
+    );
+    let (mut paragraph, doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    let merged = paragraph.coalesce_adjacent_runs(&[false, true]);
+    assert_eq!(merged, 0, "a break between the runs blocks the merge");
+    assert_eq!(paragraph.runs().count(), 2);
+    assert_eq!(paragraph.line_breaks().count(), 1);
+    // The break stays exactly where it was.
+    assert_round_trips(&paragraph, doc, fragment.as_bytes());
+}
+
+#[test]
+fn coalescing_leaves_unflagged_runs_alone() {
+    let fragment = format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}">"#,
+            r#"<a:r><a:t>A</a:t></a:r>"#,
+            r#"<a:r><a:t>B</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A_MAIN
+    );
+    let (mut paragraph, doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    let merged = paragraph.coalesce_adjacent_runs(&[false, false]);
+    assert_eq!(merged, 0);
+    assert_round_trips(&paragraph, doc, fragment.as_bytes());
+}

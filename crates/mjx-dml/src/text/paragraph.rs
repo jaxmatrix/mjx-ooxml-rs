@@ -167,6 +167,43 @@ impl Paragraph {
         true
     }
 
+    /// Merges each run into its immediately-preceding run where `mergeable` says to, concatenating
+    /// their text and dropping the later run. Returns the number of runs merged away.
+    ///
+    /// `mergeable[r]` means "run `r` may merge left into run `r-1`" — the caller decides that (from the
+    /// runs' effective formatting and unmodeled state); `mergeable[0]` is ignored. Only runs that are
+    /// **content-adjacent** actually merge: a line break, a field, or any other node between two runs
+    /// leaves a non-run between them, so they are never joined and nothing but the merged runs moves.
+    /// A run of three-or-more equal runs collapses into the first, its text concatenated in order.
+    ///
+    /// A run with no `a:t` to extend is left in place rather than dropped, so no text is ever lost.
+    pub fn coalesce_adjacent_runs(&mut self, mergeable: &[bool]) -> usize {
+        let old = std::mem::take(&mut self.content);
+        let mut merged = 0;
+        let mut run_index = 0;
+        for item in old {
+            let ParagraphContent::Run(run) = item else {
+                self.content.push(item);
+                continue;
+            };
+            let index = run_index;
+            run_index += 1;
+            // A run merges left only when flagged and the previous kept item is itself a run — which
+            // is exactly content-adjacency, since any break/field between them sits there instead.
+            if index > 0 && mergeable.get(index).copied().unwrap_or(false) {
+                if let Some(ParagraphContent::Run(previous)) = self.content.last_mut() {
+                    let combined = format!("{}{}", previous.text(), run.text());
+                    if previous.set_text(&combined) {
+                        merged += 1;
+                        continue;
+                    }
+                }
+            }
+            self.content.push(ParagraphContent::Run(run));
+        }
+        merged
+    }
+
     /// The paragraph-mark properties (`a:endParaRPr`), or `None` if the paragraph declares none.
     ///
     /// This is how a paragraph with no runs still has a size: PowerPoint records what text *would*
