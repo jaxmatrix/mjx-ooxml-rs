@@ -15,6 +15,32 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.43] - 2026-07-29
+
+`a:br` / `a:fld` addressability (MJX-41, second of three text-model gaps) — a line break (`a:br`) and
+a text field (`a:fld`) are paragraph children like a run, but until now both fell into the opaque
+`Raw` bucket, so a slide-number or date field's text could not be read and a break could not be
+located.
+
+Both are now typed: new `TextLineBreak` (`CT_TextLineBreak`, an optional `a:rPr`) and `TextField`
+(`CT_TextField` — `@id`/`@type` and optional `a:rPr`/`a:pPr`/`a:t`) fidelity wrappers, added as
+`ParagraphContent::LineBreak` / `Field` variants. Following the decision recorded on the issue, they
+get **their own accessors** rather than joining the run index space, so this is **non-breaking** —
+`runs()`, run indices, and `Paragraph::text()` are unchanged. New `Paragraph::line_breaks()` /
+`fields()` (and `_mut`) enumerate them; `TextField::text()` reads the field's cached rendering.
+
+`mjx-pptx` gains a read surface mirroring `run_text`/`run_count` — `paragraph_field_count`,
+`paragraph_field_text`, and `paragraph_field_type` on `Presentation` — so a field's cached value and
+kind are readable at the format level (a new `PptxError::FieldIndexOutOfRange` reports a bad index).
+
+```rust
+let count = pres.paragraph_field_count(surface, shape, para)?;
+let text = pres.paragraph_field_text(surface, shape, para, 0)?;   // e.g. "1/27/13"
+let kind = pres.paragraph_field_type(surface, shape, para, 0)?;   // e.g. Some("datetimeFigureOut")
+```
+
+Every part still round-trips byte-for-byte; reading a field dirties nothing.
+
 ## [0.0.42] - 2026-07-29
 
 Underline line/fill groups (MJX-41, first of three text-model gaps) — the underline line group
