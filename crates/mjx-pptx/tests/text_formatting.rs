@@ -9,8 +9,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_dml::{
-    CharacterPropertiesSpec, ColorSpec, IndentLevel, ParagraphPropertiesSpec, SchemeColor,
-    TextAlignment,
+    CharacterPropertiesSpec, ColorSpec, FillSpec, IndentLevel, LineSpec, LineWidth,
+    ParagraphPropertiesSpec, SchemeColor, TextAlignment, TextUnderline, UnderlineFill,
+    UnderlineLine,
 };
 use mjx_opc::Package;
 use mjx_pptx::{PptxError, Presentation, ShapeBounds};
@@ -613,6 +614,100 @@ fn replacing_the_text_dirties_only_that_slide() {
 
     let reopened = byte_map(&Package::open(&saved).expect("reopen"));
     for (name, bytes) in &original {
+        if name == "ppt/slides/slide1.xml" {
+            continue;
+        }
+        assert_eq!(
+            reopened.get(name),
+            Some(bytes),
+            "part {name} must be byte-identical"
+        );
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Underline line/fill groups (a:uLn / a:uFill) through the range surface
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn an_underline_can_be_styled_independently_of_the_text() {
+    let (mut pres, shape) = deck_with_lines();
+    // Give the first line an explicit underline stroke and a distinct underline fill — the whole
+    // point of the uLn/uFill groups is that the underline is not tied to the glyph outline or fill.
+    let spec = CharacterPropertiesSpec::new()
+        .with_underline(TextUnderline::Single)
+        .with_underline_line(UnderlineLine::Explicit(LineSpec::solid(
+            LineWidth::from_points(1.0),
+            ColorSpec::Srgb("FF0000".into()),
+        )))
+        .with_underline_fill(UnderlineFill::Explicit(FillSpec::Solid(ColorSpec::Scheme(
+            SchemeColor::Accent2,
+        ))));
+    pres.set_text_range_properties(0, shape, 0, 0..10, &spec)
+        .expect("apply underline styling");
+    assert_eq!(
+        pres.run_count(0, shape, 0).expect("runs"),
+        1,
+        "the range spans the whole line, so no run is split off"
+    );
+
+    let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
+
+    // The run's own properties carry both groups back.
+    let own = reopened
+        .run_properties(0, shape, 0, 0)
+        .expect("props")
+        .expect("the run has properties");
+    assert_eq!(own.underline(), Some(TextUnderline::Single));
+    match own.underline_line() {
+        Some(UnderlineLine::Explicit(line)) => {
+            assert_eq!(line.width.map(LineWidth::points), Some(1.0));
+            assert_eq!(
+                line.fill,
+                Some(FillSpec::Solid(ColorSpec::Srgb("FF0000".into())))
+            );
+        }
+        other => panic!("expected an explicit underline line, got {other:?}"),
+    }
+    match own.underline_fill() {
+        Some(UnderlineFill::Explicit(FillSpec::Solid(ColorSpec::Scheme(slot)))) => {
+            assert_eq!(*slot, SchemeColor::Accent2);
+        }
+        other => panic!("expected an explicit underline fill, got {other:?}"),
+    }
+
+    // The resolved ladder surfaces the same groups (the run's own tier wins).
+    let effective = reopened
+        .effective_run_properties(0, shape, 0, 0)
+        .expect("effective");
+    assert!(matches!(
+        effective.underline_line(),
+        Some(UnderlineLine::Explicit(_))
+    ));
+    assert!(matches!(
+        effective.underline_fill(),
+        Some(UnderlineFill::Explicit(_))
+    ));
+}
+
+#[test]
+fn styling_an_underline_dirties_only_that_slide() {
+    let (pres, shape) = deck_with_lines();
+    let baseline_bytes = pres.save().expect("save baseline");
+    let baseline = byte_map(&Package::open(&baseline_bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&baseline_bytes).expect("reopen baseline");
+    pres.set_text_range_properties(
+        0,
+        shape,
+        0,
+        0..10,
+        &CharacterPropertiesSpec::new().with_underline_fill(UnderlineFill::FollowText),
+    )
+    .expect("apply underline fill marker");
+
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    for (name, bytes) in &baseline {
         if name == "ppt/slides/slide1.xml" {
             continue;
         }
