@@ -15,6 +15,35 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.44] - 2026-07-29
+
+Run coalescing (MJX-41, third and last text-model gap — **completing MJX-41**) — formatting a
+sub-range with `set_text_range_properties` splits a run, and repeatedly formatting overlapping ranges
+leaves a paragraph with more runs than it needs. Nothing merged them back; now an explicit pass does.
+
+New `Presentation::coalesce_paragraph_runs` and `coalesce_shape_runs` merge adjacent runs that would
+render identically, returning the number of runs merged away. Two adjacent runs merge only when
+**both** hold, so the paragraph reads exactly the same afterwards:
+
+- their **effective** formatting is identical — resolved through the full inheritance ladder, so a run
+  that sets a property explicitly merges with a neighbour that inherits the same value (this compares
+  meaning, not raw XML); and
+- neither carries distinguishing state this model does not describe — a hyperlink, an `rtl`, an
+  `a:extLst`, a foreign attribute — so nothing is dropped by the merge (`dirty`/`err`/`smtClean`
+  housekeeping is ignored and never blocks a merge).
+
+A line break or field between two runs keeps them apart. When nothing merges, the call changes nothing
+and does not dirty the part.
+
+```rust
+let merged = pres.coalesce_paragraph_runs(surface, shape, para)?;   // runs removed
+let total = pres.coalesce_shape_runs(surface, shape)?;              // across the whole body
+```
+
+The supporting pieces are in `mjx-dml`: `CharacterProperties::unmodeled_state_eq` /
+`has_only_modeled_state` (the safety gate) and `Paragraph::coalesce_adjacent_runs` (the content-vec
+merge). Every part still round-trips byte-for-byte.
+
 ## [0.0.43] - 2026-07-29
 
 `a:br` / `a:fld` addressability (MJX-41, second of three text-model gaps) — a line break (`a:br`) and
