@@ -221,6 +221,16 @@ pub enum PptxError {
         count: usize,
     },
 
+    /// A field index was out of range within the paragraph's fields (`a:fld`), a separate index space
+    /// from the runs.
+    #[error("field index {index} out of range in paragraph (0..{count})")]
+    FieldIndexOutOfRange {
+        /// The requested field index.
+        index: usize,
+        /// The number of fields in the paragraph.
+        count: usize,
+    },
+
     /// A text range ran past the end of the paragraph's text, or ended before it started.
     #[error("text range {start}..{end} out of bounds (paragraph has {length} characters)")]
     TextRangeOutOfBounds {

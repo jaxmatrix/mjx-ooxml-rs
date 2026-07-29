@@ -718,3 +718,59 @@ fn styling_an_underline_dirties_only_that_slide() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Text fields (a:fld) — reading a field's type and cached text
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn a_fields_type_and_cached_text_are_readable() {
+    // charts.pptx's master carries a date field and a slide-number field in its placeholders.
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    let surface = mjx_pptx::Surface::Master(0);
+    let baseline = byte_map(&Package::open(&fixture("charts.pptx")).expect("baseline"));
+
+    let shapes = pres.shape_count(surface).expect("shape count");
+    let mut datetime_text = None;
+    let mut found_slidenum = false;
+    for shape in 0..shapes {
+        // Some placeholders have no text body; those simply have no fields to scan.
+        let paras = match pres.paragraph_count(surface, shape) {
+            Ok(count) => count,
+            Err(_) => continue,
+        };
+        for para in 0..paras {
+            let count = pres
+                .paragraph_field_count(surface, shape, para)
+                .expect("field count");
+            for field in 0..count {
+                let field_type = pres
+                    .paragraph_field_type(surface, shape, para, field)
+                    .expect("field type");
+                let text = pres
+                    .paragraph_field_text(surface, shape, para, field)
+                    .expect("field text");
+                match field_type.as_deref() {
+                    Some("datetimeFigureOut") => datetime_text = Some(text),
+                    Some("slidenum") => found_slidenum = true,
+                    _ => {}
+                }
+            }
+        }
+    }
+    assert_eq!(
+        datetime_text.as_deref(),
+        Some("1/27/13"),
+        "the date field's cached text is readable"
+    );
+    assert!(
+        found_slidenum,
+        "the slide-number field is addressable on the same master"
+    );
+
+    // Reading fields must not dirty any part.
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+    for (name, bytes) in &baseline {
+        assert_eq!(reopened.get(name), Some(bytes), "reading dirtied {name}");
+    }
+}

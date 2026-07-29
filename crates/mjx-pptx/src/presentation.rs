@@ -1126,6 +1126,61 @@ impl Presentation {
         })
     }
 
+    /// The number of text fields (`a:fld`) in paragraph `para_idx` — generated values such as a slide
+    /// number or a date. Fields are a **separate index space** from the runs, so a field never shifts
+    /// a run index. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn paragraph_field_count(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        para_idx: usize,
+    ) -> Result<usize, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, _| {
+            field_count_of(body, para_idx)
+        })
+    }
+
+    /// The cached text of field `field_idx` in paragraph `para_idx` — the value the producer last
+    /// computed for it (a slide number, a formatted date), not a live value. Reading does not dirty
+    /// the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn paragraph_field_text(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        para_idx: usize,
+        field_idx: usize,
+    ) -> Result<String, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, _| {
+            field_text_of(body, para_idx, field_idx)
+        })
+    }
+
+    /// What field `field_idx` in paragraph `para_idx` generates (`a:fld@type`, e.g. `slidenum` or
+    /// `datetime`), or `None` if it names no type. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn paragraph_field_type(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        para_idx: usize,
+        field_idx: usize,
+    ) -> Result<Option<String>, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, interner| {
+            field_type_of(body, interner, para_idx, field_idx)
+        })
+    }
+
     /// The layout properties a paragraph declares of its own (`a:pPr`), or `None` if it declares
     /// none — in which case every property is inherited. Reading does not dirty the part.
     ///
@@ -6486,6 +6541,30 @@ fn run_text_of(body: &TextBody, para_idx: usize, run_idx: usize) -> Result<Strin
     Ok(nth_run(paragraph, run_idx)?.text().to_owned())
 }
 
+/// The number of fields (`a:fld`) in one paragraph.
+fn field_count_of(body: &TextBody, para_idx: usize) -> Result<usize, PptxError> {
+    Ok(nth_paragraph(body, para_idx)?.fields().count())
+}
+
+/// One field's cached text (the content of its `a:t`).
+fn field_text_of(body: &TextBody, para_idx: usize, field_idx: usize) -> Result<String, PptxError> {
+    let paragraph = nth_paragraph(body, para_idx)?;
+    Ok(nth_field(paragraph, field_idx)?.text().to_owned())
+}
+
+/// What one field generates (`a:fld@type`), or `None` if it names none.
+fn field_type_of(
+    body: &TextBody,
+    interner: &Interner,
+    para_idx: usize,
+    field_idx: usize,
+) -> Result<Option<String>, PptxError> {
+    let paragraph = nth_paragraph(body, para_idx)?;
+    Ok(nth_field(paragraph, field_idx)?
+        .field_type(interner)
+        .map(str::to_owned))
+}
+
 /// The layout properties a paragraph declares of its own.
 fn paragraph_properties_of(
     body: &TextBody,
@@ -7296,6 +7375,21 @@ fn nth_run(paragraph: &mjx_dml::Paragraph, run_idx: usize) -> Result<&mjx_dml::T
         .nth(run_idx)
         .ok_or(PptxError::RunIndexOutOfRange {
             index: run_idx,
+            count,
+        })
+}
+
+/// The `field_idx`-th field (`a:fld`) of a paragraph, or a typed out-of-range error.
+fn nth_field<'a>(
+    paragraph: &'a mjx_dml::Paragraph,
+    field_idx: usize,
+) -> Result<&'a mjx_dml::TextField, PptxError> {
+    let count = paragraph.fields().count();
+    paragraph
+        .fields()
+        .nth(field_idx)
+        .ok_or(PptxError::FieldIndexOutOfRange {
+            index: field_idx,
             count,
         })
 }
