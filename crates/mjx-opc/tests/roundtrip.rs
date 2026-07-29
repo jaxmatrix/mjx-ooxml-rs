@@ -15,6 +15,7 @@ const FIXTURES: &[&str] = &[
     "vml.pptx",
     "ole.pptx",
     "activex.pptx",
+    "ink.pptx",
 ];
 
 fn fixture(name: &str) -> Vec<u8> {
