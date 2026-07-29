@@ -688,3 +688,76 @@ fn underline_groups_merge_as_whole_values() {
         "the fill the higher tier left unset is inherited"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// Unmodeled-state comparison (the run-coalescing safety gate)
+// ---------------------------------------------------------------------------------------------
+
+/// Parses a two-run paragraph and returns each run's properties, sharing one interner (as
+/// `unmodeled_state_eq` requires). Panics if either run has no `a:rPr`.
+fn two_run_properties(fragment: &str) -> (CharacterProperties, CharacterProperties, Interner) {
+    let (paragraph, doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    let mut runs = paragraph.runs();
+    let first = runs.next().expect("first run").properties().cloned();
+    let second = runs.next().expect("second run").properties().cloned();
+    (
+        first.expect("first rPr"),
+        second.expect("second rPr"),
+        doc.interner,
+    )
+}
+
+#[test]
+fn unmodeled_state_ignores_modeled_and_housekeeping_differences() {
+    // Same modeled attributes in a different order, and a housekeeping `dirty` on only one — the two
+    // still carry the same unmodeled state, so they compare equal (this is "effective, not raw").
+    let (a, b, interner) = two_run_properties(&format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}">"#,
+            r#"<a:r><a:rPr b="1" i="1" dirty="0"/><a:t>x</a:t></a:r>"#,
+            r#"<a:r><a:rPr i="1" b="1"/><a:t>y</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A
+    ));
+    assert!(a.unmodeled_state_eq(&b, &interner));
+    assert!(a.has_only_modeled_state(&interner));
+    assert!(b.has_only_modeled_state(&interner));
+}
+
+#[test]
+fn unmodeled_state_blocks_on_a_hyperlink() {
+    // Identical modeled formatting, but one run carries a hyperlink — merging would drop it, so the
+    // gate must report them different.
+    let (a, b, interner) = two_run_properties(&format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}" xmlns:r="{R}">"#,
+            r#"<a:r><a:rPr b="1"><a:hlinkClick r:id="rId2"/></a:rPr><a:t>x</a:t></a:r>"#,
+            r#"<a:r><a:rPr b="1"/><a:t>y</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A,
+        R = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    ));
+    assert!(!a.unmodeled_state_eq(&b, &interner));
+    assert!(
+        !a.has_only_modeled_state(&interner),
+        "the hyperlink is unmodeled state"
+    );
+    assert!(b.has_only_modeled_state(&interner));
+}
+
+#[test]
+fn unmodeled_state_blocks_on_a_foreign_attribute() {
+    let (a, b, interner) = two_run_properties(&format!(
+        concat!(
+            r#"<a:p xmlns:a="{A}" xmlns:x="urn:example">"#,
+            r#"<a:r><a:rPr b="1" x:tag="keep"/><a:t>x</a:t></a:r>"#,
+            r#"<a:r><a:rPr b="1"/><a:t>y</a:t></a:r>"#,
+            r#"</a:p>"#
+        ),
+        A = A
+    ));
+    assert!(!a.unmodeled_state_eq(&b, &interner));
+    assert!(!a.has_only_modeled_state(&interner));
+}
