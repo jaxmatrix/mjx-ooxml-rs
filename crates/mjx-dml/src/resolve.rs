@@ -21,7 +21,9 @@ use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec, GradientStopSpec};
 use crate::line::{LineProperties, LineSpec};
 use crate::style::ColorMap;
-use crate::text::{CharacterProperties, CharacterPropertiesSpec, FontSlot};
+use crate::text::{
+    CharacterProperties, CharacterPropertiesSpec, FontSlot, UnderlineFill, UnderlineLine,
+};
 use crate::theme::{ColorScheme, ColorSchemeSlot};
 
 /// A fully resolved color: 8-bit sRGB channels plus an alpha (opacity) in `0.0..=1.0`.
@@ -262,6 +264,30 @@ pub fn resolve_character_properties(
             |resolved| ColorSpec::Srgb(resolved.to_hex()),
         );
         spec = spec.with_highlight(resolved);
+    }
+    // The underline line/fill groups resolve like an outline and a fill — their colours are baked so
+    // the effective form is fully concrete.
+    if properties.underline_line_follows_text(interner) {
+        spec = spec.with_underline_line(UnderlineLine::FollowText);
+    } else if let Some(line) = properties.underline_line_raw(interner) {
+        spec = spec.with_underline_line(UnderlineLine::Explicit(resolve_line(
+            &line,
+            scheme,
+            map,
+            placeholder,
+            interner,
+        )));
+    }
+    if properties.underline_fill_follows_text(interner) {
+        spec = spec.with_underline_fill(UnderlineFill::FollowText);
+    } else if let Some(fill) = properties.underline_fill_raw(interner) {
+        spec = spec.with_underline_fill(UnderlineFill::Explicit(resolve_fill(
+            &fill,
+            scheme,
+            map,
+            placeholder,
+            interner,
+        )));
     }
     for slot in FontSlot::all_slots() {
         if let Some(font) = properties.font(interner, slot) {

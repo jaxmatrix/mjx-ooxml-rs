@@ -8,7 +8,7 @@
 use mjx_dml::{
     CharacterProperties, CharacterPropertiesSpec, ColorSpec, FillSpec, FontSlot, Fraction,
     LineSpec, LineWidth, Paragraph, RunContent, SchemeColor, TextCapitalization, TextFont, TextRun,
-    TextStrike, TextUnderline,
+    TextStrike, TextUnderline, UnderlineFill, UnderlineLine,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
@@ -501,4 +501,190 @@ fn fonts_merge_per_script_slot() {
     assert_eq!(merged.font(FontSlot::Latin), Some(&latin));
     assert_eq!(merged.font(FontSlot::EastAsian), Some(&east_asian));
     assert_eq!(merged.font(FontSlot::ComplexScript), None);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Underline line/fill groups (a:uLn / a:uLnTx / a:uFill / a:uFillTx)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn an_explicit_underline_line_and_fill_read_from_a_run() {
+    // An underline styled independently of the text: its own stroke width and its own colour.
+    let fragment = format!(
+        concat!(
+            r#"<a:rPr xmlns:a="{A}">"#,
+            r#"<a:uLn w="12700"><a:solidFill><a:srgbClr val="FF0000"/></a:solidFill></a:uLn>"#,
+            r#"<a:uFill><a:solidFill><a:srgbClr val="00FF00"/></a:solidFill></a:uFill>"#,
+            r#"</a:rPr>"#
+        ),
+        A = A
+    );
+    let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
+    let interner = &doc.interner;
+
+    match properties.underline_line(interner) {
+        Some(UnderlineLine::Explicit(line)) => {
+            assert_eq!(
+                line.width.map(LineWidth::emu),
+                Some(12700),
+                "underline width"
+            );
+            assert_eq!(
+                line.fill,
+                Some(FillSpec::Solid(ColorSpec::Srgb("FF0000".into()))),
+                "underline stroke colour"
+            );
+        }
+        other => panic!("expected an explicit underline line, got {other:?}"),
+    }
+    match properties.underline_fill(interner) {
+        Some(UnderlineFill::Explicit(FillSpec::Solid(ColorSpec::Srgb(hex)))) => {
+            assert_eq!(hex, "00FF00", "underline fill colour");
+        }
+        other => panic!("expected an explicit underline fill, got {other:?}"),
+    }
+    assert_round_trips(&properties, doc, fragment.as_bytes());
+}
+
+#[test]
+fn follow_text_underline_markers_read_as_follow_text() {
+    let fragment = format!(
+        concat!(r#"<a:rPr xmlns:a="{A}"><a:uLnTx/><a:uFillTx/></a:rPr>"#),
+        A = A
+    );
+    let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
+    let interner = &doc.interner;
+    assert_eq!(
+        properties.underline_line(interner),
+        Some(UnderlineLine::FollowText)
+    );
+    assert_eq!(
+        properties.underline_fill(interner),
+        Some(UnderlineFill::FollowText)
+    );
+    assert_round_trips(&properties, doc, fragment.as_bytes());
+}
+
+#[test]
+fn an_unset_underline_group_reads_as_none() {
+    // Unset means the underline inherits its line/fill — not a default of "follow text".
+    let fragment = format!(r#"<a:rPr xmlns:a="{A}" u="sng"/>"#);
+    let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
+    let interner = &doc.interner;
+    assert_eq!(properties.underline(interner), Some(TextUnderline::Single));
+    assert_eq!(properties.underline_line(interner), None);
+    assert_eq!(properties.underline_fill(interner), None);
+    assert_round_trips(&properties, doc, fragment.as_bytes());
+}
+
+#[test]
+fn building_underline_groups_places_them_in_schema_order() {
+    // uLn (rank 4) and uFill (rank 5) sit after a:highlight and before the script fonts.
+    let mut interner = Interner::new();
+    let spec = CharacterPropertiesSpec::new()
+        .with_highlight(ColorSpec::Srgb("FFFF00".into()))
+        .with_underline_line(UnderlineLine::Explicit(LineSpec::solid(
+            LineWidth::from_emu(9525),
+            ColorSpec::Srgb("FF0000".into()),
+        )))
+        .with_underline_fill(UnderlineFill::Explicit(FillSpec::Solid(ColorSpec::Srgb(
+            "0000FF".into(),
+        ))))
+        .with_font("Calibri");
+    let built = spec.to_properties(&mut interner, "rPr");
+    let out = serialize_built(interner, &built);
+
+    assert!(out.contains(r#"<a:uLn w="9525">"#), "{out}");
+    assert!(out.contains("<a:uFill><a:solidFill>"), "{out}");
+    let highlight_at = out.find("<a:highlight").expect("highlight");
+    let uln_at = out.find("<a:uLn").expect("uLn");
+    let ufill_at = out.find("<a:uFill>").expect("uFill");
+    let latin_at = out.find("<a:latin").expect("latin");
+    assert!(
+        highlight_at < uln_at && uln_at < ufill_at && ufill_at < latin_at,
+        "underline groups out of schema order: {out}"
+    );
+}
+
+#[test]
+fn writing_one_member_of_a_group_replaces_the_other_in_place() {
+    // The line group is a two-way choice: setting an explicit uLn must drop an existing uLnTx, not
+    // leave both. Same for the fill group.
+    let fragment = format!(
+        concat!(r#"<a:rPr xmlns:a="{A}"><a:uLnTx/><a:uFillTx/></a:rPr>"#),
+        A = A
+    );
+    let (mut properties, mut doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
+    properties.apply(
+        &CharacterPropertiesSpec::new()
+            .with_underline_line(UnderlineLine::Explicit(LineSpec::solid(
+                LineWidth::from_emu(6350),
+                ColorSpec::Srgb("123456".into()),
+            )))
+            .with_underline_fill(UnderlineFill::Explicit(FillSpec::Solid(ColorSpec::Srgb(
+                "654321".into(),
+            )))),
+        &mut doc.interner,
+    );
+    let out = serialize_edited(doc, &properties);
+
+    assert!(out.contains("<a:uLn "), "{out}");
+    assert!(out.contains("<a:uFill>"), "{out}");
+    assert!(
+        !out.contains("<a:uLnTx/>"),
+        "old uLnTx should be gone: {out}"
+    );
+    assert!(
+        !out.contains("<a:uFillTx/>"),
+        "old uFillTx should be gone: {out}"
+    );
+    assert_eq!(out.matches("<a:uLn").count(), 1, "duplicated uLn: {out}");
+    assert_eq!(
+        out.matches("<a:uFill").count(),
+        1,
+        "duplicated uFill: {out}"
+    );
+}
+
+#[test]
+fn setting_an_underline_group_leaves_unmodeled_state_untouched() {
+    let fragment = format!(
+        concat!(r#"<a:rPr xmlns:a="{A}" lang="en-US" dirty="0"><a:hlinkClick/></a:rPr>"#),
+        A = A
+    );
+    let (mut properties, mut doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
+    properties.apply(
+        &CharacterPropertiesSpec::new().with_underline_fill(UnderlineFill::FollowText),
+        &mut doc.interner,
+    );
+    let out = serialize_edited(doc, &properties);
+    assert!(out.contains("<a:uFillTx/>"), "{out}");
+    for kept in [r#"lang="en-US""#, r#"dirty="0""#, "<a:hlinkClick/>"] {
+        assert!(out.contains(kept), "lost {kept}: {out}");
+    }
+}
+
+#[test]
+fn underline_groups_merge_as_whole_values() {
+    // Each group merges as a single value: a tier naming only the line leaves a lower tier's fill
+    // standing, and a present "follow text" blocks the tier below.
+    let higher = CharacterPropertiesSpec::new().with_underline_line(UnderlineLine::FollowText);
+    let lower = CharacterPropertiesSpec::new()
+        .with_underline_line(UnderlineLine::Explicit(LineSpec::solid(
+            LineWidth::from_emu(9525),
+            ColorSpec::Srgb("FF0000".into()),
+        )))
+        .with_underline_fill(UnderlineFill::FollowText);
+
+    let merged = higher.merge_under(&lower);
+    assert_eq!(
+        merged.underline_line(),
+        Some(&UnderlineLine::FollowText),
+        "the higher tier's follow-text blocks the lower tier's explicit line"
+    );
+    assert_eq!(
+        merged.underline_fill(),
+        Some(&UnderlineFill::FollowText),
+        "the fill the higher tier left unset is inherited"
+    );
 }

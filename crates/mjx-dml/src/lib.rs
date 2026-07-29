@@ -71,6 +71,7 @@ pub use text::{
     FontSlot, Paragraph, ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec,
     RunContent, TabAlignment, TabStop, Text, TextAlignment, TextBody, TextBodyContent,
     TextCapitalization, TextFont, TextListStyle, TextRun, TextSpacing, TextStrike, TextUnderline,
+    UnderlineFill, UnderlineLine,
 };
 pub use theme::{
     ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot, SupplementalFont,
