@@ -15,6 +15,35 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.42] - 2026-07-29
+
+Underline line/fill groups (MJX-41, first of three text-model gaps) — the underline line group
+(`a:uLn` / `a:uLnTx`) and fill group (`a:uFill` / `a:uFillTx`) on a run's `a:rPr` now have a typed
+surface, so an underline can be recoloured and restyled independently of the text it sits under.
+Previously both were preserved opaquely with no way to read or set them.
+
+Each group is a three-state choice — unset (inherited), *follow text* (the marker element), or an
+explicit value — modeled as `UnderlineLine` / `UnderlineFill`. The explicit forms reuse the existing
+line and fill models (`LineSpec` for `a:uLn`, `FillSpec` for `a:uFill`), and the two members of a
+group are mutually exclusive: writing one replaces the other in place. The groups flow through the
+whole run-formatting surface for free — `CharacterPropertiesSpec` builders (`with_underline_line` /
+`with_underline_fill`), `merge_under`, `set_text_range_properties`, and `effective_run_properties`
+(where the colours are baked like any other fill or outline).
+
+```rust
+use mjx_dml::{CharacterPropertiesSpec, ColorSpec, FillSpec, LineSpec, LineWidth, UnderlineFill,
+    UnderlineLine};
+
+let spec = CharacterPropertiesSpec::new()
+    .with_underline_line(UnderlineLine::Explicit(LineSpec::solid(
+        LineWidth::from_points(1.0),
+        ColorSpec::Srgb("FF0000".into()),
+    )))
+    .with_underline_fill(UnderlineFill::FollowText);
+```
+
+Additive and non-breaking; every untouched part still round-trips byte-for-byte.
+
 ## [0.0.41] - 2026-07-29
 
 Ink (MJX-138, third and last tier of MJX-135) — **preserve-first** recognition of legacy ink (InkML)
