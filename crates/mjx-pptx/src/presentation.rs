@@ -5125,6 +5125,39 @@ impl Presentation {
         self.package.part_bytes(part)
     }
 
+    /// The names of every **ink** (InkML) part in the package (`ppt/ink/inkN.xml`), in package order.
+    ///
+    /// Ink is legacy handwriting carried as an InkML part referenced from the shape tree by a
+    /// `p14:contentPart` — which producers wrap in `mc:AlternateContent`, out of reach of the shape
+    /// index space. So ink is recognized by its content type ([`CONTENT_TYPE_INKML`]) rather than
+    /// navigated from a shape, finding every InkML part uniformly.
+    ///
+    /// Preserve-first: the parts are **not modeled**. Read their raw bytes with
+    /// [`ink_part_bytes`](Self::ink_part_bytes); untouched, they round-trip verbatim. Reading does not
+    /// dirty anything.
+    ///
+    /// [`CONTENT_TYPE_INKML`]: constants::CONTENT_TYPE_INKML
+    #[must_use]
+    pub fn ink_part_names(&self) -> Vec<PartName> {
+        self.package
+            .part_names()
+            .filter(|part| {
+                self.package.content_type_of(part) == Some(constants::CONTENT_TYPE_INKML)
+            })
+            .collect()
+    }
+
+    /// The raw bytes of the ink (InkML) `part`, exactly as the package holds them, or `None` when the
+    /// package has no such part (or it has been edited elsewhere). Borrowed from the package, so the
+    /// part is not copied and nothing is dirtied.
+    ///
+    /// Pair with [`ink_part_names`](Self::ink_part_names). Preserve-first: the bytes are the InkML XML
+    /// verbatim, not a model.
+    #[must_use]
+    pub fn ink_part_bytes(&self, part: &PartName) -> Option<&[u8]> {
+        self.package.part_bytes(part)
+    }
+
     /// The part name of the chart the frame `shape_idx` on `surface` references, or `None` when the
     /// shape frames no chart.
     fn chart_part(

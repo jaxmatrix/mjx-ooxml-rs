@@ -69,6 +69,12 @@ pub const REL_CONTROL: &str =
 pub const REL_ACTIVEX_CONTROL_BINARY: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/activeXControlBinary";
 
+/// The relationship type from a slide to an ink (InkML) part (`/ppt/ink/inkN.xml`) — the target a
+/// `p14:contentPart@r:id` names. Ink reuses the shared "customXml" relationship type (MS-ODRAWXML
+/// §2.1.4 Ink Content Part).
+pub const REL_INK: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml";
+
 /// The content type of the main presentation part.
 pub const CONTENT_TYPE_PRESENTATION: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml";
@@ -111,3 +117,7 @@ pub const CONTENT_TYPE_ACTIVEX: &str = "application/vnd.ms-office.activeX+xml";
 /// extension is shared with other binary parts, so it is registered as a per-part Override, not a
 /// Default.
 pub const CONTENT_TYPE_ACTIVEX_BINARY: &str = "application/vnd.ms-office.activeX";
+
+/// The content type of an ink (InkML) part (`/ppt/ink/inkN.xml`). Shares the `xml` extension with every
+/// other part, so it is registered as a per-part Override, not a Default.
+pub const CONTENT_TYPE_INKML: &str = "application/inkml+xml";
