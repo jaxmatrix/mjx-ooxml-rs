@@ -14,7 +14,7 @@ use mjx_dml::{
     UnderlineLine,
 };
 use mjx_opc::Package;
-use mjx_pptx::{PptxError, Presentation, ShapeBounds};
+use mjx_pptx::{Hyperlink, PptxError, Presentation, ShapeBounds};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -772,5 +772,113 @@ fn a_fields_type_and_cached_text_are_readable() {
     let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
     for (name, bytes) in &baseline {
         assert_eq!(reopened.get(name), Some(bytes), "reading dirtied {name}");
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Run coalescing (merging adjacent runs that would render identically)
+// ---------------------------------------------------------------------------------------------
+
+/// A one-paragraph text box whose single run has been split into two adjacent runs carrying the
+/// *same* formatting — the exact shape repeated range edits leave behind.
+fn deck_with_two_identical_runs() -> (Presentation, usize) {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = pres
+        .add_text_box(0, "onetwo", BOUNDS)
+        .expect("add text box");
+    let bold = CharacterPropertiesSpec::new().with_bold(true);
+    // Two abutting ranges, same spec → two adjacent runs with identical a:rPr.
+    pres.set_text_range_properties(0, shape, 0, 0..3, &bold)
+        .expect("bold the first half");
+    pres.set_text_range_properties(0, shape, 0, 3..6, &bold)
+        .expect("bold the second half");
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+    (pres, shape)
+}
+
+#[test]
+fn coalescing_merges_adjacent_identical_runs_and_is_idempotent() {
+    let (mut pres, shape) = deck_with_two_identical_runs();
+
+    let merged = pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce");
+    assert_eq!(merged, 1);
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 1);
+    assert_eq!(pres.paragraph_text(0, shape, 0).expect("text"), "onetwo");
+    // The merged run keeps the formatting.
+    assert_eq!(
+        pres.run_properties(0, shape, 0, 0)
+            .expect("props")
+            .and_then(|p| p.is_bold()),
+        Some(true)
+    );
+
+    // A second pass finds nothing to merge.
+    assert_eq!(pres.coalesce_paragraph_runs(0, shape, 0).expect("again"), 0);
+    // And it survives a round-trip.
+    let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(reopened.run_count(0, shape, 0).expect("runs"), 1);
+    assert_eq!(
+        reopened.paragraph_text(0, shape, 0).expect("text"),
+        "onetwo"
+    );
+}
+
+#[test]
+fn coalescing_does_not_merge_differently_formatted_runs() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = pres
+        .add_text_box(0, "onetwo", BOUNDS)
+        .expect("add text box");
+    // Only the first half is bold, so the two runs render differently.
+    pres.set_text_range_properties(
+        0,
+        shape,
+        0,
+        0..3,
+        &CharacterPropertiesSpec::new().with_bold(true),
+    )
+    .expect("bold the first half");
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+
+    assert_eq!(
+        pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce"),
+        0
+    );
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+}
+
+#[test]
+fn coalescing_does_not_merge_across_a_differing_hyperlink() {
+    let (mut pres, shape) = deck_with_two_identical_runs();
+    // Give only the first run a hyperlink — merging would drop it, so the runs must stay apart.
+    pres.set_run_hyperlink(
+        0,
+        shape,
+        0,
+        0,
+        &Hyperlink::Url("https://example.com/".to_owned()),
+    )
+    .expect("set hyperlink");
+
+    assert_eq!(
+        pres.coalesce_paragraph_runs(0, shape, 0).expect("coalesce"),
+        0
+    );
+    assert_eq!(pres.run_count(0, shape, 0).expect("runs"), 2);
+}
+
+#[test]
+fn coalescing_with_nothing_to_merge_leaves_every_part_byte_identical() {
+    // deck_with_lines is three single-run paragraphs — nothing to coalesce anywhere.
+    let (pres, shape) = deck_with_lines();
+    let baseline_bytes = pres.save().expect("save baseline");
+    let baseline = byte_map(&Package::open(&baseline_bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&baseline_bytes).expect("reopen baseline");
+    assert_eq!(pres.coalesce_shape_runs(0, shape).expect("coalesce"), 0);
+
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("resave"));
+    for (name, bytes) in &baseline {
+        assert_eq!(reopened.get(name), Some(bytes), "coalescing dirtied {name}");
     }
 }

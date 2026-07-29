@@ -3,14 +3,15 @@
 use mjx_chart::{ChartData, ChartSpace};
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
-    resolve_line, BlipFill, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
-    EffectListSpec, Emu, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec,
-    OnOffStyle, ParagraphProperties, ParagraphPropertiesSpec, PresetGeometry, ResolvedColor,
-    Scene3D, Scene3DSpec, SchemeColors, Shape3D, Shape3DSpec, ShapeGeometry, Table, TableCell,
-    TableCellProperties, TableColumn, TablePart, TablePartStyle, TableProperties, TableRow,
-    TableStyle, TableStyleBorder, TableStyleCellStyle, TableStyleFlags, TableStyleList,
-    TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody, TextDirection, TextFont,
-    TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
+    resolve_line, BlipFill, CellBorder, CharacterProperties, CharacterPropertiesSpec, ColorMap,
+    ColorSpec, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot, IndentLevel,
+    LineProperties, LineSpec, OnOffStyle, ParagraphContent, ParagraphProperties,
+    ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, Scene3D, Scene3DSpec, SchemeColors,
+    Shape3D, Shape3DSpec, ShapeGeometry, Table, TableCell, TableCellProperties, TableColumn,
+    TablePart, TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder,
+    TableStyleCellStyle, TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle,
+    TextAnchoring, TextBody, TextDirection, TextFont, TextListStyle, Theme, ThemeInfo,
+    ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{
     FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, Symbol, ToXml,
@@ -1294,6 +1295,112 @@ impl Presentation {
         self.edit_text_body(surface.into(), shape_idx, |body, interner| {
             set_all_run_properties_in(body, interner, spec)
         })
+    }
+
+    /// Merges adjacent runs in paragraph `para_idx` that would render identically, returning the
+    /// number of runs merged away. This undoes the run splitting that
+    /// [`set_text_range_properties`](Self::set_text_range_properties) does: formatting a sub-range
+    /// splits a run, and repeatedly formatting overlapping ranges leaves a paragraph with more runs
+    /// than it needs.
+    ///
+    /// Two adjacent runs merge only when **both** hold, so the paragraph reads exactly the same
+    /// afterwards:
+    /// - their **effective** formatting is identical — resolved through the full inheritance ladder,
+    ///   so a run that sets a property explicitly merges with a neighbour that inherits the same value
+    ///   (this compares meaning, not raw XML); and
+    /// - neither carries distinguishing state this model does not describe — a hyperlink, an `rtl`, an
+    ///   `a:extLst`, a foreign attribute — so nothing is dropped by the merge.
+    ///
+    /// A line break or field between two runs keeps them apart. When nothing merges, the call changes
+    /// nothing and does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn coalesce_paragraph_runs(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        para_idx: usize,
+    ) -> Result<usize, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+
+        let run_count = self.run_count(surface, path.clone(), para_idx)?;
+        if run_count < 2 {
+            return Ok(0);
+        }
+
+        // The effective formatting of each run, resolved through the full ladder.
+        let mut effective = Vec::with_capacity(run_count);
+        for run_idx in 0..run_count {
+            effective.push(self.effective_run_properties(
+                surface,
+                path.clone(),
+                para_idx,
+                run_idx,
+            )?);
+        }
+
+        // Decide, per run, whether it may merge left — content-adjacent, effective-equal, and with
+        // matching unmodeled state. This is a read; it does not dirty the part.
+        let mergeable = self.with_text_body(surface, &path, |body, interner| {
+            let paragraph = nth_paragraph(body, para_idx)?;
+            let mut adjacency = vec![false; run_count];
+            let mut properties: Vec<Option<&CharacterProperties>> = Vec::with_capacity(run_count);
+            let mut run_index = 0;
+            let mut previous_was_run = false;
+            for item in paragraph.content() {
+                if let ParagraphContent::Run(run) = item {
+                    adjacency[run_index] = previous_was_run;
+                    properties.push(run.properties());
+                    run_index += 1;
+                    previous_was_run = true;
+                } else {
+                    previous_was_run = false;
+                }
+            }
+            let mut mergeable = vec![false; run_count];
+            for index in 1..run_count {
+                mergeable[index] = adjacency[index]
+                    && effective[index] == effective[index - 1]
+                    && unmodeled_state_eq(properties[index - 1], properties[index], interner);
+            }
+            Ok(mergeable)
+        })?;
+
+        if !mergeable.iter().any(|&flag| flag) {
+            return Ok(0); // Nothing to merge — leave the part untouched.
+        }
+
+        let mut merged = 0;
+        self.edit_text_body(surface, &path, |body, _| {
+            merged = nth_paragraph_mut(body, para_idx)?.coalesce_adjacent_runs(&mergeable);
+            Ok(())
+        })?;
+        Ok(merged)
+    }
+
+    /// Merges adjacent identical runs across **every** paragraph of a shape's text body, returning the
+    /// total number of runs merged away. The per-paragraph rule is
+    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs).
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn coalesce_shape_runs(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<usize, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let paragraph_count = self.paragraph_count(surface, path.clone())?;
+        let mut total = 0;
+        for para_idx in 0..paragraph_count {
+            total += self.coalesce_paragraph_runs(surface, path.clone(), para_idx)?;
+        }
+        Ok(total)
     }
 
     /// Applies `spec` to the paragraph-mark properties (`a:endParaRPr`), creating the element if the
@@ -7392,6 +7499,23 @@ fn nth_field<'a>(
             index: field_idx,
             count,
         })
+}
+
+/// Whether two runs' character properties carry the same state this model does not describe, treating
+/// a run with no `a:rPr` as carrying no such state. Used by run coalescing so a merge never drops a
+/// hyperlink, an `rtl`, or any other unmodeled attribute one run had and the other did not.
+fn unmodeled_state_eq(
+    a: Option<&CharacterProperties>,
+    b: Option<&CharacterProperties>,
+    interner: &Interner,
+) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(properties), None) | (None, Some(properties)) => {
+            properties.has_only_modeled_state(interner)
+        }
+        (Some(a), Some(b)) => a.unmodeled_state_eq(b, interner),
+    }
 }
 
 /// The `para_idx`-th paragraph of a body, mutably.
