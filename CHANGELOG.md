@@ -15,6 +15,38 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.41] - 2026-07-29
+
+Ink (MJX-138, third and last tier of MJX-135) — **preserve-first** recognition of legacy ink (InkML)
+content parts, **completing MJX-135**. Handwriting ink is carried as an InkML part
+(`/ppt/ink/inkN.xml`, `application/inkml+xml`) referenced from the shape tree by a `p14:contentPart`.
+Producers wrap that reference in `mc:AlternateContent` — a shape-tree child in the Markup-Compatibility
+namespace that the shape index space cannot reach — so, like VML, ink is recognized by its content type
+rather than navigated from a shape. The InkML markup is carried through a round-trip verbatim, not
+modeled. Unconditional, like the OLE and ActiveX tiers.
+
+```rust
+use mjx_pptx::Presentation;
+
+let deck = Presentation::open(&bytes)?;
+for part in deck.ink_part_names() {
+    let inkml = deck.ink_part_bytes(&part); // raw InkML, verbatim
+}
+```
+
+### Added
+
+- **`Presentation::ink_part_names`** — every InkML part in the package, recognized by content type.
+- **`Presentation::ink_part_bytes`** — an ink part's bytes, verbatim and non-dirtying.
+- Constants `REL_INK` (the shared `customXml` relationship type) and `CONTENT_TYPE_INKML`.
+
+### Scope
+
+Recognition + preserve + a read window only — no authoring, and the ink is not modeled (a typed stroke
+surface, trace points → paths, is deferred). Per-shape association (`p14:contentPart@r:id`) and the
+`mc:Fallback` snapshot are deferred with it. **MJX-135 (OLE / ActiveX / Ink) is now complete**;
+producer-authentic fixture validation across all three tiers is a follow-up (MJX-140).
+
 ## [0.0.40] - 2026-07-26
 
 ActiveX controls (MJX-137, second tier of MJX-135) — **preserve-first** recognition of legacy ActiveX
