@@ -42,7 +42,9 @@
 mod body;
 mod bullet;
 mod character;
+mod field;
 mod font;
+mod line_break;
 mod list_style;
 mod paragraph;
 mod paragraph_properties;
@@ -57,7 +59,9 @@ pub use character::{
     CharacterProperties, CharacterPropertiesSpec, FontSlot, TextCapitalization, TextStrike,
     TextUnderline, UnderlineFill, UnderlineLine,
 };
+pub use field::{FieldContent, TextField};
 pub use font::TextFont;
+pub use line_break::{LineBreakContent, TextLineBreak};
 pub use list_style::TextListStyle;
 pub use paragraph::{Paragraph, ParagraphContent};
 pub use paragraph_properties::{

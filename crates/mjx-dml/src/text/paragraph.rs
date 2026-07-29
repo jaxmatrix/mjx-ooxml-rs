@@ -4,28 +4,34 @@ use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
 use super::character::{CharacterProperties, CharacterPropertiesSpec};
+use super::field::TextField;
+use super::line_break::TextLineBreak;
 use super::paragraph_properties::{ParagraphProperties, ParagraphPropertiesSpec};
 use super::run::TextRun;
 
-/// One ordered child of a [`Paragraph`]: a typed [`TextRun`] or [`CharacterProperties`], or an opaque
-/// node.
+/// One ordered child of a [`Paragraph`]: a typed run kind (`a:r` / `a:br` / `a:fld`), the paragraph's
+/// own properties, or an opaque node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParagraphContent {
     /// The paragraph's layout properties (`a:pPr`).
     Properties(ParagraphProperties),
     /// A regular text run (`a:r`).
     Run(TextRun),
+    /// A line break (`a:br`) — see [`line_breaks`](Paragraph::line_breaks).
+    LineBreak(TextLineBreak),
+    /// A text field (`a:fld`) — see [`fields`](Paragraph::fields).
+    Field(TextField),
     /// The paragraph-mark properties (`a:endParaRPr`) — see
     /// [`end_properties`](Paragraph::end_properties).
     EndProperties(CharacterProperties),
-    /// Any other child — `a:br`, `a:fld`, whitespace, or an unknown element — preserved verbatim.
+    /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
 
 /// `a:p` — a text paragraph (`CT_TextParagraph`): an optional `a:pPr`, then a run of `a:r` / `a:br` /
-/// `a:fld` children, then an optional `a:endParaRPr`. `a:pPr`, `a:r` and `a:endParaRPr` are typed;
-/// the line-break (`a:br`) and field (`a:fld`) run kinds are preserved opaquely and are **not**
-/// reflected by [`text`](Self::text).
+/// `a:fld` children, then an optional `a:endParaRPr`. Each is typed. The line-break (`a:br`) and field
+/// (`a:fld`) run kinds are addressable through [`line_breaks`](Self::line_breaks) /
+/// [`fields`](Self::fields) but, holding no run text, are **not** reflected by [`text`](Self::text).
 #[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(namespace = DML_MAIN)]
 pub struct Paragraph {
@@ -36,6 +42,8 @@ pub struct Paragraph {
         children,
         child(local = "pPr", variant = Properties, ty = ParagraphProperties),
         child(local = "r", variant = Run, ty = TextRun),
+        child(local = "br", variant = LineBreak, ty = TextLineBreak),
+        child(local = "fld", variant = Field, ty = TextField),
         child(local = "endParaRPr", variant = EndProperties, ty = CharacterProperties)
     )]
     content: Vec<ParagraphContent>,
@@ -54,6 +62,40 @@ impl Paragraph {
     pub fn runs_mut(&mut self) -> impl Iterator<Item = &mut TextRun> {
         self.content.iter_mut().filter_map(|item| match item {
             ParagraphContent::Run(run) => Some(run),
+            _ => None,
+        })
+    }
+
+    /// The line breaks (`a:br`) of this paragraph, in order. These are a separate index space from the
+    /// runs: a break is not a run and does not shift run indices.
+    pub fn line_breaks(&self) -> impl Iterator<Item = &TextLineBreak> {
+        self.content.iter().filter_map(|item| match item {
+            ParagraphContent::LineBreak(line_break) => Some(line_break),
+            _ => None,
+        })
+    }
+
+    /// The line breaks (`a:br`), mutably, in order.
+    pub fn line_breaks_mut(&mut self) -> impl Iterator<Item = &mut TextLineBreak> {
+        self.content.iter_mut().filter_map(|item| match item {
+            ParagraphContent::LineBreak(line_break) => Some(line_break),
+            _ => None,
+        })
+    }
+
+    /// The text fields (`a:fld`) of this paragraph, in order. Like breaks, these are a separate index
+    /// space from the runs; a field's cached text is read through [`TextField::text`].
+    pub fn fields(&self) -> impl Iterator<Item = &TextField> {
+        self.content.iter().filter_map(|item| match item {
+            ParagraphContent::Field(field) => Some(field),
+            _ => None,
+        })
+    }
+
+    /// The text fields (`a:fld`), mutably, in order.
+    pub fn fields_mut(&mut self) -> impl Iterator<Item = &mut TextField> {
+        self.content.iter_mut().filter_map(|item| match item {
+            ParagraphContent::Field(field) => Some(field),
             _ => None,
         })
     }
@@ -160,8 +202,9 @@ impl Paragraph {
         self.empty = false;
     }
 
-    /// The paragraph's text: the text of its runs concatenated with no separator. Opaque `a:br` line
-    /// breaks and `a:fld` fields contribute nothing.
+    /// The paragraph's text: the text of its runs concatenated with no separator. `a:br` line breaks
+    /// contribute nothing (they hold no text), and `a:fld` fields — whose cached text is a generated
+    /// value — are read separately through [`fields`](Self::fields).
     #[must_use]
     pub fn text(&self) -> String {
         self.runs().map(TextRun::text).collect()

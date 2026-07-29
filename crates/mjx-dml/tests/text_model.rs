@@ -5,7 +5,10 @@
 //! round-trip assertion is paired with a **structural** assertion so byte-identity cannot pass by the
 //! model silently dumping everything into the opaque `Raw` bucket.
 
-use mjx_dml::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
+use mjx_dml::{
+    Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextField,
+    TextLineBreak, TextRun,
+};
 use mjx_ooxml_core::{FromXml, FromXmlError, RawDocument, ToXml};
 use mjx_xml::fidelity;
 
@@ -192,11 +195,46 @@ fn xml_space_preserve_and_no_trimming() {
 }
 
 #[test]
-fn line_break_is_opaque_and_excluded_from_text() {
+fn line_break_is_addressable_and_excluded_from_text() {
     const P: &[u8] = br#"<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:r><a:t>A</a:t></a:r><a:br/><a:r><a:t>B</a:t></a:r></a:p>"#;
     let (paragraph, doc): (Paragraph, _) = parse_typed(P);
     assert_eq!(paragraph.runs().count(), 2);
-    assert_eq!(paragraph.text(), "AB"); // a:br yields no newline (it is opaque)
+    // The break is now typed and addressable, but it does not join the run index space…
+    assert_eq!(paragraph.line_breaks().count(), 1);
+    // …and it still contributes no text (a:br holds none).
+    assert_eq!(paragraph.text(), "AB");
+    assert_round_trips(&paragraph, doc, P);
+}
+
+#[test]
+fn a_line_break_carries_its_run_properties() {
+    const P: &[u8] = br#"<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:br><a:rPr lang="en-US" b="1"/></a:br></a:p>"#;
+    let (paragraph, doc): (Paragraph, _) = parse_typed(P);
+    let line_break = paragraph.line_breaks().next().expect("a line break");
+    assert_eq!(
+        line_break
+            .properties()
+            .expect("the break has properties")
+            .is_bold(&doc.interner),
+        Some(true)
+    );
+    assert_round_trips(&paragraph, doc, P);
+}
+
+#[test]
+fn a_field_is_addressable_and_its_cached_text_is_readable() {
+    const P: &[u8] = br#"<a:p xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:fld id="{5BCAD085-E8A6-8845-BD4E-CB4CCA059FC4}" type="slidenum"><a:rPr lang="en-US"/><a:t>7</a:t></a:fld></a:p>"#;
+    let (paragraph, doc): (Paragraph, _) = parse_typed(P);
+    assert_eq!(paragraph.runs().count(), 0, "a field is not a run");
+    assert_eq!(paragraph.text(), "", "field text is not paragraph text");
+    let field = paragraph.fields().next().expect("a field");
+    assert_eq!(
+        field.id(&doc.interner),
+        Some("{5BCAD085-E8A6-8845-BD4E-CB4CCA059FC4}")
+    );
+    assert_eq!(field.field_type(&doc.interner), Some("slidenum"));
+    assert_eq!(field.text(), "7");
+    assert!(field.properties().is_some(), "the field carries an a:rPr");
     assert_round_trips(&paragraph, doc, P);
 }
 
@@ -357,6 +395,14 @@ fn splitting_a_run_leaves_the_paragraphs_other_children_in_place() {
         A = A_NS
     );
     let (mut paragraph, mut doc): (Paragraph, _) = parse_typed(fragment.as_bytes());
+    // The break and field are typed but sit outside the run index space, so splitting run 0 is
+    // unaffected by them and they read back independently.
+    assert_eq!(paragraph.line_breaks().count(), 1);
+    assert_eq!(
+        paragraph.fields().next().expect("the field").text(),
+        "3",
+        "the field's cached slide number is readable"
+    );
     assert!(paragraph.split_run_at(0, 3), "run 0 splits at 3");
 
     let texts: Vec<String> = paragraph.runs().map(|r| r.text().to_owned()).collect();
