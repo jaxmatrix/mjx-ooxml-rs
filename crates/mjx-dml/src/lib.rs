@@ -67,11 +67,11 @@ pub use table::{
 };
 pub use text::{
     AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,
-    BulletSize, BulletTypeface, CharacterProperties, CharacterPropertiesSpec, FontAlignment,
-    FontSlot, Paragraph, ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec,
-    RunContent, TabAlignment, TabStop, Text, TextAlignment, TextBody, TextBodyContent,
-    TextCapitalization, TextFont, TextListStyle, TextRun, TextSpacing, TextStrike, TextUnderline,
-    UnderlineFill, UnderlineLine,
+    BulletSize, BulletTypeface, CharacterProperties, CharacterPropertiesSpec, FieldContent,
+    FontAlignment, FontSlot, LineBreakContent, Paragraph, ParagraphContent, ParagraphProperties,
+    ParagraphPropertiesSpec, RunContent, TabAlignment, TabStop, Text, TextAlignment, TextBody,
+    TextBodyContent, TextCapitalization, TextField, TextFont, TextLineBreak, TextListStyle,
+    TextRun, TextSpacing, TextStrike, TextUnderline, UnderlineFill, UnderlineLine,
 };
 pub use theme::{
     ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot, SupplementalFont,
