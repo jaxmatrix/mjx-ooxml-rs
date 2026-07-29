@@ -237,11 +237,21 @@ impl LineSpec {
         }
     }
 
-    /// Builds the fidelity [`LineProperties`] for this description, interning against `interner`. The
-    /// element is assembled in `CT_LineProperties` order: attributes `w`/`cap`/`cmpd`/`algn`, then
-    /// children fill → dash → join → `headEnd` → `tailEnd`.
+    /// Builds the fidelity [`LineProperties`] for this description as an `a:ln` element. Use
+    /// [`to_line_named`](Self::to_line_named) to emit the same `CT_LineProperties` body under another
+    /// tag, such as the underline line group `a:uLn`.
     #[must_use]
     pub fn to_line(&self, interner: &mut Interner) -> LineProperties {
+        self.to_line_named(interner, "ln")
+    }
+
+    /// Builds the fidelity [`LineProperties`] for this description under `local`, interning against
+    /// `interner`. `local` is the element's local name (`ln` for an outline, `uLn` for the underline
+    /// line group) — the body is the same `CT_LineProperties` either way. The element is assembled in
+    /// schema order: attributes `w`/`cap`/`cmpd`/`algn`, then children fill → dash → join → `headEnd`
+    /// → `tailEnd`.
+    #[must_use]
+    pub fn to_line_named(&self, interner: &mut Interner, local: &str) -> LineProperties {
         let mut attributes = Vec::new();
         if let Some(width) = self.width {
             attributes.push(dml_attr(interner, "w", &width.emu().to_string()));
@@ -274,7 +284,7 @@ impl LineSpec {
         }
 
         LineProperties {
-            name: dml_name(interner, "ln"),
+            name: dml_name(interner, local),
             attributes,
             empty: children.is_empty(),
             children,

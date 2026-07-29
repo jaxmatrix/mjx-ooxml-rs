@@ -55,7 +55,7 @@ pub use bullet::{
 };
 pub use character::{
     CharacterProperties, CharacterPropertiesSpec, FontSlot, TextCapitalization, TextStrike,
-    TextUnderline,
+    TextUnderline, UnderlineFill, UnderlineLine,
 };
 pub use font::TextFont;
 pub use list_style::TextListStyle;

@@ -46,6 +46,35 @@ use crate::text::font::TextFont;
 
 pub use mjx_ooxml_types::drawingml::{TextCapitalization, TextStrike, TextUnderline};
 
+/// The underline **line** group of a run (`a:uLn` / `a:uLnTx`) — how the underline stroke is drawn,
+/// separately from the glyph outline and from the underline's colour.
+///
+/// A run that names neither element leaves this unset (an inherited underline line). `FollowText`
+/// (`a:uLnTx`) says the underline uses the same line as the text; `Explicit` (`a:uLn`, a
+/// `CT_LineProperties` body) gives it its own width, dash and ends. The two are a mutually exclusive
+/// choice: writing one clears the other.
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnderlineLine {
+    /// `a:uLnTx` — the underline follows the text's own line.
+    FollowText,
+    /// `a:uLn` — an explicit underline stroke.
+    Explicit(LineSpec),
+}
+
+/// The underline **fill** group of a run (`a:uFill` / `a:uFillTx`) — what the underline stroke is
+/// painted with, separately from the text fill, so an underline can be recoloured on its own.
+///
+/// A run that names neither element leaves this unset (an inherited underline fill). `FollowText`
+/// (`a:uFillTx`) paints the underline with the text's own fill; `Explicit` (`a:uFill`, wrapping one
+/// `EG_FillProperties`) gives it its own fill. The two are a mutually exclusive choice.
+#[derive(Debug, Clone, PartialEq)]
+pub enum UnderlineFill {
+    /// `a:uFillTx` — the underline follows the text's own fill.
+    FollowText,
+    /// `a:uFill` — an explicit underline fill.
+    Explicit(FillSpec),
+}
+
 /// Which script a font applies to — the four typeface slots of `CT_TextCharacterProperties`.
 ///
 /// A run may name a different font per script; `Latin` is the one a caller normally means.
@@ -92,9 +121,8 @@ impl FontSlot {
 /// strike, capitalization, spacing, and the fill/outline/effects/font it draws with.
 ///
 /// A fidelity wrapper: the modeled properties are exposed by typed accessors, while everything else
-/// — hyperlinks, the underline line/fill groups, `rtl`, `extLst`, and the housekeeping attributes
-/// (`dirty`, `err`, `smtClean`, `altLang`, …) — is preserved verbatim so a run round-trips
-/// byte-for-byte.
+/// — hyperlinks, `rtl`, `extLst`, and the housekeeping attributes (`dirty`, `err`, `smtClean`,
+/// `altLang`, …) — is preserved verbatim so a run round-trips byte-for-byte.
 ///
 /// The element name is preserved too, so the same type reads and writes `a:rPr`, `a:defRPr` and
 /// `a:endParaRPr` alike.
@@ -204,6 +232,52 @@ impl CharacterProperties {
             .and_then(|el| first_color_child(el, interner))
     }
 
+    /// Whether the underline line follows the text (`a:uLnTx` is present).
+    pub(crate) fn underline_line_follows_text(&self, interner: &Interner) -> bool {
+        dml_child(&self.children, interner, "uLnTx").is_some()
+    }
+
+    /// The explicit underline stroke (`a:uLn`) as a fidelity outline, if the run declares one. The
+    /// resolution path reads this so it can bake the stroke's colours like any other line.
+    pub(crate) fn underline_line_raw(&self, interner: &Interner) -> Option<LineProperties> {
+        dml_child(&self.children, interner, "uLn")
+            .and_then(|el| LineProperties::from_xml(el, interner).ok())
+    }
+
+    /// Whether the underline fill follows the text (`a:uFillTx` is present).
+    pub(crate) fn underline_fill_follows_text(&self, interner: &Interner) -> bool {
+        dml_child(&self.children, interner, "uFillTx").is_some()
+    }
+
+    /// The explicit underline fill (`a:uFill`'s wrapped `EG_FillProperties`), if the run declares one.
+    pub(crate) fn underline_fill_raw(&self, interner: &Interner) -> Option<Fill> {
+        dml_child(&self.children, interner, "uFill")
+            .and_then(|wrapper| first_fill_child(&wrapper.children, interner))
+            .and_then(|el| Fill::from_xml(el, interner).ok())
+    }
+
+    /// The underline line group (`a:uLn` / `a:uLnTx`) — how the underline stroke is drawn — or `None`
+    /// if the run declares neither element (an inherited underline line).
+    #[must_use]
+    pub fn underline_line(&self, interner: &Interner) -> Option<UnderlineLine> {
+        if self.underline_line_follows_text(interner) {
+            return Some(UnderlineLine::FollowText);
+        }
+        self.underline_line_raw(interner)
+            .map(|line| UnderlineLine::Explicit(line.spec(interner)))
+    }
+
+    /// The underline fill group (`a:uFill` / `a:uFillTx`) — what the underline is painted with — or
+    /// `None` if the run declares neither element (an inherited underline fill).
+    #[must_use]
+    pub fn underline_fill(&self, interner: &Interner) -> Option<UnderlineFill> {
+        if self.underline_fill_follows_text(interner) {
+            return Some(UnderlineFill::FollowText);
+        }
+        self.underline_fill_raw(interner)
+            .map(|fill| UnderlineFill::Explicit(fill.spec(interner)))
+    }
+
     /// The typeface named for `slot`, or `None` if the run names none for it.
     #[must_use]
     pub fn font(&self, interner: &Interner, slot: FontSlot) -> Option<TextFont> {
@@ -278,6 +352,8 @@ impl CharacterProperties {
             outline: self.outline(interner).map(|line| line.spec(interner)),
             effects: self.effects(interner).map(|fx| fx.spec(interner)),
             highlight: self.highlight(interner).map(|color| color.spec(interner)),
+            underline_line: self.underline_line(interner),
+            underline_fill: self.underline_fill(interner),
             fonts: FontSlot::all_slots()
                 .into_iter()
                 .filter_map(|slot| self.font(interner, slot).map(|font| (slot, font)))
@@ -364,6 +440,33 @@ impl CharacterProperties {
             if let Some(element) = build_highlight(interner, highlight) {
                 self.replace_child(interner, element, |local| local == "highlight");
             }
+        }
+        // The underline line/fill groups are each a two-way choice (`a:uLn` vs `a:uLnTx`,
+        // `a:uFill` vs `a:uFillTx`); writing one member replaces whichever the run already had.
+        if let Some(underline_line) = &spec.underline_line {
+            let element = match underline_line {
+                UnderlineLine::FollowText => dml_element(interner, "uLnTx", Vec::new(), Vec::new()),
+                UnderlineLine::Explicit(line) => {
+                    line.to_line_named(interner, "uLn").to_xml(interner)
+                }
+            };
+            self.replace_child(interner, element, |local| {
+                local == "uLn" || local == "uLnTx"
+            });
+        }
+        if let Some(underline_fill) = &spec.underline_fill {
+            let element = match underline_fill {
+                UnderlineFill::FollowText => {
+                    dml_element(interner, "uFillTx", Vec::new(), Vec::new())
+                }
+                UnderlineFill::Explicit(fill) => {
+                    let inner = fill.to_fill(interner).to_xml(interner);
+                    dml_element(interner, "uFill", Vec::new(), vec![RawNode::Element(inner)])
+                }
+            };
+            self.replace_child(interner, element, |local| {
+                local == "uFill" || local == "uFillTx"
+            });
         }
         for (slot, font) in &spec.fonts {
             let element = font.build(interner, slot.local());
@@ -463,6 +566,8 @@ pub struct CharacterPropertiesSpec {
     outline: Option<LineSpec>,
     effects: Option<EffectListSpec>,
     highlight: Option<ColorSpec>,
+    underline_line: Option<UnderlineLine>,
+    underline_fill: Option<UnderlineFill>,
     fonts: Vec<(FontSlot, TextFont)>,
 }
 
@@ -585,6 +690,20 @@ impl CharacterPropertiesSpec {
         self
     }
 
+    /// Sets the underline line group (`a:uLn` / `a:uLnTx`) — how the underline stroke is drawn.
+    #[must_use]
+    pub fn with_underline_line(mut self, underline_line: UnderlineLine) -> Self {
+        self.underline_line = Some(underline_line);
+        self
+    }
+
+    /// Sets the underline fill group (`a:uFill` / `a:uFillTx`) — what the underline is painted with.
+    #[must_use]
+    pub fn with_underline_fill(mut self, underline_fill: UnderlineFill) -> Self {
+        self.underline_fill = Some(underline_fill);
+        self
+    }
+
     /// Names the latin-script font — `with_font("Calibri")`, or `with_font("+mj-lt")` for the theme's major
     /// font. For another script, use [`with_font_for`](Self::with_font_for).
     #[must_use]
@@ -690,6 +809,18 @@ impl CharacterPropertiesSpec {
         self.highlight.as_ref()
     }
 
+    /// The underline line group, if set.
+    #[must_use]
+    pub fn underline_line(&self) -> Option<&UnderlineLine> {
+        self.underline_line.as_ref()
+    }
+
+    /// The underline fill group, if set.
+    #[must_use]
+    pub fn underline_fill(&self) -> Option<&UnderlineFill> {
+        self.underline_fill.as_ref()
+    }
+
     /// The font named for one script slot, if set.
     #[must_use]
     pub fn font(&self, slot: FontSlot) -> Option<&TextFont> {
@@ -729,6 +860,8 @@ impl CharacterPropertiesSpec {
         self.outline = self.outline.or_else(|| lower.outline.clone());
         self.effects = self.effects.or_else(|| lower.effects.clone());
         self.highlight = self.highlight.or_else(|| lower.highlight.clone());
+        self.underline_line = self.underline_line.or_else(|| lower.underline_line.clone());
+        self.underline_fill = self.underline_fill.or_else(|| lower.underline_fill.clone());
 
         // Per slot, in schema order, so a merged spec's fonts read the same whichever tier set them.
         for slot in FontSlot::all_slots() {
@@ -744,7 +877,7 @@ impl CharacterPropertiesSpec {
 
     /// Builds a **fresh** element for these properties under `local` (`rPr`, `defRPr` or
     /// `endParaRPr`), assembled in `CT_TextCharacterProperties` order: the attributes, then `a:ln` →
-    /// fill → effects → `a:highlight` → the script fonts.
+    /// fill → effects → `a:highlight` → the underline line/fill groups → the script fonts.
     ///
     /// Only what the spec names is written. To keep an existing element's unmodeled state, merge with
     /// [`CharacterProperties::apply`] instead.
