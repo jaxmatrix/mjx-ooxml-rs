@@ -15,6 +15,27 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.49] - 2026-07-30
+
+Inaccessible external sources — OLE objects (MJX-201 P3). An OLE object can reference embedded (or
+linked/external) data that is unreachable on another platform. Unlike a chart, an OLE object has no
+cached fallback — but it is displayed via its snapshot image and its data stream is read only on
+activation, so it is neutralized by redirecting the reference to an in-package placeholder.
+
+`mjx-pptx`:
+
+- `Presentation::replace_ole_object_with_placeholder` inserts a placeholder object part and retargets
+  the OLE frame's data relationship at it (`mjx_opc::Package::retarget_relationship`, this feature's
+  first consumer), so the object resolves inside the package. The placeholder is caller-supplied bytes
+  or the new `default_placeholder_ole()` — a minimal but structurally valid MS-CFB compound file (an
+  empty root storage). The `p:oleObj` markup is untouched; a replaced embedded part is left
+  unreferenced and can be swept with `Package::remove_unreferenced_parts`. A non-OLE shape yields the
+  new `PptxError::ShapeIsNotAnOleObject`.
+- `Presentation::ole_objects` lists the OLE frames on a surface, each with its data target, `progId`,
+  and whether the reference is external — the discovery surface for what to replace.
+
+Additive and non-breaking. Next: audio/video media (P4).
+
 ## [0.0.48] - 2026-07-30
 
 Inaccessible external sources — chart backing workbook (MJX-201 P2). A chart can reference a workbook
