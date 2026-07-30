@@ -15,6 +15,23 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.45] - 2026-07-30
+
+Orphaned-part sweep (MJX-42, first of two package-gap fixes). Replacing an image, deleting a slide, or
+any edit that unwires a relationship can leave a part with nothing pointing at it — a legal but dead
+media blob. Until now nothing removed them; `remove_part_cascading` only walks downward from one named
+part.
+
+New `Package::remove_unreferenced_parts` on `mjx-opc` is the package-wide garbage collector. It returns
+the swept part names and is conservative by construction: a part survives if it is reachable by
+following `Internal` relationships transitively from the package root (`_rels/.rels`), so a media part
+reached only through a live slide stays, and OPC-required roots (core properties, thumbnail) stay
+because the root relationships name them. Control parts are never removed — `[Content_Types].xml` is
+not a part, and every `.rels` part is spared. Reference cycles terminate.
+
+The relationship-resolution logic shared by the reachability walk and the existing reference checks is
+unified behind one `resolve_rel` helper (root-vs-part base).
+
 ## [0.0.44] - 2026-07-29
 
 Run coalescing (MJX-41, third and last text-model gap — **completing MJX-41**) — formatting a
