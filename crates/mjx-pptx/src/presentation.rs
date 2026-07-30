@@ -4,14 +4,13 @@ use mjx_chart::{ChartData, ChartSpace};
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
     resolve_line, BlipFill, CellBorder, CharacterProperties, CharacterPropertiesSpec, ColorMap,
-    ColorSpec, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot, IndentLevel,
-    LineProperties, LineSpec, OnOffStyle, ParagraphContent, ParagraphProperties,
+    ColorSpec, CustomGeometry, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot,
+    IndentLevel, LineProperties, LineSpec, OnOffStyle, ParagraphContent, ParagraphProperties,
     ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, Scene3D, Scene3DSpec, SchemeColors,
-    Shape3D, Shape3DSpec, ShapeGeometry, Table, TableCell, TableCellProperties, TableColumn,
-    TablePart, TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder,
-    TableStyleCellStyle, TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle,
-    TextAnchoring, TextBody, TextDirection, TextFont, TextListStyle, Theme, ThemeInfo,
-    ThemeableLineStyle, Transform2D,
+    Shape3D, Shape3DSpec, Table, TableCell, TableCellProperties, TableColumn, TablePart,
+    TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder, TableStyleCellStyle,
+    TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody,
+    TextDirection, TextFont, TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{
     FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, Symbol, ToXml,
@@ -32,7 +31,7 @@ use crate::external::{
     default_placeholder_audio, default_placeholder_ole, default_placeholder_video, ChartWorkbook,
     LinkedImage, MediaKind, MediaReference, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
 };
-use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
+use crate::geometry::{CellMargins, Geometry, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
 use crate::slide::GraphicFrameKind;
 use crate::slide::{PlaceholderInfo, ShapeKind};
@@ -3032,42 +3031,52 @@ impl Presentation {
         Ok(())
     }
 
-    /// The preset geometry of shape `shape_idx` on `surface`, as a typed [`ShapeGeometry`]
-    /// (named adjustments in friendly units). Reading does not dirty the part.
+    /// The geometry of shape `shape_idx` on `surface`, as a [`Geometry`] — a preset shape
+    /// ([`Geometry::Preset`]), a custom path list ([`Geometry::Custom`]), or [`Geometry::Inherited`]
+    /// when the shape states no geometry of its own (it takes one from its placeholder / layout).
+    /// Reading does not dirty the part.
     ///
     /// # Errors
-    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, the shape has no
-    /// `a:prstGeom` ([`ShapeHasNoGeometry`](PptxError::ShapeHasNoGeometry)), or its `prst` names a
-    /// shape type this build does not recognize ([`UnknownShapeType`](PptxError::UnknownShapeType)).
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or a preset shape's
+    /// `prst` names a shape type this build does not recognize
+    /// ([`UnknownShapeType`](PptxError::UnknownShapeType)).
     pub fn shape_geometry(
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
-    ) -> Result<ShapeGeometry, PptxError> {
+    ) -> Result<Geometry, PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
-        let prst_geom =
-            slide::shape_prstgeom(shape, &doc.interner).ok_or(PptxError::ShapeHasNoGeometry)?;
-        let geometry = PresetGeometry::from_xml(prst_geom, &doc.interner)?;
-        geometry
-            .shape(&doc.interner)
-            .ok_or(PptxError::UnknownShapeType)
+        if let Some(prst_geom) = slide::shape_prstgeom(shape, &doc.interner) {
+            let geometry = PresetGeometry::from_xml(prst_geom, &doc.interner)?;
+            let shape_geometry = geometry
+                .shape(&doc.interner)
+                .ok_or(PptxError::UnknownShapeType)?;
+            Ok(Geometry::Preset(shape_geometry))
+        } else if let Some(cust_geom) = slide::shape_custgeom(shape, &doc.interner) {
+            let geometry = CustomGeometry::from_xml(cust_geom, &doc.interner)?;
+            Ok(Geometry::Custom(geometry.spec(&doc.interner)))
+        } else {
+            Ok(Geometry::Inherited)
+        }
     }
 
-    /// Sets the preset geometry of shape `shape_idx` on `surface` from a typed
-    /// [`ShapeGeometry`] — rewriting the shape's `a:prstGeom@prst` and its adjustment `a:gd`s. Marks
-    /// only that slide part dirty; everything else re-emits verbatim.
+    /// Sets the geometry of shape `shape_idx` on `surface` from a [`Geometry`]: a preset shape
+    /// ([`Geometry::Preset`]) rewrites the `a:prstGeom`, a custom path list ([`Geometry::Custom`])
+    /// writes an `a:custGeom`, and [`Geometry::Inherited`] removes the shape's own geometry so an
+    /// inherited one takes over. The two kinds are mutually exclusive, so setting one drops the other.
+    /// Marks only that slide part dirty; everything else re-emits verbatim.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
-    /// `a:prstGeom` to edit.
+    /// `p:spPr` to hold a geometry ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)).
     pub fn set_shape_geometry(
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
-        geometry: ShapeGeometry,
+        geometry: Geometry,
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         let slide_part = self.surface_part(surface)?;
@@ -3075,7 +3084,7 @@ impl Presentation {
         // Split the borrow: `interner` for name resolution / rebuild, `root` for locate + replace.
         let RawDocument { interner, root, .. } = doc;
         let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
-        slide::set_prstgeom(shape, interner, geometry)
+        slide::set_geometry(shape, interner, &geometry)
     }
 
     /// The explicit fill of shape `shape_idx` on `surface`, as an interner-free [`FillSpec`],
@@ -7709,7 +7718,7 @@ fn apply_edit_to_element(
             Ok(())
         }
         PreparedEdit::Element(ShapeEdit::Geometry(geometry)) => {
-            slide::set_prstgeom(shape, interner, *geometry)
+            slide::set_geometry(shape, interner, geometry)
         }
         PreparedEdit::Element(ShapeEdit::Transform(transform)) => {
             let slot = slide::shape_transform_slot_mut(shape, interner)?;

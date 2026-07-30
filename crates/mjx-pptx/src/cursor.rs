@@ -5,12 +5,12 @@
 
 use mjx_dml::{
     CharacterPropertiesSpec, EffectListSpec, FillSpec, LineSpec, ParagraphPropertiesSpec,
-    Scene3DSpec, Shape3DSpec, ShapeGeometry, Transform2D,
+    Scene3DSpec, Shape3DSpec, Transform2D,
 };
 
 use crate::address::ShapePath;
 use crate::error::PptxError;
-use crate::geometry::ShapeBounds;
+use crate::geometry::{Geometry, ShapeBounds};
 use crate::hyperlink::Hyperlink;
 use crate::presentation::Presentation;
 use crate::slide::ShapeKind;
@@ -39,7 +39,7 @@ pub(crate) enum ShapeEdit {
     /// `clear_shape_3d_properties` — removes the `a:sp3d` element.
     ClearShape3DProperties,
     /// `set_shape_geometry`.
-    Geometry(ShapeGeometry),
+    Geometry(Box<Geometry>),
     /// `set_shape_transform` — written verbatim, in the shape's own coordinate space.
     Transform(Transform2D),
     /// `set_shape_bounds` — slide-absolute, so for a group member it is mapped back through the
@@ -381,9 +381,10 @@ impl<'deck> ShapeCursor<'deck> {
         self.record(ShapeEdit::ClearShape3DProperties)
     }
 
-    /// Sets the shape's preset geometry. Mirrors [`Presentation::set_shape_geometry`].
-    pub fn geometry(self, geometry: ShapeGeometry) -> Self {
-        self.record(ShapeEdit::Geometry(geometry))
+    /// Sets the shape's geometry (preset, custom, or inherited). Mirrors
+    /// [`Presentation::set_shape_geometry`].
+    pub fn geometry(self, geometry: Geometry) -> Self {
+        self.record(ShapeEdit::Geometry(Box::new(geometry)))
     }
 
     /// Moves and resizes the shape, in **slide** coordinates. Mirrors

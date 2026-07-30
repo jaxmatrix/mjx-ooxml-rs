@@ -72,7 +72,7 @@ pub use external::{
     default_placeholder_audio, default_placeholder_ole, default_placeholder_video, ChartWorkbook,
     LinkedImage, MediaKind, MediaReference, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
 };
-pub use geometry::{CellMargins, ShapeBounds, SlideSize};
+pub use geometry::{CellMargins, Geometry, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
 // Chart authoring types, re-exported so a caller of `add_chart` need not depend on `mjx-chart`.
 pub use mjx_chart::{ChartData, ChartKind};

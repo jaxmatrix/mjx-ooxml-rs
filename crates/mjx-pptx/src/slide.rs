@@ -2,16 +2,18 @@
 
 use mjx_dml::{
     ColorMap, ColorSchemeSlot, EffectListSpec, Fill, FillSpec, LineSpec, PresetGeometry,
-    Scene3DSpec, Shape3DSpec, ShapeGeometry, StyleMatrixReference,
+    Scene3DSpec, Shape3DSpec, StyleMatrixReference,
 };
 use mjx_mce::MARKUP_COMPATIBILITY_2006;
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawNode, Symbol, ToXml};
+use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_CHART, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
 use crate::address::ShapePath;
 use crate::build;
 use crate::error::PptxError;
+use crate::geometry::Geometry;
 use crate::nav;
 
 /// The `p:spPr` child elements that a fill must precede, per `CT_ShapeProperties`'s content order
@@ -547,6 +549,16 @@ pub(crate) fn shape_prstgeom<'a>(
 ) -> Option<&'a RawElement> {
     let sp_pr = nav::child(shape, interner, PML, "spPr")?;
     nav::child(sp_pr, interner, DML_MAIN, "prstGeom")
+}
+
+/// A shape's custom geometry (`p:spPr > a:custGeom`), if it has one. A preset or inherited-geometry
+/// shape returns `None`. The mutually-exclusive counterpart to [`shape_prstgeom`].
+pub(crate) fn shape_custgeom<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let sp_pr = nav::child(shape, interner, PML, "spPr")?;
+    nav::child(sp_pr, interner, DML_MAIN, "custGeom")
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1309,21 +1321,68 @@ pub(crate) fn remove_sp3d(shape: &mut RawElement, interner: &Interner) {
     }
 }
 
-/// Rewrites `shape`'s `a:prstGeom` — its shape type and adjustment `a:gd`s — from a typed
-/// [`ShapeGeometry`]. The shape must already have a preset geometry to edit.
-pub(crate) fn set_prstgeom(
+/// The index of `sp_pr`'s geometry child — the mutually-exclusive `a:prstGeom` or `a:custGeom` — if
+/// any.
+fn geometry_child_index(sp_pr: &RawElement, interner: &Interner) -> Option<usize> {
+    sp_pr.children.iter().position(|node| {
+        matches!(
+            dml_element_local(node, interner),
+            Some("prstGeom" | "custGeom")
+        )
+    })
+}
+
+/// Where a new geometry child should be inserted in `sp_pr`: before the first fill / line / effect /
+/// 3-D / extension child (so it lands after any `a:xfrm`, which precedes it), or at the end when none
+/// is present. Geometry is the second `CT_ShapeProperties` child, right after the transform.
+fn geometry_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
+    sp_pr
+        .children
+        .iter()
+        .position(|node| {
+            dml_element_local(node, interner).is_some_and(|local| {
+                Fill::is_fill_local(local) || AFTER_FILL_LOCALS.contains(&local)
+            })
+        })
+        .unwrap_or(sp_pr.children.len())
+}
+
+/// Writes `geometry` into `shape`'s `p:spPr`, unifying preset and custom geometry: it replaces
+/// whichever geometry element is present (`a:prstGeom` or `a:custGeom`) in place, inserts a new one at
+/// the geometry slot (after any `a:xfrm`, before fill), or — for [`Geometry::Inherited`] — removes the
+/// shape's own geometry so an inherited one takes over. The two kinds are mutually exclusive, so
+/// setting one drops the other.
+pub(crate) fn set_geometry(
     shape: &mut RawElement,
     interner: &mut Interner,
-    geometry: ShapeGeometry,
+    geometry: &Geometry,
 ) -> Result<(), PptxError> {
+    let new_element = match geometry {
+        Geometry::Preset(shape_geometry) => {
+            // `set_shape` overwrites `prst` and the adjustments, so the placeholder preset is only a
+            // seed; the built element carries exactly what `shape_geometry` names.
+            let mut geom = PresetGeometry::new(interner, PresetShapeType::Rectangle, None);
+            geom.set_shape(interner, *shape_geometry);
+            Some(geom.to_xml(interner))
+        }
+        Geometry::Custom(spec) => Some(spec.to_custom_geometry(interner).to_xml(interner)),
+        Geometry::Inherited => None,
+    };
+
     let sp_pr =
-        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoGeometry)?;
-    let slot = nav::child_mut(sp_pr, interner, DML_MAIN, "prstGeom")
-        .ok_or(PptxError::ShapeHasNoGeometry)?;
-    let mut geom = PresetGeometry::from_xml(slot, interner)?;
-    geom.set_shape(interner, geometry);
-    // The edit lands here: rebuild the prstGeom in place, reusing the part's own interner.
-    *slot = geom.to_xml(interner);
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    match (geometry_child_index(sp_pr, interner), new_element) {
+        (Some(index), Some(element)) => sp_pr.children[index] = RawNode::Element(element),
+        (Some(index), None) => {
+            sp_pr.children.remove(index);
+        }
+        (None, Some(element)) => {
+            let at = geometry_insert_index(sp_pr, interner);
+            sp_pr.children.insert(at, RawNode::Element(element));
+            sp_pr.empty = false;
+        }
+        (None, None) => {}
+    }
     Ok(())
 }
 
