@@ -15,6 +15,25 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.54] - 2026-07-30
+
+Custom geometry, the PowerPoint surface (MJX-44 CG4). The `mjx-dml` custom-geometry model (CG1–CG3)
+now reaches `.pptx`: one accessor reads and writes both preset and custom geometry.
+
+`mjx-pptx`:
+
+- New `Geometry` enum — `Preset(ShapeGeometry)` | `Custom(CustomGeometrySpec)` | `Inherited`.
+- **Breaking:** `Presentation::shape_geometry` now returns `Geometry` (was `ShapeGeometry`), and
+  `set_shape_geometry` / the cursor's `.geometry(..)` now take a `Geometry` (was `ShapeGeometry`).
+  Migrate a preset call by wrapping it: `Geometry::Preset(ShapeGeometry::…)`. `shape_geometry` no
+  longer errors when a shape declares no geometry — it returns `Geometry::Inherited` — so
+  `PptxError::ShapeHasNoGeometry` is no longer produced by these methods.
+- `shape_geometry` now reads `a:custGeom` (as `Geometry::Custom`) as well as `a:prstGeom`;
+  `set_shape_geometry` writes either, converts between them (the two are mutually exclusive), and for
+  `Geometry::Inherited` removes the shape's own geometry element so an inherited one takes over.
+
+Pre-`v0.1`, so the API is still unstable; this is the deliberate unification MJX-44 called for.
+
 ## [0.0.53] - 2026-07-30
 
 Custom geometry, the container and auxiliary lists (MJX-44 CG3). Completes the `mjx-dml` model of
