@@ -155,3 +155,180 @@ pub fn default_placeholder_ole() -> Vec<u8> {
 
     out
 }
+
+/// Which kind of media a [`MediaReference`] binds — decided by the relationship type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MediaKind {
+    /// An audio reference (`a:audioFile@r:link`, or a `p:snd` transition/timing sound).
+    Audio,
+    /// A video reference (`a:videoFile@r:link`).
+    Video,
+    /// The generic MS 2010 media reference (`a14:media`), which can back either audio or video.
+    Media,
+}
+
+/// A media relationship on a surface — an audio or video reference that can be unreachable on another
+/// platform, as reported by [`Presentation::media_references`](crate::Presentation::media_references)
+/// and neutralized by
+/// [`Presentation::replace_media_with_placeholder`](crate::Presentation::replace_media_with_placeholder).
+///
+/// Media is addressed by its **relationship id** rather than a shape index: a single media object is
+/// referenced from several places (the `p:pic`, its `a14:media` fallback, timing/transition sounds),
+/// and timing/transition sounds are not shapes at all. All of them resolve through the surface's media
+/// relationships, so redirecting the relationship neutralizes every carrier at once.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MediaReference {
+    /// The relationship id within the surface's `.rels`.
+    pub rel_id: String,
+    /// Which kind of media the relationship binds.
+    pub kind: MediaKind,
+    /// Where the media is referenced from — the relationship target (an external path/URL, or an
+    /// in-package part target for embedded media).
+    pub target: String,
+    /// Whether the relationship is external (`TargetMode="External"`), i.e. the case that can be
+    /// unreachable on another platform. Embedded media is `false`.
+    pub external: bool,
+}
+
+/// The built-in placeholder for an inaccessible **audio** reference — a minimal valid WAV file (44
+/// bytes): a silent, empty PCM stream (mono, 8 kHz, 8-bit). Used when a caller neutralizing an audio
+/// reference supplies no bytes of their own.
+#[must_use]
+pub fn default_placeholder_audio() -> Vec<u8> {
+    let mut out = Vec::with_capacity(44);
+    out.extend_from_slice(b"RIFF");
+    out.extend_from_slice(&36u32.to_le_bytes()); // chunk size = 36 + data (0)
+    out.extend_from_slice(b"WAVE");
+    out.extend_from_slice(b"fmt ");
+    out.extend_from_slice(&16u32.to_le_bytes()); // PCM fmt chunk size
+    out.extend_from_slice(&1u16.to_le_bytes()); // audio format: PCM
+    out.extend_from_slice(&1u16.to_le_bytes()); // channels: mono
+    out.extend_from_slice(&8000u32.to_le_bytes()); // sample rate
+    out.extend_from_slice(&8000u32.to_le_bytes()); // byte rate = rate * channels * bits/8
+    out.extend_from_slice(&1u16.to_le_bytes()); // block align = channels * bits/8
+    out.extend_from_slice(&8u16.to_le_bytes()); // bits per sample
+    out.extend_from_slice(b"data");
+    out.extend_from_slice(&0u32.to_le_bytes()); // data size: empty
+    out
+}
+
+/// The built-in placeholder for an inaccessible **video** reference — a minimal, structurally valid
+/// ISO base media (MP4) file: an `ftyp` plus a `moov` describing a single video track with an empty
+/// sample table (no frames). It plays nothing, but its box tree parses cleanly. Used when a caller
+/// neutralizing a video reference supplies no bytes of their own.
+#[must_use]
+pub fn default_placeholder_video() -> Vec<u8> {
+    /// `[size:u32 BE][type][payload]`.
+    fn bx(box_type: &[u8; 4], payload: &[u8]) -> Vec<u8> {
+        let mut out = Vec::with_capacity(8 + payload.len());
+        out.extend_from_slice(&((8 + payload.len()) as u32).to_be_bytes());
+        out.extend_from_slice(box_type);
+        out.extend_from_slice(payload);
+        out
+    }
+    /// A full box: a 1-byte version and 3-byte flags precede `body`.
+    fn full_bx(box_type: &[u8; 4], version: u8, flags: u32, body: &[u8]) -> Vec<u8> {
+        let mut payload = Vec::with_capacity(4 + body.len());
+        payload.push(version);
+        payload.extend_from_slice(&flags.to_be_bytes()[1..]); // low 3 bytes
+        payload.extend_from_slice(body);
+        bx(box_type, &payload)
+    }
+    // The 3x3 video transform matrix (identity, 16.16 fixed point) shared by tkhd/mvhd.
+    fn identity_matrix() -> [u8; 36] {
+        let values: [u32; 9] = [0x0001_0000, 0, 0, 0, 0x0001_0000, 0, 0, 0, 0x4000_0000];
+        let mut out = [0u8; 36];
+        for (i, v) in values.iter().enumerate() {
+            out[i * 4..i * 4 + 4].copy_from_slice(&v.to_be_bytes());
+        }
+        out
+    }
+
+    let ftyp = bx(b"ftyp", &{
+        let mut p = Vec::new();
+        p.extend_from_slice(b"isom"); // major brand
+        p.extend_from_slice(&0x0000_0200u32.to_be_bytes()); // minor version
+        p.extend_from_slice(b"isom");
+        p.extend_from_slice(b"mp41"); // compatible brands
+        p
+    });
+
+    // stbl: an empty sample table (no descriptions, no samples).
+    let stsd = full_bx(b"stsd", 0, 0, &0u32.to_be_bytes()); // entry_count = 0
+    let stts = full_bx(b"stts", 0, 0, &0u32.to_be_bytes());
+    let stsc = full_bx(b"stsc", 0, 0, &0u32.to_be_bytes());
+    let stsz = full_bx(b"stsz", 0, 0, &{
+        let mut p = Vec::new();
+        p.extend_from_slice(&0u32.to_be_bytes()); // sample_size
+        p.extend_from_slice(&0u32.to_be_bytes()); // sample_count
+        p
+    });
+    let stco = full_bx(b"stco", 0, 0, &0u32.to_be_bytes());
+    let stbl = bx(b"stbl", &[stsd, stts, stsc, stsz, stco].concat());
+
+    // dinf > dref with a single self-contained data reference (flags bit 0 = data is in this file).
+    let url = full_bx(b"url ", 0, 1, &[]);
+    let dref = full_bx(b"dref", 0, 0, &[&1u32.to_be_bytes()[..], &url].concat());
+    let dinf = bx(b"dinf", &dref);
+
+    let vmhd = full_bx(b"vmhd", 0, 1, &[0u8; 8]); // graphicsmode + opcolor
+    let minf = bx(b"minf", &[vmhd, dinf, stbl].concat());
+
+    let mdhd = full_bx(b"mdhd", 0, 0, &{
+        let mut p = Vec::new();
+        p.extend_from_slice(&0u32.to_be_bytes()); // creation time
+        p.extend_from_slice(&0u32.to_be_bytes()); // modification time
+        p.extend_from_slice(&1000u32.to_be_bytes()); // timescale
+        p.extend_from_slice(&0u32.to_be_bytes()); // duration
+        p.extend_from_slice(&0x55C4u16.to_be_bytes()); // language 'und'
+        p.extend_from_slice(&0u16.to_be_bytes()); // pre_defined
+        p
+    });
+    let hdlr = full_bx(b"hdlr", 0, 0, &{
+        let mut p = Vec::new();
+        p.extend_from_slice(&0u32.to_be_bytes()); // pre_defined
+        p.extend_from_slice(b"vide"); // handler type
+        p.extend_from_slice(&[0u8; 12]); // reserved
+        p.push(0); // empty, null-terminated name
+        p
+    });
+    let mdia = bx(b"mdia", &[mdhd, hdlr, minf].concat());
+
+    let tkhd = full_bx(b"tkhd", 0, 0x0000_0007, &{
+        let mut p = Vec::new();
+        p.extend_from_slice(&0u32.to_be_bytes()); // creation
+        p.extend_from_slice(&0u32.to_be_bytes()); // modification
+        p.extend_from_slice(&1u32.to_be_bytes()); // track_id
+        p.extend_from_slice(&0u32.to_be_bytes()); // reserved
+        p.extend_from_slice(&0u32.to_be_bytes()); // duration
+        p.extend_from_slice(&[0u8; 8]); // reserved
+        p.extend_from_slice(&0u16.to_be_bytes()); // layer
+        p.extend_from_slice(&0u16.to_be_bytes()); // alternate_group
+        p.extend_from_slice(&0u16.to_be_bytes()); // volume
+        p.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        p.extend_from_slice(&identity_matrix());
+        p.extend_from_slice(&0u32.to_be_bytes()); // width
+        p.extend_from_slice(&0u32.to_be_bytes()); // height
+        p
+    });
+    let trak = bx(b"trak", &[tkhd, mdia].concat());
+
+    let mvhd = full_bx(b"mvhd", 0, 0, &{
+        let mut p = Vec::new();
+        p.extend_from_slice(&0u32.to_be_bytes()); // creation
+        p.extend_from_slice(&0u32.to_be_bytes()); // modification
+        p.extend_from_slice(&1000u32.to_be_bytes()); // timescale
+        p.extend_from_slice(&0u32.to_be_bytes()); // duration
+        p.extend_from_slice(&0x0001_0000u32.to_be_bytes()); // rate 1.0
+        p.extend_from_slice(&0x0100u16.to_be_bytes()); // volume 1.0
+        p.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        p.extend_from_slice(&[0u8; 8]); // reserved
+        p.extend_from_slice(&identity_matrix());
+        p.extend_from_slice(&[0u8; 24]); // pre_defined
+        p.extend_from_slice(&2u32.to_be_bytes()); // next_track_id
+        p
+    });
+    let moov = bx(b"moov", &[mvhd, trak].concat());
+
+    [ftyp, moov].concat()
+}

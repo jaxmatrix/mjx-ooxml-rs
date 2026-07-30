@@ -69,7 +69,8 @@ pub use address::ShapePath;
 pub use cursor::ShapeCursor;
 pub use error::PptxError;
 pub use external::{
-    default_placeholder_ole, ChartWorkbook, LinkedImage, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
+    default_placeholder_audio, default_placeholder_ole, default_placeholder_video, ChartWorkbook,
+    LinkedImage, MediaKind, MediaReference, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
 };
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
