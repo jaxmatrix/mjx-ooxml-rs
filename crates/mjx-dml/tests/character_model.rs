@@ -549,7 +549,7 @@ fn an_explicit_underline_line_and_fill_read_from_a_run() {
 #[test]
 fn follow_text_underline_markers_read_as_follow_text() {
     let fragment = format!(
-        concat!(r#"<a:rPr xmlns:a="{A}"><a:uLnTx/><a:uFillTx/></a:rPr>"#),
+        r#"<a:rPr xmlns:a="{A}"><a:uLnTx/><a:uFillTx/></a:rPr>"#,
         A = A
     );
     let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
@@ -611,7 +611,7 @@ fn writing_one_member_of_a_group_replaces_the_other_in_place() {
     // The line group is a two-way choice: setting an explicit uLn must drop an existing uLnTx, not
     // leave both. Same for the fill group.
     let fragment = format!(
-        concat!(r#"<a:rPr xmlns:a="{A}"><a:uLnTx/><a:uFillTx/></a:rPr>"#),
+        r#"<a:rPr xmlns:a="{A}"><a:uLnTx/><a:uFillTx/></a:rPr>"#,
         A = A
     );
     let (mut properties, mut doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
@@ -649,7 +649,7 @@ fn writing_one_member_of_a_group_replaces_the_other_in_place() {
 #[test]
 fn setting_an_underline_group_leaves_unmodeled_state_untouched() {
     let fragment = format!(
-        concat!(r#"<a:rPr xmlns:a="{A}" lang="en-US" dirty="0"><a:hlinkClick/></a:rPr>"#),
+        r#"<a:rPr xmlns:a="{A}" lang="en-US" dirty="0"><a:hlinkClick/></a:rPr>"#,
         A = A
     );
     let (mut properties, mut doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
