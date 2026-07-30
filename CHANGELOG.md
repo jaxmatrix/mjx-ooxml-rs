@@ -15,6 +15,25 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.46] - 2026-07-30
+
+Linked images become addressable (MJX-42, second of two package-gap fixes). A picture that *links* its
+image (`p:blipFill > a:blip@r:link`) rather than embedding it was invisible to the API:
+`picture_image_rel_id` read only `@r:embed` and returned `None`, so a linked image could not be
+reached even though it round-tripped fine.
+
+- `Presentation::picture_image_rel_id` now falls back to the link id, returning whichever relationship
+  binds the image (embed preferred when both are present).
+- New `Presentation::picture_image_link_target` returns where a linked image points — the relationship
+  target string, external path/URL or in-package part alike — so a linked image is fully addressable.
+- `picture_image_bytes` consequently reaches linked images: an embedded image or an internal link
+  resolves to bytes; an external link reports `PptxError::ExternalTarget` (its bytes live outside the
+  package).
+
+Additive and non-breaking — an embedded picture reads exactly as before. Also elides a needless
+lifetime flagged by newer stable clippy and unwraps single-literal `concat!`/drops unused imports in
+`mjx-dml` tests, keeping the workspace clippy-clean under the current toolchain.
+
 ## [0.0.45] - 2026-07-30
 
 Orphaned-part sweep (MJX-42, first of two package-gap fixes). Replacing an image, deleting a slide, or
