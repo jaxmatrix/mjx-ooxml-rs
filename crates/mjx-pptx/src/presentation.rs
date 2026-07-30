@@ -3,7 +3,7 @@
 use mjx_chart::{ChartData, ChartSpace};
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
-    resolve_line, BlipFill, CellBorder, CharacterProperties, CharacterPropertiesSpec, ColorMap,
+    resolve_line, BlipFill, Cell3D, CellBorder, CharacterProperties, CharacterPropertiesSpec, ColorMap,
     ColorSpec, CustomGeometry, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot,
     IndentLevel, LineProperties, LineSpec, OnOffStyle, ParagraphContent, ParagraphProperties,
     ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, Scene3D, Scene3DSpec, SchemeColors,
@@ -7504,6 +7504,20 @@ fn apply_cell_format(
     }
     if let Some(overflow) = overflow {
         properties.set_horizontal_overflow(interner, overflow);
+    }
+    let (material, bevel, light_rig) = format.cell_3d();
+    if material.is_some() || bevel.is_some() || light_rig.is_some() {
+        let mut cell_3d = Cell3D::new(interner);
+        if let Some(material) = material {
+            cell_3d.set_material(interner, material);
+        }
+        if let Some(bevel) = bevel {
+            cell_3d.set_bevel(interner, bevel);
+        }
+        if let Some(light_rig) = light_rig {
+            cell_3d.set_light_rig(interner, light_rig);
+        }
+        properties.set_cell_3d(interner, &cell_3d);
     }
 }
 
