@@ -40,10 +40,10 @@ pub use fill::{
     GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
 };
 pub use geometry::{
-    AdjustAngle, AdjustCoordinate, AdjustPoint, Angle, Emu, FontSize, Fraction, GeometryGuide,
-    GeometryGuideList, GeometryGuideListContent, IndentLevel, LineWidth, PathFillMode, Position,
-    PresetGeometry, PresetGeometryContent, ResolvedAdjustment, ShapeGeometry, Size, TextPoint,
-    Transform2D,
+    AdjustAngle, AdjustCoordinate, AdjustPoint, Angle, DrawCommand, Emu, FontSize, Fraction,
+    GeometryGuide, GeometryGuideList, GeometryGuideListContent, IndentLevel, LineWidth, Path2D,
+    Path2DList, Path2DSpec, PathFillMode, Point, Position, PresetGeometry, PresetGeometryContent,
+    ResolvedAdjustment, ShapeGeometry, Size, TextPoint, Transform2D,
 };
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
