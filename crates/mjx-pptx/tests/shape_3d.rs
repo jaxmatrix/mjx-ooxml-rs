@@ -118,7 +118,7 @@ fn set_scene_3d_reads_back_and_persists() {
     assert_eq!(reread.shape_scene_3d(0, idx).expect("scene"), Some(scene()));
     assert!(matches!(
         reread.shape_geometry(0, idx).expect("geometry"),
-        mjx_dml::ShapeGeometry::RoundedRectangle { .. }
+        mjx_pptx::Geometry::Preset(mjx_dml::ShapeGeometry::RoundedRectangle { .. })
     ));
 }
 

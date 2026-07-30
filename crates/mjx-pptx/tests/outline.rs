@@ -67,7 +67,7 @@ fn set_solid_outline_reads_back_and_persists() {
     );
     assert!(matches!(
         reread.shape_geometry(0, idx).expect("geometry"),
-        mjx_dml::ShapeGeometry::RoundedRectangle { .. }
+        mjx_pptx::Geometry::Preset(mjx_dml::ShapeGeometry::RoundedRectangle { .. })
     ));
 }
 

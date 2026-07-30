@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use mjx_dml::{Fraction, ShapeGeometry};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_opc::Package;
-use mjx_pptx::{Presentation, ShapeBounds};
+use mjx_pptx::{Geometry, Presentation, ShapeBounds};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -34,7 +34,7 @@ fn added_text_box_reports_rectangle_geometry() {
     // A text box is `prst="rect"` — a parameterless shape → the Unmodeled catch-all.
     assert_eq!(
         pres.shape_geometry(0, idx).expect("geometry"),
-        ShapeGeometry::Unmodeled(PresetShapeType::Rectangle)
+        Geometry::Preset(ShapeGeometry::Unmodeled(PresetShapeType::Rectangle))
     );
 }
 
@@ -46,7 +46,7 @@ fn add_shape_creates_named_geometry_with_defaults() {
         .expect("add shape");
 
     // Default corner radius is the spec default (16667/100000).
-    let ShapeGeometry::RoundedRectangle { corner_radius } =
+    let Geometry::Preset(ShapeGeometry::RoundedRectangle { corner_radius }) =
         pres.shape_geometry(0, idx).expect("geometry")
     else {
         panic!("expected RoundedRectangle");
@@ -57,7 +57,7 @@ fn add_shape_creates_named_geometry_with_defaults() {
     let mut reread = Presentation::open(&pres.save().expect("save")).expect("reopen");
     assert!(matches!(
         reread.shape_geometry(0, idx).expect("geometry"),
-        ShapeGeometry::RoundedRectangle { .. }
+        Geometry::Preset(ShapeGeometry::RoundedRectangle { .. })
     ));
 }
 
@@ -71,9 +71,9 @@ fn set_shape_geometry_round_trips_and_keeps_other_parts_identical() {
     pres.set_shape_geometry(
         0,
         idx,
-        ShapeGeometry::RoundedRectangle {
+        Geometry::Preset(ShapeGeometry::RoundedRectangle {
             corner_radius: Fraction::from_ratio(0.25),
-        },
+        }),
     )
     .expect("set geometry");
     let saved = pres.save().expect("save");
@@ -82,9 +82,9 @@ fn set_shape_geometry_round_trips_and_keeps_other_parts_identical() {
     let mut reread = Presentation::open(&saved).expect("reopen");
     assert_eq!(
         reread.shape_geometry(0, idx).expect("geometry"),
-        ShapeGeometry::RoundedRectangle {
+        Geometry::Preset(ShapeGeometry::RoundedRectangle {
             corner_radius: Fraction::from_ratio(0.25)
-        }
+        })
     );
 
     // Fidelity: only the edited slide changed; every other pre-existing part is byte-identical.
