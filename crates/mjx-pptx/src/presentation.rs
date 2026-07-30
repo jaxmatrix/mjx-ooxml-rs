@@ -28,7 +28,9 @@ use mjx_vml::is_vml_content_type;
 use crate::address::ShapePath;
 use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
-use crate::external::{ChartWorkbook, LinkedImage, DEFAULT_PLACEHOLDER_IMAGE};
+use crate::external::{
+    default_placeholder_ole, ChartWorkbook, LinkedImage, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
+};
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
 use crate::slide::GraphicFrameKind;
@@ -5194,6 +5196,106 @@ impl Presentation {
         Ok(slide::ole_prog_id(shape, &doc.interner).map(str::to_owned))
     }
 
+    /// Every OLE object frame on `surface`, with where its object data is referenced from and whether
+    /// that reference is external.
+    ///
+    /// An external object is the case that can be unreachable on another platform; an OLE object
+    /// displays via its snapshot image regardless, so
+    /// [`replace_ole_object_with_placeholder`](Self::replace_ole_object_with_placeholder) can neutralize
+    /// it safely. This saves the caller from walking the shapes. Reading does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `surface` cannot be resolved or a slide is malformed.
+    pub fn ole_objects(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<Vec<OleObject>, PptxError> {
+        let surface = surface.into();
+        let count = self.shape_count(surface)?;
+        let mut objects = Vec::new();
+        for shape_index in 0..count {
+            let path: ShapePath = shape_index.into();
+            let Some(rel_id) = self.ole_object_data_rel_id(surface, &path)? else {
+                continue; // not an OLE frame, or one with no resolvable object data
+            };
+            let Some(rel) = self
+                .package
+                .relationships_for(Some(&self.surface_part(surface)?))
+                .and_then(|rels| rels.by_id(&rel_id))
+            else {
+                continue;
+            };
+            let target = rel.target.clone();
+            let external = rel.mode == TargetMode::External;
+            let prog_id = self.ole_prog_id(surface, shape_index)?;
+            objects.push(OleObject {
+                shape_index,
+                target,
+                external,
+                prog_id,
+            });
+        }
+        Ok(objects)
+    }
+
+    /// Replaces the object data of the OLE frame `shape_idx` on `surface` with an in-package
+    /// placeholder, so an object that points at unreachable external data resolves inside the package
+    /// instead. The placeholder is `placeholder` if given, else [`default_placeholder_ole`] (a minimal
+    /// valid compound file). The `p:oleObj` markup is unchanged — its relationship is simply retargeted
+    /// at the placeholder — and the object keeps displaying via its snapshot image.
+    ///
+    /// The caller decides an object is inaccessible (the library does no external I/O); use
+    /// [`ole_objects`](Self::ole_objects) to find the candidates. If the old reference was to an
+    /// *embedded* part, that part is left unreferenced; sweep it with
+    /// [`Package::remove_unreferenced_parts`](mjx_opc::Package::remove_unreferenced_parts) if wanted.
+    ///
+    /// # Errors
+    /// [`PptxError::ShapeIsNotAnOleObject`] if the shape frames no OLE object, or another [`PptxError`]
+    /// if an index is out of range or the slide is malformed.
+    pub fn replace_ole_object_with_placeholder(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        placeholder: Option<&[u8]>,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let rel_id = self
+            .ole_object_data_rel_id(surface, &path)?
+            .ok_or(PptxError::ShapeIsNotAnOleObject)?;
+
+        let placeholder_part = self.next_embedding_part("bin")?;
+        let bytes = match placeholder {
+            Some(bytes) => bytes.to_vec(),
+            None => default_placeholder_ole(),
+        };
+        self.package
+            .insert_part(&placeholder_part, constants::CONTENT_TYPE_OLE_OBJECT, bytes)?;
+
+        let slide_part = self.surface_part(surface)?;
+        let target = slide_part.relative_target(&placeholder_part);
+        self.package.retarget_relationship(
+            Some(&slide_part),
+            &rel_id,
+            &target,
+            TargetMode::Internal,
+        )?;
+        Ok(())
+    }
+
+    /// The relationship id an OLE frame names for its object data — `p:oleObj@r:id` (embedded) or
+    /// `@r:link` (linked), whichever is present — or `None` when the shape frames no OLE object.
+    fn ole_object_data_rel_id(
+        &mut self,
+        surface: Surface,
+        shape_idx: &ShapePath,
+    ) -> Result<Option<String>, PptxError> {
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, shape_idx)?;
+        Ok(slide::ole_object_data_rel_id(shape, &doc.interner).map(str::to_owned))
+    }
+
     /// The number of legacy **ActiveX** form controls on `surface` (`p:cSld > p:controls > p:control`).
     ///
     /// A control is not a shape — it lives beside the shape tree, so it is addressed by its own index in
@@ -6605,6 +6707,20 @@ impl Presentation {
             }
         }
         let name = format!("{charts_dir}chart{}.xml", max_n + 1);
+        PartName::new(&name).map_err(PptxError::from)
+    }
+
+    /// A fresh embedding part name: `embeddings/oleObject{N}.{extension}` beside the presentation part,
+    /// with `N` one past the largest existing `oleObject*` embedding number.
+    fn next_embedding_part(&self, extension: &str) -> Result<PartName, PptxError> {
+        let embeddings_dir = format!("{}embeddings/", dir_of(self.presentation_part.as_str()));
+        let mut max_n = 0u32;
+        for part in self.package.part_names() {
+            if let Some(n) = embedding_number(part.as_str(), &embeddings_dir) {
+                max_n = max_n.max(n);
+            }
+        }
+        let name = format!("{embeddings_dir}oleObject{}.{extension}", max_n + 1);
         PartName::new(&name).map_err(PptxError::from)
     }
 
@@ -8223,6 +8339,17 @@ fn chart_number(part: &str, dir: &str) -> Option<u32> {
         .strip_suffix(".xml")?
         .parse::<u32>()
         .ok()
+}
+
+/// The `N` in `{dir}oleObject{N}.{ext}`, whatever the extension, or `None` if `part` is not such an
+/// embedding.
+fn embedding_number(part: &str, dir: &str) -> Option<u32> {
+    let rest = part.strip_prefix(dir)?.strip_prefix("oleObject")?;
+    let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
+    if digits.is_empty() || !rest[digits.len()..].starts_with('.') {
+        return None;
+    }
+    digits.parse::<u32>().ok()
 }
 
 /// Builds a plain text-box `p:sp` with non-visual id `id`, laid out at `bounds`, whose text body

@@ -314,6 +314,11 @@ pub enum PptxError {
     #[error("chart has no external data reference")]
     ChartHasNoExternalData,
 
+    /// The addressed shape does not frame an OLE object (`p:oleObj`), so it has no embedded object to
+    /// read or replace.
+    #[error("shape is not an OLE object")]
+    ShapeIsNotAnOleObject,
+
     /// The addressed series is outside the chart, which draws `count` series across its plots.
     #[error("chart series {index} is outside a chart with {count} series")]
     ChartSeriesOutOfRange {
