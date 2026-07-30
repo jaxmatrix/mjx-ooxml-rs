@@ -51,3 +51,107 @@ pub struct ChartWorkbook {
     /// unreachable on another platform. An embedded workbook is `false`.
     pub external: bool,
 }
+
+/// An OLE object frame (`p:oleObj`) and the object data it references — a candidate for
+/// [`Presentation::replace_ole_object_with_placeholder`](crate::Presentation::replace_ole_object_with_placeholder),
+/// as reported by [`Presentation::ole_objects`](crate::Presentation::ole_objects). An OLE object is
+/// displayed via its snapshot image, so replacing an unreachable object with a placeholder leaves the
+/// slide looking the same.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct OleObject {
+    /// The shape index of the OLE frame on the surface it was found on.
+    pub shape_index: usize,
+    /// Where the object data is referenced from — the relationship target (an external path/URL, or an
+    /// in-package part target for an embedded object).
+    pub target: String,
+    /// Whether that relationship is external (`TargetMode="External"`), i.e. the case that can be
+    /// unreachable on another platform. An embedded object is `false`.
+    pub external: bool,
+    /// The object's program id (`p:oleObj@progId`, e.g. `"Excel.Sheet.12"`), if present.
+    pub prog_id: Option<String>,
+}
+
+/// The built-in placeholder for an OLE object's embedded data — a minimal but structurally valid
+/// [MS-CFB] compound file (an empty root storage). Used when a caller neutralizing an inaccessible OLE
+/// object supplies no bytes of their own. An OLE object renders from its snapshot image and its data
+/// stream is read only on activation, so an empty-but-valid container is a faithful inert stand-in.
+///
+/// The file is exactly three 512-byte sectors (1536 bytes): the header, one FAT sector, and one
+/// directory sector holding a single "Root Entry" root storage with no children and no mini stream.
+#[must_use]
+pub fn default_placeholder_ole() -> Vec<u8> {
+    // MS-CFB special FAT/stream sector values.
+    const FREESECT: u32 = 0xFFFF_FFFF;
+    const ENDOFCHAIN: u32 = 0xFFFF_FFFE;
+    const FATSECT: u32 = 0xFFFF_FFFD;
+    const NOSTREAM: u32 = 0xFFFF_FFFF;
+
+    let mut out = Vec::with_capacity(3 * 512);
+
+    // --- Header (512 bytes) ---
+    out.extend_from_slice(&[0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]); // signature
+    out.extend_from_slice(&[0u8; 16]); // CLSID (unused)
+    out.extend_from_slice(&0x003Eu16.to_le_bytes()); // minor version
+    out.extend_from_slice(&0x0003u16.to_le_bytes()); // major version (3 → 512-byte sectors)
+    out.extend_from_slice(&0xFFFEu16.to_le_bytes()); // byte order (little-endian)
+    out.extend_from_slice(&0x0009u16.to_le_bytes()); // sector shift (2^9 = 512)
+    out.extend_from_slice(&0x0006u16.to_le_bytes()); // mini sector shift (2^6 = 64)
+    out.extend_from_slice(&[0u8; 6]); // reserved
+    out.extend_from_slice(&0u32.to_le_bytes()); // number of directory sectors (0 for v3)
+    out.extend_from_slice(&1u32.to_le_bytes()); // number of FAT sectors
+    out.extend_from_slice(&1u32.to_le_bytes()); // first directory sector location (sector 1)
+    out.extend_from_slice(&0u32.to_le_bytes()); // transaction signature
+    out.extend_from_slice(&0x0000_1000u32.to_le_bytes()); // mini stream cutoff size
+    out.extend_from_slice(&ENDOFCHAIN.to_le_bytes()); // first mini FAT sector (none)
+    out.extend_from_slice(&0u32.to_le_bytes()); // number of mini FAT sectors
+    out.extend_from_slice(&ENDOFCHAIN.to_le_bytes()); // first DIFAT sector (none)
+    out.extend_from_slice(&0u32.to_le_bytes()); // number of DIFAT sectors
+    out.extend_from_slice(&0u32.to_le_bytes()); // DIFAT[0] → the FAT sector is sector 0
+    for _ in 1..109 {
+        out.extend_from_slice(&FREESECT.to_le_bytes()); // DIFAT[1..109] unused
+    }
+    debug_assert_eq!(out.len(), 512, "CFB header must be one sector");
+
+    // --- FAT sector (sector 0): 128 entries ---
+    out.extend_from_slice(&FATSECT.to_le_bytes()); // entry 0: the FAT sector itself
+    out.extend_from_slice(&ENDOFCHAIN.to_le_bytes()); // entry 1: the directory chain ends here
+    for _ in 2..128 {
+        out.extend_from_slice(&FREESECT.to_le_bytes());
+    }
+    debug_assert_eq!(out.len(), 2 * 512, "CFB FAT must be one sector");
+
+    // --- Directory sector (sector 1): 4 × 128-byte entries ---
+    // Entry 0 — the root storage.
+    let dir_start = out.len();
+    let mut root = [0u8; 128];
+    let mut pos = 0;
+    for unit in "Root Entry".encode_utf16() {
+        root[pos..pos + 2].copy_from_slice(&unit.to_le_bytes());
+        pos += 2;
+    }
+    // (a UTF-16 null terminator follows, already zero)
+    root[64..66].copy_from_slice(&22u16.to_le_bytes()); // name byte length incl. terminator
+    root[66] = 0x05; // object type: root storage
+    root[67] = 0x01; // colour flag: black
+    root[68..72].copy_from_slice(&NOSTREAM.to_le_bytes()); // left sibling
+    root[72..76].copy_from_slice(&NOSTREAM.to_le_bytes()); // right sibling
+    root[76..80].copy_from_slice(&NOSTREAM.to_le_bytes()); // child (no entries)
+    root[116..120].copy_from_slice(&ENDOFCHAIN.to_le_bytes()); // starting sector: no mini stream
+                                                               // stream size (120..128) stays 0
+    out.extend_from_slice(&root);
+    // Entries 1..4 — unallocated: object type 0 (unknown), all sibling/child ids NOSTREAM.
+    for _ in 1..4 {
+        let mut unused = [0u8; 128];
+        unused[68..72].copy_from_slice(&NOSTREAM.to_le_bytes());
+        unused[72..76].copy_from_slice(&NOSTREAM.to_le_bytes());
+        unused[76..80].copy_from_slice(&NOSTREAM.to_le_bytes());
+        out.extend_from_slice(&unused);
+    }
+    debug_assert_eq!(
+        out.len() - dir_start,
+        512,
+        "CFB directory must be one sector"
+    );
+
+    out
+}

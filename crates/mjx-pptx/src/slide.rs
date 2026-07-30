@@ -411,6 +411,21 @@ pub(crate) fn ole_object_rel_id<'a>(
         .and_then(|attr| std::str::from_utf8(&attr.value).ok())
 }
 
+/// The relationship id an OLE frame names for its object *data* — its embedded object
+/// (`p:oleObj@r:id`) or a linked one (`p:oleObj@r:link`), whichever is present — or `None` for any
+/// other shape. Matched by local name (the relationships prefix is left unresolved), as
+/// [`ole_object_rel_id`].
+pub(crate) fn ole_object_data_rel_id<'a>(
+    shape: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a str> {
+    ole_object(shape, interner)?
+        .attributes
+        .iter()
+        .find(|attr| matches!(interner.resolve(attr.name.local), "id" | "link"))
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
 /// The relationship id of a **fallback snapshot** image nested directly in `container`
 /// (`container > p:pic > p:blipFill > a:blip@r:embed`), or `None` if there is no such snapshot. Shared
 /// by OLE objects and ActiveX controls, which both carry a `p:pic` snapshot the same way — the image a
