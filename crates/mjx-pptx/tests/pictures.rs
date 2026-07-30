@@ -6,8 +6,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_dml::{ColorSpec, LineSpec, LineWidth};
+use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_opc::{Package, PartName};
+use mjx_opc::{Package, PartName, Relationship, TargetMode};
 use mjx_pptx::{PptxError, Presentation, ShapeBounds, ShapeKind};
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -304,5 +305,146 @@ fn a_picture_of_unrecognized_bytes_is_rejected_and_changes_nothing() {
         byte_map(&Package::open(&pres.save().expect("save")).expect("reopen")),
         original,
         "no shape and no part may be left behind"
+    );
+}
+
+/// The first descendant element (including `root`) whose local name is `local`.
+fn first_by_local<'a>(
+    root: &'a mut RawElement,
+    interner: &Interner,
+    local: &str,
+) -> Option<&'a mut RawElement> {
+    let mut stack: Vec<&'a mut RawElement> = vec![root];
+    while let Some(el) = stack.pop() {
+        if interner.resolve(el.name.local) == local {
+            return Some(el);
+        }
+        for child in el.children.iter_mut() {
+            if let RawNode::Element(child) = child {
+                stack.push(child);
+            }
+        }
+    }
+    None
+}
+
+/// Builds a slide-1 picture, then rewrites its blip from `@r:embed` to `@r:link` so it reads as a
+/// *linked* image — there is no public API to author one directly. With `external`, the relationship is
+/// repointed outside the package (and the embedded media dropped), a genuine external link; otherwise
+/// the link stays internal, still naming the in-package media. Returns the pptx bytes and the picture's
+/// shape index (stable across the save/reopen).
+fn linked_picture_pptx(external: bool) -> (Vec<u8>, usize) {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_picture(0, TINY_PNG, bounds())
+        .expect("add picture");
+
+    let mut pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    let slide = part("/ppt/slides/slide1.xml");
+    let rel_id = {
+        let doc = pkg.part_tree_mut(&slide).expect("slide tree");
+        let blip = first_by_local(&mut doc.root, &doc.interner, "blip")
+            .expect("the picture has an a:blip");
+        let attr = blip
+            .attributes
+            .iter_mut()
+            .find(|a| doc.interner.resolve(a.name.local) == "embed")
+            .expect("the blip embeds an image");
+        let rel_id = String::from_utf8(attr.value.to_vec()).expect("rel id is utf-8");
+        // Rename @r:embed → @r:link in place; the id (and everything else) is untouched.
+        attr.name.local = doc.interner.intern("link");
+        rel_id
+    };
+
+    if external {
+        let image_rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+        pkg.remove_relationship(Some(&slide), &rel_id)
+            .expect("drop the internal image rel");
+        pkg.add_relationship(
+            Some(&slide),
+            Relationship {
+                id: rel_id,
+                rel_type: image_rel.to_owned(),
+                target: "https://example.com/linked.png".to_owned(),
+                mode: TargetMode::External,
+            },
+        )
+        .expect("add the external link rel");
+        pkg.remove_part(&part("/ppt/media/image1.png"))
+            .expect("drop the now-unreferenced media");
+    }
+
+    (pkg.save().expect("save"), idx)
+}
+
+#[test]
+fn an_externally_linked_image_is_addressable_and_reports_its_target() {
+    let (bytes, idx) = linked_picture_pptx(true);
+    let mut pres = Presentation::open(&bytes).expect("open");
+
+    // Previously invisible: the rel id now resolves through @r:link, not just @r:embed.
+    let rel_id = pres
+        .picture_image_rel_id(0, idx)
+        .expect("rel id")
+        .expect("a linked image binds a relationship");
+    // Its external target is readable, so the caller can act on where it points.
+    assert_eq!(
+        pres.picture_image_link_target(0, idx)
+            .expect("link target")
+            .as_deref(),
+        Some("https://example.com/linked.png")
+    );
+    // Its bytes live outside the package.
+    let err = pres
+        .picture_image_bytes(0, idx)
+        .expect_err("external image has no in-package bytes");
+    assert!(matches!(err, PptxError::ExternalTarget { .. }), "{err:?}");
+
+    // The rel id genuinely names the external link relationship.
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    let rels = pkg
+        .relationships_for(Some(&part("/ppt/slides/slide1.xml")))
+        .expect("slide relationships");
+    assert_eq!(
+        rels.by_id(&rel_id).expect("relationship").target,
+        "https://example.com/linked.png"
+    );
+}
+
+#[test]
+fn an_internally_linked_image_still_resolves_to_bytes() {
+    let (bytes, idx) = linked_picture_pptx(false);
+    let mut pres = Presentation::open(&bytes).expect("open");
+
+    assert!(
+        pres.picture_image_rel_id(0, idx).expect("rel").is_some(),
+        "an internal link is addressable"
+    );
+    assert_eq!(
+        pres.picture_image_link_target(0, idx)
+            .expect("link target")
+            .as_deref(),
+        Some("../media/image1.png"),
+        "an internal link still names its in-package target"
+    );
+    assert_eq!(
+        pres.picture_image_bytes(0, idx).expect("bytes"),
+        Some(TINY_PNG),
+        "an in-package link resolves to the stored bytes"
+    );
+}
+
+#[test]
+fn an_embedded_image_links_nothing() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_picture(0, TINY_PNG, bounds())
+        .expect("add picture");
+
+    assert!(pres.picture_image_rel_id(0, idx).expect("rel").is_some());
+    assert_eq!(
+        pres.picture_image_link_target(0, idx).expect("link target"),
+        None,
+        "an embedded image has no link target"
     );
 }
