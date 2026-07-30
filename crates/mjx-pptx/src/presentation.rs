@@ -28,7 +28,7 @@ use mjx_vml::is_vml_content_type;
 use crate::address::ShapePath;
 use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
-use crate::external::{LinkedImage, DEFAULT_PLACEHOLDER_IMAGE};
+use crate::external::{ChartWorkbook, LinkedImage, DEFAULT_PLACEHOLDER_IMAGE};
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
 use crate::slide::GraphicFrameKind;
@@ -4971,6 +4971,117 @@ impl Presentation {
             return Ok(None);
         };
         Ok(self.package.part_bytes(&part))
+    }
+
+    /// Every chart on `surface` that references a backing workbook (`c:externalData`), with where each
+    /// is referenced from and whether that reference is external.
+    ///
+    /// An external workbook is the source that can be unreachable on another platform; a chart draws
+    /// from its cached data regardless, so [`detach_chart_workbook`](Self::detach_chart_workbook) can
+    /// safely remove the reference. This saves the caller from walking the shapes. Reading does not
+    /// dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `surface` cannot be resolved or a slide is malformed.
+    pub fn chart_workbooks(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<Vec<ChartWorkbook>, PptxError> {
+        let surface = surface.into();
+        let count = self.shape_count(surface)?;
+        let mut workbooks = Vec::new();
+        for shape_index in 0..count {
+            let Some(chart_part) = self.chart_part(surface, shape_index)? else {
+                continue; // not a chart frame
+            };
+            let Some(rel_id) = self.chart_external_data_rel_id(&chart_part)? else {
+                continue; // a chart with no backing workbook
+            };
+            let Some(rel) = self
+                .package
+                .relationships_for(Some(&chart_part))
+                .and_then(|rels| rels.by_id(&rel_id))
+            else {
+                continue; // the reference names no relationship — nothing to report
+            };
+            workbooks.push(ChartWorkbook {
+                shape_index,
+                target: rel.target.clone(),
+                external: rel.mode == TargetMode::External,
+            });
+        }
+        Ok(workbooks)
+    }
+
+    /// Detaches the backing workbook from the chart `shape_idx` on `surface`: removes its
+    /// `c:externalData` reference — the element and its relationship — leaving the chart to render from
+    /// its cached values. This neutralizes a chart that links an unreachable external workbook (the
+    /// caller decides accessibility; use [`chart_workbooks`](Self::chart_workbooks) to find the
+    /// candidates), and yields exactly the cache-only shape a freshly authored chart has.
+    ///
+    /// If the reference was to an *embedded* workbook, that part is left unreferenced; sweep it with
+    /// [`Package::remove_unreferenced_parts`](mjx_opc::Package::remove_unreferenced_parts) if wanted.
+    /// This never removes parts on its own. Dirties only the chart part.
+    ///
+    /// # Errors
+    /// [`PptxError::ShapeIsNotAChart`] if the shape is not a chart frame,
+    /// [`PptxError::ChartHasNoExternalData`] if the chart references no workbook, or another
+    /// [`PptxError`] if an index is out of range or the chart is malformed.
+    pub fn detach_chart_workbook(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let chart_part = self
+            .chart_part(surface, shape_idx)?
+            .ok_or(PptxError::ShapeIsNotAChart)?;
+        // The workbook reference must exist; capture the relationship id it names (if any) first.
+        let rel_id = {
+            let doc = self.package.part_tree(&chart_part)?;
+            let external_data = nav::child(&doc.root, &doc.interner, DML_CHART, "externalData")
+                .ok_or(PptxError::ChartHasNoExternalData)?;
+            external_data
+                .attributes
+                .iter()
+                .find(|attr| doc.interner.resolve(attr.name.local) == "id")
+                .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+                .map(str::to_owned)
+        };
+        // Drop the `c:externalData` element from the chart tree.
+        {
+            let doc = self.package.part_tree_mut(&chart_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            root.children.retain(|node| {
+                !matches!(node, RawNode::Element(el)
+                    if nav::name_is(&el.name, interner, DML_CHART, "externalData"))
+            });
+        }
+        // Drop its relationship, if the element named one.
+        if let Some(rel_id) = rel_id {
+            self.package
+                .remove_relationship(Some(&chart_part), &rel_id)?;
+        }
+        Ok(())
+    }
+
+    /// The relationship id a chart part's `c:externalData` names (its backing workbook), or `None` when
+    /// the chart has no `c:externalData` or it carries no `r:id`. Reads only.
+    fn chart_external_data_rel_id(
+        &mut self,
+        chart_part: &PartName,
+    ) -> Result<Option<String>, PptxError> {
+        let doc = self.package.part_tree(chart_part)?;
+        let Some(external_data) = nav::child(&doc.root, &doc.interner, DML_CHART, "externalData")
+        else {
+            return Ok(None);
+        };
+        Ok(external_data
+            .attributes
+            .iter()
+            .find(|attr| doc.interner.resolve(attr.name.local) == "id")
+            .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+            .map(str::to_owned))
     }
 
     /// The relationship id the OLE frame `shape_idx` on `surface` names for its embedded object

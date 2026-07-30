@@ -10,9 +10,10 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mjx_opc::{Package, PartName};
+use mjx_opc::{Package, PartName, TargetMode};
 use mjx_pptx::{
-    ChartData, ChartKind, ChartSeriesData, GraphicFrameKind, PptxError, Presentation, ShapeBounds,
+    ChartData, ChartKind, ChartSeriesData, ChartWorkbook, GraphicFrameKind, PptxError,
+    Presentation, ShapeBounds,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -420,4 +421,117 @@ fn add_chart_rejects_empty_data() {
     // Nothing was written — no chart part leaked.
     let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
     assert!(pkg.part_bytes(&part("/ppt/charts/chart1.xml")).is_none());
+}
+
+// -------------------------------------------------------------------------------------------------
+// MJX-201 P2 — detaching an inaccessible chart backing workbook
+// -------------------------------------------------------------------------------------------------
+
+#[test]
+fn chart_workbooks_reports_the_embedded_workbook() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+
+    assert_eq!(
+        pres.chart_workbooks(CHART_SURFACE).expect("workbooks"),
+        vec![ChartWorkbook {
+            shape_index: 0,
+            target: "../embeddings/Microsoft_Excel_Sheet1.xlsx".to_owned(),
+            external: false,
+        }],
+        "the chart's embedded workbook is reported, not flagged external"
+    );
+    // The text-box slide has no charts.
+    assert!(pres.chart_workbooks(0).expect("workbooks").is_empty());
+}
+
+#[test]
+fn chart_workbooks_flags_an_external_workbook() {
+    // Flip the fixture's embedded workbook relationship to an external link with the P1 primitive.
+    let mut pkg = Package::open(&fixture("charts.pptx")).expect("open");
+    let chart = part("/ppt/charts/chart1.xml");
+    assert!(
+        pkg.retarget_relationship(
+            Some(&chart),
+            "rId1",
+            "https://example.com/data.xlsx",
+            TargetMode::External,
+        )
+        .expect("retarget"),
+        "the workbook relationship exists"
+    );
+    let mut pres = Presentation::open(&pkg.save().expect("save")).expect("reopen");
+
+    assert_eq!(
+        pres.chart_workbooks(CHART_SURFACE).expect("workbooks"),
+        vec![ChartWorkbook {
+            shape_index: 0,
+            target: "https://example.com/data.xlsx".to_owned(),
+            external: true,
+        }],
+        "an externally linked workbook is flagged"
+    );
+}
+
+#[test]
+fn detach_chart_workbook_removes_the_reference_and_keeps_the_chart() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+
+    pres.detach_chart_workbook(CHART_SURFACE, 0)
+        .expect("detach the workbook");
+    assert!(
+        pres.chart_workbooks(CHART_SURFACE)
+            .expect("workbooks")
+            .is_empty(),
+        "the chart no longer references a workbook"
+    );
+
+    // Reopen: the chart still frames a chart, and its part carries no c:externalData any more.
+    let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(
+        reopened.graphic_frame_kind(CHART_SURFACE, 0).expect("kind"),
+        Some(GraphicFrameKind::Chart),
+        "the chart survives the detach"
+    );
+    {
+        let bytes = reopened
+            .chart_part_bytes(CHART_SURFACE, 0)
+            .expect("bytes")
+            .expect("chart part present");
+        assert!(
+            !bytes
+                .windows(b"externalData".len())
+                .any(|w| w == b"externalData"),
+            "the c:externalData element must be gone from the chart part"
+        );
+    }
+
+    // The embedded workbook is now unreferenced and sweepable.
+    let mut pkg = Package::open(&reopened.save().expect("save")).expect("reopen pkg");
+    let removed = pkg.remove_unreferenced_parts().expect("sweep");
+    assert!(
+        removed
+            .iter()
+            .any(|p| p.as_str() == "/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        "the detached workbook should be swept: {removed:?}"
+    );
+}
+
+#[test]
+fn detach_chart_workbook_rejects_the_wrong_shapes() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    // The text box on slide 1 frames no chart.
+    assert!(matches!(
+        pres.detach_chart_workbook(0, 0),
+        Err(PptxError::ShapeIsNotAChart)
+    ));
+
+    // A freshly authored chart carries cached data only — no workbook to detach.
+    let mut authored = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = authored
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    assert!(matches!(
+        authored.detach_chart_workbook(0, idx),
+        Err(PptxError::ChartHasNoExternalData)
+    ));
 }
