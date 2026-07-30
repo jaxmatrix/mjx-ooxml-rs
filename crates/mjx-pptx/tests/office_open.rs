@@ -13,16 +13,17 @@ use std::time::{Duration, Instant};
 
 use mjx_dml::{
     Angle, Bevel, BevelPreset, BlipFillMode, Camera, CellBorder, CharacterPropertiesSpec,
-    ColorSpec, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect, GradientStopSpec, IndentLevel,
-    LightRig, LightRigDirection, LightRigType, LineCap, LineDash, LineJoin, LineSpec, LineWidth,
-    OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, PatternType, PresetCamera,
-    PresetLineDash, PresetMaterial, RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec,
-    ShapeGeometry, TablePart, TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring,
-    TextSpacing, Transform2D,
+    ColorSpec, CustomGeometrySpec, DrawCommand, EffectListSpec, Emu, FillSpec, Fraction,
+    GlowEffect, GradientStopSpec, IndentLevel, LightRig, LightRigDirection, LightRigType, LineCap,
+    LineDash, LineJoin, LineSpec, LineWidth, OnOffStyle, OuterShadowEffect,
+    ParagraphPropertiesSpec, Path2DSpec, PatternType, Point, PresetCamera, PresetLineDash,
+    PresetMaterial, RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry,
+    TablePart, TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring, TextSpacing,
+    Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_pptx::{
-    CellFormat, CellMargins, Cells, Presentation, ShapeBounds, Surface, TableStyleFormat,
+    CellFormat, CellMargins, Cells, Geometry, Presentation, ShapeBounds, Surface, TableStyleFormat,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -440,13 +441,46 @@ fn deck_with_added_shape_opens() {
     pres.set_shape_geometry(
         0,
         idx,
-        ShapeGeometry::RoundedRectangle {
+        Geometry::Preset(ShapeGeometry::RoundedRectangle {
             corner_radius: Fraction::from_ratio(0.3),
-        },
+        }),
     )
     .expect("set geometry");
     let saved = pres.save().expect("save");
     let _ = convert_opens(&saved, "added_shape");
+}
+
+#[test]
+fn deck_with_custom_geometry_shape_opens() {
+    // Adds an autoshape and replaces its preset with a custom freeform geometry (a triangle drawn
+    // with moveTo/lnTo/close), then checks the deck opens in LibreOffice — exercises the a:custGeom
+    // write path end-to-end through a real Office implementation.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 2.0, 2.0),
+        )
+        .expect("add shape");
+    let spec = CustomGeometrySpec {
+        paths: vec![Path2DSpec {
+            width: Some(Emu::from_emu(1_828_800)),
+            height: Some(Emu::from_emu(1_828_800)),
+            commands: vec![
+                DrawCommand::MoveTo(Point::from_emu(914_400, 0)),
+                DrawCommand::LineTo(Point::from_emu(1_828_800, 1_828_800)),
+                DrawCommand::LineTo(Point::from_emu(0, 1_828_800)),
+                DrawCommand::Close,
+            ],
+            ..Path2DSpec::default()
+        }],
+        ..CustomGeometrySpec::default()
+    };
+    pres.set_shape_geometry(0, idx, Geometry::Custom(spec))
+        .expect("set custom geometry");
+    let saved = pres.save().expect("save");
+    let _ = convert_opens(&saved, "custom_geometry_shape");
 }
 
 #[test]
