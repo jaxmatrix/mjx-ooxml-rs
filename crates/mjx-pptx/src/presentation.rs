@@ -29,7 +29,8 @@ use crate::address::ShapePath;
 use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
 use crate::external::{
-    default_placeholder_ole, ChartWorkbook, LinkedImage, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
+    default_placeholder_audio, default_placeholder_ole, default_placeholder_video, ChartWorkbook,
+    LinkedImage, MediaKind, MediaReference, OleObject, DEFAULT_PLACEHOLDER_IMAGE,
 };
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
@@ -5296,6 +5297,103 @@ impl Presentation {
         Ok(slide::ole_object_data_rel_id(shape, &doc.interner).map(str::to_owned))
     }
 
+    /// Every audio/video/media relationship on `surface`, with where each is referenced from and
+    /// whether it is external.
+    ///
+    /// An external media reference is the case that can be unreachable on another platform; a slide
+    /// still shows a media object's poster image, so
+    /// [`replace_media_with_placeholder`](Self::replace_media_with_placeholder) can neutralize it
+    /// safely. Media is reported by relationship id, not shape index: a single media object is
+    /// referenced from its `p:pic`, its `a14:media` fallback, and any timing/transition sound, all of
+    /// which resolve through these relationships (and timing/transition sounds are not shapes). Reading
+    /// does not dirty any part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `surface` cannot be resolved.
+    pub fn media_references(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<Vec<MediaReference>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let Some(rels) = self.package.relationships_for(Some(&slide_part)) else {
+            return Ok(Vec::new());
+        };
+        Ok(rels
+            .iter()
+            .filter_map(|rel| {
+                media_kind_of(&rel.rel_type).map(|kind| MediaReference {
+                    rel_id: rel.id.clone(),
+                    kind,
+                    target: rel.target.clone(),
+                    external: rel.mode == TargetMode::External,
+                })
+            })
+            .collect())
+    }
+
+    /// Replaces the media that relationship `rel_id` on `surface` binds with an in-package placeholder,
+    /// so a reference to unreachable external audio/video resolves inside the package instead. The
+    /// placeholder is `placeholder` if given, else a built-in one matching the media kind — a valid
+    /// silent WAV for audio ([`default_placeholder_audio`](crate::default_placeholder_audio)) or a
+    /// minimal MP4 for video ([`default_placeholder_video`](crate::default_placeholder_video)). The
+    /// relationship is retargeted at the placeholder, so every carrier that named it — the `p:pic`, its
+    /// `a14:media` fallback, timing/transition sounds — now resolves locally; the poster image is
+    /// untouched.
+    ///
+    /// The caller decides a reference is inaccessible (the library does no external I/O); use
+    /// [`media_references`](Self::media_references) to find the candidates. If the old reference was to
+    /// an embedded part, that part is left unreferenced; sweep it with
+    /// [`Package::remove_unreferenced_parts`](mjx_opc::Package::remove_unreferenced_parts) if wanted.
+    ///
+    /// # Errors
+    /// [`PptxError::NotAMediaReference`] if `rel_id` names no audio/video/media relationship on the
+    /// surface, or another [`PptxError`] if the surface is malformed.
+    pub fn replace_media_with_placeholder(
+        &mut self,
+        surface: impl Into<Surface>,
+        rel_id: &str,
+        placeholder: Option<&[u8]>,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+
+        let kind = self
+            .package
+            .relationships_for(Some(&slide_part))
+            .and_then(|rels| rels.by_id(rel_id))
+            .and_then(|rel| media_kind_of(&rel.rel_type))
+            .ok_or_else(|| PptxError::NotAMediaReference {
+                rel_id: rel_id.to_owned(),
+            })?;
+
+        let (extension, content_type, default_bytes): (&str, &str, fn() -> Vec<u8>) = match kind {
+            MediaKind::Video => (
+                "mp4",
+                constants::CONTENT_TYPE_MP4,
+                default_placeholder_video,
+            ),
+            MediaKind::Audio | MediaKind::Media => (
+                "wav",
+                constants::CONTENT_TYPE_WAV,
+                default_placeholder_audio,
+            ),
+        };
+        let bytes = placeholder.map_or_else(default_bytes, <[u8]>::to_vec);
+
+        let placeholder_part = self.next_media_part_stem("media", extension)?;
+        self.package
+            .insert_part(&placeholder_part, content_type, bytes)?;
+        let target = slide_part.relative_target(&placeholder_part);
+        self.package.retarget_relationship(
+            Some(&slide_part),
+            rel_id,
+            &target,
+            TargetMode::Internal,
+        )?;
+        Ok(())
+    }
+
     /// The number of legacy **ActiveX** form controls on `surface` (`p:cSld > p:controls > p:control`).
     ///
     /// A control is not a shape — it lives beside the shape tree, so it is addressed by its own index in
@@ -6693,6 +6791,20 @@ impl Presentation {
             }
         }
         let name = format!("{media_dir}image{}.{extension}", max_n + 1);
+        PartName::new(&name).map_err(PptxError::from)
+    }
+
+    /// A fresh media part name `media/{stem}{N}.{extension}`, with `N` one past the largest existing
+    /// `{stem}*` media part. Used for placeholder media (`media{N}.wav` / `.mp4`).
+    fn next_media_part_stem(&self, stem: &str, extension: &str) -> Result<PartName, PptxError> {
+        let media_dir = format!("{}media/", dir_of(self.presentation_part.as_str()));
+        let mut max_n = 0u32;
+        for part in self.package.part_names() {
+            if let Some(n) = stem_number(part.as_str(), &media_dir, stem) {
+                max_n = max_n.max(n);
+            }
+        }
+        let name = format!("{media_dir}{stem}{}.{extension}", max_n + 1);
         PartName::new(&name).map_err(PptxError::from)
     }
 
@@ -8344,12 +8456,27 @@ fn chart_number(part: &str, dir: &str) -> Option<u32> {
 /// The `N` in `{dir}oleObject{N}.{ext}`, whatever the extension, or `None` if `part` is not such an
 /// embedding.
 fn embedding_number(part: &str, dir: &str) -> Option<u32> {
-    let rest = part.strip_prefix(dir)?.strip_prefix("oleObject")?;
+    stem_number(part, dir, "oleObject")
+}
+
+/// The `N` in `{dir}{stem}{N}.{ext}`, whatever the extension, or `None` if `part` does not match.
+fn stem_number(part: &str, dir: &str, stem: &str) -> Option<u32> {
+    let rest = part.strip_prefix(dir)?.strip_prefix(stem)?;
     let digits: String = rest.chars().take_while(char::is_ascii_digit).collect();
     if digits.is_empty() || !rest[digits.len()..].starts_with('.') {
         return None;
     }
     digits.parse::<u32>().ok()
+}
+
+/// Classifies a relationship type as an audio/video/media reference, or `None` for anything else.
+fn media_kind_of(rel_type: &str) -> Option<MediaKind> {
+    match rel_type {
+        constants::REL_VIDEO => Some(MediaKind::Video),
+        constants::REL_AUDIO => Some(MediaKind::Audio),
+        constants::REL_MEDIA => Some(MediaKind::Media),
+        _ => None,
+    }
 }
 
 /// Builds a plain text-box `p:sp` with non-visual id `id`, laid out at `bounds`, whose text body

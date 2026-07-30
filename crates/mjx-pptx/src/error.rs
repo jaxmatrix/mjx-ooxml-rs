@@ -319,6 +319,14 @@ pub enum PptxError {
     #[error("shape is not an OLE object")]
     ShapeIsNotAnOleObject,
 
+    /// The given relationship id names no audio/video/media relationship on the surface, so there is
+    /// nothing to replace.
+    #[error("relationship {rel_id} is not a media reference")]
+    NotAMediaReference {
+        /// The relationship id that was looked up.
+        rel_id: String,
+    },
+
     /// The addressed series is outside the chart, which draws `count` series across its plots.
     #[error("chart series {index} is outside a chart with {count} series")]
     ChartSeriesOutOfRange {

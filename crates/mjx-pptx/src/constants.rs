@@ -59,6 +59,19 @@ pub const REL_OLE_OBJECT: &str =
 pub const REL_PACKAGE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
 
+/// The relationship type from a slide to a **video** part — the target an `a:videoFile@r:link` names.
+pub const REL_VIDEO: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/video";
+
+/// The relationship type from a slide to an **audio** part — the target an `a:audioFile@r:link` or a
+/// `p:snd@r:embed` (transition/timing sound) names.
+pub const REL_AUDIO: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio";
+
+/// The relationship type from a slide to a **media** part — the generic reference an `a14:media`
+/// extension (`mc:AlternateContent` fallback, MS Office 2007) names for the same audio or video.
+pub const REL_MEDIA: &str = "http://schemas.microsoft.com/office/2007/relationships/media";
+
 /// The relationship type from a slide to an ActiveX control part (`/ppt/activeX/activeXN.xml`) — the
 /// target a `p:control@r:id` names.
 pub const REL_CONTROL: &str =
@@ -112,6 +125,12 @@ pub const CONTENT_TYPE_OLE_OBJECT: &str = "application/vnd.openxmlformats-office
 /// The content type of an ActiveX control part (`/ppt/activeX/activeXN.xml`, `ax:ocx` markup). Shares
 /// the `xml` extension with every other part, so it is registered as a per-part Override, not a Default.
 pub const CONTENT_TYPE_ACTIVEX: &str = "application/vnd.ms-office.activeX+xml";
+
+/// The content type of a WAV audio part (`.wav`), used for the built-in audio placeholder.
+pub const CONTENT_TYPE_WAV: &str = "audio/x-wav";
+
+/// The content type of an MP4 video part (`.mp4`), used for the built-in video placeholder.
+pub const CONTENT_TYPE_MP4: &str = "video/mp4";
 
 /// The content type of an ActiveX control's binary blob (`/ppt/activeX/activeXN.bin`). Its `.bin`
 /// extension is shared with other binary parts, so it is registered as a per-part Override, not a
