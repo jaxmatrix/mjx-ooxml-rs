@@ -310,6 +310,10 @@ pub enum PptxError {
     #[error("shape is not a chart")]
     ShapeIsNotAChart,
 
+    /// The chart references no backing workbook (`c:externalData`), so there is nothing to detach.
+    #[error("chart has no external data reference")]
+    ChartHasNoExternalData,
+
     /// The addressed series is outside the chart, which draws `count` series across its plots.
     #[error("chart series {index} is outside a chart with {count} series")]
     ChartSeriesOutOfRange {

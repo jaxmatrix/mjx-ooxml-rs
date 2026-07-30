@@ -68,7 +68,7 @@ mod table;
 pub use address::ShapePath;
 pub use cursor::ShapeCursor;
 pub use error::PptxError;
-pub use external::{LinkedImage, DEFAULT_PLACEHOLDER_IMAGE};
+pub use external::{ChartWorkbook, LinkedImage, DEFAULT_PLACEHOLDER_IMAGE};
 pub use geometry::{CellMargins, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
 // Chart authoring types, re-exported so a caller of `add_chart` need not depend on `mjx-chart`.

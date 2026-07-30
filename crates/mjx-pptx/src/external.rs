@@ -35,3 +35,19 @@ pub struct LinkedImage {
     /// in-package part target for an internal link).
     pub target: String,
 }
+
+/// A chart frame that references a backing workbook (`c:externalData`) — a candidate for
+/// [`Presentation::detach_chart_workbook`](crate::Presentation::detach_chart_workbook), as reported by
+/// [`Presentation::chart_workbooks`](crate::Presentation::chart_workbooks). A chart renders from its
+/// cached data, so detaching an inaccessible workbook leaves the chart intact.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChartWorkbook {
+    /// The shape index of the chart frame on the surface it was found on.
+    pub shape_index: usize,
+    /// Where the workbook is referenced from — the relationship target (an external path/URL, or an
+    /// in-package part target for an embedded workbook).
+    pub target: String,
+    /// Whether that relationship is external (`TargetMode="External"`), i.e. the case that can be
+    /// unreachable on another platform. An embedded workbook is `false`.
+    pub external: bool,
+}
