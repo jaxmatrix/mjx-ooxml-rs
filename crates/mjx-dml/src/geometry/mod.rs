@@ -31,12 +31,14 @@
 //! [`FromXml`](mjx_ooxml_core::FromXml)/[`ToXml`](mjx_ooxml_core::ToXml) impls; [`GeometryGuide`] is
 //! an attribute-only leaf (no children, no text) and so hand-writes them.
 
+mod custom;
 mod guide;
 mod measures;
 mod preset;
 mod shape;
 mod transform;
 
+pub use custom::{AdjustAngle, AdjustCoordinate, AdjustPoint, PathFillMode};
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
 pub use measures::{Angle, Emu, FontSize, Fraction, IndentLevel, LineWidth, TextPoint};
 pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
