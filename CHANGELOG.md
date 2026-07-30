@@ -15,6 +15,36 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.47] - 2026-07-30
+
+Inaccessible external sources — foundation + linked-image placeholder (MJX-201 P1, spun out of MJX-42).
+Many element sources can be external/online (linked images, a chart's backing workbook, OLE, media),
+and an unreachable target can crash a consumer. This begins the caller-driven capability to neutralize
+one by substituting an in-package placeholder of the same kind; the library does no external I/O, so
+the caller decides which references are inaccessible.
+
+`mjx-opc` gains the general redirect lever:
+
+- `Package::external_relationships` lists every `TargetMode::External` relationship (with its owning
+  part) — the discovery surface for what might be unreachable.
+- `Package::retarget_relationship` repoints a relationship at a new target/mode while keeping its id
+  and its `.rels` position (editing the control tree and the navigation view in tandem). The recipe:
+  `insert_part` a placeholder, then retarget the external relationship at it as `Internal` — so the
+  binding element resolves in-package without touching its own markup, which is what the many unmodeled
+  element kinds need.
+
+`mjx-pptx` applies it to images (the one modeled kind, via element rewrite):
+
+- `Presentation::replace_linked_image_with_placeholder` embeds a placeholder — caller-supplied bytes or
+  the new `DEFAULT_PLACEHOLDER_IMAGE` — into a picture that links an external image, rewriting
+  `@r:link` → `@r:embed` and dropping the dangling link relationship. An embedded picture yields
+  `PptxError::PictureImageNotLinked`.
+- `Presentation::linked_images` lists the linked pictures on a surface (with their targets) so callers
+  need not walk the shapes.
+
+Additive and non-breaking. Follow-up phases extend the same redirect to the chart workbook, OLE, and
+media.
+
 ## [0.0.46] - 2026-07-30
 
 Linked images become addressable (MJX-42, second of two package-gap fixes). A picture that *links* its
