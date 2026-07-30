@@ -39,8 +39,9 @@ mod shape;
 mod transform;
 
 pub use custom::{
-    AdjustAngle, AdjustCoordinate, AdjustPoint, DrawCommand, Path2D, Path2DList, Path2DSpec,
-    PathFillMode, Point,
+    AdjustAngle, AdjustCoordinate, AdjustHandle, AdjustPoint, ConnectionSite, CustomGeometry,
+    CustomGeometrySpec, DrawCommand, GuideSpec, Path2D, Path2DList, Path2DSpec, PathFillMode,
+    Point, Rectangle,
 };
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
 pub use measures::{Angle, Emu, FontSize, Fraction, IndentLevel, LineWidth, TextPoint};
