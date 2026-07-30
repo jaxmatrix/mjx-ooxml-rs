@@ -280,6 +280,11 @@ pub enum PptxError {
     #[error("picture has no blip fill")]
     PictureHasNoBlipFill,
 
+    /// The picture embeds its image rather than linking it, so there is no external link to replace
+    /// with a placeholder.
+    #[error("picture does not link its image")]
+    PictureImageNotLinked,
+
     /// A table was asked for with no rows or no columns. PowerPoint will not open a table with no
     /// cells, so this is refused at creation rather than written out.
     #[error("a table must have at least one row and one column, not {rows}x{columns}")]

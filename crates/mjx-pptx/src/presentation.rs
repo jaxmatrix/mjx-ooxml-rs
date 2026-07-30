@@ -28,6 +28,7 @@ use mjx_vml::is_vml_content_type;
 use crate::address::ShapePath;
 use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
+use crate::external::{LinkedImage, DEFAULT_PLACEHOLDER_IMAGE};
 use crate::geometry::{CellMargins, ShapeBounds, SlideSize};
 use crate::hyperlink::Hyperlink;
 use crate::slide::GraphicFrameKind;
@@ -6288,6 +6289,76 @@ impl Presentation {
         let rel_prefix = relationship_prefix(root, interner);
         let picture = resolve_shape_in(root, interner, surface, &path)?;
         slide::set_blip_embed(picture, interner, rel_prefix, &rel_id)
+    }
+
+    /// Every picture on `surface` that *links* its image (`a:blip@r:link`) rather than embedding it,
+    /// with where each links from — the candidates for
+    /// [`replace_linked_image_with_placeholder`](Self::replace_linked_image_with_placeholder). A linked
+    /// image is the common source that can be unreachable on another platform; this saves the caller
+    /// from walking the shapes themselves. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if `surface` cannot be resolved or the slide is malformed.
+    pub fn linked_images(
+        &mut self,
+        surface: impl Into<Surface>,
+    ) -> Result<Vec<LinkedImage>, PptxError> {
+        let surface = surface.into();
+        let count = self.shape_count(surface)?;
+        let mut linked = Vec::new();
+        for shape_index in 0..count {
+            if self.shape_kind(surface, shape_index)? != ShapeKind::Picture {
+                continue;
+            }
+            if let Some(target) = self.picture_image_link_target(surface, shape_index)? {
+                linked.push(LinkedImage {
+                    shape_index,
+                    target,
+                });
+            }
+        }
+        Ok(linked)
+    }
+
+    /// Replaces the *linked* image of picture `shape_idx` on `surface` with an embedded placeholder,
+    /// so a picture that points at an unreachable external file resolves inside the package instead.
+    /// The placeholder is `placeholder` if given, else [`DEFAULT_PLACEHOLDER_IMAGE`]. The picture
+    /// becomes an ordinary embedded picture (`@r:link` → `@r:embed`), keeping its bounds and the rest
+    /// of its `p:blipFill`, and the now-unused link relationship is dropped.
+    ///
+    /// The caller decides a link is inaccessible (the library does no external I/O); use
+    /// [`linked_images`](Self::linked_images) to find the candidates. If the picture *embeds* its image
+    /// there is no link to replace and this returns [`PptxError::PictureImageNotLinked`].
+    ///
+    /// If the old link happened to be *internal*, the part it named may be left unreferenced; sweep it
+    /// with [`Package::remove_unreferenced_parts`](mjx_opc::Package::remove_unreferenced_parts) if
+    /// wanted. This never removes parts on its own.
+    ///
+    /// # Errors
+    /// [`PptxError::ShapeIsNotAPicture`] if the shape is not a `p:pic`,
+    /// [`PptxError::PictureImageNotLinked`] if it embeds rather than links,
+    /// [`PptxError::UnrecognizedImageFormat`] if the placeholder bytes match no known image format, or
+    /// another [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn replace_linked_image_with_placeholder(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        placeholder: Option<&[u8]>,
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let (_embed, link) = self.picture_blip_rel_ids(surface, &path)?;
+        let Some(link_id) = link else {
+            return Err(PptxError::PictureImageNotLinked);
+        };
+        let bytes = placeholder.unwrap_or(DEFAULT_PLACEHOLDER_IMAGE);
+        // Embeds the placeholder and drops the `@r:link` attribute (its relationship still lingers).
+        self.set_picture_image(surface, path, bytes)?;
+        // Drop the now-dangling link relationship so nothing points outside the package.
+        let slide_part = self.surface_part(surface)?;
+        self.package
+            .remove_relationship(Some(&slide_part), &link_id)?;
+        Ok(())
     }
 
     /// The part relationship `rel_id` of `source` points at, or `None` if `source` has no such
