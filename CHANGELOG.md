@@ -15,10 +15,28 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
-## [0.0.55] - 2026-07-30
+## [0.0.56] - 2026-07-30
 
-Custom geometry, handoff and close-out (MJX-44 CG5, **completing MJX-44**). Documentation only — no
-code change.
+Cell 3-D review and direct-cell authoring (MJX-109, closing the last code follow-up of MJX-38). D4
+(MJX-100) left `Cell3D` with two material accessors pending a decision and gave a typed 3-D surface
+only to the table-*style* cell3D (`a:tcStyle > a:cell3D`); a direct cell's `a:tcPr > a:cell3D` had
+none. Both are settled here.
+
+`mjx-dml`:
+
+- `Cell3D::material` (typed) and `Cell3D::preset_material` (raw wire token) are kept as a deliberate
+  pair — the typed accessor is the normal path and mirrors `Shape3D::material`; the raw one is an
+  escape hatch for a producer value outside `ST_PresetMaterialType`. Docs rewritten to say so; no API
+  change.
+- `TableCellProperties` gains typed `cell_3d()` / `set_cell_3d()`, the direct-cell counterpart of
+  `TableStyleCellStyle`'s, reusing the same `Cell3D` model and honoring `CT_TableCellProperties`
+  schema order (`cell3D` after the borders, before the fill).
+
+`mjx-pptx`:
+
+- `CellFormat` gains `with_cell_material` / `with_cell_bevel` / `with_cell_light_rig`, mirroring
+  `TableStyleFormat`. `format_cells` now authors a direct cell's `a:cell3D`; any facet set gives the
+  cell a `cell3D` with the schema-required bevel. Additive, non-breaking.
 
 - `docs/CUSTOM_GEOMETRY_HANDOFF.md` records the four shipped atoms (CG1–CG4), the design decisions,
   the verified schema, the known follow-ups (chiefly a guide-formula evaluator), and the 3-D audit
