@@ -38,7 +38,10 @@ mod preset;
 mod shape;
 mod transform;
 
-pub use custom::{AdjustAngle, AdjustCoordinate, AdjustPoint, PathFillMode};
+pub use custom::{
+    AdjustAngle, AdjustCoordinate, AdjustPoint, DrawCommand, Path2D, Path2DList, Path2DSpec,
+    PathFillMode, Point,
+};
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
 pub use measures::{Angle, Emu, FontSize, Fraction, IndentLevel, LineWidth, TextPoint};
 pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
