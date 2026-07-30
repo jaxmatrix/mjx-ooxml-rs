@@ -5,8 +5,28 @@
 //! numbers so callers never touch the raw `x`/`y`/`cx`/`cy` wire attributes. [`SlideSize`] is the
 //! extent those bounds sit inside.
 
-use mjx_dml::{Emu, Position, Size, Transform2D};
+use mjx_dml::{CustomGeometrySpec, Emu, Position, ShapeGeometry, Size, Transform2D};
 use mjx_ooxml_types::presentationml::SlideSizeKind;
+
+/// A shape's geometry (`p:spPr`'s `a:prstGeom` | `a:custGeom`, or neither) — what shape it is.
+///
+/// A shape draws itself either from a **preset** (one of the 100-odd built-in shapes, with named
+/// adjustments) or from an explicit **custom** path list, or it states no geometry of its own and
+/// **inherits** one (a placeholder takes its geometry from the layout / master). This is what
+/// [`Presentation::shape_geometry`](crate::Presentation::shape_geometry) returns and
+/// [`set_shape_geometry`](crate::Presentation::set_shape_geometry) accepts, so one call covers both
+/// kinds and setting [`Inherited`](Self::Inherited) drops the shape's own geometry element.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Geometry {
+    /// A preset shape (`a:prstGeom`), as a typed [`ShapeGeometry`] with named adjustments.
+    Preset(ShapeGeometry),
+    /// A custom, freeform geometry (`a:custGeom`), as a [`CustomGeometrySpec`] path list.
+    Custom(CustomGeometrySpec),
+    /// No geometry of the shape's own — it inherits one from its placeholder / layout / master.
+    /// Reading yields this when the shape has neither element; setting it removes any geometry the
+    /// shape declares, so the inherited one takes over.
+    Inherited,
+}
 
 /// A shape's position and size on a slide, in English Metric Units (914 400 EMU = 1 inch).
 ///
