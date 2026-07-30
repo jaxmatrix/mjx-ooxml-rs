@@ -5,8 +5,9 @@
 //! byte-for-byte with any attribute it does not model preserved verbatim.
 
 use mjx_dml::{
-    AdjustAngle, AdjustCoordinate, AdjustPoint, DrawCommand, Emu, Path2D, Path2DList, Path2DSpec,
-    PathFillMode, Point,
+    AdjustAngle, AdjustCoordinate, AdjustHandle, AdjustPoint, ConnectionSite, CustomGeometry,
+    CustomGeometrySpec, DrawCommand, Emu, GuideSpec, Path2D, Path2DList, Path2DSpec, PathFillMode,
+    Point, Rectangle,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
@@ -314,4 +315,192 @@ fn a_built_path_list_holds_its_paths_in_order() {
     let mut interner = Interner::new();
     let list = Path2DList::new(&mut interner, &specs);
     assert_eq!(list.specs(&interner), specs);
+}
+
+// ---------------------------------------------------------------------------------------------
+// CustomGeometry — the whole a:custGeom, every auxiliary list
+// ---------------------------------------------------------------------------------------------
+
+fn full_custom_geometry() -> String {
+    format!(
+        concat!(
+            r#"<a:custGeom xmlns:a="{a}">"#,
+            r#"<a:avLst><a:gd name="adj1" fmla="val 25000"/></a:avLst>"#,
+            r#"<a:gdLst><a:gd name="x1" fmla="*/ w adj1 100000"/></a:gdLst>"#,
+            r#"<a:ahLst>"#,
+            r#"<a:ahXY gdRefX="adj1" minX="0" maxX="50000"><a:pos x="x1" y="0"/></a:ahXY>"#,
+            r#"<a:ahPolar gdRefAng="adj2" minAng="0" maxAng="21600000"><a:pos x="0" y="0"/></a:ahPolar>"#,
+            r#"</a:ahLst>"#,
+            r#"<a:cxnLst><a:cxn ang="0"><a:pos x="100" y="200"/></a:cxn></a:cxnLst>"#,
+            r#"<a:rect l="0" t="0" r="w" b="h"/>"#,
+            r#"<a:pathLst><a:path w="100" h="100"><a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:close/></a:path></a:pathLst>"#,
+            r#"</a:custGeom>"#,
+        ),
+        a = A
+    )
+}
+
+#[test]
+fn a_custom_geometry_reads_every_auxiliary_list() {
+    let xml = full_custom_geometry();
+    let (geom, doc) = parse_typed::<CustomGeometry>(xml.as_bytes());
+    let i = &doc.interner;
+
+    assert_eq!(
+        geom.adjust_values(i),
+        vec![GuideSpec {
+            name: "adj1".to_owned(),
+            formula: "val 25000".to_owned()
+        }]
+    );
+    assert_eq!(
+        geom.guides(i),
+        vec![GuideSpec {
+            name: "x1".to_owned(),
+            formula: "*/ w adj1 100000".to_owned()
+        }]
+    );
+
+    let handles = geom.adjust_handles(i);
+    assert_eq!(
+        handles,
+        vec![
+            AdjustHandle::Xy {
+                position: Point {
+                    x: AdjustCoordinate::Guide("x1".to_owned()),
+                    y: AdjustCoordinate::Emu(Emu::from_emu(0)),
+                },
+                guide_ref_x: Some("adj1".to_owned()),
+                min_x: Some(AdjustCoordinate::Emu(Emu::from_emu(0))),
+                max_x: Some(AdjustCoordinate::Emu(Emu::from_emu(50000))),
+                guide_ref_y: None,
+                min_y: None,
+                max_y: None,
+            },
+            AdjustHandle::Polar {
+                position: Point::from_emu(0, 0),
+                guide_ref_radius: None,
+                min_radius: None,
+                max_radius: None,
+                guide_ref_angle: Some("adj2".to_owned()),
+                min_angle: Some(AdjustAngle::from_wire("0")),
+                max_angle: Some(AdjustAngle::from_wire("21600000")),
+            },
+        ]
+    );
+
+    assert_eq!(
+        geom.connection_sites(i),
+        vec![ConnectionSite {
+            angle: AdjustAngle::from_wire("0"),
+            position: Point::from_emu(100, 200),
+        }]
+    );
+
+    assert_eq!(
+        geom.text_rectangle(i),
+        Some(Rectangle {
+            left: AdjustCoordinate::Emu(Emu::from_emu(0)),
+            top: AdjustCoordinate::Emu(Emu::from_emu(0)),
+            right: AdjustCoordinate::Guide("w".to_owned()),
+            bottom: AdjustCoordinate::Guide("h".to_owned()),
+        })
+    );
+
+    let paths = geom.paths(i);
+    assert_eq!(paths.len(), 1);
+    assert_eq!(paths[0].width, Some(Emu::from_emu(100)));
+    assert_eq!(
+        paths[0].commands,
+        vec![
+            DrawCommand::MoveTo(Point::from_emu(0, 0)),
+            DrawCommand::Close
+        ]
+    );
+}
+
+#[test]
+fn a_custom_geometry_round_trips_byte_for_byte() {
+    let xml = full_custom_geometry();
+    let (geom, doc) = parse_typed::<CustomGeometry>(xml.as_bytes());
+    assert_round_trips(&geom, doc, xml.as_bytes());
+}
+
+#[test]
+fn a_custom_geometry_round_trips_with_an_unmodeled_child_preserved() {
+    // `a:extLst` is not modeled; it must survive verbatim in its schema position (after pathLst).
+    let xml = format!(
+        concat!(
+            r#"<a:custGeom xmlns:a="{a}">"#,
+            r#"<a:pathLst><a:path><a:close/></a:path></a:pathLst>"#,
+            r#"<a:extLst><a:ext uri="{{X}}"/></a:extLst>"#,
+            r#"</a:custGeom>"#,
+        ),
+        a = A
+    );
+    let (geom, doc) = parse_typed::<CustomGeometry>(xml.as_bytes());
+    assert_eq!(geom.paths(&doc.interner).len(), 1);
+    assert_round_trips(&geom, doc, xml.as_bytes());
+}
+
+#[test]
+fn a_built_custom_geometry_reads_back_the_spec_it_was_given() {
+    let spec = CustomGeometrySpec {
+        adjust_values: vec![GuideSpec {
+            name: "adj1".to_owned(),
+            formula: "val 25000".to_owned(),
+        }],
+        guides: vec![GuideSpec {
+            name: "x1".to_owned(),
+            formula: "*/ w adj1 100000".to_owned(),
+        }],
+        adjust_handles: vec![AdjustHandle::Polar {
+            position: Point::from_emu(0, 0),
+            guide_ref_radius: None,
+            min_radius: None,
+            max_radius: None,
+            guide_ref_angle: Some("adj2".to_owned()),
+            min_angle: Some(AdjustAngle::from_wire("0")),
+            max_angle: Some(AdjustAngle::from_wire("21600000")),
+        }],
+        connection_sites: vec![ConnectionSite {
+            angle: AdjustAngle::from_wire("5400000"),
+            position: Point::from_emu(1, 2),
+        }],
+        text_rectangle: Some(Rectangle {
+            left: AdjustCoordinate::Emu(Emu::from_emu(0)),
+            top: AdjustCoordinate::Emu(Emu::from_emu(0)),
+            right: AdjustCoordinate::Guide("w".to_owned()),
+            bottom: AdjustCoordinate::Guide("h".to_owned()),
+        }),
+        paths: vec![Path2DSpec {
+            commands: vec![
+                DrawCommand::MoveTo(Point::from_emu(0, 0)),
+                DrawCommand::Close,
+            ],
+            ..Path2DSpec::default()
+        }],
+    };
+
+    let mut interner = Interner::new();
+    let geom = spec.to_custom_geometry(&mut interner);
+    assert_eq!(geom.spec(&interner), spec);
+}
+
+#[test]
+fn a_bare_custom_geometry_has_empty_auxiliary_lists() {
+    let spec = CustomGeometrySpec {
+        paths: vec![Path2DSpec {
+            commands: vec![DrawCommand::Close],
+            ..Path2DSpec::default()
+        }],
+        ..CustomGeometrySpec::default()
+    };
+    let mut interner = Interner::new();
+    let geom = spec.to_custom_geometry(&mut interner);
+    assert!(geom.adjust_values(&interner).is_empty());
+    assert!(geom.adjust_handles(&interner).is_empty());
+    assert!(geom.connection_sites(&interner).is_empty());
+    assert_eq!(geom.text_rectangle(&interner), None);
+    assert_eq!(geom.spec(&interner), spec);
 }
