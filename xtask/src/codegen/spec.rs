@@ -80,6 +80,9 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_LightRigDirection", "LightRigDirection"),
     ("ST_PresetMaterialType", "PresetMaterial"),
     ("ST_PresetCameraType", "PresetCamera"),
+    // DrawingML custom geometry: how a freeform path is filled (`a:custGeom`'s `a:path@fill`). Named
+    // for what it selects, dropping the `…Mode` schema suffix would lose meaning, so it is kept.
+    ("ST_PathFillMode", "PathFillMode"),
     // PresentationML placeholders: `p:ph`'s `type`, `sz`, and `orient`. `ST_Direction` is PML's own
     // two-valued axis (`horz`/`vert`), named for what it selects rather than the generic "direction".
     ("ST_PlaceholderType", "PlaceholderType"),
@@ -110,6 +113,9 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "GregorianTransliteratedFrench",
     ),
     ("ST_AlgType", "typeAny", "Any"),
+    // `ST_PathFillMode` (`a:path@fill`): `norm` is the default "normal" fill. The rest
+    // (`none`, `lighten`, `lightenLess`, `darken`, `darkenLess`) auto-expand cleanly.
+    ("ST_PathFillMode", "norm", "Normal"),
     // `ST_ShapeType` (`a:prstGeom@prst`): expand the cryptic/abbreviated tokens. Well-formed tokens
     // (`flowChartProcess`, `actionButtonHome`, `hexagon`, `mathPlus`, …) auto-expand and need no row.
     // The exact wire token is preserved on each generated variant's doc comment.
