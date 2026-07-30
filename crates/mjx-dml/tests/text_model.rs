@@ -6,8 +6,7 @@
 //! model silently dumping everything into the opaque `Raw` bucket.
 
 use mjx_dml::{
-    Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextField,
-    TextLineBreak, TextRun,
+    Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun,
 };
 use mjx_ooxml_core::{FromXml, FromXmlError, RawDocument, ToXml};
 use mjx_xml::fidelity;
