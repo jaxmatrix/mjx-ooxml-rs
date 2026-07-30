@@ -9,7 +9,9 @@ use mjx_dml::{ColorSpec, LineSpec, LineWidth};
 use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_opc::{Package, PartName, Relationship, TargetMode};
-use mjx_pptx::{PptxError, Presentation, ShapeBounds, ShapeKind};
+use mjx_pptx::{
+    LinkedImage, PptxError, Presentation, ShapeBounds, ShapeKind, DEFAULT_PLACEHOLDER_IMAGE,
+};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -446,5 +448,91 @@ fn an_embedded_image_links_nothing() {
         pres.picture_image_link_target(0, idx).expect("link target"),
         None,
         "an embedded image has no link target"
+    );
+}
+
+/// Whether the slide's `.rels` still holds any external relationship.
+fn slide_has_external_rel(pkg: &Package) -> bool {
+    pkg.relationships_for(Some(&part("/ppt/slides/slide1.xml")))
+        .is_some_and(|rels| rels.iter().any(|rel| rel.mode == TargetMode::External))
+}
+
+#[test]
+fn replacing_a_linked_image_embeds_the_default_and_drops_the_link() {
+    let (bytes, idx) = linked_picture_pptx(true);
+    let mut pres = Presentation::open(&bytes).expect("open");
+
+    pres.replace_linked_image_with_placeholder(0, idx, None)
+        .expect("replace linked image");
+
+    // The picture now embeds the default placeholder — it no longer links anything.
+    assert_eq!(
+        pres.picture_image_link_target(0, idx).expect("link target"),
+        None,
+        "the picture must no longer link its image"
+    );
+    assert_eq!(
+        pres.picture_image_bytes(0, idx).expect("bytes"),
+        Some(DEFAULT_PLACEHOLDER_IMAGE),
+        "the default placeholder must be embedded"
+    );
+
+    // Nothing points outside the package any more, and it round-trips.
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    assert!(
+        !slide_has_external_rel(&pkg),
+        "the dangling external link relationship must be gone"
+    );
+}
+
+#[test]
+fn replacing_a_linked_image_can_use_caller_supplied_bytes() {
+    let (bytes, idx) = linked_picture_pptx(true);
+    let mut pres = Presentation::open(&bytes).expect("open");
+
+    pres.replace_linked_image_with_placeholder(0, idx, Some(OTHER_PNG))
+        .expect("replace with caller bytes");
+
+    assert_eq!(
+        pres.picture_image_bytes(0, idx).expect("bytes"),
+        Some(OTHER_PNG),
+        "the caller's bytes must be embedded, not the default"
+    );
+}
+
+#[test]
+fn replacing_the_image_of_an_embedded_picture_is_rejected() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_picture(0, TINY_PNG, bounds())
+        .expect("add picture");
+
+    let err = pres
+        .replace_linked_image_with_placeholder(0, idx, None)
+        .expect_err("an embedded picture has no link to replace");
+    assert!(matches!(err, PptxError::PictureImageNotLinked), "{err:?}");
+}
+
+#[test]
+fn linked_images_lists_only_the_linked_pictures() {
+    let (bytes, linked_idx) = linked_picture_pptx(true);
+    let mut pres = Presentation::open(&bytes).expect("open");
+    let embedded_idx = pres
+        .add_picture(0, TINY_PNG, bounds())
+        .expect("add an embedded picture");
+
+    let found = pres.linked_images(0).expect("linked images");
+
+    assert_eq!(
+        found,
+        vec![LinkedImage {
+            shape_index: linked_idx,
+            target: "https://example.com/linked.png".to_owned(),
+        }],
+        "only the linked picture is reported, with its target"
+    );
+    assert!(
+        !found.iter().any(|l| l.shape_index == embedded_idx),
+        "the embedded picture must not appear"
     );
 }
