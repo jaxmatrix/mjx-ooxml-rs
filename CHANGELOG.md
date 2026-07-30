@@ -15,6 +15,30 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.51] - 2026-07-30
+
+Custom geometry, foundation types (MJX-44 CG1). Groundwork for a typed surface over `a:custGeom`
+(`CT_CustomGeometry2D`) — the freeform path list a hand-drawn PowerPoint shape uses, until now
+preserved only opaquely. This iteration adds the value types every piece of a custom geometry is
+expressed in; the path list, guide/handle/connection lists, and the pptx accessor follow.
+
+`mjx-ooxml-types`:
+
+- Generated `PathFillMode` (`ST_PathFillMode`: `none`/`norm`→`Normal`/`lighten`/`lightenLess`/
+  `darken`/`darkenLess`) — how a freeform `a:path` is filled (`a:path@fill`). Added to the DrawingML
+  codegen allowlist.
+
+`mjx-dml`:
+
+- `AdjustCoordinate` (`ST_AdjCoordinate`) and `AdjustAngle` (`ST_AdjAngle`) — each a union of a
+  numeric literal (`Emu` / `Angle`) and a geometry-guide reference by name (`Guide`), the two forms a
+  custom-geometry coordinate or angle can take.
+- `AdjustPoint` (`a:pt` / `a:pos`, `CT_AdjPoint2D`) — the `(x, y)` a path command, adjust handle, or
+  connection site is drawn through; a fidelity leaf that reads its coordinates typed and round-trips
+  byte-for-byte. Re-exported alongside `PathFillMode` from the crate root.
+
+Additive and non-breaking.
+
 ## [0.0.50] - 2026-07-30
 
 Inaccessible external sources — audio/video media (MJX-201 P4, **completing MJX-201**). A slide can
