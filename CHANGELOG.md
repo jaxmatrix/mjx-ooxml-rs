@@ -15,6 +15,26 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.48] - 2026-07-30
+
+Inaccessible external sources — chart backing workbook (MJX-201 P2). A chart can reference a workbook
+that lives online/externally; that reference can be unreachable on another platform. A chart renders
+entirely from its cached data (`c:numCache`/`c:strCache`), so the workbook is only needed to *edit* the
+data — which means the reference can simply be detached.
+
+`mjx-pptx`:
+
+- `Presentation::detach_chart_workbook` removes a chart's `c:externalData` reference — the element and
+  its relationship — leaving the chart to render from its cache (the same cache-only shape a freshly
+  authored chart has). An embedded workbook part is left unreferenced and can be swept with
+  `Package::remove_unreferenced_parts`. A non-chart shape yields `PptxError::ShapeIsNotAChart`; a chart
+  with no backing workbook yields the new `PptxError::ChartHasNoExternalData`.
+- `Presentation::chart_workbooks` lists the charts on a surface that reference a workbook, each with its
+  target and whether the reference is external — the discovery surface for what to detach.
+
+Additive and non-breaking. Follow-up phases extend to OLE objects and media, where (unlike charts)
+there is no cached fallback and the P1 redirect-to-placeholder is used.
+
 ## [0.0.47] - 2026-07-30
 
 Inaccessible external sources — foundation + linked-image placeholder (MJX-201 P1, spun out of MJX-42).
