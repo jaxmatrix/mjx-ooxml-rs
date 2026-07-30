@@ -5,9 +5,7 @@
 //! round-trip assertion is paired with a **structural** assertion so byte-identity cannot pass by the
 //! model silently dumping everything into the opaque `Raw` bucket.
 
-use mjx_dml::{
-    Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun,
-};
+use mjx_dml::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
 use mjx_ooxml_core::{FromXml, FromXmlError, RawDocument, ToXml};
 use mjx_xml::fidelity;
 
