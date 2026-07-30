@@ -551,3 +551,88 @@ fn remove_part_drops_entry_override_and_rels() {
         "the removed part's Override survived"
     );
 }
+
+/// Every part of a well-formed deck is reachable from the package root, so a sweep removes nothing and
+/// leaves every part decompressed-byte identical.
+#[test]
+fn sweep_is_a_no_op_on_a_clean_deck() {
+    let bytes = fixture("sample.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pkg = Package::open(&bytes).expect("open");
+    let removed = pkg.remove_unreferenced_parts().expect("sweep");
+
+    assert!(
+        removed.is_empty(),
+        "a clean deck has no orphans: {removed:?}"
+    );
+    assert_eq!(byte_map(&pkg), original, "the sweep dirtied a part");
+}
+
+/// A media part nothing points at is swept, while every part the deck still reaches — including one a
+/// live slide references — survives byte-identically.
+#[test]
+fn sweep_removes_a_lone_orphan_and_spares_the_live_deck() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    let shown = part("/ppt/media/shown.png");
+    let orphan = part("/ppt/media/orphan.png");
+    pkg.insert_part(&shown, "image/png", b"shown".to_vec())
+        .expect("insert shown");
+    pkg.insert_part(&orphan, "image/png", b"orphan".to_vec())
+        .expect("insert orphan");
+    // Only `shown` is wired to the (reachable) slide; `orphan` is left dangling.
+    relate(&mut pkg, &slide, &shown, "rId90");
+
+    // Snapshot after the edits, so the comparison isolates what the *sweep* changed.
+    let before = byte_map(&pkg);
+    let removed = pkg.remove_unreferenced_parts().expect("sweep");
+
+    assert_eq!(removed, vec![orphan.clone()], "exactly the orphan is swept");
+    assert!(pkg.part_bytes(&orphan).is_none(), "orphan not removed");
+    assert!(
+        pkg.part_bytes(&shown).is_some(),
+        "a media part a live slide references must survive"
+    );
+    // The sweep disturbed nothing else: every surviving materialized part is byte-identical to its
+    // pre-sweep bytes ([Content_Types].xml aside — removing the orphan drops its Override).
+    for (name, bytes) in &byte_map(&pkg) {
+        if name == "[Content_Types].xml" {
+            continue;
+        }
+        assert_eq!(before.get(name), Some(bytes), "{name} was disturbed");
+    }
+    // Control parts are never candidates for removal.
+    assert!(
+        pkg.entries().iter().any(|e| e.name == "_rels/.rels")
+            && pkg
+                .entries()
+                .iter()
+                .any(|e| e.name == "ppt/_rels/presentation.xml.rels"),
+        "a .rels control part was swept"
+    );
+    Package::open(&pkg.save().expect("save")).expect("reopen");
+}
+
+/// An orphan that itself references a second orphan: neither is reachable from the root, so the whole
+/// chain is swept. Proves the walk is transitive-from-root, not a one-hop "is anything pointing at it".
+#[test]
+fn sweep_removes_an_orphan_chain() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let head = part("/ppt/media/orphan-head.xml");
+    let tail = part("/ppt/media/orphan-tail.png");
+    pkg.insert_part(&head, "application/xml", b"<x/>".to_vec())
+        .expect("insert head");
+    pkg.insert_part(&tail, "image/png", b"tail".to_vec())
+        .expect("insert tail");
+    // `head` points at `tail`, but nothing reachable points at `head`.
+    relate(&mut pkg, &head, &tail, "rId1");
+
+    let removed = pkg.remove_unreferenced_parts().expect("sweep");
+
+    assert!(
+        removed.contains(&head) && removed.contains(&tail),
+        "the whole orphan chain must go: {removed:?}"
+    );
+    assert!(pkg.part_bytes(&head).is_none() && pkg.part_bytes(&tail).is_none());
+}

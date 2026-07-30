@@ -597,14 +597,71 @@ impl Package {
         Ok(removed)
     }
 
+    /// Removes every part unreachable from the package root and returns their names, in the order the
+    /// package listed them.
+    ///
+    /// [`remove_part_cascading`](Self::remove_part_cascading) is a *targeted* delete that walks
+    /// downward from one part the caller names. This is the *package-wide* garbage collection:
+    /// replacing an image, deleting a slide, or any edit that unwires a relationship can leave a part
+    /// with nothing pointing at it (an orphaned media blob, most commonly), and an unreferenced part is
+    /// legal but dead weight. This sweeps all of them at once.
+    ///
+    /// It is conservative by construction. A part survives if it is reachable by following
+    /// relationships from the package root (`_rels/.rels`) transitively — so a media part referenced
+    /// only through a slide that is itself reachable stays, and OPC-required roots such as the core
+    /// properties and thumbnail stay because the root relationships name them. Only `Internal` targets
+    /// are followed; `External` ones name no part. **Control parts are never removed**:
+    /// `[Content_Types].xml` is not a part, and every `.rels` part is spared (a `.rels` describes its
+    /// owner, which the reachability walk decides on independently). A reference cycle terminates —
+    /// each part is visited once.
+    ///
+    /// # Errors
+    /// Returns an error only if removing a swept part's content type fails; the reachability analysis
+    /// itself cannot fail (unresolvable targets are simply not followed).
+    pub fn remove_unreferenced_parts(&mut self) -> Result<Vec<PartName>, OpcError> {
+        // Transitive closure of the parts reachable from the root, following internal relationships.
+        let mut reachable: Vec<PartName> = Vec::new();
+        let mut queue: Vec<PartName> = self.internal_targets_from(None);
+        while let Some(part) = queue.pop() {
+            if reachable.contains(&part) {
+                continue;
+            }
+            // A relationship may name a part that is not actually present; do not treat it as a live
+            // node, and do not follow it.
+            if !self.entries.iter().any(|e| e.name == part.zip_name()) {
+                continue;
+            }
+            let targets = self.internal_targets_from(Some(&part));
+            reachable.push(part);
+            queue.extend(targets);
+        }
+
+        // Everything else that is a real, addressable, non-control part is an orphan.
+        let orphans: Vec<PartName> = self
+            .part_names()
+            .filter(|part| !reachable.contains(part) && !is_control_part(part.zip_name()))
+            .collect();
+        for orphan in &orphans {
+            self.remove_part(orphan)?;
+        }
+        Ok(orphans)
+    }
+
     /// The parts `source`'s own `.rels` points at — internal targets only, unresolvable ones skipped.
     fn internal_targets_of(&self, source: &PartName) -> Vec<PartName> {
-        let Some(rels) = self.relationships_for(Some(source)) else {
+        self.internal_targets_from(Some(source))
+    }
+
+    /// The parts a source's `.rels` points at — internal targets only, unresolvable ones skipped.
+    /// `source` is `None` for the package root (`_rels/.rels`), so this also serves the reachability
+    /// walk, which begins at the root rather than at a part.
+    fn internal_targets_from(&self, source: Option<&PartName>) -> Vec<PartName> {
+        let Some(rels) = self.relationships_for(source) else {
             return Vec::new();
         };
         rels.iter()
             .filter(|rel| rel.mode == TargetMode::Internal)
-            .filter_map(|rel| source.resolve(&rel.target).ok())
+            .filter_map(|rel| resolve_rel(source, &rel.target).ok())
             .collect()
     }
 
@@ -616,13 +673,20 @@ impl Package {
                 .iter()
                 .filter(|rel| rel.mode == TargetMode::Internal)
                 .any(|rel| {
-                    let resolved = match &rels_part.source {
-                        Some(source) => source.resolve(&rel.target),
-                        None => PartName::resolve_from_root(&rel.target),
-                    };
-                    resolved.is_ok_and(|resolved| &resolved == part)
+                    resolve_rel(rels_part.source.as_ref(), &rel.target)
+                        .is_ok_and(|resolved| &resolved == part)
                 })
         })
+    }
+}
+
+/// Resolves a relationship's raw `target` against its source part's directory, or against the package
+/// root when `source` is `None` (the root `_rels/.rels`). This is the one place the root-vs-part base
+/// distinction lives, shared by every relationship-graph traversal.
+fn resolve_rel(source: Option<&PartName>, target: &str) -> Result<PartName, OpcError> {
+    match source {
+        Some(src) => src.resolve(target),
+        None => PartName::resolve_from_root(target),
     }
 }
 
