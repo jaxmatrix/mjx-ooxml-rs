@@ -15,6 +15,25 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.53] - 2026-07-30
+
+Custom geometry, the container and auxiliary lists (MJX-44 CG3). Completes the `mjx-dml` model of
+`a:custGeom` — the path list (CG2) now sits inside the whole `CT_CustomGeometry2D`, with its guides,
+adjust handles, connection sites, and text rectangle.
+
+`mjx-dml`:
+
+- `CustomGeometry` (`a:custGeom`, `CT_CustomGeometry2D`) — a fidelity wrapper reading every child
+  typed (`adjust_values`/`guides`/`adjust_handles`/`connection_sites`/`text_rectangle`/`paths`) and
+  round-tripping byte-for-byte (an unmodeled child such as `extLst` re-emits verbatim).
+- Interner-free value types: `GuideSpec` (`a:gd` name + formula), `AdjustHandle` (`a:ahXY` / `a:ahPolar`
+  with their `gdRef*` / min / max bounds), `ConnectionSite` (`a:cxn` angle + position), and
+  `Rectangle` (`a:rect` edges).
+- `CustomGeometrySpec` + `to_custom_geometry` — the interner-free read/author surface; builds children
+  in schema order, omits empty auxiliary lists, always writes the required `a:pathLst`.
+
+Additive and non-breaking.
+
 ## [0.0.52] - 2026-07-30
 
 Custom geometry, the path list (MJX-44 CG2). The drawing commands a freeform `a:custGeom` is traced
