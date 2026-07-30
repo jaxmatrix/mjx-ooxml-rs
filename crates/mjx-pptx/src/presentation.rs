@@ -6150,10 +6150,15 @@ impl Presentation {
         Ok(part)
     }
 
-    /// The relationship id of the image that picture `shape_idx` on `surface` embeds
-    /// (`p:blipFill > a:blip@r:embed`), or `None` when the blip embeds nothing — a picture may instead
-    /// *link* an external image (`@r:link`), which this does not resolve. Reading does not dirty the
-    /// part.
+    /// The relationship id that binds picture `shape_idx` on `surface` to its image — whether the blip
+    /// *embeds* the image (`p:blipFill > a:blip@r:embed`) or *links* it
+    /// (`@r:link`, typically an external file). `None` when the blip binds no image. Prefers the embed
+    /// id when both are present. Reading does not dirty the part.
+    ///
+    /// To tell an embedded image from a linked one, or to read where a linked image points, use
+    /// [`picture_image_link_target`](Self::picture_image_link_target): it returns `Some` only for a
+    /// link. [`picture_image_bytes`](Self::picture_image_bytes) reads an embedded (or internal-linked)
+    /// image's bytes but reports an external link as [`PptxError::ExternalTarget`].
     ///
     /// # Errors
     /// Returns [`PptxError::ShapeIsNotAPicture`] if the shape is not a `p:pic`,
@@ -6164,20 +6169,66 @@ impl Presentation {
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<String>, PptxError> {
+        let (embed, link) = self.picture_blip_rel_ids(surface.into(), &shape_idx.into())?;
+        Ok(embed.or(link))
+    }
+
+    /// The target of the image that picture `shape_idx` on `surface` *links* (`p:blipFill >
+    /// a:blip@r:link`), exactly as the relationship records it — an external path/URL for the common
+    /// case, or an in-package part target for an internal link. `None` when the picture embeds its
+    /// image (or binds none): an embedded image has no separate target, its bytes are the image.
+    ///
+    /// This is what makes a linked image *addressable*: [`picture_image_bytes`](Self::picture_image_bytes)
+    /// cannot return bytes that live outside the package, but the caller can still learn — and act on —
+    /// where the image points. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`picture_image_rel_id`](Self::picture_image_rel_id).
+    pub fn picture_image_link_target(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<String>, PptxError> {
         let surface = surface.into();
+        let (_embed, link) = self.picture_blip_rel_ids(surface, &shape_idx.into())?;
+        let Some(link_id) = link else {
+            return Ok(None);
+        };
+        let slide_part = self.surface_part(surface)?;
+        let Some(rels) = self.package.relationships_for(Some(&slide_part)) else {
+            return Ok(None);
+        };
+        Ok(rels.by_id(&link_id).map(|rel| rel.target.clone()))
+    }
+
+    /// The `(embed, link)` relationship ids a picture's blip carries (`a:blip@r:embed` / `@r:link`),
+    /// each `None` when absent. The one place `p:pic > p:blipFill > a:blip` is resolved for reading, so
+    /// the embed/link readers stay in lock-step.
+    fn picture_blip_rel_ids(
+        &mut self,
+        surface: Surface,
+        shape_idx: &ShapePath,
+    ) -> Result<(Option<String>, Option<String>), PptxError> {
         let slide_part = self.surface_part(surface)?;
         let doc = self.package.part_tree(&slide_part)?;
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
-        let picture = picture_at(sp_tree, &doc.interner, surface, &shape_idx.into())?;
+        let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
         let blip_fill = nav::child(picture, &doc.interner, PML, "blipFill")
             .ok_or(PptxError::PictureHasNoBlipFill)?;
         let blip_fill = BlipFill::from_xml(blip_fill, &doc.interner)?;
-        Ok(blip_fill.image_rel_id(&doc.interner).map(str::to_owned))
+        let embed = blip_fill.image_rel_id(&doc.interner).map(str::to_owned);
+        let link = blip_fill.image_link_id(&doc.interner).map(str::to_owned);
+        Ok((embed, link))
     }
 
-    /// The stored bytes of the image that picture `shape_idx` on `surface` embeds, exactly as
-    /// the package holds them (never decoded or re-encoded), or `None` when the picture embeds no
-    /// image. Borrowed from the package, so a large image is not copied.
+    /// The stored bytes of the image that picture `shape_idx` on `surface` binds, exactly as the
+    /// package holds them (never decoded or re-encoded), or `None` when the picture binds no image.
+    /// Borrowed from the package, so a large image is not copied.
+    ///
+    /// An embedded image (or a link whose target is *inside* the package) resolves to bytes. A picture
+    /// that links an **external** image has no bytes here — the image lives outside the package — and
+    /// this reports [`PptxError::ExternalTarget`]; use
+    /// [`picture_image_link_target`](Self::picture_image_link_target) to read where it points.
     ///
     /// # Errors
     /// As [`picture_image_rel_id`](Self::picture_image_rel_id), plus
@@ -7487,10 +7538,10 @@ fn nth_run(paragraph: &mjx_dml::Paragraph, run_idx: usize) -> Result<&mjx_dml::T
 }
 
 /// The `field_idx`-th field (`a:fld`) of a paragraph, or a typed out-of-range error.
-fn nth_field<'a>(
-    paragraph: &'a mjx_dml::Paragraph,
+fn nth_field(
+    paragraph: &mjx_dml::Paragraph,
     field_idx: usize,
-) -> Result<&'a mjx_dml::TextField, PptxError> {
+) -> Result<&mjx_dml::TextField, PptxError> {
     let count = paragraph.fields().count();
     paragraph
         .fields()
