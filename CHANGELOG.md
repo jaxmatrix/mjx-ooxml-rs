@@ -15,6 +15,15 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.55] - 2026-07-30
+
+Custom geometry, handoff and close-out (MJX-44 CG5, **completing MJX-44**). Documentation only — no
+code change.
+
+- `docs/CUSTOM_GEOMETRY_HANDOFF.md` records the four shipped atoms (CG1–CG4), the design decisions,
+  the verified schema, the known follow-ups (chiefly a guide-formula evaluator), and the 3-D audit
+  that found `a:scene3d` / `a:sp3d` already complete — so MJX-44's opaque-geometry gap is closed.
+
 ## [0.0.54] - 2026-07-30
 
 Custom geometry, the PowerPoint surface (MJX-44 CG4). The `mjx-dml` custom-geometry model (CG1–CG3)
