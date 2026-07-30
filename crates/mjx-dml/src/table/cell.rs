@@ -13,6 +13,7 @@ use crate::build::{
 use crate::fill::{Fill, FillSpec};
 use crate::geometry::Emu;
 use crate::line::{LineProperties, LineSpec};
+use crate::table::style::Cell3D;
 use crate::text::TextBody;
 
 pub use mjx_ooxml_types::drawingml::{TextAnchoring, TextDirection, TextHorizontalOverflow};
@@ -350,6 +351,31 @@ impl TableCellProperties {
             interner,
             element,
             |local| local == "headers",
+            tcpr_child_rank,
+        );
+        self.empty = false;
+    }
+
+    /// The cell's own 3-D bevel and lighting (`a:cell3D`), or `None` if it declares none.
+    ///
+    /// This is the *direct*-cell counterpart of the table-style
+    /// [`TableStyleCellStyle::cell_3d`](crate::table::TableStyleCellStyle::cell_3d): both carry the
+    /// same [`Cell3D`] model, one authored on a single cell and the other on a named style part.
+    #[must_use]
+    pub fn cell_3d(&self, interner: &Interner) -> Option<Cell3D> {
+        dml_child(&self.children, interner, "cell3D")
+            .and_then(|element| Cell3D::from_xml(element, interner).ok())
+    }
+
+    /// Sets the cell's 3-D (`a:cell3D`), replacing any existing one in place. Build the [`Cell3D`]
+    /// with [`Cell3D::new`] and its setters.
+    pub fn set_cell_3d(&mut self, interner: &mut Interner, cell_3d: &Cell3D) {
+        let element = cell_3d.to_xml(interner);
+        replace_or_insert_child(
+            &mut self.children,
+            interner,
+            element,
+            |local| local == "cell3D",
             tcpr_child_rank,
         );
         self.empty = false;

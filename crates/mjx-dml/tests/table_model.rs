@@ -5,7 +5,10 @@
 //! holes), and **round-trip fidelity** — a table carries `extLst`, `cell3D`, a style reference and a
 //! whole text body this tier does not interpret, and all of it has to come back out unchanged.
 
-use mjx_dml::{CellBorder, LineSpec, Table, TableCellProperties, TablePart};
+use mjx_dml::{
+    Bevel, BevelPreset, Cell3D, CellBorder, Emu, LightRig, LightRigDirection, LightRigType,
+    LineSpec, PresetMaterial, Table, TableCellProperties, TablePart,
+};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawName, RawNode, Symbol, ToXml};
 use mjx_xml::fidelity;
 
@@ -471,6 +474,94 @@ fn a_new_border_lands_before_the_children_it_must_precede() {
     };
     assert!(at("<a:lnB") < at("<a:cell3D"), "{out}");
     assert!(at("<a:cell3D") < at("<a:solidFill"), "{out}");
+}
+
+#[test]
+fn a_direct_cell_3d_reads_typed_and_is_authored_in_place() {
+    // `a:tcPr` can carry its own `cell3D` (rank 6: after the borders, before the fill and headers).
+    // It reads typed like the style-cell one, and authoring a new one replaces it in place without
+    // disturbing the fill or the accessibility headers.
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr>"#,
+        r#"<a:lnL/>"#,
+        r#"<a:cell3D prstMaterial="matte"><a:bevel w="38100" h="38100"/></a:cell3D>"#,
+        r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#,
+        r#"<a:headers><a:header>h</a:header></a:headers>"#,
+        r#"</a:tcPr></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    // The existing cell3D reads typed.
+    let existing = table
+        .cell(0, 0)
+        .expect("0,0")
+        .properties()
+        .expect("a:tcPr")
+        .cell_3d(&doc.interner)
+        .expect("cell3D");
+    assert_eq!(existing.material(&doc.interner), Some(PresetMaterial::Matte));
+
+    // Author a fresh 3-D corner and set it — replacing the old cell3D in place.
+    let mut cell_3d = Cell3D::new(&mut doc.interner);
+    cell_3d.set_material(&mut doc.interner, PresetMaterial::Metal);
+    cell_3d.set_bevel(
+        &mut doc.interner,
+        &Bevel {
+            width: Some(Emu::from_emu(50800)),
+            height: None,
+            preset: Some(BevelPreset::Circle),
+        },
+    );
+    cell_3d.set_light_rig(
+        &mut doc.interner,
+        &LightRig {
+            rig: LightRigType::ThreePoint,
+            direction: LightRigDirection::Top,
+            rotation: None,
+        },
+    );
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr")
+        .set_cell_3d(&mut doc.interner, &cell_3d);
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+    let at = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    // Schema order holds and the old cell3D is replaced, not appended.
+    assert!(at("<a:lnL") < at("<a:cell3D"), "{out}");
+    assert!(at("<a:cell3D") < at("<a:solidFill"), "{out}");
+    assert!(at("<a:solidFill") < at("<a:headers"), "{out}");
+    assert_eq!(out.matches("<a:cell3D").count(), 1, "{out}");
+    assert!(out.contains("<a:header>h</a:header>"), "headers survive: {out}");
+
+    // Reparse and confirm the new 3-D reads back typed.
+    let reparsed = Table::from_xml(&doc.root, &doc.interner).expect("from_xml");
+    let read = reparsed
+        .cell(0, 0)
+        .expect("0,0")
+        .properties()
+        .expect("a:tcPr")
+        .cell_3d(&doc.interner)
+        .expect("cell3D");
+    assert_eq!(read.material(&doc.interner), Some(PresetMaterial::Metal));
+    assert_eq!(
+        read.bevel(&doc.interner),
+        Some(Bevel {
+            width: Some(Emu::from_emu(50800)),
+            height: None,
+            preset: Some(BevelPreset::Circle),
+        })
+    );
+    let light_rig = read.light_rig(&doc.interner).expect("light rig");
+    assert_eq!(light_rig.rig, LightRigType::ThreePoint);
+    assert_eq!(light_rig.direction, LightRigDirection::Top);
 }
 
 #[test]
