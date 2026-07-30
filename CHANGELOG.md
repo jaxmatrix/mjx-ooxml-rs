@@ -15,6 +15,28 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.50] - 2026-07-30
+
+Inaccessible external sources — audio/video media (MJX-201 P4, **completing MJX-201**). A slide can
+reference audio or video that lives online/externally and is unreachable on another platform. Every
+media carrier — `a:videoFile`/`a:audioFile@r:link`, the `a14:media` fallback, `p:snd`/`p:sndTgt`
+timing/transition sounds — resolves through a media-typed relationship in the slide's `.rels`, so a
+media reference is neutralized by redirecting that relationship.
+
+`mjx-pptx`:
+
+- `Presentation::replace_media_with_placeholder` inserts a placeholder media part and retargets the
+  relationship at it (`mjx_opc::Package::retarget_relationship`), so every carrier that named it
+  resolves inside the package; the poster image is untouched. The placeholder is caller-supplied bytes
+  or a built-in one matching the kind — `default_placeholder_audio()` (a minimal valid silent WAV) or
+  `default_placeholder_video()` (a minimal structurally valid MP4 with an empty video track). A
+  non-media relationship yields the new `PptxError::NotAMediaReference`.
+- `Presentation::media_references` lists a surface's audio/video/media relationships (by id, with kind,
+  target, and whether external) — the discovery surface for what to replace. `MediaKind` and
+  `MediaReference` are the reported types.
+
+Additive and non-breaking.
+
 ## [0.0.49] - 2026-07-30
 
 Inaccessible external sources — OLE objects (MJX-201 P3). An OLE object can reference embedded (or
