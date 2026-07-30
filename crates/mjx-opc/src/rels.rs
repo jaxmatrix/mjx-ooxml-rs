@@ -30,6 +30,24 @@ pub struct Relationship {
     pub mode: TargetMode,
 }
 
+/// One relationship that points *outside* the package (`TargetMode::External`), together with the
+/// part that owns it — what [`Package::external_relationships`](crate::Package::external_relationships)
+/// reports. Owned (not borrowed) so a caller can enumerate every external reference and then redirect
+/// each with [`Package::retarget_relationship`](crate::Package::retarget_relationship) without a borrow
+/// conflict.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExternalRelationship {
+    /// The part whose `.rels` holds this relationship, or `None` for the package root.
+    pub source: Option<PartName>,
+    /// The relationship id, unique within its source's `.rels`.
+    pub id: String,
+    /// The relationship type URI (e.g. the image / oleObject / package type), which identifies what
+    /// kind of external source it binds.
+    pub rel_type: String,
+    /// The external target, exactly as recorded (an absolute path or URI).
+    pub target: String,
+}
+
 /// The ordered set of relationships parsed from one `.rels` part.
 #[derive(Debug, Clone, Default)]
 pub struct Relationships {
@@ -102,6 +120,11 @@ impl Relationships {
     #[must_use]
     pub fn by_id(&self, id: &str) -> Option<&Relationship> {
         self.rels.iter().find(|r| r.id == id)
+    }
+
+    /// Mutable lookup by id (view-side; the caller edits the `.rels` tree in tandem).
+    pub(crate) fn by_id_mut(&mut self, id: &str) -> Option<&mut Relationship> {
+        self.rels.iter_mut().find(|r| r.id == id)
     }
 
     /// All relationships with the given type URI, in document order.

@@ -636,3 +636,119 @@ fn sweep_removes_an_orphan_chain() {
     );
     assert!(pkg.part_bytes(&head).is_none() && pkg.part_bytes(&tail).is_none());
 }
+
+/// Wires `source` → an external URI with a fresh relationship id.
+fn relate_external(pkg: &mut Package, source: &PartName, target: &str, id: &str) {
+    pkg.add_relationship(
+        Some(source),
+        Relationship {
+            id: id.to_owned(),
+            rel_type: "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image"
+                .to_owned(),
+            target: target.to_owned(),
+            mode: TargetMode::External,
+        },
+    )
+    .expect("relate external");
+}
+
+#[test]
+fn external_relationships_lists_only_the_external_ones() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    let internal = part("/ppt/media/local.png");
+    pkg.insert_part(&internal, "image/png", b"x".to_vec())
+        .expect("insert");
+    relate(&mut pkg, &slide, &internal, "rId50"); // Internal — must be ignored
+    relate_external(&mut pkg, &slide, "https://example.com/linked.png", "rId51");
+
+    let external = pkg.external_relationships();
+    let ours: Vec<_> = external
+        .iter()
+        .filter(|r| r.source.as_ref() == Some(&slide))
+        .collect();
+    assert_eq!(ours.len(), 1, "only the external rel is reported: {ours:?}");
+    let only = ours[0];
+    assert_eq!(only.id, "rId51");
+    assert_eq!(only.target, "https://example.com/linked.png");
+    assert!(only.rel_type.ends_with("/image"));
+}
+
+#[test]
+fn retarget_relationship_redirects_an_external_rel_to_a_placeholder_in_place() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    // Two rels so we can prove order is preserved: the external one sits before a later internal one.
+    relate_external(&mut pkg, &slide, "https://example.com/linked.png", "rId60");
+    let sentinel = part("/ppt/media/sentinel.png");
+    pkg.insert_part(&sentinel, "image/png", b"s".to_vec())
+        .expect("insert sentinel");
+    relate(&mut pkg, &slide, &sentinel, "rId61");
+    let order_before: Vec<String> = pkg
+        .relationships_for(Some(&slide))
+        .expect("rels")
+        .iter()
+        .map(|r| r.id.clone())
+        .collect();
+
+    // The redirect recipe: insert a placeholder part, then point the external rel at it internally.
+    let placeholder = part("/ppt/media/placeholder.png");
+    pkg.insert_part(&placeholder, "image/png", b"placeholder".to_vec())
+        .expect("insert placeholder");
+    let target = slide.relative_target(&placeholder);
+    let found = pkg
+        .retarget_relationship(Some(&slide), "rId60", &target, TargetMode::Internal)
+        .expect("retarget");
+    assert!(found, "the relationship existed");
+
+    // View updated: now Internal and resolving to the placeholder part.
+    let rels = pkg.relationships_for(Some(&slide)).expect("rels");
+    let rel = rels.by_id("rId60").expect("rel");
+    assert_eq!(rel.mode, TargetMode::Internal);
+    assert_eq!(slide.resolve(&rel.target).expect("resolve"), placeholder);
+    // Order preserved (in-place edit, not remove+append).
+    let order_after: Vec<String> = rels.iter().map(|r| r.id.clone()).collect();
+    assert_eq!(order_after, order_before, "the .rels order changed");
+
+    // Survives a round-trip: no External rels remain on the slide, the redirect stuck.
+    let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");
+    assert!(
+        reopened
+            .external_relationships()
+            .iter()
+            .all(|r| r.source.as_ref() != Some(&slide)),
+        "an external rel survived the redirect"
+    );
+    assert_eq!(
+        reopened
+            .relationships_for(Some(&slide))
+            .expect("rels")
+            .by_id("rId60")
+            .expect("rel")
+            .target,
+        target
+    );
+}
+
+#[test]
+fn retarget_relationship_of_an_unknown_id_is_a_no_op() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    assert!(!pkg
+        .retarget_relationship(
+            Some(&slide),
+            "rId999",
+            "../media/x.png",
+            TargetMode::Internal
+        )
+        .expect("retarget"));
+    // Unknown source .rels is likewise a no-op.
+    assert!(!pkg
+        .retarget_relationship(
+            Some(&part("/ppt/nope.xml")),
+            "rId1",
+            "x",
+            TargetMode::Internal
+        )
+        .expect("retarget"));
+}

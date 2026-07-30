@@ -40,4 +40,4 @@ pub use error::OpcError;
 pub use media::ImageFormat;
 pub use name::PartName;
 pub use package::{Package, PartBody, ZipEntry};
-pub use rels::{Relationship, Relationships, RelationshipsPart, TargetMode};
+pub use rels::{ExternalRelationship, Relationship, Relationships, RelationshipsPart, TargetMode};

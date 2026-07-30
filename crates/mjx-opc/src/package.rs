@@ -29,8 +29,8 @@ use crate::content_types::{ContentTypes, CONTENT_TYPES_ZIP_NAME};
 use crate::error::OpcError;
 use crate::name::PartName;
 use crate::rels::{
-    build_rels_bytes, rels_source, rels_zip_name_for, Relationship, Relationships,
-    RelationshipsPart, TargetMode,
+    build_rels_bytes, rels_source, rels_zip_name_for, ExternalRelationship, Relationship,
+    Relationships, RelationshipsPart, TargetMode,
 };
 
 /// The body of a part, in one of three copy-on-write states.
@@ -494,6 +494,81 @@ impl Package {
         Ok(true)
     }
 
+    /// Every relationship in the package that points outside it (`TargetMode::External`), with the
+    /// part that owns each.
+    ///
+    /// These are the references that can be *unreachable on some platform* — a linked image, an
+    /// external workbook behind a chart, a linked OLE object or media file. The library cannot tell
+    /// whether a given target resolves on the current platform (it does no external I/O), so this is
+    /// the discovery surface a caller uses to decide which to neutralize, then redirect each with
+    /// [`retarget_relationship`](Self::retarget_relationship).
+    #[must_use]
+    pub fn external_relationships(&self) -> Vec<ExternalRelationship> {
+        self.relationships
+            .iter()
+            .flat_map(|part| {
+                part.relationships
+                    .iter()
+                    .filter(|rel| rel.mode == TargetMode::External)
+                    .map(|rel| ExternalRelationship {
+                        source: part.source.clone(),
+                        id: rel.id.clone(),
+                        rel_type: rel.rel_type.clone(),
+                        target: rel.target.clone(),
+                    })
+            })
+            .collect()
+    }
+
+    /// Repoints the relationship `id` of `source` (`None` = the package root) at `new_target` with
+    /// `mode`, keeping its id and its position in the `.rels`. Returns whether one was found; a missing
+    /// `.rels` part or unknown id is a no-op returning `false`.
+    ///
+    /// This is the general lever for neutralizing an unreachable external reference: insert an
+    /// in-package placeholder part ([`insert_part`](Self::insert_part)), then retarget the external
+    /// relationship at it with [`TargetMode::Internal`]. Because the id is unchanged, the element that
+    /// binds the relationship (a blip, a chart's `externalData`, an OLE object, …) now resolves inside
+    /// the package without touching the part's own markup — which matters for the many element kinds
+    /// the library does not model. The `.rels` tree and the navigation view are edited in tandem, in
+    /// place, so relationship order is preserved.
+    ///
+    /// # Errors
+    /// Returns [`OpcError`] if the `.rels` part is not well-formed XML.
+    pub fn retarget_relationship(
+        &mut self,
+        source: Option<&PartName>,
+        id: &str,
+        new_target: &str,
+        mode: TargetMode,
+    ) -> Result<bool, OpcError> {
+        let rels_name = rels_zip_name_for(source);
+        let Some(idx) = self.entries.iter().position(|e| e.name == rels_name) else {
+            return Ok(false);
+        };
+        let exists = self
+            .relationships
+            .iter()
+            .find(|r| r.source.as_ref() == source)
+            .is_some_and(|r| r.relationships.by_id(id).is_some());
+        if !exists {
+            return Ok(false);
+        }
+        {
+            let tree = self.entry_tree_mut(idx)?;
+            retarget_relationship_element(tree, id, new_target, mode);
+        }
+        if let Some(rel) = self
+            .relationships
+            .iter_mut()
+            .find(|r| r.source.as_ref() == source)
+            .and_then(|part| part.relationships.by_id_mut(id))
+        {
+            rel.target = new_target.to_owned();
+            rel.mode = mode;
+        }
+        Ok(true)
+    }
+
     /// Inserts a new part with the given content bytes and content type.
     ///
     /// The bytes are stored [`Raw`](PartBody::Raw) (re-emitted verbatim). A content-type `Override`
@@ -834,4 +909,54 @@ fn remove_relationship_element(tree: &mut RawDocument, id: &str) {
             .any(|a| interner.resolve(a.name.local) == "Id" && a.value.as_ref() == target.as_ref());
         !(is_rel && matches_id)
     });
+}
+
+/// Rewrites the `<Relationship Id="id">`'s `Target` attribute and, per `mode`, adds or drops its
+/// `TargetMode="External"` attribute — in place, so the element keeps its position. Other attributes
+/// (`Id`, `Type`) and their order are untouched.
+fn retarget_relationship_element(
+    tree: &mut RawDocument,
+    id: &str,
+    new_target: &str,
+    mode: TargetMode,
+) {
+    let wanted_id = escape_attribute_bytes(id);
+    let RawDocument { interner, root, .. } = tree;
+    for child in &mut root.children {
+        let RawNode::Element(el) = child else {
+            continue;
+        };
+        if interner.resolve(el.name.local) != "Relationship" {
+            continue;
+        }
+        let matches_id = el.attributes.iter().any(|a| {
+            interner.resolve(a.name.local) == "Id" && a.value.as_ref() == wanted_id.as_ref()
+        });
+        if !matches_id {
+            continue;
+        }
+        if let Some(target) = el
+            .attributes
+            .iter_mut()
+            .find(|a| interner.resolve(a.name.local) == "Target")
+        {
+            target.value = escape_attribute_bytes(new_target);
+        }
+        match mode {
+            TargetMode::External => {
+                if !el
+                    .attributes
+                    .iter()
+                    .any(|a| interner.resolve(a.name.local) == "TargetMode")
+                {
+                    el.attributes
+                        .push(make_attribute(interner, "TargetMode", "External"));
+                }
+            }
+            TargetMode::Internal => el
+                .attributes
+                .retain(|a| interner.resolve(a.name.local) != "TargetMode"),
+        }
+        return;
+    }
 }
