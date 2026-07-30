@@ -2187,6 +2187,65 @@ impl core::str::FromStr for PresetShapeType {
     }
 }
 
+/// `ST_PathFillMode` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum PathFillMode {
+    /// Wire value `none`.
+    None,
+    /// Wire value `norm`.
+    Normal,
+    /// Wire value `lighten`.
+    Lighten,
+    /// Wire value `lightenLess`.
+    LightenLess,
+    /// Wire value `darken`.
+    Darken,
+    /// Wire value `darkenLess`.
+    DarkenLess,
+}
+
+impl PathFillMode {
+    /// Parses this value from its exact OOXML wire token.
+    #[must_use]
+    pub fn from_wire(s: &str) -> Option<Self> {
+        Some(match s {
+            "none" => Self::None,
+            "norm" => Self::Normal,
+            "lighten" => Self::Lighten,
+            "lightenLess" => Self::LightenLess,
+            "darken" => Self::Darken,
+            "darkenLess" => Self::DarkenLess,
+            _ => return None,
+        })
+    }
+
+    /// The exact OOXML wire token for this value.
+    #[must_use]
+    pub fn to_wire(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Normal => "norm",
+            Self::Lighten => "lighten",
+            Self::LightenLess => "lightenLess",
+            Self::Darken => "darken",
+            Self::DarkenLess => "darkenLess",
+        }
+    }
+}
+
+impl core::fmt::Display for PathFillMode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.write_str(self.to_wire())
+    }
+}
+
+impl core::str::FromStr for PathFillMode {
+    type Err = crate::UnknownWireValue;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Self::from_wire(s).ok_or_else(|| crate::UnknownWireValue::new(s))
+    }
+}
+
 /// `ST_LineEndType` — OOXML enumeration (base `xsd:token`). Wire tokens are preserved exactly.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum LineEndType {

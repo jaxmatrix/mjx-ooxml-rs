@@ -10,10 +10,10 @@
 pub use crate::generated::drawingml::{
     adjustments_of, AutonumberScheme, BevelPreset, BlendMode, ColorSchemeSlot, CompoundLine,
     FontAlignment, FontCollectionIndex, LightRigDirection, LightRigType, LineCap, LineEndLength,
-    LineEndType, LineEndWidth, OnOffStyle, PatternType, PenAlignment, PresetCamera, PresetLineDash,
-    PresetMaterial, PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor, TabAlignment,
-    TextAlignment, TextAnchoring, TextCapitalization, TextDirection, TextHorizontalOverflow,
-    TextStrike, TextUnderline,
+    LineEndType, LineEndWidth, OnOffStyle, PathFillMode, PatternType, PenAlignment, PresetCamera,
+    PresetLineDash, PresetMaterial, PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor,
+    TabAlignment, TextAlignment, TextAnchoring, TextCapitalization, TextDirection,
+    TextHorizontalOverflow, TextStrike, TextUnderline,
 };
 
 /// The axis a shape adjustment controls, disclosed by which `ahLst` handle reference names its guide.

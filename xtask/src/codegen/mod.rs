@@ -95,6 +95,8 @@ pub fn run() -> Result<()> {
             "ST_LightRigDirection",
             "ST_PresetMaterialType",
             "ST_PresetCameraType",
+            // DrawingML custom geometry (`a:custGeom`): how a freeform `a:path` is filled.
+            "ST_PathFillMode",
         ],
     )?;
     // Append the per-shape adjustment table, extracted from the DrawingML geometry definitions.
@@ -213,7 +215,8 @@ fn coverage_manifest(shared_xsd: &[u8]) -> Result<String> {
         "| dml-main | partial (`ST_ShapeType`, `ST_SchemeColorVal`, `ST_PresetPatternVal`, \
          `ST_ColorSchemeIndex`, line types: `ST_LineCap`, `ST_CompoundLine`, `ST_PenAlignment`, \
          `ST_PresetLineDashVal`, `ST_LineEndType`, `ST_LineEndWidth`, `ST_LineEndLength`, \
-         effect types: `ST_PresetShadowVal`, `ST_RectAlignment`, `ST_BlendMode`) |\n",
+         effect types: `ST_PresetShadowVal`, `ST_RectAlignment`, `ST_BlendMode`, \
+         geometry: `ST_PathFillMode`) |\n",
     );
     s.push_str("| pml | partial (");
     for (i, name) in PRESENTATIONML_TYPES.iter().enumerate() {
