@@ -15,6 +15,25 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.52] - 2026-07-30
+
+Custom geometry, the path list (MJX-44 CG2). The drawing commands a freeform `a:custGeom` is traced
+from — the render-critical core, on top of the CG1 value types.
+
+`mjx-dml`:
+
+- `Path2DList` (`a:pathLst`, `CT_Path2DList`) and `Path2D` (`a:path`, `CT_Path2D`) — fidelity wrappers
+  that read their paths / flags typed and round-trip byte-for-byte (an unmodeled child re-emits
+  verbatim). `Path2D` exposes `width`/`height`/`fill`/`stroke`/`extrusion_ok` (each `None` when
+  unstated, distinct from the schema default) and `commands`.
+- `DrawCommand` — the interner-free, ordered instruction a renderer follows: `MoveTo`, `LineTo`,
+  `ArcTo { width_radius, height_radius, start_angle, swing_angle }`, `QuadBezierTo`, `CubicBezierTo`,
+  `Close` (the `a:path` choice group `close`/`moveTo`/`lnTo`/`arcTo`/`quadBezTo`/`cubicBezTo`).
+- `Point` — an interner-free `(x, y)` of `AdjustCoordinate`s; `AdjustPoint::value` resolves one.
+- `Path2DSpec` (with `to_path_2d`) and `Path2DList::new` / `paths` / `specs` — the read/author surface.
+
+Additive and non-breaking.
+
 ## [0.0.51] - 2026-07-30
 
 Custom geometry, foundation types (MJX-44 CG1). Groundwork for a typed surface over `a:custGeom`
