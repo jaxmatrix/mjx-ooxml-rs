@@ -767,21 +767,23 @@ pub struct Cell3D {
 fidelity_element_impls!(Cell3D);
 
 impl Cell3D {
-    /// The preset material the cell's surface imitates (`@prstMaterial`; wire default `plastic`), as
-    /// its raw wire token. Kept alongside the typed [`material`](Self::material) while the accessor
-    /// API is reviewed (a token outside `ST_PresetMaterialType` reads as `Some` here but `None`
-    /// there).
-    #[must_use]
-    pub fn preset_material<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "prstMaterial")
-    }
-
     /// The preset material the cell's surface imitates (`@prstMaterial`; schema default `plastic`),
-    /// typed. `None` when unstated or not a known `ST_PresetMaterialType`. Mirrors
-    /// [`Shape3D::material`](crate::Shape3D::material).
+    /// typed. `None` when unstated or when the value is not a known `ST_PresetMaterialType`. This is
+    /// the normal accessor and mirrors [`Shape3D::material`](crate::Shape3D::material); reach for
+    /// [`preset_material`](Self::preset_material) only to see a non-conforming raw token.
     #[must_use]
     pub fn material(&self, interner: &Interner) -> Option<PresetMaterial> {
         attr_str(&self.attributes, interner, "prstMaterial").and_then(PresetMaterial::from_wire)
+    }
+
+    /// The `@prstMaterial` attribute as its raw wire token (schema default `plastic`). An escape
+    /// hatch, deliberately kept beside the typed [`material`](Self::material): a producer value that
+    /// falls outside `ST_PresetMaterialType` reads as `Some` here but `None` there — while the
+    /// attribute round-trips byte-for-byte in both cases. Prefer `material` unless you specifically
+    /// need to inspect such an out-of-enum token.
+    #[must_use]
+    pub fn preset_material<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
+        attr_str(&self.attributes, interner, "prstMaterial")
     }
 
     /// The cell's bevel (`a:bevel`), or `None` if absent (a malformed cell without the schema-required
