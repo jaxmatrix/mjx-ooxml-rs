@@ -173,6 +173,12 @@ pub struct CellFormat {
     anchor: Option<TextAnchoring>,
     text_direction: Option<TextDirection>,
     horizontal_overflow: Option<TextHorizontalOverflow>,
+    /// The cell's 3-D surface material (`a:cell3D@prstMaterial`).
+    cell_material: Option<PresetMaterial>,
+    /// The cell's 3-D bevel (`a:cell3D > a:bevel`).
+    cell_bevel: Option<Bevel>,
+    /// The cell's 3-D light rig (`a:cell3D > a:lightRig`).
+    cell_light_rig: Option<LightRig>,
 }
 
 impl CellFormat {
@@ -264,6 +270,29 @@ impl CellFormat {
         self
     }
 
+    /// Gives the cell a 3-D surface material (`a:cell3D@prstMaterial`). Any 3-D facet set gives the
+    /// cell a `cell3D` (with the schema-required bevel defaulting to a stated-nothing one). This is
+    /// the direct-cell counterpart of [`TableStyleFormat::with_cell_material`].
+    #[must_use]
+    pub fn with_cell_material(mut self, material: PresetMaterial) -> Self {
+        self.cell_material = Some(material);
+        self
+    }
+
+    /// Gives the cell a 3-D bevel (`a:cell3D > a:bevel`).
+    #[must_use]
+    pub fn with_cell_bevel(mut self, bevel: Bevel) -> Self {
+        self.cell_bevel = Some(bevel);
+        self
+    }
+
+    /// Lights the cell with a 3-D light rig (`a:cell3D > a:lightRig`).
+    #[must_use]
+    pub fn with_cell_light_rig(mut self, light_rig: LightRig) -> Self {
+        self.cell_light_rig = Some(light_rig);
+        self
+    }
+
     /// Whether this format names nothing — in which case applying it is a no-op, and no `a:tcPr`
     /// is created for a cell that had none.
     #[must_use]
@@ -274,6 +303,9 @@ impl CellFormat {
             && self.anchor.is_none()
             && self.text_direction.is_none()
             && self.horizontal_overflow.is_none()
+            && self.cell_material.is_none()
+            && self.cell_bevel.is_none()
+            && self.cell_light_rig.is_none()
     }
 
     /// The fill this format names, if any.
@@ -300,6 +332,16 @@ impl CellFormat {
         Option<TextHorizontalOverflow>,
     ) {
         (self.anchor, self.text_direction, self.horizontal_overflow)
+    }
+
+    /// The 3-D facets this format names — material, bevel, light rig. All `None` when it touches no
+    /// `cell3D`, in which case the apply step leaves any existing one alone.
+    pub(crate) fn cell_3d(&self) -> (Option<PresetMaterial>, Option<&Bevel>, Option<&LightRig>) {
+        (
+            self.cell_material,
+            self.cell_bevel.as_ref(),
+            self.cell_light_rig.as_ref(),
+        )
     }
 }
 

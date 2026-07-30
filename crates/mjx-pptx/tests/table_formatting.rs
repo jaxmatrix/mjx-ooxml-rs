@@ -11,11 +11,12 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use mjx_dml::{
-    CellBorder, ColorSpec, Emu, FillSpec, LineSpec, LineWidth, TableCellProperties, TextAnchoring,
+    Bevel, BevelPreset, CellBorder, ColorSpec, Emu, FillSpec, LightRig, LightRigDirection,
+    LightRigType, LineSpec, LineWidth, PresetMaterial, TableCellProperties, TextAnchoring,
     TextDirection,
 };
 use mjx_opc::Package;
-use mjx_pptx::{CellMargins, PptxError, Presentation, ShapeBounds};
+use mjx_pptx::{CellFormat, CellMargins, Cells, PptxError, Presentation, ShapeBounds};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -237,6 +238,72 @@ fn a_fill_and_a_border_coexist_on_one_cell() {
         .cell_border(0, table, 0, 0, CellBorder::Top)
         .expect("read")
         .is_some());
+}
+
+// ---------------------------------------------------------------------------------------------
+// 3-D surface (a:cell3D)
+// ---------------------------------------------------------------------------------------------
+
+#[test]
+fn a_cell_takes_a_typed_3d_surface_that_survives_a_reopen() {
+    // Direct-cell 3-D, authored on one cell through `CellFormat` (mirroring the table-style
+    // builders). Any facet set gives the cell a `cell3D`, placed in `CT_TableCellProperties` order —
+    // after the borders — with its bevel and light rig, and it survives a save and reopen.
+    let (mut pres, table) = deck_with_table();
+    pres.format_cells(
+        0,
+        table,
+        Cells::One { row: 0, column: 0 },
+        &CellFormat::new()
+            .with_border(CellBorder::Left, red_line())
+            .with_cell_material(PresetMaterial::Metal)
+            .with_cell_bevel(Bevel {
+                width: Some(Emu::from_emu(50800)),
+                height: None,
+                preset: Some(BevelPreset::Circle),
+            })
+            .with_cell_light_rig(LightRig {
+                rig: LightRigType::ThreePoint,
+                direction: LightRigDirection::Top,
+                rotation: None,
+            }),
+    )
+    .expect("format the cell with 3-D");
+
+    let saved = pres.save().expect("save");
+    let xml = String::from_utf8(
+        Package::open(&saved)
+            .expect("reopen")
+            .entries()
+            .iter()
+            .find(|e| e.name.ends_with("slide1.xml"))
+            .and_then(|e| e.bytes().map(<[u8]>::to_vec))
+            .expect("slide part"),
+    )
+    .expect("utf-8");
+
+    // The typed pieces are all written to the wire.
+    assert!(xml.contains(r#"<a:cell3D prstMaterial="metal""#), "{xml}");
+    assert!(xml.contains(r#"prst="circle""#), "bevel preset: {xml}");
+    assert!(xml.contains(r#"rig="threePt""#), "light-rig type: {xml}");
+    assert!(xml.contains(r#"dir="t""#), "light-rig direction: {xml}");
+
+    // The cell3D lands after the border it must follow, and its bevel precedes its light rig.
+    let at = |needle: &str| {
+        xml.find(needle)
+            .unwrap_or_else(|| panic!("{needle} missing: {xml}"))
+    };
+    assert!(at("<a:lnL") < at("<a:cell3D"), "{xml}");
+    assert!(at("<a:cell3D") < at("<a:lightRig"), "{xml}");
+}
+
+#[test]
+fn a_3d_only_format_is_not_empty() {
+    // A format that names only a 3-D facet must still apply — `is_empty` gating it out would silently
+    // drop the authoring.
+    assert!(!CellFormat::new()
+        .with_cell_material(PresetMaterial::Metal)
+        .is_empty());
 }
 
 // ---------------------------------------------------------------------------------------------
