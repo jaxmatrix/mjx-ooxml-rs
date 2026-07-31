@@ -3,8 +3,8 @@
 use mjx_chart::{ChartData, ChartSpace};
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
-    resolve_line, BlipFill, Cell3D, CellBorder, CharacterProperties, CharacterPropertiesSpec, ColorMap,
-    ColorSpec, CustomGeometry, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot,
+    resolve_line, BlipFill, Cell3D, CellBorder, CharacterProperties, CharacterPropertiesSpec,
+    ColorMap, ColorSpec, CustomGeometry, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot,
     IndentLevel, LineProperties, LineSpec, OnOffStyle, ParagraphContent, ParagraphProperties,
     ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, Scene3D, Scene3DSpec, SchemeColors,
     Shape3D, Shape3DSpec, Table, TableCell, TableCellProperties, TableColumn, TablePart,

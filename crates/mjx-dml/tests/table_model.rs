@@ -500,7 +500,10 @@ fn a_direct_cell_3d_reads_typed_and_is_authored_in_place() {
         .expect("a:tcPr")
         .cell_3d(&doc.interner)
         .expect("cell3D");
-    assert_eq!(existing.material(&doc.interner), Some(PresetMaterial::Matte));
+    assert_eq!(
+        existing.material(&doc.interner),
+        Some(PresetMaterial::Matte)
+    );
 
     // Author a fresh 3-D corner and set it — replacing the old cell3D in place.
     let mut cell_3d = Cell3D::new(&mut doc.interner);
@@ -539,7 +542,10 @@ fn a_direct_cell_3d_reads_typed_and_is_authored_in_place() {
     assert!(at("<a:cell3D") < at("<a:solidFill"), "{out}");
     assert!(at("<a:solidFill") < at("<a:headers"), "{out}");
     assert_eq!(out.matches("<a:cell3D").count(), 1, "{out}");
-    assert!(out.contains("<a:header>h</a:header>"), "headers survive: {out}");
+    assert!(
+        out.contains("<a:header>h</a:header>"),
+        "headers survive: {out}"
+    );
 
     // Reparse and confirm the new 3-D reads back typed.
     let reparsed = Table::from_xml(&doc.root, &doc.interner).expect("from_xml");
