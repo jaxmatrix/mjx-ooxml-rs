@@ -30,6 +30,15 @@
 //! # }
 //! ```
 //!
+//! # Effective properties
+//!
+//! A `.pptx` states remarkably little about how it looks: a title that declares no size, colour or
+//! position still renders at the master's size, in the theme's font, where its layout puts it. The
+//! `effective_*` readers answer that second question — what a renderer *shows*, rather than what the
+//! part *states* — by walking the layout, master, theme and `presentation.xml` and baking every
+//! colour to a concrete `RRGGBB`. See [the effective-properties guide](effective_properties) for the
+//! ladders they walk and where each one stops.
+//!
 //! # Editing one shape several ways
 //!
 //! Each `set_shape_*` method states the address again, which reads badly once a caller means more
@@ -53,6 +62,7 @@ mod address;
 mod build;
 pub mod constants;
 mod cursor;
+pub mod effective_properties;
 mod error;
 mod external;
 mod geometry;
