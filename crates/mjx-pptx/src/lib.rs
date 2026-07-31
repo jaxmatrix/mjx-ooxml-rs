@@ -30,6 +30,14 @@
 //! # }
 //! ```
 //!
+//! # Guides
+//!
+//! [The guide](guide) is five pages, in reading order: [building a deck](guide::building_a_deck) end
+//! to end, [shapes and text](guide::shapes_and_text), [tables, charts and
+//! pictures](guide::tables_charts_pictures), [inheritance, layouts and
+//! masters](guide::inheritance_and_masters), and [fidelity and the known
+//! gaps](guide::fidelity_and_gaps). Runnable versions of its examples live in `examples/`.
+//!
 //! # Effective properties
 //!
 //! A `.pptx` states remarkably little about how it looks: a title that declares no size, colour or
@@ -67,6 +75,7 @@ mod error;
 mod external;
 mod geometry;
 mod group;
+pub mod guide;
 mod hyperlink;
 mod nav;
 mod placement;
