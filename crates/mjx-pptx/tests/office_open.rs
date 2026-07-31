@@ -745,6 +745,13 @@ fn layouts_fixture_opens() {
 }
 
 #[test]
+fn text_levels_fixture_opens() {
+    // The paragraph-hierarchy fixture is hand-authored too, and everything `paragraph_hierarchy.rs`
+    // asserts is only meaningful if a real Office implementation agrees it is a deck at all.
+    let _ = convert_opens(&fixture("text_levels.pptx"), "text_levels_baseline");
+}
+
+#[test]
 fn deck_with_an_edited_layout_opens() {
     // Fills the *layout's* title placeholder and checks the deck opens — the slides built on that
     // layout inherit the fill, which is the point of addressing a layout at all.
