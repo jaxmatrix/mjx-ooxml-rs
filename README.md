@@ -84,6 +84,13 @@ cargo doc --workspace --no-deps --open   # start at the `mjx-ooxml` crate — th
 
 Every public item is documented; the `missing_docs` lint and a strict rustdoc CI job keep it that way.
 
+Longer-form guides live beside the code and render as their own pages:
+
+- [**Effective properties**](crates/mjx-pptx/docs/effective_properties.md) — what a `.pptx` *states*
+  versus what a renderer *shows*: the inheritance ladders behind `effective_shape_fill`,
+  `effective_run_properties`, the table-cell readers and the rest, why colours come back as concrete
+  `RRGGBB`, and where each one stops.
+
 ## Contributing
 
 Development is **test-driven** and **incremental** — see [`CONTRIBUTING.md`](CONTRIBUTING.md) for the

@@ -28,6 +28,12 @@
 //! theme, masters, or vendor parts, because they were never deserialized. See [`mjx_opc`] and
 //! [`mjx_xml::fidelity`] for the mechanics.
 //!
+//! # Guides
+//!
+//! - [Effective properties](mjx_pptx::effective_properties) — what a `.pptx` *states* versus what a
+//!   renderer *shows*, and the inheritance ladders the `effective_*` readers walk to get from one to
+//!   the other.
+//!
 //! # Status
 //!
 //! Pre-release (`v0.0.x`). The packaging + fidelity + compatibility layers and the schema-type
