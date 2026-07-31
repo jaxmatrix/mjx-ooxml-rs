@@ -15,6 +15,30 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.57] - 2026-07-31
+
+The effective-properties guide (MJX-23). Ten `effective_*` readers had shipped and nothing explained
+the idea behind them: the knowledge was spread across ten per-method doc comments and the frozen
+`docs/*_HANDOFF.md` files, which are history rather than user documentation. Documentation only — no
+behaviour, no API change.
+
+`mjx-pptx`:
+
+- New guide at `crates/mjx-pptx/docs/effective_properties.md`, pulled in with `include_str!` on a
+  documentation-only `effective_properties` module, so it reads as prose on a source host and renders
+  as its own page in `cargo doc`. It covers: *what a file states* versus *what a renderer shows*; the
+  one candidate walk every shape resolver is built on, and why a shape that is not a placeholder
+  inherits nothing; the three-source ladder fill, outline and effects share; why a transform is
+  inherited whole while text merges tier by tier; the seven text tiers and the level axis cutting
+  across them; the shorter table-cell ladder (MJX-33's `effective_cell_*` trio); why colours bake to
+  concrete `RRGGBB`; every stop condition, including why text answers with an empty spec where a fill
+  answers `None`; and what one read costs.
+- Each of the ten readers gains a link to the guide. Their own doc comments stay authoritative for
+  their own ladders and stop conditions.
+
+Also: the workspace README grows a guides list, and the `mjx-ooxml` facade — the crate its own docs
+name as the entry point for reading the docs — grows a Guides section.
+
 ## [0.0.56] - 2026-07-30
 
 Cell 3-D review and direct-cell authoring (MJX-109, closing the last code follow-up of MJX-38). D4
