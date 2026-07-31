@@ -75,12 +75,18 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   ending in the master's `p:txStyles` (`docs/TEXT_FORMATTING_HANDOFF.md`). ✅ **transform** (`a:xfrm`)
   — position, size, rotation and mirror flags, read and written on every shape kind, plus
   `effective_shape_bounds`, so a placeholder's real position resolves through the layout and master
-  (`docs/TRANSFORM_HANDOFF.md`). 🔨 **tables** (`a:tbl` inside a `p:graphicFrame`) — *in progress*:
-  the model, creation, the cell text and formatting surface, cell selections, and merging have
-  shipped; inserting/removing rows and columns, the `tableStyles.xml` part, and effective cell
-  formatting remain (`docs/TABLES_HANDOFF.md`). Still open after that: **speaker notes** (the notes
-  slide/master parts). Smaller follow-ups are listed at the end of each workstream's handoff —
-  group descent, hyperlinks, run coalescing.
+  (`docs/TRANSFORM_HANDOFF.md`). ✅ **tables** (`a:tbl` inside a `p:graphicFrame`) — the model,
+  creation, cell text and formatting, selections, merging, rows and columns, the `tableStyles.xml`
+  part, inline styles, and effective cell formatting (`docs/TABLES_HANDOFF.md`). ✅ **speaker notes**
+  (the notes slide and notes master parts). ✅ the follow-ups each workstream recorded — group
+  descent, hyperlinks, run coalescing, `a:br`/`a:fld` addressability, package hygiene,
+  external-source neutralisation, custom geometry, 3-D, charts and VML.
+- **Phase 3c — the road to `v0.1`.** 🔨 **usage documentation** — the five-page guide and six runnable
+  examples, so the library documents *tasks* and not only *items*. Then the **external application
+  surface**: the `mjx-ooxml` facade grows a real `open()`/`save()` over a curated subset, bound to
+  Python (PyO3) and to WebAssembly/TypeScript (wasm-bindgen) as in-workspace `bindings/` members —
+  see the Phase 7 note below, which this supersedes. Then **validation**: every shipped feature
+  checked by hand against real PowerPoint, which nothing has yet been.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).

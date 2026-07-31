@@ -24,6 +24,24 @@ cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyon
 - **Binding-ready.** The public API is designed so a *separate* project can later add language
   bindings (Kotlin/Swift/JS/C) over a stable surface.
 
+## Quickstart
+
+```rust
+use mjx_pptx::{Presentation, ShapeBounds};
+
+let mut deck = Presentation::open(&std::fs::read("template.pptx")?)?;
+
+let slide = deck.add_slide_from_layout(1)?;          // placeholders, ready to fill
+deck.set_shape_text_content(slide, 0, "Quarterly results")?;
+deck.add_picture(slide, &std::fs::read("logo.png")?, ShapeBounds::from_inches(7.5, 0.3, 1.5, 1.5))?;
+
+std::fs::write("out.pptx", deck.save()?)?;
+```
+
+`open` takes bytes and `save` returns bytes — the library never touches a filesystem, a network or a
+clock, which is why the same code cross-compiles to WebAssembly and runs in a browser. Every part you
+did not touch comes back byte-for-byte as it arrived.
+
 ## Format support
 
 | Format | Crate | Status |
@@ -84,12 +102,33 @@ cargo doc --workspace --no-deps --open   # start at the `mjx-ooxml` crate — th
 
 Every public item is documented; the `missing_docs` lint and a strict rustdoc CI job keep it that way.
 
-Longer-form guides live beside the code and render as their own pages:
+### Guides
 
-- [**Effective properties**](crates/mjx-pptx/docs/effective_properties.md) — what a `.pptx` *states*
-  versus what a renderer *shows*: the inheritance ladders behind `effective_shape_fill`,
-  `effective_run_properties`, the table-cell readers and the rest, why colours come back as concrete
-  `RRGGBB`, and where each one stops.
+Longer-form prose lives beside the code, and renders as its own pages under `cargo doc`. Every code
+snippet in them is compiled as a doctest, so none of it can rot.
+
+| Guide | What it covers |
+|---|---|
+| [Building a deck](crates/mjx-pptx/docs/guide/building_a_deck.md) | The whole story once: open, add slides, fill them, style them, save |
+| [Shapes and text](crates/mjx-pptx/docs/guide/shapes_and_text.md) | The one shape index space, group descent, surfaces, the four text scopes, the edit cursor |
+| [Tables, charts and pictures](crates/mjx-pptx/docs/guide/tables_charts_pictures.md) | Structured content, cell selections, merging, chart authoring, linked media |
+| [Inheritance, layouts and masters](crates/mjx-pptx/docs/guide/inheritance_and_masters.md) | Where a property comes from when the slide does not state it |
+| [Effective properties](crates/mjx-pptx/docs/effective_properties.md) | The deep reference: every inheritance ladder, why colours bake to `RRGGBB`, where each reader stops |
+| [Fidelity and the known gaps](crates/mjx-pptx/docs/guide/fidelity_and_gaps.md) | The round-trip guarantee, and an honest list of what is not modelled |
+
+### Examples
+
+Six runnable programs. Each one reopens what it wrote and asserts something about it, and CI runs all
+six on every push.
+
+```sh
+cargo run -p mjx-pptx --example build_a_deck -- out.pptx   # the guide, end to end
+cargo run -p mjx-pptx --example read_deck -- deck.pptx     # inspect, changing nothing
+cargo run -p mjx-pptx --example edit_text                  # and report which parts changed
+cargo run -p mjx-pptx --example style_shapes
+cargo run -p mjx-pptx --example build_table
+cargo run -p mjx-pptx --example charts_and_media
+```
 
 ## Contributing
 
