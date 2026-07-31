@@ -30,9 +30,20 @@
 //!
 //! # Guides
 //!
-//! - [Effective properties](mjx_pptx::effective_properties) — what a `.pptx` *states* versus what a
-//!   renderer *shows*, and the inheritance ladders the `effective_*` readers walk to get from one to
-//!   the other.
+//! Start with [the PowerPoint guide](mjx_pptx::guide) — five pages, in reading order:
+//!
+//! - [Building a deck](mjx_pptx::guide::building_a_deck) — the whole story once, end to end.
+//! - [Shapes and text](mjx_pptx::guide::shapes_and_text) — the one shape index space, group descent,
+//!   surfaces, the four text selection scopes.
+//! - [Tables, charts and pictures](mjx_pptx::guide::tables_charts_pictures) — structured content.
+//! - [Inheritance, layouts and masters](mjx_pptx::guide::inheritance_and_masters) — where a property
+//!   comes from when the slide does not state it.
+//! - [Fidelity and the known gaps](mjx_pptx::guide::fidelity_and_gaps) — the round-trip guarantee,
+//!   and an honest list of what is not modelled.
+//!
+//! Then [Effective properties](mjx_pptx::effective_properties) — the deep reference on what a `.pptx`
+//! *states* versus what a renderer *shows*, and the inheritance ladders the `effective_*` readers
+//! walk to get from one to the other.
 //!
 //! # Status
 //!
