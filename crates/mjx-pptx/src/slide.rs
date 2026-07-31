@@ -943,6 +943,20 @@ pub(crate) fn shape_placeholder(shape: &RawElement, interner: &Interner) -> Opti
     Some(Placeholder { kind, idx })
 }
 
+/// Whether `shape` is a **text box** (`p:cNvSpPr@txBox="1"`) rather than an ordinary shape.
+///
+/// PowerPoint styles the two differently: ECMA-376 Part 1 §19.3.1.35 says a master's `p:otherStyle`
+/// applies "within a slide shape but not within a text box. Text box styling is handled from within
+/// the `bodyStyle` element." A shape kind that has no `p:cNvSpPr` at all is not a text box.
+pub(crate) fn shape_is_text_box(shape: &RawElement, interner: &Interner) -> bool {
+    let Some(nv_container) = non_visual_properties(shape, interner) else {
+        return false;
+    };
+    nav::child(nv_container, interner, PML, "cNvSpPr")
+        .and_then(|c_nv_sp_pr| nav::attr_value(c_nv_sp_pr, interner, "txBox"))
+        .is_some_and(|value| matches!(value, "1" | "true"))
+}
+
 /// Everything a shape's `p:ph` declares: what the placeholder holds, which slot it occupies, how much
 /// of the layout it fills, which way its text runs, and the shape's own name.
 ///

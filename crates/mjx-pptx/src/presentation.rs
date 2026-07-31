@@ -3785,10 +3785,12 @@ impl Presentation {
     /// 1. the run's own `a:rPr`;
     /// 2. the paragraph's `a:pPr > a:defRPr`;
     /// 3. the shape's `a:lstStyle`, at the paragraph's level;
-    /// 4. the same-slot placeholder's `a:lstStyle` on the layout, then the master;
+    /// 4. the same-slot placeholder's `a:lstStyle` on the layout, then the master — a shape that is
+    ///    not a placeholder has no slot to be matched on, so it takes nothing here;
     /// 5. the master's `p:txStyles` — `p:titleStyle` for a title placeholder, `p:otherStyle` for the
-    ///    date/footer/slide-number slots, `p:bodyStyle` for the rest. A shape that is not a
-    ///    placeholder takes none of these;
+    ///    date/footer/slide-number slots, `p:bodyStyle` for the rest. A shape that is *not* a
+    ///    placeholder still takes one: `p:bodyStyle` if it is a text box (`p:cNvSpPr@txBox`),
+    ///    `p:otherStyle` otherwise, per ECMA-376 Part 1 §19.3.1.35;
     /// 6. `p:defaultTextStyle` in `presentation.xml`;
     /// 7. the theme's font scheme, for a typeface still naming `+mj-lt` / `+mn-lt`.
     ///
@@ -4213,8 +4215,9 @@ impl Presentation {
     ) -> Result<Vec<ParagraphPropertiesSpec>, PptxError> {
         let mut tiers = Vec::new();
 
-        // Tier 3 — the shape's own list style, and the placeholder slot the rest are matched on.
-        let placeholder = {
+        // Tier 3 — the shape's own list style, plus the two facts the tiers below need: the
+        // placeholder slot they are matched on, and whether the shape is a text box.
+        let (placeholder, is_text_box) = {
             let part = self.surface_part(surface)?;
             let doc = self.package.part_tree(&part)?;
             let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
@@ -4226,13 +4229,16 @@ impl Presentation {
                         .flatten(),
                 );
             }
-            slide::shape_placeholder(shape, &doc.interner)
+            (
+                slide::shape_placeholder(shape, &doc.interner),
+                slide::shape_is_text_box(shape, &doc.interner),
+            )
         };
 
-        // A shape that is not a placeholder inherits from no ancestor shape and takes no master text
-        // style: its text falls straight through to the presentation default.
+        // Tier 4 — the same-slot placeholder's list style, on the layout then the master. A shape
+        // that is not a placeholder has no slot to be matched on, so it inherits from no ancestor
+        // shape and this tier contributes nothing to it.
         if let Some(slot) = placeholder {
-            // Tier 4 — the same-slot placeholder's list style, on the layout then the master.
             for ancestor in self.inheritance_chain(surface)?.into_iter().skip(1) {
                 let doc = self.package.part_tree(&ancestor)?;
                 let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
@@ -4249,31 +4255,38 @@ impl Presentation {
                         .flatten(),
                 );
             }
+        }
 
-            // Tier 5 — the master's text styles. A slide master names them by slot in `p:txStyles`
-            // (`p:titleStyle` / `p:otherStyle` / `p:bodyStyle`); a notes master instead carries a
-            // single `p:notesStyle` that styles its body text. An absent element simply means the
-            // chain never reached a master (or it declares no text styles).
-            let chain = self.inheritance_chain(surface)?;
-            let master = chain
-                .last()
-                .expect("a chain always holds the surface's own part");
-            let doc = self.package.part_tree(master)?;
-            let master_style = if matches!(surface, Surface::Notes(_) | Surface::NotesMaster) {
-                nav::child(&doc.root, &doc.interner, PML, "notesStyle")
-            } else {
-                nav::child(&doc.root, &doc.interner, PML, "txStyles").and_then(|styles| {
-                    nav::child(styles, &doc.interner, PML, master_style_local(slot))
-                })
+        // Tier 5 — the master's text styles. A slide master names them by slot in `p:txStyles`
+        // (`p:titleStyle` / `p:otherStyle` / `p:bodyStyle`); a notes master instead carries a single
+        // `p:notesStyle` that styles its body text.
+        //
+        // Only the *last* part of the chain is consulted, unlike tier 4 which walks every ancestor:
+        // ECMA-376 Part 1 §19.3.1.52 says `p:txStyles` "is only for use within the Slide Master",
+        // and a chain holds at most one master, always last. An absent element therefore means
+        // either that the chain never reached a master or that the master declares no text styles.
+        let chain = self.inheritance_chain(surface)?;
+        let master = chain
+            .last()
+            .expect("a chain always holds the surface's own part");
+        let doc = self.package.part_tree(master)?;
+        let master_style = if matches!(surface, Surface::Notes(_) | Surface::NotesMaster) {
+            nav::child(&doc.root, &doc.interner, PML, "notesStyle")
+        } else {
+            let local = match placeholder {
+                Some(slot) => master_style_local(slot),
+                None => non_placeholder_style_local(is_text_box),
             };
-            if let Some(named) = master_style {
-                let list_style = TextListStyle::from_xml(named, &doc.interner)?;
-                tiers.extend(
-                    list_style_tier(Some(&list_style), level, scheme, map, &doc.interner)
-                        .into_iter()
-                        .flatten(),
-                );
-            }
+            nav::child(&doc.root, &doc.interner, PML, "txStyles")
+                .and_then(|styles| nav::child(styles, &doc.interner, PML, local))
+        };
+        if let Some(named) = master_style {
+            let list_style = TextListStyle::from_xml(named, &doc.interner)?;
+            tiers.extend(
+                list_style_tier(Some(&list_style), level, scheme, map, &doc.interner)
+                    .into_iter()
+                    .flatten(),
+            );
         }
 
         // Tier 6 — `p:defaultTextStyle`, which applies to every shape, placeholder or not.
@@ -7121,6 +7134,21 @@ fn master_style_local(slot: slide::Placeholder) -> &'static str {
         | PlaceholderType::SlideNumber
         | PlaceholderType::Header => "otherStyle",
         _ => "bodyStyle",
+    }
+}
+
+/// Which of a master's text styles governs a shape that is **not** a placeholder, and so has no slot
+/// to be matched on.
+///
+/// ECMA-376 Part 1 §19.3.1.35 draws the line at the text box: `p:otherStyle` is "used on all text not
+/// covered by the `titleStyle` or `bodyStyle` elements", and is "to be used for specifying the text
+/// formatting of text within a slide shape but **not** within a text box. Text box styling is handled
+/// from within the `bodyStyle` element."
+fn non_placeholder_style_local(is_text_box: bool) -> &'static str {
+    if is_text_box {
+        "bodyStyle"
+    } else {
+        "otherStyle"
     }
 }
 

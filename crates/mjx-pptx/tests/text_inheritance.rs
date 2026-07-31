@@ -197,11 +197,11 @@ fn a_run_beats_every_tier_below_it() {
 // a unit test in `presentation.rs` that injects one into the tree directly.)
 
 // ---------------------------------------------------------------------------------------------
-// The shapes that inherit nothing
+// The shapes that inherit no *placeholder* tier
 // ---------------------------------------------------------------------------------------------
 
 #[test]
-fn a_plain_text_box_takes_no_master_text_style() {
+fn a_plain_text_box_takes_the_body_style_but_no_placeholder_tier() {
     let mut pres = layouts();
     let idx = pres
         .add_text_box(
@@ -211,13 +211,17 @@ fn a_plain_text_box_takes_no_master_text_style() {
         )
         .expect("add text box");
 
-    // A text box is not a placeholder, so neither `p:bodyStyle` nor any placeholder's list style
-    // applies to it. With no `p:defaultTextStyle` in this deck either, nothing is inherited at all.
     let effective = pres
         .effective_run_properties(0, idx, 0, 0)
         .expect("effective run");
-    assert_eq!(effective.size_points(), None);
+
+    // A text box is not a placeholder, so tier 4 has no slot to match and the layout's `idx="1"`
+    // placeholder — which declares `b="1"` at this level — cannot reach it.
     assert_eq!(effective.is_bold(), None);
+
+    // It does still take a master text style: ECMA-376 Part 1 §19.3.1.35 routes a text box to
+    // `p:bodyStyle`, whose `a:lvl1pPr` here says 32pt.
+    assert_eq!(effective.size_points(), Some(32.0));
 }
 
 #[test]
