@@ -15,6 +15,39 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.58] - 2026-07-31
+
+Paragraph-hierarchy audit (MJX-22, closing MJX-38). The seven-tier text ladder passed its tests, but
+those tests reached the interesting cases by mutating a deck through the builder API rather than by
+reading a file, so two disagreements with ECMA-376 Part 1 had gone unnoticed. Both are fixed here,
+each cited to the prose that settles it.
+
+`mjx-pptx`:
+
+- **A list-style tier now contributes its `a:defPPr` beneath its level.** `TextListStyle::default_properties`
+  had existed since the text model landed and resolution never called it, so a tier supplying nothing
+  but an `a:defPPr` contributed nothing and a paragraph at a level its style does not define came back
+  empty. §21.1.2.2.2 defines `a:defPPr` as the properties applied "when no other paragraph properties
+  have been specified"; §21.1.2.2.6 says the same of a paragraph. The audit also confirms there is
+  **no** fallback to `a:lvl1pPr` — §21.1.2.4.13 keys the nine level elements strictly to `a:pPr@lvl`,
+  so the existing level behaviour was already right.
+- **A shape that is not a placeholder now takes a master text style.** Tier 5 was gated on `p:ph`;
+  §19.3.1.35 instead splits by kind — `p:bodyStyle` for a text box (`p:cNvSpPr@txBox`), `p:otherStyle`
+  for any other non-placeholder shape. Tier 4 keeps its gate: without a slot there is nothing to
+  match. This changes what effective text a deck containing plain shapes or text boxes reports. Real
+  PowerPoint is believed to match the previous behaviour, so it is isolated in one commit and tracked
+  for validation against an Office-saved deck.
+- New `slide::shape_is_text_box`, the reader counterpart of the `txBox="1"` the text-box builder
+  already writes.
+- The effective-properties guide records both rungs.
+
+Tests: a new hand-authored `tests/fixtures/text_levels.pptx` in which every tier owns a facet no other
+tier touches — nine body levels' worth of structure with `a:lvl5pPr` deliberately absent, a layout
+overriding only two levels, a shape-level `a:lstStyle` no public setter can author, a footer, a text
+box and a plain autoshape. `crates/mjx-pptx/tests/paragraph_hierarchy.rs` pins fifteen rungs against
+it; the fixture is registered in the `mjx-opc` round-trip suites and in the LibreOffice open canary.
+`layouts.pptx` is untouched.
+
 ## [0.0.57] - 2026-07-31
 
 The effective-properties guide (MJX-23). Ten `effective_*` readers had shipped and nothing explained
