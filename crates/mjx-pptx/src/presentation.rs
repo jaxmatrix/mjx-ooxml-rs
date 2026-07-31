@@ -3796,6 +3796,11 @@ impl Presentation {
     /// selects which `a:lvlNpPr` every tier from 3 down contributes — which is why demoting a line
     /// changes its size and bullet without anything being written to the run.
     ///
+    /// Each of tiers 3 to 6 is a list style, and each contributes **twice**: its `a:lvlNpPr` at the
+    /// paragraph's level, and beneath that its own `a:defPPr` — the properties ECMA-376 Part 1
+    /// §21.1.2.2.2 applies "when no other paragraph properties have been specified". A level the
+    /// style does not define falls to that default rather than to `a:lvl1pPr`.
+    ///
     /// Returns an empty spec when no tier contributes anything. Reading does not dirty any part.
     ///
     /// See [the effective-properties guide](crate::effective_properties).
@@ -4183,6 +4188,7 @@ impl Presentation {
         let list_style = TextListStyle::from_xml(default, &doc.interner)?;
         let spec = list_style_tier(Some(&list_style), level, scheme, map, &doc.interner)
             .iter()
+            .flatten()
             .filter_map(ParagraphPropertiesSpec::default_run_properties)
             .fold(CharacterPropertiesSpec::new(), |resolved, tier| {
                 resolved.merge_under(tier)
@@ -4192,7 +4198,8 @@ impl Presentation {
 
     /// Tiers 3–6 of the ladder, in order and already interner-free: the shape's own `a:lstStyle`, the
     /// same-slot placeholder's on each ancestor part, the master's `p:txStyles`, and the
-    /// presentation's `p:defaultTextStyle` — each taken at `level`.
+    /// presentation's `p:defaultTextStyle` — each taken at `level`, and each contributing its
+    /// `a:defPPr` beneath what it says at that level (see `list_style_tier`).
     ///
     /// One walk serves both public answers: a tier's `a:lvlNpPr` *is* the paragraph contribution, and
     /// its `a:defRPr` is the character one.
@@ -4213,13 +4220,11 @@ impl Presentation {
             let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
             if let Some(txbody) = slide::shape_txbody(shape, &doc.interner) {
                 let body = TextBody::from_xml(txbody, &doc.interner)?;
-                tiers.extend(list_style_tier(
-                    body.list_style(),
-                    level,
-                    scheme,
-                    map,
-                    &doc.interner,
-                ));
+                tiers.extend(
+                    list_style_tier(body.list_style(), level, scheme, map, &doc.interner)
+                        .into_iter()
+                        .flatten(),
+                );
             }
             slide::shape_placeholder(shape, &doc.interner)
         };
@@ -4238,13 +4243,11 @@ impl Presentation {
                     continue;
                 };
                 let body = TextBody::from_xml(txbody, &doc.interner)?;
-                tiers.extend(list_style_tier(
-                    body.list_style(),
-                    level,
-                    scheme,
-                    map,
-                    &doc.interner,
-                ));
+                tiers.extend(
+                    list_style_tier(body.list_style(), level, scheme, map, &doc.interner)
+                        .into_iter()
+                        .flatten(),
+                );
             }
 
             // Tier 5 — the master's text styles. A slide master names them by slot in `p:txStyles`
@@ -4265,13 +4268,11 @@ impl Presentation {
             };
             if let Some(named) = master_style {
                 let list_style = TextListStyle::from_xml(named, &doc.interner)?;
-                tiers.extend(list_style_tier(
-                    Some(&list_style),
-                    level,
-                    scheme,
-                    map,
-                    &doc.interner,
-                ));
+                tiers.extend(
+                    list_style_tier(Some(&list_style), level, scheme, map, &doc.interner)
+                        .into_iter()
+                        .flatten(),
+                );
             }
         }
 
@@ -4280,13 +4281,11 @@ impl Presentation {
         let doc = self.package.part_tree(&presentation_part)?;
         if let Some(default) = nav::child(&doc.root, &doc.interner, PML, "defaultTextStyle") {
             let list_style = TextListStyle::from_xml(default, &doc.interner)?;
-            tiers.extend(list_style_tier(
-                Some(&list_style),
-                level,
-                scheme,
-                map,
-                &doc.interner,
-            ));
+            tiers.extend(
+                list_style_tier(Some(&list_style), level, scheme, map, &doc.interner)
+                    .into_iter()
+                    .flatten(),
+            );
         }
 
         Ok(tiers)
@@ -7061,18 +7060,35 @@ fn paragraph_level(body: &TextBody, para_idx: usize, interner: &Interner) -> Ind
         .unwrap_or(IndentLevel::TOP)
 }
 
-/// One list-style tier: the properties `list_style` defines at `level`, as an interner-free spec with
-/// its colors baked. Yields nothing when the style defines nothing there — an absent tier contributes
-/// no value rather than an empty one, so the fold stays honest about which tiers spoke.
+/// One list-style tier, as up to **two** rungs: the properties `list_style` defines at `level`, and
+/// beneath them the style's own `a:defPPr`. Both come back as interner-free specs with their colors
+/// baked, in priority order.
+///
+/// The `a:defPPr` rung is what a level the style does not define falls to. ECMA-376 Part 1
+/// §21.1.2.2.2 calls it "the paragraph properties that are to be applied when no other paragraph
+/// properties have been specified", and §21.1.2.2.6 says of a paragraph that "if no properties are
+/// listed then properties specified in the `defPPr` element are used". There is no fallback to
+/// `a:lvl1pPr`: §21.1.2.4.13 keys the nine level elements strictly to `a:pPr@lvl`.
+///
+/// A rung the style does not state yields nothing rather than an empty spec, so the fold above stays
+/// honest about which tiers actually spoke.
 fn list_style_tier(
     list_style: Option<&TextListStyle>,
     level: IndentLevel,
     scheme: &SchemeColors,
     map: &ColorMap,
     interner: &Interner,
-) -> Option<ParagraphPropertiesSpec> {
-    let properties = list_style?.level(interner, level)?;
-    Some(resolved_paragraph_spec(&properties, scheme, map, interner))
+) -> [Option<ParagraphPropertiesSpec>; 2] {
+    let Some(list_style) = list_style else {
+        return [None, None];
+    };
+    let resolve = |properties: ParagraphProperties| {
+        resolved_paragraph_spec(&properties, scheme, map, interner)
+    };
+    [
+        list_style.level(interner, level).map(resolve),
+        list_style.default_properties(interner).map(resolve),
+    ]
 }
 
 /// A tier's paragraph properties as an interner-free spec, with the colors of its `a:defRPr` resolved
