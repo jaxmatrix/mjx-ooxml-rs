@@ -93,8 +93,11 @@ type describes a merge.
 use mjx_pptx::Cells;
 
 deck.merge_cells(0, table, Cells::rectangle(0..1, 0..3))?;
-let (row_span, column_span) = deck.cell_span(0, table, 0, 0)?;
-# let _ = (row_span, column_span);
+
+// Note the order: `cell_span` answers `(columns, rows)`, unlike `table_dimensions`, which
+// answers `(rows, columns)`.
+let (column_span, row_span) = deck.cell_span(0, table, 0, 0)?;
+# let _ = (column_span, row_span);
 # Ok(())
 # }
 ```
