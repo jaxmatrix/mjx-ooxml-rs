@@ -15,6 +15,43 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.59] - 2026-07-31
+
+The usage guide and the first runnable examples (MJX-209). The repository documented every *item* —
+every public item has rustdoc, `missing_docs` is a lint, a strict rustdoc job gates CI — and one
+*concept*, the effective-properties page. It documented no *task*: nothing answered "I have a `.pptx`
+and want to change the title", nothing answered "I want to produce a deck", and there was no
+`examples/` directory or runnable program anywhere in the workspace.
+
+First of three workstreams to `v0.1`: **documentation → external application surface → validation**.
+
+`mjx-pptx`:
+
+- A five-page guide under `crates/mjx-pptx/docs/guide/`, surfaced as the doc-only `mjx_pptx::guide`
+  module tree: *building a deck* (the whole story once, end to end), *shapes and text*, *tables,
+  charts and pictures*, *inheritance, layouts and masters*, and *fidelity and the known gaps*. The
+  last is a candour page listing every deliberate gap with its issue — no embedded chart workbook, no
+  guide-formula evaluator, selections that are not merge-aware, colour transforms implemented from the
+  prose but unverified against Office, and the fact that no test in this repository reads a file
+  PowerPoint wrote. **All 48 doctests in the guides compile against the real API.**
+- Six examples under `crates/mjx-pptx/examples/`, each reopening what it wrote and asserting something
+  about it: `build_a_deck`, `read_deck` (which re-saves and proves all 17 parts stayed byte-identical),
+  `edit_text` (which reports that retitling a slide dirties exactly one part), `style_shapes`,
+  `build_table`, `charts_and_media`. `anyhow` is added as a dev-dependency; examples are the one place
+  file I/O belongs, because the library is bytes-in/bytes-out and the caller reads and writes.
+
+CI: a new `examples` job runs all six, and the office-open job now feeds `build_a_deck`'s output
+through LibreOffice — so "the guide's headline example produces a deck Office opens" is a merge gate.
+
+Also: the README gains a quickstart, a guide table and the example commands; the `mjx-ooxml` facade
+gains the guide ladder; and PLAN.md's Phase 3b, which still described tables as in progress and
+speaker notes as open, records what actually shipped and adds Phase 3c.
+
+Two API observations surfaced while writing the examples, recorded for the `v0.1` review (MJX-37):
+`cell_span` answers `(columns, rows)` while `table_dimensions` answers `(rows, columns)`, and
+`OuterShadowEffect` has no `Default` though `EffectListSpec` does. Both are documented where they
+bite rather than worked around silently. No behaviour change in this release.
+
 ## [0.0.58] - 2026-07-31
 
 Paragraph-hierarchy audit (MJX-22, closing MJX-38). The seven-tier text ladder passed its tests, but
