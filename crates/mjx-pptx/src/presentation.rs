@@ -3465,6 +3465,8 @@ impl Presentation {
     ///
     /// Returns `Ok(None)` when no source yields a fill. Reading does not dirty any part.
     ///
+    /// See [the effective-properties guide](crate::effective_properties).
+    ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
     /// outside the package, or a part is not well-formed.
@@ -3537,6 +3539,8 @@ impl Presentation {
     ///
     /// Returns `Ok(None)` when no source yields an outline. Reading does not dirty any part.
     ///
+    /// See [the effective-properties guide](crate::effective_properties).
+    ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
     /// outside the package, or a part is not well-formed.
@@ -3608,6 +3612,8 @@ impl Presentation {
     /// against the slide's theme + map.
     ///
     /// Returns `Ok(None)` when no source yields effects. Reading does not dirty any part.
+    ///
+    /// See [the effective-properties guide](crate::effective_properties).
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, a relationship points
@@ -3690,6 +3696,8 @@ impl Presentation {
     /// A shape that is **not a placeholder** has no tiers to inherit from, so its effective transform
     /// is its explicit one.
     ///
+    /// See [the effective-properties guide](crate::effective_properties).
+    ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, a part is malformed, or a relationship in
     /// the inheritance chain points outside the package.
@@ -3744,6 +3752,8 @@ impl Presentation {
     ///
     /// Bounds are absolute within [`slide_size`](Self::slide_size). Reading does not dirty any part.
     ///
+    /// See [the effective-properties guide](crate::effective_properties).
+    ///
     /// # Errors
     /// As [`effective_shape_transform`](Self::effective_shape_transform).
     pub fn effective_shape_bounds(
@@ -3787,6 +3797,8 @@ impl Presentation {
     /// changes its size and bullet without anything being written to the run.
     ///
     /// Returns an empty spec when no tier contributes anything. Reading does not dirty any part.
+    ///
+    /// See [the effective-properties guide](crate::effective_properties).
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the shape has no text body, a relationship
@@ -3857,6 +3869,8 @@ impl Presentation {
     ///
     /// Returns an empty spec when no tier contributes anything. Reading does not dirty any part.
     ///
+    /// See [the effective-properties guide](crate::effective_properties).
+    ///
     /// # Errors
     /// As [`effective_run_properties`](Self::effective_run_properties).
     pub fn effective_paragraph_properties(
@@ -3899,6 +3913,8 @@ impl Presentation {
     /// interner-free [`FillSpec`] with its colour baked to concrete `RRGGBB`, or `None` if nothing
     /// fills the cell. The cell's own `a:tcPr` fill wins; else the first applicable style part with a
     /// fill (explicit or a theme `fillRef`).
+    ///
+    /// See [the effective-properties guide](crate::effective_properties).
     ///
     /// # Errors
     /// As [`table_dimensions`](Self::table_dimensions), plus [`PptxError::TableCellOutOfRange`].
@@ -3966,6 +3982,8 @@ impl Presentation {
     /// [`LineSpec`] with its stroke colour baked, or `None`. The cell's own `a:tcPr` edge wins; else
     /// the applicable style parts' `a:tcBdr`, taking the outer edge (`top`/`left`/…) for a cell on the
     /// table's rim and the interior edge (`insideH`/`insideV`) for one within it.
+    ///
+    /// See [the effective-properties guide](crate::effective_properties).
     ///
     /// # Errors
     /// As [`table_dimensions`](Self::table_dimensions), plus [`PptxError::TableCellOutOfRange`].
@@ -4042,6 +4060,8 @@ impl Presentation {
     /// table style, not a placeholder chain), highest first: the run's own `a:rPr`, the paragraph's
     /// `a:defRPr`, the table style's `a:tcTxStyle` for each applicable part (bold / italic / colour),
     /// then the presentation's `p:defaultTextStyle`.
+    ///
+    /// See [the effective-properties guide](crate::effective_properties).
     ///
     /// # Errors
     /// As [`table_dimensions`](Self::table_dimensions), plus [`PptxError::TableCellOutOfRange`] and the
