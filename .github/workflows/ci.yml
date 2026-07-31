@@ -64,6 +64,32 @@ jobs:
       - name: office-open canary
         run: cargo test -p mjx-pptx --test office_open
 
+      # The guide's headline example must produce a deck a real Office implementation opens.
+      # Documentation that cannot be executed is a claim; this makes it a gate.
+      - name: the guide's deck opens
+        run: |
+          cargo run -p mjx-pptx --example build_a_deck -- guide_deck.pptx
+          soffice --headless --convert-to pdf --outdir . guide_deck.pptx
+          test -s guide_deck.pdf
+
+  # Every example runs, and every example reopens its own output and asserts something about it.
+  # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
+  examples:
+    name: examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: run every example
+        run: |
+          for example in crates/mjx-pptx/examples/*.rs; do
+            name=$(basename "$example" .rs)
+            echo "::group::$name"
+            cargo run -p mjx-pptx --example "$name"
+            echo "::endgroup::"
+          done
+
   # Prove the shipped library graph cross-compiles cleanly to mobile / wasm / desktop.
   # xtask is a host-only dev tool (schema codegen), so it is excluded from cross builds.
   cross-build:

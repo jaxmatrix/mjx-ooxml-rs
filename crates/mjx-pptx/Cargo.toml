@@ -28,3 +28,8 @@ unicode-segmentation.workspace = true
 # Preserve-first legacy VML recognition (opt-in). Off by default: VML parts round-trip
 # byte-identically regardless; this feature only surfaces them for reading.
 vml = ["dep:mjx-vml"]
+
+[dev-dependencies]
+# Examples are the one place file I/O belongs — the library is bytes-in/bytes-out, and the *caller*
+# reads and writes. `anyhow` is sanctioned in tooling, tests and examples, never in library code.
+anyhow.workspace = true
