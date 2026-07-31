@@ -49,6 +49,10 @@ The consequence is worth stating plainly, because it surprises people: **a shape
 placeholder inherits nothing.** A plain text box takes no fill, no outline, no effect and no position
 from the layout it sits on, however much the layout declares. It has no slot to be matched on.
 
+Text is the one exception, and only at the master: a non-placeholder shape still takes a master
+*text* style, because that tier is chosen by the shape's kind rather than by a slot. See the seven
+tiers below.
+
 There is exactly one implementation of this walk (`placeholder_candidates`), and every resolver
 below is built on it. A second copy would be a bug, not a convenience.
 
@@ -93,14 +97,26 @@ the tiers above it left unset. Seven tiers, highest priority first:
 3. the shape's own `a:lstStyle`;
 4. the same-slot placeholder's `a:lstStyle` on the layout, then the master;
 5. the master's `p:txStyles` — `p:titleStyle` for a title placeholder, `p:otherStyle` for the
-   date / footer / slide-number slots, `p:bodyStyle` for the rest. A shape that is not a placeholder
-   takes none of these;
+   date / footer / slide-number slots, `p:bodyStyle` for the rest;
 6. `p:defaultTextStyle` in `presentation.xml`;
 7. the theme's font scheme, for a typeface still naming `+mj-lt` / `+mn-lt`.
+
+Tier 5 reaches a shape that is **not** a placeholder too, even though tier 4 cannot. ECMA-376
+§19.3.1.35 splits them by kind rather than by slot: a text box (`p:cNvSpPr@txBox`) takes
+`p:bodyStyle`, and any other non-placeholder shape takes `p:otherStyle`. So a free-standing text box
+still renders at the master's body size, while the layout's placeholder styling — which needs a slot
+to match on — never reaches it.
 
 Cutting across all of them is the paragraph's **level** (`a:pPr@lvl`, top level when unstated). It is
 read once and selects which `a:lvlNpPr` every tier from 3 down contributes. That is why demoting a
 line changes its size, indent and bullet without a single character being written to the run.
+
+Each of tiers 3 to 6 is a list style, and each contributes **twice**: what it says at the paragraph's
+level, and beneath that its own `a:defPPr` — "the paragraph properties that are to be applied when no
+other paragraph properties have been specified" (§21.1.2.2.2). A level a style does not define falls
+to that default; there is no fallback to `a:lvl1pPr`, because §21.1.2.4.13 keys the nine level
+elements strictly to `a:pPr@lvl`. A deck whose master styles four levels and states a `defPPr` will
+therefore answer at level 8 — with the default, not with level 0's bullet.
 
 [`Presentation::effective_paragraph_properties`] answers the same ladder minus the two run tiers; the
 `a:defRPr` it carries is the merged character default of every tier that contributed.
