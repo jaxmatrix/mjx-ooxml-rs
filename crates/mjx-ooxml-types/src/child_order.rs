@@ -672,6 +672,53 @@ mod tests {
     }
 
     #[test]
+    fn no_unordered_type_is_given_a_false_order() {
+        // The guard in `first_out_of_order` only ever *skips* work; what actually makes an
+        // `xsd:choice` safe is that the generator never gave its alternatives distinct ranks. Pin
+        // that, because a flattener change that started ranking a choice's branches would make this
+        // table worse than none — it would fault conforming markup.
+        for table in [&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]] {
+            for order in table {
+                if order.model.is_ordered() {
+                    continue;
+                }
+                assert!(
+                    order.slots.iter().all(|slot| slot.rank == 0),
+                    "{} is a {:?} type, so no child of it may outrank another",
+                    order.symbol,
+                    order.model
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_census_of_content_models_is_what_the_schemas_say() {
+        // A census, not a target: it says out loud how much of these schemas is genuinely ordered,
+        // and it moves only when the schemas or the flattener do.
+        let mut sequence = 0;
+        let mut choice = 0;
+        let mut all = 0;
+        let mut empty = 0;
+        for table in [&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]] {
+            for order in table {
+                match order.model {
+                    ContentModel::Sequence => sequence += 1,
+                    ContentModel::Choice => choice += 1,
+                    ContentModel::All => all += 1,
+                    ContentModel::Empty => empty += 1,
+                }
+            }
+        }
+        assert_eq!(
+            (sequence, choice, all, empty),
+            (318, 19, 0, 179),
+            "DrawingML, PresentationML and DrawingML-chart hold 516 complex types: 318 sequences \
+             where order is validity, 19 genuine choices, no xsd:all, and 179 with no children"
+        );
+    }
+
+    #[test]
     fn a_scaling_order_places_a_maximum_before_a_minimum() {
         // `CT_Scaling` is `logBase`, `orientation`, `max`, `min`, `extLst` — the one place in these
         // schemas where the intuitive order is the wrong one.
