@@ -19,6 +19,7 @@
 
 use std::io::{Cursor, Read, Write};
 use std::mem;
+use std::sync::Arc;
 
 use mjx_ooxml_core::{
     Interner, QuoteStyle, RawAttribute, RawDocument, RawElement, RawName, RawNode, Symbol,
@@ -45,12 +46,16 @@ pub enum PartBody {
     /// verbatim on save), with the parsed tree cached alongside for repeated reads.
     Parsed {
         /// The original decompressed bytes, re-emitted verbatim by [`Package::save`].
-        original: Vec<u8>,
+        ///
+        /// Shared with the tree, which indexes into these same bytes to copy unmodified subtrees
+        /// verbatim, so a part that is read as a tree costs one buffer rather than two.
+        original: Arc<[u8]>,
         /// The cached fidelity tree.
         tree: RawDocument,
     },
-    /// Mutated: only the tree remains (the now-stale original bytes are dropped). [`Package::save`]
-    /// re-serializes it with the byte-preserving fidelity writer.
+    /// Mutated: the whole-part bytes are gone, so [`Package::save`] re-serializes the tree with the
+    /// byte-preserving fidelity writer. Any subtree the caller did not touch is still written from
+    /// the source buffer the tree itself holds — copy-on-write, at subtree granularity.
     Edited(RawDocument),
 }
 
@@ -300,6 +305,31 @@ impl Package {
         Ok(cursor.into_inner())
     }
 
+    /// Drops the retained source buffer of every part that can no longer be written from it, and
+    /// returns how many were dropped.
+    ///
+    /// A part read as a tree costs nothing to keep: its buffer *is* the bytes
+    /// [`save`](Self::save) re-emits, shared rather than copied. A part edited through its tree is
+    /// different — the whole-part bytes are gone, but the tree keeps the buffer so any subtree the
+    /// caller did not touch is still written verbatim. Once every element of such a part has been
+    /// rewritten, the buffer is dead weight, and this is what reclaims it.
+    ///
+    /// It walks every materialized tree, so it is a reclaim call for a long-lived editing session,
+    /// not something to do after each edit.
+    pub fn release_unused_part_sources(&mut self) -> usize {
+        let mut released = 0;
+        for entry in &mut self.entries {
+            // Only an edited part can be holding a buffer nothing reads: a `Parsed` part's buffer is
+            // the very bytes `save` writes.
+            if let PartBody::Edited(tree) = &mut entry.body {
+                if tree.release_unused_source() {
+                    released += 1;
+                }
+            }
+        }
+        released
+    }
+
     /// All ZIP entries, in container order (the fidelity backbone).
     #[must_use]
     pub fn entries(&self) -> &[ZipEntry] {
@@ -435,8 +465,15 @@ impl Package {
             else {
                 unreachable!("guarded by matches! above")
             };
-            match fidelity::parse(&original) {
-                Ok(tree) => entry.body = PartBody::Parsed { original, tree },
+            // One copy, into a buffer the entry and the tree then share.
+            let shared: Arc<[u8]> = Arc::from(original.as_slice());
+            match fidelity::parse_shared(Arc::clone(&shared)) {
+                Ok(tree) => {
+                    entry.body = PartBody::Parsed {
+                        original: shared,
+                        tree,
+                    }
+                }
                 Err(e) => {
                     entry.body = PartBody::Raw(original);
                     return Err(e.into());
@@ -454,7 +491,7 @@ impl Package {
     fn entry_tree_mut(&mut self, idx: usize) -> Result<&mut RawDocument, OpcError> {
         let entry = &mut self.entries[idx];
         match mem::replace(&mut entry.body, PartBody::Raw(Vec::new())) {
-            PartBody::Raw(bytes) => match fidelity::parse(&bytes) {
+            PartBody::Raw(bytes) => match fidelity::parse_shared(Arc::from(bytes.as_slice())) {
                 Ok(tree) => entry.body = PartBody::Edited(tree),
                 Err(e) => {
                     entry.body = PartBody::Raw(bytes);
@@ -1023,16 +1060,16 @@ fn make_empty_element(
     local: &str,
     attributes: Vec<RawAttribute>,
 ) -> RawElement {
-    RawElement {
-        name: RawName {
+    RawElement::new(
+        RawName {
             prefix: None,
             local: interner.intern(local),
             namespace,
         },
         attributes,
-        children: Vec::new(),
-        empty: true,
-    }
+        Vec::new(),
+        true,
+    )
 }
 
 /// Removes any `<Override>` child of the content-types root whose `PartName` equals `part`.
