@@ -21,10 +21,11 @@ pub fn fixture(name: &str) -> Result<Vec<u8>> {
     std::fs::read(&path).with_context(|| format!("reading fixture {}", path.display()))
 }
 
-/// The deck the examples start from — a small multi-layout template.
+/// The deck the template-based examples start from — a small multi-layout template.
 ///
-/// There is no `Presentation::blank()` yet, so every example begins from a file. Substitute any
-/// `.pptx` of your own by setting `MJX_TEMPLATE`.
+/// `blank_deck.rs` needs none of this: `Presentation::blank` builds a deck from nothing. The other
+/// examples begin from a file because they are about editing one. Substitute any `.pptx` of your own
+/// by setting `MJX_TEMPLATE`.
 pub fn template() -> Result<Vec<u8>> {
     match std::env::var_os("MJX_TEMPLATE") {
         Some(path) => {
