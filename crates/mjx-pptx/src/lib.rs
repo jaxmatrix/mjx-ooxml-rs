@@ -85,6 +85,7 @@ mod presentation;
 mod slide;
 mod surface;
 mod table;
+mod validate;
 
 pub use address::ShapePath;
 pub use cursor::ShapeCursor;
@@ -108,3 +109,4 @@ pub use presentation::{ChartAxisData, ChartLegendData, ChartSeriesData, Presenta
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
+pub use validate::PresentationDefect;

@@ -322,6 +322,11 @@ fn add_relationship_synthesizes_new_rels_part() {
         "theme unexpectedly has relationships"
     );
 
+    // The target has to be a part the package actually holds: `save` validates the relationship
+    // graph, and an internal relationship naming an absent part is one of the defects it refuses.
+    pkg.insert_part(&part("/ppt/media/image1.png"), "image/png", b"x".to_vec())
+        .expect("insert target");
+
     let rel = Relationship {
         id: "rId1".to_owned(),
         rel_type: "http://example.com/mjx/image".to_owned(),
@@ -476,6 +481,24 @@ fn cascading_removal_takes_exclusive_targets_and_spares_shared_ones() {
         .relationships()
         .iter()
         .all(|r| r.source.as_ref() != Some(&slide) && r.source.as_ref() != Some(&notes)));
+    // The cascade walks downward only, so the presentation's own relationship to the slide is the
+    // caller's to drop — and until it is, `save` refuses the package rather than writing a deck that
+    // names a part that is not there.
+    let inbound = pkg
+        .relationships_for(Some(&part("/ppt/presentation.xml")))
+        .expect("presentation rels")
+        .iter()
+        .find(|rel| rel.target.ends_with("slide1.xml"))
+        .map(|rel| rel.id.clone())
+        .expect("the presentation relates to slide1");
+    assert!(matches!(
+        pkg.save(),
+        Err(mjx_opc::OpcError::Invalid(
+            mjx_opc::PackageDefect::RelationshipTargetMissing { .. }
+        ))
+    ));
+    pkg.remove_relationship(Some(&part("/ppt/presentation.xml")), &inbound)
+        .expect("drop the inbound relationship");
     Package::open(&pkg.save().expect("save")).expect("reopen");
 }
 
@@ -541,6 +564,18 @@ fn remove_part_drops_entry_override_and_rels() {
             .any(|e| e.name == "ppt/slides/_rels/slide1.xml.rels"),
         "rels kept"
     );
+
+    // `remove_part` unwires the part's own outgoing edges, never the inbound ones, so the
+    // presentation still names the slide: the caller drops that relationship before saving.
+    let inbound = pkg
+        .relationships_for(Some(&part("/ppt/presentation.xml")))
+        .expect("presentation rels")
+        .iter()
+        .find(|rel| rel.target.ends_with("slide1.xml"))
+        .map(|rel| rel.id.clone())
+        .expect("the presentation relates to slide1");
+    pkg.remove_relationship(Some(&part("/ppt/presentation.xml")), &inbound)
+        .expect("drop the inbound relationship");
 
     // Saves + reopens cleanly, and the specific content type is gone.
     let reopened = Package::open(&pkg.save().expect("save")).expect("reopen");

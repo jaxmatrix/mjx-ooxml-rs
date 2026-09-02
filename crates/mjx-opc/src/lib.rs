@@ -41,6 +41,7 @@ mod media;
 mod name;
 mod package;
 mod rels;
+mod validate;
 
 pub use content_types::{
     ContentTypes, Default, Override, CONTENT_TYPES_ZIP_NAME, CONTENT_TYPE_RELATIONSHIPS,
@@ -49,5 +50,6 @@ pub use content_types::{
 pub use error::OpcError;
 pub use media::ImageFormat;
 pub use name::PartName;
-pub use package::{Package, PartBody, ZipEntry};
+pub use package::{Package, PartBody, PartProvenance, ZipEntry};
 pub use rels::{ExternalRelationship, Relationship, Relationships, RelationshipsPart, TargetMode};
+pub use validate::PackageDefect;

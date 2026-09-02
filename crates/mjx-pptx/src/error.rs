@@ -31,6 +31,15 @@ pub enum PptxError {
     #[error(transparent)]
     GuideFormula(#[from] GuideError),
 
+    /// The deck violates a PresentationML invariant, so [`Presentation::save`](crate::Presentation::save)
+    /// refused to write it. See [`PresentationDefect`](crate::PresentationDefect).
+    ///
+    /// Boxed because a defect carries the part, the list and the identifiers at fault — enough
+    /// context to fix the fault without re-deriving it — and every fallible call in this crate would
+    /// otherwise pay for that on its `Result`.
+    #[error(transparent)]
+    InvalidPresentation(Box<crate::validate::PresentationDefect>),
+
     /// The package root has no `officeDocument` relationship (not an Office document).
     #[error("package has no officeDocument relationship")]
     MissingOfficeDocument,
@@ -494,4 +503,10 @@ pub enum PptxError {
         /// The part asked for.
         part: String,
     },
+}
+
+impl From<crate::validate::PresentationDefect> for PptxError {
+    fn from(defect: crate::validate::PresentationDefect) -> Self {
+        Self::InvalidPresentation(Box::new(defect))
+    }
 }

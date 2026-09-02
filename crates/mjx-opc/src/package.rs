@@ -54,6 +54,22 @@ pub enum PartBody {
     Edited(RawDocument),
 }
 
+/// Where the bytes an entry will be written from came from.
+///
+/// This is what [`validate`](Package::validate) scopes its markup checks by: markup this library
+/// produced is markup it must not write broken, while a part still holding the bytes it was opened
+/// with is re-emitted verbatim and is not ours to fault. It is a property of the *bytes*, not of the
+/// caller's history — reading a part never changes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PartProvenance {
+    /// The bytes came from the container this package was opened from and have not been changed;
+    /// [`save`](Package::save) re-emits them verbatim.
+    FromContainer,
+    /// This library produced the bytes that will be written — the part was inserted, replaced, built
+    /// by [`Package::empty`], or edited through its tree.
+    Authored,
+}
+
 /// A single ZIP entry: its raw (relative) name and its body, in container order.
 #[derive(Debug)]
 pub struct ZipEntry {
@@ -61,9 +77,30 @@ pub struct ZipEntry {
     pub name: String,
     /// The entry's body.
     pub body: PartBody,
+    /// Whether the stored bytes were produced by this library rather than read from a container. An
+    /// [`Edited`](PartBody::Edited) body is authored regardless (see [`Self::provenance`]).
+    authored: bool,
 }
 
 impl ZipEntry {
+    /// An entry holding bytes this library produced.
+    fn authored(name: String, body: PartBody) -> Self {
+        Self {
+            name,
+            body,
+            authored: true,
+        }
+    }
+
+    /// An entry holding the bytes a container was opened with.
+    fn from_container(name: String, body: PartBody) -> Self {
+        Self {
+            name,
+            body,
+            authored: false,
+        }
+    }
+
     /// The entry's decompressed bytes, if they are materialized.
     ///
     /// Returns `Some` for a [`Raw`](PartBody::Raw) or [`Parsed`](PartBody::Parsed) body (the original
@@ -75,6 +112,31 @@ impl ZipEntry {
             PartBody::Raw(b) => Some(b),
             PartBody::Parsed { original, .. } => Some(original),
             PartBody::Edited(_) => None,
+        }
+    }
+
+    /// The entry's fidelity tree, if one is already materialized — **without** parsing anything.
+    ///
+    /// `Some` for a [`Parsed`](PartBody::Parsed) or [`Edited`](PartBody::Edited) body, `None` for
+    /// [`Raw`](PartBody::Raw). This is the read-only counterpart of [`Package::part_tree`]: it takes
+    /// `&self`, so it can be used from a `&self` pass such as [`Package::validate`], and it never
+    /// moves a part out of the copy-on-write state it is in.
+    #[must_use]
+    pub fn tree(&self) -> Option<&RawDocument> {
+        match &self.body {
+            PartBody::Raw(_) => None,
+            PartBody::Parsed { tree, .. } | PartBody::Edited(tree) => Some(tree),
+        }
+    }
+
+    /// Where the bytes this entry will be written from came from.
+    #[must_use]
+    pub fn provenance(&self) -> PartProvenance {
+        // An edited body has no container bytes left: whatever it writes, this library serialized.
+        if self.authored || matches!(self.body, PartBody::Edited(_)) {
+            PartProvenance::Authored
+        } else {
+            PartProvenance::FromContainer
         }
     }
 }
@@ -104,10 +166,7 @@ impl Package {
             let name = file.name().to_owned();
             let mut data = Vec::with_capacity(usize::try_from(file.size()).unwrap_or(0));
             file.read_to_end(&mut data)?;
-            entries.push(ZipEntry {
-                name,
-                body: PartBody::Raw(data),
-            });
+            entries.push(ZipEntry::from_container(name, PartBody::Raw(data)));
         }
 
         let content_types = {
@@ -165,14 +224,14 @@ impl Package {
         content_types.push_default("xml".to_owned(), CONTENT_TYPE_XML.to_owned());
 
         let entries = vec![
-            ZipEntry {
-                name: CONTENT_TYPES_ZIP_NAME.to_owned(),
-                body: PartBody::Raw(build_content_types_bytes(content_types.defaults())),
-            },
-            ZipEntry {
-                name: rels_zip_name_for(None),
-                body: PartBody::Raw(build_rels_bytes(&[])),
-            },
+            ZipEntry::authored(
+                CONTENT_TYPES_ZIP_NAME.to_owned(),
+                PartBody::Raw(build_content_types_bytes(content_types.defaults())),
+            ),
+            ZipEntry::authored(
+                rels_zip_name_for(None),
+                PartBody::Raw(build_rels_bytes(&[])),
+            ),
         ];
 
         Self {
@@ -185,7 +244,7 @@ impl Package {
         }
     }
 
-    /// Serializes the package back to container bytes.
+    /// Validates the package's invariants, then serializes it back to container bytes.
     ///
     /// Clean parts ([`Raw`](PartBody::Raw) / [`Parsed`](PartBody::Parsed)) are written from their
     /// original bytes; dirty parts ([`Edited`](PartBody::Edited)) are re-serialized from their tree
@@ -193,9 +252,36 @@ impl Package {
     /// the source (which is why the round-trip guarantee is per-part *decompressed*-byte identity,
     /// not identical container bytes).
     ///
+    /// # The check is not optional
+    ///
+    /// [`validate`](Self::validate) runs first, and a package that violates a packaging invariant —
+    /// a dangling relationship reference, a relationship targeting a part that is not there, a part
+    /// no content-type rule covers — is **not written**. Those are the faults that make a consumer
+    /// offer to repair a file, and none of them is visible to a per-part schema check. Making the
+    /// check something a caller has to remember is how such a fault ships; so it is not.
+    ///
+    /// [`save_unchecked`](Self::save_unchecked) is the deliberate escape hatch — for writing back a
+    /// package that arrived broken, or an intermediate state a caller means to finish later.
+    ///
+    /// # Errors
+    /// Returns [`OpcError::Invalid`] if the package violates an invariant, or another [`OpcError`]
+    /// if the ZIP writer fails.
+    pub fn save(&self) -> Result<Vec<u8>, OpcError> {
+        self.validate()?;
+        self.save_unchecked()
+    }
+
+    /// Serializes the package back to container bytes **without** checking its invariants.
+    ///
+    /// Identical to [`save`](Self::save) but for the validation pass. Reach for it only when writing
+    /// a package you know to be inconsistent is the point: re-saving a file that was already broken
+    /// when it was opened (refusing would lose it), or a deliberately intermediate state. Anything
+    /// this writes that [`validate`](Self::validate) would have rejected is a file a consumer may
+    /// offer to repair.
+    ///
     /// # Errors
     /// Returns [`OpcError`] if the ZIP writer fails.
-    pub fn save(&self) -> Result<Vec<u8>, OpcError> {
+    pub fn save_unchecked(&self) -> Result<Vec<u8>, OpcError> {
         let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
         let options = zip::write::SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Deflated);
@@ -245,6 +331,38 @@ impl Package {
     #[must_use]
     pub fn content_type_of(&self, part: &PartName) -> Option<&str> {
         self.content_types.content_type_of(part)
+    }
+
+    /// The parts whose **markup this library will write**: every XML part it authored or edited, and
+    /// no part that is still byte-identical to the container it was opened from.
+    ///
+    /// This is the validation scope, defined once here so that every layer validating a package
+    /// agrees on it — [`validate`](Self::validate) checks relationship references over exactly this
+    /// set, and a format layer (see `mjx_pptx::Presentation::validate`) checks its own markup
+    /// invariants over the same one. Three filters, in order:
+    ///
+    /// - **Provenance.** [`PartProvenance::Authored`] only. A part re-emitting its container bytes is
+    ///   not markup we wrote, and faulting it would mean refusing to write back a file we were given.
+    /// - **Control parts.** `[Content_Types].xml` and every `.rels` are excluded: their invariants
+    ///   are checked structurally, through the parsed views, not by walking their markup.
+    /// - **XML.** Only parts whose content type names XML — the RFC 3023 `+xml` suffix,
+    ///   `application/xml`/`text/xml`, or one of the Office content types that are XML without saying
+    ///   so (see `XML_CONTENT_TYPES_WITHOUT_SUFFIX`). An image or an embedded workbook is bytes, and
+    ///   parsing it would be nonsense.
+    ///
+    /// Yields each part's name alongside its entry, in container order.
+    pub fn authored_xml_parts(&self) -> impl Iterator<Item = (PartName, &ZipEntry)> + '_ {
+        self.entries.iter().filter_map(move |entry| {
+            if entry.provenance() != PartProvenance::Authored || is_control_part(&entry.name) {
+                return None;
+            }
+            let part = PartName::from_zip_name(&entry.name).ok()?;
+            let content_type = self.content_types.content_type_of(&part)?;
+            if !is_xml_content_type(content_type) {
+                return None;
+            }
+            Some((part, entry))
+        })
     }
 
     /// The names of all addressable parts — every ZIP entry except the special
@@ -492,10 +610,10 @@ impl Package {
                 }),
             }
         } else {
-            self.entries.push(ZipEntry {
-                name: rels_name,
-                body: PartBody::Raw(build_rels_bytes(std::slice::from_ref(&rel))),
-            });
+            self.entries.push(ZipEntry::authored(
+                rels_name,
+                PartBody::Raw(build_rels_bytes(std::slice::from_ref(&rel))),
+            ));
             self.relationships.push(RelationshipsPart {
                 source: source.cloned(),
                 relationships: Relationships::with_one(rel),
@@ -639,10 +757,10 @@ impl Package {
                 part.as_str()
             )));
         }
-        self.entries.push(ZipEntry {
-            name: zip_name.to_owned(),
-            body: PartBody::Raw(bytes),
-        });
+        self.entries.push(ZipEntry::authored(
+            zip_name.to_owned(),
+            PartBody::Raw(bytes),
+        ));
         if self.content_types.content_type_of(part) != Some(content_type) {
             self.set_content_type_override(part, content_type)?;
         }
@@ -668,6 +786,7 @@ impl Package {
             .find(|e| e.name == zip_name)
             .ok_or_else(|| OpcError::unknown_part(part.as_str()))?;
         entry.body = PartBody::Raw(bytes);
+        entry.authored = true;
         Ok(())
     }
 
@@ -824,10 +943,33 @@ impl Package {
     }
 }
 
+/// Office content types that name XML markup without the RFC 3023 `+xml` suffix.
+///
+/// The suffix is the general rule, and every ECMA-376 markup part follows it. This is the exception
+/// list: a VML drawing part is XML — it carries relationship references of its own — and Office types
+/// it `application/vnd.openxmlformats-officedocument.vmlDrawing`, with no suffix to notice.
+const XML_CONTENT_TYPES_WITHOUT_SUFFIX: &[&str] =
+    &["application/vnd.openxmlformats-officedocument.vmlDrawing"];
+
+/// Whether a content type names XML markup: the RFC 3023 `+xml` suffix (allowing for parameters after
+/// a `;`), the two generic XML types, or one of the suffix-less Office exceptions.
+fn is_xml_content_type(content_type: &str) -> bool {
+    let base = content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase();
+    base.ends_with("+xml")
+        || base == "application/xml"
+        || base == "text/xml"
+        || XML_CONTENT_TYPES_WITHOUT_SUFFIX.contains(&base.as_str())
+}
+
 /// Resolves a relationship's raw `target` against its source part's directory, or against the package
 /// root when `source` is `None` (the root `_rels/.rels`). This is the one place the root-vs-part base
 /// distinction lives, shared by every relationship-graph traversal.
-fn resolve_rel(source: Option<&PartName>, target: &str) -> Result<PartName, OpcError> {
+pub(crate) fn resolve_rel(source: Option<&PartName>, target: &str) -> Result<PartName, OpcError> {
     match source {
         Some(src) => src.resolve(target),
         None => PartName::resolve_from_root(target),

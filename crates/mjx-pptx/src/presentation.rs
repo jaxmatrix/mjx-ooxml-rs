@@ -186,12 +186,55 @@ impl Presentation {
         })
     }
 
-    /// Serializes the presentation back to container bytes (only edited parts re-serialize).
+    /// Validates the deck, then serializes it back to container bytes (only edited parts
+    /// re-serialize).
+    ///
+    /// # The check is not optional
+    ///
+    /// [`validate`](Self::validate) runs first, and a deck that violates a packaging or a
+    /// PresentationML invariant — a `p:sldId` naming a relationship that is not there, a slide the
+    /// deck relates to but never lists, two shapes sharing a non-visual id — is **not written**.
+    /// Those are the faults that make PowerPoint offer to repair a file, and none of them is visible
+    /// to a per-part schema check. [`save_unchecked`](Self::save_unchecked) is the deliberate escape
+    /// hatch.
+    ///
+    /// # Errors
+    /// Returns [`PptxError::InvalidPresentation`] or [`PptxError::Opc`] (carrying an
+    /// [`OpcError::Invalid`](mjx_opc::OpcError::Invalid)) if the deck violates an invariant, or
+    /// another [`PptxError`] if the ZIP writer fails.
+    pub fn save(&self) -> Result<Vec<u8>, PptxError> {
+        self.validate()?;
+        self.save_unchecked()
+    }
+
+    /// Serializes the presentation back to container bytes **without** checking its invariants.
+    ///
+    /// Identical to [`save`](Self::save) but for the validation pass. Reach for it only when writing
+    /// a deck you know to be inconsistent is the point: re-saving a file that was already broken when
+    /// it was opened, or a state you mean to finish later. Anything this writes that
+    /// [`validate`](Self::validate) would have rejected is a file PowerPoint may offer to repair.
     ///
     /// # Errors
     /// Returns [`PptxError`] if the ZIP writer fails.
-    pub fn save(&self) -> Result<Vec<u8>, PptxError> {
-        Ok(self.package.save()?)
+    pub fn save_unchecked(&self) -> Result<Vec<u8>, PptxError> {
+        Ok(self.package.save_unchecked()?)
+    }
+
+    /// Checks every invariant [`save`](Self::save) enforces, without writing anything: first the
+    /// packaging graph ([`Package::validate`](mjx_opc::Package::validate)), then the PresentationML
+    /// identifier and list invariants on top of it.
+    ///
+    /// Both passes are read-only and are scoped to the markup this library will actually write (see
+    /// [`Package::authored_xml_parts`](mjx_opc::Package::authored_xml_parts)), so a deck opened and
+    /// left alone is never faulted for markup it arrived with, and reading a slide can never change
+    /// the answer.
+    ///
+    /// # Errors
+    /// Returns the first invariant broken, as [`PptxError::Opc`] for a packaging defect or
+    /// [`PptxError::InvalidPresentation`] for a PresentationML one.
+    pub fn validate(&self) -> Result<(), PptxError> {
+        self.package.validate().map_err(mjx_opc::OpcError::from)?;
+        crate::validate::check(&self.package)
     }
 
     /// The part name of the main presentation part (`/ppt/presentation.xml`).
@@ -10726,7 +10769,11 @@ fn build_ole_frame(
 
     let binding_local = if parts.linked { "link" } else { "embed" };
     let binding = build::leaf(interner, "p", PML, binding_local, Vec::new());
-    let picture = build_picture(interner, 0, parts.snapshot_rel_id, bounds, None);
+    // The snapshot picture is a shape of the slide like any other, so it takes the id after the
+    // frame's rather than a constant: two OLE objects on one slide would otherwise both write a
+    // picture with the same non-visual id, which is a duplicate PowerPoint repairs. The caller
+    // allocates from `max_cnvpr_id`, which sees this one, so the next frame starts past it.
+    let picture = build_picture(interner, id + 1, parts.snapshot_rel_id, bounds, None);
     let ole_object = build::node(
         interner,
         "p",
