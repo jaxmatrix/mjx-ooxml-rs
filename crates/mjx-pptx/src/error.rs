@@ -1,5 +1,6 @@
 //! The error type for the PresentationML layer.
 
+use mjx_dml::GuideError;
 use mjx_ooxml_core::FromXmlError;
 use mjx_opc::OpcError;
 use mjx_xml::XmlError;
@@ -22,6 +23,12 @@ pub enum PptxError {
     /// A modeled element (e.g. a text body) was malformed.
     #[error(transparent)]
     Model(#[from] FromXmlError),
+
+    /// A shape's geometry guide (`a:gd@fmla`) could not be evaluated — a malformed formula, a name
+    /// nothing defines, or arithmetic that leaves the reals (a degenerate shape size divides by
+    /// zero). Guide lists are attacker-controlled data, so this is an error and never a panic.
+    #[error(transparent)]
+    GuideFormula(#[from] GuideError),
 
     /// The package root has no `officeDocument` relationship (not an Office document).
     #[error("package has no officeDocument relationship")]

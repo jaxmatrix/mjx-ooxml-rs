@@ -3,14 +3,15 @@
 use mjx_chart::{ChartData, ChartSpace};
 use mjx_dml::{
     applicable_parts, resolve_character_properties, resolve_color, resolve_effects, resolve_fill,
-    resolve_line, BlipFill, Cell3D, CellBorder, CharacterProperties, CharacterPropertiesSpec,
-    ColorMap, ColorSpec, CustomGeometry, EffectList, EffectListSpec, Emu, Fill, FillSpec, FontSlot,
-    IndentLevel, LineProperties, LineSpec, OnOffStyle, ParagraphContent, ParagraphProperties,
-    ParagraphPropertiesSpec, PresetGeometry, ResolvedColor, Scene3D, Scene3DSpec, SchemeColors,
-    Shape3D, Shape3DSpec, Table, TableCell, TableCellProperties, TableColumn, TablePart,
-    TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleBorder, TableStyleCellStyle,
-    TableStyleFlags, TableStyleList, TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody,
-    TextDirection, TextFont, TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
+    resolve_line, BlipFill, BoundedAdjustment, Cell3D, CellBorder, CharacterProperties,
+    CharacterPropertiesSpec, ColorMap, ColorSpec, CustomGeometry, EffectList, EffectListSpec, Emu,
+    Fill, FillSpec, FontSlot, GuideContext, IndentLevel, LineProperties, LineSpec, OnOffStyle,
+    ParagraphContent, ParagraphProperties, ParagraphPropertiesSpec, PresetGeometry, ResolvedColor,
+    Scene3D, Scene3DSpec, SchemeColors, Shape3D, Shape3DSpec, Table, TableCell,
+    TableCellProperties, TableColumn, TablePart, TablePartStyle, TableProperties, TableRow,
+    TableStyle, TableStyleBorder, TableStyleCellStyle, TableStyleFlags, TableStyleList,
+    TableStylePart, TableStyleTextStyle, TextAnchoring, TextBody, TextDirection, TextFont,
+    TextListStyle, Theme, ThemeInfo, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{
     FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, Symbol, ToXml,
@@ -3106,6 +3107,63 @@ impl Presentation {
         } else {
             Ok(Geometry::Inherited)
         }
+    }
+
+    /// Every adjustment of shape `shape_idx`'s **preset** geometry, resolved against a concrete
+    /// shape size: each value *and* the numeric domain it may move in.
+    ///
+    /// A preset shape's adjustment domain is often not a number in the file at all but the name of a
+    /// `gdLst` guide — `roundRect`'s corner radius stops at `maxAdj`, and what `maxAdj` *is* depends
+    /// on the shape's width and height. Give the size and the guide-formula evaluator turns every one
+    /// of them into a number; [`BoundedAdjustment::pinned_value`] then says what the shape actually
+    /// draws when a file states a value outside its domain.
+    ///
+    /// `size` is a parameter rather than the shape's own extents because a shape may state none and
+    /// inherit them; pass what [`shape_transform`](Self::shape_transform) reports, or the size the
+    /// shape will be placed at. Empty when the shape has no `a:prstGeom` of its own, when its preset
+    /// is fixed-geometry, or when its `prst` names a shape this build does not know. Reading does not
+    /// dirty the part.
+    ///
+    /// ```no_run
+    /// # use mjx_pptx::Presentation;
+    /// use mjx_dml::{GuideContext, Size};
+    ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+    /// let size = Size::from_emu(1_828_800, 914_400);
+    /// for adjustment in deck.shape_adjustments(0, 0, GuideContext::from_size(size))? {
+    ///     println!(
+    ///         "{}: {} in {}..={}",
+    ///         adjustment.spec.wire_name,
+    ///         adjustment.value,
+    ///         adjustment.minimum,
+    ///         adjustment.maximum,
+    ///     );
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or a guide the
+    /// domain depends on cannot be evaluated
+    /// ([`GuideFormula`](PptxError::GuideFormula) — a zero width or height divides by zero in guides
+    /// such as `*/ 50000 w ss`).
+    pub fn shape_adjustments(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        size: GuideContext,
+    ) -> Result<Vec<BoundedAdjustment>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        let Some(prst_geom) = slide::shape_prstgeom(shape, &doc.interner) else {
+            return Ok(Vec::new());
+        };
+        let geometry = PresetGeometry::from_xml(prst_geom, &doc.interner)?;
+        Ok(geometry.adjustments_for_size(&doc.interner, size)?)
     }
 
     /// Sets the geometry of shape `shape_idx` on `surface` from a [`Geometry`]: a preset shape
