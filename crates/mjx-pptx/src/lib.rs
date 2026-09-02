@@ -100,9 +100,11 @@ pub use legacy::{
     ActiveXControlSpec, ActiveXPersistence, DiagramContent, DiagramPartKind, DiagramParts,
     DiagramRelationshipIds, InkReference, OleObjectData, OleObjectSpec,
 };
-// The OPC package, re-exported so a caller of `Presentation::from_package` — the constructor for a
-// package this crate did not open — need not name `mjx-opc` to state its own parameter type.
-pub use mjx_opc::Package;
+// The OPC vocabulary a caller of this crate's own signatures must be able to name: the package
+// `Presentation::from_package` takes, the part names the part-addressed readers hand back, and the
+// external-relationship types the package-hygiene methods speak. Re-exported so nothing downstream
+// has to depend on `mjx-opc` to state a parameter type this crate chose.
+pub use mjx_opc::{ExternalRelationship, OpcError, Package, PartName, TargetMode};
 // Chart types, re-exported so a caller of the chart methods need not depend on `mjx-chart`.
 pub use mjx_chart::{
     AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind,

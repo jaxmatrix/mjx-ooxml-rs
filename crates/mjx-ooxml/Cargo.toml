@@ -18,9 +18,17 @@ mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
+mjx-chart.workspace = true
 mjx-pptx.workspace = true
 mjx-docx.workspace = true
 mjx-xlsx.workspace = true
+
+[dev-dependencies]
+# The format-detection test authors a `.pptm` and a `.potx` by rewriting one content type on a real
+# package, because the repository holds no such fixture and detection must be proved on markup rather
+# than on a filename. The OPC layer is the only way to do that; no other test names a crate below
+# this one.
+mjx-opc.workspace = true
 
 [features]
 # Re-exposes mjx-pptx's legacy VML surface — the typed drawing model and the `spid` resolution an
