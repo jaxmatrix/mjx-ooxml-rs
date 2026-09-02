@@ -114,6 +114,114 @@ const FULL_BYTES: &str = concat!(
 );
 
 // ---------------------------------------------------------------------------------------------
+// Constructing an effect
+// ---------------------------------------------------------------------------------------------
+
+/// The same spec as [`full_spec`], written with `new` + `with_` instead of struct literals.
+///
+/// Naming a shadow's distance used to mean spelling out the eight other fields as `None`; each
+/// effect now takes what the schema makes required and names the rest one at a time.
+fn full_spec_built() -> EffectListSpec {
+    EffectListSpec {
+        blur: Some(
+            BlurEffect::new()
+                .with_radius(Emu::from_emu(50_800))
+                .with_grow(false),
+        ),
+        fill_overlay: Some(FillOverlayEffect::new(
+            FillSpec::Solid(ColorSpec::Srgb("FFFF00".to_owned())),
+            BlendMode::Over,
+        )),
+        glow: Some(
+            GlowEffect::new(ColorSpec::Srgb("FF0000".to_owned()))
+                .with_radius(Emu::from_emu(63_500)),
+        ),
+        inner_shadow: Some(
+            InnerShadowEffect::new(ColorSpec::Srgb("000000".to_owned()))
+                .with_blur_radius(Emu::from_emu(40_000))
+                .with_distance(Emu::from_emu(20_000))
+                .with_direction(Angle::from_degrees(45.0)),
+        ),
+        outer_shadow: Some(
+            OuterShadowEffect::new(ColorSpec::Srgb("808080".to_owned()))
+                .with_blur_radius(Emu::from_emu(50_000))
+                .with_distance(Emu::from_emu(38_100))
+                .with_direction(Angle::from_degrees(45.0))
+                .with_scale_x(Fraction::from_ratio(0.9))
+                .with_scale_y(Fraction::from_ratio(0.9))
+                .with_skew_x(Angle::from_degrees(10.0))
+                .with_alignment(RectangleAlignment::TopLeft)
+                .with_rotate_with_shape(false),
+        ),
+        preset_shadow: Some(
+            PresetShadowEffect::new(PresetShadow::Shadow13, ColorSpec::Srgb("C0C0C0".to_owned()))
+                .with_distance(Emu::from_emu(45_000))
+                .with_direction(Angle::from_degrees(45.0)),
+        ),
+        reflection: Some(
+            ReflectionEffect::new()
+                .with_blur_radius(Emu::from_emu(6_350))
+                .with_start_alpha(Fraction::from_ratio(0.5))
+                .with_start_position(Fraction::from_ratio(0.0))
+                .with_end_alpha(Fraction::from_ratio(0.3))
+                .with_end_position(Fraction::from_ratio(0.9))
+                .with_distance(Emu::from_emu(60_000))
+                .with_direction(Angle::from_degrees(90.0))
+                .with_fade_direction(Angle::from_degrees(45.0))
+                .with_scale_x(Fraction::from_ratio(1.0))
+                .with_scale_y(Fraction::from_ratio(-1.0))
+                .with_alignment(RectangleAlignment::BottomLeft)
+                .with_rotate_with_shape(false),
+        ),
+        soft_edge: Some(SoftEdgeEffect::new(Emu::from_emu(112_500))),
+    }
+}
+
+/// Every builder sets the field it names and no other. Field-by-field equality against the
+/// struct-literal spec is what catches a `with_scale_x` that writes `scale_y`; the byte assertion
+/// then catches a field that is right in Rust and wrong in the markup.
+#[test]
+fn the_effect_builders_produce_exactly_the_struct_literal_spec() {
+    assert_eq!(full_spec_built(), full_spec());
+
+    let mut interner = Interner::new();
+    let built = full_spec_built().to_effect_list(&mut interner);
+    assert_eq!(serialize_built(interner, &built), FULL_BYTES);
+}
+
+/// `new` names only what the schema makes required, and leaves every optional attribute unset — so
+/// an effect built and not further named writes no attribute a renderer would have to defend
+/// against.
+#[test]
+fn a_new_effect_names_only_what_the_schema_requires() {
+    let shadow = OuterShadowEffect::new(ColorSpec::Srgb("404040".to_owned()));
+    assert_eq!(shadow.blur_radius, None);
+    assert_eq!(shadow.distance, None);
+    assert_eq!(shadow.direction, None);
+    assert_eq!(shadow.scale_x, None);
+    assert_eq!(shadow.scale_y, None);
+    assert_eq!(shadow.skew_x, None);
+    assert_eq!(shadow.skew_y, None);
+    assert_eq!(shadow.alignment, None);
+    assert_eq!(shadow.rotate_with_shape, None);
+
+    let spec = EffectListSpec {
+        outer_shadow: Some(shadow),
+        ..EffectListSpec::new()
+    };
+    let mut interner = Interner::new();
+    let built = spec.to_effect_list(&mut interner);
+    assert_eq!(
+        serialize_built(interner, &built),
+        concat!(
+            r#"<a:effectLst>"#,
+            r#"<a:outerShdw><a:srgbClr val="404040"/></a:outerShdw>"#,
+            r#"</a:effectLst>"#
+        )
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // Emu measure
 // ---------------------------------------------------------------------------------------------
 
