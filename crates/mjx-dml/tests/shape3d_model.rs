@@ -3,11 +3,12 @@
 //! Every byte-identity assertion is paired with a typed one, so a round-trip can't pass by dumping
 //! everything into an opaque bucket. The two properties the model exists for get the most attention:
 //! **absent is not the schema default** (an unstated `@w` / `@fov` reads `None`, not `76200` / `0`),
-//! and **the opaque children survive** (`a:backdrop`, `extLst` re-emit verbatim).
+//! and **the unmodeled children survive** (`extLst` re-emits verbatim, and so does an `a:backdrop`
+//! whose typed read changed nothing).
 
 use mjx_dml::{
-    BevelPreset, ColorSpec, LightRigDirection, LightRigType, PresetCamera, PresetMaterial, Scene3D,
-    Scene3DSpec, Shape3D, Shape3DSpec,
+    Backdrop, BevelPreset, ColorSpec, Emu, LightRigDirection, LightRigType, Point3D, PresetCamera,
+    PresetMaterial, Scene3D, Scene3DSpec, Shape3D, Shape3DSpec, Vector3D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
@@ -122,9 +123,63 @@ fn a_scene_reads_its_camera_and_light_rig() {
 }
 
 #[test]
-fn a_scene_round_trips_byte_for_byte_with_its_backdrop_opaque() {
+fn a_scene_reads_its_backdrop_plane() {
     let (scene, doc) = parse_typed::<Scene3D>(SCENE.as_bytes());
-    // No typed edit: the fidelity wrapper must re-emit everything, backdrop included.
+    assert_eq!(
+        scene.backdrop(&doc.interner),
+        Some(Backdrop {
+            anchor: Point3D {
+                x: Emu::from_emu(1),
+                y: Emu::from_emu(2),
+                z: Emu::from_emu(3),
+            },
+            normal: Vector3D {
+                x: Emu::from_emu(0),
+                y: Emu::from_emu(0),
+                z: Emu::from_emu(1),
+            },
+            up: Vector3D {
+                x: Emu::from_emu(0),
+                y: Emu::from_emu(1),
+                z: Emu::from_emu(0),
+            },
+        })
+    );
+}
+
+#[test]
+fn a_scene_without_a_backdrop_reads_none() {
+    let bare = concat!(
+        r#"<a:scene3d xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">"#,
+        r#"<a:camera prst="orthographicFront"/><a:lightRig rig="threePt" dir="t"/>"#,
+        r#"</a:scene3d>"#,
+    );
+    let (scene, doc) = parse_typed::<Scene3D>(bare.as_bytes());
+    assert_eq!(scene.backdrop(&doc.interner), None);
+}
+
+#[test]
+fn a_backdrop_missing_its_required_children_still_reads() {
+    // An untrusted file may omit what the schema requires; the read reports the zero plane rather
+    // than failing, as every other measure in this crate does.
+    let broken = concat!(
+        r#"<a:scene3d xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">"#,
+        r#"<a:backdrop><a:anchor y="7"/></a:backdrop>"#,
+        r#"</a:scene3d>"#,
+    );
+    let (scene, doc) = parse_typed::<Scene3D>(broken.as_bytes());
+    let backdrop = scene.backdrop(&doc.interner).expect("a backdrop");
+    assert_eq!(backdrop.anchor.y, Emu::from_emu(7));
+    assert_eq!(backdrop.anchor.x, Emu::from_emu(0));
+    assert_eq!(backdrop.normal, Vector3D::default());
+    assert_eq!(backdrop.up, Vector3D::default());
+}
+
+#[test]
+fn a_scene_round_trips_byte_for_byte_with_its_backdrop_read() {
+    let (scene, doc) = parse_typed::<Scene3D>(SCENE.as_bytes());
+    // Reading the backdrop typed changes nothing: the fidelity wrapper re-emits every byte.
+    let _ = scene.backdrop(&doc.interner);
     assert_round_trips(&scene, doc, SCENE.as_bytes());
 }
 
@@ -147,7 +202,7 @@ fn a_scene_spec_rebuilds_the_camera_and_light_rig() {
     let (scene, doc) = parse_typed::<Scene3D>(SCENE.as_bytes());
     let spec = scene.spec(&doc.interner).expect("spec");
 
-    // Rebuilding from the spec drops the opaque backdrop but keeps every modeled facet.
+    // Rebuilding from the spec drops the backdrop but keeps every modeled facet.
     let mut interner = Interner::new();
     let scene = spec.to_scene_3d(&mut interner);
     let built = serialize_built(interner, &scene);
@@ -155,7 +210,7 @@ fn a_scene_spec_rebuilds_the_camera_and_light_rig() {
     assert!(built.contains(r#"<a:lightRig rig="threePt" dir="t">"#));
     assert!(
         !built.contains("backdrop"),
-        "the opaque backdrop is not part of the spec: {built}"
+        "the backdrop is not part of the spec: {built}"
     );
 }
 

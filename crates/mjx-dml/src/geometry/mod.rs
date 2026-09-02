@@ -18,9 +18,19 @@
 //!
 //! This is the **fidelity layer**: it round-trips *any* preset shape byte-for-byte — `prst` and the
 //! `avLst` `gd` overrides are preserved verbatim, and unknown attributes/children pass straight
-//! through. It exposes typed reads and minimal typed construction; the **named** control parameters
-//! (`corner_radius_fraction`, …) that replace the raw `adj` guides are a later, per-shape batch and
-//! are *not* modeled here.
+//! through. It exposes typed reads and minimal typed construction. The **named** control parameters
+//! that replace the raw `adj` guides live one tier up, in [`ShapeGeometry`]; the numeric domain each
+//! of them is clamped to comes from [`PresetGeometry::adjustments_for_size`], which evaluates the
+//! shape's own `gdLst` bound guides through the [`formula`] evaluator.
+//!
+//! # Guide formulas: `a:gdLst` → `a:gd@fmla`
+//!
+//! A coordinate in a custom geometry, and an adjustment's domain in a preset one, may be a *formula*
+//! rather than a number: `<a:gd name="x1" fmla="*/ w adj1 100000"/>`. The [`formula`] module is the
+//! evaluator for that language — all seventeen operators, the built-in variables (`w`, `hc`, `ss`,
+//! `3cd4`, …), and the declaration-order evaluation that makes a cyclic guide list impossible rather
+//! than merely detectable. On top of it, [`CustomGeometrySpec::resolve`] turns a whole geometry
+//! into a [`ResolvedCustomGeometry`] — every point an [`Emu`], every arc angle an [`Angle`].
 //!
 //! # Fidelity mechanism
 //!
@@ -32,9 +42,11 @@
 //! an attribute-only leaf (no children, no text) and so hand-writes them.
 
 mod custom;
+pub mod formula;
 mod guide;
 mod measures;
 mod preset;
+mod resolved;
 mod shape;
 mod transform;
 
@@ -43,8 +55,16 @@ pub use custom::{
     CustomGeometrySpec, DrawCommand, GuideSpec, Path2D, Path2DList, Path2DSpec, PathFillMode,
     Point, Rectangle,
 };
+pub use formula::{
+    GuideArgument, GuideContext, GuideError, GuideFormula, GuideFormulaError, GuideOperator,
+    ResolvedGuides,
+};
 pub use guide::{GeometryGuide, GeometryGuideList, GeometryGuideListContent};
 pub use measures::{Angle, Emu, FontSize, Fraction, IndentLevel, LineWidth, TextPoint};
-pub use preset::{PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
+pub use preset::{BoundedAdjustment, PresetGeometry, PresetGeometryContent, ResolvedAdjustment};
+pub use resolved::{
+    ResolvedAdjustHandle, ResolvedConnectionSite, ResolvedCustomGeometry, ResolvedDrawCommand,
+    ResolvedPath, ResolvedPoint, ResolvedRectangle,
+};
 pub use shape::ShapeGeometry;
 pub use transform::{Position, Size, Transform2D};

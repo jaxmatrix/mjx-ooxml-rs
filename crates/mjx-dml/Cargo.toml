@@ -17,6 +17,9 @@ mjx-xml.workspace = true
 mjx-derive.workspace = true
 mjx-ooxml-types.workspace = true
 mjx-mce.workspace = true
+# Typed errors for the guide-formula evaluator (`geometry::formula`): a malformed or cyclic
+# `a:gdLst` in an untrusted file must surface as an error, never a panic.
+thiserror.workspace = true
 
 [dev-dependencies]
 # The txBody exit test opens a real .pptx to extract the slide part; mjx-opc is a

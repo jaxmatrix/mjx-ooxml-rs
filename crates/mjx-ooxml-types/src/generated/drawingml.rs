@@ -5558,3 +5558,1545 @@ pub fn adjustments_of(shape: PresetShapeType) -> &'static [crate::drawingml::Adj
         _ => &[],
     }
 }
+
+/// Every preset shape that exposes at least one user-facing adjustment, in
+/// `presetShapeDefinitions.xml` order — exactly the shapes [`adjustments_of`] answers with a
+/// non-empty slice.
+#[must_use]
+pub fn adjustable_shapes() -> &'static [PresetShapeType] {
+    &[
+        PresetShapeType::AccentBorderCallout1,
+        PresetShapeType::AccentBorderCallout2,
+        PresetShapeType::AccentBorderCallout3,
+        PresetShapeType::AccentCallout1,
+        PresetShapeType::AccentCallout2,
+        PresetShapeType::AccentCallout3,
+        PresetShapeType::Arc,
+        PresetShapeType::BentArrow,
+        PresetShapeType::BentConnector3,
+        PresetShapeType::BentConnector4,
+        PresetShapeType::BentConnector5,
+        PresetShapeType::BentUpArrow,
+        PresetShapeType::Bevel,
+        PresetShapeType::BlockArc,
+        PresetShapeType::BorderCallout1,
+        PresetShapeType::BorderCallout2,
+        PresetShapeType::BorderCallout3,
+        PresetShapeType::BracePair,
+        PresetShapeType::BracketPair,
+        PresetShapeType::Callout1,
+        PresetShapeType::Callout2,
+        PresetShapeType::Callout3,
+        PresetShapeType::Can,
+        PresetShapeType::Chevron,
+        PresetShapeType::Chord,
+        PresetShapeType::CircularArrow,
+        PresetShapeType::CloudCallout,
+        PresetShapeType::Corner,
+        PresetShapeType::Cube,
+        PresetShapeType::CurvedConnector3,
+        PresetShapeType::CurvedConnector4,
+        PresetShapeType::CurvedConnector5,
+        PresetShapeType::CurvedDownArrow,
+        PresetShapeType::CurvedLeftArrow,
+        PresetShapeType::CurvedRightArrow,
+        PresetShapeType::CurvedUpArrow,
+        PresetShapeType::DiagonalStripe,
+        PresetShapeType::Donut,
+        PresetShapeType::DoubleWave,
+        PresetShapeType::DownArrow,
+        PresetShapeType::DownArrowCallout,
+        PresetShapeType::EllipseRibbon,
+        PresetShapeType::EllipseRibbon2,
+        PresetShapeType::FoldedCorner,
+        PresetShapeType::Frame,
+        PresetShapeType::Gear6,
+        PresetShapeType::Gear9,
+        PresetShapeType::HalfFrame,
+        PresetShapeType::Hexagon,
+        PresetShapeType::HomePlate,
+        PresetShapeType::HorizontalScroll,
+        PresetShapeType::LeftArrow,
+        PresetShapeType::LeftArrowCallout,
+        PresetShapeType::LeftBrace,
+        PresetShapeType::LeftBracket,
+        PresetShapeType::LeftCircularArrow,
+        PresetShapeType::LeftRightArrow,
+        PresetShapeType::LeftRightArrowCallout,
+        PresetShapeType::LeftRightCircularArrow,
+        PresetShapeType::LeftRightRibbon,
+        PresetShapeType::LeftRightUpArrow,
+        PresetShapeType::LeftUpArrow,
+        PresetShapeType::MathDivide,
+        PresetShapeType::MathEqual,
+        PresetShapeType::MathMinus,
+        PresetShapeType::MathMultiply,
+        PresetShapeType::MathNotEqual,
+        PresetShapeType::MathPlus,
+        PresetShapeType::Moon,
+        PresetShapeType::NonIsoscelesTrapezoid,
+        PresetShapeType::NoSmoking,
+        PresetShapeType::NotchedRightArrow,
+        PresetShapeType::Octagon,
+        PresetShapeType::Parallelogram,
+        PresetShapeType::Pie,
+        PresetShapeType::Plaque,
+        PresetShapeType::Plus,
+        PresetShapeType::QuadArrow,
+        PresetShapeType::QuadArrowCallout,
+        PresetShapeType::Ribbon,
+        PresetShapeType::Ribbon2,
+        PresetShapeType::RightArrow,
+        PresetShapeType::RightArrowCallout,
+        PresetShapeType::RightBrace,
+        PresetShapeType::RightBracket,
+        PresetShapeType::RoundSingleCornerRectangle,
+        PresetShapeType::RoundDiagonalCornersRectangle,
+        PresetShapeType::RoundSameSideCornersRectangle,
+        PresetShapeType::RoundedRectangle,
+        PresetShapeType::SmileyFace,
+        PresetShapeType::SnipSingleCornerRectangle,
+        PresetShapeType::SnipDiagonalCornersRectangle,
+        PresetShapeType::SnipSameSideCornersRectangle,
+        PresetShapeType::SnipAndRoundSingleCornerRectangle,
+        PresetShapeType::TenPointStar,
+        PresetShapeType::TwelvePointStar,
+        PresetShapeType::SixteenPointStar,
+        PresetShapeType::TwentyFourPointStar,
+        PresetShapeType::ThirtyTwoPointStar,
+        PresetShapeType::FourPointStar,
+        PresetShapeType::FivePointStar,
+        PresetShapeType::SixPointStar,
+        PresetShapeType::SevenPointStar,
+        PresetShapeType::EightPointStar,
+        PresetShapeType::StripedRightArrow,
+        PresetShapeType::Sun,
+        PresetShapeType::SwooshArrow,
+        PresetShapeType::Teardrop,
+        PresetShapeType::Trapezoid,
+        PresetShapeType::Triangle,
+        PresetShapeType::UpArrowCallout,
+        PresetShapeType::UpDownArrow,
+        PresetShapeType::UpDownArrowCallout,
+        PresetShapeType::UTurnArrow,
+        PresetShapeType::VerticalScroll,
+        PresetShapeType::Wave,
+        PresetShapeType::WedgeEllipseCallout,
+        PresetShapeType::WedgeRectangleCallout,
+        PresetShapeType::WedgeRoundedRectangleCallout,
+    ]
+}
+
+/// The `gdLst` guides a preset shape's adjustment **domain bounds** are computed from, in
+/// declaration order.
+///
+/// An [`AdjustmentSpec`](crate::drawingml::AdjustmentSpec) bound is often not a number but the
+/// name of a computed guide (`maxAdj1`, `maxAng`, …) that depends on the shape's width and
+/// height. These are those guides, and the ones they in turn depend on, extracted from
+/// `presetShapeDefinitions.xml`. Evaluate them in order with the shape's current adjustment
+/// values already bound, and every bound becomes a number.
+///
+/// Empty for a shape whose bounds are all literals, and for a shape with no adjustments.
+#[must_use]
+pub fn adjustment_bound_guides_of(
+    shape: PresetShapeType,
+) -> &'static [crate::drawingml::PresetGuide] {
+    use crate::drawingml::PresetGuide;
+    match shape {
+        PresetShapeType::BentArrow => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 50000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 50000",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "aw2",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "th2",
+                formula: "*/ th 1 2",
+            },
+            PresetGuide {
+                wire_name: "dh2",
+                formula: "+- aw2 0 th2",
+            },
+            PresetGuide {
+                wire_name: "ah",
+                formula: "*/ ss a3 100000",
+            },
+            PresetGuide {
+                wire_name: "bw",
+                formula: "+- r 0 ah",
+            },
+            PresetGuide {
+                wire_name: "bh",
+                formula: "+- b 0 dh2",
+            },
+            PresetGuide {
+                wire_name: "bs",
+                formula: "min bw bh",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "*/ 100000 bs ss",
+            },
+        ],
+        PresetShapeType::Can => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 50000 h ss",
+        }],
+        PresetShapeType::Chevron => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 100000 w ss",
+        }],
+        PresetShapeType::CircularArrow => &[
+            PresetGuide {
+                wire_name: "a5",
+                formula: "pin 0 adj5 25000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a5 2 1",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "enAng",
+                formula: "pin 1 adj3 21599999",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "thh",
+                formula: "*/ ss a5 100000",
+            },
+            PresetGuide {
+                wire_name: "th2",
+                formula: "*/ th 1 2",
+            },
+            PresetGuide {
+                wire_name: "rw1",
+                formula: "+- wd2 th2 thh",
+            },
+            PresetGuide {
+                wire_name: "rh1",
+                formula: "+- hd2 th2 thh",
+            },
+            PresetGuide {
+                wire_name: "rw2",
+                formula: "+- rw1 0 th",
+            },
+            PresetGuide {
+                wire_name: "rh2",
+                formula: "+- rh1 0 th",
+            },
+            PresetGuide {
+                wire_name: "rw3",
+                formula: "+- rw2 th2 0",
+            },
+            PresetGuide {
+                wire_name: "rh3",
+                formula: "+- rh2 th2 0",
+            },
+            PresetGuide {
+                wire_name: "wtH",
+                formula: "sin rw3 enAng",
+            },
+            PresetGuide {
+                wire_name: "htH",
+                formula: "cos rh3 enAng",
+            },
+            PresetGuide {
+                wire_name: "dxH",
+                formula: "cat2 rw3 htH wtH",
+            },
+            PresetGuide {
+                wire_name: "dyH",
+                formula: "sat2 rh3 htH wtH",
+            },
+            PresetGuide {
+                wire_name: "rI",
+                formula: "min rw2 rh2",
+            },
+            PresetGuide {
+                wire_name: "u1",
+                formula: "*/ dxH dxH 1",
+            },
+            PresetGuide {
+                wire_name: "u2",
+                formula: "*/ dyH dyH 1",
+            },
+            PresetGuide {
+                wire_name: "u3",
+                formula: "*/ rI rI 1",
+            },
+            PresetGuide {
+                wire_name: "u4",
+                formula: "+- u1 0 u3",
+            },
+            PresetGuide {
+                wire_name: "u5",
+                formula: "+- u2 0 u3",
+            },
+            PresetGuide {
+                wire_name: "u6",
+                formula: "*/ u4 u5 u1",
+            },
+            PresetGuide {
+                wire_name: "u7",
+                formula: "*/ u6 1 u2",
+            },
+            PresetGuide {
+                wire_name: "u8",
+                formula: "+- 1 0 u7",
+            },
+            PresetGuide {
+                wire_name: "u9",
+                formula: "sqrt u8",
+            },
+            PresetGuide {
+                wire_name: "u10",
+                formula: "*/ u4 1 dxH",
+            },
+            PresetGuide {
+                wire_name: "u11",
+                formula: "*/ u10 1 dyH",
+            },
+            PresetGuide {
+                wire_name: "u12",
+                formula: "+/ 1 u9 u11",
+            },
+            PresetGuide {
+                wire_name: "u13",
+                formula: "at2 1 u12",
+            },
+            PresetGuide {
+                wire_name: "u14",
+                formula: "+- u13 21600000 0",
+            },
+            PresetGuide {
+                wire_name: "u15",
+                formula: "?: u13 u13 u14",
+            },
+            PresetGuide {
+                wire_name: "u16",
+                formula: "+- u15 0 enAng",
+            },
+            PresetGuide {
+                wire_name: "u17",
+                formula: "+- u16 21600000 0",
+            },
+            PresetGuide {
+                wire_name: "u18",
+                formula: "?: u16 u16 u17",
+            },
+            PresetGuide {
+                wire_name: "u19",
+                formula: "+- u18 0 cd2",
+            },
+            PresetGuide {
+                wire_name: "u20",
+                formula: "+- u18 0 21600000",
+            },
+            PresetGuide {
+                wire_name: "u21",
+                formula: "?: u19 u20 u18",
+            },
+            PresetGuide {
+                wire_name: "maxAng",
+                formula: "abs u21",
+            },
+        ],
+        PresetShapeType::Corner => &[
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ 100000 h ss",
+            },
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 100000 w ss",
+            },
+        ],
+        PresetShapeType::CurvedDownArrow => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 100000",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "aw",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+/ th aw 4",
+            },
+            PresetGuide {
+                wire_name: "wR",
+                formula: "+- wd2 0 q1",
+            },
+            PresetGuide {
+                wire_name: "q7",
+                formula: "*/ wR 2 1",
+            },
+            PresetGuide {
+                wire_name: "q8",
+                formula: "*/ q7 q7 1",
+            },
+            PresetGuide {
+                wire_name: "q9",
+                formula: "*/ th th 1",
+            },
+            PresetGuide {
+                wire_name: "q10",
+                formula: "+- q8 0 q9",
+            },
+            PresetGuide {
+                wire_name: "q11",
+                formula: "sqrt q10",
+            },
+            PresetGuide {
+                wire_name: "idy",
+                formula: "*/ q11 h q7",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 idy ss",
+            },
+        ],
+        PresetShapeType::CurvedLeftArrow => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 a2",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "aw",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+/ th aw 4",
+            },
+            PresetGuide {
+                wire_name: "hR",
+                formula: "+- hd2 0 q1",
+            },
+            PresetGuide {
+                wire_name: "q7",
+                formula: "*/ hR 2 1",
+            },
+            PresetGuide {
+                wire_name: "q8",
+                formula: "*/ q7 q7 1",
+            },
+            PresetGuide {
+                wire_name: "q9",
+                formula: "*/ th th 1",
+            },
+            PresetGuide {
+                wire_name: "q10",
+                formula: "+- q8 0 q9",
+            },
+            PresetGuide {
+                wire_name: "q11",
+                formula: "sqrt q10",
+            },
+            PresetGuide {
+                wire_name: "idx",
+                formula: "*/ q11 w q7",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 idx ss",
+            },
+        ],
+        PresetShapeType::CurvedRightArrow => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 a2",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "aw",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+/ th aw 4",
+            },
+            PresetGuide {
+                wire_name: "hR",
+                formula: "+- hd2 0 q1",
+            },
+            PresetGuide {
+                wire_name: "q7",
+                formula: "*/ hR 2 1",
+            },
+            PresetGuide {
+                wire_name: "q8",
+                formula: "*/ q7 q7 1",
+            },
+            PresetGuide {
+                wire_name: "q9",
+                formula: "*/ th th 1",
+            },
+            PresetGuide {
+                wire_name: "q10",
+                formula: "+- q8 0 q9",
+            },
+            PresetGuide {
+                wire_name: "q11",
+                formula: "sqrt q10",
+            },
+            PresetGuide {
+                wire_name: "idx",
+                formula: "*/ q11 w q7",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 idx ss",
+            },
+        ],
+        PresetShapeType::CurvedUpArrow => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 100000",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "aw",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+/ th aw 4",
+            },
+            PresetGuide {
+                wire_name: "wR",
+                formula: "+- wd2 0 q1",
+            },
+            PresetGuide {
+                wire_name: "q7",
+                formula: "*/ wR 2 1",
+            },
+            PresetGuide {
+                wire_name: "q8",
+                formula: "*/ q7 q7 1",
+            },
+            PresetGuide {
+                wire_name: "q9",
+                formula: "*/ th th 1",
+            },
+            PresetGuide {
+                wire_name: "q10",
+                formula: "+- q8 0 q9",
+            },
+            PresetGuide {
+                wire_name: "q11",
+                formula: "sqrt q10",
+            },
+            PresetGuide {
+                wire_name: "idy",
+                formula: "*/ q11 h q7",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 idy ss",
+            },
+        ],
+        PresetShapeType::DownArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 100000 h ss",
+        }],
+        PresetShapeType::DownArrowCallout => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 ss h",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::EllipseRibbon => &[
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 100000",
+            },
+            PresetGuide {
+                wire_name: "q10",
+                formula: "+- 100000 0 a1",
+            },
+            PresetGuide {
+                wire_name: "q11",
+                formula: "*/ q10 1 2",
+            },
+            PresetGuide {
+                wire_name: "q12",
+                formula: "+- a1 0 q11",
+            },
+            PresetGuide {
+                wire_name: "minAdj3",
+                formula: "max 0 q12",
+            },
+        ],
+        PresetShapeType::EllipseRibbon2 => &[
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 100000",
+            },
+            PresetGuide {
+                wire_name: "q10",
+                formula: "+- 100000 0 a1",
+            },
+            PresetGuide {
+                wire_name: "q11",
+                formula: "*/ q10 1 2",
+            },
+            PresetGuide {
+                wire_name: "q12",
+                formula: "+- a1 0 q11",
+            },
+            PresetGuide {
+                wire_name: "minAdj3",
+                formula: "max 0 q12",
+            },
+        ],
+        PresetShapeType::HalfFrame => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 100000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "x1",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "g1",
+                formula: "*/ h x1 w",
+            },
+            PresetGuide {
+                wire_name: "g2",
+                formula: "+- h 0 g1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ 100000 g2 ss",
+            },
+        ],
+        PresetShapeType::Hexagon => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 50000 w ss",
+        }],
+        PresetShapeType::HomePlate => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 100000 w ss",
+        }],
+        PresetShapeType::LeftArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 100000 w ss",
+        }],
+        PresetShapeType::LeftArrowCallout => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 ss w",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::LeftBrace => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 100000",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+- 100000 0 a2",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "min q1 a2",
+            },
+            PresetGuide {
+                wire_name: "q3",
+                formula: "*/ q2 1 2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ q3 h ss",
+            },
+        ],
+        PresetShapeType::LeftBracket => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 50000 h ss",
+        }],
+        PresetShapeType::LeftCircularArrow => &[
+            PresetGuide {
+                wire_name: "a5",
+                formula: "pin 0 adj5 25000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a5 2 1",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "enAng",
+                formula: "pin 1 adj3 21599999",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "thh",
+                formula: "*/ ss a5 100000",
+            },
+            PresetGuide {
+                wire_name: "th2",
+                formula: "*/ th 1 2",
+            },
+            PresetGuide {
+                wire_name: "rw1",
+                formula: "+- wd2 th2 thh",
+            },
+            PresetGuide {
+                wire_name: "rh1",
+                formula: "+- hd2 th2 thh",
+            },
+            PresetGuide {
+                wire_name: "rw2",
+                formula: "+- rw1 0 th",
+            },
+            PresetGuide {
+                wire_name: "rh2",
+                formula: "+- rh1 0 th",
+            },
+            PresetGuide {
+                wire_name: "rw3",
+                formula: "+- rw2 th2 0",
+            },
+            PresetGuide {
+                wire_name: "rh3",
+                formula: "+- rh2 th2 0",
+            },
+            PresetGuide {
+                wire_name: "wtH",
+                formula: "sin rw3 enAng",
+            },
+            PresetGuide {
+                wire_name: "htH",
+                formula: "cos rh3 enAng",
+            },
+            PresetGuide {
+                wire_name: "dxH",
+                formula: "cat2 rw3 htH wtH",
+            },
+            PresetGuide {
+                wire_name: "dyH",
+                formula: "sat2 rh3 htH wtH",
+            },
+            PresetGuide {
+                wire_name: "rI",
+                formula: "min rw2 rh2",
+            },
+            PresetGuide {
+                wire_name: "u1",
+                formula: "*/ dxH dxH 1",
+            },
+            PresetGuide {
+                wire_name: "u2",
+                formula: "*/ dyH dyH 1",
+            },
+            PresetGuide {
+                wire_name: "u3",
+                formula: "*/ rI rI 1",
+            },
+            PresetGuide {
+                wire_name: "u4",
+                formula: "+- u1 0 u3",
+            },
+            PresetGuide {
+                wire_name: "u5",
+                formula: "+- u2 0 u3",
+            },
+            PresetGuide {
+                wire_name: "u6",
+                formula: "*/ u4 u5 u1",
+            },
+            PresetGuide {
+                wire_name: "u7",
+                formula: "*/ u6 1 u2",
+            },
+            PresetGuide {
+                wire_name: "u8",
+                formula: "+- 1 0 u7",
+            },
+            PresetGuide {
+                wire_name: "u9",
+                formula: "sqrt u8",
+            },
+            PresetGuide {
+                wire_name: "u10",
+                formula: "*/ u4 1 dxH",
+            },
+            PresetGuide {
+                wire_name: "u11",
+                formula: "*/ u10 1 dyH",
+            },
+            PresetGuide {
+                wire_name: "u12",
+                formula: "+/ 1 u9 u11",
+            },
+            PresetGuide {
+                wire_name: "u13",
+                formula: "at2 1 u12",
+            },
+            PresetGuide {
+                wire_name: "u14",
+                formula: "+- u13 21600000 0",
+            },
+            PresetGuide {
+                wire_name: "u15",
+                formula: "?: u13 u13 u14",
+            },
+            PresetGuide {
+                wire_name: "u16",
+                formula: "+- u15 0 enAng",
+            },
+            PresetGuide {
+                wire_name: "u17",
+                formula: "+- u16 21600000 0",
+            },
+            PresetGuide {
+                wire_name: "u18",
+                formula: "?: u16 u16 u17",
+            },
+            PresetGuide {
+                wire_name: "u19",
+                formula: "+- u18 0 cd2",
+            },
+            PresetGuide {
+                wire_name: "u20",
+                formula: "+- u18 0 21600000",
+            },
+            PresetGuide {
+                wire_name: "u21",
+                formula: "?: u19 u20 u18",
+            },
+            PresetGuide {
+                wire_name: "u22",
+                formula: "abs u21",
+            },
+            PresetGuide {
+                wire_name: "minAng",
+                formula: "*/ u22 -1 1",
+            },
+        ],
+        PresetShapeType::LeftRightArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 50000 w ss",
+        }],
+        PresetShapeType::LeftRightArrowCallout => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 50000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 ss wd2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::LeftRightCircularArrow => &[
+            PresetGuide {
+                wire_name: "a5",
+                formula: "pin 0 adj5 25000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a5 2 1",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "enAng",
+                formula: "pin 1 adj3 21599999",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "thh",
+                formula: "*/ ss a5 100000",
+            },
+            PresetGuide {
+                wire_name: "th2",
+                formula: "*/ th 1 2",
+            },
+            PresetGuide {
+                wire_name: "rw1",
+                formula: "+- wd2 th2 thh",
+            },
+            PresetGuide {
+                wire_name: "rh1",
+                formula: "+- hd2 th2 thh",
+            },
+            PresetGuide {
+                wire_name: "rw2",
+                formula: "+- rw1 0 th",
+            },
+            PresetGuide {
+                wire_name: "rh2",
+                formula: "+- rh1 0 th",
+            },
+            PresetGuide {
+                wire_name: "rw3",
+                formula: "+- rw2 th2 0",
+            },
+            PresetGuide {
+                wire_name: "rh3",
+                formula: "+- rh2 th2 0",
+            },
+            PresetGuide {
+                wire_name: "wtH",
+                formula: "sin rw3 enAng",
+            },
+            PresetGuide {
+                wire_name: "htH",
+                formula: "cos rh3 enAng",
+            },
+            PresetGuide {
+                wire_name: "dxH",
+                formula: "cat2 rw3 htH wtH",
+            },
+            PresetGuide {
+                wire_name: "dyH",
+                formula: "sat2 rh3 htH wtH",
+            },
+            PresetGuide {
+                wire_name: "rI",
+                formula: "min rw2 rh2",
+            },
+            PresetGuide {
+                wire_name: "u1",
+                formula: "*/ dxH dxH 1",
+            },
+            PresetGuide {
+                wire_name: "u2",
+                formula: "*/ dyH dyH 1",
+            },
+            PresetGuide {
+                wire_name: "u3",
+                formula: "*/ rI rI 1",
+            },
+            PresetGuide {
+                wire_name: "u4",
+                formula: "+- u1 0 u3",
+            },
+            PresetGuide {
+                wire_name: "u5",
+                formula: "+- u2 0 u3",
+            },
+            PresetGuide {
+                wire_name: "u6",
+                formula: "*/ u4 u5 u1",
+            },
+            PresetGuide {
+                wire_name: "u7",
+                formula: "*/ u6 1 u2",
+            },
+            PresetGuide {
+                wire_name: "u8",
+                formula: "+- 1 0 u7",
+            },
+            PresetGuide {
+                wire_name: "u9",
+                formula: "sqrt u8",
+            },
+            PresetGuide {
+                wire_name: "u10",
+                formula: "*/ u4 1 dxH",
+            },
+            PresetGuide {
+                wire_name: "u11",
+                formula: "*/ u10 1 dyH",
+            },
+            PresetGuide {
+                wire_name: "u12",
+                formula: "+/ 1 u9 u11",
+            },
+            PresetGuide {
+                wire_name: "u13",
+                formula: "at2 1 u12",
+            },
+            PresetGuide {
+                wire_name: "u14",
+                formula: "+- u13 21600000 0",
+            },
+            PresetGuide {
+                wire_name: "u15",
+                formula: "?: u13 u13 u14",
+            },
+            PresetGuide {
+                wire_name: "u16",
+                formula: "+- u15 0 enAng",
+            },
+            PresetGuide {
+                wire_name: "u17",
+                formula: "+- u16 21600000 0",
+            },
+            PresetGuide {
+                wire_name: "u18",
+                formula: "?: u16 u16 u17",
+            },
+            PresetGuide {
+                wire_name: "u19",
+                formula: "+- u18 0 cd2",
+            },
+            PresetGuide {
+                wire_name: "u20",
+                formula: "+- u18 0 21600000",
+            },
+            PresetGuide {
+                wire_name: "u21",
+                formula: "?: u19 u20 u18",
+            },
+            PresetGuide {
+                wire_name: "maxAng",
+                formula: "abs u21",
+            },
+        ],
+        PresetShapeType::LeftRightRibbon => &[
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 33333",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "+- 100000 0 a3",
+            },
+            PresetGuide {
+                wire_name: "w1",
+                formula: "+- wd2 0 wd32",
+            },
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 100000 w1 ss",
+            },
+        ],
+        PresetShapeType::LeftRightUpArrow => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 50000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+- 100000 0 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ q1 1 2",
+            },
+        ],
+        PresetShapeType::LeftUpArrow => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 50000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "+- 100000 0 maxAdj1",
+            },
+        ],
+        PresetShapeType::MathDivide => &[
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 1000 adj1 36745",
+            },
+            PresetGuide {
+                wire_name: "ma1",
+                formula: "+- 0 0 a1",
+            },
+            PresetGuide {
+                wire_name: "ma3h",
+                formula: "+/ 73490 ma1 4",
+            },
+            PresetGuide {
+                wire_name: "ma3w",
+                formula: "*/ 36745 w h",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "min ma3h ma3w",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 1000 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "m4a3",
+                formula: "*/ -4 a3 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "+- 73490 m4a3 a1",
+            },
+        ],
+        PresetShapeType::MathEqual => &[
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 36745",
+            },
+            PresetGuide {
+                wire_name: "2a1",
+                formula: "*/ a1 2 1",
+            },
+            PresetGuide {
+                wire_name: "mAdj2",
+                formula: "+- 100000 0 2a1",
+            },
+        ],
+        PresetShapeType::MathNotEqual => &[
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 50000",
+            },
+            PresetGuide {
+                wire_name: "2a1",
+                formula: "*/ a1 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "+- 100000 0 2a1",
+            },
+        ],
+        PresetShapeType::NonIsoscelesTrapezoid => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 50000 w ss",
+        }],
+        PresetShapeType::NotchedRightArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 100000 w ss",
+        }],
+        PresetShapeType::Parallelogram => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 100000 w ss",
+        }],
+        PresetShapeType::QuadArrow => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 50000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+- 100000 0 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ q1 1 2",
+            },
+        ],
+        PresetShapeType::QuadArrowCallout => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 50000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "+- 50000 0 a2",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::RightArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 100000 w ss",
+        }],
+        PresetShapeType::RightArrowCallout => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 ss w",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::RightBrace => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 100000",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+- 100000 0 a2",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "min q1 a2",
+            },
+            PresetGuide {
+                wire_name: "q3",
+                formula: "*/ q2 1 2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ q3 h ss",
+            },
+        ],
+        PresetShapeType::RightBracket => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 50000 h ss",
+        }],
+        PresetShapeType::StripedRightArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 84375 w ss",
+        }],
+        PresetShapeType::SwooshArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 70000 w ss",
+        }],
+        PresetShapeType::Trapezoid => &[PresetGuide {
+            wire_name: "maxAdj",
+            formula: "*/ 50000 w ss",
+        }],
+        PresetShapeType::UpArrowCallout => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 100000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 ss h",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::UpDownArrow => &[PresetGuide {
+            wire_name: "maxAdj2",
+            formula: "*/ 50000 h ss",
+        }],
+        PresetShapeType::UpDownArrowCallout => &[
+            PresetGuide {
+                wire_name: "maxAdj2",
+                formula: "*/ 50000 w ss",
+            },
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 maxAdj2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ 50000 h ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a3 ss hd2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "+- 100000 0 q2",
+            },
+        ],
+        PresetShapeType::UTurnArrow => &[
+            PresetGuide {
+                wire_name: "a2",
+                formula: "pin 0 adj2 25000",
+            },
+            PresetGuide {
+                wire_name: "maxAdj1",
+                formula: "*/ a2 2 1",
+            },
+            PresetGuide {
+                wire_name: "a1",
+                formula: "pin 0 adj1 maxAdj1",
+            },
+            PresetGuide {
+                wire_name: "q2",
+                formula: "*/ a1 ss h",
+            },
+            PresetGuide {
+                wire_name: "q3",
+                formula: "+- 100000 0 q2",
+            },
+            PresetGuide {
+                wire_name: "maxAdj3",
+                formula: "*/ q3 h ss",
+            },
+            PresetGuide {
+                wire_name: "a3",
+                formula: "pin 0 adj3 maxAdj3",
+            },
+            PresetGuide {
+                wire_name: "q1",
+                formula: "+- a3 a1 0",
+            },
+            PresetGuide {
+                wire_name: "minAdj5",
+                formula: "*/ q1 ss h",
+            },
+            PresetGuide {
+                wire_name: "a5",
+                formula: "pin minAdj5 adj5 100000",
+            },
+            PresetGuide {
+                wire_name: "th",
+                formula: "*/ ss a1 100000",
+            },
+            PresetGuide {
+                wire_name: "aw2",
+                formula: "*/ ss a2 100000",
+            },
+            PresetGuide {
+                wire_name: "th2",
+                formula: "*/ th 1 2",
+            },
+            PresetGuide {
+                wire_name: "dh2",
+                formula: "+- aw2 0 th2",
+            },
+            PresetGuide {
+                wire_name: "y5",
+                formula: "*/ h a5 100000",
+            },
+            PresetGuide {
+                wire_name: "ah",
+                formula: "*/ ss a3 100000",
+            },
+            PresetGuide {
+                wire_name: "y4",
+                formula: "+- y5 0 ah",
+            },
+            PresetGuide {
+                wire_name: "x9",
+                formula: "+- r 0 dh2",
+            },
+            PresetGuide {
+                wire_name: "bw",
+                formula: "*/ x9 1 2",
+            },
+            PresetGuide {
+                wire_name: "bs",
+                formula: "min bw y4",
+            },
+            PresetGuide {
+                wire_name: "maxAdj4",
+                formula: "*/ bs 100000 ss",
+            },
+        ],
+        _ => &[],
+    }
+}

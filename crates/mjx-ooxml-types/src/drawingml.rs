@@ -8,12 +8,13 @@
 //! on top of these in `mjx-dml`.
 
 pub use crate::generated::drawingml::{
-    adjustments_of, AutonumberScheme, BevelPreset, BlendMode, ColorSchemeSlot, CompoundLine,
-    FontAlignment, FontCollectionIndex, LightRigDirection, LightRigType, LineCap, LineEndLength,
-    LineEndType, LineEndWidth, OnOffStyle, PathFillMode, PatternType, PenAlignment, PresetCamera,
-    PresetLineDash, PresetMaterial, PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor,
-    TabAlignment, TextAlignment, TextAnchoring, TextCapitalization, TextDirection,
-    TextHorizontalOverflow, TextStrike, TextUnderline,
+    adjustable_shapes, adjustment_bound_guides_of, adjustments_of, AutonumberScheme, BevelPreset,
+    BlendMode, ColorSchemeSlot, CompoundLine, FontAlignment, FontCollectionIndex,
+    LightRigDirection, LightRigType, LineCap, LineEndLength, LineEndType, LineEndWidth, OnOffStyle,
+    PathFillMode, PatternType, PenAlignment, PresetCamera, PresetLineDash, PresetMaterial,
+    PresetShadow, PresetShapeType, RectangleAlignment, SchemeColor, TabAlignment, TextAlignment,
+    TextAnchoring, TextCapitalization, TextDirection, TextHorizontalOverflow, TextStrike,
+    TextUnderline,
 };
 
 /// The axis a shape adjustment controls, disclosed by which `ahLst` handle reference names its guide.
@@ -34,10 +35,25 @@ pub enum AdjustmentAxis {
 pub enum AdjustmentBound {
     /// A literal bound in native spec units.
     Literal(i32),
-    /// The name of a `gdLst` guide whose formula computes the bound (data-dependent on the shape's
-    /// `w`/`h` and other adjustments). Resolving it to a number needs the guide-formula evaluator,
-    /// which is deferred to the rendering phase.
+    /// The name of a guide whose formula computes the bound (data-dependent on the shape's `w`/`h`
+    /// and other adjustments). [`adjustment_bound_guides_of`] carries the `gdLst` guides it is
+    /// computed from; evaluating them turns the bound into a number (`mjx-dml`'s
+    /// `PresetGeometry::adjustments_for_size` does exactly that). A handful name a built-in variable
+    /// (`star24`/`star32` bound their point depth to `ssd2`) rather than a `gdLst` guide.
     Guide(&'static str),
+}
+
+/// One guide of a preset shape's geometry — a `name`/`fmla` pair exactly as
+/// `presetShapeDefinitions.xml` writes it (see [`adjustment_bound_guides_of`]).
+///
+/// The formula is kept as its wire text, not parsed: the guide-formula language belongs to `mjx-dml`,
+/// which sits above this crate, and this tier stays purely mechanical.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PresetGuide {
+    /// The guide's `name` attribute, as other guides and coordinates reference it.
+    pub wire_name: &'static str,
+    /// The guide's `fmla` attribute, e.g. `*/ 50000 w ss`.
+    pub formula: &'static str,
 }
 
 /// The metadata for one user-facing shape adjustment (see [`adjustments_of`]).

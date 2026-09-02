@@ -60,13 +60,14 @@ use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mjx_dml::{
-    Angle, Bevel, BevelPreset, BlipFillMode, Camera, CellBorder, CharacterPropertiesSpec,
-    ColorSpec, CustomGeometrySpec, DrawCommand, EffectListSpec, Emu, FillSpec, Fraction,
-    GlowEffect, GradientStopSpec, IndentLevel, LightRig, LightRigDirection, LightRigType, LineCap,
-    LineDash, LineJoin, LineSpec, LineWidth, OnOffStyle, OuterShadowEffect,
-    ParagraphPropertiesSpec, Path2DSpec, PatternType, Point, PresetCamera, PresetLineDash,
-    PresetMaterial, RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry,
-    TablePart, TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring, TextSpacing,
+    AdjustAngle, AdjustCoordinate, Angle, Bevel, BevelPreset, BlipFillMode, Camera, CellBorder,
+    CharacterPropertiesSpec, ColorSpec, ConnectionSite, CustomGeometrySpec, DrawCommand,
+    EffectListSpec, Emu, FillSpec, Fraction, GlowEffect, GradientStopSpec, GuideSpec, IndentLevel,
+    LightRig, LightRigDirection, LightRigType, LineCap, LineDash, LineJoin, LineSpec, LineWidth,
+    OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec, PatternType, Point,
+    PresetCamera, PresetLineDash, PresetMaterial, Rectangle, RectangleAlignment, Scene3DSpec,
+    SchemeColor, Shape3DSpec, ShapeGeometry, TablePart, TableStyleBorder, TableStylePart,
+    TextAlignment, TextAnchoring, TextSpacing,
 };
 use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::drawingml::PresetShapeType;
@@ -1028,6 +1029,66 @@ fn shape_geometry_fill_outline_and_effects_are_schema_valid() {
 
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("shape geometry, fill, outline and effects", &saved);
+}
+
+#[test]
+fn a_guide_driven_custom_geometry_is_schema_valid() {
+    // `CT_CustomGeometry2D` is a fixed sequence — `avLst`, `gdLst`, `ahLst`, `cxnLst`, `rect`, then
+    // the required `pathLst`. The case above authors only the path list; this one authors every
+    // auxiliary child, which is the geometry the guide-formula evaluator exists to read, so a
+    // misordered or malformed guide list cannot slip out of the writer unnoticed.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_shape(
+            0,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(1.0, 1.0, 2.0, 2.0),
+        )
+        .expect("add shape");
+    pres.set_shape_geometry(
+        0,
+        idx,
+        Geometry::Custom(CustomGeometrySpec {
+            adjust_values: vec![GuideSpec {
+                name: "adj1".to_owned(),
+                formula: "val 25000".to_owned(),
+            }],
+            guides: vec![GuideSpec {
+                name: "apex".to_owned(),
+                formula: "*/ w adj1 100000".to_owned(),
+            }],
+            connection_sites: vec![ConnectionSite {
+                angle: AdjustAngle::Guide("3cd4".to_owned()),
+                position: Point {
+                    x: AdjustCoordinate::Guide("apex".to_owned()),
+                    y: AdjustCoordinate::Emu(Emu::from_emu(0)),
+                },
+            }],
+            text_rectangle: Some(Rectangle {
+                left: AdjustCoordinate::Guide("l".to_owned()),
+                top: AdjustCoordinate::Guide("t".to_owned()),
+                right: AdjustCoordinate::Guide("r".to_owned()),
+                bottom: AdjustCoordinate::Guide("b".to_owned()),
+            }),
+            paths: vec![Path2DSpec {
+                commands: vec![
+                    DrawCommand::MoveTo(Point {
+                        x: AdjustCoordinate::Guide("apex".to_owned()),
+                        y: AdjustCoordinate::Emu(Emu::from_emu(0)),
+                    }),
+                    DrawCommand::LineTo(Point::from_emu(1_828_800, 1_828_800)),
+                    DrawCommand::LineTo(Point::from_emu(0, 1_828_800)),
+                    DrawCommand::Close,
+                ],
+                ..Path2DSpec::default()
+            }],
+            ..CustomGeometrySpec::default()
+        }),
+    )
+    .expect("custom geometry");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("a guide-driven custom geometry", &saved);
 }
 
 #[test]
