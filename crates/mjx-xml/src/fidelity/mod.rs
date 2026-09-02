@@ -5,7 +5,7 @@
 mod reader;
 mod writer;
 
-pub use reader::parse;
+pub use reader::{parse, parse_shared};
 pub use writer::{serialize, serialize_to_vec};
 
 #[cfg(test)]
