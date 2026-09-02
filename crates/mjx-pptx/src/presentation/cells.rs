@@ -231,12 +231,17 @@ impl Presentation {
     ///
     /// # Errors
     /// As [`cell_text`](Self::cell_text).
-    // The deepest cell addresses take eight parameters: a surface, the frame, a cell's row and
-    // column, a paragraph, a run, and the spec — every one of them a distinct coordinate, and the
-    // price of addressing a cell with plain indices rather than a handle object. Bundling them into
-    // an address struct would be the only way to shorten the list, and would make the common calls
-    // read worse than the deep ones read now.
-    #[allow(clippy::too_many_arguments)]
+    // Eight parameters, and every one a distinct coordinate: a surface, the frame, the cell's row
+    // and column, a paragraph, a run, and the spec. `Cells` and `CellFormat` do not shorten this —
+    // `CellFormat` carries how a cell *draws*, not its character properties, and `Cells` names a
+    // *selection*, so using it here would let `Cells::All` be written where exactly one cell is
+    // required, trading a compile-time guarantee for a runtime error. The bulk intention has its own
+    // method already: `format_cell_text` applies one spec to every run of a whole selection.
+    // `expect` rather than `allow`, so the day the list does fit, this attribute fails the build.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "six independent cell coordinates plus the spec"
+    )]
     pub fn set_cell_run_properties(
         &mut self,
         surface: impl Into<Surface>,
@@ -344,12 +349,17 @@ impl Presentation {
     /// # Errors
     /// As [`set_text_range_properties`](Self::set_text_range_properties), plus the table errors of
     /// [`cell_text`](Self::cell_text).
-    // The deepest cell addresses take eight parameters: a surface, the frame, a cell's row and
-    // column, a paragraph, a run, and the spec — every one of them a distinct coordinate, and the
-    // price of addressing a cell with plain indices rather than a handle object. Bundling them into
-    // an address struct would be the only way to shorten the list, and would make the common calls
-    // read worse than the deep ones read now.
-    #[allow(clippy::too_many_arguments)]
+    // Eight parameters, and every one a distinct coordinate: a surface, the frame, the cell's row
+    // and column, a paragraph, a run, and the spec. `Cells` and `CellFormat` do not shorten this —
+    // `CellFormat` carries how a cell *draws*, not its character properties, and `Cells` names a
+    // *selection*, so using it here would let `Cells::All` be written where exactly one cell is
+    // required, trading a compile-time guarantee for a runtime error. The bulk intention has its own
+    // method already: `format_cell_text` applies one spec to every run of a whole selection.
+    // `expect` rather than `allow`, so the day the list does fit, this attribute fails the build.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "six independent cell coordinates plus the spec"
+    )]
     pub fn set_cell_text_range_properties(
         &mut self,
         surface: impl Into<Surface>,
@@ -486,7 +496,6 @@ impl Presentation {
     ///
     /// # Errors
     /// As [`cell_text`](Self::cell_text).
-    #[allow(clippy::too_many_arguments)]
     pub fn set_cell_border(
         &mut self,
         surface: impl Into<Surface>,
