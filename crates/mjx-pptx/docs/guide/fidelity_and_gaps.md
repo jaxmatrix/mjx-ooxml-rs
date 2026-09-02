@@ -87,6 +87,8 @@ Each row is a deliberate decision with an issue behind it, not an oversight.
 | Gap | Consequence | Issue |
 |---|---|---|
 | **Every fixture is hand-crafted** | No test in this repository reads a file that Microsoft PowerPoint wrote. LibreOffice confirms decks *open*; nothing yet confirms they *render as intended* | MJX-211 R2, MJX-140 |
+| **The schema gate is local-only** | `crates/mjx-pptx/tests/schema_validity.rs` validates every fixture part and every deck this library authors against the ECMA-376 XSDs, but the schemas live in the git-ignored `References/` tree, so the suite *skips* unless they are present (`MJX_REQUIRE_SCHEMA=1` makes their absence a failure). CI does not run it yet | MJX-248 |
+| Parts carrying `mc:AlternateContent` are not schema-validated | Markup Compatibility lives outside the base schema by design, so such parts are skipped with a named reason. This shades nothing this library writes — no authoring path emits `mc:AlternateContent` | MJX-248 |
 | The 0.0.58 text-inheritance change | A non-placeholder shape now takes the master's `p:otherStyle` / `p:bodyStyle` per ECMA-376 §19.3.1.35. This follows the spec, but real PowerPoint is believed to match the *previous* behaviour. It is isolated in one revertible commit pending validation | MJX-211 R1, MJX-208 |
 
 ### Whole formats
