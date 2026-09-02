@@ -74,8 +74,8 @@ use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_opc::{Package, PartName, CONTENT_TYPES_ZIP_NAME};
 use mjx_pptx::{
-    CellFormat, CellMargins, Cells, ChartData, ChartKind, Geometry, Hyperlink, Presentation,
-    ShapeBounds, SlideSize, Surface, TableStyleFormat,
+    AxisOrientation, CellFormat, CellMargins, Cells, ChartData, ChartKind, Geometry, Hyperlink,
+    LegendPosition, Presentation, ShapeBounds, SlideSize, Surface, TableStyleFormat,
 };
 use mjx_xml::fidelity;
 
@@ -89,6 +89,8 @@ const PRESENTATIONML_NS: &str = "http://schemas.openxmlformats.org/presentationm
 const DRAWINGML_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// `c:` — DrawingML charts.
 const DRAWINGML_CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+/// SpreadsheetML — the markup inside a chart's embedded workbook, which this project now writes.
+const SPREADSHEETML_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 /// `mc:` — Markup Compatibility and Extensibility (ECMA-376 Part 3).
 const MARKUP_COMPATIBILITY_NS: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 /// The OPC relationships stream (`_rels/*.rels`), written by `mjx-opc` on every save.
@@ -114,11 +116,16 @@ struct SchemaRef {
 /// The schema governing each namespace **this project authors** — the markup formats and the two
 /// OPC control streams `mjx-opc` writes on every save. A part rooted in any other namespace is
 /// foreign markup this project only ever preserves, and is reported as skipped rather than validated.
+///
+/// SpreadsheetML is here because an authored chart embeds a whole `.xlsx` workbook: without this arm
+/// every part of that workbook would be reported skipped-as-foreign, which is the difference between
+/// the gate covering the workbook and only looking as though it does.
 fn schema_for_namespace(namespace: &str) -> Option<SchemaRef> {
     let (set, file) = match namespace {
         PRESENTATIONML_NS => (SchemaSet::Markup, "pml.xsd"),
         DRAWINGML_NS => (SchemaSet::Markup, "dml-main.xsd"),
         DRAWINGML_CHART_NS => (SchemaSet::Markup, "dml-chart.xsd"),
+        SPREADSHEETML_NS => (SchemaSet::Markup, "sml.xsd"),
         OPC_RELATIONSHIPS_NS => (SchemaSet::Packaging, "opc-relationships.xsd"),
         OPC_CONTENT_TYPES_NS => (SchemaSet::Packaging, "opc-contentTypes.xsd"),
         _ => return None,
@@ -197,17 +204,23 @@ fn find_on_path(name: &str) -> Option<PathBuf> {
 }
 
 /// A directory of XSDs, located from an environment override or the git-ignored `References/` tree
-/// at the workspace root, and confirmed present by one file it must contain.
+/// at the workspace root, and confirmed present by **every** schema this suite validates against.
+///
+/// Checking all of them, not one marker, is what makes a half-extracted tree skip loudly instead of
+/// reporting perfectly good markup as invalid because the schema behind it was missing.
 ///
 /// `References/` is never read as a *committed* test input — its absence skips the suite.
-fn find_schema_dir(env_var: &str, default_suffix: &str, marker: &str) -> Option<PathBuf> {
+fn find_schema_dir(env_var: &str, default_suffix: &str, markers: &[&str]) -> Option<PathBuf> {
     let candidate = match std::env::var_os(env_var) {
         Some(dir) => PathBuf::from(dir),
         None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../References")
             .join(default_suffix),
     };
-    if !candidate.join(marker).is_file() {
+    if !markers
+        .iter()
+        .all(|marker| candidate.join(marker).is_file())
+    {
         return None;
     }
     // Canonicalized: the schemas import one another by absolute path, and libxml2 warns about a
@@ -224,12 +237,12 @@ fn harness() -> Option<Harness> {
     let markup = find_schema_dir(
         "MJX_SCHEMA_DIR",
         "ECMA-376-4_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Transitional",
-        "pml.xsd",
+        &["pml.xsd", "dml-main.xsd", "dml-chart.xsd", "sml.xsd"],
     );
     let packaging = find_schema_dir(
         "MJX_OPC_SCHEMA_DIR",
         "ECMA-376-2_5th_edition_december_2021/OpenPackagingConventions-XMLSchema",
-        "opc-relationships.xsd",
+        &["opc-relationships.xsd", "opc-contentTypes.xsd"],
     );
 
     if let (Some(xmllint), Some(markup_schemas), Some(packaging_schemas)) =
@@ -344,6 +357,12 @@ impl PartOutcome {
     }
 }
 
+/// The content type of an embedded Office package — a chart's workbook. Its payload is a whole OPC
+/// container, so the suite opens it and validates the markup *inside* rather than skipping it as a
+/// binary blob.
+const EMBEDDED_PACKAGE_CONTENT_TYPES: [&str; 1] =
+    ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+
 /// Whether a content type names an XML payload. `vmlDrawing` is XML despite the content type not
 /// saying so; it is classified as foreign markup a step later, which is the truthful reason.
 fn is_xml_content_type(content_type: &str) -> bool {
@@ -429,14 +448,32 @@ fn inspect_deck(
     bytes: &[u8],
     tolerances: &[&ToleratedDeviation],
 ) -> Vec<(String, PartOutcome)> {
+    let mut outcomes = Vec::new();
+    inspect_package(harness, label, bytes, tolerances, "", &mut outcomes);
+    outcomes
+}
+
+/// Classifies and validates every part of one package, appending to `outcomes`.
+///
+/// `prefix` names where the package sits: empty for the deck itself, and
+/// `/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx!` for a package **embedded inside** it — a chart's
+/// workbook, which this library now authors and whose SpreadsheetML must therefore be validated
+/// rather than skipped as a binary blob.
+fn inspect_package(
+    harness: &Harness,
+    label: &str,
+    bytes: &[u8],
+    tolerances: &[&ToleratedDeviation],
+    prefix: &str,
+    outcomes: &mut Vec<(String, PartOutcome)>,
+) {
     let package = Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
-    let work = WorkDir::new(&label.replace(['.', '/', ' '], "_"));
+    let work = WorkDir::new(&format!("{label}{prefix}").replace(['.', '/', ' ', '!'], "_"));
 
     // Every ZIP entry, not just the addressable parts: `[Content_Types].xml` is markup `mjx-opc`
     // writes on every save and is exactly the kind of stream a bug would break silently.
-    let mut outcomes = Vec::new();
     for entry in package.entries() {
-        let name = format!("/{}", entry.name);
+        let name = format!("{prefix}/{}", entry.name);
         let Some(payload) = entry.bytes() else {
             panic!("{label}: {name} has no materialized bytes in a freshly opened package");
         };
@@ -446,6 +483,11 @@ fn inspect_deck(
             .and_then(|part| package.content_type_of(&part).map(str::to_owned));
 
         if let Some(content_type) = content_type {
+            if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
+                let nested = format!("{name}!");
+                inspect_package(harness, label, payload, tolerances, &nested, outcomes);
+                continue;
+            }
             if !is_xml_content_type(&content_type) {
                 outcomes.push((name, PartOutcome::SkippedBinary(content_type)));
                 continue;
@@ -474,9 +516,10 @@ fn inspect_deck(
             continue;
         }
 
-        let file = work
-            .path()
-            .join(name.trim_start_matches('/').replace(['/', '[', ']'], "_"));
+        let file = work.path().join(
+            name.trim_start_matches('/')
+                .replace(['/', '[', ']', '!'], "_"),
+        );
         std::fs::write(&file, payload).expect("write part for validation");
         let outcome = match xmllint_report(harness, schema, &file) {
             None => PartOutcome::Validated(schema.file),
@@ -501,7 +544,6 @@ fn inspect_deck(
         };
         outcomes.push((name, outcome));
     }
-    outcomes
 }
 
 /// Prints the per-part report and fails on any invalid part.
@@ -1299,21 +1341,35 @@ fn a_created_table_style_is_schema_valid() {
     assert_authored_deck_is_schema_valid("created table style", &saved);
 }
 
+/// Every chart kind this library can author. `Stock` is absent: `CT_StockChart` requires three or
+/// four series, so it is exercised by its own case rather than with the shared two-series data.
+const AUTHORED_CHART_KINDS: [ChartKind; 15] = [
+    ChartKind::Bar,
+    ChartKind::Bar3D,
+    ChartKind::Line,
+    ChartKind::Line3D,
+    ChartKind::Pie,
+    ChartKind::Pie3D,
+    ChartKind::OfPie,
+    ChartKind::Area,
+    ChartKind::Area3D,
+    ChartKind::Scatter,
+    ChartKind::Doughnut,
+    ChartKind::Radar,
+    ChartKind::Bubble,
+    ChartKind::Surface,
+    ChartKind::Surface3D,
+];
+
 #[test]
 fn authored_charts_are_schema_valid() {
-    // `mjx-chart`'s `to_part_bytes` for every chart kind, in one deck. This is the case that proves
-    // we never emit the negative `c:axId` that charts.pptx (python-pptx's template) carries: no
-    // tolerance applies to an authored deck, so a signed axis id here would fail.
+    // `mjx-chart`'s authoring path for every chart kind, in one deck — and with it every embedded
+    // workbook, whose SpreadsheetML the harness now validates against `sml.xsd` rather than skipping
+    // as a binary blob. This is also the case that proves we never emit the negative `c:axId` that
+    // charts.pptx (python-pptx's template) carries: no tolerance applies to an authored deck, so a
+    // signed axis id here would fail.
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
-    let kinds = [
-        ChartKind::Bar,
-        ChartKind::Line,
-        ChartKind::Pie,
-        ChartKind::Area,
-        ChartKind::Scatter,
-        ChartKind::Doughnut,
-    ];
-    for (i, kind) in kinds.into_iter().enumerate() {
+    for (i, kind) in AUTHORED_CHART_KINDS.into_iter().enumerate() {
         #[allow(clippy::cast_precision_loss)]
         let offset = i as f64;
         let chart = ChartData::new(kind)
@@ -1323,14 +1379,38 @@ fn authored_charts_are_schema_valid() {
         pres.add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 4.0, 3.0))
             .expect("add chart");
     }
+    let stock = ChartData::new(ChartKind::Stock)
+        .categories(["Mon", "Tue", "Wed"])
+        .series("High", [12.0, 13.0, 11.5])
+        .series("Low", [9.0, 9.5, 8.75])
+        .series("Close", [11.0, 10.5, 10.0]);
+    pres.add_chart(0, &stock, ShapeBounds::from_inches(0.5, 0.5, 4.0, 3.0))
+        .expect("add a stock chart");
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("authored charts (every kind)", &saved);
 }
 
 #[test]
+fn an_authored_chart_with_a_title_and_a_legend_is_schema_valid() {
+    // The title carries DrawingML rich text inside the chart namespace, and the legend is a whole
+    // element `CT_Chart` admits at exactly one position — both are markup this library now writes.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let chart = ChartData::new(ChartKind::Line)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Revenue", [1.0, 2.0, 3.0])
+        .title("Revenue by quarter")
+        .legend(LegendPosition::Bottom);
+    pres.add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 6.0, 4.0))
+        .expect("add chart");
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored chart with a title and a legend", &saved);
+}
+
+#[test]
 fn an_edited_chart_is_schema_valid() {
-    // Editing an authored chart part in place — the cached series values and categories are rewritten
-    // through the model, so the part is re-serialized rather than re-emitted verbatim.
+    // Editing an authored chart part in place — the series values and categories are rewritten
+    // through the model, so the part is re-serialized rather than re-emitted verbatim, and the
+    // embedded workbook is regenerated alongside it.
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let chart = ChartData::new(ChartKind::Bar)
         .categories(["Q1", "Q2"])
@@ -1344,6 +1424,58 @@ fn an_edited_chart_is_schema_valid() {
         .expect("rewrite the categories");
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("edited chart", &saved);
+}
+
+#[test]
+fn an_edited_chart_axis_legend_title_and_series_style_are_schema_valid() {
+    // Every setter this tier adds, on one chart: each inserts an element into a `CT_*` sequence, so
+    // a child placed in the wrong position fails here rather than in PowerPoint.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Revenue", [1.0, 2.0, 3.0])
+        .series("Cost", [0.5, 1.5, 2.5]);
+    let frame = pres
+        .add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 6.0, 4.0))
+        .expect("add chart");
+
+    pres.set_chart_title(0, frame, Some("Quarterly results"))
+        .expect("set the title");
+    pres.set_chart_legend(0, frame, Some(LegendPosition::Right))
+        .expect("place the legend");
+    pres.set_chart_axis_title(0, frame, 0, Some("Quarter"))
+        .expect("title the category axis");
+    pres.set_chart_axis_title(0, frame, 1, Some("Millions"))
+        .expect("title the value axis");
+    pres.set_chart_axis_scale(0, frame, 1, Some(0.0), Some(10.0))
+        .expect("bound the value axis");
+    pres.set_chart_axis_orientation(0, frame, 1, AxisOrientation::MaximumToMinimum)
+        .expect("reverse the value axis");
+    pres.set_chart_axis_gridlines(0, frame, 1, true, true)
+        .expect("rule gridlines");
+    pres.set_chart_series_fill(
+        0,
+        frame,
+        0,
+        &FillSpec::Solid(ColorSpec::Srgb("4472C4".to_owned())),
+    )
+    .expect("fill the first series");
+    pres.set_chart_series_line(
+        0,
+        frame,
+        1,
+        &LineSpec::solid(
+            LineWidth::from_points(1.5),
+            ColorSpec::Srgb("ED7D31".to_owned()),
+        ),
+    )
+    .expect("outline the second series");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid(
+        "edited chart axes, legend, title and series style",
+        &saved,
+    );
 }
 
 #[test]
