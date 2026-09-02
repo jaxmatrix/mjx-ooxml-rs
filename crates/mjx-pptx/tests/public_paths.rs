@@ -198,15 +198,22 @@ fn the_legacy_content_seam_is_reachable_on_the_re_exported_presentation() {
     let mut deck = Presentation::open(&fixture("ole.pptx")).expect("open the OLE fixture");
     let objects = deck.ole_objects(0).expect("the slide's OLE objects");
     assert!(!objects.is_empty(), "the fixture carries an OLE object");
-    #[cfg(feature = "vml")]
-    assert!(
-        !deck.vml_part_names().is_empty(),
-        "an OLE object is paired with a VML drawing"
-    );
     assert!(deck
         .ole_prog_id(0, objects[0].shape_index)
         .expect("the object's ProgID")
         .is_some());
+
+    // The VML half of the seam is reached through the fixture that actually carries a drawing.
+    // `ole.pptx` holds an embedded object and its snapshot image and no `ppt/drawings/` part at
+    // all, so asserting a VML drawing beside its OLE object asserted something untrue of the file.
+    #[cfg(feature = "vml")]
+    {
+        let drawings = Presentation::open(&fixture("vml.pptx")).expect("open the VML fixture");
+        assert!(
+            !drawings.vml_part_names().is_empty(),
+            "vml.pptx carries `ppt/drawings/vmlDrawing1.vml`"
+        );
+    }
 }
 
 /// `from_package` is the constructor for a caller who already holds the package — the facade opens a

@@ -16,3 +16,16 @@
 /fuzz/target
 /fuzz/corpus
 /fuzz/artifacts
+
+# Binding build artefacts. The sources are committed; the products are not.
+/bindings/*/target
+/bindings/mjx-python/dist
+/bindings/mjx-python/.venv
+/bindings/mjx-wasm/pkg
+/bindings/mjx-wasm/pkg-*
+/bindings/mjx-wasm/npm/dist
+/bindings/mjx-wasm/npm/README.md
+**/node_modules
+**/__pycache__
+*.egg-info
+*.whl

@@ -1,0 +1,31 @@
+{
+  "name": "@mjx/ooxml",
+  "version": "0.0.68",
+  "description": "Read, edit and write PowerPoint (.pptx) files — a pure-Rust OOXML library, compiled to WebAssembly.",
+  "license": "MIT OR Apache-2.0",
+  "author": "Jai Shukla",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jaxmatrix/mjx-ooxml-rs.git",
+    "directory": "bindings/mjx-wasm"
+  },
+  "keywords": ["ooxml", "pptx", "powerpoint", "office", "presentation", "wasm", "webassembly"],
+  "type": "module",
+  "sideEffects": ["./dist/bundler/mjx_ooxml.js", "./dist/web/mjx_ooxml.js"],
+  "exports": {
+    ".": {
+      "types": "./dist/bundler/mjx_ooxml.d.ts",
+      "default": "./dist/bundler/mjx_ooxml.js"
+    },
+    "./web": {
+      "types": "./dist/web/mjx_ooxml.d.ts",
+      "default": "./dist/web/mjx_ooxml.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/bundler/mjx_ooxml.d.ts",
+  "files": ["dist/", "README.md"],
+  "engines": {
+    "node": ">=18"
+  }
+}

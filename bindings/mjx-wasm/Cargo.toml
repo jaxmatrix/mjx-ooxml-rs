@@ -1,0 +1,36 @@
+[package]
+name = "mjx-wasm"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "WebAssembly/TypeScript bindings for mjx-ooxml (wasm-bindgen)."
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+# `cdylib` is what `wasm-pack` links; `rlib` keeps the crate usable as a normal library target so
+# `cargo test --workspace` builds and runs its unit tests on the host.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mjx-ooxml.workspace = true
+wasm-bindgen.workspace = true
+js-sys.workspace = true
+
+[features]
+# Re-exposes the facade's legacy VML surface — the four part-addressed readers and writers an OLE
+# object's or a control's legacy fallback needs. Opt-in here for the same reason it is opt-in there.
+vml = ["mjx-ooxml/vml"]
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+# `-Oz` is the size-first level; the workspace `[profile.release]` already sets `lto`,
+# `codegen-units = 1` and `strip = "debuginfo"`.
+wasm-opt = ["-Oz"]
