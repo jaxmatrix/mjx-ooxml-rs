@@ -12,14 +12,13 @@ use std::process::Command;
 use std::time::{Duration, Instant};
 
 use mjx_dml::{
-    Angle, Bevel, BevelPreset, BlipFillMode, Camera, CellBorder, CharacterPropertiesSpec,
-    ColorSpec, CustomGeometrySpec, DrawCommand, EffectListSpec, Emu, FillSpec, Fraction,
-    GlowEffect, GradientStopSpec, IndentLevel, LightRig, LightRigDirection, LightRigType, LineCap,
-    LineDash, LineJoin, LineSpec, LineWidth, OnOffStyle, OuterShadowEffect,
-    ParagraphPropertiesSpec, Path2DSpec, PatternType, Point, PresetCamera, PresetLineDash,
-    PresetMaterial, RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry,
-    TablePart, TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring, TextSpacing,
-    Transform2D,
+    Angle, Bevel, BevelPreset, Camera, CellBorder, CharacterPropertiesSpec, ColorSpec,
+    CustomGeometrySpec, DrawCommand, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect,
+    GradientStopSpec, IndentLevel, LightRig, LightRigDirection, LightRigType, LineCap, LineDash,
+    LineJoin, LineSpec, LineWidth, OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec,
+    Path2DSpec, PatternType, PictureFillMode, Point, PresetCamera, PresetLineDash, PresetMaterial,
+    RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry, TablePart,
+    TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring, TextSpacing, Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
@@ -769,9 +768,9 @@ fn deck_with_a_picture_filled_shape_opens() {
     pres.set_shape_fill(
         0,
         idx,
-        &FillSpec::Blip {
+        &FillSpec::Picture {
             rel_id,
-            mode: BlipFillMode::Stretch,
+            mode: PictureFillMode::Stretch,
         },
     )
     .expect("set picture fill");

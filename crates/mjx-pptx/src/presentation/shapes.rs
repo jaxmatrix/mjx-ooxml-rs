@@ -4,6 +4,7 @@
 use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawNode};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::PML;
+use mjx_ooxml_types::presentationml::PlaceholderType;
 use mjx_opc::PartName;
 
 use crate::address::ShapePath;
@@ -11,7 +12,7 @@ use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
 use crate::geometry::ShapeBounds;
 use crate::slide::GraphicFrameKind;
-use crate::slide::{PlaceholderInfo, ShapeKind};
+use crate::slide::{PlaceholderInfo, ShapeInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::{build, group, nav, slide};
 
@@ -163,7 +164,7 @@ impl Presentation {
                 ShapeEdit::Image(bytes) => {
                     // The picture is checked before the package grows, so a wrong address adds no
                     // image part — as `set_picture_image` does.
-                    self.check_picture_blip_fill(surface, &path)?;
+                    self.check_picture_image_fill(surface, &path)?;
                     PreparedEdit::Image(self.add_image(surface, &bytes)?)
                 }
                 other => PreparedEdit::Element(other),
@@ -243,7 +244,7 @@ impl Presentation {
     }
 
     /// Checks that `path` addresses a picture that has the `p:blipFill` an image edit rewrites.
-    fn check_picture_blip_fill(
+    fn check_picture_image_fill(
         &mut self,
         surface: Surface,
         path: &ShapePath,
@@ -253,9 +254,74 @@ impl Presentation {
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let picture = picture_at(sp_tree, &doc.interner, surface, path)?;
         if nav::child(picture, &doc.interner, PML, "blipFill").is_none() {
-            return Err(PptxError::PictureHasNoBlipFill);
+            return Err(PptxError::PictureHasNoImage);
         }
         Ok(())
+    }
+
+    /// Every shape of `surface`, in document order — what it is and the placeholder slot it fills.
+    ///
+    /// One read of the part answers *what is on this slide*: the alternative is an index loop over
+    /// [`shape_count`](Self::shape_count) calling [`shape_kind`](Self::shape_kind) and
+    /// [`shape_placeholder`](Self::shape_placeholder) on each address, which re-borrows the part
+    /// once per shape and can fail halfway through. Reading does not dirty the part.
+    ///
+    /// The entries cover the surface's **top-level** index space, the one every shape method
+    /// addresses: a group is one entry. Descend into it with `[group, member]` addresses, guided by
+    /// [`shape_member_count`](Self::shape_member_count).
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let mut deck = mjx_pptx::Presentation::open(&std::fs::read("deck.pptx")?)?;
+    /// for shape in deck.shapes(0)? {
+    ///     println!("{}: {:?}", shape.index, shape.kind);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the surface does not exist or its part is malformed.
+    pub fn shapes(&mut self, surface: impl Into<Surface>) -> Result<Vec<ShapeInfo>, PptxError> {
+        let surface = surface.into();
+        let part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&part)?;
+        let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
+        slide::shapes(sp_tree, &doc.interner)
+            .enumerate()
+            .map(|(index, shape)| {
+                Ok(ShapeInfo {
+                    index,
+                    kind: slide::shape_kind(shape, &doc.interner)
+                        .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))?,
+                    placeholder: slide::shape_placeholder_info(shape, &doc.interner),
+                })
+            })
+            .collect()
+    }
+
+    /// The address of the first shape on `surface` that fills the `kind` placeholder slot, or `None`
+    /// if the surface offers none.
+    ///
+    /// This is how a caller finds *the title* without knowing where a template put it — the search
+    /// an index loop over [`shape_placeholder`](Self::shape_placeholder) would otherwise spell out.
+    /// A surface may offer more than one slot of a kind (two `Body` placeholders on a two-column
+    /// layout); this answers with the first in document order, and [`shapes`](Self::shapes) lists
+    /// them all when the distinction matters.
+    ///
+    /// # Errors
+    /// As [`shapes`](Self::shapes).
+    pub fn shape_for_placeholder(
+        &mut self,
+        surface: impl Into<Surface>,
+        kind: PlaceholderType,
+    ) -> Result<Option<usize>, PptxError> {
+        Ok(self.shapes(surface)?.into_iter().find_map(|shape| {
+            shape
+                .placeholder
+                .filter(|placeholder| placeholder.kind == kind)
+                .map(|_| shape.index)
+        }))
     }
 
     /// The placeholder shape `shape_idx` on `surface` occupies (`p:nvPr > p:ph`), or `None` if it is

@@ -3,8 +3,8 @@
 //! opaque bucket; typed reads and builders are checked against expected values/bytes.
 
 use mjx_dml::{
-    Angle, BlipFill, BlipFillMode, Color, ColorKind, ColorSpec, Fill, FillSpec, Fraction,
-    GradientFill, GradientStopSpec, NoFill, PatternFill, PatternType, SchemeColor,
+    Angle, Color, ColorKind, ColorSpec, Fill, FillSpec, Fraction, GradientFill, GradientStopSpec,
+    NoFill, PatternFill, PatternType, PictureFill, PictureFillMode, SchemeColor,
 };
 use mjx_dml::{GroupFill, SolidFill};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
@@ -124,11 +124,11 @@ fn blip_fill_reads_rel_id_mode_and_preserves_effects() {
     let fragment = format!(
         r#"<a:blipFill xmlns:a="{A}" xmlns:r="{R}"><a:blip r:embed="rId2"><a:alphaModFix amt="50000"/></a:blip><a:stretch><a:fillRect/></a:stretch></a:blipFill>"#
     );
-    let (fill, doc): (BlipFill, _) = parse_typed(fragment.as_bytes());
+    let (fill, doc): (PictureFill, _) = parse_typed(fragment.as_bytes());
 
     assert_eq!(fill.image_rel_id(&doc.interner), Some("rId2"));
     assert_eq!(fill.image_link_id(&doc.interner), None);
-    assert_eq!(fill.mode(&doc.interner), BlipFillMode::Stretch);
+    assert_eq!(fill.mode(&doc.interner), PictureFillMode::Stretch);
 
     // The alphaModFix effect and the stretch's fillRect survive verbatim.
     assert_round_trips(&fill, doc, fragment.as_bytes());
@@ -137,14 +137,14 @@ fn blip_fill_reads_rel_id_mode_and_preserves_effects() {
 #[test]
 fn builds_blip_fill() {
     let mut interner = Interner::new();
-    let blip = BlipFill::new(&mut interner, "rId5", BlipFillMode::Stretch);
+    let blip = PictureFill::new(&mut interner, "rId5", PictureFillMode::Stretch);
     assert_eq!(
         serialize_built(interner, &blip),
         r#"<a:blipFill><a:blip r:embed="rId5"/><a:stretch/></a:blipFill>"#
     );
 
     let mut interner = Interner::new();
-    let tiled = BlipFill::new(&mut interner, "rId6", BlipFillMode::Tile);
+    let tiled = PictureFill::new(&mut interner, "rId6", PictureFillMode::Tile);
     assert_eq!(
         serialize_built(interner, &tiled),
         r#"<a:blipFill><a:blip r:embed="rId6"/><a:tile/></a:blipFill>"#
@@ -214,7 +214,7 @@ fn fill_dispatches_on_local_name_for_all_six_kinds() {
     );
     assert_fill_variant(
         &format!(r#"<a:blipFill xmlns:a="{A}"><a:blip/></a:blipFill>"#),
-        |f| matches!(f, Fill::Blip(_)),
+        |f| matches!(f, Fill::Picture(_)),
     );
     assert_fill_variant(
         &format!(r#"<a:pattFill xmlns:a="{A}" prst="pct5"/>"#),
@@ -288,9 +288,9 @@ fn fill_spec_round_trips_each_kind() {
         ],
         Angle::from_degrees(90.0),
     ));
-    assert_spec_round_trips(FillSpec::Blip {
+    assert_spec_round_trips(FillSpec::Picture {
         rel_id: "rId7".into(),
-        mode: BlipFillMode::Stretch,
+        mode: PictureFillMode::Stretch,
     });
     assert_spec_round_trips(FillSpec::pattern(
         PatternType::Percent25,

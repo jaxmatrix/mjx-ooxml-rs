@@ -1034,7 +1034,7 @@ fn shape_own_fill(
         )));
     }
     if let Some(reference) = slide::shape_fill_ref(shape, interner) {
-        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+        if let Some(idx) = reference.index().filter(|idx| *idx > 0) {
             let color = reference
                 .color()
                 .and_then(|c| resolve_color(c, scheme, map, None, interner));
@@ -1072,7 +1072,7 @@ fn shape_own_line(
         )));
     }
     if let Some(reference) = slide::shape_line_ref(shape, interner) {
-        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+        if let Some(idx) = reference.index().filter(|idx| *idx > 0) {
             let color = reference
                 .color()
                 .and_then(|c| resolve_color(c, scheme, map, None, interner));
@@ -1094,7 +1094,7 @@ fn part_own_fill(
         return OwnFill::Resolved(resolve_fill(&fill, scheme, map, None, interner));
     }
     if let Some(reference) = cell_style.fill_reference(interner) {
-        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+        if let Some(idx) = reference.index().filter(|idx| *idx > 0) {
             let color = reference
                 .color()
                 .and_then(|color| resolve_color(color, scheme, map, None, interner));
@@ -1115,15 +1115,17 @@ fn part_own_line(
         ThemeableLineStyle::Line(line) => {
             OwnLine::Resolved(resolve_line(&line, scheme, map, None, interner))
         }
-        ThemeableLineStyle::Reference(reference) => match reference.idx().filter(|idx| *idx > 0) {
-            Some(idx) => {
-                let color = reference
-                    .color()
-                    .and_then(|color| resolve_color(color, scheme, map, None, interner));
-                OwnLine::StyleRef(idx, color)
+        ThemeableLineStyle::Reference(reference) => {
+            match reference.index().filter(|idx| *idx > 0) {
+                Some(idx) => {
+                    let color = reference
+                        .color()
+                        .and_then(|color| resolve_color(color, scheme, map, None, interner));
+                    OwnLine::StyleRef(idx, color)
+                }
+                None => OwnLine::Absent,
             }
-            None => OwnLine::Absent,
-        },
+        }
     }
 }
 
@@ -1210,7 +1212,7 @@ fn shape_own_effects(
         ))));
     }
     if let Some(reference) = slide::shape_effect_ref(shape, interner) {
-        if let Some(idx) = reference.idx().filter(|idx| *idx > 0) {
+        if let Some(idx) = reference.index().filter(|idx| *idx > 0) {
             let color = reference
                 .color()
                 .and_then(|c| resolve_color(c, scheme, map, None, interner));

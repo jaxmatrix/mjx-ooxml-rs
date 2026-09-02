@@ -26,7 +26,7 @@ impl StyleMatrixReference {
     /// (for `a:fillRef`, `a:fmtScheme > a:fillStyleLst`); `0` means "no reference". `None` if the
     /// attribute is absent or not a `u32`.
     #[must_use]
-    pub fn idx(&self) -> Option<u32> {
+    pub fn index(&self) -> Option<u32> {
         self.idx
     }
 

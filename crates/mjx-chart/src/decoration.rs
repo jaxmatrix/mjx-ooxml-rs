@@ -530,27 +530,27 @@ impl DataLabelSettings {
 
 /// A description of the data labels to write — the settings a caller states, and only those.
 ///
-/// A `None` field is **left alone**: writing a spec whose only `Some` is `show_value` turns the value
+/// A `None` field is **left alone**: writing a spec whose only `Some` is `shows_value` turns the value
 /// on and touches nothing else, so a caller can change one setting of a label Office wrote without
 /// flattening the rest. To clear a setting, state it as `Some(false)`; to remove the element
 /// entirely, use the tier's `remove` call.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct DataLabelSpec {
     /// Show the point's value (`c:showVal`).
-    pub show_value: Option<bool>,
+    pub shows_value: Option<bool>,
     /// Show the point's category label (`c:showCatName`).
-    pub show_category_name: Option<bool>,
+    pub shows_category_name: Option<bool>,
     /// Show the series' name (`c:showSerName`).
-    pub show_series_name: Option<bool>,
+    pub shows_series_name: Option<bool>,
     /// Show the point's share of the total (`c:showPercent`).
-    pub show_percentage: Option<bool>,
+    pub shows_percentage: Option<bool>,
     /// Show a bubble plot's third value (`c:showBubbleSize`).
-    pub show_bubble_size: Option<bool>,
+    pub shows_bubble_size: Option<bool>,
     /// Draw the series' legend swatch beside the label (`c:showLegendKey`).
-    pub show_legend_key: Option<bool>,
+    pub shows_legend_key: Option<bool>,
     /// Draw leader lines back to the point (`c:showLeaderLines`). **Container tiers only** — asking
     /// for it on one point's label is [`ChartDataError::SettingNotAtThisTier`].
-    pub show_leader_lines: Option<bool>,
+    pub shows_leader_lines: Option<bool>,
     /// Where the label sits (`c:dLblPos`).
     pub position: Option<DataLabelPosition>,
     /// What separates the parts of a multi-part label (`c:separator`).
@@ -569,49 +569,49 @@ impl DataLabelSpec {
     /// Shows (or hides) the point's value.
     #[must_use]
     pub fn value(mut self, show: bool) -> Self {
-        self.show_value = Some(show);
+        self.shows_value = Some(show);
         self
     }
 
     /// Shows (or hides) the point's category label.
     #[must_use]
     pub fn category_name(mut self, show: bool) -> Self {
-        self.show_category_name = Some(show);
+        self.shows_category_name = Some(show);
         self
     }
 
     /// Shows (or hides) the series' name.
     #[must_use]
     pub fn series_name(mut self, show: bool) -> Self {
-        self.show_series_name = Some(show);
+        self.shows_series_name = Some(show);
         self
     }
 
     /// Shows (or hides) the point's share of the total.
     #[must_use]
     pub fn percentage(mut self, show: bool) -> Self {
-        self.show_percentage = Some(show);
+        self.shows_percentage = Some(show);
         self
     }
 
     /// Shows (or hides) a bubble plot's third value.
     #[must_use]
     pub fn bubble_size(mut self, show: bool) -> Self {
-        self.show_bubble_size = Some(show);
+        self.shows_bubble_size = Some(show);
         self
     }
 
     /// Shows (or hides) the series' legend swatch beside the label.
     #[must_use]
     pub fn legend_key(mut self, show: bool) -> Self {
-        self.show_legend_key = Some(show);
+        self.shows_legend_key = Some(show);
         self
     }
 
     /// Draws (or stops drawing) leader lines back to the point. Container tiers only.
     #[must_use]
     pub fn leader_lines(mut self, show: bool) -> Self {
-        self.show_leader_lines = Some(show);
+        self.shows_leader_lines = Some(show);
         self
     }
 
@@ -777,9 +777,9 @@ pub struct ErrorBarSpec {
     pub value: Option<f64>,
     /// Per-point lengths in the positive direction (`c:plus`), written as a `c:numLit`. Only a
     /// [`Custom`](ErrorValueType::Custom) bar reads these.
-    pub plus: Option<Vec<f64>>,
+    pub plus_values: Option<Vec<f64>>,
     /// Per-point lengths in the negative direction (`c:minus`).
-    pub minus: Option<Vec<f64>>,
+    pub minus_values: Option<Vec<f64>>,
 }
 
 impl ErrorBarSpec {
@@ -792,23 +792,23 @@ impl ErrorBarSpec {
             value_type,
             no_end_cap: None,
             value: Some(value),
-            plus: None,
-            minus: None,
+            plus_values: None,
+            minus_values: None,
         }
     }
 
     /// Bars of `bar_type` whose length is stated per point — the
     /// [`Custom`](ErrorValueType::Custom) form, written as `c:plus` and `c:minus` literals.
     #[must_use]
-    pub fn custom(bar_type: ErrorBarType, plus: Vec<f64>, minus: Vec<f64>) -> Self {
+    pub fn custom(bar_type: ErrorBarType, plus_values: Vec<f64>, minus_values: Vec<f64>) -> Self {
         Self {
             direction: None,
             bar_type,
             value_type: ErrorValueType::Custom,
             no_end_cap: None,
             value: None,
-            plus: Some(plus),
-            minus: Some(minus),
+            plus_values: Some(plus_values),
+            minus_values: Some(minus_values),
         }
     }
 
@@ -834,14 +834,16 @@ impl ErrorBarSpec {
     /// admits that shape, but it describes bars whose length nothing determines — and
     /// [`ChartDataError::NonFiniteMeasure`] for a value with no XML spelling.
     pub fn validate(&self) -> Result<(), ChartDataError> {
-        if self.value_type == ErrorValueType::Custom && self.plus.is_none() && self.minus.is_none()
+        if self.value_type == ErrorValueType::Custom
+            && self.plus_values.is_none()
+            && self.minus_values.is_none()
         {
             return Err(ChartDataError::CustomErrorBarsNeedValues);
         }
         if self.value.is_some_and(|value| !value.is_finite()) {
             return Err(ChartDataError::NonFiniteMeasure { element: "val" });
         }
-        for (name, values) in [("plus", &self.plus), ("minus", &self.minus)] {
+        for (name, values) in [("plus", &self.plus_values), ("minus", &self.minus_values)] {
             if values
                 .as_ref()
                 .is_some_and(|values| values.iter().any(|value| !value.is_finite()))
@@ -872,12 +874,12 @@ macro_rules! write_label_settings {
             element.set_scalar(interner, "dLblPos", Some(position.to_wire()));
         }
         for (local, value) in [
-            ("showLegendKey", spec.show_legend_key),
-            ("showVal", spec.show_value),
-            ("showCatName", spec.show_category_name),
-            ("showSerName", spec.show_series_name),
-            ("showPercent", spec.show_percentage),
-            ("showBubbleSize", spec.show_bubble_size),
+            ("showLegendKey", spec.shows_legend_key),
+            ("showVal", spec.shows_value),
+            ("showCatName", spec.shows_category_name),
+            ("showSerName", spec.shows_series_name),
+            ("showPercent", spec.shows_percentage),
+            ("showBubbleSize", spec.shows_bubble_size),
         ] {
             if let Some(value) = value {
                 element.set_flag(interner, local, Some(value));
@@ -1028,14 +1030,14 @@ impl DataLabel {
     /// Applies `spec` to this label, leaving every setting it does not state alone.
     ///
     /// # Errors
-    /// [`ChartDataError::SettingNotAtThisTier`] for `show_leader_lines`, which `Group_DLbl` does
+    /// [`ChartDataError::SettingNotAtThisTier`] for `shows_leader_lines`, which `Group_DLbl` does
     /// not declare.
     pub fn apply_spec(
         &mut self,
         interner: &mut Interner,
         spec: &DataLabelSpec,
     ) -> Result<(), ChartDataError> {
-        if spec.show_leader_lines.is_some() {
+        if spec.shows_leader_lines.is_some() {
             return Err(ChartDataError::SettingNotAtThisTier {
                 element: "showLeaderLines",
                 parent: "dLbl",
@@ -1179,7 +1181,7 @@ impl DataLabels {
         index: u32,
         spec: &DataLabelSpec,
     ) -> Result<(), ChartDataError> {
-        if spec.show_leader_lines.is_some() {
+        if spec.shows_leader_lines.is_some() {
             return Err(ChartDataError::SettingNotAtThisTier {
                 element: "showLeaderLines",
                 parent: "dLbl",
@@ -1251,7 +1253,7 @@ impl DataLabels {
         }
         self.clear_delete(interner);
         write_label_settings!(self, interner, spec);
-        if let Some(show) = spec.show_leader_lines {
+        if let Some(show) = spec.shows_leader_lines {
             self.set_flag(interner, "showLeaderLines", Some(show));
         }
     }
@@ -1790,7 +1792,7 @@ impl ErrorBars {
         if let Some(no_end_cap) = spec.no_end_cap {
             bars.set_flag(interner, "noEndCap", Some(no_end_cap));
         }
-        for (local, values) in [("plus", &spec.plus), ("minus", &spec.minus)] {
+        for (local, values) in [("plus", &spec.plus_values), ("minus", &spec.minus_values)] {
             if let Some(values) = values {
                 bars.put_number_source(interner, local, values);
             }
@@ -1832,7 +1834,7 @@ impl ErrorBars {
 
     /// Whether the bars are drawn without their end caps (`c:noEndCap`).
     #[must_use]
-    pub fn has_no_end_cap(&self, interner: &Interner) -> Option<bool> {
+    pub fn no_end_cap(&self, interner: &Interner) -> Option<bool> {
         self.flag(interner, "noEndCap")
     }
 
@@ -1904,7 +1906,7 @@ impl ErrorBars {
         self.set_scalar(interner, "errBarType", Some(spec.bar_type.to_wire()));
         self.set_scalar(interner, "errValType", Some(spec.value_type.to_wire()));
         self.set_flag(interner, "noEndCap", spec.no_end_cap);
-        for (local, values) in [("plus", &spec.plus), ("minus", &spec.minus)] {
+        for (local, values) in [("plus", &spec.plus_values), ("minus", &spec.minus_values)] {
             match values {
                 Some(values) => self.put_number_source(interner, local, values),
                 None => self.drop_number_source(local),

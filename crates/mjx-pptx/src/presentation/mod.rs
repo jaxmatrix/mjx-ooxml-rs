@@ -36,6 +36,7 @@ pub use chart_decoration::{
     ChartErrorBarData, ChartLabelScope, ChartPointFormatData, ChartTrendlineData,
 };
 pub use charts::{ChartAxisData, ChartLegendData, ChartSeriesData};
+pub use deck::LayoutInfo;
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
 /// ordered list of slide parts.

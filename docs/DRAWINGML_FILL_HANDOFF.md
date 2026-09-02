@@ -123,16 +123,16 @@ by `(DML_MAIN, local)` and to read a color child via `Color::from_xml`):
   `a:lin`, `@ang`), `flip()`, `rot_with_shape()`. Builder `GradientFill::linear(interner, stops:
   &[(Fraction, Color)], angle: Angle)`. `GradientStop { position: Fraction, color: Color }` is a parsed
   view (not a fidelity type).
-- `BlipFill` — accessors `image_rel_id(&Interner) -> Option<&str>` (the `blip@r:embed`; the attribute is
+- `PictureFill` — accessors `image_rel_id(&Interner) -> Option<&str>` (the `blip@r:embed`; the attribute is
   **prefixed** `r:embed`, so resolve the `r` prefix — the fidelity reader leaves attribute namespaces
-  unresolved; see `mjx-pptx::nav::namespace_prefix` for the pattern), `mode() -> BlipFillMode`
-  (`Tile`/`Stretch`/`None`). Builder `BlipFill::new(interner, rel_id, BlipFillMode)`. `BlipFillMode` enum.
+  unresolved; see `mjx-pptx::nav::namespace_prefix` for the pattern), `mode() -> PictureFillMode`
+  (`Tile`/`Stretch`/`None`). Builder `PictureFill::new(interner, rel_id, PictureFillMode)`. `PictureFillMode` enum.
 - `PatternFill` — accessors `preset(&Interner) -> Option<PatternType>` (`@prst`), `foreground(&Interner)
   -> Option<Color>` (`fgClr`'s color child), `background(&Interner) -> Option<Color>` (`bgClr`). Builder
   `PatternFill::new(interner, PatternType, fg: Color, bg: Color)`.
-- **`Fill` enum** over all 6: `None(NoFill) | Solid(SolidFill) | Gradient(GradientFill) | Blip(BlipFill)
+- **`Fill` enum** over all 6: `None(NoFill) | Solid(SolidFill) | Gradient(GradientFill) | Picture(PictureFill)
   | Pattern(PatternFill) | Group(GroupFill)`. `Fill::from_xml` dispatches on the element **local name**;
-  `Fill::to_xml` rebuilds. Re-export `Fill`, the 5 new types, `GradientStop`, `BlipFillMode`,
+  `Fill::to_xml` rebuilds. Re-export `Fill`, the 5 new types, `GradientStop`, `PictureFillMode`,
   `PatternType` from `lib.rs`.
 
 **Tests** (`mjx-dml/tests/color_model.rs` or a new `fill_model.rs`): round-trip + structural for each

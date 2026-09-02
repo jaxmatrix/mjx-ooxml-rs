@@ -315,9 +315,10 @@ pub enum PptxError {
     #[error("shape is not a picture")]
     ShapeIsNotAPicture,
 
-    /// The picture is missing its `p:blipFill` (or its `a:blip`), which the schema requires.
-    #[error("picture has no blip fill")]
-    PictureHasNoBlipFill,
+    /// The picture is missing its `p:blipFill` (or its `a:blip`), which the schema requires — so it
+    /// names no image at all.
+    #[error("picture has no image fill")]
+    PictureHasNoImage,
 
     /// The picture embeds its image rather than linking it, so there is no external link to replace
     /// with a placeholder.

@@ -109,9 +109,9 @@ pub use mjx_chart::{
 };
 pub use presentation::{
     ChartAxisData, ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData,
-    ChartSeriesData, ChartTrendlineData, Presentation,
+    ChartSeriesData, ChartTrendlineData, LayoutInfo, Presentation,
 };
-pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
+pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
 pub use validate::PresentationDefect;

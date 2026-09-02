@@ -37,14 +37,13 @@ fn main() -> Result<()> {
         let layout = deck.slide_layout(slide)?;
         println!("\nslide {slide} (layout {layout:?})");
 
-        for shape in 0..deck.shape_count(slide)? {
-            let kind = deck.shape_kind(slide, shape)?;
-            let placeholder = deck.shape_placeholder(slide, shape)?;
-            let role = match &placeholder {
+        for entry in deck.shapes(slide)? {
+            let shape = entry.index;
+            let role = match &entry.placeholder {
                 Some(info) => format!("{:?} placeholder", info.kind),
                 None => "not a placeholder".to_owned(),
             };
-            println!("  shape {shape}: {kind:?}, {role}");
+            println!("  shape {shape}: {:?}, {role}", entry.kind);
 
             // Where it renders — which for a placeholder that declares nothing lives on the layout.
             match deck.effective_shape_bounds(slide, shape)? {

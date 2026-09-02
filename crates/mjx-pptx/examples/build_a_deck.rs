@@ -34,21 +34,20 @@ fn main() -> Result<()> {
         deck.layout_count(),
         deck.master_count()
     );
-    for index in 0..deck.layout_count() {
-        let name = deck.layout_name(index)?.unwrap_or_default();
+    for layout in deck.layouts()? {
         println!(
-            "  layout {index}: {name:?} ({:?})",
-            deck.layout_kind(index)?
+            "  layout {}: {:?} ({:?})",
+            layout.index, layout.name, layout.kind
         );
     }
 
     // ---- A slide from a layout, and its placeholders ---------------------------------------
     let slide = deck.add_slide_from_layout(1)?;
-    for shape in 0..deck.shape_count(slide)? {
-        if let Some(placeholder) = deck.shape_placeholder(slide, shape)? {
+    for shape in deck.shapes(slide)? {
+        if let Some(placeholder) = shape.placeholder {
             println!(
-                "  new slide shape {shape}: {:?} placeholder",
-                placeholder.kind
+                "  new slide shape {}: {:?} placeholder",
+                shape.index, placeholder.kind
             );
         }
     }

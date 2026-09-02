@@ -46,7 +46,7 @@ impl Presentation {
     /// Sets the fill of series `series_idx` of the chart the frame `shape_idx` on `surface`
     /// references, creating its `c:spPr` if it had none. Marks only the chart part dirty.
     ///
-    /// A [`FillSpec::Blip`] is **not** accepted here: an image fill names an image relationship, and
+    /// A [`FillSpec::Picture`] is **not** accepted here: an image fill names an image relationship, and
     /// a chart part relates to no images — it is rejected with
     /// [`PptxError::ChartFillNotSupported`] rather than silently written as a dangling reference.
     ///
@@ -60,7 +60,7 @@ impl Presentation {
         series_idx: usize,
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
-        if matches!(fill, FillSpec::Blip { .. }) {
+        if matches!(fill, FillSpec::Picture { .. }) {
             return Err(PptxError::ChartFillNotSupported);
         }
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
@@ -424,7 +424,7 @@ impl Presentation {
     /// The point is addressed by index into the series, which is what `c:idx` means. An index at or
     /// past the series' point count is refused rather than written as markup that addresses nothing.
     ///
-    /// A [`FillSpec::Blip`] is not accepted, for the same reason it is not on a series: an image
+    /// A [`FillSpec::Picture`] is not accepted, for the same reason it is not on a series: an image
     /// fill names an image relationship, and a chart part relates to no images.
     ///
     /// # Errors
@@ -438,7 +438,7 @@ impl Presentation {
         point_idx: u32,
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
-        if matches!(fill, FillSpec::Blip { .. }) {
+        if matches!(fill, FillSpec::Picture { .. }) {
             return Err(PptxError::ChartFillNotSupported);
         }
         self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
@@ -634,7 +634,7 @@ impl Presentation {
                     direction: bars.direction(interner),
                     bar_type: bars.bar_type(interner),
                     value_type: bars.value_type(interner),
-                    has_no_end_cap: bars.has_no_end_cap(interner),
+                    no_end_cap: bars.no_end_cap(interner),
                     value: bars.value(interner),
                     plus_values: bars.plus_values(),
                     minus_values: bars.minus_values(),
@@ -839,7 +839,7 @@ pub struct ChartErrorBarData {
     /// How the bars' length is arrived at (`c:errValType`).
     pub value_type: Option<ErrorValueType>,
     /// Whether the bars are drawn without their end caps (`c:noEndCap`).
-    pub has_no_end_cap: Option<bool>,
+    pub no_end_cap: Option<bool>,
     /// The single length every bar takes, read as [`value_type`](Self::value_type) says (`c:val`).
     pub value: Option<f64>,
     /// The per-point lengths in the positive direction (`c:plus`), empty when the bars are not
