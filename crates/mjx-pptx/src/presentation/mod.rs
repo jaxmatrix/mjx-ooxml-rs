@@ -108,13 +108,34 @@ impl Presentation {
         Self::from_package(blank::package(size)?)
     }
 
-    /// Resolves an already-loaded package into a presentation: the `officeDocument` relationship, the
-    /// presentation part, and the slide / master / layout part graph.
+    /// Resolves an already-loaded [`Package`] into a presentation: the `officeDocument` relationship,
+    /// the presentation part, and the slide / master / layout part graph.
     ///
-    /// Shared by [`open`](Self::open) and [`blank`](Self::blank) so that a deck built from nothing is
-    /// navigated by exactly the same code that navigates a deck read from a file — a blank package
-    /// that this could not resolve would fail here rather than surviving as a special case.
-    fn from_package(mut package: Package) -> Result<Self, PptxError> {
+    /// This is the constructor for a caller who already holds the package — one opened by
+    /// [`mjx_opc`] directly, one a facade opened once and dispatched on by content type, or one
+    /// authored part by part. [`open`](Self::open) is this with `Package::open` in front of it, and
+    /// [`blank`](Self::blank) is this with an authored package in front of it, so a deck built from
+    /// nothing is navigated by exactly the same code that navigates a deck read from a file — a
+    /// blank package this could not resolve fails here rather than surviving as a special case.
+    ///
+    /// The package is taken by value because the presentation owns it from here: every read borrows
+    /// from it and every edit dirties a part of it, and [`save`](Self::save) hands the bytes back.
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// use mjx_pptx::{Package, Presentation};
+    ///
+    /// let package = Package::open(&std::fs::read("deck.pptx")?)?;
+    /// let mut deck = Presentation::from_package(package)?;
+    /// # let _ = deck.slide_count();
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if the package has no `officeDocument` relationship, or its
+    /// `presentation.xml` or relationships are malformed.
+    pub fn from_package(mut package: Package) -> Result<Self, PptxError> {
         // Package root -> officeDocument relationship -> the presentation part.
         let presentation_part = {
             let root_rels = package
