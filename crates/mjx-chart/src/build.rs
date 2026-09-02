@@ -139,6 +139,43 @@ pub(crate) fn chart_val_leaf(interner: &mut Interner, local: &str, value: &str) 
     chart_element(interner, local, vec![attr], Vec::new())
 }
 
+/// Builds a numeric data source holding `values` inline:
+/// `<c:local><c:numLit><c:formatCode>General</c:formatCode><c:ptCount val="n"/><c:pt idx="i">
+/// <c:v>…</c:v></c:pt>…</c:numLit></c:local>`.
+///
+/// This is the shape of `CT_NumDataSource` — what `c:val`, `c:yVal`, and an error bar's `c:plus`
+/// and `c:minus` all are. A literal is used rather than a `c:numRef` because these numbers have no
+/// workbook cells behind them: a reference whose formula named none would be a dangling claim. A
+/// non-finite value has no XML spelling, so it is written as `0` to keep the point count and the
+/// indices aligned with what the caller passed.
+pub(crate) fn number_literal_source(
+    interner: &mut Interner,
+    local: &str,
+    values: &[f64],
+) -> RawElement {
+    let mut children = vec![
+        RawNode::Element(chart_text_leaf(interner, "formatCode", "General")),
+        RawNode::Element(chart_val_leaf(
+            interner,
+            "ptCount",
+            &values.len().to_string(),
+        )),
+    ];
+    for (index, &value) in values.iter().enumerate() {
+        let idx = chart_attr(interner, "idx", &index.to_string());
+        let text = f64_wire(value).unwrap_or_else(|| "0".to_owned());
+        let v = chart_text_leaf(interner, "v", &text);
+        children.push(RawNode::Element(chart_element(
+            interner,
+            "pt",
+            vec![idx],
+            vec![RawNode::Element(v)],
+        )));
+    }
+    let literal = chart_element(interner, "numLit", Vec::new(), children);
+    chart_element(interner, local, Vec::new(), vec![RawNode::Element(literal)])
+}
+
 /// Builds a DrawingML qualified name `a:local` — the `a:` half of a chart part, used by the
 /// shape properties (`c:spPr`) and rich text (`c:tx > c:rich`) a chart embeds.
 pub(crate) fn dml_name(interner: &mut Interner, local: &str) -> RawName {

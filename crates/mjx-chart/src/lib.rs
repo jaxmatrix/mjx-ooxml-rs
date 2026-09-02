@@ -44,13 +44,24 @@
 //! legend and the series' own fill and outline all have a typed surface — [`Axis`], [`Scaling`],
 //! [`ChartTitle`], [`Legend`] and [`SeriesShapeProperties`].
 //!
+//! A chart's **decoration** has a typed surface too — the data labels ([`DataLabels`],
+//! [`DataLabel`]), the per-point formatting ([`DataPointFormat`]), the trendlines ([`Trendline`])
+//! and the error bars ([`ErrorBars`]). Data labels resolve over three tiers — the plot's `c:dLbls`,
+//! the series' own, and one point's `c:dLbl` — merged **per setting** by
+//! [`DataLabelSettings::inherit`]. Writing decoration goes through [`SeriesDecoration`], which binds
+//! a series to the kind of plot that holds it: `CT_PieSer` declares no `c:trendline`, and `CT_BarSer`
+//! and `CT_PieSer` place `c:dPt` at different ranks, so both the placement and the refusal follow
+//! from the schema rather than from a list written here.
+//!
 //! Authoring writes any of the sixteen kinds ([`ChartData`]) **together with the embedded workbook**
-//! that PowerPoint's Edit Data opens ([`EmbeddedWorkbook`]).
+//! that PowerPoint's Edit Data opens ([`EmbeddedWorkbook`]) — and, with
+//! [`ChartData::data_labels`], a chart that labels itself.
 
 mod author;
 mod axis;
 mod build;
 mod data;
+mod decoration;
 mod plot;
 mod space;
 mod workbook;
@@ -68,11 +79,18 @@ pub use data::{
     NumberReferenceContent, NumericData, NumericDataContent, SeriesText, SeriesTextContent,
     StringCache, StringReference, StringReferenceContent, Value,
 };
+pub use decoration::{
+    DanglingPointReference, DataLabel, DataLabelContent, DataLabelPosition, DataLabelSettings,
+    DataLabelSpec, DataLabels, DataLabelsContent, DataPointFormat, DataPointFormatContent,
+    ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorBars, ErrorBarsContent, ErrorValueType,
+    Trendline, TrendlineContent, TrendlineKind, TrendlineSpec,
+};
 pub use plot::{
     Area3DChart, AreaChart, Bar3DChart, BarChart, BarDirection, BarGrouping, BubbleChart,
     ChartKind, DoughnutChart, Line3DChart, LineChart, OfPieChart, OfPieType, Pie3DChart, PieChart,
     PlotContent, RadarChart, RadarStyle, ScatterChart, ScatterStyle, Series, SeriesContent,
-    SeriesGrouping, SeriesShapeProperties, StockChart, Surface3DChart, SurfaceChart,
+    SeriesDecoration, SeriesGrouping, SeriesShapeProperties, StockChart, Surface3DChart,
+    SurfaceChart,
 };
 pub use space::{Chart, ChartContent, ChartSpace, ChartSpaceContent, PlotArea, PlotAreaContent};
 pub use workbook::{

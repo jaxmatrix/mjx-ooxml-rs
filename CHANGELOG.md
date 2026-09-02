@@ -15,6 +15,80 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.65] - 2026-09-02
+
+Chart decoration — data labels, per-point formatting, trendlines and error bars (MJX-116).
+
+`c:dLbls`, `c:dLbl`, `c:dPt`, `c:trendline` and `c:errBars` were preserved verbatim and had no typed
+surface at all. A5 closed the chart *data* half completely — every plot type's series, literal and
+multi-level sources, axes, gridlines, titles, legend and series fill/outline — and stopped at the
+decoration deliberately rather than half-modelling it. That was right for its scope; leaving it
+unowned was not. **Data labels are the part of a chart a reader actually reads**, and until this
+release a caller could not ask what one said, could not switch a series from value to percentage, and
+could not author a chart that labelled itself.
+
+All four families now **read, author and edit**. `crates/mjx-chart/src/decoration.rs` adds
+`DataLabels`, `DataLabel`, `DataPointFormat`, `Trendline` and `ErrorBars`, each with the same
+ordered-`content` + `Raw` shape as everything else in the crate, so an element nothing touched still
+re-emits byte-for-byte. `c:plus` and `c:minus` are the same `CT_NumDataSource` a series' `c:val` is,
+so a custom error bar's lengths read and write through the existing `NumericData`.
+
+**The three tiers of a data label.** ECMA-376 §21.2.2.49 says `c:dLbls` states the settings "for an
+entire series **or the entire chart**", and a `c:dLbl` overrides them for one point — so a label
+resolves over three tiers, and `DataLabelSettings::inherit` merges them **per setting**, not per
+tier: a series that only says `c:showVal` still takes its plot's `c:dLblPos`. A `c:delete`
+short-circuits the chain, because `CT_DLbls` puts it in one `xsd:choice` with the settings group and
+an element carrying one cannot carry the other. There is deliberately no fourth tier — `CT_Chart`
+declares no `c:dLbls` of its own — and the model says so rather than inventing one.
+`ChartLabelScope` names the three tiers on the `mjx-pptx` surface, so "label this series" and "label
+this point" cannot be the same call, and three verbs separate three intentions: *state settings*,
+*draw nothing here* (`c:delete`), and *say nothing here* (remove the element, inherit again).
+
+**A `c:dPt`'s `c:idx` is never renumbered.** Per-point formatting is anchored by index into the
+series; renumbering one when a series changes length would move a point's colour silently onto a
+different point, which is worse than leaving it dangling. Nothing in this release rewrites an index
+except an explicit `set_index`. `Series::decoration_beyond_data` and
+`Presentation::chart_dangling_decoration` *report* the anchors an edit left past the end;
+`drop_chart_dangling_decoration` removes them, and nothing removes them on a caller's behalf. A
+`c:idx` that is not a number — `-1`, or a value past `u32::MAX` — addresses no point, is never
+matched by a lookup, is never renumbered, and rides through a round-trip untouched. Writing past the
+end is the same rule from the other side: it is refused with a typed error rather than written as an
+anchor that names nothing.
+
+**Writing is bound to the owning plot's kind, and both the placement and the refusal come from the
+schema.** `SeriesDecoration` carries a `ChartKind` because `CT_BarSer` puts `c:dPt` at rank 6 and
+`CT_PieSer` at rank 5, and because `CT_PieSer` declares no `c:trendline` and no `c:errBars` while
+`CT_SurfaceSer` declares no decoration at all. Both questions are asked of the generated
+`child_order` tables, which gain 29 named constants for this — the five decoration types, the eight
+`CT_*Ser` and the sixteen `CT_*Chart` — rather than of a list written by hand. `ChartDataError` gains
+seven variants, every one raised **before anything is written**, the way `ChartData::validate`
+already refused a shape the schema rejects: a point index past the end of a series, a decoration the
+series type does not declare, leader lines on one point's label (only `Group_DLbls` declares them),
+an `ST_Order` outside 2–6, an `ST_Period` below 2, a non-finite measure, and custom error bars whose
+length nothing determines.
+
+Every name is sourced from the ECMA-376 Part 1 prose, never guessed: §21.2.3.11 for `ST_DLblPos`
+(`ctr` → `Center`, `inEnd` → `InsideEnd`, `bestFit` → `BestFit`), §21.2.3.50 for `ST_TrendlineType`
+(`movingAvg` → `MovingAverage`, `exp` → `Exponential`), §§21.2.3.12–14 for the error bars
+(`cust` → `Custom`, `stdErr` → `StandardError`). The exact wire token appears in each item's docs, and
+a token the schema does not admit reads as `None` rather than as a guess. The schema's own defaults
+are honoured: a bare `<c:showVal/>` is `true`, `<c:trendlineType/>` is `linear`, `<c:errBarType/>` is
+`both`, `<c:order/>` and `<c:period/>` are 2.
+
+`ChartData::data_labels` lets a chart label itself the moment it is authored, refused by `validate`
+for the two surface kinds, which declare no `c:dLbls`.
+
+**Preservation gained reach and changed nothing.** The `mjx-opc` round-trip suites and tier-3 edit
+isolation are unchanged, and decorating a chart dirties `chart1.xml` and *nothing else* — not even
+the embedded workbook, because decoration is not data. With `MJX_REQUIRE_SCHEMA=1`, every authored
+decoration validates against `dml-chart.xsd` under `xmllint`, including the two cases the ranks make
+distinct: a pie chart, whose `CT_PieSer` places `c:dPt` differently, and a scatter chart with two sets
+of error bars, which `CT_ScatterSer` admits and `CT_BarSer` does not.
+
+The *Limitations* row in `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` naming these four families
+is **removed**, not softened — it moves to "what used to be here", where rows go when they close by
+being done.
+
 ## [0.0.64] - 2026-09-02
 
 Subtree copy-on-write — the copy-on-write `mjx-opc` does per part, now done per subtree (MJX-248).

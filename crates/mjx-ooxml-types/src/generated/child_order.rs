@@ -21423,20 +21423,107 @@ pub static TEXT_PARAGRAPH_PROPERTIES: &ChildOrder = &DML_MAIN_TYPES[212];
 /// A shape's position and size (`CT_Transform2D`, `dml-main.xsd`).
 pub static TRANSFORM_2D: &ChildOrder = &DML_MAIN_TYPES[225];
 
+/// A three-dimensional area plot (`c:area3DChart`) (`CT_Area3DChart`, `dml-chart.xsd`).
+pub static AREA_3D_CHART: &ChildOrder = &DML_CHART_TYPES[0];
+
+/// An area plot (`c:areaChart`) (`CT_AreaChart`, `dml-chart.xsd`).
+pub static AREA_CHART: &ChildOrder = &DML_CHART_TYPES[1];
+
+/// One series of an area plot (`c:areaChart > c:ser`) (`CT_AreaSer`, `dml-chart.xsd`).
+pub static AREA_SERIES: &ChildOrder = &DML_CHART_TYPES[2];
+
+/// A three-dimensional bar plot (`c:bar3DChart`) (`CT_Bar3DChart`, `dml-chart.xsd`).
+pub static BAR_3D_CHART: &ChildOrder = &DML_CHART_TYPES[8];
+
+/// A bar/column plot (`c:barChart`) (`CT_BarChart`, `dml-chart.xsd`).
+pub static BAR_CHART: &ChildOrder = &DML_CHART_TYPES[9];
+
+/// One series of a bar plot (`c:barChart > c:ser`) (`CT_BarSer`, `dml-chart.xsd`).
+pub static BAR_SERIES: &ChildOrder = &DML_CHART_TYPES[12];
+
+/// A bubble plot (`c:bubbleChart`) (`CT_BubbleChart`, `dml-chart.xsd`).
+pub static BUBBLE_CHART: &ChildOrder = &DML_CHART_TYPES[14];
+
+/// One series of a bubble plot (`c:bubbleChart > c:ser`) (`CT_BubbleSer`, `dml-chart.xsd`).
+pub static BUBBLE_SERIES: &ChildOrder = &DML_CHART_TYPES[16];
+
 /// A category axis (`c:catAx`) (`CT_CatAx`, `dml-chart.xsd`).
 pub static CATEGORY_AXIS: &ChildOrder = &DML_CHART_TYPES[18];
 
 /// A chart's title, plot area and legend (`CT_Chart`, `dml-chart.xsd`).
 pub static CHART: &ChildOrder = &DML_CHART_TYPES[19];
 
+/// One point's data-label override (`c:dLbl`) (`CT_DLbl`, `dml-chart.xsd`).
+pub static DATA_LABEL: &ChildOrder = &DML_CHART_TYPES[25];
+
+/// A plot's or a series' data-label settings (`c:dLbls`) (`CT_DLbls`, `dml-chart.xsd`).
+pub static DATA_LABELS: &ChildOrder = &DML_CHART_TYPES[27];
+
+/// One point's own formatting (`c:dPt`) (`CT_DPt`, `dml-chart.xsd`).
+pub static DATA_POINT_FORMAT: &ChildOrder = &DML_CHART_TYPES[28];
+
 /// A date axis (`c:dateAx`) (`CT_DateAx`, `dml-chart.xsd`).
 pub static DATE_AXIS: &ChildOrder = &DML_CHART_TYPES[30];
+
+/// A doughnut plot (`c:doughnutChart`) (`CT_DoughnutChart`, `dml-chart.xsd`).
+pub static DOUGHNUT_CHART: &ChildOrder = &DML_CHART_TYPES[36];
+
+/// A series' error bars (`c:errBars`) (`CT_ErrBars`, `dml-chart.xsd`).
+pub static ERROR_BARS: &ChildOrder = &DML_CHART_TYPES[38];
+
+/// A three-dimensional line plot (`c:line3DChart`) (`CT_Line3DChart`, `dml-chart.xsd`).
+pub static LINE_3D_CHART: &ChildOrder = &DML_CHART_TYPES[58];
+
+/// A line plot (`c:lineChart`) (`CT_LineChart`, `dml-chart.xsd`).
+pub static LINE_CHART: &ChildOrder = &DML_CHART_TYPES[59];
+
+/// One series of a line or stock plot (`c:lineChart > c:ser`) (`CT_LineSer`, `dml-chart.xsd`).
+pub static LINE_SERIES: &ChildOrder = &DML_CHART_TYPES[60];
+
+/// A pie-of-pie or bar-of-pie plot (`c:ofPieChart`) (`CT_OfPieChart`, `dml-chart.xsd`).
+pub static OF_PIE_CHART: &ChildOrder = &DML_CHART_TYPES[74];
+
+/// A three-dimensional pie plot (`c:pie3DChart`) (`CT_Pie3DChart`, `dml-chart.xsd`).
+pub static PIE_3D_CHART: &ChildOrder = &DML_CHART_TYPES[86];
+
+/// A pie plot (`c:pieChart`) (`CT_PieChart`, `dml-chart.xsd`).
+pub static PIE_CHART: &ChildOrder = &DML_CHART_TYPES[87];
+
+/// One series of a pie, doughnut or pie-of-pie plot (`c:pieChart > c:ser`) (`CT_PieSer`, `dml-chart.xsd`).
+pub static PIE_SERIES: &ChildOrder = &DML_CHART_TYPES[88];
+
+/// A radar plot (`c:radarChart`) (`CT_RadarChart`, `dml-chart.xsd`).
+pub static RADAR_CHART: &ChildOrder = &DML_CHART_TYPES[95];
+
+/// One series of a radar plot (`c:radarChart > c:ser`) (`CT_RadarSer`, `dml-chart.xsd`).
+pub static RADAR_SERIES: &ChildOrder = &DML_CHART_TYPES[96];
 
 /// An axis' orientation and explicit bounds (`CT_Scaling`, `dml-chart.xsd`).
 pub static SCALING: &ChildOrder = &DML_CHART_TYPES[101];
 
+/// An X/Y scatter plot (`c:scatterChart`) (`CT_ScatterChart`, `dml-chart.xsd`).
+pub static SCATTER_CHART: &ChildOrder = &DML_CHART_TYPES[102];
+
+/// One series of a scatter plot (`c:scatterChart > c:ser`) (`CT_ScatterSer`, `dml-chart.xsd`).
+pub static SCATTER_SERIES: &ChildOrder = &DML_CHART_TYPES[103];
+
 /// A series axis (`c:serAx`) (`CT_SerAx`, `dml-chart.xsd`).
 pub static SERIES_AXIS: &ChildOrder = &DML_CHART_TYPES[106];
+
+/// A high-low-close stock plot (`c:stockChart`) (`CT_StockChart`, `dml-chart.xsd`).
+pub static STOCK_CHART: &ChildOrder = &DML_CHART_TYPES[112];
+
+/// A three-dimensional surface plot (`c:surface3DChart`) (`CT_Surface3DChart`, `dml-chart.xsd`).
+pub static SURFACE_3D_CHART: &ChildOrder = &DML_CHART_TYPES[118];
+
+/// A surface plot seen from above (`c:surfaceChart`) (`CT_SurfaceChart`, `dml-chart.xsd`).
+pub static SURFACE_CHART: &ChildOrder = &DML_CHART_TYPES[119];
+
+/// One series of a surface plot (`c:surfaceChart > c:ser`) (`CT_SurfaceSer`, `dml-chart.xsd`).
+pub static SURFACE_SERIES: &ChildOrder = &DML_CHART_TYPES[120];
+
+/// A series' trendline (`c:trendline`) (`CT_Trendline`, `dml-chart.xsd`).
+pub static TRENDLINE: &ChildOrder = &DML_CHART_TYPES[127];
 
 /// A value axis (`c:valAx`) (`CT_ValAx`, `dml-chart.xsd`).
 pub static VALUE_AXIS: &ChildOrder = &DML_CHART_TYPES[134];

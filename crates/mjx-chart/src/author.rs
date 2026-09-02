@@ -35,13 +35,14 @@
 //! );
 //! ```
 
-use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawNode};
+use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN, SHARED_RELATIONSHIP_REFERENCE};
 
 use crate::axis::{build_axis, AxisKind, AxisPosition, ChartTitle, Legend, LegendPosition};
 use crate::build::{
     chart_attr, chart_element, chart_text_leaf, chart_val_leaf, f64_wire, namespace_declaration,
 };
+use crate::decoration::{DataLabelSpec, DataLabels};
 use crate::plot::ChartKind;
 use crate::workbook::column_letters;
 
@@ -92,6 +93,67 @@ pub enum ChartDataError {
         /// How many the description carries.
         actual: usize,
     },
+    /// The plot type's series (or the plot itself) declares no such child, so writing one would
+    /// emit markup that fails schema validation.
+    ///
+    /// `CT_PieSer` declares no `c:trendline` and no `c:errBars`; `CT_SurfaceSer` declares no
+    /// decoration at all; `CT_SurfaceChart` declares no plot-level `c:dLbls`.
+    #[error(
+        "a {plot} chart's series cannot carry a `c:{element}`: its {series_type} declares none"
+    )]
+    DecorationNotAllowed {
+        /// The plot's element name (`pieChart`) — its exact wire spelling.
+        plot: &'static str,
+        /// The child that was asked for, without its `c:` prefix.
+        element: &'static str,
+        /// The XSD symbol of the complex type that declares no such child.
+        series_type: &'static str,
+    },
+    /// A per-point edit named a point the series does not have.
+    ///
+    /// `c:dPt` and `c:dLbl` are anchored by index into the series, so an index at or past its point
+    /// count addresses nothing. This is checked before anything is written, which is also what stops
+    /// a hostile `c:idx` in a file from being propagated into markup this library authors.
+    #[error("point {index} is out of range: the series has {count} point(s)")]
+    DataPointOutOfRange {
+        /// The index that was asked for.
+        index: u32,
+        /// How many points the series has.
+        count: usize,
+    },
+    /// A setting was asked for at a tier whose schema does not declare it — `c:showLeaderLines` on
+    /// one point's `c:dLbl`, which only the container form `Group_DLbls` admits.
+    #[error("`c:{element}` is not a child of `c:{parent}`")]
+    SettingNotAtThisTier {
+        /// The setting's element name, without its `c:` prefix.
+        element: &'static str,
+        /// The element it was asked of, without its `c:` prefix.
+        parent: &'static str,
+    },
+    /// A polynomial trendline's order is outside what `ST_Order` admits (2 to 6).
+    #[error("a polynomial trendline's order must be between 2 and 6, but {order} was given")]
+    TrendlineOrderOutOfRange {
+        /// The order that was asked for.
+        order: u8,
+    },
+    /// A moving average's period is below what `ST_Period` admits (2 upwards).
+    #[error("a moving average's period must be at least 2, but {period} was given")]
+    TrendlinePeriodOutOfRange {
+        /// The period that was asked for.
+        period: u32,
+    },
+    /// A measure has no XML spelling: `xsd:double` admits neither `NaN` nor an infinity in the
+    /// spellings OOXML uses, so writing one would produce a part that fails validation.
+    #[error("`c:{element}` was given a non-finite value, which has no XML spelling")]
+    NonFiniteMeasure {
+        /// The element the value was destined for, without its `c:` prefix.
+        element: &'static str,
+    },
+    /// Custom error bars were asked for with neither `c:plus` nor `c:minus`. `ST_ErrValType`'s
+    /// `cust` says the length "shall be determined by the Plus and Minus elements"; without either,
+    /// nothing determines it.
+    #[error("custom error bars need at least one of `c:plus` and `c:minus`")]
+    CustomErrorBarsNeedValues,
 }
 
 /// One named series of a chart: its name and its cached numeric values.
@@ -115,6 +177,7 @@ pub struct ChartData {
     series: Vec<ChartSeries>,
     title: Option<String>,
     legend: Option<LegendPosition>,
+    data_labels: Option<DataLabelSpec>,
 }
 
 impl ChartData {
@@ -127,6 +190,7 @@ impl ChartData {
             series: Vec::new(),
             title: None,
             legend: None,
+            data_labels: None,
         }
     }
 
@@ -170,6 +234,35 @@ impl ChartData {
         self
     }
 
+    /// Labels every point the chart draws, with `spec`'s settings (`c:dLbls` at the plot tier).
+    ///
+    /// This is the outermost of the three tiers: every series takes these unless it states
+    /// something of its own. Without this call the chart carries no `c:dLbls` and the application
+    /// draws no labels.
+    ///
+    /// The two surface plots declare no `c:dLbls` — [`validate`](Self::validate) refuses the
+    /// combination rather than writing markup that fails the schema.
+    ///
+    /// ```
+    /// use mjx_chart::{ChartData, ChartKind, DataLabelPosition, DataLabelSpec};
+    ///
+    /// let chart = ChartData::new(ChartKind::Bar)
+    ///     .categories(["Q1", "Q2"])
+    ///     .series("Revenue", [10.0, 20.0])
+    ///     .data_labels(
+    ///         DataLabelSpec::new()
+    ///             .value(true)
+    ///             .position(DataLabelPosition::OutsideEnd)
+    ///             .number_format("#,##0"),
+    ///     );
+    /// assert!(chart.validate().is_ok());
+    /// ```
+    #[must_use]
+    pub fn data_labels(mut self, spec: DataLabelSpec) -> Self {
+        self.data_labels = Some(spec);
+        self
+    }
+
     /// The chart's kind.
     #[must_use]
     pub fn kind(&self) -> ChartKind {
@@ -186,12 +279,20 @@ impl ChartData {
     /// Checks that the description can be written as a schema-valid chart part.
     ///
     /// # Errors
-    /// [`ChartDataError::NoData`] when there is nothing to draw, or
+    /// [`ChartDataError::NoData`] when there is nothing to draw,
     /// [`ChartDataError::SeriesCount`] when the plot type constrains its series count and this
-    /// description does not satisfy it.
+    /// description does not satisfy it, or [`ChartDataError::DecorationNotAllowed`] when data
+    /// labels were asked for on a plot type whose schema declares none.
     pub fn validate(&self) -> Result<(), ChartDataError> {
         if self.is_empty() {
             return Err(ChartDataError::NoData);
+        }
+        if self.data_labels.is_some() && !self.kind.admits_plot_child("dLbls") {
+            return Err(ChartDataError::DecorationNotAllowed {
+                plot: self.kind.element_local_name(),
+                element: "dLbls",
+                series_type: self.kind.plot_child_order().symbol,
+            });
         }
         if self.kind == ChartKind::Stock && !STOCK_SERIES.contains(&self.series.len()) {
             return Err(ChartDataError::SeriesCount {
@@ -422,6 +523,13 @@ impl ChartData {
 
         for (index, series) in self.series.iter().enumerate() {
             children.push(el(self.build_series(interner, index, series)));
+        }
+
+        // `c:dLbls` follows the series run in every `CT_*Chart` that declares it, and precedes the
+        // type-specific tail below.
+        if let Some(spec) = &self.data_labels {
+            let labels = DataLabels::new(interner, spec);
+            children.push(el(labels.to_xml(interner)));
         }
 
         // The trailing scalars, then the axis ids.
