@@ -15,6 +15,59 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.63] - 2026-09-02
+
+Schema-order emission — children are written in `xsd:sequence` order by construction (MJX-248).
+OOXML complex types are overwhelmingly sequences, and **children in the wrong order are invalid even
+when every child is present and every child is itself correct** — a repair-dialog defect, not a
+cosmetic one. Nothing in the workspace enforced that on write: order was whatever each hand-written
+serializer happened to do, so correctness rested on the author having read the XSD for that type and
+on a fixture happening to exercise it. Fourteen separate hand-copied rank tables had grown across
+`mjx-dml`, `mjx-chart` and `mjx-pptx`, one per type, each added by whoever noticed.
+
+**The order now comes from the schema.** `cargo run -p xtask -- codegen` reads the `xsd:complexType`
+content models of `dml-main.xsd`, `pml.xsd` and `dml-chart.xsd`, flattens each one — resolving
+`xsd:group` references across schemas — and commits
+`mjx-ooxml-types::child_order`: every child of every complex type of those schemas, with the position
+it occupies. Alternatives of an `xsd:choice` *share* a position, which is exactly the "either an
+`a:solidFill` or an `a:noFill`, and whichever is there is the one to replace" question a writer asks.
+A type whose own model is `xsd:choice` or `xsd:all` — `CT_Path2D`'s repeating path commands, for
+instance — is recorded as unordered rather than given a false order.
+
+### The boundary this does not cross
+
+Placement is a write-side operation and only ever runs on a child a caller asked to write. **Nothing
+reads a document and rewrites it into schema order.** A real file may carry children in an order the
+schema permits but this table would not have chosen, and re-ordering it would be corruption of the
+caller's document rather than a fix. Existing children are never sorted; a new child is inserted
+after the last sibling that must precede it. Markup the table does not name — an unmodelled element,
+a foreign namespace, a comment, an `mc:AlternateContent` — is invisible to placement: it never moves,
+and it never moves the insertion point, so it keeps its position relative to its known neighbours.
+
+### Added
+
+- `mjx-ooxml-types::child_order` — `ChildOrder`, `ChildSlot`, `ContentModel`, `TypeReference`, the
+  placement primitives (`ChildOrder::replace_or_insert`, `insert`, `insert_index`,
+  `insert_index_of_names`, `rank_of`, `slot`), the ordering audit (`ChildOrder::first_out_of_order`,
+  `audit_tree`, `TreeAudit`, `OutOfOrderChild`), the by-symbol lookups (`find`, `root_element`), the
+  three generated tables (`DML_MAIN_TYPES`, `PML_TYPES`, `DML_CHART_TYPES`) and twenty-eight named
+  constants for the types this workspace writes.
+- A child-order audit inside the schema-validity suite that runs on **every** authored-deck case,
+  with or without `References/`: it walks every element of every part whose root the tables name and
+  fails on the first child out of its type's sequence. `xmllint` catches an ordering fault only for
+  the shape some case happens to author, and only where the schemas are installed.
+
+### Changed
+
+- Every insertion path in `mjx-dml`, `mjx-chart` and `mjx-pptx` now places children through the
+  generated table. The fourteen hand-written rank tables are gone.
+
+### Removed
+
+- `TableStylePart::rank` and `CellBorder::rank`. Both existed only to feed a hand-written ordering
+  table; the generated one is now the single source, and a second copy of a sequence is the thing
+  this release exists to remove. `TableStylePart::all` and `CellBorder::all` are unchanged.
+
 ## [0.0.62] - 2026-09-02
 
 Package invariant validation — a deck that would need repair is not written (MJX-248). This library
