@@ -135,6 +135,14 @@ pub use references::{DiagramParts, ExternalLink, InkReference};
 // `TableStyle`, `Theme`, and their `*Content` siblings), which need an `Interner`; `RawDocument` and
 // `RawElement`, which are the preservation tree; `PartName`, which `Deck` surfaces as `&str`; and
 // `Package`, which is sealed on purpose — see `Deck::presentation_mut`.
+//
+// The list is closed under reachability, and `tests/public_paths.rs` proves it: a type named by a
+// public field, an enum payload or a builder parameter of anything re-exported here is itself
+// re-exported. Ten were added when the Python and WebAssembly bindings were written, because a
+// binding must construct and destructure every one of them: `AdjustHandle`, `ConnectionSite` and
+// `ColorKind` (payloads), `FontSlot`, `TableStyleBorder` and `ThemeFontReference` (builder
+// parameters), `GuideFormulaError` (a `GuideError` payload), `AxisKind` (a `ChartAxisData` field),
+// and `AdjustmentSpec` with `AdjustmentAxis`/`AdjustmentBound` (a `BoundedAdjustment` field).
 // -----------------------------------------------------------------------------------------------
 
 /// The typed cause behind every [`Error`], recoverable by downcasting
@@ -158,30 +166,31 @@ pub use mjx_pptx::{
 
 // --- DrawingML: the interner-free authoring specs and every simple type they take ----------------
 pub use mjx_dml::{
-    AdjustAngle, AdjustCoordinate, Angle, AutoNumberBullet, AutonumberScheme, Backdrop, Bevel,
-    BevelPreset, BlendMode, BlurEffect, BoundedAdjustment, Bullet, BulletCharacter, BulletColor,
-    BulletPicture, BulletSize, BulletTypeface, Camera, CellBorder, CharacterPropertiesSpec,
-    ColorMap, ColorSchemeSlot, ColorSpec, CompoundLine, CustomGeometrySpec, DrawCommand,
-    EffectListSpec, Emu, FillOverlayEffect, FillSpec, FontAlignment, FontCollection,
-    FontCollectionIndex, FontScheme, FontSchemeSlot, FontSize, Fraction, GlowEffect,
-    GradientStopSpec, GuideContext, GuideError, GuideSpec, IndentLevel, InnerShadowEffect,
-    LightRig, LightRigDirection, LightRigType, LineCap, LineDash, LineEnd, LineEndLength,
-    LineEndType, LineEndWidth, LineJoin, LineSpec, LineWidth, OnOffStyle, OuterShadowEffect,
-    ParagraphPropertiesSpec, Path2DSpec, PathFillMode, PatternType, PenAlignment, PictureFillMode,
-    Point, Point3D, Position, PresetCamera, PresetLineDash, PresetMaterial, PresetShadow,
-    PresetShadowEffect, Rectangle, RectangleAlignment, ReflectionEffect, ResolvedAdjustHandle,
-    ResolvedAdjustment, ResolvedColor, ResolvedConnectionSite, ResolvedCustomGeometry,
-    ResolvedDrawCommand, ResolvedGuides, ResolvedPath, ResolvedPoint, ResolvedRectangle,
-    Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry, Size, SoftEdgeEffect, SphereCoordinates,
-    SupplementalFont, TabAlignment, TabStop, TablePart, TableStyleFlags, TableStylePart,
-    TextAlignment, TextAnchoring, TextCapitalization, TextDirection, TextFont,
-    TextHorizontalOverflow, TextPoint, TextSpacing, TextStrike, TextUnderline, ThemeInfo,
-    Transform2D, UnderlineFill, UnderlineLine, Vector3D,
+    AdjustAngle, AdjustCoordinate, AdjustHandle, Angle, AutoNumberBullet, AutonumberScheme,
+    Backdrop, Bevel, BevelPreset, BlendMode, BlurEffect, BoundedAdjustment, Bullet,
+    BulletCharacter, BulletColor, BulletPicture, BulletSize, BulletTypeface, Camera, CellBorder,
+    CharacterPropertiesSpec, ColorKind, ColorMap, ColorSchemeSlot, ColorSpec, CompoundLine,
+    ConnectionSite, CustomGeometrySpec, DrawCommand, EffectListSpec, Emu, FillOverlayEffect,
+    FillSpec, FontAlignment, FontCollection, FontCollectionIndex, FontScheme, FontSchemeSlot,
+    FontSize, FontSlot, Fraction, GlowEffect, GradientStopSpec, GuideContext, GuideError,
+    GuideFormulaError, GuideSpec, IndentLevel, InnerShadowEffect, LightRig, LightRigDirection,
+    LightRigType, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
+    LineSpec, LineWidth, OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec,
+    PathFillMode, PatternType, PenAlignment, PictureFillMode, Point, Point3D, Position,
+    PresetCamera, PresetLineDash, PresetMaterial, PresetShadow, PresetShadowEffect, Rectangle,
+    RectangleAlignment, ReflectionEffect, ResolvedAdjustHandle, ResolvedAdjustment, ResolvedColor,
+    ResolvedConnectionSite, ResolvedCustomGeometry, ResolvedDrawCommand, ResolvedGuides,
+    ResolvedPath, ResolvedPoint, ResolvedRectangle, Scene3DSpec, SchemeColor, Shape3DSpec,
+    ShapeGeometry, Size, SoftEdgeEffect, SphereCoordinates, SupplementalFont, TabAlignment,
+    TabStop, TablePart, TableStyleBorder, TableStyleFlags, TableStylePart, TextAlignment,
+    TextAnchoring, TextCapitalization, TextDirection, TextFont, TextHorizontalOverflow, TextPoint,
+    TextSpacing, TextStrike, TextUnderline, ThemeFontReference, ThemeInfo, Transform2D,
+    UnderlineFill, UnderlineLine, Vector3D,
 };
 
 // --- ChartML: the chart description and every enum its parts take --------------------------------
 pub use mjx_chart::{
-    AxisOrientation, AxisPosition, BarDirection, BarGrouping, BlankDisplay, ChartData,
+    AxisKind, AxisOrientation, AxisPosition, BarDirection, BarGrouping, BlankDisplay, ChartData,
     ChartDataError, ChartKind, DanglingPointReference, DataLabelPosition, DataLabelSettings,
     DataLabelSpec, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition,
     OfPieType, RadarStyle, ScatterStyle, SeriesGrouping, TickLabelPosition, TickMark,
@@ -189,7 +198,9 @@ pub use mjx_chart::{
 };
 
 // --- Generated schema simple types the signatures above name -------------------------------------
-pub use mjx_ooxml_types::drawingml::PresetShapeType;
+pub use mjx_ooxml_types::drawingml::{
+    AdjustmentAxis, AdjustmentBound, AdjustmentSpec, PresetShapeType,
+};
 pub use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
 };

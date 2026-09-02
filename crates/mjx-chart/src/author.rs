@@ -157,7 +157,7 @@ pub enum ChartDataError {
 }
 
 /// One named series of a chart: its name and its cached numeric values.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct ChartSeries {
     name: String,
     values: Vec<f64>,
@@ -170,7 +170,7 @@ struct ChartSeries {
 /// The categories are the shared category-axis labels. For a [scatter](ChartKind::Scatter) or
 /// [bubble](ChartKind::Bubble) chart they are the shared X values: each is parsed as a number, and a
 /// label that does not parse falls back to its position, so `["1", "2", "3"]` gives X = 1, 2, 3.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ChartData {
     kind: ChartKind,
     categories: Vec<String>,

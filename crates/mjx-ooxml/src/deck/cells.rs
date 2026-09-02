@@ -255,7 +255,7 @@ impl Deck {
         )?)
     }
 
-    /// Delegates to `Presentation::set_cell_run_properties`.
+    /// Applies `spec` to one run of one paragraph of the cell at `(row, column)`.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
@@ -393,7 +393,9 @@ impl Deck {
         )?)
     }
 
-    /// Delegates to `Presentation::set_cell_text_range_properties`.
+    /// Applies `spec` to part of a paragraph of the cell at `(row, column)` — the characters in
+    /// `range`, counted in Unicode scalars. Splits runs at the range's edges, exactly as the
+    /// shape-addressed form does.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
