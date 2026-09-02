@@ -408,3 +408,114 @@ fn formatting_a_selection_over_a_merge_touches_only_the_visible_cells() {
     // merged pair, so (0,2) is untouched.
     assert_eq!(pres.cell_fill(0, table, 0, 2).expect("fill"), None);
 }
+
+#[test]
+fn a_merge_anchored_outside_the_selection_is_left_alone() {
+    use mjx_dml::{ColorSpec, FillSpec};
+    use mjx_pptx::CellFormat;
+
+    let (mut pres, table) = deck_with_table();
+    // A 2x2 merge anchored at (0,0); it covers (0,1), (1,0) and (1,1).
+    pres.merge_cells(0, table, Cells::rectangle(0..2, 0..2))
+        .expect("merge");
+
+    // Row 1 holds two of that region's covered cells and one ordinary cell. Formatting the row must
+    // reach the ordinary cell and nothing else: the merged region's anchor is not in the selection,
+    // so writing it would paint outside what the caller named.
+    pres.format_cells(
+        0,
+        table,
+        Cells::row(1),
+        &CellFormat::new().with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+    )
+    .expect("format");
+
+    pres.unmerge_cells(0, table, 0, 0).expect("unmerge");
+    assert_eq!(
+        pres.cell_fill(0, table, 1, 2).expect("fill"),
+        Some(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+        "the one cell of the row that renders was filled"
+    );
+    for (row, column) in [(0, 0), (0, 1), (1, 0), (1, 1)] {
+        assert_eq!(
+            pres.cell_fill(0, table, row, column).expect("fill"),
+            None,
+            "({row},{column}) belongs to a merge anchored outside the selection"
+        );
+    }
+}
+
+#[test]
+fn formatting_the_text_of_a_selection_skips_the_covered_cells() {
+    use mjx_dml::CharacterPropertiesSpec;
+
+    let (mut pres, table) = deck_with_table();
+    pres.merge_cells(0, table, Cells::rectangle(0..1, 0..2))
+        .expect("merge the first two header cells");
+
+    pres.format_cell_text(
+        0,
+        table,
+        Cells::row(0),
+        &CharacterPropertiesSpec::new().with_bold(true),
+    )
+    .expect("format the header row's text");
+
+    pres.unmerge_cells(0, table, 0, 1).expect("unmerge");
+    assert_eq!(
+        pres.cell_run_properties(0, table, 0, 0, 0, 0)
+            .expect("anchor")
+            .and_then(|spec| spec.is_bold()),
+        Some(true),
+        "the anchor renders, so it was formatted"
+    );
+    assert_eq!(
+        pres.cell_run_properties(0, table, 0, 1, 0, 0)
+            .expect("covered")
+            .and_then(|spec| spec.is_bold()),
+        None,
+        "the covered cell renders nothing, so its own text was left as it was"
+    );
+    assert_eq!(
+        pres.cell_run_properties(0, table, 0, 2, 0, 0)
+            .expect("plain")
+            .and_then(|spec| spec.is_bold()),
+        Some(true),
+        "the unmerged cell of the same selection was formatted"
+    );
+}
+
+#[test]
+fn formatting_the_paragraphs_of_a_selection_skips_the_covered_cells() {
+    use mjx_dml::{ParagraphPropertiesSpec, TextAlignment};
+
+    let (mut pres, table) = deck_with_table();
+    pres.merge_cells(0, table, Cells::rectangle(0..1, 0..2))
+        .expect("merge");
+
+    pres.format_cell_paragraphs(
+        0,
+        table,
+        Cells::row(0),
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Center),
+    )
+    .expect("centre the header row");
+
+    pres.unmerge_cells(0, table, 0, 1).expect("unmerge");
+    let alignment = |pres: &mut Presentation, column: usize| {
+        pres.cell_paragraph_properties(0, table, 0, column, 0)
+            .expect("paragraph")
+            .and_then(|spec| spec.alignment())
+    };
+    assert_eq!(alignment(&mut pres, 0), Some(TextAlignment::Center));
+    assert_eq!(
+        alignment(&mut pres, 1),
+        None,
+        "the covered cell was skipped"
+    );
+    assert_eq!(
+        alignment(&mut pres, 2),
+        Some(TextAlignment::Center),
+        "the unmerged cell of the same selection was centred"
+    );
+}

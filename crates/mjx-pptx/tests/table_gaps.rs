@@ -139,3 +139,135 @@ fn graphic_frame_kind_reports_a_table_and_none_for_a_shape() {
         "a non-frame shape has no graphic-frame kind"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// `a:extLst` on a cell and on the table properties (MJX-43)
+//
+// The extension list is the schema's own unknown bucket: `CT_OfficeArtExtension` is a required
+// `uri` plus `xsd:any processContents="lax"`, so an extension's content is markup in a namespace
+// this library does not own. It is carried verbatim — and *carried through an edit* is the part
+// worth proving, because that is the case where the element is rebuilt from the model rather than
+// re-emitted from raw bytes.
+// ---------------------------------------------------------------------------------------------
+
+/// The slide part of a saved deck, as text.
+fn slide_xml(saved: &[u8]) -> String {
+    let pkg = Package::open(saved).expect("reopen");
+    let bytes = byte_map(&pkg);
+    String::from_utf8(
+        bytes
+            .get("ppt/slides/slide1.xml")
+            .expect("the slide part")
+            .clone(),
+    )
+    .expect("utf-8")
+}
+
+/// The text between `open` and `close`, so an ordering assertion is scoped to one element rather
+/// than to the whole part.
+#[track_caller]
+fn between<'a>(haystack: &'a str, open: &str, close: &str) -> &'a str {
+    let start = haystack
+        .find(open)
+        .unwrap_or_else(|| panic!("{open} not found"));
+    let end = haystack[start..]
+        .find(close)
+        .unwrap_or_else(|| panic!("{close} not found after {open}"));
+    &haystack[start..start + end]
+}
+
+/// `table_extensions.pptx` is `tables.pptx` with one vendor extension on the table's `a:tblPr` and
+/// another on the first cell's `a:tcPr`. The table is the second shape on slide 0.
+const EXTENSION_TABLE: usize = 1;
+
+fn extension_deck() -> Presentation {
+    Presentation::open(&fixture("table_extensions.pptx")).expect("open")
+}
+
+#[test]
+fn formatting_a_cell_keeps_the_extension_list_it_carries() {
+    use mjx_dml::{ColorSpec, FillSpec};
+    use mjx_pptx::CellFormat;
+
+    let mut pres = extension_deck();
+    pres.format_cells(
+        0,
+        EXTENSION_TABLE,
+        Cells::one(0, 0),
+        &CellFormat::new().with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+    )
+    .expect("format the cell that carries the extension");
+
+    let xml = slide_xml(&pres.save().expect("save"));
+    assert!(
+        xml.contains(
+            r#"<mjx:cellTag xmlns:mjx="urn:mjx-ooxml-rs:test-extension" value="region-header"/>"#
+        ),
+        "the extension came back verbatim: {xml}"
+    );
+
+    // Order is validity: `extLst` is last in `CT_TableCellProperties`, so the new fill precedes it.
+    let properties = between(&xml, "<a:tcPr>", "</a:tcPr>");
+    let at = |needle: &str| {
+        properties
+            .find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {properties}"))
+    };
+    assert!(at("<a:solidFill") < at("<a:extLst"), "{properties}");
+}
+
+#[test]
+fn setting_a_table_part_keeps_the_table_propertys_extension_list() {
+    use mjx_dml::TablePart;
+
+    let mut pres = extension_deck();
+    pres.set_table_part(0, EXTENSION_TABLE, TablePart::LastRow, true)
+        .expect("turn the total row on");
+
+    let xml = slide_xml(&pres.save().expect("save"));
+    assert!(
+        xml.contains(
+            r#"<mjx:tableTag xmlns:mjx="urn:mjx-ooxml-rs:test-extension" value="quarterly"/>"#
+        ),
+        "the extension came back verbatim: {xml}"
+    );
+    let properties = between(&xml, "<a:tblPr", "</a:tblPr>");
+    assert!(properties.contains(r#"lastRow="1""#), "{properties}");
+    let at = |needle: &str| {
+        properties
+            .find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {properties}"))
+    };
+    assert!(at("<a:tableStyleId>") < at("<a:extLst"), "{properties}");
+}
+
+#[test]
+fn editing_the_cell_that_carries_an_extension_leaves_every_other_part_alone() {
+    use mjx_dml::{ColorSpec, FillSpec};
+    use mjx_pptx::CellFormat;
+
+    let bytes = fixture("table_extensions.pptx");
+    let before = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.format_cells(
+        0,
+        EXTENSION_TABLE,
+        Cells::one(0, 0),
+        &CellFormat::new().with_fill(FillSpec::solid(ColorSpec::Srgb("1F3864".to_owned()))),
+    )
+    .expect("format");
+    let after = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    assert_ne!(
+        before.get("ppt/slides/slide1.xml"),
+        after.get("ppt/slides/slide1.xml"),
+        "the slide was the part edited"
+    );
+    for (name, original) in &before {
+        if name == "ppt/slides/slide1.xml" {
+            continue;
+        }
+        assert_eq!(after.get(name), Some(original), "part {name} was disturbed");
+    }
+}
