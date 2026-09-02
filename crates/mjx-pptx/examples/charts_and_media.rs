@@ -10,7 +10,12 @@
 //! external kind follows the same shape: a discovery reader, then a `replace_*_with_placeholder`.
 
 use anyhow::Result;
-use mjx_pptx::{ChartData, ChartKind, Presentation, ShapeBounds, DEFAULT_PLACEHOLDER_IMAGE};
+use mjx_dml::{ColorSpec, FillSpec};
+use mjx_pptx::{
+    ChartData, ChartKind, ChartLabelScope, DataLabelPosition, DataLabelSpec, ErrorBarSpec,
+    ErrorBarType, ErrorValueType, Presentation, ShapeBounds, TrendlineKind, TrendlineSpec,
+    DEFAULT_PLACEHOLDER_IMAGE,
+};
 
 mod support;
 
@@ -40,6 +45,84 @@ fn main() -> Result<()> {
         "  after edit: {:?}",
         deck.chart_series(slide, chart)?[0].values
     );
+
+    // ---- Decorate it: the three label tiers, a highlighted point, a fit and error bars ------
+    // The plot tier is the default every series takes...
+    deck.set_chart_data_labels(
+        slide,
+        chart,
+        ChartLabelScope::Plot { plot_idx: 0 },
+        &DataLabelSpec::new()
+            .value(true)
+            .position(DataLabelPosition::OutsideEnd)
+            .number_format("#,##0.0"),
+    )?;
+    // ...one series overrides it...
+    deck.set_chart_data_labels(
+        slide,
+        chart,
+        ChartLabelScope::Series { series_idx: 1 },
+        &DataLabelSpec::new().position(DataLabelPosition::InsideEnd),
+    )?;
+    // ...and one point of that series overrides that.
+    deck.set_chart_data_labels(
+        slide,
+        chart,
+        ChartLabelScope::Point {
+            series_idx: 1,
+            point_idx: 3,
+        },
+        &DataLabelSpec::new().category_name(true),
+    )?;
+
+    let resolved = deck.chart_data_labels(slide, chart, 1, Some(3))?;
+    println!(
+        "\nlabel in force for series 1, point 3: value={:?} category={:?} position={:?} format={:?}",
+        resolved.shows_value,
+        resolved.shows_category_name,
+        resolved.position,
+        resolved.number_format,
+    );
+    println!(
+        "  the value comes from the plot tier, the position from the series tier, the category name \
+         from the point"
+    );
+
+    // One column in its own colour, addressed by index into the series.
+    deck.set_chart_point_fill(
+        slide,
+        chart,
+        1,
+        3,
+        &FillSpec::Solid(ColorSpec::Srgb("C00000".to_owned())),
+    )?;
+    deck.add_chart_trendline(
+        slide,
+        chart,
+        1,
+        &TrendlineSpec::new(TrendlineKind::Linear).display(true, true),
+    )?;
+    deck.set_chart_error_bars(
+        slide,
+        chart,
+        1,
+        &ErrorBarSpec::fixed(ErrorBarType::Both, ErrorValueType::Percentage, 5.0),
+    )?;
+    println!(
+        "  {} point format(s), {} trendline(s), {} error bar set(s)",
+        deck.chart_point_formats(slide, chart, 1)?.len(),
+        deck.chart_trendlines(slide, chart, 1)?.len(),
+        deck.chart_error_bars(slide, chart, 1)?.len(),
+    );
+
+    // Shortening the series leaves the `c:dPt` anchored to point 3 saying *point 3* — renumbering it
+    // would move the highlight silently onto a different column. The now-dangling anchors are
+    // reported, and dropped only because this example asks.
+    deck.set_chart_series_values(slide, chart, 1, &[12.0, 15.5])?;
+    let dangling = deck.chart_dangling_decoration(slide, chart, 1)?;
+    println!("  after shortening series 1: {dangling:?}");
+    let dropped = deck.drop_chart_dangling_decoration(slide, chart, 1)?;
+    println!("  dropped {dropped} anchor(s) that named a point the series no longer has");
 
     // ---- An image, added twice -------------------------------------------------------------
     // Media parts deduplicate by content, so the same logo on twenty slides costs one part.
