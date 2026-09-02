@@ -137,12 +137,11 @@ loses. A deck carrying any of it round-trips unchanged.
 | **No rendering, of any kind** | Measurement: resolved geometry, effective properties, absolute bounds | No layout engine, no SVG, no PDF. Rendering is a separate phase with no date |
 | **Encrypted and password-protected packages are out of scope**; digital signatures are preserved, not processed | A typed error rather than a guess | Decrypting an ECMA-376 Part 2 protected package is a cryptography project, and validating a signature this library may then invalidate by rewriting the container would be worse than not claiming to |
 
-Two more, still true and worth stating plainly because they are *limitations* rather than choices:
+One more, still true and worth stating plainly because it is a *limitation* rather than a choice:
 
 | Limitation | Consequence | What would remove it |
 |---|---|---|
 | **A part edited through a whole-part typed model is rebuilt, not copied** | Three surfaces read a whole part into a typed model and write the whole part back from it: the legacy VML drawing (`edit_vml_drawing`), a chart edit (`edit_chart`) and a table-style list (`set_table_style`, `create_table_style`). Subtree copy-on-write does not reach inside those, so such a part comes back re-flowed — its markup identical, its start tags on one line. Editing a *slide* does not work this way: slide edits navigate the tree in place, and every subtree they do not touch is copied byte-for-byte | Carrying each element's source range through `FromXml` / `ToXml`, so a typed model that did not change a value hands the original element back. That belongs with typed attributes in `mjx-derive` (B1), not with the fidelity layer |
-| **A series' data labels, trendlines, error bars and per-point formatting** (`c:dLbls`, `c:trendline`, `c:errBars`, `c:dPt`) have no typed surface | Preserved verbatim; a chart carrying them survives a data edit unchanged | The chart workstream. Phase A's chart child closed the data half — every plot type's series, literal and multi-level sources, axes, gridlines, titles, legend and series fill/outline (MJX-116) — and stopped at the decoration deliberately rather than half-modelling it |
 
 The embedded workbook a chart authors is written by a **minimal SpreadsheetML writer inside
 `mjx-chart`** — one sheet, a shared-string table and a styles skeleton, and deliberately nothing else.
@@ -183,6 +182,13 @@ tell the difference between "gone" and "quietly dropped":
   had no setter. It now has six: read, set and clear, for a level and for the `a:defPPr` beneath the
   levels, plus [`clear_shape_list_style`](Presentation::clear_shape_list_style) for the whole element.
   See [list formatting for the whole shape](crate::guide::shapes_and_text).
+- **A chart's decoration is modelled.** `c:dLbls`, `c:dLbl`, `c:dPt`, `c:trendline` and `c:errBars`
+  had no typed surface: a caller could not ask what a label said, could not switch a series from
+  value to percentage, and could not author a chart that labelled itself. All five now read, author
+  and edit, with the three tiers of a data label — plot, series, point — merged per setting. A
+  `c:dPt`'s `c:idx` is never renumbered by an edit that changes a series' length; the anchors that
+  end up past the end are reported and dropped only on request. See
+  [tables, charts and pictures](crate::guide::tables_charts_pictures) (MJX-116).
 - **`Scene3D::backdrop`** is typed, alongside the bevels, light rigs and cameras it sits with.
 - **The guide-formula evaluator**, **chart depth**, and **every kind of content that is not
   DrawingML** each closed a block of this page; the table above them is what is left.

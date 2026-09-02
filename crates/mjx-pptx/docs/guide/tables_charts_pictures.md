@@ -242,6 +242,153 @@ An image fill is refused on a series
 ([`ChartFillNotSupported`](PptxError::ChartFillNotSupported)): it would name an image relationship,
 and a chart part relates to no images.
 
+### Data labels — the three tiers
+
+Data labels are the part of a chart a reader actually reads, and `c:dLbls` is the same element at two
+tiers: ECMA-376 §21.2.2.49 calls it "a root element that specifies the settings for the data labels
+for an entire series **or the entire chart**". A `c:dLbl` inside a series' container overrides them
+for one point. So a label's settings resolve over **three tiers**, most specific first — the point,
+the series, then the plot — and [`ChartLabelScope`] is how each is addressed.
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# use mjx_pptx::Presentation;
+# let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+use mjx_pptx::{ChartLabelScope, DataLabelPosition, DataLabelSpec};
+
+// Every series of the plot shows its value, outside the end of the bar.
+deck.set_chart_data_labels(
+    0,
+    3,
+    ChartLabelScope::Plot { plot_idx: 0 },
+    &DataLabelSpec::new()
+        .value(true)
+        .position(DataLabelPosition::OutsideEnd)
+        .number_format("#,##0"),
+)?;
+
+// …except this series, which shows the share of the total instead.
+deck.set_chart_data_labels(
+    0,
+    3,
+    ChartLabelScope::Series { series_idx: 1 },
+    &DataLabelSpec::new().value(false).percentage(true),
+)?;
+
+// …and this one point, which is silenced entirely.
+deck.delete_chart_data_labels(
+    0,
+    3,
+    ChartLabelScope::Point { series_idx: 1, point_idx: 2 },
+)?;
+
+// What is actually in force for one point, merged across all three tiers.
+let settings = deck.chart_data_labels(0, 3, 1, Some(0))?;
+println!("{:?} {:?}", settings.shows_percentage, settings.position);
+# Ok(())
+# }
+```
+
+The merge is **per setting**, not per tier: a series that only says "show the percentage" still takes
+its plot's position and number format. A field that is still `None` in the resolved
+[`DataLabelSettings`] is one no tier states, which the application fills in from the chart style —
+the reader says so rather than guessing.
+
+A [`DataLabelSpec`] states only what you set. Writing one whose sole `Some` is `value` turns the
+value on and leaves the position, the separator and the format exactly as they were, so one setting
+of a label Office wrote can be changed without flattening the rest. Three verbs separate what are
+genuinely three different intentions:
+[`set_chart_data_labels`](Presentation::set_chart_data_labels) states settings,
+[`delete_chart_data_labels`](Presentation::delete_chart_data_labels) says *draw nothing here* (a
+`c:delete`), and [`remove_chart_data_labels`](Presentation::remove_chart_data_labels) says *say
+nothing here*, returning the tier to what it inherits.
+[`chart_data_label_tier`](Presentation::chart_data_label_tier) reads one tier in isolation, which is
+how you find out which tier a setting is coming from.
+
+A surface plot declares no `c:dLbls` at all, and one point's label declares no leader lines — both
+are refused with a typed error before anything is written, rather than emitted as markup that fails
+validation.
+
+### Per-point formatting, trendlines and error bars
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# use mjx_pptx::Presentation;
+# let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+use mjx_dml::{ColorSpec, FillSpec};
+use mjx_pptx::{ErrorBarType, ErrorValueType, ErrorBarSpec, TrendlineKind, TrendlineSpec};
+
+// One column in its own colour, one slice pulled out of its pie.
+deck.set_chart_point_fill(0, 3, 0, 2, &FillSpec::Solid(ColorSpec::Srgb("C00000".to_owned())))?;
+deck.set_chart_point_explosion(0, 3, 0, 2, Some(25))?;
+
+// A fitted curve, extended two categories past the last point.
+deck.add_chart_trendline(
+    0,
+    3,
+    0,
+    &TrendlineSpec::new(TrendlineKind::Polynomial)
+        .polynomial_order(3)
+        .projection(2.0, 0.0)
+        .display(true, true),
+)?;
+
+// Uncertainty, either as one figure or per point.
+deck.set_chart_error_bars(
+    0,
+    3,
+    0,
+    &ErrorBarSpec::fixed(ErrorBarType::Both, ErrorValueType::Percentage, 5.0),
+)?;
+deck.set_chart_error_bars(
+    0,
+    3,
+    0,
+    &ErrorBarSpec::custom(ErrorBarType::Both, vec![1.0, 2.0, 3.0], vec![0.5, 0.5, 0.5]),
+)?;
+# Ok(())
+# }
+```
+
+**A `c:dPt` is anchored by index into its series, and nothing here ever renumbers one.** That matters
+the moment a series changes length: renumbering would move one point's colour silently onto a
+different point, so an edit that shortens a series leaves every `c:idx` naming exactly what it named
+before. The ones that now address past the end are *reported* by
+[`chart_dangling_decoration`](Presentation::chart_dangling_decoration) and removed only when you ask,
+by [`drop_chart_dangling_decoration`](Presentation::drop_chart_dangling_decoration). A `c:idx` in a
+file that is not a number at all addresses no point, is never matched by a lookup, and rides through
+a round-trip untouched.
+
+Writing past the end is the other half of the same rule: `set_chart_point_fill(…, 9, …)` on a
+three-point series answers
+[`DataPointOutOfRange`](ChartDataError::DataPointOutOfRange) rather than writing an anchor that names
+nothing.
+
+What a series may carry comes from the schema, not from a list here. `CT_PieSer` declares no
+`c:trendline` and no `c:errBars`, and `CT_SurfaceSer` declares no decoration at all, so asking for
+one is [`DecorationNotAllowed`](ChartDataError::DecorationNotAllowed) — and a scatter, area or bubble
+series admits *two* sets of error bars, one per axis, which
+[`set_chart_error_bars`](Presentation::set_chart_error_bars) keeps apart by `c:errDir`. A polynomial
+order outside 2–6 and a moving-average period below 2 are refused for the same reason: `ST_Order` and
+`ST_Period` do not admit them.
+
+A chart can also label itself the moment it is authored, with no edit step:
+
+```
+use mjx_pptx::{ChartData, ChartKind, DataLabelPosition, DataLabelSpec};
+
+let chart = ChartData::new(ChartKind::Bar)
+    .categories(["Q1", "Q2", "Q3"])
+    .series("Revenue", [10.0, 20.0, 15.0])
+    .data_labels(
+        DataLabelSpec::new()
+            .value(true)
+            .position(DataLabelPosition::OutsideEnd)
+            .number_format("#,##0"),
+    );
+assert!(chart.validate().is_ok());
+```
+
 ## Pictures
 
 ### Adding
