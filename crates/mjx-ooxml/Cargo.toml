@@ -23,5 +23,6 @@ mjx-docx.workspace = true
 mjx-xlsx.workspace = true
 
 [features]
-# Re-exposes mjx-pptx's preserve-first legacy VML recognition surface (opt-in).
+# Re-exposes mjx-pptx's legacy VML surface — the typed drawing model and the `spid` resolution an
+# OLE object's or a control's legacy fallback needs (opt-in).
 vml = ["mjx-pptx/vml"]

@@ -7,7 +7,7 @@ use mjx_dml::{
 use mjx_mce::MARKUP_COMPATIBILITY_2006;
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawNode, Symbol, ToXml};
 use mjx_ooxml_types::drawingml::PresetShapeType;
-use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_CHART, DML_MAIN, PML};
+use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_CHART, DML_DIAGRAM, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
 use crate::address::ShapePath;
@@ -400,6 +400,32 @@ pub(crate) fn ole_object<'a>(
     })
 }
 
+/// The `p:oleObj` a graphic frame frames, mutably — the write counterpart of [`ole_object`], with the
+/// same MCE-aware walk (`a:graphicData` directly, or through an `mc:Choice` / `mc:Fallback` branch).
+pub(crate) fn ole_object_mut<'a>(
+    shape: &'a mut RawElement,
+    interner: &Interner,
+) -> Option<&'a mut RawElement> {
+    let graphic = nav::child_mut(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child_mut(graphic, interner, DML_MAIN, "graphicData")?;
+    if nav::child(data, interner, PML, "oleObj").is_some() {
+        return nav::child_mut(data, interner, PML, "oleObj");
+    }
+    let alternate = nav::child_mut(data, interner, MCE, "AlternateContent")?;
+    let position = alternate.children.iter().position(|node| match node {
+        RawNode::Element(branch) => {
+            (nav::name_is(&branch.name, interner, MCE, "Choice")
+                || nav::name_is(&branch.name, interner, MCE, "Fallback"))
+                && nav::child(branch, interner, PML, "oleObj").is_some()
+        }
+        _ => false,
+    })?;
+    let RawNode::Element(branch) = &mut alternate.children[position] else {
+        return None;
+    };
+    nav::child_mut(branch, interner, PML, "oleObj")
+}
+
 /// The relationship id an OLE frame names for its embedded object part (`p:oleObj@r:id`), or `None` for
 /// any other shape. Matched by local name, as [`chart_rel_id`].
 pub(crate) fn ole_object_rel_id<'a>(
@@ -497,6 +523,180 @@ pub(crate) fn control_rel_id<'a>(control: &'a RawElement, interner: &Interner) -
 /// matched by local name.
 pub(crate) fn control_name<'a>(control: &'a RawElement, interner: &'a Interner) -> Option<&'a str> {
     nav::attr_value(control, interner, "name")
+}
+
+/// The `p:controls` container under a slide's `p:cSld`, mutably, creating it when the slide has
+/// none — inserted directly after `p:spTree`, which is where `CT_CommonSlideData`'s content order
+/// puts it (`bg?`, `spTree`, `custDataLst?`, `controls?`, `extLst?`).
+pub(crate) fn controls_mut<'a>(
+    slide_root: &'a mut RawElement,
+    interner: &mut Interner,
+) -> Result<&'a mut RawElement, PptxError> {
+    let c_sld = nav::child_mut(slide_root, interner, PML, "cSld")
+        .ok_or(PptxError::MalformedSlide("missing p:cSld"))?;
+    if nav::child(c_sld, interner, PML, "controls").is_none() {
+        let controls = build::node(interner, "p", PML, "controls", Vec::new(), Vec::new());
+        // After `p:spTree` (and any `p:custDataLst`), before `p:extLst`.
+        let at = c_sld
+            .children
+            .iter()
+            .position(|node| match node {
+                RawNode::Element(child) => nav::name_is(&child.name, interner, PML, "extLst"),
+                _ => false,
+            })
+            .unwrap_or(c_sld.children.len());
+        c_sld.children.insert(at, RawNode::Element(controls));
+        c_sld.empty = false;
+    }
+    nav::child_mut(c_sld, interner, PML, "controls")
+        .ok_or(PptxError::MalformedSlide("missing p:controls"))
+}
+
+/// The `idx`-th ActiveX `p:control` on a slide, mutably.
+pub(crate) fn nth_control_mut<'a>(
+    slide_root: &'a mut RawElement,
+    interner: &Interner,
+    idx: usize,
+) -> Option<&'a mut RawElement> {
+    let c_sld = nav::child_mut(slide_root, interner, PML, "cSld")?;
+    let controls = nav::child_mut(c_sld, interner, PML, "controls")?;
+    nav::nth_child_matching_mut(controls, interner, idx, |element, interner| {
+        nav::name_is(&element.name, interner, PML, "control")
+    })
+}
+
+/// The position of the `idx`-th `p:control` in its `p:controls` container's child list, so the
+/// control can be removed with its own indentation.
+pub(crate) fn nth_control_position(
+    controls: &RawElement,
+    interner: &Interner,
+    idx: usize,
+) -> Option<usize> {
+    nav::nth_child_matching_position(controls, interner, idx, |element, interner| {
+        nav::name_is(&element.name, interner, PML, "control")
+    })
+}
+
+/// The `spid` a `p:control` or a `p:oleObj` names — the `id` of the VML shape that draws it in a
+/// legacy consumer (`a:ST_ShapeID`). An unprefixed attribute, matched by local name.
+pub(crate) fn legacy_shape_id<'a>(
+    element: &'a RawElement,
+    interner: &'a Interner,
+) -> Option<&'a str> {
+    nav::attr_value(element, interner, "spid")
+}
+
+/// Whether `element` is a content part that references a separate part by relationship id — either
+/// PresentationML's own `p:contentPart` (`CT_Rel`) or the Office 2010 `p14:contentPart` producers
+/// wrap in `mc:AlternateContent`.
+fn is_content_part(element: &RawElement, interner: &Interner) -> bool {
+    if interner.resolve(element.name.local) != "contentPart" {
+        return false;
+    }
+    let namespace = element
+        .name
+        .namespace
+        .map(|symbol| interner.resolve(symbol));
+    namespace == Some(PML.transitional)
+        || namespace == PML.strict
+        || namespace == Some(crate::constants::POWERPOINT_2010_NAMESPACE)
+}
+
+/// The relationship id a content part names (`@r:id`), or `None`. Matched by local name — a
+/// `contentPart` carries no other `id`-local attribute.
+pub(crate) fn content_part_rel_id<'a>(
+    element: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a str> {
+    element
+        .attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == "id")
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
+}
+
+/// Every content part a shape tree references, as `(shape index, relationship id)`.
+///
+/// A `p:contentPart` is a shape like any other, so it has an index in the one shape index space. A
+/// `p14:contentPart` is not: producers wrap it in `mc:AlternateContent`, which sits beside the shapes
+/// rather than among them, so its index is `None`. Both are found, because both are how a deck
+/// references ink.
+pub(crate) fn content_part_references(
+    sp_tree: &RawElement,
+    interner: &Interner,
+) -> Vec<(Option<usize>, String)> {
+    let mut found = Vec::new();
+    let mut shape_index = 0usize;
+    for node in &sp_tree.children {
+        let RawNode::Element(element) = node else {
+            continue;
+        };
+        if shape_kind(element, interner).is_some() {
+            if is_content_part(element, interner) {
+                if let Some(rel_id) = content_part_rel_id(element, interner) {
+                    found.push((Some(shape_index), rel_id.to_owned()));
+                }
+            }
+            shape_index += 1;
+            continue;
+        }
+        if nav::name_is(&element.name, interner, MCE, "AlternateContent") {
+            collect_alternate_content_parts(element, interner, &mut found);
+        }
+    }
+    found
+}
+
+/// Appends every content part inside an `mc:AlternateContent`'s branches to `found`, with no shape
+/// index — the branches are not in the shape index space.
+fn collect_alternate_content_parts(
+    alternate: &RawElement,
+    interner: &Interner,
+    found: &mut Vec<(Option<usize>, String)>,
+) {
+    for branch in ["Choice", "Fallback"] {
+        for candidate in nav::children(alternate, interner, MCE, branch) {
+            for node in &candidate.children {
+                let RawNode::Element(element) = node else {
+                    continue;
+                };
+                if is_content_part(element, interner) {
+                    if let Some(rel_id) = content_part_rel_id(element, interner) {
+                        found.push((None, rel_id.to_owned()));
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The `dgm:relIds` a SmartArt frame carries (`p:graphicFrame > a:graphic > a:graphicData >
+/// dgm:relIds`), or `None` for any other shape — the element is looked for rather than the frame's
+/// `uri` trusted, since it is the payload that decides.
+pub(crate) fn diagram_rel_ids<'a>(
+    shape: &'a RawElement,
+    interner: &Interner,
+) -> Option<&'a RawElement> {
+    let graphic = nav::child(shape, interner, DML_MAIN, "graphic")?;
+    let data = nav::child(graphic, interner, DML_MAIN, "graphicData")?;
+    nav::child(data, interner, DML_DIAGRAM, "relIds")
+}
+
+/// The value of the relationship-reference attribute `local` on a `dgm:relIds` (`r:dm`, `r:lo`,
+/// `r:qs`, `r:cs`).
+///
+/// Unlike a `c:chart@r:id`, these four share their element with each other, so matching by local name
+/// alone is enough to tell them apart and the relationships prefix need not be resolved.
+pub(crate) fn diagram_rel_id<'a>(
+    rel_ids: &'a RawElement,
+    interner: &Interner,
+    local: &str,
+) -> Option<&'a str> {
+    rel_ids
+        .attributes
+        .iter()
+        .find(|attr| interner.resolve(attr.name.local) == local)
+        .and_then(|attr| std::str::from_utf8(&attr.value).ok())
 }
 
 /// The `n`-th `a:tr` of a table, mutably.

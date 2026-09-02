@@ -29,6 +29,12 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       - name: test
         run: cargo test --workspace
+      # The `vml` feature gates a whole surface — the typed VML model and the `spid` resolution an
+      # OLE object's legacy fallback needs — so the default-feature run above compiles none of it.
+      - name: clippy (vml feature)
+        run: cargo clippy --workspace --all-targets --features mjx-pptx/vml -- -D warnings
+      - name: test (vml feature)
+        run: cargo test --workspace --features mjx-pptx/vml
 
   # Enforce a clean, complete rustdoc build (missing docs are already denied via clippy; this also
   # catches broken intra-doc links, which clippy does not).
@@ -43,6 +49,9 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: doc
         run: cargo doc --workspace --no-deps
+      # And again with the `vml` feature, whose items the default build does not compile at all.
+      - name: doc (vml feature)
+        run: cargo doc --workspace --no-deps --features mjx-pptx/vml
 
   # Every deck this library authors, and every committed fixture part, validated against the
   # ECMA-376 XSDs. Round-tripping proves we do not corrupt a file and office-open proves a deck
@@ -91,8 +100,10 @@ jobs:
       - name: fetch, verify and extract the ECMA-376 schemas
         run: .github/scripts/fetch-ecma-schemas.sh
 
+      # `--features vml` so the authored-VML case is compiled: without it that deck is never built
+      # and its content types are never validated.
       - name: schema-validity suite
-        run: cargo test -p mjx-pptx --test schema_validity
+        run: cargo test -p mjx-pptx --features vml --test schema_validity
 
   # The Phase-2 exit gate: a .pptx we construct actually opens in a real Office implementation.
   # Kept separate from lint-test so the heavy LibreOffice install cannot slow or flake the fast lane.
@@ -139,6 +150,10 @@ jobs:
             cargo run -p mjx-pptx --example "$name"
             echo "::endgroup::"
           done
+      # `legacy_content` takes a different path under the `vml` feature — the half that resolves an
+      # OLE object to the VML shape that draws it — so it runs a second time with the feature on.
+      - name: run the legacy-content example with the vml feature
+        run: cargo run -p mjx-pptx --features vml --example legacy_content
 
   # Prove the shipped library graph cross-compiles cleanly to mobile / wasm / desktop.
   # xtask is a host-only dev tool (schema codegen), so it is excluded from cross builds.

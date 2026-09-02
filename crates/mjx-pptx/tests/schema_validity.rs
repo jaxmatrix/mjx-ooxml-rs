@@ -74,8 +74,9 @@ use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_opc::{Package, PartName, CONTENT_TYPES_ZIP_NAME};
 use mjx_pptx::{
-    AxisOrientation, CellFormat, CellMargins, Cells, ChartData, ChartKind, Geometry, Hyperlink,
-    LegendPosition, Presentation, ShapeBounds, SlideSize, Surface, TableStyleFormat,
+    default_placeholder_ole, ActiveXControlSpec, ActiveXPersistence, AxisOrientation, CellFormat,
+    CellMargins, Cells, ChartData, ChartKind, DiagramContent, Geometry, Hyperlink, LegendPosition,
+    OleObjectData, OleObjectSpec, Presentation, ShapeBounds, SlideSize, Surface, TableStyleFormat,
 };
 use mjx_xml::fidelity;
 
@@ -89,6 +90,8 @@ const PRESENTATIONML_NS: &str = "http://schemas.openxmlformats.org/presentationm
 const DRAWINGML_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// `c:` — DrawingML charts.
 const DRAWINGML_CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+/// `dgm:` — DrawingML diagrams (SmartArt), the four parts an authored diagram writes.
+const DRAWINGML_DIAGRAM_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
 /// SpreadsheetML — the markup inside a chart's embedded workbook, which this project now writes.
 const SPREADSHEETML_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 /// `mc:` — Markup Compatibility and Extensibility (ECMA-376 Part 3).
@@ -119,12 +122,20 @@ struct SchemaRef {
 ///
 /// SpreadsheetML is here because an authored chart embeds a whole `.xlsx` workbook: without this arm
 /// every part of that workbook would be reported skipped-as-foreign, which is the difference between
-/// the gate covering the workbook and only looking as though it does.
+/// the gate covering the workbook and only looking as though it does. DrawingML-diagram is here for
+/// the same reason: this project now writes a SmartArt diagram's four parts, so they are ours to
+/// answer for.
+///
+/// InkML, ActiveX and VML are deliberately **not** here. They are Microsoft or W3C vocabularies this
+/// project only ever preserves — nothing it authors is written *in* them, and the one InkML document
+/// a test hands to `add_ink` is the caller's bytes, stored verbatim. Validating them against a schema
+/// they were not written to would report noise, so they stay `SkippedForeignNamespace`.
 fn schema_for_namespace(namespace: &str) -> Option<SchemaRef> {
     let (set, file) = match namespace {
         PRESENTATIONML_NS => (SchemaSet::Markup, "pml.xsd"),
         DRAWINGML_NS => (SchemaSet::Markup, "dml-main.xsd"),
         DRAWINGML_CHART_NS => (SchemaSet::Markup, "dml-chart.xsd"),
+        DRAWINGML_DIAGRAM_NS => (SchemaSet::Markup, "dml-diagram.xsd"),
         SPREADSHEETML_NS => (SchemaSet::Markup, "sml.xsd"),
         OPC_RELATIONSHIPS_NS => (SchemaSet::Packaging, "opc-relationships.xsd"),
         OPC_CONTENT_TYPES_NS => (SchemaSet::Packaging, "opc-contentTypes.xsd"),
@@ -237,7 +248,13 @@ fn harness() -> Option<Harness> {
     let markup = find_schema_dir(
         "MJX_SCHEMA_DIR",
         "ECMA-376-4_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Transitional",
-        &["pml.xsd", "dml-main.xsd", "dml-chart.xsd", "sml.xsd"],
+        &[
+            "pml.xsd",
+            "dml-main.xsd",
+            "dml-chart.xsd",
+            "dml-diagram.xsd",
+            "sml.xsd",
+        ],
     );
     let packaging = find_schema_dir(
         "MJX_OPC_SCHEMA_DIR",
@@ -1640,7 +1657,218 @@ fn a_deck_built_from_every_authoring_path_is_schema_valid() {
         .series("Series", [1.0, 2.0]);
     pres.add_chart(slide, &chart, ShapeBounds::from_inches(5.0, 3.0, 4.0, 1.5))
         .expect("chart");
+    pres.add_diagram(
+        slide,
+        &DiagramContent::vertical_list(&["Plan", "Build", "Ship"]),
+        ShapeBounds::from_inches(5.0, 1.5, 3.0, 1.5),
+    )
+    .expect("diagram");
+    pres.add_ole_object(
+        slide,
+        &OleObjectSpec::embedded_stream("Excel.Sheet.12", &default_placeholder_ole(), TINY_PNG),
+        ShapeBounds::from_inches(0.5, 4.6, 2.0, 1.0),
+    )
+    .expect("OLE object");
+    pres.add_activex_control(
+        slide,
+        &ActiveXControlSpec::new(
+            "CommandButton1",
+            "{D7053240-CE69-11CD-A777-00DD01143C57}",
+            b"state",
+            TINY_PNG,
+        ),
+        ShapeBounds::from_inches(3.0, 4.6, 2.0, 0.5),
+    )
+    .expect("ActiveX control");
+    pres.add_ink(slide, INK_STROKES).expect("ink");
 
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("every authoring path in one deck", &saved);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The legacy surfaces this project now authors (MJX-140)
+// ---------------------------------------------------------------------------------------------
+
+/// A minimal but real InkML document, inlined so no binary fixture is committed.
+const INK_STROKES: &[u8] = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<inkml:ink xmlns:inkml="http://www.w3.org/2003/InkML"><inkml:trace>0 0, 5 9, 11 3</inkml:trace></inkml:ink>"#;
+
+#[test]
+fn an_authored_diagram_is_schema_valid() {
+    // The four documents a SmartArt diagram is made of are markup this project writes, so each is
+    // validated against `dml-diagram.xsd` — the arm added for exactly this.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_diagram(
+        0,
+        &DiagramContent::vertical_list(&["Plan", "Build", "Ship"]),
+        ShapeBounds::from_inches(1.0, 1.0, 4.0, 3.0),
+    )
+    .expect("add diagram");
+    // An empty diagram is the other end of the generator, and must be valid too.
+    pres.add_diagram(
+        0,
+        &DiagramContent::vertical_list(&[]),
+        ShapeBounds::from_inches(6.0, 1.0, 2.0, 2.0),
+    )
+    .expect("add empty diagram");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored diagram", &saved);
+}
+
+#[test]
+fn the_diagram_parts_are_really_validated_and_not_skipped() {
+    // A byte-identity or "no failures" assertion passes just as happily when every part was skipped.
+    // This pins that the four diagram parts were *validated*, against the schema named.
+    let Some(harness) = harness() else { return };
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_diagram(
+        0,
+        &DiagramContent::vertical_list(&["Plan"]),
+        ShapeBounds::from_inches(1.0, 1.0, 4.0, 3.0),
+    )
+    .expect("add diagram");
+    let saved = pres.save().expect("save");
+
+    let outcomes = inspect_deck(&harness, "authored diagram", &saved, &[]);
+    let mut validated: Vec<&str> = outcomes
+        .iter()
+        .filter(|(name, outcome)| {
+            name.contains("/ppt/diagrams/")
+                && matches!(outcome, PartOutcome::Validated("dml-diagram.xsd"))
+        })
+        .map(|(name, _)| name.as_str())
+        .collect();
+    validated.sort_unstable();
+    assert_eq!(
+        validated,
+        vec![
+            "/ppt/diagrams/colors1.xml",
+            "/ppt/diagrams/data1.xml",
+            "/ppt/diagrams/layout1.xml",
+            "/ppt/diagrams/quickStyle1.xml",
+        ],
+        "all four diagram parts must be validated against dml-diagram.xsd"
+    );
+}
+
+#[test]
+fn an_authored_ole_object_is_schema_valid() {
+    // PowerPoint wraps its `p:oleObj` in `mc:AlternateContent` for the VML fallback; this project
+    // writes the bare element `CT_OleObject` describes, which is why the slide is *validated* here
+    // rather than skipped for markup compatibility.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let payload = default_placeholder_ole();
+    pres.add_ole_object(
+        0,
+        &OleObjectSpec::embedded_stream("Excel.Sheet.12", &payload, TINY_PNG).named("Worksheet"),
+        ShapeBounds::from_inches(1.0, 1.0, 3.0, 2.0),
+    )
+    .expect("add OLE object");
+    pres.add_ole_object(
+        0,
+        &OleObjectSpec {
+            prog_id: "Excel.Sheet.12",
+            data: OleObjectData::Linked("file:///elsewhere/book.xlsx"),
+            snapshot_image: TINY_PNG,
+            name: None,
+            show_as_icon: true,
+        },
+        ShapeBounds::from_inches(5.0, 1.0, 3.0, 2.0),
+    )
+    .expect("add linked OLE object");
+    // A frame bound to its legacy VML fallback: `spid` is `a:ST_ShapeID`, so a bad value would fail
+    // the gate rather than pass unnoticed.
+    pres.set_ole_legacy_shape_id(0, 1, "_x0000_s1026")
+        .expect("bind the fallback");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored OLE object", &saved);
+}
+
+#[test]
+fn an_edited_ole_object_is_schema_valid() {
+    let mut pres = Presentation::open(&fixture("ole.pptx")).expect("open");
+    pres.set_ole_prog_id(0, 1, "Word.Document.12")
+        .expect("set progId");
+    pres.set_ole_snapshot_image(0, 1, TINY_PNG)
+        .expect("set snapshot");
+    let saved = pres.save().expect("save");
+    // The fixture's own slide carries `mc:AlternateContent`, so it is skipped for that reason and
+    // not for anything this edit did; every other part of the deck is validated.
+    assert_authored_deck_is_schema_valid("edited OLE object", &saved);
+}
+
+#[test]
+fn an_authored_activex_control_is_schema_valid() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_activex_control(
+        0,
+        &ActiveXControlSpec::new(
+            "CommandButton1",
+            "{D7053240-CE69-11CD-A777-00DD01143C57}",
+            b"persisted state",
+            TINY_PNG,
+        ),
+        ShapeBounds::from_inches(1.0, 1.0, 2.0, 0.5),
+    )
+    .expect("add control");
+    pres.add_activex_control(
+        0,
+        &ActiveXControlSpec {
+            name: "Label1",
+            class_id: "{978C9E23-D4B0-11CE-BF2D-00AA003F40D0}",
+            persistence: ActiveXPersistence::PropertyBag,
+            state: None,
+            snapshot_image: TINY_PNG,
+        },
+        ShapeBounds::from_inches(4.0, 1.0, 2.0, 0.5),
+    )
+    .expect("add stateless control");
+    pres.set_activex_control_name(0, 0, "OkButton")
+        .expect("rename");
+    pres.set_activex_control_shape_id(0, 0, "_x0000_s1026")
+        .expect("bind the fallback");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored ActiveX control", &saved);
+}
+
+#[test]
+fn authored_ink_is_schema_valid() {
+    // `p:contentPart` is `CT_Rel` in `pml.xsd`, so an authored ink reference is validated markup —
+    // unlike the `p14:contentPart` inside `mc:AlternateContent` that producers write.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = pres.add_ink(0, INK_STROKES).expect("add ink");
+    pres.set_ink_content(0, shape, INK_STROKES)
+        .expect("edit ink");
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored ink", &saved);
+}
+
+#[test]
+#[cfg(feature = "vml")]
+fn an_authored_vml_drawing_is_schema_valid() {
+    // The VML part itself is Transitional-only markup outside the base schema set and is reported
+    // skipped-as-foreign; what must still hold is that the *deck* around it — the content types with
+    // their new `vml` Default, and the slide's relationships — validates.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let mut drawing = mjx_vml::DrawingPart::new();
+    {
+        let (model, interner) = drawing.drawing_and_interner();
+        model.push(mjx_vml::DrawingContent::ShapeLayout(
+            mjx_vml::ShapeLayout::new(interner, "1"),
+        ));
+        model.push(mjx_vml::DrawingContent::Shape(mjx_vml::Shape::new(
+            interner,
+            "_x0000_s1026",
+            "position:absolute;width:100pt;height:50pt",
+        )));
+    }
+    pres.add_vml_drawing(0, &drawing.to_bytes())
+        .expect("add VML drawing");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored VML drawing", &saved);
 }

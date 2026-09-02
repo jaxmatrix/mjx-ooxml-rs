@@ -90,7 +90,8 @@ See [`CHANGELOG.md`](CHANGELOG.md).
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).
-- **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (feature-gated, preserve-first).
+- **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (a typed drawing model with shape-level
+  references, re-exposed from `mjx-pptx` behind the `vml` feature).
 - **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF); and, in a **separate
   cargo project**, language bindings (UniFFI → wasm → C-ABI).
 
