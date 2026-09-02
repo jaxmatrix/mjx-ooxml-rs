@@ -21,22 +21,31 @@ cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyon
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and `aarch64-apple-ios` build cleanly.
 - **Unified model.** One packaging + compatibility + DrawingML core shared across all three formats,
   rather than three unrelated libraries.
-- **Binding-ready.** The public API is designed so a *separate* project can later add language
-  bindings (Kotlin/Swift/JS/C) over a stable surface.
+- **Binding-ready.** [`mjx-ooxml`](crates/mjx-ooxml) is the facade an application depends on:
+  `detect_format` reads what a file *is* from its package rather than its name, `Deck` restates the
+  whole PowerPoint surface in types a foreign function boundary can express, and one `Error` carries
+  eleven stable codes. Language bindings are built over it, in-workspace.
 
 ## Quickstart
 
 ```rust
-use mjx_pptx::{Presentation, ShapeBounds};
+use mjx_ooxml::{Deck, ShapeBounds};
 
-let mut deck = Presentation::open(&std::fs::read("template.pptx")?)?;
+let mut deck = Deck::open(&std::fs::read("template.pptx")?)?;
 
 let slide = deck.add_slide_from_layout(1)?;          // placeholders, ready to fill
-deck.set_shape_text_content(slide, 0, "Quarterly results")?;
-deck.add_picture(slide, &std::fs::read("logo.png")?, ShapeBounds::from_inches(7.5, 0.3, 1.5, 1.5))?;
+deck.set_shape_text_content(slide.into(), 0.into(), "Quarterly results")?;
+deck.add_picture(
+    slide.into(),
+    &std::fs::read("logo.png")?,
+    ShapeBounds::from_inches(7.5, 0.3, 1.5, 1.5),
+)?;
 
 std::fs::write("out.pptx", deck.save()?)?;
 ```
+
+`mjx-ooxml` is the facade; `mjx-pptx` underneath it is the same surface with Rust-native ergonomics
+(`impl Into<Surface>`, a `ShapeCursor` that states an address once) that no binding can carry.
 
 `open` takes bytes and `save` returns bytes — the library never touches a filesystem, a network or a
 clock, which is why the same code cross-compiles to WebAssembly and runs in a browser. Every part you
