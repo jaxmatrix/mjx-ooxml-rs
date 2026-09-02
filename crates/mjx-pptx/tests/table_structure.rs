@@ -247,7 +247,7 @@ fn inserting_a_column_inside_a_merge_widens_it() {
     assert_eq!(pres.table_dimensions(0, table).expect("dims"), (3, 4));
     assert_rectangular(&mut pres, table);
     // The header still spans the whole row, now four wide.
-    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (4, 1));
+    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (1, 4));
     for column in 0..4 {
         assert_eq!(
             pres.merged_cell_anchor(0, table, 0, column)
@@ -270,7 +270,7 @@ fn removing_the_anchor_column_promotes_the_next_cell() {
     assert_eq!(pres.table_dimensions(0, table).expect("dims"), (3, 2));
     assert_rectangular(&mut pres, table);
     // The header is two wide now, still one region, and it kept the anchor's text.
-    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (2, 1));
+    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (1, 2));
     assert_eq!(pres.cell_text(0, table, 0, 0).expect("text"), "00");
     assert_eq!(
         pres.merged_cell_anchor(0, table, 0, 1).expect("anchor"),
@@ -289,7 +289,7 @@ fn removing_the_anchor_row_of_a_block_merge_keeps_the_block_square() {
 
     assert_eq!(pres.table_dimensions(0, table).expect("dims"), (2, 3));
     assert_rectangular(&mut pres, table);
-    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (2, 1));
+    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (1, 2));
     assert_eq!(
         pres.cell_text(0, table, 0, 0).expect("text"),
         "00",

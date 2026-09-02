@@ -67,7 +67,7 @@ fn a_header_spans_three_columns() {
     pres.merge_cells(0, table, Cells::rectangle(0..1, 0..3))
         .expect("merge the header");
 
-    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (3, 1));
+    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (1, 3));
     for column in 0..3 {
         assert_eq!(
             pres.merged_cell_anchor(0, table, 0, column)
@@ -90,7 +90,7 @@ fn a_merge_can_run_down_as_well_as_across() {
     pres.merge_cells(0, table, Cells::rectangle(0..3, 1..2))
         .expect("merge a column");
 
-    assert_eq!(pres.cell_span(0, table, 0, 1).expect("span"), (1, 3));
+    assert_eq!(pres.cell_span(0, table, 0, 1).expect("span"), (3, 1));
     for row in 0..3 {
         assert_eq!(
             pres.merged_cell_anchor(0, table, row, 1).expect("anchor"),
@@ -123,7 +123,7 @@ fn a_row_selection_merges_that_row() {
     let (mut pres, table) = deck_with_table();
     pres.merge_cells(0, table, Cells::row(2))
         .expect("merge a row");
-    assert_eq!(pres.cell_span(0, table, 2, 0).expect("span"), (3, 1));
+    assert_eq!(pres.cell_span(0, table, 2, 0).expect("span"), (1, 3));
 }
 
 #[test]
@@ -192,7 +192,7 @@ fn a_merge_inside_the_selection_is_absorbed() {
     pres.merge_cells(0, table, Cells::rectangle(0..2, 0..3))
         .expect("a bigger one over it");
 
-    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (3, 2));
+    assert_eq!(pres.cell_span(0, table, 0, 0).expect("span"), (2, 3));
     // The old anchor's span is gone — it is a covered cell now, not a region of its own.
     assert_eq!(pres.cell_span(0, table, 0, 1).expect("span"), (1, 1));
     for row in 0..2 {

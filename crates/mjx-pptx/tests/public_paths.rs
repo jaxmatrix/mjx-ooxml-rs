@@ -138,8 +138,8 @@ fn every_seam_of_the_surface_is_reachable_on_the_re_exported_presentation() {
         .expect("merge two cells across");
     assert_eq!(
         deck.cell_span(slide, table, 0, 0).expect("the merged span"),
-        (2, 1),
-        "cell_span answers (columns, rows) — the inconsistency A8 settles"
+        (1, 2),
+        "cell_span answers (rows, columns), the order table_dimensions answers in"
     );
 
     // Charts, and chart decoration.
