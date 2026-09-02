@@ -6,8 +6,8 @@
 
 use mjx_dml::{
     AdjustAngle, AdjustCoordinate, AdjustHandle, AdjustPoint, ConnectionSite, CustomGeometry,
-    CustomGeometrySpec, DrawCommand, Emu, GuideSpec, Path2D, Path2DList, Path2DSpec, PathFillMode,
-    Point, Rectangle,
+    CustomGeometrySpec, DrawCommand, Emu, GuideContext, GuideSpec, Path2D, Path2DList, Path2DSpec,
+    PathFillMode, Point, Rectangle, ResolvedAdjustHandle, ResolvedDrawCommand, ResolvedPoint,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, ToXml};
 use mjx_xml::fidelity;
@@ -503,4 +503,122 @@ fn a_bare_custom_geometry_has_empty_auxiliary_lists() {
     assert!(geom.connection_sites(&interner).is_empty());
     assert_eq!(geom.text_rectangle(&interner), None);
     assert_eq!(geom.spec(&interner), spec);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Resolution — the same fixtures, with every guide reference turned into a number
+// ---------------------------------------------------------------------------------------------
+
+/// The size the resolution tests place the fixture geometry at: 1000 x 400, so `w`, `h`, `hc` and
+/// `ss` are four different numbers and a guide that confuses two of them cannot pass by accident.
+fn fixture_context() -> GuideContext {
+    GuideContext::from_extents(Emu::from_emu(1000), Emu::from_emu(400))
+}
+
+#[test]
+fn the_fixture_geometry_resolves_every_coordinate_and_edge() {
+    let xml = full_custom_geometry();
+    let (geometry, doc) = parse_typed::<CustomGeometry>(xml.as_bytes());
+    let resolved = geometry
+        .resolve(&doc.interner, fixture_context())
+        .expect("the fixture geometry resolves");
+
+    // The fixture's one computed guide: `x1 = */ w adj1 100000`, with `adj1 = val 25000`.
+    let ResolvedAdjustHandle::Xy {
+        position,
+        min_x,
+        max_x,
+        ..
+    } = &resolved.adjust_handles[0]
+    else {
+        panic!("expected an ahXY");
+    };
+    assert_eq!(
+        *position,
+        ResolvedPoint {
+            x: Emu::from_emu(250),
+            y: Emu::from_emu(0),
+        }
+    );
+    assert_eq!(*min_x, Some(Emu::from_emu(0)));
+    assert_eq!(*max_x, Some(Emu::from_emu(50_000)));
+
+    // `<a:rect l="0" t="0" r="w" b="h"/>` — two literals and two built-in variables.
+    let rect = resolved.text_rectangle.expect("a text rectangle");
+    assert_eq!(rect.left, Emu::from_emu(0));
+    assert_eq!(rect.top, Emu::from_emu(0));
+    assert_eq!(rect.right, Emu::from_emu(1000));
+    assert_eq!(rect.bottom, Emu::from_emu(400));
+
+    // `<a:cxn ang="0"><a:pos x="100" y="200"/></a:cxn>` — literals resolve to themselves.
+    let site = &resolved.connection_sites[0];
+    assert_eq!(site.angle.degrees(), 0.0);
+    assert_eq!(
+        site.position,
+        ResolvedPoint {
+            x: Emu::from_emu(100),
+            y: Emu::from_emu(200),
+        }
+    );
+
+    assert_eq!(
+        resolved.paths[0].commands,
+        [
+            ResolvedDrawCommand::MoveTo(ResolvedPoint {
+                x: Emu::from_emu(0),
+                y: Emu::from_emu(0),
+            }),
+            ResolvedDrawCommand::Close,
+        ]
+    );
+}
+
+#[test]
+fn resolving_the_fixture_geometry_leaves_its_bytes_untouched() {
+    // Resolution is a read-side capability: the `fmla` text a file wrote stays exactly as written,
+    // guide references included, so a caller that merely asks where a point *is* changes nothing.
+    let xml = full_custom_geometry();
+    let (geometry, doc) = parse_typed::<CustomGeometry>(xml.as_bytes());
+    let _ = geometry
+        .resolve(&doc.interner, fixture_context())
+        .expect("resolves");
+    let _ = geometry
+        .spec(&doc.interner)
+        .guide_values(fixture_context())
+        .expect("evaluates");
+    assert_round_trips(&geometry, doc, xml.as_bytes());
+}
+
+#[test]
+fn the_fixture_path_list_resolves_its_guide_named_coordinate() {
+    // `full_path_list`'s `lnTo` goes to `<a:pt x="100" y="hc"/>` — a literal and a built-in.
+    let xml = full_path_list();
+    let (path_list, doc) = parse_typed::<Path2DList>(xml.as_bytes());
+    let spec = path_list.specs(&doc.interner).remove(0);
+    let guides = mjx_dml::ResolvedGuides::new(fixture_context());
+    let resolved = spec.resolve(&guides).expect("the fixture path resolves");
+
+    assert_eq!(
+        resolved.commands[1],
+        ResolvedDrawCommand::LineTo(ResolvedPoint {
+            x: Emu::from_emu(100),
+            y: Emu::from_emu(500),
+        })
+    );
+    let ResolvedDrawCommand::ArcTo {
+        width_radius,
+        height_radius,
+        start_angle,
+        swing_angle,
+    } = resolved.commands[2]
+    else {
+        panic!("expected an arcTo");
+    };
+    assert_eq!(width_radius, Emu::from_emu(50));
+    assert_eq!(height_radius, Emu::from_emu(25));
+    assert_eq!(start_angle.degrees(), 0.0);
+    assert_eq!(swing_angle.degrees(), 90.0, "5400000 is a quarter turn");
+    // The path's own `w`/`h` box is a rendering transform, not part of resolution.
+    assert_eq!(resolved.width, Some(Emu::from_emu(200)));
+    assert_eq!(resolved.fill, Some(PathFillMode::Lighten));
 }

@@ -2,8 +2,11 @@
 
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
-use mjx_ooxml_types::drawingml::{adjustments_of, AdjustmentSpec, PresetShapeType};
+use mjx_ooxml_types::drawingml::{
+    adjustment_bound_guides_of, adjustments_of, AdjustmentBound, AdjustmentSpec, PresetShapeType,
+};
 
+use super::formula::{GuideContext, GuideError, ResolvedGuides};
 use super::GeometryGuideList;
 use crate::build::{attr_str, dml_attr, dml_name};
 
@@ -19,13 +22,59 @@ pub struct ResolvedAdjustment {
     pub is_overridden: bool,
 }
 
-/// The integer of a `val N` guide formula, or `None` for any other (computed) formula.
-fn parse_val_formula(formula: &str) -> Option<i32> {
-    let mut parts = formula.split_whitespace();
-    if parts.next()? != "val" {
-        return None;
+/// A shape adjustment resolved against a **concrete shape size**: its value and its numeric domain.
+///
+/// [`ResolvedAdjustment`] can only report the domain the generated table holds, and half of the
+/// spec's bounds are not numbers at all but the names of `gdLst` guides (`maxAdj1`, `maxAng`, …)
+/// whose value depends on the shape's width and height. Give
+/// [`PresetGeometry::adjustments_for_size`] a size and those bounds become numbers too.
+///
+/// Every field is in **native spec units**: fractions in 1000ths of a percent (`100_000` = 100%),
+/// angles in 60000ths of a degree, lengths in EMU — whichever the adjustment's
+/// [`axis`](AdjustmentSpec::axis) implies.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct BoundedAdjustment {
+    /// The adjustment's static metadata (wire name, axis, default, domain), from the generated table.
+    pub spec: &'static AdjustmentSpec,
+    /// The current value — the evaluated `avLst` override if there is one, else the spec default.
+    pub value: f64,
+    /// Whether [`value`](Self::value) came from an explicit `avLst` override (vs. the spec default).
+    pub is_overridden: bool,
+    /// The domain's lower bound, evaluated.
+    pub minimum: f64,
+    /// The domain's upper bound, evaluated.
+    pub maximum: f64,
+}
+
+impl BoundedAdjustment {
+    /// [`value`](Self::value) brought inside its domain, by the rule the `pin` guide formula states
+    /// (ECMA-376 Part 1 §20.1.9.11): below the minimum reads as the minimum, above the maximum reads
+    /// as the maximum. Written out rather than delegated to [`f64::clamp`], which panics when a
+    /// shape's bounds cross.
+    #[must_use]
+    pub fn pinned_value(self) -> f64 {
+        if self.value < self.minimum {
+            self.minimum
+        } else if self.value > self.maximum {
+            self.maximum
+        } else {
+            self.value
+        }
     }
-    parts.next()?.parse().ok()
+}
+
+/// A resolved guide value as a native adjustment integer, saturating rather than wrapping at the
+/// edges of the range (`ST_AdjCoordinate` and `ST_Angle` are integral on the wire).
+fn round_to_native(value: f64) -> i32 {
+    value.round() as i32
+}
+
+/// A domain bound as a number: a literal as itself, a guide name looked up in `guides`.
+fn resolve_bound(bound: AdjustmentBound, guides: &ResolvedGuides<'_>) -> Result<f64, GuideError> {
+    match bound {
+        AdjustmentBound::Literal(literal) => Ok(f64::from(literal)),
+        AdjustmentBound::Guide(name) => guides.resolve(name),
+    }
 }
 
 /// One ordered child of a [`PresetGeometry`]: the typed adjust-value list, or an opaque node.
@@ -109,10 +158,16 @@ impl PresetGeometry {
     /// units**: the `avLst` override if present, else the shape's default from
     /// [`adjustments_of`](mjx_ooxml_types::drawingml::adjustments_of). `None` if the shape has no such
     /// adjustment and none is overridden.
+    ///
+    /// The override is a guide formula, not necessarily a literal: `val 25000` and `*/ 50000 1 2`
+    /// both read as `25000`. It is evaluated with **no shape size** (see
+    /// [`adjust_value_overrides`](Self::adjust_value_overrides)), so an override that reaches for `w`
+    /// or `h` is skipped and the spec default stands; ask
+    /// [`adjustments_for_size`](Self::adjustments_for_size) when the size is known.
     #[must_use]
     pub fn adjustment(&self, interner: &Interner, wire_name: &str) -> Option<i32> {
-        if let Some(value) = self.overridden_adjustment(interner, wire_name) {
-            return Some(value);
+        if let Some(value) = self.adjust_value_overrides(interner).guide(wire_name) {
+            return Some(round_to_native(value));
         }
         let preset = self.preset(interner)?;
         adjustments_of(preset)
@@ -128,26 +183,101 @@ impl PresetGeometry {
         let Some(preset) = self.preset(interner) else {
             return Vec::new();
         };
+        let overrides = self.adjust_value_overrides(interner);
         adjustments_of(preset)
             .iter()
             .map(|spec| {
-                let overridden = self.overridden_adjustment(interner, spec.wire_name);
+                let overridden = overrides.guide(spec.wire_name);
                 ResolvedAdjustment {
                     spec,
-                    value: overridden.unwrap_or(spec.default),
+                    value: overridden.map_or(spec.default, round_to_native),
                     is_overridden: overridden.is_some(),
                 }
             })
             .collect()
     }
 
-    /// The value of an `avLst` `val N` override for `wire_name`, if one is present and numeric.
-    fn overridden_adjustment(&self, interner: &Interner, wire_name: &str) -> Option<i32> {
-        self.adjust_values()?
-            .guides()
-            .find(|guide| guide.name(interner) == Some(wire_name))
-            .and_then(|guide| guide.formula(interner))
-            .and_then(parse_val_formula)
+    /// Every adjustment this shape exposes, resolved against a **concrete shape size** — value *and*
+    /// numeric domain, with each `gdLst` guide bound (`maxAdj1`, `maxAng`, …) evaluated.
+    ///
+    /// The environment is built the way the format itself builds it: the shape's current adjustment
+    /// values first (an `avLst` override where there is one, the spec default otherwise), then the
+    /// `gdLst` guides its bounds depend on, from
+    /// [`adjustment_bound_guides_of`](mjx_ooxml_types::drawingml::adjustment_bound_guides_of), in
+    /// declaration order.
+    ///
+    /// Empty if the shape is fixed-geometry or its `prst` is unknown.
+    ///
+    /// # Errors
+    ///
+    /// [`GuideError`] if a bound guide cannot be evaluated — which, the table being the spec's own,
+    /// means a degenerate size (a zero width or height divides by zero in guides such as
+    /// `*/ 50000 w ss`).
+    pub fn adjustments_for_size(
+        &self,
+        interner: &Interner,
+        context: GuideContext,
+    ) -> Result<Vec<BoundedAdjustment>, GuideError> {
+        let Some(preset) = self.preset(interner) else {
+            return Ok(Vec::new());
+        };
+        let specs = adjustments_of(preset);
+        let overrides = self.adjust_value_overrides(interner);
+
+        let mut environment = ResolvedGuides::new(context);
+        let mut current = Vec::with_capacity(specs.len());
+        for spec in specs {
+            let overridden = overrides.guide(spec.wire_name);
+            let value = overridden.unwrap_or_else(|| f64::from(spec.default));
+            environment.define(spec.wire_name, value);
+            current.push((value, overridden.is_some()));
+        }
+        environment.extend(
+            adjustment_bound_guides_of(preset)
+                .iter()
+                .map(|guide| (guide.wire_name, guide.formula)),
+        )?;
+
+        specs
+            .iter()
+            .zip(current)
+            .map(|(spec, (value, is_overridden))| {
+                Ok(BoundedAdjustment {
+                    spec,
+                    value,
+                    is_overridden,
+                    minimum: resolve_bound(spec.min, &environment)?,
+                    maximum: resolve_bound(spec.max, &environment)?,
+                })
+            })
+            .collect()
+    }
+
+    /// The `avLst` overrides, evaluated in declaration order — the raw environment behind
+    /// [`adjustment`](Self::adjustment) and [`adjustments`](Self::adjustments).
+    ///
+    /// Built [`without_size`](ResolvedGuides::without_size), because an `avLst` holds literal seeds
+    /// (ECMA-376 Part 1 §20.1.9.12: a `val` formula "should only be used within the `avLst`") and a
+    /// caller asking for an adjustment has not said how big the shape is. A guide that does not
+    /// evaluate — a formula naming `w`, a malformed one, one missing `name` or `fmla` — is **skipped**
+    /// rather than failing the read, so a broken `avLst` costs only its own override: every other
+    /// adjustment, and every default, still reads.
+    #[must_use]
+    pub fn adjust_value_overrides<'a>(&'a self, interner: &'a Interner) -> ResolvedGuides<'a> {
+        let mut resolved = ResolvedGuides::without_size();
+        let Some(list) = self.adjust_values() else {
+            return resolved;
+        };
+        for guide in list.guides() {
+            let (Some(name), Some(formula)) = (guide.name(interner), guide.formula(interner))
+            else {
+                continue;
+            };
+            if let Ok(value) = resolved.evaluate_formula(formula) {
+                resolved.define(name, value);
+            }
+        }
+        resolved
     }
 
     /// Sets the adjustment named `wire_name` to `value` (native spec units), upserting the `avLst`
