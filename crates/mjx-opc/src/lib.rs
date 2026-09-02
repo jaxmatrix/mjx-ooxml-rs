@@ -11,6 +11,13 @@
 //! to decompressed-byte-identical output. The round-trip contract is **per-part decompressed-payload
 //! byte identity + structural container identity**, not identical ZIP bytes (deflate encodings vary).
 //!
+//! # Creating a package
+//!
+//! [`Package::empty`] builds a valid, empty container — `[Content_Types].xml` with the two `Default`
+//! rules every package needs, plus an empty package-root `_rels/.rels`. It is format-agnostic: a
+//! format layer turns it into a document by inserting parts and wiring relationships (see
+//! `mjx_pptx::Presentation::blank`).
+//!
 //! # Example
 //!
 //! ```no_run
@@ -35,7 +42,10 @@ mod name;
 mod package;
 mod rels;
 
-pub use content_types::{ContentTypes, Default, Override, CONTENT_TYPES_ZIP_NAME};
+pub use content_types::{
+    ContentTypes, Default, Override, CONTENT_TYPES_ZIP_NAME, CONTENT_TYPE_RELATIONSHIPS,
+    CONTENT_TYPE_XML,
+};
 pub use error::OpcError;
 pub use media::ImageFormat;
 pub use name::PartName;

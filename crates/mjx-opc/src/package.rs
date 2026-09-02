@@ -25,7 +25,10 @@ use mjx_ooxml_core::{
 };
 use mjx_xml::fidelity;
 
-use crate::content_types::{ContentTypes, CONTENT_TYPES_ZIP_NAME};
+use crate::content_types::{
+    build_content_types_bytes, ContentTypes, CONTENT_TYPES_ZIP_NAME, CONTENT_TYPE_RELATIONSHIPS,
+    CONTENT_TYPE_XML,
+};
 use crate::error::OpcError;
 use crate::name::PartName;
 use crate::rels::{
@@ -136,6 +139,50 @@ impl Package {
             content_types,
             relationships,
         })
+    }
+
+    /// Creates a valid, empty OPC package: a `[Content_Types].xml` carrying the two `Default` rules
+    /// every package needs, and an empty package-root `_rels/.rels`.
+    ///
+    /// This is the format-agnostic half of "create a document from nothing". It knows nothing about
+    /// PresentationML, WordprocessingML or SpreadsheetML: it holds no `officeDocument` relationship
+    /// and no format part, so it is not yet a `.pptx`/`.docx`/`.xlsx` — a format layer builds one on
+    /// top with [`insert_part`](Self::insert_part) and [`add_relationship`](Self::add_relationship)
+    /// (see `mjx_pptx::Presentation::blank`).
+    ///
+    /// The two `Default`s are what makes the rest of the package expressible: `rels` types every
+    /// relationship part (which is why a `.rels` never needs an `Override`), and `xml` gives every
+    /// other XML part a fallback that a per-part `Override` then refines. Both are the exact rules an
+    /// Office-written package opens with.
+    ///
+    /// Construction cannot fail: the two control streams are built from crate constants rather than
+    /// parsed, so the navigation views are correct by construction rather than by re-reading bytes we
+    /// just wrote.
+    #[must_use]
+    pub fn empty() -> Self {
+        let mut content_types = ContentTypes::default();
+        content_types.push_default("rels".to_owned(), CONTENT_TYPE_RELATIONSHIPS.to_owned());
+        content_types.push_default("xml".to_owned(), CONTENT_TYPE_XML.to_owned());
+
+        let entries = vec![
+            ZipEntry {
+                name: CONTENT_TYPES_ZIP_NAME.to_owned(),
+                body: PartBody::Raw(build_content_types_bytes(content_types.defaults())),
+            },
+            ZipEntry {
+                name: rels_zip_name_for(None),
+                body: PartBody::Raw(build_rels_bytes(&[])),
+            },
+        ];
+
+        Self {
+            entries,
+            content_types,
+            relationships: vec![RelationshipsPart {
+                source: None,
+                relationships: Relationships::default(),
+            }],
+        }
     }
 
     /// Serializes the package back to container bytes.
