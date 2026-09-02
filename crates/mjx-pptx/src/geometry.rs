@@ -171,6 +171,43 @@ pub struct SlideSize {
     pub kind: SlideSizeKind,
 }
 
+impl SlideSize {
+    /// The 16:9 slide PowerPoint has defaulted to since 2013 — 13.333 x 7.5 inches, `Screen16X9`.
+    #[must_use]
+    pub const fn widescreen() -> Self {
+        Self {
+            width_emu: 12_192_000,
+            height_emu: 6_858_000,
+            kind: SlideSizeKind::Screen16X9,
+        }
+    }
+
+    /// The 4:3 slide PowerPoint defaulted to before 2013 — 10 x 7.5 inches, `Screen4X3`.
+    #[must_use]
+    pub const fn standard() -> Self {
+        Self {
+            width_emu: 9_144_000,
+            height_emu: 6_858_000,
+            kind: SlideSizeKind::Screen4X3,
+        }
+    }
+
+    /// A slide of an arbitrary extent in EMU, declaring no optimization
+    /// ([`SlideSizeKind::Custom`]).
+    ///
+    /// `p:sldSz` bounds each axis to `914400`..=`51206400` EMU (1 to 56 inches); a size outside that
+    /// is refused by [`Presentation::blank`](crate::Presentation::blank), not here, so a caller can
+    /// still build the value it means to check.
+    #[must_use]
+    pub const fn from_emu(width_emu: i64, height_emu: i64) -> Self {
+        Self {
+            width_emu,
+            height_emu,
+            kind: SlideSizeKind::Custom,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
