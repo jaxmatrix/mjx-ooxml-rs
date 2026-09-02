@@ -75,9 +75,15 @@ cargo test  --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-The ECMA-376 reference schemas live under `References/` (git-ignored, local-only). They are read by
-`xtask` to regenerate `mjx-ooxml-types`; the generated source is committed, so normal builds and CI do
-**not** need `References/` present.
+The ECMA-376 reference schemas live under `References/` (git-ignored). They are read by `xtask` to
+regenerate `mjx-ooxml-types` — the generated source is committed, so normal builds do **not** need
+`References/` present — and by the schema-validity suite below. To populate the tree (the two
+published ECMA archives, verified against a committed SHA-256 manifest and extracted; the same script
+CI runs):
+
+```sh
+.github/scripts/fetch-ecma-schemas.sh
+```
 
 ## Testing
 
@@ -103,8 +109,9 @@ Round-tripping proves we do not *corrupt* a file; it does not prove the markup w
 neither does the LibreOffice canary — LibreOffice opens invalid markup happily. `schema_validity`
 closes that: it validates every fixture's PresentationML / DrawingML / chart parts and both OPC control
 streams, plus every deck the library authors, against the ECMA-376 Part 4 Transitional and Part 2 OPC
-schemas. The schemas are not committed (`References/` is git-ignored), so it is a **local gate** for
-now.
+schemas. The schemas are not committed (`References/` is git-ignored), so the suite skips when they
+are absent — but **CI runs it as a blocking job**, fetching the archives and setting
+`MJX_REQUIRE_SCHEMA=1` so the coverage can never silently disappear.
 
 ## Documentation
 

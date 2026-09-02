@@ -1,0 +1,12 @@
+# The ECMA-376 archives the schema-validity suite validates against, pinned by content.
+#
+# `.github/scripts/fetch-ecma-schemas.sh` downloads each file from
+# https://ecma-international.org/wp-content/uploads/<name> and verifies it against this manifest
+# before extracting anything, so a re-upload, a truncated download or a poisoned CI cache is a hard
+# failure rather than a silently different schema set. The CI cache is keyed on this file's hash, so
+# editing a line here re-fetches automatically.
+#
+# Part 4 (Transitional) carries the markup schemas: pml.xsd, dml-main.xsd, dml-chart.xsd.
+# Part 2 (OPC) carries the packaging schemas: opc-relationships.xsd, opc-contentTypes.xsd.
+bd25da1109f73762356596918bf5ff8b74a1331642dba5f1c1d1dfc6bed34ecd  ECMA-376-4_5th_edition_december_2016.zip
+1d489dc491168ea1f9e9a59063acc8dd5f02b4ad1d21aa7ec19ba9a58d020c70  ECMA-376-2_5th_edition_december_2021.zip
