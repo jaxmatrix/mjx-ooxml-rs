@@ -11,6 +11,20 @@ use crate::name::PartName;
 /// The special container item that holds the content-type map. It is not itself a part.
 pub const CONTENT_TYPES_ZIP_NAME: &str = "[Content_Types].xml";
 
+/// The XML namespace of the `[Content_Types].xml` stream, used when synthesizing a fresh one.
+pub(crate) const CONTENT_TYPES_NS: &str =
+    "http://schemas.openxmlformats.org/package/2006/content-types";
+
+/// The content type of a `.rels` part. Every OPC package maps the `rels` extension to it with a
+/// `Default`, which is why a relationship part never needs an `Override`.
+pub const CONTENT_TYPE_RELATIONSHIPS: &str =
+    "application/vnd.openxmlformats-package.relationships+xml";
+
+/// The generic XML content type. Packages map the `xml` extension to it with a `Default` so that a
+/// part which is *only* XML resolves to something; every format-specific XML part (a slide, a theme)
+/// overrides it per part.
+pub const CONTENT_TYPE_XML: &str = "application/xml";
+
 /// A `<Default Extension=".." ContentType=".."/>` rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Default {
@@ -142,6 +156,32 @@ impl ContentTypes {
     }
 }
 
+/// Serializes a `[Content_Types].xml` stream carrying `defaults` and no `Override`s, in canonical
+/// form. Used when synthesizing a package from nothing ([`Package::empty`](crate::Package::empty));
+/// overrides are added afterwards through
+/// [`set_content_type_override`](crate::Package::set_content_type_override), which edits the tree in
+/// place so entry order matches an Office-written stream (all `Default`s, then all `Override`s).
+///
+/// Extensions and content types are package-internal constants here, never caller strings, so no
+/// escaping is needed — and `Default::extension` is validated by the same lowercasing the parser
+/// applies.
+pub(crate) fn build_content_types_bytes(defaults: &[Default]) -> Vec<u8> {
+    let mut out = String::new();
+    out.push_str(r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#);
+    out.push_str(r#"<Types xmlns=""#);
+    out.push_str(CONTENT_TYPES_NS);
+    out.push_str(r#"">"#);
+    for default in defaults {
+        out.push_str(r#"<Default Extension=""#);
+        crate::package::escape_attribute_into(&default.extension, &mut out);
+        out.push_str(r#"" ContentType=""#);
+        crate::package::escape_attribute_into(&default.content_type, &mut out);
+        out.push_str(r#""/>"#);
+    }
+    out.push_str("</Types>");
+    out.into_bytes()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -152,6 +192,28 @@ mod tests {
           <Default Extension="xml" ContentType="application/xml"/>
           <Override PartName="/ppt/presentation.xml" ContentType="app/pml"/>
         </Types>"#;
+
+    #[test]
+    fn a_built_stream_parses_back_to_the_rules_it_was_given() {
+        let defaults = vec![
+            Default {
+                extension: "rels".to_owned(),
+                content_type: CONTENT_TYPE_RELATIONSHIPS.to_owned(),
+            },
+            Default {
+                extension: "xml".to_owned(),
+                content_type: CONTENT_TYPE_XML.to_owned(),
+            },
+        ];
+        let bytes = build_content_types_bytes(&defaults);
+        let parsed = ContentTypes::parse(&bytes).expect("the stream we wrote must parse");
+        assert_eq!(parsed.defaults(), defaults.as_slice());
+        assert!(parsed.overrides().is_empty());
+        // The root element is the one the OPC schema declares, in its own namespace.
+        let text = std::str::from_utf8(&bytes).expect("utf-8");
+        assert!(text.contains(&format!(r#"<Types xmlns="{CONTENT_TYPES_NS}">"#)));
+        assert!(text.ends_with("</Types>"));
+    }
 
     #[test]
     fn parses_and_resolves() {

@@ -259,9 +259,31 @@ pub enum PptxError {
     #[error("shape has an unrecognized preset geometry type")]
     UnknownShapeType,
 
-    /// A slide cannot be added because there is no existing slide to inherit a layout from.
-    #[error("cannot add a slide: no existing slide to borrow a layout from")]
+    /// A slide cannot be added because the deck offers no layout to build it on — it has neither an
+    /// existing slide to inherit a layout from nor a slide layout of its own.
+    #[error("cannot add a slide: the deck has no slide and no layout to build one on")]
     NoSlideLayout,
+
+    /// A blank deck was asked for with a slide extent outside what `p:sldSz` can express.
+    ///
+    /// ECMA-376 Part 1 §19.2.1.39 types `p:sldSz@cx` and `@cy` as `ST_SlideSizeCoordinate`, which is
+    /// bounded to `914400`..=`51206400` EMU (1 to 56 inches). A size outside that range would
+    /// produce a `presentation.xml` no conforming consumer accepts, so it is refused at construction
+    /// rather than written out.
+    #[error(
+        "slide size {width_emu}x{height_emu} EMU is outside the {min}..={max} EMU range \
+         p:sldSz can express"
+    )]
+    InvalidSlideSize {
+        /// The slide width asked for, in EMU.
+        width_emu: i64,
+        /// The slide height asked for, in EMU.
+        height_emu: i64,
+        /// The smallest extent `ST_SlideSizeCoordinate` permits, in EMU.
+        min: i64,
+        /// The largest extent `ST_SlideSizeCoordinate` permits, in EMU.
+        max: i64,
+    },
 
     /// The supplied image bytes match no image format this build recognizes (see
     /// [`mjx_opc::ImageFormat`]).

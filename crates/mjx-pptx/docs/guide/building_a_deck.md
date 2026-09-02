@@ -11,11 +11,40 @@ cargo run -p mjx-pptx --example build_a_deck -- out.pptx
 
 ## Where the first deck comes from
 
-**Today, from a file you supply.** [`Presentation::open`] is the only constructor — there is no
-`Presentation::blank()` yet, so a deck cannot be conjured from nothing. In practice this is less
-limiting than it sounds: the deck you open is a *template*, and a template is what you want anyway —
-it carries the theme, the master and the layouts that give a deck its identity. A one-slide file
-exported from PowerPoint is a fine starting point, and so is
+Two ways: from nothing, or from a file.
+
+**From nothing.** [`Presentation::blank`] builds a complete deck in memory — a theme, a slide master,
+one slide layout and a `presentation.xml` at the slide size you name — with **no slides** on it yet.
+Nothing on disk is consulted, and no template is unpacked: every part is markup this library writes
+and validates against the ECMA-376 schemas, which is why you can trust what is in it.
+
+```
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_pptx::{Presentation, SlideSize};
+use mjx_ooxml_types::presentationml::SlideSizeKind;
+
+let mut deck = Presentation::blank(SlideSize {
+    width_emu: 12_192_000,   // 13⅓ in — PowerPoint's widescreen default
+    height_emu: 6_858_000,   // 7½ in
+    kind: SlideSizeKind::Screen16X9,
+})?;
+# Ok(())
+# }
+```
+
+The size is not free-form: `p:sldSz` can only express 914 400 to 51 206 400 EMU (1 to 56 inches) per
+side, and anything outside that is refused with [`PptxError::InvalidSlideSize`] rather than written
+out as markup no consumer will accept. The two sizes almost everyone wants are 16:9
+(`12_192_000` × `6_858_000`) and 4:3 (`9_144_000` × `6_858_000`).
+
+The blank deck's one layout is *Title and Text*, so
+[`add_slide_from_layout(0)`](Presentation::add_slide_from_layout) hands you a slide with a title and
+a body placeholder already on it. The runnable version of this is `examples/blank_deck.rs`.
+
+**From a file.** [`Presentation::open`] takes any `.pptx` you supply. Reach for it when you want
+somebody *else's* theme, master and layouts — a corporate template is the usual reason, and it is
+still the better starting point when a deck has to match a house style. A one-slide file exported
+from PowerPoint works, and so does
 [`tests/fixtures/layouts.pptx`](https://github.com/jaxmatrix/mjx-ooxml-rs/blob/main/tests/fixtures/layouts.pptx)
 in this repository.
 
@@ -28,6 +57,9 @@ let mut deck = Presentation::open(&template)?;
 # Ok(())
 # }
 ```
+
+The rest of this page follows the template route, because it has more to look at. Every step after
+this one works identically on a blank deck.
 
 ## Look before you edit
 

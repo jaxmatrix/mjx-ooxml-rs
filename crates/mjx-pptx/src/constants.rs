@@ -96,6 +96,14 @@ pub const CONTENT_TYPE_PRESENTATION: &str =
 pub const CONTENT_TYPE_SLIDE: &str =
     "application/vnd.openxmlformats-officedocument.presentationml.slide+xml";
 
+/// The content type of a slide master part.
+pub const CONTENT_TYPE_SLIDE_MASTER: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml";
+
+/// The content type of a slide layout part.
+pub const CONTENT_TYPE_SLIDE_LAYOUT: &str =
+    "application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml";
+
 /// The content type of a theme part.
 pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
 

@@ -70,10 +70,11 @@ use mjx_dml::{
 };
 use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::drawingml::PresetShapeType;
+use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_opc::{Package, PartName, CONTENT_TYPES_ZIP_NAME};
 use mjx_pptx::{
     CellFormat, CellMargins, Cells, ChartData, ChartKind, Geometry, Hyperlink, Presentation,
-    ShapeBounds, Surface, TableStyleFormat,
+    ShapeBounds, SlideSize, Surface, TableStyleFormat,
 };
 use mjx_xml::fidelity;
 
@@ -710,6 +711,105 @@ fn mce_parts_are_skipped_with_a_named_reason() {
 // ---------------------------------------------------------------------------------------------
 // The decks this library authors — the half that protects future work
 // ---------------------------------------------------------------------------------------------
+
+/// The four slide extents worth checking: PowerPoint's two defaults, and the two ends of what
+/// `ST_SlideSizeCoordinate` permits — the placeholder geometry is rescaled per deck, so a bad
+/// rescale shows up as an invalid `a:ext` at one end and not the other.
+const BLANK_DECK_SIZES: &[(&str, i64, i64, SlideSizeKind)] = &[
+    ("16:9", 12_192_000, 6_858_000, SlideSizeKind::Screen16X9),
+    ("4:3", 9_144_000, 6_858_000, SlideSizeKind::Screen4X3),
+    ("smallest", 914_400, 914_400, SlideSizeKind::Custom),
+    ("largest", 51_206_400, 51_206_400, SlideSizeKind::Custom),
+];
+
+#[test]
+fn a_blank_deck_is_schema_valid() {
+    // `Presentation::blank` writes `presentation.xml`, a theme, a slide master and a slide layout
+    // from nothing, plus the `[Content_Types].xml` and four `.rels` parts underneath them. Nothing
+    // in this deck came from a file, so every byte of it is this project's to answer for — which is
+    // exactly why a committed binary template was refused.
+    for (label, width_emu, height_emu, kind) in BLANK_DECK_SIZES.iter().copied() {
+        let deck = Presentation::blank(SlideSize {
+            width_emu,
+            height_emu,
+            kind,
+        })
+        .expect("blank");
+        let saved = deck.save().expect("save");
+        assert_authored_deck_is_schema_valid(&format!("blank deck ({label})"), &saved);
+    }
+}
+
+#[test]
+fn a_blank_deck_filled_end_to_end_is_schema_valid() {
+    // The whole "create a document from nothing" story: a blank deck, a slide built on its own
+    // layout, both placeholders filled, a text box and a second slide added — every part authored,
+    // none preserved.
+    let mut deck = Presentation::blank(SlideSize {
+        width_emu: 12_192_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen16X9,
+    })
+    .expect("blank");
+    let slide = deck
+        .add_slide_from_layout(0)
+        .expect("add slide from layout");
+    deck.set_shape_text_content(slide, 0, "Built from nothing")
+        .expect("set the title");
+    deck.set_shape_text_content(slide, 1, "First point\nSecond point")
+        .expect("set the body");
+    deck.add_text_box(
+        slide,
+        "A text box too",
+        ShapeBounds::from_inches(1.0, 5.0, 4.0, 1.0),
+    )
+    .expect("add text box");
+    deck.add_slide_with_text(
+        "A second slide",
+        ShapeBounds::from_inches(1.0, 1.0, 6.0, 2.0),
+    )
+    .expect("add slide with text");
+    let saved = deck.save().expect("save");
+    assert_authored_deck_is_schema_valid("blank deck, filled end to end", &saved);
+}
+
+#[test]
+fn the_blank_deck_validates_every_part_it_ships() {
+    // A classification bug that skipped the new parts would let invalid markup through as a pass,
+    // so pin the verdicts: all nine entries are accounted for and the five markup streams are
+    // genuinely validated, not skipped.
+    let Some(harness) = harness() else { return };
+    let deck = Presentation::blank(SlideSize {
+        width_emu: 12_192_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen16X9,
+    })
+    .expect("blank");
+    let saved = deck.save().expect("save");
+    let outcomes = inspect_deck(&harness, "blank deck coverage", &saved, &[]);
+
+    let validated: Vec<&str> = outcomes
+        .iter()
+        .filter(|(_, outcome)| matches!(outcome, PartOutcome::Validated(_)))
+        .map(|(name, _)| name.as_str())
+        .collect();
+    assert_eq!(
+        validated,
+        [
+            "/[Content_Types].xml",
+            "/_rels/.rels",
+            "/ppt/presentation.xml",
+            "/ppt/slideMasters/slideMaster1.xml",
+            "/ppt/slideLayouts/slideLayout1.xml",
+            "/ppt/theme/theme1.xml",
+            "/ppt/_rels/presentation.xml.rels",
+            "/ppt/slideMasters/_rels/slideMaster1.xml.rels",
+            "/ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+        ],
+        "every entry of a blank deck must be validated, none skipped"
+    );
+    assert_eq!(outcomes.len(), validated.len());
+}
 
 #[test]
 fn an_unedited_deck_saves_schema_valid() {
