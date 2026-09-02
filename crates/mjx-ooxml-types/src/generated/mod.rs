@@ -4,6 +4,7 @@
 // `drawingml` and `presentationml` are re-exported item-by-item through the hand-written
 // `crate::drawingml` / `crate::presentationml`, so the generated modules stay
 // crate-internal.
+pub(crate) mod child_order;
 pub(crate) mod drawingml;
 pub mod namespaces;
 pub(crate) mod presentationml;

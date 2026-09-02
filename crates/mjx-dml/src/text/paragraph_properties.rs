@@ -26,9 +26,11 @@
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
 use mjx_ooxml_types::support::on_off;
 
+use mjx_ooxml_types::child_order::TEXT_PARAGRAPH_PROPERTIES;
+
 use crate::build::{
     attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, is_dml,
-    parse_percentage, replace_or_insert_child, set_attr,
+    parse_percentage, set_attr,
 };
 use crate::geometry::{Emu, Fraction, IndentLevel, TextPoint};
 use crate::text::bullet::{
@@ -392,33 +394,12 @@ impl ParagraphProperties {
         element: RawElement,
         matches: impl Fn(&str) -> bool,
     ) {
-        replace_or_insert_child(&mut self.children, interner, element, matches, known_rank);
+        TEXT_PARAGRAPH_PROPERTIES.replace_or_insert(&mut self.children, interner, element, matches);
         self.empty = false;
     }
 }
 
 fidelity_element_impls!(ParagraphProperties);
-
-/// Children of `CT_TextParagraphProperties`, in schema order. Anything else sorts last.
-///
-/// The bullet groups sit between the spacing elements and `a:tabLst`, so they are ranked here even
-/// though this model does not yet write them — an existing bullet must not be stepped over.
-fn known_rank(local: &str) -> Option<usize> {
-    let rank = match local {
-        "lnSpc" => 0,
-        "spcBef" => 1,
-        "spcAft" => 2,
-        "buClrTx" | "buClr" => 3,
-        "buSzTx" | "buSzPct" | "buSzPts" => 4,
-        "buFontTx" | "buFont" => 5,
-        "buNone" | "buAutoNum" | "buChar" | "buBlip" => 6,
-        "tabLst" => 7,
-        "defRPr" => 8,
-        "extLst" => 9,
-        _ => return None,
-    };
-    Some(rank)
-}
 
 /// Builds one of the `CT_TextSpacing` children (`a:lnSpc`, `a:spcBef`, `a:spcAft`).
 fn build_spacing(interner: &mut Interner, local: &str, spacing: TextSpacing) -> RawElement {

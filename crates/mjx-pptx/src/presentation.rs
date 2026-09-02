@@ -30,6 +30,8 @@ use mjx_opc::{ImageFormat, Package, PartName, Relationship, TargetMode};
 #[cfg(feature = "vml")]
 use mjx_vml::is_vml_content_type;
 
+use mjx_ooxml_types::child_order::PRESENTATION;
+
 use crate::address::ShapePath;
 use crate::cursor::{ShapeCursor, ShapeEdit};
 use crate::error::PptxError;
@@ -663,21 +665,9 @@ impl Presentation {
             vec![RawNode::Element(notes_master_id)],
         );
 
-        // Schema order is sldMasterIdLst → notesMasterIdLst → handoutMasterIdLst → sldIdLst. Place it
-        // right after the slide-master list; fall back to before the slide-id list, then to the end.
-        let after_masters = root.children.iter().position(|child| {
-            matches!(child, RawNode::Element(e) if nav::name_is(&e.name, interner, PML, "sldMasterIdLst"))
-        });
-        let before_slides = || {
-            root.children.iter().position(|child| {
-                matches!(child, RawNode::Element(e) if nav::name_is(&e.name, interner, PML, "sldIdLst"))
-            })
-        };
-        let pos = after_masters
-            .map(|i| i + 1)
-            .or_else(before_slides)
-            .unwrap_or(root.children.len());
-        root.children.insert(pos, RawNode::Element(lst));
+        // Placed by `CT_Presentation`'s generated `xsd:sequence` — after `p:sldMasterIdLst` and
+        // before `p:sldIdLst` — rather than by a hand-written order with fallbacks.
+        PRESENTATION.insert(&mut root.children, interner, lst);
         root.empty = false;
         Ok(())
     }

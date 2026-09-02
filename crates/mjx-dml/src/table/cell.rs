@@ -6,9 +6,11 @@ use mjx_ooxml_core::{
     FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
 };
 
+use mjx_ooxml_types::child_order::TABLE_CELL_PROPERTIES;
+
 use crate::build::{
     attr_bool, attr_emu, attr_str, dml_child, dml_element, dml_name, fidelity_element_impls,
-    first_fill_child, is_dml, replace_or_insert_child, set_attr,
+    first_fill_child, is_dml, set_attr,
 };
 use crate::fill::{Fill, FillSpec};
 use crate::geometry::Emu;
@@ -84,19 +86,6 @@ impl CellBorder {
             Self::TopLeftToBottomRight,
             Self::BottomLeftToTopRight,
         ]
-    }
-
-    /// This border's rank in `CT_TableCellProperties`'s sequence.
-    #[must_use]
-    pub fn rank(self) -> usize {
-        match self {
-            Self::Left => 0,
-            Self::Right => 1,
-            Self::Top => 2,
-            Self::Bottom => 3,
-            Self::TopLeftToBottomRight => 4,
-            Self::BottomLeftToTopRight => 5,
-        }
     }
 }
 
@@ -234,12 +223,11 @@ impl TableCellProperties {
         // which is exactly why one `LineSpec` serves all six edges.
         let mut element = line.to_line(interner).to_xml(interner);
         element.name = dml_name(interner, local);
-        replace_or_insert_child(
+        TABLE_CELL_PROPERTIES.replace_or_insert(
             &mut self.children,
             interner,
             element,
             |candidate| candidate == local,
-            tcpr_child_rank,
         );
         self.empty = false;
     }
@@ -258,12 +246,11 @@ impl TableCellProperties {
             return;
         };
         let element = fill.to_fill(interner).to_xml(interner);
-        replace_or_insert_child(
+        TABLE_CELL_PROPERTIES.replace_or_insert(
             &mut self.children,
             interner,
             element,
             Fill::is_fill_local,
-            tcpr_child_rank,
         );
         self.empty = false;
     }
@@ -346,13 +333,9 @@ impl TableCellProperties {
             })
             .collect();
         let element = dml_element(interner, "headers", Vec::new(), entries);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "headers",
-            tcpr_child_rank,
-        );
+        TABLE_CELL_PROPERTIES.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "headers"
+        });
         self.empty = false;
     }
 
@@ -371,13 +354,9 @@ impl TableCellProperties {
     /// with [`Cell3D::new`] and its setters.
     pub fn set_cell_3d(&mut self, interner: &mut Interner, cell_3d: &Cell3D) {
         let element = cell_3d.to_xml(interner);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "cell3D",
-            tcpr_child_rank,
-        );
+        TABLE_CELL_PROPERTIES.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "cell3D"
+        });
         self.empty = false;
     }
 }
@@ -391,24 +370,6 @@ fn element_text(element: &RawElement) -> String {
         }
     }
     text.trim().to_owned()
-}
-
-/// A child's position in `CT_TableCellProperties`'s `xsd:sequence`: the six borders, then the 3-D
-/// cell style, the fill group, the accessibility headers, and the extension list.
-///
-/// Order is validity here, not style — a fill written before the borders makes the cell unreadable
-/// to Office — so a newly inserted child is placed by this rather than appended.
-fn tcpr_child_rank(local: &str) -> Option<usize> {
-    if let Some(edge) = CellBorder::all().into_iter().find(|e| e.wire() == local) {
-        return Some(edge.rank());
-    }
-    match local {
-        "cell3D" => Some(6),
-        _ if Fill::is_fill_local(local) => Some(7),
-        "headers" => Some(8),
-        "extLst" => Some(9),
-        _ => None,
-    }
 }
 
 /// One ordered child of a [`TableCell`]: its typed text body or properties, or an opaque node.

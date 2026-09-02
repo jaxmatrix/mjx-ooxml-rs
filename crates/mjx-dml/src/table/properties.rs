@@ -4,9 +4,10 @@
 use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode, ToXml as _};
 
 use super::style::TableStyle;
+use mjx_ooxml_types::child_order::TABLE_PROPERTIES;
+
 use crate::build::{
-    attr_bool, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
-    replace_or_insert_child, set_attr,
+    attr_bool, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child, set_attr,
 };
 use crate::effect::EffectList;
 use crate::fill::Fill;
@@ -115,13 +116,9 @@ impl TableProperties {
     pub fn set_table_style_id(&mut self, interner: &mut Interner, style_id: &str) {
         let text = RawNode::Text(Box::from(style_id.as_bytes()));
         let element = dml_element(interner, "tableStyleId", Vec::new(), vec![text]);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "tableStyleId" || local == "tableStyle",
-            tblpr_child_rank,
-        );
+        TABLE_PROPERTIES.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "tableStyleId" || local == "tableStyle"
+        });
         self.empty = false;
     }
 
@@ -167,13 +164,9 @@ impl TableProperties {
     pub fn set_inline_style(&mut self, interner: &mut Interner, style: &TableStyle) {
         let mut element = style.to_xml(interner);
         element.name = dml_name(interner, "tableStyle");
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "tableStyle" || local == "tableStyleId",
-            tblpr_child_rank,
-        );
+        TABLE_PROPERTIES.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "tableStyle" || local == "tableStyleId"
+        });
         self.empty = false;
     }
 
@@ -209,20 +202,5 @@ impl TableProperties {
     /// Sets an attribute, rewriting it in place when already present.
     pub fn set_attribute(&mut self, interner: &mut Interner, local: &str, value: &str) {
         set_attr(&mut self.attributes, interner, local, value);
-    }
-}
-
-/// A child's rank in `CT_TableProperties`'s sequence: the fill group, the effects, the style choice
-/// (`a:tableStyle` / `a:tableStyleId`), then the extension list. Order is validity, so a newly
-/// inserted child is placed by this rather than appended.
-fn tblpr_child_rank(local: &str) -> Option<usize> {
-    if Fill::is_fill_local(local) {
-        return Some(0);
-    }
-    match local {
-        "effectLst" | "effectDag" => Some(1),
-        "tableStyle" | "tableStyleId" => Some(2),
-        "extLst" => Some(3),
-        _ => None,
     }
 }

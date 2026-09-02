@@ -365,6 +365,7 @@ name = "xtask"
 version = "0.0.62"
 dependencies = [
  "anyhow",
+ "mjx-ooxml-core",
  "mjx-xml",
 ]
 
