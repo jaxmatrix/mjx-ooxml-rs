@@ -17,13 +17,7 @@ fn parse_typed(fragment: &[u8]) -> (PresetGeometry, RawDocument) {
 
 fn serialize_built(mut interner: Interner, geom: &PresetGeometry) -> String {
     let root = geom.to_xml(&mut interner);
-    let doc = RawDocument {
-        interner,
-        bom: false,
-        prologue: Vec::new(),
-        root,
-        epilogue: Vec::new(),
-    };
+    let doc = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
     String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8")
 }
 

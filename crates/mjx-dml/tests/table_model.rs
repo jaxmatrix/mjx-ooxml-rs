@@ -737,16 +737,16 @@ fn empty_cell(interner: &mut Interner) -> RawElement {
         children: Vec<RawNode>,
     ) -> RawElement {
         let empty = children.is_empty();
-        RawElement {
-            name: RawName {
+        RawElement::new(
+            RawName {
                 prefix: Some(a),
                 local: interner.intern(local),
                 namespace: Some(dml),
             },
-            attributes: Vec::new(),
+            Vec::new(),
             children,
             empty,
-        }
+        )
     }
     let body_pr = leaf(interner, a, dml, "bodyPr", Vec::new());
     let lst_style = leaf(interner, a, dml, "lstStyle", Vec::new());

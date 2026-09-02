@@ -560,16 +560,16 @@ fn counted(interner: &mut Interner, local: &str, children: Vec<RawNode>) -> RawE
 
 /// Wraps a built root element in a document and serializes it with the fidelity writer.
 fn serialize(interner: Interner, root: RawElement) -> Vec<u8> {
-    let document = RawDocument {
+    let document = RawDocument::new(
         interner,
-        bom: false,
-        prologue: vec![
+        false,
+        vec![
             RawNode::Declaration(XML_DECLARATION.into()),
             RawNode::Text(Box::from(&b"\n"[..])),
         ],
         root,
-        epilogue: Vec::new(),
-    };
+        Vec::new(),
+    );
     mjx_xml::fidelity::serialize_to_vec(&document)
 }
 
@@ -598,12 +598,7 @@ fn sml_element(
     children: Vec<RawNode>,
 ) -> RawElement {
     let empty = children.is_empty();
-    RawElement {
-        name: sml_name(interner, local),
-        attributes,
-        children,
-        empty,
-    }
+    RawElement::new(sml_name(interner, local), attributes, children, empty)
 }
 
 /// Builds a text-bearing leaf (`<v>19.2</v>`, `<t>North</t>`).

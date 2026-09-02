@@ -128,12 +128,12 @@ pub(crate) fn leaf(
     local: &str,
     attributes: Vec<RawAttribute>,
 ) -> RawElement {
-    RawElement {
-        name: qname(interner, prefix, ns, local),
+    RawElement::new(
+        qname(interner, prefix, ns, local),
         attributes,
-        children: Vec::new(),
-        empty: true,
-    }
+        Vec::new(),
+        true,
+    )
 }
 
 /// A container element `<prefix:local attrs>children</prefix:local>` (`empty = false`).
@@ -145,12 +145,12 @@ pub(crate) fn node(
     attributes: Vec<RawAttribute>,
     children: Vec<RawNode>,
 ) -> RawElement {
-    RawElement {
-        name: qname(interner, prefix, ns, local),
+    RawElement::new(
+        qname(interner, prefix, ns, local),
         attributes,
         children,
-        empty: false,
-    }
+        false,
+    )
 }
 
 /// A text-bearing element `<prefix:local attrs>text</prefix:local>`, with `text` escaped for
@@ -169,12 +169,12 @@ pub(crate) fn text_leaf(
     } else {
         vec![RawNode::Text(escaped.as_bytes().into())]
     };
-    RawElement {
-        name: qname(interner, prefix, ns, local),
+    RawElement::new(
+        qname(interner, prefix, ns, local),
         attributes,
         children,
-        empty: false,
-    }
+        false,
+    )
 }
 
 /// The bytes of a minimal, Office-valid empty slide: a `p:sld` with an empty shape tree and a
@@ -309,13 +309,7 @@ mod tests {
 
     /// Serializes a single element (wrapped in a throwaway document) to bytes.
     fn serialize(interner: Interner, root: RawElement) -> String {
-        let doc = RawDocument {
-            interner,
-            bom: false,
-            prologue: Vec::new(),
-            root,
-            epilogue: Vec::new(),
-        };
+        let doc = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
         String::from_utf8(mjx_xml::fidelity::serialize_to_vec(&doc)).unwrap()
     }
 

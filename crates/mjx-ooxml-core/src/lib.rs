@@ -47,4 +47,6 @@ pub mod raw;
 
 pub use convert::{FromXml, FromXmlError, ToXml};
 pub use intern::{Interner, Symbol};
-pub use raw::{QuoteStyle, RawAttribute, RawDocument, RawElement, RawName, RawNode};
+pub use raw::{
+    QuoteStyle, RawAttribute, RawDocument, RawElement, RawElementContent, RawName, RawNode,
+};

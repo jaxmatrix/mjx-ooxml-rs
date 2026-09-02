@@ -134,13 +134,7 @@ fn a_built_adjust_point_reads_back_the_coordinates_it_was_given() {
 
     // And it serializes to the expected `pt` element with both coordinates as attributes.
     let root = pt.to_xml(&mut interner);
-    let doc = RawDocument {
-        interner,
-        bom: false,
-        prologue: Vec::new(),
-        root,
-        epilogue: Vec::new(),
-    };
+    let doc = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
     let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
     assert!(out.contains(r#"x="100""#), "missing x: {out}");
     assert!(out.contains(r#"y="hc""#), "missing y: {out}");

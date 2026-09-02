@@ -291,11 +291,13 @@ impl SeriesShapeProperties {
     /// A fresh, empty `c:spPr` — what a series gets when it is given a fill and had no properties.
     pub(crate) fn new(interner: &mut Interner) -> Self {
         let element = chart_element(interner, "spPr", Vec::new(), Vec::new());
+        let (name, empty) = (element.name, element.empty);
+        let content = element.into_content();
         Self {
-            name: element.name,
-            attributes: element.attributes,
-            children: element.children,
-            empty: element.empty,
+            name,
+            attributes: content.attributes,
+            children: content.children,
+            empty,
         }
     }
 

@@ -113,12 +113,12 @@ fn container_to_xml(container: &Container) -> TokenStream {
                     }
                 }
                 let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement {
-                    name: self.name,
-                    attributes: ::core::clone::Clone::clone(&self.attributes),
+                ::mjx_ooxml_core::RawElement::new(
+                    self.name,
+                    ::core::clone::Clone::clone(&self.attributes),
                     children,
                     empty,
-                }
+                )
             }
         }
     }
@@ -186,12 +186,12 @@ fn text_to_xml(leaf: &TextLeaf) -> TokenStream {
                     ));
                 }
                 let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement {
-                    name: self.name,
-                    attributes: ::core::clone::Clone::clone(&self.attributes),
+                ::mjx_ooxml_core::RawElement::new(
+                    self.name,
+                    ::core::clone::Clone::clone(&self.attributes),
                     children,
                     empty,
-                }
+                )
             }
         }
     }

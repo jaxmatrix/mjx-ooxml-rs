@@ -15,6 +15,73 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.64] - 2026-09-02
+
+Subtree copy-on-write — the copy-on-write `mjx-opc` does per part, now done per subtree (MJX-248).
+
+A6 found that the fidelity reader records each attribute's name, value and quote but **not the
+whitespace separating it from the previous one**, so a start tag Office wrapped across lines
+re-emitted on one. It pinned the shortfall in `KNOWN_REFLOWS` and stopped, because the obvious fix —
+a whitespace field on `RawAttribute` and a trailing-whitespace field on `RawElement` — costs a value
+at every construction site, adds size to the hottest data structure in the library, and buys exactly
+one preserved property. The next one (entity spelling, comment placement, self-closing style) would
+cost the same again.
+
+**The tree is span-preserving instead.** Every element parsed by `mjx_xml::fidelity` remembers the
+byte range it came from; the document keeps the buffer; and the serializer writes an unmodified
+element by copying that range rather than rebuilding it. One field subsumes the whole family:
+whitespace between attributes, whitespace before `/>`, quote style, the spelling of a character
+reference (`&#38;` stays `&#38;`), and the placement of comments and processing instructions inside a
+subtree. `KNOWN_REFLOWS` is **deleted**, not emptied — its two-way pin fires when a part starts
+round-tripping, so the entry could not have been left behind — and `crates/mjx-opc/tests/roundtrip.rs`
+and `tree_roundtrip.rs` now have no exceptions at all.
+
+**The invariant is structural, not remembered.** A range is only sound while the element still is
+what was parsed, and `RawElement`'s fields are public, so there is nowhere to hook a "clear the span"
+call. `RawElement` therefore keeps its attribute and child lists in a `RawElementContent` it
+`Deref`s to: reads are unchanged (`element.children`, `element.attributes` still resolve), and any
+*mutable* access goes through `DerefMut`, which drops the range. Because mutable descent into a child
+passes through every ancestor's child list, that drops the range along the whole path from the root —
+which is exactly "a mutation clears the span on that node and every ancestor", obtained by
+construction rather than by discipline. `Clone` drops it too, so a subtree copied into another
+document can never be written from the buffer it left behind, and `PartialEq` ignores it, so
+`RawElement` equality still means "the same markup".
+
+**The one way this could corrupt a file is namespaces**, and it is pinned first. A verbatim subtree
+carries prefixes but not the `xmlns:` declarations that bind them; if a rewritten ancestor pruned a
+declaration, every descendant beneath it would come silently unbound. It cannot, and the reason is
+structural: the reader keeps `xmlns` declarations as ordinary attributes in document order and the
+writer emits every attribute an element holds without inspecting any of them.
+`crates/mjx-xml/tests/subtree_cow.rs` opens with the test that fails if that ever stops being true —
+it namespace-resolves the *output*, the way a consumer does.
+
+**The range is untrusted on the way out.** It is sliced fallibly, and then checked against the
+element it claims to describe: the bytes must open with `<` plus that element's qualified name
+followed by a delimiter, and close the way the element says it closes. That is what catches a mutated
+`name` or `empty` — the two fields deliberately left outside the `Deref` because navigation reads
+them constantly — and it means a wrong range degrades to a re-flow, never to wrong bytes. Adversarial
+cases are pinned: out-of-bounds, inverted, pointing at a different element, and the one a naive
+`starts_with` gets wrong (`<a>` must not claim `<abbr>`'s range).
+
+Measured on a synthetic 2.3 MiB slide (80,004 elements, `cargo run --release -p mjx-xml --example
+mjx248_measure`): `size_of::<RawElement>()` 64 → 72 bytes, **+8 bytes per element** — the span packs
+into a `u32` start plus a `NonZeroU32` end, so `Option` needs no discriminant, and moving the lists
+behind the `Deref` costs nothing. Serializing that part after editing one attribute of one element:
+**4.59 ms → 0.27 ms, 17x faster**; untouched, 0.08 ms. A part read but not edited retains no extra
+memory at all — `mjx-opc` now shares one `Arc<[u8]>` between the bytes it re-emits and the tree that
+indexes into them — and an edited part holds its source buffer, which
+`Package::release_unused_part_sources` reclaims once nothing can be copied from it.
+
+One byte-fidelity defect the new adversarial corpus found is fixed with it: `<!DOCTYPE a>` lost the
+space after `<!DOCTYPE`, because quick-xml trims it and the writer rebuilt the wrapper. The doctype's
+inner bytes now come out of the source.
+
+`crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` states the stronger guarantee — every subtree you
+did not touch is byte-for-byte what it was — and drops the re-flow limitation, which is gone. It
+gains a narrower one in its place: three surfaces (`edit_vml_drawing`, `edit_chart`, the table-style
+list) read a whole part into a typed model and write the whole part back, so subtree copy-on-write
+does not reach inside those; slide edits, which navigate in place, are unaffected.
+
 ## [0.0.63] - 2026-09-02
 
 Schema-order emission — children are written in `xsd:sequence` order by construction (MJX-248).

@@ -421,16 +421,16 @@ mod tests {
     use mjx_ooxml_core::RawName;
 
     fn element(interner: &mut Interner, local: &str) -> RawElement {
-        RawElement {
-            name: RawName {
+        RawElement::new(
+            RawName {
                 prefix: Some(interner.intern("a")),
                 local: interner.intern(local),
                 namespace: Some(interner.intern(DML_MAIN.transitional)),
             },
-            attributes: Vec::new(),
-            children: Vec::new(),
-            empty: true,
-        }
+            Vec::new(),
+            Vec::new(),
+            true,
+        )
     }
 
     fn locals(children: &[RawNode], interner: &Interner) -> Vec<String> {
@@ -618,16 +618,16 @@ mod tests {
         let mut interner = Interner::new();
         let mut holder = element(&mut interner, "lstStyle");
         holder.empty = false;
-        let foreign = RawElement {
-            name: RawName {
+        let foreign = RawElement::new(
+            RawName {
                 prefix: Some(interner.intern("p14")),
                 local: interner.intern("lvl1pPr"),
                 namespace: Some(interner.intern("urn:not-drawingml")),
             },
-            attributes: Vec::new(),
-            children: Vec::new(),
-            empty: true,
-        };
+            Vec::new(),
+            Vec::new(),
+            true,
+        );
         holder.children = vec![
             RawNode::Element(element(&mut interner, "lvl9pPr")),
             RawNode::Element(foreign),

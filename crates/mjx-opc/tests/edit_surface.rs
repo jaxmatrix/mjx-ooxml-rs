@@ -787,3 +787,144 @@ fn retarget_relationship_of_an_unknown_id_is_a_no_op() {
         )
         .expect("retarget"));
 }
+
+/// Subtree copy-on-write (MJX-248): editing one attribute of one element must leave every *other
+/// subtree of the same part* byte-identical, not merely every other part.
+///
+/// `vml.pptx`'s drawing is the fixture that proves it because Office wrote it with its start tags
+/// wrapped across lines. Reconstructing any of those elements collapses them onto one line, so a
+/// sibling that survives with its wrapping intact can only have come from the original bytes.
+#[test]
+fn editing_one_attribute_leaves_the_other_subtrees_of_the_same_part_byte_identical() {
+    let bytes = fixture("vml.pptx");
+    let drawing = part("/ppt/drawings/vmlDrawing1.vml");
+    let original = Package::open(&bytes)
+        .expect("open baseline")
+        .part_bytes(&drawing)
+        .expect("the VML drawing is present")
+        .to_vec();
+
+    let mut pkg = Package::open(&bytes).expect("open");
+    {
+        let tree = pkg.part_tree_mut(&drawing).expect("editable");
+        // `<o:shapelayout><o:idmap … data="1"/></o:shapelayout>` — one attribute, three levels down.
+        let RawNode::Element(shapelayout) = &mut tree.root.children[1] else {
+            panic!("expected <o:shapelayout> as the second child");
+        };
+        let RawNode::Element(idmap) = &mut shapelayout.children[1] else {
+            panic!("expected <o:idmap> inside <o:shapelayout>");
+        };
+        idmap.attributes[1].value = Box::from(&b"7"[..]);
+    }
+    let saved = pkg.save().expect("save");
+    let edited = Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&drawing)
+        .expect("still present")
+        .to_vec();
+
+    // The edit landed.
+    assert!(
+        contains(&edited, br#"data="7""#),
+        "the edit is missing:\n{}",
+        String::from_utf8_lossy(&edited)
+    );
+
+    // Every sibling subtree came through with its original wrapping — byte for byte.
+    for untouched in [
+        &b"<v:shapetype id=\"_x0000_t202\" coordsize=\"21600,21600\" o:spt=\"202\"\r\n  path=\"m,l,21600r21600,l21600,xe\">"[..],
+        &b"<v:shape id=\"_x0000_s1026\" type=\"#_x0000_t202\"\r\n  style=\"position:absolute;margin-left:10pt;margin-top:10pt;width:100pt;height:50pt\"\r\n  filled=\"f\" stroked=\"f\">"[..],
+        &b"<v:path gradientshapeok=\"t\" o:connecttype=\"rect\"/>"[..],
+    ] {
+        assert!(
+            contains(&edited, untouched),
+            "an untouched subtree reflowed:\n{}",
+            String::from_utf8_lossy(&edited)
+        );
+    }
+
+    // The wrapping Office wrote is CRLF; reconstruction would have collapsed it to one space, so
+    // these needles cannot match anything the writer produced from the model.
+    // The rewritten root re-emitted every namespace declaration its verbatim descendants depend on.
+    for declaration in [
+        &br#"xmlns:v="urn:schemas-microsoft-com:vml""#[..],
+        &br#"xmlns:o="urn:schemas-microsoft-com:office:office""#[..],
+        &br#"xmlns:p="urn:schemas-microsoft-com:office:powerpoint""#[..],
+    ] {
+        assert!(
+            contains(&edited, declaration),
+            "the rewritten root dropped a namespace declaration:\n{}",
+            String::from_utf8_lossy(&edited)
+        );
+    }
+
+    // Only the path from the root down to the edited element was rewritten: everything else is
+    // still literally the original bytes.
+    assert_ne!(edited, original, "the edit should have changed the part");
+    assert!(
+        !contains(&edited, br#"data="1""#),
+        "the stale original value survived:\n{}",
+        String::from_utf8_lossy(&edited)
+    );
+}
+
+/// Reading a part as a tree must leave its saved bytes alone even now that the tree can write from
+/// the part's own buffer — the copy-on-write state, not the buffer, is what decides.
+#[test]
+fn reading_a_vml_part_does_not_reflow_it() {
+    let bytes = fixture("vml.pptx");
+    let drawing = part("/ppt/drawings/vmlDrawing1.vml");
+    let mut pkg = Package::open(&bytes).expect("open");
+    let original = pkg.part_bytes(&drawing).expect("present").to_vec();
+    let _ = pkg.part_tree(&drawing).expect("readable");
+    let saved = pkg.save().expect("save");
+    assert_eq!(
+        Package::open(&saved)
+            .expect("reopen")
+            .part_bytes(&drawing)
+            .expect("present"),
+        original.as_slice()
+    );
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
+/// A part still holding a tree that can be written from its source buffer keeps the buffer; a part
+/// whose every element has been rewritten gives it back.
+#[test]
+fn release_unused_part_sources_reclaims_only_a_fully_rewritten_part() {
+    let bytes = fixture("vml.pptx");
+    let drawing = part("/ppt/drawings/vmlDrawing1.vml");
+    let mut pkg = Package::open(&bytes).expect("open");
+    {
+        let tree = pkg.part_tree_mut(&drawing).expect("editable");
+        tree.root.attributes.clear();
+    }
+    assert_eq!(
+        pkg.release_unused_part_sources(),
+        0,
+        "the children can still be copied from the buffer"
+    );
+
+    // Replacing the root outright leaves nothing that references the buffer.
+    {
+        let tree = pkg.part_tree_mut(&drawing).expect("editable");
+        tree.root = tree.root.clone();
+    }
+    assert_eq!(pkg.release_unused_part_sources(), 1);
+    assert_eq!(
+        pkg.release_unused_part_sources(),
+        0,
+        "there is nothing left to release"
+    );
+    // ...and the part still saves, reconstructed from the model.
+    let saved = pkg.save().expect("save");
+    assert!(Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&drawing)
+        .is_some());
+}

@@ -25,13 +25,7 @@ fn xfrm(body: &str) -> String {
 
 /// Serializes an element back to a string, for asserting on what was actually written.
 fn serialize(root: RawElement, interner: Interner) -> String {
-    let doc = RawDocument {
-        interner,
-        bom: false,
-        prologue: Vec::new(),
-        root,
-        epilogue: Vec::new(),
-    };
+    let doc = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
     String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8")
 }
 
