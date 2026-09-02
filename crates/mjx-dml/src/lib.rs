@@ -8,7 +8,8 @@
 //! `#[derive(FromXml, ToXml)]` (the `mjx-derive` proc-macro). They read a real text body out of a
 //! slide, expose its text, and rebuild it byte-identically. [`geometry`] adds the preset-shape
 //! geometry fidelity model (`a:prstGeom` / `a:avLst` / `a:gd`). The rest of DrawingML follows in
-//! later phases.
+//! later phases, and [`geometry::formula`] evaluates the guide-formula language (`a:gd@fmla`) those
+//! geometries express their coordinates in.
 //!
 //! # Fidelity
 //!
@@ -40,11 +41,14 @@ pub use fill::{
     GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
 };
 pub use geometry::{
-    AdjustAngle, AdjustCoordinate, AdjustHandle, AdjustPoint, Angle, ConnectionSite,
-    CustomGeometry, CustomGeometrySpec, DrawCommand, Emu, FontSize, Fraction, GeometryGuide,
-    GeometryGuideList, GeometryGuideListContent, GuideSpec, IndentLevel, LineWidth, Path2D,
-    Path2DList, Path2DSpec, PathFillMode, Point, Position, PresetGeometry, PresetGeometryContent,
-    Rectangle, ResolvedAdjustment, ShapeGeometry, Size, TextPoint, Transform2D,
+    AdjustAngle, AdjustCoordinate, AdjustHandle, AdjustPoint, Angle, BoundedAdjustment,
+    ConnectionSite, CustomGeometry, CustomGeometrySpec, DrawCommand, Emu, FontSize, Fraction,
+    GeometryGuide, GeometryGuideList, GeometryGuideListContent, GuideArgument, GuideContext,
+    GuideError, GuideFormula, GuideFormulaError, GuideOperator, GuideSpec, IndentLevel, LineWidth,
+    Path2D, Path2DList, Path2DSpec, PathFillMode, Point, Position, PresetGeometry,
+    PresetGeometryContent, Rectangle, ResolvedAdjustHandle, ResolvedAdjustment,
+    ResolvedConnectionSite, ResolvedCustomGeometry, ResolvedDrawCommand, ResolvedGuides,
+    ResolvedPath, ResolvedPoint, ResolvedRectangle, ShapeGeometry, Size, TextPoint, Transform2D,
 };
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,

@@ -34,13 +34,10 @@ use crate::build::{
     angle_to_wire, attr_bool, attr_emu, attr_str, dml_attr, dml_child, dml_element, dml_name,
     fidelity_element_impls, is_dml, push_bool, push_emu,
 };
+use crate::geometry::formula::ANGLE_UNITS_PER_DEGREE;
 use crate::geometry::{Angle, Emu, GeometryGuide};
 
 pub use mjx_ooxml_types::drawingml::PathFillMode;
-
-/// The native wire scale of `ST_Angle` — sixtieths of a thousandth of a degree (`21_600_000` is a
-/// full turn).
-const ANGLE_UNITS_PER_DEGREE: f64 = 60_000.0;
 
 /// `ST_AdjCoordinate` — an adjustable coordinate: a literal length in EMU, or the name of a geometry
 /// guide (`a:gdLst`) whose formula computes it.
