@@ -17,9 +17,10 @@ members = [
     "crates/mjx-ooxml",
     # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
     # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
-    # number cover them too. The cross-build matrix excludes them: a PyO3 cdylib needs a Python
-    # interpreter for the *host*.
+    # number cover them too. The cross-build matrix excludes both: a PyO3 cdylib needs a Python
+    # interpreter for the *host*, and a wasm-bindgen cdylib only means anything on `wasm32`.
     "bindings/mjx-python",
+    "bindings/mjx-wasm",
     "xtask",
 ]
 
@@ -70,6 +71,8 @@ mjx-ooxml = { path = "crates/mjx-ooxml" }
 
 # --- binding toolkits (used only by `bindings/*`) ---
 pyo3 = { version = "0.29", default-features = false, features = ["abi3-py39", "macros"] }
+wasm-bindgen = "0.2"
+js-sys = "0.3"
 
 # Workspace-wide lints. Each member opts in with `[lints] workspace = true`.
 # `unsafe_code` is `deny` (not `forbid`) so a crate that genuinely needs it (arena/interner)
