@@ -6,18 +6,29 @@ half is an honest list of what this library does not do.
 ## The guarantee
 
 **Open any `.pptx`, change one word, write it back, and every part you did not touch is
-byte-for-byte what it was.**
+byte-for-byte what it was — and inside the part you did touch, every subtree you did not touch is
+byte-for-byte what it was too.**
 
 Not re-serialised from a model that happens to agree — the original decompressed bytes. That holds for
 parts this library has never heard of, for vendor extensions, for markup from a future version of
 Office.
 
-Four mechanisms make it true:
+Five mechanisms make it true:
 
-- **Part-level laziness with copy-on-write.** A part is raw bytes until something needs it parsed. On
-  first edit it is serialised from the model and the raw bytes are dropped; until then it re-emits
-  verbatim. This is also why every reader takes `&mut self` — reading may materialise a tree, though
-  it never marks a part modified.
+- **Part-level laziness with copy-on-write.** A part is raw bytes until something needs it parsed.
+  Until it is edited it re-emits verbatim. This is also why every reader takes `&mut self` — reading
+  may materialise a tree, though it never marks a part modified.
+- **Subtree-level copy-on-write.** Once a part *is* edited, the same rule applies one level down.
+  Every element remembers the byte range it was parsed from, and the serializer copies that range
+  rather than rebuilding the element — so editing one attribute of one shape rewrites that shape's
+  start tag and the elements above it, and copies everything else. That is what preserves the
+  properties a decomposed tree does not record at all: the whitespace *between* attributes (Office
+  wraps VML start tags across lines, and they come back wrapped), the spelling of a character
+  reference (`&#38;` stays `&#38;`), the placement of comments and processing instructions. Any
+  mutable access to an element's attributes or children drops its range, and every ancestor's range
+  with it, so a stale range cannot be written. An element whose range is written is
+  checked against it first: the bytes must open with that element's qualified name and close the way
+  it says it closes.
 - **The unknown bucket.** Every modelled type carries the children it does not understand, and
   preserves unknown attributes, attribute order and namespace prefixes. A shape with an extension this
   library cannot read still round-trips through an edit to its text.
@@ -130,7 +141,7 @@ Two more, still true and worth stating plainly because they are *limitations* ra
 
 | Limitation | Consequence | What would remove it |
 |---|---|---|
-| **A start tag whose attributes were wrapped across lines re-flows when its part is edited** | The fidelity reader records each attribute's name, value and quote, but not the whitespace separating it from the previous one, so re-serialising writes one space. This never touches a part you did not edit — an untouched part re-emits its original bytes and is never serialised at all — but a part you *do* edit comes back with its start tags on one line. Office wraps VML start tags far more often than a slide's, so it shows there first | A whitespace field on `RawAttribute` and `RawElement` in `mjx-ooxml-core`: a breaking change to the hottest data structure in the library, taken deliberately rather than incidentally. `crates/mjx-opc/tests/tree_roundtrip.rs` pins the current behaviour both ways, so the day it changes, that test says so |
+| **A part edited through a whole-part typed model is rebuilt, not copied** | Three surfaces read a whole part into a typed model and write the whole part back from it: the legacy VML drawing (`edit_vml_drawing`), a chart edit (`edit_chart`) and a table-style list (`set_table_style`, `create_table_style`). Subtree copy-on-write does not reach inside those, so such a part comes back re-flowed — its markup identical, its start tags on one line. Editing a *slide* does not work this way: slide edits navigate the tree in place, and every subtree they do not touch is copied byte-for-byte | Carrying each element's source range through `FromXml` / `ToXml`, so a typed model that did not change a value hands the original element back. That belongs with typed attributes in `mjx-derive` (B1), not with the fidelity layer |
 | **A series' data labels, trendlines, error bars and per-point formatting** (`c:dLbls`, `c:trendline`, `c:errBars`, `c:dPt`) have no typed surface | Preserved verbatim; a chart carrying them survives a data edit unchanged | The chart workstream. Phase A's chart child closed the data half — every plot type's series, literal and multi-level sources, axes, gridlines, titles, legend and series fill/outline (MJX-116) — and stopped at the decoration deliberately rather than half-modelling it |
 
 The embedded workbook a chart authors is written by a **minimal SpreadsheetML writer inside
