@@ -353,7 +353,7 @@ impl CellFormat {
 /// while a `TableStyleFormat` is applied to a *named part* of a table style with
 /// [`format_table_style_part`](crate::Presentation::format_table_style_part), so every cell that part
 /// covers picks it up. Only the properties you set are written; a part keeps whatever else it held.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct TableStyleFormat {
     fill: Option<FillSpec>,
     bold: Option<OnOffStyle>,
@@ -508,7 +508,7 @@ pub(crate) const DEFAULT_INLINE_STYLE_NAME: &str = "Custom Table Style";
 /// [`set_table_part`](crate::Presentation::set_table_part) (a table from
 /// [`add_table`](crate::Presentation::add_table) already has `firstRow` and `bandRow` on). This keeps
 /// "which parts exist" and "how they look" apart.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct TableStyleDefinition {
     style_id: Option<String>,
     style_name: Option<String>,
