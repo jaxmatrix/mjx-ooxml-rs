@@ -19,6 +19,8 @@ const FIXTURES: &[&str] = &[
     "ole.pptx",
     "activex.pptx",
     "ink.pptx",
+    // A table carrying `a:extLst` on its properties and on a cell (MJX-43).
+    "table_extensions.pptx",
 ];
 
 /// Parts this suite knows do **not** round-trip byte-identically through the fidelity tree, with the

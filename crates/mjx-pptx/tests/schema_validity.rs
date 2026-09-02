@@ -649,6 +649,11 @@ fn tables_fixture_is_schema_valid() {
 }
 
 #[test]
+fn table_extensions_fixture_is_schema_valid() {
+    assert_fixture_is_schema_valid("table_extensions.pptx");
+}
+
+#[test]
 fn layouts_fixture_is_schema_valid() {
     assert_fixture_is_schema_valid("layouts.pptx");
 }
@@ -722,6 +727,7 @@ fn every_pptx_fixture_is_covered_by_a_case() {
         "notes.pptx",
         "ole.pptx",
         "sample.pptx",
+        "table_extensions.pptx",
         "tables.pptx",
         "text_levels.pptx",
         "vml.pptx",

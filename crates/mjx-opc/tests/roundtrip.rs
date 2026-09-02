@@ -17,6 +17,9 @@ const FIXTURES: &[&str] = &[
     "activex.pptx",
     "ink.pptx",
     "text_levels.pptx",
+    // A table whose `a:tblPr` and one `a:tcPr` carry an `a:extLst` (MJX-43): the extension bucket is
+    // preserved verbatim, so it must survive the container round-trip like any other markup.
+    "table_extensions.pptx",
 ];
 
 fn fixture(name: &str) -> Vec<u8> {
