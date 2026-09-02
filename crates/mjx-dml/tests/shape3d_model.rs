@@ -34,13 +34,7 @@ fn assert_round_trips<T: ToXml>(typed: &T, mut doc: RawDocument, expected: &[u8]
 
 fn serialize_built<T: ToXml>(mut interner: Interner, typed: &T) -> String {
     let root = typed.to_xml(&mut interner);
-    let doc = RawDocument {
-        interner,
-        bom: false,
-        prologue: Vec::new(),
-        root,
-        epilogue: Vec::new(),
-    };
+    let doc = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
     String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8")
 }
 

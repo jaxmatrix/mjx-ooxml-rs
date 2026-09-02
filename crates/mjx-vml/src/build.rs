@@ -275,12 +275,12 @@ pub(crate) fn element(
     children: Vec<RawNode>,
 ) -> RawElement {
     let empty = children.is_empty();
-    RawElement {
-        name: qname(interner, prefix, namespace, local),
+    RawElement::new(
+        qname(interner, prefix, namespace, local),
         attributes,
         children,
         empty,
-    }
+    )
 }
 
 /// The decoded character data directly under `element` — every `Text`/`CData` child concatenated and

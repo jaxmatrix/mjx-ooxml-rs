@@ -73,11 +73,13 @@ impl Value {
     /// A fresh `c:v` carrying `text` (escaped) — the value a rewritten cache point holds.
     pub(crate) fn new(interner: &mut Interner, text: &str) -> Self {
         let element = chart_text_leaf(interner, "v", text);
+        let (name, empty) = (element.name, element.empty);
+        let content = element.into_content();
         Self {
-            name: element.name,
-            attributes: element.attributes,
-            children: element.children,
-            empty: element.empty,
+            name,
+            attributes: content.attributes,
+            children: content.children,
+            empty,
         }
     }
 
