@@ -394,6 +394,25 @@ pub enum PptxError {
     #[error(transparent)]
     ChartData(#[from] mjx_chart::ChartDataError),
 
+    /// A trendline index is past the last trendline of the series.
+    #[error("trendline {index} is out of range: the series carries {count} trendline(s)")]
+    ChartTrendlineOutOfRange {
+        /// The index that was asked for.
+        index: usize,
+        /// How many trendlines the series carries.
+        count: usize,
+    },
+    /// A chart plot index is past the last plot of the chart's plot area.
+    ///
+    /// Plots are numbered as `Presentation::chart_kinds` numbers them, so a combo chart drawing a
+    /// bar and a line has plots 0 and 1.
+    #[error("plot {index} is out of range: the chart draws {count} plot(s)")]
+    ChartPlotOutOfRange {
+        /// The index that was asked for.
+        index: usize,
+        /// How many plots the chart's plot area holds.
+        count: usize,
+    },
     /// The addressed axis is outside the chart, whose plot area declares `count` axes.
     #[error("chart axis {index} is outside a plot area with {count} axes")]
     ChartAxisOutOfRange {

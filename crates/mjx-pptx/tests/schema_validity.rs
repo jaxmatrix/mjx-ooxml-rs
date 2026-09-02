@@ -76,8 +76,10 @@ use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_opc::{Package, PartName, CONTENT_TYPES_ZIP_NAME};
 use mjx_pptx::{
     default_placeholder_ole, ActiveXControlSpec, ActiveXPersistence, AxisOrientation, CellFormat,
-    CellMargins, Cells, ChartData, ChartKind, DiagramContent, Geometry, Hyperlink, LegendPosition,
-    OleObjectData, OleObjectSpec, Presentation, ShapeBounds, SlideSize, Surface, TableStyleFormat,
+    CellMargins, Cells, ChartData, ChartKind, ChartLabelScope, DataLabelPosition, DataLabelSpec,
+    DiagramContent, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, Geometry,
+    Hyperlink, LegendPosition, OleObjectData, OleObjectSpec, Presentation, ShapeBounds, SlideSize,
+    Surface, TableStyleFormat, TrendlineKind, TrendlineSpec,
 };
 use mjx_xml::fidelity;
 
@@ -1539,6 +1541,221 @@ fn an_authored_chart_with_a_title_and_a_legend_is_schema_valid() {
         .expect("add chart");
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("authored chart with a title and a legend", &saved);
+}
+
+#[test]
+fn an_authored_chart_that_labels_itself_is_schema_valid() {
+    // `CT_DLbls` is sequence-dense — fifteen ranked children, with `c:delete` and the settings group
+    // sharing one `xsd:choice` — and every kind that admits it puts it at a different rank. This
+    // authors one on every kind that declares it.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    for kind in AUTHORED_CHART_KINDS
+        .into_iter()
+        .filter(|kind| kind.admits_plot_child("dLbls"))
+    {
+        let chart = ChartData::new(kind)
+            .categories(["Q1", "Q2", "Q3"])
+            .series("Revenue", [1.0, 2.5, 3.25])
+            .series("Cost", [0.5, 1.5, 2.0])
+            .data_labels(
+                DataLabelSpec::new()
+                    .value(true)
+                    .category_name(true)
+                    .series_name(false)
+                    .percentage(true)
+                    .bubble_size(false)
+                    .legend_key(true)
+                    .leader_lines(true)
+                    .position(DataLabelPosition::Center)
+                    .separator("; ")
+                    .number_format("#,##0.0"),
+            );
+        pres.add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 4.0, 3.0))
+            .expect("add a labelled chart");
+    }
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored charts that label themselves", &saved);
+}
+
+#[test]
+fn every_chart_decoration_edit_is_schema_valid() {
+    // The four decoration families, written into one chart in the **reverse** of the order
+    // `CT_BarSer` declares them, so a writer that appended rather than placing would fail here.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Revenue", [1.0, 2.0, 3.0])
+        .series("Cost", [0.5, 1.5, 2.5]);
+    let frame = pres
+        .add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 6.0, 4.0))
+        .expect("add chart");
+
+    // Error bars first, then the trendline, then the labels, then the point formatting.
+    pres.set_chart_error_bars(
+        0,
+        frame,
+        0,
+        &ErrorBarSpec::custom(ErrorBarType::Both, vec![0.1, 0.2, 0.3], vec![0.1, 0.1, 0.1])
+            .direction(ErrorBarDirection::Y)
+            .no_end_cap(true),
+    )
+    .expect("add error bars");
+    pres.add_chart_trendline(
+        0,
+        frame,
+        0,
+        &TrendlineSpec::new(TrendlineKind::Polynomial)
+            .name("Fit")
+            .polynomial_order(3)
+            .projection(2.0, 1.0)
+            .intercept(0.5)
+            .display(true, true),
+    )
+    .expect("add a trendline");
+    pres.add_chart_trendline(
+        0,
+        frame,
+        1,
+        &TrendlineSpec::new(TrendlineKind::MovingAverage).moving_average_period(2),
+    )
+    .expect("add a moving average");
+    pres.set_chart_data_labels(
+        0,
+        frame,
+        ChartLabelScope::Plot { plot_idx: 0 },
+        &DataLabelSpec::new()
+            .value(true)
+            .position(DataLabelPosition::OutsideEnd)
+            .number_format("0.0"),
+    )
+    .expect("label the plot");
+    pres.set_chart_data_labels(
+        0,
+        frame,
+        ChartLabelScope::Series { series_idx: 0 },
+        &DataLabelSpec::new()
+            .category_name(true)
+            .separator(" — ")
+            .leader_lines(true),
+    )
+    .expect("label the series");
+    // Point 2 before point 0, so the `c:dLbl` run has to be ordered rather than appended.
+    for point in [2_u32, 0] {
+        pres.set_chart_data_labels(
+            0,
+            frame,
+            ChartLabelScope::Point {
+                series_idx: 0,
+                point_idx: point,
+            },
+            &DataLabelSpec::new().percentage(true),
+        )
+        .expect("label a point");
+    }
+    pres.delete_chart_data_labels(
+        0,
+        frame,
+        ChartLabelScope::Point {
+            series_idx: 0,
+            point_idx: 1,
+        },
+    )
+    .expect("silence a point");
+    pres.delete_chart_data_labels(0, frame, ChartLabelScope::Series { series_idx: 1 })
+        .expect("silence a series");
+    for point in [2_u32, 0] {
+        pres.set_chart_point_fill(
+            0,
+            frame,
+            0,
+            point,
+            &FillSpec::Solid(ColorSpec::Srgb("C00000".into())),
+        )
+        .expect("colour a point");
+        pres.set_chart_point_line(
+            0,
+            frame,
+            0,
+            point,
+            &LineSpec {
+                width: Some(LineWidth::from_points(1.25)),
+                ..LineSpec::default()
+            },
+        )
+        .expect("outline a point");
+    }
+    pres.set_chart_point_explosion(0, frame, 0, 0, Some(15))
+        .expect("explode a point");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("every chart decoration edit", &saved);
+}
+
+#[test]
+fn a_pie_chart_decorated_where_its_schema_allows_is_schema_valid() {
+    // `CT_PieSer` places `c:dPt` and `c:dLbls` at different ranks from `CT_BarSer` — after
+    // `c:explosion` rather than after `c:pictureOptions` — which is exactly why the write surface is
+    // bound to the owning plot's kind.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let chart = ChartData::new(ChartKind::Pie)
+        .categories(["A", "B", "C"])
+        .series("Share", [3.0, 2.0, 1.0])
+        .data_labels(DataLabelSpec::new().percentage(true).leader_lines(true));
+    let frame = pres
+        .add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 6.0, 4.0))
+        .expect("add a pie chart");
+    pres.set_chart_point_explosion(0, frame, 0, 1, Some(25))
+        .expect("explode a slice");
+    pres.set_chart_point_fill(
+        0,
+        frame,
+        0,
+        0,
+        &FillSpec::Solid(ColorSpec::Srgb("2E75B6".into())),
+    )
+    .expect("colour a slice");
+    pres.set_chart_data_labels(
+        0,
+        frame,
+        ChartLabelScope::Point {
+            series_idx: 0,
+            point_idx: 2,
+        },
+        &DataLabelSpec::new().category_name(true).value(true),
+    )
+    .expect("label a slice");
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("a decorated pie chart", &saved);
+}
+
+#[test]
+fn a_scatter_chart_with_two_sets_of_error_bars_is_schema_valid() {
+    // `CT_ScatterSer` admits `c:errBars` twice — one per axis — where `CT_BarSer` admits one. The
+    // write surface reads that from the generated table rather than assuming.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let chart = ChartData::new(ChartKind::Scatter)
+        .categories(["1", "2", "3"])
+        .series("Sample", [2.0, 4.0, 8.0]);
+    let frame = pres
+        .add_chart(0, &chart, ShapeBounds::from_inches(0.5, 0.5, 6.0, 4.0))
+        .expect("add a scatter chart");
+    for direction in [ErrorBarDirection::X, ErrorBarDirection::Y] {
+        pres.set_chart_error_bars(
+            0,
+            frame,
+            0,
+            &ErrorBarSpec::fixed(ErrorBarType::Both, ErrorValueType::Percentage, 5.0)
+                .direction(direction),
+        )
+        .expect("add error bars");
+    }
+    assert_eq!(
+        pres.chart_error_bars(0, frame, 0).expect("read").len(),
+        2,
+        "a scatter series admits one set of error bars per axis"
+    );
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("a scatter chart with x and y error bars", &saved);
 }
 
 #[test]
