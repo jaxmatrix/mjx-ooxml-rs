@@ -10726,7 +10726,11 @@ fn build_ole_frame(
 
     let binding_local = if parts.linked { "link" } else { "embed" };
     let binding = build::leaf(interner, "p", PML, binding_local, Vec::new());
-    let picture = build_picture(interner, 0, parts.snapshot_rel_id, bounds, None);
+    // The snapshot picture is a shape of the slide like any other, so it takes the id after the
+    // frame's rather than a constant: two OLE objects on one slide would otherwise both write a
+    // picture with the same non-visual id, which is a duplicate PowerPoint repairs. The caller
+    // allocates from `max_cnvpr_id`, which sees this one, so the next frame starts past it.
+    let picture = build_picture(interner, id + 1, parts.snapshot_rel_id, bounds, None);
     let ole_object = build::node(
         interner,
         "p",
