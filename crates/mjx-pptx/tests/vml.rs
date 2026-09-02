@@ -122,12 +122,18 @@ fn editing_a_slide_leaves_the_vml_part_byte_identical() {
 // ---------------------------------------------------------------------------------------------
 
 /// A VML drawing shaped like the fallback PowerPoint writes beside an OLE object: a layout header, a
-/// shape template, and a `v:shape` whose `id` is the `spid` the `ole.pptx` fixture's `p:oleObj`
-/// names.
+/// shape template, and two `v:shape`s — a decoy that comes **first** in document order, and the one
+/// whose `id` is the `spid` the `ole.pptx` fixture's `p:oleObj` names.
+///
+/// The decoy is what makes the resolution tests mean something: a lookup that ignored the identifier
+/// and answered "the first shape" would pass against a one-shape drawing.
 const OLE_FALLBACK_DRAWING: &[u8] = br##"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
  <o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>
  <v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" filled="f" stroked="f"><v:stroke joinstyle="miter"/></v:shapetype>
+ <v:shape id="_x0000_s1025" type="#_x0000_t75" style="position:absolute;width:10pt;height:10pt" alt="A different shape entirely">
+  <v:imagedata r:id="rId9" o:title="Decoy"/>
+ </v:shape>
  <v:shape id="_x0000_s1026" type="#_x0000_t75" style="position:absolute;width:240pt;height:180pt" o:ole="" alt="Worksheet" fillcolor="#ffffff">
   <v:imagedata r:id="rId3" o:title="Worksheet"/>
   <x:ClientData ObjectType="Pict"><x:SizeWithCells/><x:CF>Bitmap</x:CF></x:ClientData>
@@ -241,6 +247,16 @@ fn an_ole_object_resolves_to_the_vml_shape_that_draws_it() {
             .expect("resolve"),
         None
     );
+
+    // And a spid naming a shape the drawing does not hold resolves to nothing, rather than to
+    // whichever shape happens to come first.
+    pres.set_ole_legacy_shape_id(0, 1, "_x0000_s9999")
+        .expect("rebind to a shape that is not there");
+    assert_eq!(
+        pres.with_vml_shape_for_ole_object(0, 1, |_, _| ())
+            .expect("resolve"),
+        None
+    );
 }
 
 #[test]
@@ -256,7 +272,8 @@ fn an_activex_control_resolves_to_the_vml_shape_that_draws_it() {
     assert_eq!(
         identifier.as_deref(),
         Some("_x0000_s1026"),
-        "p:control@spid resolves the same way p:oleObj@spid does"
+        "p:control@spid resolves the same way p:oleObj@spid does — and past the decoy shape that \
+         comes first in the drawing"
     );
 
     // A control index past the end resolves to nothing.
