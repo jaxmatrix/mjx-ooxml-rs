@@ -55,8 +55,9 @@ pub use resolve::{
     ResolvedColor, SchemeColors,
 };
 pub use shape3d::{
-    Bevel, BevelPreset, Camera, LightRig, LightRigDirection, LightRigType, PresetCamera,
-    PresetMaterial, Scene3D, Scene3DSpec, Shape3D, Shape3DSpec, SphereCoordinates,
+    Backdrop, Bevel, BevelPreset, Camera, LightRig, LightRigDirection, LightRigType, Point3D,
+    PresetCamera, PresetMaterial, Scene3D, Scene3DSpec, Shape3D, Shape3DSpec, SphereCoordinates,
+    Vector3D,
 };
 pub use style::{ColorMap, StyleMatrixReference};
 pub use table::{
