@@ -21,10 +21,12 @@ cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyon
   `wasm32-unknown-unknown`, `aarch64-linux-android`, and `aarch64-apple-ios` build cleanly.
 - **Unified model.** One packaging + compatibility + DrawingML core shared across all three formats,
   rather than three unrelated libraries.
-- **Binding-ready.** [`mjx-ooxml`](crates/mjx-ooxml) is the facade an application depends on:
-  `detect_format` reads what a file *is* from its package rather than its name, `Deck` restates the
-  whole PowerPoint surface in types a foreign function boundary can express, and one `Error` carries
-  eleven stable codes. Language bindings are built over it, in-workspace.
+- **Binding-ready, and bound.** [`mjx-ooxml`](crates/mjx-ooxml) is the facade an application depends
+  on: `detect_format` reads what a file *is* from its package rather than its name, `Deck` restates
+  the whole PowerPoint surface in types a foreign function boundary can express, and one `Error`
+  carries eleven stable codes. Two in-workspace bindings project it whole —
+  [`bindings/mjx-python`](bindings/mjx-python) (PyO3) and
+  [`bindings/mjx-wasm`](bindings/mjx-wasm) (wasm-bindgen).
 
 ## Quickstart
 
@@ -44,6 +46,35 @@ deck.add_picture(
 std::fs::write("out.pptx", deck.save()?)?;
 ```
 
+The same walkthrough in Python:
+
+```python
+import mjx_ooxml
+
+deck = mjx_ooxml.Deck.open(open("template.pptx", "rb").read())
+slide = deck.add_slide_from_layout(1)
+deck.set_shape_text_content(slide, 0, "Quarterly results")
+deck.add_picture(slide, open("logo.png", "rb").read(),
+                 mjx_ooxml.ShapeBounds.from_inches(7.5, 0.3, 1.5, 1.5))
+open("out.pptx", "wb").write(deck.save())
+```
+
+…and in TypeScript, in a browser or in Node:
+
+```ts
+import { Deck, ShapeBounds } from "@mjx/ooxml";
+
+const deck = Deck.open(new Uint8Array(await file.arrayBuffer()));
+try {
+  const slide = deck.addSlideFromLayout(1);
+  deck.setShapeTextContent(slide, 0, "Quarterly results");
+  deck.addPicture(slide, logo, ShapeBounds.fromInches(7.5, 0.3, 1.5, 1.5));
+  const blob = new Blob([deck.save()]);
+} finally {
+  deck.free();          // wasm has no garbage collector for Rust objects
+}
+```
+
 `mjx-ooxml` is the facade; `mjx-pptx` underneath it is the same surface with Rust-native ergonomics
 (`impl Into<Surface>`, a `ShapeCursor` that states an address once) that no binding can carry.
 
@@ -59,7 +90,14 @@ did not touch comes back byte-for-byte as it arrived.
 | Word `.docx` | `mjx-docx` | ⏳ planned |
 | Excel `.xlsx` | `mjx-xlsx` | ⏳ planned |
 
-Rendering (document viewer) and language bindings are **deferred** — see [`PLAN.md`](PLAN.md).
+| Binding | Package | Status |
+|---|---|---|
+| Python (PyO3) | `bindings/mjx-python` → `pip install mjx-ooxml` | ✅ the whole `Deck` surface |
+| TypeScript / WebAssembly (wasm-bindgen) | `bindings/mjx-wasm` → `npm install @mjx/ooxml` | ✅ the whole `Deck` surface |
+
+Rendering (document viewer) is **deferred** — see [`PLAN.md`](PLAN.md), which also records why the
+bindings are workspace members built on PyO3 and wasm-bindgen rather than the separate UniFFI
+project earlier revisions of this file described.
 
 ## Workspace layout
 
@@ -71,8 +109,13 @@ Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
 Shared markup   mjx-dml  ·  mjx-omml  ·  mjx-chart  ·  mjx-vml
 Formats         mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
 Facade          mjx-ooxml   (open()/save(), the binding-ready public API)
+Bindings        bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
 Tooling         xtask       (schema codegen)
 ```
+
+The two binding members sit *above* the facade and nothing depends on them, so the downward-only
+rule is unaffected. They are the only crates in the workspace that carry `#![allow(unsafe_code)]`,
+for macro-generated `unsafe` only; CI greps them to keep that claim true.
 
 See [`PLAN.md`](PLAN.md) for what each crate does and the phase it lands in.
 

@@ -7,7 +7,7 @@ below and in `CLAUDE.md`.
 
 A pure-Rust, cross-platform library that can **open any OOXML file, load it fully into RAM, edit it at
 runtime, and write back a valid file** — preserving everything it does not explicitly model — for
-PowerPoint, Word, and Excel. Rendering and language bindings come later.
+PowerPoint, Word, and Excel, reachable from Rust, Python and TypeScript. Rendering comes later.
 
 ## Guiding principles
 
@@ -16,7 +16,9 @@ PowerPoint, Word, and Excel. Rendering and language bindings come later.
 3. **Lazy, part-oriented** — parts are raw bytes until touched; untouched parts re-emit verbatim.
 4. **Namespace-agnostic core, namespace-aware edges** — Transitional is the primary target.
 5. **Binding-ready facade** — `mjx-ooxml` is that surface: concrete types, `u32` indices,
-   `&str` part names and eleven stable error codes, ready for the in-workspace `bindings/` members.
+   `&str` part names and eleven stable error codes. The in-workspace `bindings/` members —
+   `bindings/mjx-python` (PyO3) and `bindings/mjx-wasm` (wasm-bindgen) — project it and nothing
+   below it.
 6. **Generate the mechanical, hand-write the meaningful.**
 7. **Test-driven, incremental** — always-green increments.
 
@@ -43,7 +45,7 @@ set, content types, relationships).
 
 Pre-release `v0.0.x`: the patch increments each development iteration until the first milestone; the
 public API is not stable until `v0.1`. Milestones advance the minor version — **`v0.1`** PowerPoint,
-**`v0.2`** Word, **`v0.3`** Excel — with later milestones (rendering, bindings) defined as scheduled.
+**`v0.2`** Word, **`v0.3`** Excel — with later milestones (rendering) defined as scheduled.
 See [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Phases
@@ -86,20 +88,47 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   examples, so the library documents *tasks* and not only *items*. ✅ **the `mjx-ooxml` facade** —
   `detect_format` over the OPC layer, `Deck` restating the PresentationML surface with concrete
   FFI-expressible types, an `Error` collapsing every `PptxError` into eleven stable codes, and the
-  whole authoring vocabulary re-exported so nothing downstream names a lower crate. 🔨 Next, the
-  **bindings** over that facade: Python (PyO3) and WebAssembly/TypeScript (wasm-bindgen) as
-  in-workspace `bindings/` members — see the Phase 7 note below, which this supersedes. Then
-  **validation**: every shipped feature checked by hand against real PowerPoint, which nothing has
-  yet been.
+  whole authoring vocabulary re-exported so nothing downstream names a lower crate. ✅ **the
+  bindings** over that facade — `bindings/mjx-python` (PyO3, `pip install mjx-ooxml`) and
+  `bindings/mjx-wasm` (wasm-bindgen, `npm install @mjx/ooxml`), both projecting the whole `Deck`
+  surface, both proved by writing the guide's walkthrough a second and third time and checking that
+  all three produce byte-identical parts. 🔨 Next, **validation**: every shipped feature checked by
+  hand against real PowerPoint, which nothing has yet been.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).
 - **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (a typed drawing model with shape-level
   references, re-exposed from `mjx-pptx` behind the `vml` feature).
-- **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF); and, in a **separate
-  cargo project**, language bindings (UniFFI → wasm → C-ABI).
+- **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF).
+
+### Recorded divergence: where the bindings live, and what they are built with
+
+Earlier revisions of this plan (and of `README.md`) said language bindings would live in a
+**separate cargo project** on a **UniFFI → wasm → C-ABI** stack targeting Kotlin, Swift, JavaScript
+and C, deferred to Phase 7. **They do not.** They are workspace members under `bindings/`, built
+directly on PyO3 and wasm-bindgen, with no UniFFI, no napi-rs and no C ABI, and they shipped in
+Phase 3c.
+
+Three reasons the decision changed:
+
+* **The library is already binding-shaped.** It is bytes in and bytes out, with no file I/O, no
+  clock, no threads, no `getrandom` and no C dependencies, and `wasm32-unknown-unknown` has built
+  green in CI since Phase 0. Both binding technologies are a thin veneer over `mjx-ooxml`, not a
+  porting layer that deserves its own repository.
+* **In-workspace means one truth.** One `cargo test`, one lint policy, one version number, and no
+  skew between the facade and its bindings while the API is still moving. A separate project would
+  have to track a moving `mjx-ooxml` by git revision.
+* **UniFFI was a poor fit for the primary requirement**, which is the browser. It has no wasm
+  backend; going through a C ABI to reach JavaScript would have meant hand-writing the glue that
+  wasm-bindgen generates, and would have produced structurally-typed objects rather than the
+  `.d.ts` classes a TypeScript consumer expects.
+
+Kotlin, Swift and C are not served by this decision. They are not served by the old plan either —
+nothing was ever built — and the door is open: a UniFFI member could sit beside the two that exist,
+over the same facade, if a caller ever needs one.
 
 ## Explicitly out of scope for v1
 
-Language bindings (separate project), full-fidelity rendering, a spreadsheet calculation engine,
-encrypted/password-protected packages, and digital-signature processing (preserved, not processed).
+Bindings for Kotlin, Swift and C (see the recorded divergence above), full-fidelity rendering, a
+spreadsheet calculation engine, encrypted/password-protected packages, and digital-signature
+processing (preserved, not processed).
