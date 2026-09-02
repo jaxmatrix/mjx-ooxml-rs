@@ -227,9 +227,9 @@ fidelity_element_impls!(GradientFill);
 // blipFill
 // ---------------------------------------------------------------------------------------------
 
-/// How a [`BlipFill`] maps its image onto the shape (`EG_FillModeProperties`).
+/// How a [`PictureFill`] maps its image onto the shape (`EG_FillModeProperties`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BlipFillMode {
+pub enum PictureFillMode {
     /// `a:tile` — the image repeats.
     Tile,
     /// `a:stretch` — the image is stretched to fill.
@@ -244,14 +244,14 @@ pub enum BlipFillMode {
 /// The image relationship id and the fill mode are exposed typed; the blip's compression effects,
 /// source rect, and tile/fill rects are preserved opaque so the fill round-trips.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlipFill {
+pub struct PictureFill {
     name: RawName,
     attributes: Vec<RawAttribute>,
     children: Vec<RawNode>,
     empty: bool,
 }
 
-impl BlipFill {
+impl PictureFill {
     /// Builds an `a:blipFill` referencing the image relationship `rel_id` with the given `mode`,
     /// emitting `<a:blipFill><a:blip r:embed="{rel_id}"/>[<a:tile/>|<a:stretch/>]</a:blipFill>`.
     ///
@@ -262,12 +262,12 @@ impl BlipFill {
     /// the layer that knows the part's namespace bindings). The relationship itself (and the image
     /// part) must be added to the package separately.
     #[must_use]
-    pub fn new(interner: &mut Interner, rel_id: &str, mode: BlipFillMode) -> Self {
+    pub fn new(interner: &mut Interner, rel_id: &str, mode: PictureFillMode) -> Self {
         let embed = prefixed_attr(interner, "r", "embed", rel_id);
         let blip = RawNode::Element(dml_element(interner, "blip", vec![embed], Vec::new()));
         let mut children = vec![blip];
         match mode {
-            BlipFillMode::Tile => {
+            PictureFillMode::Tile => {
                 children.push(RawNode::Element(dml_element(
                     interner,
                     "tile",
@@ -275,7 +275,7 @@ impl BlipFill {
                     Vec::new(),
                 )));
             }
-            BlipFillMode::Stretch => {
+            PictureFillMode::Stretch => {
                 children.push(RawNode::Element(dml_element(
                     interner,
                     "stretch",
@@ -283,7 +283,7 @@ impl BlipFill {
                     Vec::new(),
                 )));
             }
-            BlipFillMode::None => {}
+            PictureFillMode::None => {}
         }
         Self {
             name: dml_name(interner, "blipFill"),
@@ -308,21 +308,21 @@ impl BlipFill {
         attr_by_local(&blip.attributes, interner, "link")
     }
 
-    /// The fill mode: [`Tile`](BlipFillMode::Tile) if an `a:tile` child is present,
-    /// [`Stretch`](BlipFillMode::Stretch) if `a:stretch`, else [`None`](BlipFillMode::None).
+    /// The fill mode: [`Tile`](PictureFillMode::Tile) if an `a:tile` child is present,
+    /// [`Stretch`](PictureFillMode::Stretch) if `a:stretch`, else [`None`](PictureFillMode::None).
     #[must_use]
-    pub fn mode(&self, interner: &Interner) -> BlipFillMode {
+    pub fn mode(&self, interner: &Interner) -> PictureFillMode {
         if dml_child(&self.children, interner, "tile").is_some() {
-            BlipFillMode::Tile
+            PictureFillMode::Tile
         } else if dml_child(&self.children, interner, "stretch").is_some() {
-            BlipFillMode::Stretch
+            PictureFillMode::Stretch
         } else {
-            BlipFillMode::None
+            PictureFillMode::None
         }
     }
 }
 
-fidelity_element_impls!(BlipFill);
+fidelity_element_impls!(PictureFill);
 
 // ---------------------------------------------------------------------------------------------
 // pattFill
@@ -425,7 +425,7 @@ pub enum Fill {
     /// `a:gradFill`.
     Gradient(GradientFill),
     /// `a:blipFill`.
-    Blip(BlipFill),
+    Picture(PictureFill),
     /// `a:pattFill`.
     Pattern(PatternFill),
     /// `a:grpFill`.
@@ -449,7 +449,7 @@ impl FromXml for Fill {
             "noFill" => Fill::None(NoFill::from_xml(element, interner)?),
             "solidFill" => Fill::Solid(SolidFill::from_xml(element, interner)?),
             "gradFill" => Fill::Gradient(GradientFill::from_xml(element, interner)?),
-            "blipFill" => Fill::Blip(BlipFill::from_xml(element, interner)?),
+            "blipFill" => Fill::Picture(PictureFill::from_xml(element, interner)?),
             "pattFill" => Fill::Pattern(PatternFill::from_xml(element, interner)?),
             // Any other local name (a malformed or foreign fill) is preserved as a group-fill-shaped
             // fidelity wrapper so nothing is lost; callers dispatch on the modeled variants.
@@ -464,7 +464,7 @@ impl ToXml for Fill {
             Fill::None(fill) => fill.to_xml(interner),
             Fill::Solid(fill) => fill.to_xml(interner),
             Fill::Gradient(fill) => fill.to_xml(interner),
-            Fill::Blip(fill) => fill.to_xml(interner),
+            Fill::Picture(fill) => fill.to_xml(interner),
             Fill::Pattern(fill) => fill.to_xml(interner),
             Fill::Group(fill) => fill.to_xml(interner),
         }
@@ -505,11 +505,11 @@ pub enum FillSpec {
         angle: Option<Angle>,
     },
     /// `a:blipFill` — an image fill referencing an image relationship id.
-    Blip {
+    Picture {
         /// The image relationship id (`a:blip@r:embed`, or `@r:link`).
         rel_id: String,
         /// How the image maps onto the shape.
-        mode: BlipFillMode,
+        mode: PictureFillMode,
     },
     /// `a:pattFill` — a two-color preset pattern. Each part is schema-optional.
     Pattern {
@@ -569,7 +569,9 @@ impl FillSpec {
                     .collect();
                 Fill::Gradient(build_gradient(interner, &pairs, *angle))
             }
-            FillSpec::Blip { rel_id, mode } => Fill::Blip(BlipFill::new(interner, rel_id, *mode)),
+            FillSpec::Picture { rel_id, mode } => {
+                Fill::Picture(PictureFill::new(interner, rel_id, *mode))
+            }
             FillSpec::Pattern {
                 preset,
                 foreground,
@@ -616,7 +618,7 @@ impl Fill {
                     angle: gradient.linear_angle(interner),
                 }
             }
-            Fill::Blip(blip) => FillSpec::Blip {
+            Fill::Picture(blip) => FillSpec::Picture {
                 rel_id: blip
                     .image_rel_id(interner)
                     .or_else(|| blip.image_link_id(interner))

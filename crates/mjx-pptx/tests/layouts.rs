@@ -175,3 +175,77 @@ fn a_single_layout_deck_still_reads() {
     // That deck's master carries no p:cSld@name.
     assert_eq!(pres.master_name(0).expect("master name"), None);
 }
+
+// ---------------------------------------------------------------------------------------------
+// The whole inventory in one call
+// ---------------------------------------------------------------------------------------------
+
+/// `layouts` answers the question the per-index readers answer one at a time, and must answer it
+/// identically — a divergence between the two is the failure mode a batched reader introduces.
+#[test]
+fn layouts_answers_exactly_what_the_per_index_readers_do() {
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+
+    let listed = pres.layouts().expect("the layout inventory");
+    assert_eq!(listed.len(), pres.layout_count());
+
+    for (index, entry) in listed.iter().enumerate() {
+        assert_eq!(entry.index, index);
+        assert_eq!(
+            entry.master_index,
+            pres.layout_master(index).expect("master")
+        );
+        assert_eq!(entry.name, pres.layout_name(index).expect("name"));
+        assert_eq!(entry.kind, pres.layout_kind(index).expect("kind"));
+    }
+}
+
+/// And it answers with the fixture's actual three layouts, in index order — an assertion the
+/// per-index cross-check above cannot make on its own, because both sides could be wrong together.
+#[test]
+fn layouts_lists_the_fixtures_three_layouts_in_order() {
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+
+    let listed = pres.layouts().expect("the layout inventory");
+    let summary: Vec<_> = listed
+        .iter()
+        .map(|layout| {
+            (
+                layout.index,
+                layout.master_index,
+                layout.name.as_deref(),
+                layout.kind,
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        summary,
+        vec![
+            (0, 0, Some("Title Slide"), SlideLayoutKind::Title),
+            (
+                1,
+                0,
+                Some("Title and Content"),
+                SlideLayoutKind::TitleAndObject
+            ),
+            (2, 0, Some("Blank"), SlideLayoutKind::Blank),
+        ]
+    );
+}
+
+/// Reading the inventory does not dirty a single part.
+#[test]
+fn reading_the_layout_inventory_leaves_every_part_clean() {
+    let bytes = fixture("layouts.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    let _ = pres.layouts().expect("the layout inventory");
+
+    assert_eq!(
+        byte_map(&Package::open(&pres.save().expect("save")).expect("reopen")),
+        original,
+        "listing the layouts must leave every part byte-identical"
+    );
+}

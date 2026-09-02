@@ -330,9 +330,11 @@ impl Presentation {
         Ok(self.package.part_bytes(&part))
     }
 
-    /// The raw bytes of the ActiveX control's **binary blob** (`/ppt/activeX/activeXN.bin`, the control's
-    /// persisted state) for the control `control_idx` on `surface`, or `None` when there is no such
-    /// control or it has no binary. Borrowed from the package; reading does not dirty anything.
+    /// The ActiveX control's **persisted state** — the bytes of `/ppt/activeX/activeXN.bin` — for the
+    /// control `control_idx` on `surface`, or `None` when there is no such control or it persists no
+    /// state. Borrowed from the package; reading does not dirty anything.
+    ///
+    /// This is what [`set_activex_state`](Self::set_activex_state) replaces.
     ///
     /// This resolves the two-hop chain: `p:control@r:id` → the control part, then that part's
     /// `activeXControlBinary` relationship → the `.bin`. Not modeled — carried through verbatim.
@@ -340,7 +342,7 @@ impl Presentation {
     /// # Errors
     /// As [`activex_control_rel_id`](Self::activex_control_rel_id), plus [`PptxError::ExternalTarget`]
     /// if either relationship points outside the package.
-    pub fn activex_binary_bytes(
+    pub fn activex_state_bytes(
         &mut self,
         surface: impl Into<Surface>,
         control_idx: usize,

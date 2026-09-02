@@ -316,7 +316,7 @@ fn per_point_formatting_trendlines_and_error_bars_all_read() {
         bars[0].value_type(&doc.interner),
         Some(ErrorValueType::Custom)
     );
-    assert_eq!(bars[0].has_no_end_cap(&doc.interner), Some(true));
+    assert_eq!(bars[0].no_end_cap(&doc.interner), Some(true));
     assert_eq!(bars[0].plus_values(), vec![1.0, 2.0, 3.0, 4.0]);
     assert_eq!(bars[0].minus_values(), vec![0.5, 1.0, 1.5, 2.0]);
 }
@@ -717,7 +717,7 @@ fn a_trendline_and_error_bars_can_be_edited_in_place() {
         Some(ErrorValueType::StandardDeviation)
     );
     assert_eq!(bars[0].value(&doc.interner), Some(2.0));
-    assert_eq!(bars[0].has_no_end_cap(&doc.interner), Some(false));
+    assert_eq!(bars[0].no_end_cap(&doc.interner), Some(false));
     // The custom sources are gone: the spec named none, and a standard-deviation bar reads `c:val`.
     assert!(bars[0].plus_values().is_empty());
     assert!(bars[0].minus_values().is_empty());

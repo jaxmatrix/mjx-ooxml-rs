@@ -60,14 +60,14 @@ use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mjx_dml::{
-    AdjustAngle, AdjustCoordinate, Angle, Bevel, BevelPreset, BlipFillMode, Camera, CellBorder,
+    AdjustAngle, AdjustCoordinate, Angle, Bevel, BevelPreset, Camera, CellBorder,
     CharacterPropertiesSpec, ColorSpec, ConnectionSite, CustomGeometrySpec, DrawCommand,
     EffectListSpec, Emu, FillSpec, Fraction, GlowEffect, GradientStopSpec, GuideSpec, IndentLevel,
     LightRig, LightRigDirection, LightRigType, LineCap, LineDash, LineJoin, LineSpec, LineWidth,
-    OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec, PatternType, Point,
-    PresetCamera, PresetLineDash, PresetMaterial, Rectangle, RectangleAlignment, Scene3DSpec,
-    SchemeColor, Shape3DSpec, ShapeGeometry, TablePart, TableStyleBorder, TableStylePart,
-    TextAlignment, TextAnchoring, TextSpacing,
+    OnOffStyle, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec, PatternType,
+    PictureFillMode, Point, PresetCamera, PresetLineDash, PresetMaterial, Rectangle,
+    RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry, TablePart,
+    TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring, TextSpacing,
 };
 use mjx_ooxml_core::{Interner, RawElement, RawNode};
 use mjx_ooxml_types::child_order;
@@ -1075,9 +1075,9 @@ fn an_added_picture_is_schema_valid() {
     pres.set_shape_fill(
         0,
         filled,
-        &FillSpec::Blip {
+        &FillSpec::Picture {
             rel_id,
-            mode: BlipFillMode::Stretch,
+            mode: PictureFillMode::Stretch,
         },
     )
     .expect("picture fill");

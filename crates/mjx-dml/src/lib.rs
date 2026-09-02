@@ -37,8 +37,8 @@ pub use effect::{
     ReflectionEffect, SoftEdgeEffect,
 };
 pub use fill::{
-    BlipFill, BlipFillMode, Fill, FillSpec, GradientFill, GradientStop, GradientStopSpec,
-    GroupFill, NoFill, PatternFill, PatternType, SolidFill, SolidFillContent,
+    Fill, FillSpec, GradientFill, GradientStop, GradientStopSpec, GroupFill, NoFill, PatternFill,
+    PatternType, PictureFill, PictureFillMode, SolidFill, SolidFillContent,
 };
 pub use geometry::{
     AdjustAngle, AdjustCoordinate, AdjustHandle, AdjustPoint, Angle, BoundedAdjustment,

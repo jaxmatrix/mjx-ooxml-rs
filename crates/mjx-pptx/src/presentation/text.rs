@@ -1282,7 +1282,7 @@ fn apply_edit_to_element(
         PreparedEdit::Element(ShapeEdit::Fill(fill)) => {
             // Only a picture fill carries an `r:embed`, so only it needs the prefix declaration.
             let declaration = match fill {
-                FillSpec::Blip { .. } => blip_declaration.cloned(),
+                FillSpec::Picture { .. } => blip_declaration.cloned(),
                 _ => None,
             };
             slide::set_fill(shape, interner, fill, declaration)

@@ -73,18 +73,18 @@ expected to fill*.
 # let mut deck = Presentation::open(&std::fs::read("template.pptx")?)?;
 println!("{} slides, {} layouts", deck.slide_count(), deck.layout_count());
 
-for index in 0..deck.layout_count() {
-    let name = deck.layout_name(index)?.unwrap_or_default();
-    println!("layout {index}: {name} ({:?})", deck.layout_kind(index)?);
+for layout in deck.layouts()? {
+    println!("layout {}: {:?} ({:?})", layout.index, layout.name, layout.kind);
 }
 # Ok(())
 # }
 ```
 
-[`layout_kind`](Presentation::layout_kind) answers with a `SlideLayoutKind` — `Title`, `TwoColumnText`,
-`ObjectOnly` and so on — which is the layout's declared *intent*. [`layout_name`](Presentation::layout_name)
-is what a human called it. Neither is guaranteed to be sensible in a file you did not write, so read
-both.
+[`layouts`](Presentation::layouts) answers with a [`LayoutInfo`] apiece: `kind` is a `SlideLayoutKind`
+— `Title`, `TwoColumnText`, `ObjectOnly` and so on — the layout's declared *intent*, and `name` is what
+a human called it. Neither is guaranteed to be sensible in a file you did not write, so read both.
+There are per-index readers too ([`layout_name`](Presentation::layout_name),
+[`layout_kind`](Presentation::layout_kind)) for when you already know which layout you mean.
 
 ## Add a slide, and fill it
 
@@ -98,9 +98,9 @@ the right formatting — and hands you the new slide's index.
 # let mut deck = Presentation::open(&std::fs::read("template.pptx")?)?;
 let slide = deck.add_slide_from_layout(1)?;
 
-for shape in 0..deck.shape_count(slide)? {
-    if let Some(placeholder) = deck.shape_placeholder(slide, shape)? {
-        println!("shape {shape} is a {:?} placeholder", placeholder.kind);
+for shape in deck.shapes(slide)? {
+    if let Some(placeholder) = shape.placeholder {
+        println!("shape {} is a {:?} placeholder", shape.index, placeholder.kind);
     }
 }
 # Ok(())

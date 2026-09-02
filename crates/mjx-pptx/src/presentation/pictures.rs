@@ -1,7 +1,7 @@
 //! Pictures and media: adding an image, reading or replacing the one a picture shows, and the
 //! audio/video and linked-image references a deck carries.
 
-use mjx_dml::BlipFill;
+use mjx_dml::PictureFill;
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML};
 use mjx_opc::{ImageFormat, PartName, Relationship, TargetMode};
@@ -202,14 +202,14 @@ impl Presentation {
     ///
     /// # Errors
     /// Returns [`PptxError::ShapeIsNotAPicture`] if the shape is not a `p:pic`,
-    /// [`PptxError::PictureHasNoBlipFill`] if it is missing its `p:blipFill`, or another
+    /// [`PptxError::PictureHasNoImage`] if it is missing its `p:blipFill`, or another
     /// [`PptxError`] if an index is out of range or the slide is malformed.
     pub fn picture_image_rel_id(
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<String>, PptxError> {
-        let (embed, link) = self.picture_blip_rel_ids(surface.into(), &shape_idx.into())?;
+        let (embed, link) = self.picture_image_rel_ids(surface.into(), &shape_idx.into())?;
         Ok(embed.or(link))
     }
 
@@ -230,7 +230,7 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<String>, PptxError> {
         let surface = surface.into();
-        let (_embed, link) = self.picture_blip_rel_ids(surface, &shape_idx.into())?;
+        let (_embed, link) = self.picture_image_rel_ids(surface, &shape_idx.into())?;
         let Some(link_id) = link else {
             return Ok(None);
         };
@@ -244,7 +244,7 @@ impl Presentation {
     /// The `(embed, link)` relationship ids a picture's blip carries (`a:blip@r:embed` / `@r:link`),
     /// each `None` when absent. The one place `p:pic > p:blipFill > a:blip` is resolved for reading, so
     /// the embed/link readers stay in lock-step.
-    fn picture_blip_rel_ids(
+    fn picture_image_rel_ids(
         &mut self,
         surface: Surface,
         shape_idx: &ShapePath,
@@ -254,8 +254,8 @@ impl Presentation {
         let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
         let picture = picture_at(sp_tree, &doc.interner, surface, shape_idx)?;
         let blip_fill = nav::child(picture, &doc.interner, PML, "blipFill")
-            .ok_or(PptxError::PictureHasNoBlipFill)?;
-        let blip_fill = BlipFill::from_xml(blip_fill, &doc.interner)?;
+            .ok_or(PptxError::PictureHasNoImage)?;
+        let blip_fill = PictureFill::from_xml(blip_fill, &doc.interner)?;
         let embed = blip_fill.image_rel_id(&doc.interner).map(str::to_owned);
         let link = blip_fill.image_link_id(&doc.interner).map(str::to_owned);
         Ok((embed, link))
@@ -317,7 +317,7 @@ impl Presentation {
             let sp_tree = slide::sp_tree(&doc.root, &doc.interner)?;
             let picture = picture_at(sp_tree, &doc.interner, surface, &path)?;
             if nav::child(picture, &doc.interner, PML, "blipFill").is_none() {
-                return Err(PptxError::PictureHasNoBlipFill);
+                return Err(PptxError::PictureHasNoImage);
             }
         }
         let rel_id = self.add_image(surface, bytes)?;
@@ -386,7 +386,7 @@ impl Presentation {
     ) -> Result<(), PptxError> {
         let surface = surface.into();
         let path = shape_idx.into();
-        let (_embed, link) = self.picture_blip_rel_ids(surface, &path)?;
+        let (_embed, link) = self.picture_image_rel_ids(surface, &path)?;
         let Some(link_id) = link else {
             return Err(PptxError::PictureImageNotLinked);
         };
@@ -402,7 +402,7 @@ impl Presentation {
 
     /// Stores `bytes` as an image part of the package and relates it to `surface`, returning
     /// the **slide-scoped relationship id** that names the image — the `rel_id` to hand to
-    /// [`FillSpec::Blip`](mjx_dml::FillSpec::Blip) via [`set_shape_fill`](Self::set_shape_fill).
+    /// [`FillSpec::Picture`](mjx_dml::FillSpec::Picture) via [`set_shape_fill`](Self::set_shape_fill).
     ///
     /// The format is identified from the bytes ([`ImageFormat::sniff`]), which decides the media part's
     /// extension and its content type; the bytes themselves are stored verbatim and never re-encoded.
@@ -582,8 +582,8 @@ fn media_kind_of(rel_type: &str) -> Option<MediaKind> {
 /// `rel_id` stretched to the shape + `spPr` with a rectangular geometry at `bounds`.
 ///
 /// `p:blipFill` is a PresentationML element of the DrawingML `CT_BlipFillProperties` type, so it is
-/// built here with the `p`-prefixed builders rather than by `mjx_dml::BlipFill::new` (which emits
-/// `a:blipFill`); reading it back does reuse `BlipFill`, whose fidelity wrapper is name-agnostic.
+/// built here with the `p`-prefixed builders rather than by `mjx_dml::PictureFill::new` (which emits
+/// `a:blipFill`); reading it back does reuse `PictureFill`, whose fidelity wrapper is name-agnostic.
 /// `rel_declaration` is an `xmlns:r` declaration for the `r:embed` prefix when the slide does not
 /// already bind it (see [`build::relationship_prefix_declaration`]).
 pub(super) fn build_picture(

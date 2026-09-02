@@ -49,9 +49,12 @@ fn main() -> Result<()> {
     // The blank deck's single layout is "Title and Text", so the new slide arrives with a title and
     // a body placeholder already positioned by the master.
     let slide = deck.add_slide_from_layout(0)?;
-    for shape in 0..deck.shape_count(slide)? {
-        if let Some(placeholder) = deck.shape_placeholder(slide, shape)? {
-            println!("  slide shape {shape}: {:?} placeholder", placeholder.kind);
+    for shape in deck.shapes(slide)? {
+        if let Some(placeholder) = shape.placeholder {
+            println!(
+                "  slide shape {}: {:?} placeholder",
+                shape.index, placeholder.kind
+            );
         }
     }
     deck.set_shape_text_content(slide, 0, "Built from nothing")?;

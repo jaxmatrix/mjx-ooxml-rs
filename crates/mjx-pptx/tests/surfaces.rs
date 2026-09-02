@@ -277,3 +277,112 @@ fn a_bare_index_still_means_a_slide() {
     );
     assert_eq!(pres.shape_text(0, 0).expect("text"), "Title and Content");
 }
+
+// ---------------------------------------------------------------------------------------------
+// The whole shape inventory in one call
+// ---------------------------------------------------------------------------------------------
+
+/// `shapes` answers what the per-address readers answer one at a time, and must agree with them.
+#[test]
+fn shapes_answers_exactly_what_the_per_address_readers_do() {
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+
+    for surface in [Surface::Slide(0), Surface::Layout(1), Surface::Master(0)] {
+        let listed = pres.shapes(surface).expect("the shape inventory");
+        assert_eq!(listed.len(), pres.shape_count(surface).expect("count"));
+
+        for entry in &listed {
+            assert_eq!(
+                entry.kind,
+                pres.shape_kind(surface, entry.index).expect("kind"),
+                "{surface:?} shape {}",
+                entry.index
+            );
+            assert_eq!(
+                entry.placeholder,
+                pres.shape_placeholder(surface, entry.index)
+                    .expect("placeholder"),
+                "{surface:?} shape {}",
+                entry.index
+            );
+        }
+    }
+}
+
+/// And it answers with the fixture's actual layout-1 slots, in document order — the assertion the
+/// cross-check above cannot make, because both sides could be wrong the same way.
+#[test]
+fn shapes_lists_the_layouts_five_slots_in_document_order() {
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+
+    let slots: Vec<_> = pres
+        .shapes(Surface::Layout(1))
+        .expect("the shape inventory")
+        .into_iter()
+        .map(|shape| {
+            (
+                shape.index,
+                shape.kind,
+                shape.placeholder.map(|placeholder| placeholder.kind),
+            )
+        })
+        .collect();
+
+    assert_eq!(
+        slots,
+        vec![
+            (0, ShapeKind::Shape, Some(PlaceholderType::Title)),
+            (1, ShapeKind::Shape, Some(PlaceholderType::Object)),
+            (2, ShapeKind::Shape, Some(PlaceholderType::DateAndTime)),
+            (3, ShapeKind::Shape, Some(PlaceholderType::Footer)),
+            (4, ShapeKind::Shape, Some(PlaceholderType::SlideNumber)),
+        ]
+    );
+}
+
+/// `shape_for_placeholder` is the search a caller would otherwise spell out: it finds the slot on
+/// whichever index a template happens to have put it, and answers `None` for a slot the surface does
+/// not offer.
+#[test]
+fn shape_for_placeholder_finds_the_slot_wherever_it_sits() {
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+
+    assert_eq!(
+        pres.shape_for_placeholder(Surface::Layout(1), PlaceholderType::SlideNumber)
+            .expect("search"),
+        Some(4),
+        "the slide-number slot is the fifth shape, not the first"
+    );
+    assert_eq!(
+        pres.shape_for_placeholder(Surface::Layout(1), PlaceholderType::Title)
+            .expect("search"),
+        Some(0)
+    );
+    assert_eq!(
+        pres.shape_for_placeholder(Surface::Layout(2), PlaceholderType::Title)
+            .expect("search"),
+        None,
+        "the blank layout offers no slots at all"
+    );
+}
+
+/// Listing the inventory reads; it must dirty nothing.
+#[test]
+fn reading_the_shape_inventory_leaves_every_part_clean() {
+    let bytes = fixture("layouts.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("baseline"));
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    for surface in [Surface::Slide(0), Surface::Layout(1), Surface::Master(0)] {
+        let _ = pres.shapes(surface).expect("the shape inventory");
+        let _ = pres
+            .shape_for_placeholder(surface, PlaceholderType::Title)
+            .expect("search");
+    }
+
+    assert_eq!(
+        byte_map(&Package::open(&pres.save().expect("save")).expect("reopen")),
+        original,
+        "listing the shapes must leave every part byte-identical"
+    );
+}

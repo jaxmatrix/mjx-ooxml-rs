@@ -46,7 +46,7 @@ impl Presentation {
     /// rebuilding the `p:spPr` fill element (replacing an existing one in place, or inserting a new
     /// one after any geometry and before `a:ln`). Marks only that part dirty.
     ///
-    /// A [`FillSpec::Blip`] writes only the `a:blip@r:embed` reference; the image part and its
+    /// A [`FillSpec::Picture`] writes only the `a:blip@r:embed` reference; the image part and its
     /// relationship must already exist in the package — create both with
     /// [`add_image`](Self::add_image), which returns the id to use.
     ///

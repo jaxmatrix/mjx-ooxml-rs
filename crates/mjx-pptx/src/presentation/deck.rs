@@ -16,6 +16,26 @@ use crate::{build, constants, nav, slide};
 use super::effective::{resolve_shape_ref, Candidate};
 use super::Presentation;
 
+/// One slide layout the deck offers, as an inventory entry.
+///
+/// [`Presentation::layouts`] answers with all of them in one call, which is how a caller chooses a
+/// layout to build a slide on without an index loop over [`Presentation::layout_count`].
+///
+/// Neither [`name`](Self::name) nor [`kind`](Self::kind) is guaranteed to be sensible in a file this
+/// library did not author: `name` is whatever a human typed, and `kind` is the layout's *declared*
+/// intent. Read both.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LayoutInfo {
+    /// The layout's index — the address [`Presentation::add_slide_from_layout`] takes.
+    pub index: usize,
+    /// The index of the master that lists this layout.
+    pub master_index: usize,
+    /// The layout's name (`p:cSld@name`), or `None` if it declares none.
+    pub name: Option<String>,
+    /// What the layout declares itself for (`p:sldLayout@type`), `Custom` when it declares nothing.
+    pub kind: SlideLayoutKind,
+}
+
 impl Presentation {
     /// The part name of the main presentation part (`/ppt/presentation.xml`).
     #[must_use]
@@ -54,6 +74,44 @@ impl Presentation {
     pub fn master_name(&mut self, idx: usize) -> Result<Option<String>, PptxError> {
         let part = self.master_part_checked(idx)?.clone();
         self.common_slide_data_name(&part)
+    }
+
+    /// Every slide layout the deck offers, in layout-index order — the inventory a caller reads
+    /// before choosing one to build a slide on.
+    ///
+    /// One call in place of an index loop over [`layout_count`](Self::layout_count) asking
+    /// [`layout_name`](Self::layout_name), [`layout_kind`](Self::layout_kind) and
+    /// [`layout_master`](Self::layout_master) about each index in turn. Reading does not dirty any
+    /// part.
+    ///
+    /// ```no_run
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let mut deck = mjx_pptx::Presentation::open(&std::fs::read("template.pptx")?)?;
+    /// for layout in deck.layouts()? {
+    ///     println!("{}: {:?} ({:?})", layout.index, layout.name, layout.kind);
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if a layout part is missing or malformed.
+    pub fn layouts(&mut self) -> Result<Vec<LayoutInfo>, PptxError> {
+        (0..self.layout_count())
+            .map(|index| {
+                Ok(LayoutInfo {
+                    index,
+                    master_index: self.layout_master(index).ok_or(
+                        PptxError::LayoutIndexOutOfRange {
+                            index,
+                            count: self.layout_count(),
+                        },
+                    )?,
+                    name: self.layout_name(index)?,
+                    kind: self.layout_kind(index)?,
+                })
+            })
+            .collect()
     }
 
     /// The number of slide layouts across the whole deck, in (master order, `p:sldLayoutIdLst` order)
@@ -500,7 +558,7 @@ pub(super) fn fill_relationship_declaration(
     interner: &mut Interner,
 ) -> Option<RawAttribute> {
     match fill {
-        FillSpec::Blip { .. } => build::relationship_prefix_declaration(part_root, interner),
+        FillSpec::Picture { .. } => build::relationship_prefix_declaration(part_root, interner),
         _ => None,
     }
 }

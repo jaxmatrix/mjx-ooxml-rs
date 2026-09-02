@@ -151,7 +151,7 @@ pub fn resolve_fill(
                 .collect(),
             angle: gradient.linear_angle(interner),
         },
-        Fill::Blip(blip) => FillSpec::Blip {
+        Fill::Picture(blip) => FillSpec::Picture {
             rel_id: blip
                 .image_rel_id(interner)
                 .or_else(|| blip.image_link_id(interner))

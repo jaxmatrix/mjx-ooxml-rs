@@ -13,17 +13,19 @@ connectors (`p:cxnSp`). They are numbered in document order, which is also back-
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
 # use mjx_pptx::Presentation;
 # let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
-for shape in 0..deck.shape_count(0)? {
-    println!("{shape}: {:?}", deck.shape_kind(0, shape)?);
+for shape in deck.shapes(0)? {
+    println!("{}: {:?}", shape.index, shape.kind);
 }
 # Ok(())
 # }
 ```
 
 There is no separate list of pictures. A picture is shape 3 if it is the fourth thing on the slide.
-[`shape_kind`](Presentation::shape_kind) tells you what you are looking at, and the `p:spPr` surface —
-fill, outline, effects, geometry, transform — applies to shapes, pictures and connectors alike. Text
-APIs return [`PptxError::ShapeHasNoTextBody`] for a kind that has none.
+[`shapes`](Presentation::shapes) hands you the whole inventory in one read — index, kind, and the
+placeholder slot each fills — and [`shape_kind`](Presentation::shape_kind) answers for one address you
+already have. The `p:spPr` surface — fill, outline, effects, geometry, transform — applies to shapes,
+pictures and connectors alike. Text APIs return [`PptxError::ShapeHasNoTextBody`] for a kind that has
+none.
 
 ## Descending into groups
 
