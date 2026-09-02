@@ -15,6 +15,41 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.61] - 2026-09-02
+
+The remaining model gaps, and an honest gap table (MJX-43). The guide's gap list had accumulated
+rows that were no longer true, rows that were real, and rows that were deliberate decisions filed as
+though they were oversights. This release closes the real ones, restates the decisions as decisions
+with their reasoning, and rewrites the page around the difference.
+
+**A shape's own list style is authorable.** Tier 3 of the text ladder — `a:lstStyle` on a shape's
+text body, the tier that says *every paragraph at this indent level, in this shape* — could be read
+and resolved through since the ladder was written, and could not be stated. It now can:
+
+- `mjx-pptx`: `Presentation::shape_list_style_level`, `set_shape_list_style_level`,
+  `clear_shape_list_style_level`, `shape_list_style_default`, `set_shape_list_style_default`,
+  `clear_shape_list_style_default`, and `clear_shape_list_style` for the whole element. The setters
+  merge, as every other setter does; a clear that finds nothing changes nothing and does not dirty the
+  part.
+- `mjx-dml`: `TextListStyle::new`, `set_level`, `set_default_properties`, `remove_level`,
+  `remove_default_properties`; `TextBody::set_list_style` and `remove_list_style`. A new level is
+  placed by `CT_TextListStyle`'s sequence and a new `a:lstStyle` by `CT_TextBody`'s — between
+  `a:bodyPr` and the first `a:p` — because order is validity, not style.
+
+**The gap table is now two lists.** Non-goals, each with the reason it is a decision, and *built but
+not yet verified against Office*, each with the work that will verify it. Four rows closed outright:
+merge-aware selections (already true in the code and now proven by the cases that discriminate — a
+merge anchored outside the selection, and the text and paragraph formatters, not just the cell
+formatter), the `a:lstStyle` setter above, `Scene3D::backdrop`, and a font slot the theme does not
+define — which was correct behaviour listed as a gap. `extLst` is restated as what it has always
+been: the schema's own unknown bucket (`CT_OfficeArtExtension` is a required `uri` plus
+`xsd:any processContents="lax"`), preserved verbatim through an edit and pinned there by tests at
+both tiers rather than merely asserted.
+
+- New fixture `tests/fixtures/table_extensions.pptx` — a table whose `a:tblPr` and one `a:tcPr` carry
+  a vendor extension — registered with the OPC round-trip suites, the fidelity-tree suite and the
+  schema gate.
+
 ## [0.0.60] - 2026-09-02
 
 Typed surfaces for the content that is not DrawingML (MJX-140, absorbing MJX-139). Five kinds of

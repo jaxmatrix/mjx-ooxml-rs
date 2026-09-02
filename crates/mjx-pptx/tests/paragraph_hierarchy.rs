@@ -1,9 +1,10 @@
 //! The seven-tier text ladder, tier by tier, against a **file** rather than a runtime-built deck.
 //!
 //! `text_inheritance.rs` is the runtime counterpart: it loads `layouts.pptx` and then mutates it
-//! through the builder API to reach the interesting cases. That leaves the tiers no public setter can
-//! author — a shape's own `a:lstStyle`, a partial layout override, a level a style does not define —
-//! covered only indirectly, or by hand-injecting XML into a raw tree.
+//! through the builder API to reach the interesting cases. That leaves the tiers awkward to reach
+//! from a builder — a partial layout override, a level a style does not define — covered only
+//! indirectly, or by hand-injecting XML into a raw tree. (A shape's own `a:lstStyle` used to be on
+//! that list; `shape_list_style.rs` now drives it through its public setters.)
 //!
 //! `text_levels.pptx` states all of it in the file. Every tier owns a facet no other tier touches, so
 //! a failure here names the rung that broke rather than "inheritance is wrong somewhere".
@@ -89,7 +90,7 @@ fn an_explicit_off_on_a_run_beats_the_layouts_bold() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Tier 3 — the shape's own `a:lstStyle`, which no public setter can author
+// Tier 3 — the shape's own `a:lstStyle`, as the file states it
 // ---------------------------------------------------------------------------------------------
 
 #[test]

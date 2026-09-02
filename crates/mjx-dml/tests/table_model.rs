@@ -340,6 +340,85 @@ fn what_this_tier_does_not_model_survives() {
 }
 
 #[test]
+fn an_extension_list_on_a_cell_survives_an_edit_and_stays_last() {
+    // `a:extLst` is the schema's own unknown bucket — `CT_OfficeArtExtension` is a required `uri`
+    // plus `xsd:any processContents="lax"`, so its content is markup in a namespace this library
+    // does not own. It is therefore carried verbatim, and an edit to the cell must neither drop it
+    // nor write past it: `extLst` is last in `CT_TableCellProperties`'s sequence.
+    let source = tbl(concat!(
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr>"#,
+        r#"<a:extLst><a:ext uri="{VENDOR}"><v:tag xmlns:v="urn:vendor" keep="1"/></a:ext></a:extLst>"#,
+        r#"</a:tcPr></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    let properties = table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr");
+    properties.set_border(
+        &mut doc.interner,
+        CellBorder::Left,
+        Some(&LineSpec::default()),
+    );
+    properties.set_anchor(&mut doc.interner, mjx_dml::TextAnchoring::Center);
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+
+    assert!(
+        out.contains(r#"<v:tag xmlns:v="urn:vendor" keep="1"/>"#),
+        "the extension's foreign content came back verbatim: {out}"
+    );
+    assert!(out.contains(r#"<a:ext uri="{VENDOR}">"#), "{out}");
+    let at = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    assert!(
+        at("<a:lnL") < at("<a:extLst"),
+        "a new border goes in front of the extension list: {out}"
+    );
+}
+
+#[test]
+fn an_extension_list_on_the_table_properties_survives_an_edit_and_stays_last() {
+    // The same contract one tier up: `extLst` is last in `CT_TableProperties`'s sequence, so a style
+    // reference written into a `a:tblPr` that already carries one must land in front of it.
+    let source = tbl(concat!(
+        r#"<a:tblPr firstRow="1">"#,
+        r#"<a:extLst><a:ext uri="{VENDOR}"><v:tag xmlns:v="urn:vendor" keep="1"/></a:ext></a:extLst>"#,
+        r#"</a:tblPr>"#,
+        r#"<a:tblGrid><a:gridCol w="1"/></a:tblGrid>"#,
+        r#"<a:tr h="1"><a:tc><a:tcPr/></a:tc></a:tr>"#
+    ));
+    let (mut table, mut doc) = parse(&source);
+
+    let properties = table.properties_mut().expect("a:tblPr");
+    properties.set_part(&mut doc.interner, TablePart::BandedRows, true);
+    properties.set_table_style_id(&mut doc.interner, "{5940675A-B579-460E-94D1-54222C63F5DA}");
+
+    doc.root = table.to_xml(&mut doc.interner);
+    let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
+
+    assert!(
+        out.contains(r#"<v:tag xmlns:v="urn:vendor" keep="1"/>"#),
+        "the extension's foreign content came back verbatim: {out}"
+    );
+    let at = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    assert!(
+        at("<a:tableStyleId>") < at("<a:extLst"),
+        "the style reference goes in front of the extension list: {out}"
+    );
+    assert!(out.contains(r#"bandRow="1""#), "{out}");
+}
+
+#[test]
 fn an_empty_table_round_trips() {
     let source = tbl("");
     let (table, doc) = parse(&source);

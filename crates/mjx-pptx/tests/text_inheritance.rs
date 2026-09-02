@@ -193,8 +193,8 @@ fn a_run_beats_every_tier_below_it() {
     );
 }
 
-// (Tier 3 — a shape's own `a:lstStyle` — has no public setter to build it with, so it is covered by
-// a unit test in `presentation.rs` that injects one into the tree directly.)
+// (Tier 3 — a shape's own `a:lstStyle` — has its own suite in `shape_list_style.rs`, which authors
+// one through the public setters and then resolves through it.)
 
 // ---------------------------------------------------------------------------------------------
 // The shapes that inherit no *placeholder* tier
@@ -281,6 +281,49 @@ fn a_theme_font_reference_resolves_to_the_themes_font() {
             .font(FontSlot::EastAsian)
             .map(|f| f.typeface.as_str()),
         Some("")
+    );
+}
+
+#[test]
+fn a_reference_the_theme_cannot_answer_is_kept_rather_than_guessed_at() {
+    // `+mj-sym` starts like a theme reference and names no slot `a:fontScheme` defines. Tier 7
+    // replaces a reference only with a font the theme actually names; where it names none, the
+    // reference is handed back unchanged. That is deliberate: the alternative is inventing a
+    // typeface the file never asked for, and a caller who sees `+mj-sym` can tell that the deck
+    // points somewhere its theme does not go.
+    let mut pres = layouts();
+    pres.set_run_properties(
+        0,
+        BODY,
+        0,
+        0,
+        &CharacterPropertiesSpec::new().with_font_for(FontSlot::Latin, TextFont::named("+mj-sym")),
+    )
+    .expect("set run properties");
+
+    let effective = pres
+        .effective_run_properties(0, BODY, 0, 0)
+        .expect("effective run");
+    assert_eq!(
+        effective.font(FontSlot::Latin).map(|f| f.typeface.as_str()),
+        Some("+mj-sym"),
+        "an unanswerable reference survives resolution instead of becoming a guess"
+    );
+    // The slots the theme *does* answer are still resolved, so this is not a blanket bail-out.
+    pres.set_run_properties(
+        0,
+        BODY,
+        0,
+        0,
+        &CharacterPropertiesSpec::new().with_font_for(FontSlot::Latin, TextFont::named("+mn-lt")),
+    )
+    .expect("set run properties");
+    assert_eq!(
+        pres.effective_run_properties(0, BODY, 0, 0)
+            .expect("effective run")
+            .font(FontSlot::Latin)
+            .map(|f| f.typeface.as_str()),
+        Some("Calibri")
     );
 }
 

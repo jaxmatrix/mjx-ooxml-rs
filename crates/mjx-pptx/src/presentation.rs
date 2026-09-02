@@ -1500,6 +1500,207 @@ impl Presentation {
         })
     }
 
+    // -----------------------------------------------------------------------------------------
+    // The shape's own list style (`a:lstStyle`)
+    //
+    // A paragraph takes its layout from itself first, and from the shape's list style next — the
+    // third tier of the text ladder, and the only one that says "every paragraph at this indent
+    // level, in this shape". The setters below are the authoring half of that tier: one statement
+    // per level, rather than the same `set_paragraph_properties` call repeated over every paragraph
+    // and re-applied to each one added later.
+    //
+    // These write the shape's *declared* list style. What a paragraph then renders as is still the
+    // whole ladder's answer — read it with `effective_paragraph_properties`.
+    // -----------------------------------------------------------------------------------------
+
+    /// The layout properties the shape's own list style offers at `level` (`a:lstStyle > a:lvlNpPr`),
+    /// or `None` if it offers none there — or declares no list style at all. Reading does not dirty
+    /// the part.
+    ///
+    /// This is what the shape *states*, not what a paragraph at that level renders as: the tiers
+    /// below it (the placeholder's list style, the master's text styles, `p:defaultTextStyle`) are
+    /// not consulted. For the resolved answer use
+    /// [`effective_paragraph_properties`](Self::effective_paragraph_properties).
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
+    /// text body.
+    pub fn shape_list_style_level(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        level: IndentLevel,
+    ) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, interner| {
+            Ok(body
+                .list_style()
+                .and_then(|style| style.level(interner, level))
+                .map(|properties| properties.spec(interner)))
+        })
+    }
+
+    /// The properties the shape's own list style offers where no level applies (`a:lstStyle >
+    /// a:defPPr`), or `None` if it declares none. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// As [`shape_list_style_level`](Self::shape_list_style_level).
+    pub fn shape_list_style_default(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<ParagraphPropertiesSpec>, PptxError> {
+        self.with_text_body(surface.into(), shape_idx, |body, interner| {
+            Ok(body
+                .list_style()
+                .and_then(|style| style.default_properties(interner))
+                .map(|properties| properties.spec(interner)))
+        })
+    }
+
+    /// Applies `spec` to what the shape's own list style offers at `level`, creating the
+    /// `a:lstStyle` — and the `a:lvlNpPr` within it — if the shape has none. Marks only that part
+    /// dirty.
+    ///
+    /// This is list formatting **for the whole shape**: every paragraph at `level`, including ones
+    /// added later, picks it up without stating anything itself. The properties **merge**, as a
+    /// paragraph's own do — a property `spec` leaves unset is left where it was, not cleared — so
+    /// naming an indent here cannot flatten the bullet a previous call set.
+    ///
+    /// `spec`'s [`with_default_run_properties`](ParagraphPropertiesSpec::with_default_run_properties)
+    /// carries the level's `a:defRPr`, which is how a level's *character* formatting (its size,
+    /// weight, colour) is stated.
+    ///
+    /// A paragraph that states the same property itself still wins: this is the tier beneath the
+    /// paragraph, not above it.
+    ///
+    /// # Errors
+    /// As [`shape_list_style_level`](Self::shape_list_style_level).
+    pub fn set_shape_list_style_level(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        level: IndentLevel,
+        spec: &ParagraphPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let mut style = body
+                .list_style()
+                .cloned()
+                .unwrap_or_else(|| TextListStyle::new(interner));
+            style.set_level(interner, level, spec);
+            body.set_list_style(style);
+            Ok(())
+        })
+    }
+
+    /// Applies `spec` to what the shape's own list style offers where no level applies
+    /// (`a:lstStyle > a:defPPr`), creating the elements if the shape has none. Marks only that part
+    /// dirty. Merges as [`set_shape_list_style_level`](Self::set_shape_list_style_level) does.
+    ///
+    /// # Errors
+    /// As [`shape_list_style_level`](Self::shape_list_style_level).
+    pub fn set_shape_list_style_default(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        spec: &ParagraphPropertiesSpec,
+    ) -> Result<(), PptxError> {
+        self.edit_text_body(surface.into(), shape_idx, |body, interner| {
+            let mut style = body
+                .list_style()
+                .cloned()
+                .unwrap_or_else(|| TextListStyle::new(interner));
+            style.set_default_properties(interner, spec);
+            body.set_list_style(style);
+            Ok(())
+        })
+    }
+
+    /// Removes what the shape's own list style offers at `level`, so the level falls through to the
+    /// tier below again. Returns whether it offered anything there; a `false` changes nothing and
+    /// does **not** dirty the part.
+    ///
+    /// The `a:lstStyle` itself is left in place — it may still state other levels. Use
+    /// [`clear_shape_list_style`](Self::clear_shape_list_style) to drop the whole element.
+    ///
+    /// # Errors
+    /// As [`shape_list_style_level`](Self::shape_list_style_level).
+    pub fn clear_shape_list_style_level(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        level: IndentLevel,
+    ) -> Result<bool, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        if self
+            .shape_list_style_level(surface, path.clone(), level)?
+            .is_none()
+        {
+            return Ok(false);
+        }
+        self.edit_text_body(surface, path, |body, interner| {
+            if let Some(style) = body.list_style_mut() {
+                style.remove_level(interner, level);
+            }
+            Ok(())
+        })?;
+        Ok(true)
+    }
+
+    /// Removes the default properties of the shape's own list style (`a:lstStyle > a:defPPr`).
+    /// Returns whether it had any; a `false` changes nothing and does **not** dirty the part.
+    ///
+    /// # Errors
+    /// As [`shape_list_style_level`](Self::shape_list_style_level).
+    pub fn clear_shape_list_style_default(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<bool, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        if self
+            .shape_list_style_default(surface, path.clone())?
+            .is_none()
+        {
+            return Ok(false);
+        }
+        self.edit_text_body(surface, path, |body, interner| {
+            if let Some(style) = body.list_style_mut() {
+                style.remove_default_properties(interner);
+            }
+            Ok(())
+        })?;
+        Ok(true)
+    }
+
+    /// Removes the shape's own list style entirely (`a:lstStyle`), so every level falls through to
+    /// the tier below. Returns whether the shape had one; a `false` changes nothing and does **not**
+    /// dirty the part.
+    ///
+    /// # Errors
+    /// As [`shape_list_style_level`](Self::shape_list_style_level).
+    pub fn clear_shape_list_style(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<bool, PptxError> {
+        let surface = surface.into();
+        let path = shape_idx.into();
+        let present = self.with_text_body(surface, path.clone(), |body, _| {
+            Ok(body.list_style().is_some())
+        })?;
+        if !present {
+            return Ok(false);
+        }
+        self.edit_text_body(surface, path, |body, _| {
+            body.remove_list_style();
+            Ok(())
+        })?;
+        Ok(true)
+    }
+
     /// Applies `spec` to part of a paragraph — the characters in `range`, counted in **Unicode
     /// scalars** across the paragraph's whole text.
     ///
@@ -11399,6 +11600,46 @@ mod tests {
         std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
     }
 
+    /// Whether the slide part still holds its original bytes — a part marked dirty has none, and is
+    /// re-serialized from its tree on save. This is the only way to see dirtiness: re-serializing is
+    /// byte-identical for a well-formed part, so a needless rebuild is invisible from outside.
+    fn slide_is_clean(pres: &Presentation) -> bool {
+        pres.package
+            .entries()
+            .iter()
+            .find(|entry| entry.name == "ppt/slides/slide1.xml")
+            .expect("the slide part")
+            .bytes()
+            .is_some()
+    }
+
+    #[test]
+    fn a_clear_that_finds_nothing_leaves_the_part_clean() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/text_levels.pptx");
+        let bytes = std::fs::read(&path)
+            .unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()));
+
+        let mut pres = Presentation::open(&bytes).expect("open");
+        assert!(slide_is_clean(&pres));
+        assert!(!pres
+            .clear_shape_list_style_level(0, 1, IndentLevel::of(5))
+            .expect("clear a level the shape never stated"));
+        assert!(!pres
+            .clear_shape_list_style_default(0, 1)
+            .expect("clear a default the shape never stated"));
+        assert!(
+            slide_is_clean(&pres),
+            "a clear that finds nothing must not rebuild the part"
+        );
+
+        // The contrast: a clear that finds something does dirty it.
+        assert!(pres
+            .clear_shape_list_style_level(0, 1, IndentLevel::of(2))
+            .expect("clear the level the shape states"));
+        assert!(!slide_is_clean(&pres));
+    }
+
     #[test]
     fn color_map_resolves_master_mapping() {
         // The fixture master's p:clrMap is the standard mapping (bg1=lt1, tx1=dk1, …), and slide 0
@@ -11672,8 +11913,9 @@ mod tests {
 
     #[test]
     fn a_shapes_own_list_style_beats_the_layout_and_the_master() {
-        // Tier 3 of the text ladder. A shape's `a:lstStyle` has no public setter — it is authored by
-        // the designer, not the caller — so it is injected here the way the fill tests inject theirs.
+        // Tier 3 of the text ladder, read from markup injected into the raw tree the way the fill
+        // tests inject theirs — so the reader is exercised against a shape it did not itself author.
+        // The authoring half has its own suite in `tests/shape_list_style.rs`.
         let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
             .join("../../tests/fixtures/layouts.pptx");
         let bytes = std::fs::read(&path)

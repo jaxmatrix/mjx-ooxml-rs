@@ -77,6 +77,40 @@ impl TextBody {
         })
     }
 
+    /// Replaces the body's own list style (`a:lstStyle`), or gives it one if it declares none.
+    ///
+    /// A new element is placed where `CT_TextBody`'s sequence puts it — after `a:bodyPr`, before the
+    /// first `a:p` — because order is validity here, not style. An existing one is replaced where it
+    /// already sits, so nothing else about the body moves.
+    pub fn set_list_style(&mut self, style: TextListStyle) {
+        if let Some(slot) = self
+            .content
+            .iter_mut()
+            .find(|item| matches!(item, TextBodyContent::ListStyle(_)))
+        {
+            *slot = TextBodyContent::ListStyle(style);
+            return;
+        }
+        let at = self
+            .content
+            .iter()
+            .position(|item| matches!(item, TextBodyContent::Paragraph(_)))
+            .unwrap_or(self.content.len());
+        self.content.insert(at, TextBodyContent::ListStyle(style));
+        self.empty = false;
+    }
+
+    /// Removes the body's own list style (`a:lstStyle`), returning whether it had one.
+    ///
+    /// It is optional in the schema, so a body without one is valid: the paragraphs then take their
+    /// level properties from the tier above, which is exactly what removing it means.
+    pub fn remove_list_style(&mut self) -> bool {
+        let before = self.content.len();
+        self.content
+            .retain(|item| !matches!(item, TextBodyContent::ListStyle(_)));
+        before != self.content.len()
+    }
+
     /// The body's text: each paragraph's text joined by a newline (`\n`).
     #[must_use]
     pub fn text(&self) -> String {
