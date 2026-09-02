@@ -319,7 +319,7 @@ pub(crate) const OLE_GRAPHIC_URI: &str =
 /// The Markup Compatibility namespace as a [`SchemaNamespace`] (single URI, no Strict variant) so the
 /// `nav` helpers can match `mc:AlternateContent` / `mc:Choice` / `mc:Fallback` the same way they match
 /// schema elements. An OLE object's `p:oleObj` is wrapped in this MCE machinery in real decks.
-const MCE: SchemaNamespace = SchemaNamespace {
+pub(crate) const MCE: SchemaNamespace = SchemaNamespace {
     transitional: MARKUP_COMPATIBILITY_2006,
     strict: None,
 };
