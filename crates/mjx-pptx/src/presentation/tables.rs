@@ -356,7 +356,9 @@ impl Presentation {
         })
     }
 
-    /// How many columns and rows the cell at `(row, column)` spans, as `(columns, rows)`.
+    /// How many rows and columns the cell at `(row, column)` spans, as `(rows, columns)` — the same
+    /// order [`table_dimensions`](Self::table_dimensions) answers in, and the order every address on
+    /// this surface is written in.
     ///
     /// `(1, 1)` for an ordinary cell. A cell **covered** by a merge also reports `(1, 1)` — ask
     /// [`merged_cell_anchor`](Self::merged_cell_anchor) which cell actually renders there.
@@ -380,7 +382,7 @@ impl Presentation {
                     rows: table.row_count(),
                     columns: table.column_count(),
                 })?;
-            Ok((cell.column_span(interner), cell.row_span(interner)))
+            Ok((cell.row_span(interner), cell.column_span(interner)))
         })
     }
 
