@@ -144,11 +144,16 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: run every example
         run: |
-          for example in crates/mjx-pptx/examples/*.rs; do
-            name=$(basename "$example" .rs)
-            echo "::group::$name"
-            cargo run -p mjx-pptx --example "$name"
-            echo "::endgroup::"
+          # Every crate that has examples, not only `mjx-pptx`: the facade's `build_a_deck` is the
+          # deck the two bindings are checked against, so it has to run here too.
+          for directory in crates/*/examples; do
+            package=$(basename "$(dirname "$directory")")
+            for example in "$directory"/*.rs; do
+              name=$(basename "$example" .rs)
+              echo "::group::$package $name"
+              cargo run -p "$package" --example "$name"
+              echo "::endgroup::"
+            done
           done
       # `legacy_content` takes a different path under the `vml` feature — the half that resolves an
       # OLE object to the VML shape that draws it — so it runs a second time with the feature on.
@@ -175,5 +180,183 @@ jobs:
         with:
           targets: ${{ matrix.target }}
       - uses: Swatinem/rust-cache@v2
+      # The two binding members are excluded on purpose. A PyO3 `cdylib` needs a Python interpreter
+      # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
+      # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
+      # proves — that the shipped library graph cross-compiles — is unaffected.
       - name: build (lib graph)
-        run: cargo build --workspace --exclude xtask --target ${{ matrix.target }}
+        run: |
+          cargo build --workspace --exclude xtask \
+            --exclude mjx-python --exclude mjx-wasm \
+            --target ${{ matrix.target }}
+
+  # The two binding members, built and linted on the host. `lint-test` already covers them as part of
+  # `--workspace`; this job builds them the way they ship — the Python one with `extension-module`,
+  # the wasm one for `wasm32` — which `--workspace` on the host does not.
+  bindings-build:
+    name: bindings-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      # The claim each binding crate makes in its `#![allow(unsafe_code)]` justification is that no
+      # `unsafe` is hand-written — every unsafe block comes from `#[pyclass]` or `#[wasm_bindgen]`.
+      # A claim CI does not check is a claim that quietly stops being true, so this checks it: any
+      # `unsafe` in a binding's own sources, outside a comment and outside the crate-level
+      # `#![allow(unsafe_code)]` attribute, fails the build.
+      #
+      # This is the workspace's first use of the `deny`-not-`forbid` escape hatch in
+      # `[workspace.lints.rust]`; `forbid` would have made the macros' own expansions impossible.
+      - name: no hand-written `unsafe` in the bindings
+        run: |
+          offenders=$(grep -rn '\bunsafe\b' bindings/*/src bindings/*/tests 2>/dev/null \
+            | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' \
+            | grep -vF '#![allow(unsafe_code)]' \
+            || true)
+          if [ -n "$offenders" ]; then
+            echo "hand-written \`unsafe\` found in a binding crate:"
+            echo "$offenders"
+            echo
+            echo "The bindings carry \`#![allow(unsafe_code)]\` on the stated grounds that every"
+            echo "unsafe block is macro-generated. Adding one by hand needs its own justification"
+            echo "and its own review — and this check updated to permit it explicitly."
+            exit 1
+          fi
+          echo "no hand-written \`unsafe\` in bindings/*/src or bindings/*/tests"
+
+      - name: build the Python extension module
+        run: cargo build -p mjx-python --features extension-module --release
+      - name: build the WebAssembly module
+        run: cargo build -p mjx-wasm --release --target wasm32-unknown-unknown
+      - name: clippy (bindings, `vml` feature on)
+        run: |
+          cargo clippy -p mjx-python -p mjx-wasm --all-targets --features mjx-python/vml,mjx-wasm/vml \
+            -- -D warnings
+
+  # The WebAssembly package: both targets, the Rust side in a real wasm runtime (headless Chrome and
+  # Node), the published shape driven from Node, and a size report.
+  wasm-pack:
+    name: wasm-pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: jetli/wasm-pack-action@v0.4.0
+        with:
+          version: latest
+
+      # In a browser, because that is the runtime this binding exists for. `wasm-pack test` starts
+      # the driver itself; the runner image ships Chrome.
+      - name: wasm tests (headless Chrome)
+        run: wasm-pack test --headless --chrome bindings/mjx-wasm
+      - name: wasm tests (Node)
+        run: wasm-pack test --node bindings/mjx-wasm
+
+      - name: build the npm package (both targets)
+        run: bindings/mjx-wasm/build-npm.sh
+
+      # The published shape: the generated glue, the `.d.ts`, and the conditional exports — driven
+      # exactly as an application would drive them. Includes the walkthrough comparison, which runs
+      # the Rust example and checks the two decks part by part.
+      - name: node smoke tests
+        run: node --test "bindings/mjx-wasm/tests/node/*.mjs"
+
+      # Reported, not gated. The specification asked for a measurement before a budget, and a budget
+      # nobody has justified is a number that fails a build for the wrong reason.
+      - name: size report
+        run: |
+          wasm=bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml_bg.wasm
+          raw=$(stat -c %s "$wasm")
+          gzipped=$(gzip -9 -c "$wasm" | wc -c)
+          brotli=$( (command -v brotli >/dev/null && brotli -q 11 -c "$wasm" | wc -c) || echo "n/a")
+          {
+            echo "### WebAssembly payload"
+            echo
+            echo "| encoding | bytes | KiB |"
+            echo "|---|---:|---:|"
+            echo "| raw | $raw | $((raw / 1024)) |"
+            echo "| gzip -9 | $gzipped | $((gzipped / 1024)) |"
+            [ "$brotli" != "n/a" ] && echo "| brotli -q 11 | $brotli | $((brotli / 1024)) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: |
+            bindings/mjx-wasm/npm/package.json
+            bindings/mjx-wasm/npm/README.md
+            bindings/mjx-wasm/npm/dist/
+          if-no-files-found: error
+
+  # The Python wheel: abi3, built on three operating systems, installed from the wheel rather than
+  # from the source tree, then tested and type-checked against the committed stubs.
+  python-wheel:
+    name: python-wheel (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-python@v5
+        with:
+          # 3.9 is the abi3 floor. A wheel built here must import on every later version, which the
+          # second interpreter below checks.
+          python-version: "3.9"
+
+      - name: install the build and test tools
+        run: python -m pip install --upgrade pip maturin pytest mypy
+
+      # One wheel per platform rather than one per interpreter version: `abi3-py39` links only the
+      # stable ABI, so the same file works on 3.9 and on everything after it.
+      - name: build the abi3 wheel
+        run: maturin build --release --out dist
+        working-directory: bindings/mjx-python
+
+      - name: install it (from the wheel, not the source tree)
+        shell: bash
+        run: python -m pip install --force-reinstall bindings/mjx-python/dist/*.whl
+
+      # From a directory that is *not* the package's own, so an accidental relative import fails
+      # here rather than in a user's environment.
+      - name: pytest
+        run: python -m pytest bindings/mjx-python/tests -q
+
+      - name: mypy --strict
+        run: python -m mypy --strict
+        working-directory: bindings/mjx-python
+
+      # The wheel claims to work on every version from 3.9 up. Installing it on a much later
+      # interpreter is the cheapest way to find out whether that is true.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: the same wheel imports on a later interpreter
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip pytest
+          python -m pip install --force-reinstall bindings/mjx-python/dist/*.whl
+          python -c "import mjx_ooxml; print(mjx_ooxml.__version__, len(mjx_ooxml.__all__))"
+          python -m pytest bindings/mjx-python/tests -q
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-wheel-${{ matrix.os }}
+          path: bindings/mjx-python/dist/*.whl
+          if-no-files-found: error
