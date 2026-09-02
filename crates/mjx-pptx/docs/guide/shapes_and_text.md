@@ -162,6 +162,58 @@ A placeholder often declares no bounds at all — it takes them from the layout.
 `None` in that case, honestly reporting that the slide says nothing; `effective_shape_bounds` is the
 one that walks the layout and master. See [the inheritance page](inheritance_and_masters).
 
+## Geometry, and the guides it is drawn from
+
+[`shape_geometry`](Presentation::shape_geometry) answers with one of three things: a **preset** shape
+(a `roundRect`, an `arc`), a **custom** path list a freeform shape was drawn as, or *inherited* —
+the shape states no geometry and takes one from its layout.
+
+A custom geometry does not have to place its points at numbers. DrawingML lets a coordinate name a
+*guide* instead, and the guide is a formula over the shape's own width and height:
+`<a:gd name="x1" fmla="*/ w adj1 100000"/>` puts a point a quarter of the way across a shape whose
+`adj1` is 25000. Tell the library how big the shape is and it evaluates the whole guide list —
+all seventeen operators, the built-in variables (`w`, `hc`, `ss`, `3cd4`, …) — and hands back the same
+geometry in plain EMU and angles.
+
+The same evaluator answers the other geometry question a preset shape raises: *how far can I drag
+this adjustment?* A preset's domain is frequently a guide rather than a number — a `chevron`'s point
+may not exceed `maxAdj`, which is `*/ 100000 w ss`, so it depends on the shape's proportions.
+[`shape_adjustments`](Presentation::shape_adjustments) resolves both the value and the domain.
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# use mjx_pptx::Presentation;
+# let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+use mjx_dml::{GuideContext, Size};
+use mjx_pptx::Geometry;
+
+let size = GuideContext::from_size(Size::from_emu(1_828_800, 914_400));
+
+if let Geometry::Custom(spec) = deck.shape_geometry(0, 1)? {
+    let resolved = spec.resolve(size)?;
+    println!("{} paths, every point a number", resolved.paths.len());
+}
+
+for adjustment in deck.shape_adjustments(0, 1, size)? {
+    println!(
+        "{}: {} in {}..={}",
+        adjustment.spec.wire_name, adjustment.value, adjustment.minimum, adjustment.maximum,
+    );
+}
+# Ok(())
+# }
+```
+
+The size is a parameter, not the shape's own extents, for the same reason `shape_bounds` can answer
+`None`: a placeholder inherits its size, and the library will not guess which one you mean.
+
+Resolving is a **read**. The formula text stays exactly as the file wrote it, so asking where a point
+is never changes a byte of what is written back. A malformed or self-referential guide list is a typed
+error ([`PptxError::GuideFormula`]), never a panic and never a loop: guides are evaluated once, in the
+order the file declares them, which is the order [the spec itself
+requires](https://ecma-international.org/publications-and-standards/standards/ecma-376/) and which
+leaves a cycle nowhere to form.
+
 ## Grouping
 
 ```no_run

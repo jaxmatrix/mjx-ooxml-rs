@@ -54,13 +54,6 @@ Each row is a deliberate decision with an issue behind it, not an oversight.
 | Axes, legend, styling, colour parts | Preserved verbatim, no typed surface | — |
 | Literal data (`c:numLit`) and multi-level categories | Read path is cache-only | — |
 
-### Geometry
-
-| Gap | Consequence | Issue |
-|---|---|---|
-| **No guide-formula evaluator** | A custom-geometry coordinate naming a `gdLst` formula stays a formula. This also blocks resolving preset shape *adjustments* to numbers | MJX-44 follow-up |
-| `Scene3D::backdrop()` | Preserved, no typed accessor | — |
-
 ### Tables
 
 | Gap | Consequence | Issue |
