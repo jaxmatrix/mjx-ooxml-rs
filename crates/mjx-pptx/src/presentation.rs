@@ -21,7 +21,7 @@ use mjx_ooxml_core::{
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{
-    DML_CHART, DML_DIAGRAM, DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE,
+    SchemaNamespace, DML_CHART, DML_DIAGRAM, DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE,
 };
 use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
@@ -6704,13 +6704,13 @@ impl Presentation {
         };
         let doc = self.package.part_tree(&part)?;
         let interner = &doc.interner;
-        Ok(doc
-            .root
-            .attributes
-            .iter()
-            .find(|attr| attr.name.prefix.is_some() && interner.resolve(attr.name.local) == local)
-            .and_then(|attr| std::str::from_utf8(&attr.value).ok())
-            .map(str::to_owned))
+        // `ax:classid` and `ax:persistence` are namespace-qualified, and the reader leaves an
+        // attribute's prefix unresolved — so the prefix the part binds to the ActiveX namespace is
+        // looked up rather than assumed. A part that binds it to nothing states no such attribute.
+        let Some(prefix) = nav::namespace_prefix(&doc.root, interner, ACTIVEX) else {
+            return Ok(None);
+        };
+        nav::prefixed_attr_value(&doc.root, interner, prefix, local).transpose()
     }
 
     // -----------------------------------------------------------------------------------------
@@ -10353,6 +10353,13 @@ fn media_kind_of(rel_type: &str) -> Option<MediaKind> {
         _ => None,
     }
 }
+/// The ActiveX control part's namespace as a [`SchemaNamespace`], so `nav`'s prefix lookup can find
+/// whichever prefix a part binds it to. A Microsoft extension with no Strict variant.
+const ACTIVEX: SchemaNamespace = SchemaNamespace {
+    transitional: constants::ACTIVEX_NAMESPACE,
+    strict: None,
+};
+
 /// Rejects bytes that are not an InkML document.
 ///
 /// An ink part is registered under the `application/inkml+xml` content type, so a package that
