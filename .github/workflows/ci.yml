@@ -44,6 +44,56 @@ jobs:
       - name: doc
         run: cargo doc --workspace --no-deps
 
+  # Every deck this library authors, and every committed fixture part, validated against the
+  # ECMA-376 XSDs. Round-tripping proves we do not corrupt a file and office-open proves a deck
+  # *opens* — neither proves the markup we *write* is legal. LibreOffice happily opened two invalid
+  # parts for 58 releases; this is the job that would have caught them.
+  #
+  # Why the schemas are fetched rather than committed: `References/` is git-ignored by a standing
+  # rule of this repository, and whether ECMA-376 schema files may be redistributed inside the tree
+  # is a decision reserved for the repository owner. So the two published archives are downloaded,
+  # verified against the committed SHA-256 manifest `.github/ecma-376-archives.sha256`, and
+  # extracted into `References/` — exactly the layout a developer already has, and the one
+  # `schema_validity.rs` discovers with no environment variables set.
+  #
+  # The *archives* are cached (not the extracted XSDs) and the checksum is re-checked on every run,
+  # hit or miss: a truncated download or a poisoned cache entry is then a hard failure instead of a
+  # silently different schema set. The cache key is the manifest's own hash, so pinning a different
+  # archive re-fetches automatically.
+  #
+  # MJX_REQUIRE_SCHEMA=1 turns a missing tool or schema tree into a hard failure, so this coverage
+  # can never silently skip in CI — the same pattern office-open uses with MJX_REQUIRE_SOFFICE.
+  # Locally the same suite still skips cleanly when `References/` is absent.
+  schema-validity:
+    name: schema-validity (ECMA-376 XSDs)
+    runs-on: ubuntu-latest
+    env:
+      MJX_REQUIRE_SCHEMA: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # xmllint is the validator. It ships in the current runner image, but installing it explicitly
+      # keeps the job independent of image drift — and a missing xmllint would otherwise be caught
+      # only by MJX_REQUIRE_SCHEMA, one step later and with a worse message.
+      - name: install xmllint
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libxml2-utils
+
+      - name: cache the ECMA-376 archives
+        uses: actions/cache@v4
+        with:
+          path: References/*.zip
+          key: ecma-376-archives-${{ hashFiles('.github/ecma-376-archives.sha256') }}
+
+      - name: fetch, verify and extract the ECMA-376 schemas
+        run: .github/scripts/fetch-ecma-schemas.sh
+
+      - name: schema-validity suite
+        run: cargo test -p mjx-pptx --test schema_validity
+
   # The Phase-2 exit gate: a .pptx we construct actually opens in a real Office implementation.
   # Kept separate from lint-test so the heavy LibreOffice install cannot slow or flake the fast lane.
   # MJX_REQUIRE_SOFFICE=1 turns a missing binary into a hard failure, so this coverage can never

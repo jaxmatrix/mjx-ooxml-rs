@@ -28,9 +28,14 @@
 //! can never silently disappear. `MJX_SCHEMA_DIR` and `MJX_OPC_SCHEMA_DIR` override where the two
 //! schema trees are looked for.
 //!
-//! **This is a local gate.** CI does not yet run it, because `References/` is git-ignored and the
-//! choice between fetching the ECMA-376 Part 4 archive in the workflow and committing the XSDs is
-//! not settled (MJXOFF-1 item 3).
+//! **CI runs this suite as a blocking job**, so the skip is a local convenience and never a hole in
+//! coverage. The `schema-validity` job in `.github/workflows/ci.yml` downloads the two published
+//! ECMA-376 archives, verifies them against the committed SHA-256 manifest
+//! `.github/ecma-376-archives.sha256`, extracts them into `References/` via
+//! `.github/scripts/fetch-ecma-schemas.sh`, and sets `MJX_REQUIRE_SCHEMA=1` — so a missing tool or
+//! schema tree fails the job rather than skipping it. That script is the same one-liner a developer
+//! runs to populate `References/` locally; the schemas stay out of the tree because `References/` is
+//! git-ignored by a standing rule of this repository.
 //!
 //! # What is skipped, and why it is never silent
 //!

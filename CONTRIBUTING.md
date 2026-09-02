@@ -44,8 +44,17 @@ cargo test   --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-CI runs these plus a strict `cargo doc` job and a cross-compile *build* matrix (wasm32, Android, iOS,
-desktop). Red, a clippy warning, or a doc warning blocks merge.
+CI runs these in the `fmt · clippy · test` job, plus:
+
+| Job | What it blocks on |
+|---|---|
+| `rustdoc` | a strict `cargo doc --workspace --no-deps` — missing docs, broken intra-doc links |
+| `schema-validity (ECMA-376 XSDs)` | every fixture part and every deck the library authors validating against the ECMA-376 XSDs (see *The schema gate* below) |
+| `office-open (LibreOffice)` | a deck we construct opening in a real Office implementation |
+| `examples` | every example running and re-opening its own output |
+| `build <target>` | a cross-compile matrix (wasm32, Android, iOS, macOS, Windows) |
+
+Red, a clippy warning, or a doc warning blocks merge.
 
 The sample round-trip tests are the fastest confirmation that real files still parse:
 `cargo test -p mjx-opc --test roundtrip` and `cargo test -p mjx-opc --test tree_roundtrip` open the
@@ -63,9 +72,17 @@ MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --test schema_validity
 
 which validates every fixture part and every deck the library authors against the ECMA-376 Part 4
 Transitional and Part 2 OPC schemas via `xmllint`. It needs the reference schemas in the git-ignored
-`References/` tree (or `MJX_SCHEMA_DIR` / `MJX_OPC_SCHEMA_DIR`) and skips cleanly without them, so CI
-does not run it yet. **A new authoring path gets a case in that file**, or nothing checks the markup
-it emits.
+`References/` tree (or `MJX_SCHEMA_DIR` / `MJX_OPC_SCHEMA_DIR`) and skips cleanly without them. To
+populate the tree — the same script the CI job runs, downloading the two published ECMA archives and
+verifying them against `.github/ecma-376-archives.sha256` before extracting:
+
+```sh
+.github/scripts/fetch-ecma-schemas.sh
+```
+
+The `schema-validity (ECMA-376 XSDs)` CI job sets `MJX_REQUIRE_SCHEMA=1`, so in CI a missing schema or
+a missing `xmllint` is a hard failure and this coverage can never silently skip. **A new authoring
+path gets a case in that file**, or nothing checks the markup it emits.
 
 ## Git & commit conventions
 
