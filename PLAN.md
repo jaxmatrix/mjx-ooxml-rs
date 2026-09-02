@@ -15,7 +15,8 @@ PowerPoint, Word, and Excel. Rendering and language bindings come later.
 2. **Pure-Rust only** in the shipped graph (clean wasm / Android / iOS cross-compilation).
 3. **Lazy, part-oriented** — parts are raw bytes until touched; untouched parts re-emit verbatim.
 4. **Namespace-agnostic core, namespace-aware edges** — Transitional is the primary target.
-5. **Binding-ready facade** — a separate project will add bindings over `mjx-ooxml` later.
+5. **Binding-ready facade** — `mjx-ooxml` is that surface: concrete types, `u32` indices,
+   `&str` part names and eleven stable error codes, ready for the in-workspace `bindings/` members.
 6. **Generate the mechanical, hand-write the meaningful.**
 7. **Test-driven, incremental** — always-green increments.
 
@@ -81,12 +82,15 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   (the notes slide and notes master parts). ✅ the follow-ups each workstream recorded — group
   descent, hyperlinks, run coalescing, `a:br`/`a:fld` addressability, package hygiene,
   external-source neutralisation, custom geometry, 3-D, charts and VML.
-- **Phase 3c — the road to `v0.1`.** 🔨 **usage documentation** — the five-page guide and six runnable
-  examples, so the library documents *tasks* and not only *items*. Then the **external application
-  surface**: the `mjx-ooxml` facade grows a real `open()`/`save()` over a curated subset, bound to
-  Python (PyO3) and to WebAssembly/TypeScript (wasm-bindgen) as in-workspace `bindings/` members —
-  see the Phase 7 note below, which this supersedes. Then **validation**: every shipped feature
-  checked by hand against real PowerPoint, which nothing has yet been.
+- **Phase 3c — the road to `v0.1`.** ✅ **usage documentation** — the five-page guide and six runnable
+  examples, so the library documents *tasks* and not only *items*. ✅ **the `mjx-ooxml` facade** —
+  `detect_format` over the OPC layer, `Deck` restating the PresentationML surface with concrete
+  FFI-expressible types, an `Error` collapsing every `PptxError` into eleven stable codes, and the
+  whole authoring vocabulary re-exported so nothing downstream names a lower crate. 🔨 Next, the
+  **bindings** over that facade: Python (PyO3) and WebAssembly/TypeScript (wasm-bindgen) as
+  in-workspace `bindings/` members — see the Phase 7 note below, which this supersedes. Then
+  **validation**: every shipped feature checked by hand against real PowerPoint, which nothing has
+  yet been.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
   calc engine).

@@ -1,4 +1,5 @@
-//! `mjx-ooxml` — the umbrella facade and documentation hub for the mjx-ooxml-rs workspace.
+//! `mjx-ooxml` — the binding-ready public API for the mjx-ooxml-rs workspace, and its documentation
+//! hub.
 //!
 //! `mjx-ooxml-rs` is a **pure-Rust** library for parsing, editing, generating, and (later) rendering
 //! Office Open XML documents — PowerPoint (`.pptx`), Word (`.docx`), and Excel (`.xlsx`). The goal is
@@ -6,8 +7,58 @@
 //! corrupting the parts you did not touch** — with a codebase that cross-compiles cleanly to desktop,
 //! Android, iOS, and WebAssembly.
 //!
-//! This crate will grow into the high-level `open()`/`save()` API (Phase 4). Today it is the umbrella
-//! that ties the workspace together and the natural entry point for reading the docs.
+//! This crate is where an application starts. Three things live here and nowhere else:
+//!
+//! 1. [`detect_format`] — what a package *is*, read from its main part rather than its filename, so
+//!    `.pptm` and `.potx` are recognized and a renamed `.docx` is not mistaken for a deck.
+//! 2. [`Deck`] — the whole PowerPoint surface with concrete types: [`Surface`] and [`ShapePath`]
+//!    instead of `impl Into<…>`, `u32` instead of `usize`, `&str` instead of part-name handles.
+//! 3. [`Error`] — one error type carrying a stable [`ErrorCode`], a human message, and the indices
+//!    that say *where*, with the full typed cause still reachable through
+//!    [`source`](std::error::Error::source).
+//!
+//! Everything a caller needs to name is re-exported here, so **nothing downstream ever names
+//! `mjx-dml`, `mjx-chart`, `mjx-opc` or `mjx-pptx`**.
+//!
+//! ```no_run
+//! use mjx_ooxml::{CharacterPropertiesSpec, ColorSpec, Deck, FillSpec, ShapeBounds, SlideSize};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let mut deck = Deck::blank(SlideSize::widescreen())?;
+//! let slide = deck.add_slide_from_layout(0)?;
+//! let title = deck.add_text_box(
+//!     slide.into(),
+//!     "Quarterly results",
+//!     ShapeBounds::from_inches(0.5, 0.4, 9.0, 1.2),
+//! )?;
+//! deck.set_shape_run_properties(
+//!     slide.into(),
+//!     title.into(),
+//!     &CharacterPropertiesSpec::new()
+//!         .with_size_points(40.0)
+//!         .with_color(ColorSpec::Srgb("1F3864".into())),
+//! )?;
+//! deck.set_shape_fill(
+//!     slide.into(),
+//!     title.into(),
+//!     &FillSpec::solid(ColorSpec::Srgb("FFFFFF".into())),
+//! )?;
+//! std::fs::write("out.pptx", deck.save()?)?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! Note where the file I/O is: in the caller. This library is bytes-in and bytes-out and never
+//! touches a filesystem, a clock, a thread or a random number generator — which is exactly why the
+//! same calls work unchanged in a browser.
+//!
+//! # This crate versus `mjx-pptx`
+//!
+//! [`Deck`] is [`Presentation`] reshaped, not replaced. Reach past it — with
+//! [`Deck::presentation_mut`] — when you want the Rust-only ergonomics it cannot carry across a
+//! foreign function boundary: the [`ShapeCursor`](mjx_pptx::ShapeCursor) that states an address once
+//! and applies several edits together, and the closure-taking table-style and VML readers. See the
+//! [`deck`] module documentation for the complete list of what is left out and why.
 //!
 //! # The layered workspace
 //!
@@ -19,7 +70,9 @@
 //! - **Packaging & compatibility** — [`mjx_opc`] (the OPC ZIP container and part graph, e.g.
 //!   [`Package`](mjx_opc::Package)), [`mjx_mce`] (Markup Compatibility [`resolve`](mjx_mce::resolve) /
 //!   preserve), and [`mjx_ooxml_types`] (generated, comprehensively-named simple types + namespaces).
-//! - **Formats** *(in progress)* — `mjx_dml` (DrawingML), then `mjx_pptx`, `mjx_docx`, `mjx_xlsx`.
+//! - **Shared markup** — [`mjx_dml`] (DrawingML) and [`mjx_chart`] (ChartML).
+//! - **Formats** — [`mjx_pptx`], then `mjx_docx` and `mjx_xlsx`.
+//! - **Facade** — this crate. Nothing depends on it.
 //!
 //! # Fidelity model
 //!
@@ -27,6 +80,9 @@
 //! demand, and unmodified parts serialize back **verbatim**. Editing one slide cannot disturb the
 //! theme, masters, or vendor parts, because they were never deserialized. See [`mjx_opc`] and
 //! [`mjx_xml::fidelity`] for the mechanics.
+//!
+//! [`Deck::save`] inherits that model whole, validation included: it will refuse to write a deck that
+//! breaks a packaging or PresentationML invariant, exactly as `Presentation::save` does.
 //!
 //! # Guides
 //!
@@ -41,22 +97,99 @@
 //! - [Fidelity and the known gaps](mjx_pptx::guide::fidelity_and_gaps) — the round-trip guarantee,
 //!   and an honest list of what is not modelled.
 //!
+//! It is written against `Presentation`; every call translates to [`Deck`] by the table in the
+//! [`deck`] module. `examples/build_a_deck.rs` in this crate is the same walkthrough written through
+//! the facade, naming no lower crate.
+//!
 //! Then [Effective properties](mjx_pptx::effective_properties) — the deep reference on what a `.pptx`
 //! *states* versus what a renderer *shows*, and the inheritance ladders the `effective_*` readers
 //! walk to get from one to the other.
 //!
 //! # Status
 //!
-//! Pre-release (`v0.0.x`). The packaging + fidelity + compatibility layers and the schema-type
-//! generator are implemented and tested; the format models are being built PowerPoint-first. See the
-//! repository `PLAN.md` and `CHANGELOG.md` for the roadmap and version milestones (`v0.1` = PowerPoint,
-//! `v0.2` = Word, `v0.3` = Excel).
+//! Pre-release (`v0.0.x`). PowerPoint is implemented and tested; Word and Excel are detected but not
+//! yet editable. See the repository `PLAN.md` and `CHANGELOG.md` for the roadmap and version
+//! milestones (`v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel).
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_scaffold_builds() {
-        // Placeholder so the crate is born green (TDD: always-green increments).
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod address;
+pub mod deck;
+mod error;
+mod format;
+mod index;
+mod references;
+
+pub use address::{ShapePath, Surface};
+pub use deck::Deck;
+pub use error::{Error, ErrorCode, ErrorDetail};
+pub use format::{detect_format, Format, FormatFamily};
+pub use references::{DiagramParts, ExternalLink, InkReference};
+
+// -----------------------------------------------------------------------------------------------
+// The authoring vocabulary.
+//
+// Everything a caller must be able to *name* to call a `Deck` method or build one of its arguments,
+// re-exported so no downstream ever depends on a crate below this one.
+//
+// Four families are deliberately absent, because they cannot be used without machinery this crate
+// does not surface: the interner-bound fidelity models (`Color`, `Fill`, `Table`, `TextBody`,
+// `TableStyle`, `Theme`, and their `*Content` siblings), which need an `Interner`; `RawDocument` and
+// `RawElement`, which are the preservation tree; `PartName`, which `Deck` surfaces as `&str`; and
+// `Package`, which is sealed on purpose — see `Deck::presentation_mut`.
+// -----------------------------------------------------------------------------------------------
+
+/// The typed cause behind every [`Error`], recoverable by downcasting
+/// [`source`](std::error::Error::source).
+pub use mjx_pptx::PptxError;
+/// The PresentationML surface as `mjx-pptx` states it — reach for this only through
+/// [`Deck::presentation_mut`](crate::Deck::presentation_mut).
+pub use mjx_pptx::Presentation;
+
+// --- PresentationML: addressing, geometry, and the read structures -------------------------------
+pub use mjx_pptx::{
+    default_placeholder_audio, default_placeholder_ole, default_placeholder_video,
+    ActiveXControlSpec, ActiveXPersistence, CellFormat, CellMargins, Cells, ChartAxisData,
+    ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData,
+    ChartTrendlineData, ChartWorkbook, DiagramContent, DiagramPartKind, DiagramRelationshipIds,
+    Geometry, GraphicFrameKind, Hyperlink, LayoutInfo, LinkedImage, MediaKind, MediaReference,
+    OleObject, OleObjectData, OleObjectSpec, PlaceholderInfo, PresentationDefect, ShapeBounds,
+    ShapeInfo, ShapeKind, SlideSize, TableStyleDefinition, TableStyleFormat, TargetMode,
+    DEFAULT_PLACEHOLDER_IMAGE,
+};
+
+// --- DrawingML: the interner-free authoring specs and every simple type they take ----------------
+pub use mjx_dml::{
+    AdjustAngle, AdjustCoordinate, Angle, AutoNumberBullet, AutonumberScheme, Backdrop, Bevel,
+    BevelPreset, BlendMode, BlurEffect, BoundedAdjustment, Bullet, BulletCharacter, BulletColor,
+    BulletPicture, BulletSize, BulletTypeface, Camera, CellBorder, CharacterPropertiesSpec,
+    ColorMap, ColorSchemeSlot, ColorSpec, CompoundLine, CustomGeometrySpec, DrawCommand,
+    EffectListSpec, Emu, FillOverlayEffect, FillSpec, FontAlignment, FontCollection,
+    FontCollectionIndex, FontScheme, FontSchemeSlot, FontSize, Fraction, GlowEffect,
+    GradientStopSpec, GuideContext, GuideError, GuideSpec, IndentLevel, InnerShadowEffect,
+    LightRig, LightRigDirection, LightRigType, LineCap, LineDash, LineEnd, LineEndLength,
+    LineEndType, LineEndWidth, LineJoin, LineSpec, LineWidth, OnOffStyle, OuterShadowEffect,
+    ParagraphPropertiesSpec, Path2DSpec, PathFillMode, PatternType, PenAlignment, PictureFillMode,
+    Point, Point3D, Position, PresetCamera, PresetLineDash, PresetMaterial, PresetShadow,
+    PresetShadowEffect, Rectangle, RectangleAlignment, ReflectionEffect, ResolvedAdjustHandle,
+    ResolvedAdjustment, ResolvedColor, ResolvedConnectionSite, ResolvedCustomGeometry,
+    ResolvedDrawCommand, ResolvedGuides, ResolvedPath, ResolvedPoint, ResolvedRectangle,
+    Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry, Size, SoftEdgeEffect, SphereCoordinates,
+    SupplementalFont, TabAlignment, TabStop, TablePart, TableStyleFlags, TableStylePart,
+    TextAlignment, TextAnchoring, TextCapitalization, TextDirection, TextFont,
+    TextHorizontalOverflow, TextPoint, TextSpacing, TextStrike, TextUnderline, ThemeInfo,
+    Transform2D, UnderlineFill, UnderlineLine, Vector3D,
+};
+
+// --- ChartML: the chart description and every enum its parts take --------------------------------
+pub use mjx_chart::{
+    AxisOrientation, AxisPosition, BarDirection, BarGrouping, BlankDisplay, ChartData,
+    ChartDataError, ChartKind, DanglingPointReference, DataLabelPosition, DataLabelSettings,
+    DataLabelSpec, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition,
+    OfPieType, RadarStyle, ScatterStyle, SeriesGrouping, TickLabelPosition, TickMark,
+    TrendlineKind, TrendlineSpec,
+};
+
+// --- Generated schema simple types the signatures above name -------------------------------------
+pub use mjx_ooxml_types::drawingml::PresetShapeType;
+pub use mjx_ooxml_types::presentationml::{
+    Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
+};
