@@ -87,9 +87,8 @@ fn main() -> Result<()> {
     deck.merge_cells(slide, table, Cells::rectangle(3..4, 1..3))?;
     deck.set_cell_text(slide, table, 3, 1, 0, "15.6 combined")?;
 
-    // Note the order: `cell_span` answers `(columns, rows)`, unlike `table_dimensions`, which
-    // answers `(rows, columns)`. Read the signature, not the habit.
-    let (column_span, row_span) = deck.cell_span(slide, table, 3, 1)?;
+    // `cell_span` answers `(rows, columns)`, the same order as `table_dimensions`.
+    let (row_span, column_span) = deck.cell_span(slide, table, 3, 1)?;
     println!("the total row spans {column_span} columns × {row_span} rows");
     println!(
         "covered cell (3,2) still holds {:?}, but shows {:?}",
@@ -115,7 +114,7 @@ fn main() -> Result<()> {
     let (rows, columns) = reopened.table_dimensions(slide, table)?;
     anyhow::ensure!((rows, columns) == (ROWS.len(), ROWS[0].len()));
     anyhow::ensure!(reopened.cell_text(slide, table, 0, 0)? == "Region");
-    anyhow::ensure!(reopened.cell_span(slide, table, 3, 1)? == (2, 1)); // (columns, rows)
+    anyhow::ensure!(reopened.cell_span(slide, table, 3, 1)? == (1, 2)); // (rows, columns)
     println!("wrote {} and verified", out.display());
 
     Ok(())

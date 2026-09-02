@@ -1169,6 +1169,26 @@ pub struct PlaceholderInfo {
     pub name: Option<String>,
 }
 
+/// One shape of a surface, as an inventory entry: where it sits, what it is, and the placeholder
+/// slot it fills.
+///
+/// [`Presentation::shapes`](crate::Presentation::shapes) answers with a whole surface's worth of
+/// these in one call, so asking *what is on this slide* is one read of the part rather than an index
+/// loop over [`shape_count`](crate::Presentation::shape_count) with a fallible accessor inside it.
+///
+/// [`index`](Self::index) is on the surface's **top-level** index space, the one every shape method
+/// takes as an address; a group is one entry, and its members are reached by descending into it
+/// (`[2, 1]`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ShapeInfo {
+    /// The shape's address on the surface's top-level index space.
+    pub index: usize,
+    /// What kind of shape it is.
+    pub kind: ShapeKind,
+    /// The placeholder slot the shape fills, or `None` if it is not a placeholder.
+    pub placeholder: Option<PlaceholderInfo>,
+}
+
 /// The full placeholder metadata of `shape`, or `None` if it is not a placeholder.
 pub(crate) fn shape_placeholder_info(
     shape: &RawElement,
@@ -1601,10 +1621,10 @@ pub(crate) fn set_blip_embed(
     rel_prefix: Symbol,
     rel_id: &str,
 ) -> Result<(), PptxError> {
-    let blip_fill = nav::child_mut(picture, interner, PML, "blipFill")
-        .ok_or(PptxError::PictureHasNoBlipFill)?;
+    let blip_fill =
+        nav::child_mut(picture, interner, PML, "blipFill").ok_or(PptxError::PictureHasNoImage)?;
     let blip = nav::child_mut(blip_fill, interner, DML_MAIN, "blip")
-        .ok_or(PptxError::PictureHasNoBlipFill)?;
+        .ok_or(PptxError::PictureHasNoImage)?;
 
     // Attribute namespaces are unresolved, so the embed/link attributes are matched by local name.
     blip.attributes

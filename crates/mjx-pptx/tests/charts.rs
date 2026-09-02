@@ -952,9 +952,9 @@ fn the_typed_chart_surfaces_reject_the_wrong_shapes_and_indices() {
             0,
             idx,
             0,
-            &FillSpec::Blip {
+            &FillSpec::Picture {
                 rel_id: "rId9".to_owned(),
-                mode: mjx_dml::BlipFillMode::Stretch,
+                mode: mjx_dml::PictureFillMode::Stretch,
             }
         ),
         Err(PptxError::ChartFillNotSupported)
@@ -1429,7 +1429,7 @@ fn a_trendline_and_error_bars_are_authored_read_and_edited() {
     assert_eq!(bars[0].direction, Some(ErrorBarDirection::Y));
     assert_eq!(bars[0].bar_type, Some(ErrorBarType::Both));
     assert_eq!(bars[0].value_type, Some(ErrorValueType::Custom));
-    assert_eq!(bars[0].has_no_end_cap, Some(true));
+    assert_eq!(bars[0].no_end_cap, Some(true));
     assert_eq!(bars[0].plus_values, vec![1.0, 2.0, 3.0]);
     assert_eq!(bars[0].minus_values, vec![0.5, 1.0, 1.5]);
 
@@ -1629,9 +1629,9 @@ fn the_decoration_surfaces_reject_the_wrong_shapes_indices_and_plot_types() {
             frame,
             0,
             0,
-            &FillSpec::Blip {
+            &FillSpec::Picture {
                 rel_id: "rId9".into(),
-                mode: mjx_dml::BlipFillMode::Stretch,
+                mode: mjx_dml::PictureFillMode::Stretch,
             }
         ),
         Err(PptxError::ChartFillNotSupported)

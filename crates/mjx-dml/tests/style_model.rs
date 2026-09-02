@@ -18,7 +18,7 @@ fn fill_ref_reads_index_and_color() {
     let fragment =
         format!(r#"<a:fillRef xmlns:a="{A}" idx="1"><a:schemeClr val="accent1"/></a:fillRef>"#);
     let (reference, doc) = parse_ref(fragment.as_bytes());
-    assert_eq!(reference.idx(), Some(1));
+    assert_eq!(reference.index(), Some(1));
     let color = reference.color().expect("fillRef color");
     assert_eq!(color.kind(&doc.interner), ColorKind::Scheme);
     assert_eq!(
@@ -32,7 +32,7 @@ fn fill_ref_without_color_and_zero_index() {
     // idx 0 is the schema's "no reference"; a bare fillRef carries no color.
     let fragment = format!(r#"<a:fillRef xmlns:a="{A}" idx="0"/>"#);
     let (reference, _doc) = parse_ref(fragment.as_bytes());
-    assert_eq!(reference.idx(), Some(0));
+    assert_eq!(reference.index(), Some(0));
     assert!(reference.color().is_none());
 }
 
@@ -40,7 +40,7 @@ fn fill_ref_without_color_and_zero_index() {
 fn fill_ref_missing_index_is_none() {
     let fragment = format!(r#"<a:fillRef xmlns:a="{A}"><a:srgbClr val="FF0000"/></a:fillRef>"#);
     let (reference, doc) = parse_ref(fragment.as_bytes());
-    assert_eq!(reference.idx(), None);
+    assert_eq!(reference.index(), None);
     assert_eq!(
         reference.color().unwrap().hex(&doc.interner),
         Some("FF0000")

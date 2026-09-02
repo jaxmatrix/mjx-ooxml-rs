@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mjx_dml::{BlipFillMode, FillSpec};
+use mjx_dml::{FillSpec, PictureFillMode};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_opc::{Package, PartName};
 use mjx_pptx::{PptxError, Presentation, ShapeBounds};
@@ -227,9 +227,9 @@ fn an_added_image_fills_a_shape_end_to_end() {
     pres.set_shape_fill(
         0,
         shape,
-        &FillSpec::Blip {
+        &FillSpec::Picture {
             rel_id: rel_id.clone(),
-            mode: BlipFillMode::Stretch,
+            mode: PictureFillMode::Stretch,
         },
     )
     .expect("set picture fill");
@@ -238,9 +238,9 @@ fn an_added_image_fills_a_shape_end_to_end() {
     let mut reopened = Presentation::open(&saved).expect("reopen");
     assert_eq!(
         reopened.shape_fill(0, shape).expect("shape fill"),
-        Some(FillSpec::Blip {
+        Some(FillSpec::Picture {
             rel_id: rel_id.clone(),
-            mode: BlipFillMode::Stretch,
+            mode: PictureFillMode::Stretch,
         }),
         "the picture fill should survive a save/open round trip"
     );

@@ -12,8 +12,9 @@ macro_rules! guide_vocabulary {
         use crate::{
             AxisOrientation, CellFormat, Cells, ChartAxisData, ChartData, ChartDataError,
             ChartKind, ChartLabelScope, DataLabelSettings, DataLabelSpec, Geometry, Hyperlink,
-            LegendPosition, PlaceholderInfo, PptxError, Presentation, ShapeBounds, ShapeCursor,
-            ShapeKind, ShapePath, SlideSize, Surface, TableStyleDefinition, TableStyleFormat,
+            LayoutInfo, LegendPosition, PlaceholderInfo, PptxError, Presentation, ShapeBounds,
+            ShapeCursor, ShapeInfo, ShapeKind, ShapePath, SlideSize, Surface, TableStyleDefinition,
+            TableStyleFormat,
         };
     };
 }

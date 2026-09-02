@@ -109,7 +109,7 @@ fn activex_part_bytes_resolves_to_the_verbatim_ocx() {
 }
 
 #[test]
-fn activex_binary_bytes_resolves_across_the_two_hop_chain() {
+fn activex_state_bytes_resolves_across_the_two_hop_chain() {
     let bytes = fixture("activex.pptx");
     let baseline = Package::open(&bytes).expect("baseline");
     let blob = baseline
@@ -119,7 +119,7 @@ fn activex_binary_bytes_resolves_across_the_two_hop_chain() {
 
     let mut pres = Presentation::open(&bytes).expect("open");
     assert_eq!(
-        pres.activex_binary_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
+        pres.activex_state_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
             .expect("read"),
         Some(blob.as_slice()),
         "the resolved bytes are exactly the package's ActiveX binary blob"
@@ -163,7 +163,7 @@ fn reading_activex_leaves_every_part_byte_identical() {
         .expect("name");
     pres.activex_part_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
         .expect("ocx bytes");
-    pres.activex_binary_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
+    pres.activex_state_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
         .expect("binary bytes");
     pres.activex_snapshot_image_bytes(ACTIVEX_SURFACE, ACTIVEX_CONTROL)
         .expect("snapshot bytes");
@@ -246,7 +246,7 @@ fn an_authored_control_reads_back_through_every_accessor() {
         Some(ActiveXPersistence::Storage)
     );
     assert_eq!(
-        pres.activex_binary_bytes(0, idx).expect("state"),
+        pres.activex_state_bytes(0, idx).expect("state"),
         Some(state),
         "the two-hop chain to the .bin resolves"
     );
@@ -266,7 +266,7 @@ fn an_authored_control_reads_back_through_every_accessor() {
     let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
     assert_eq!(reopened.activex_control_count(0).expect("count"), 1);
     assert_eq!(
-        reopened.activex_binary_bytes(0, 0).expect("state"),
+        reopened.activex_state_bytes(0, 0).expect("state"),
         Some(state)
     );
 }
@@ -288,7 +288,7 @@ fn a_control_that_persists_nothing_writes_no_binary_and_no_rels_part() {
         )
         .expect("add control");
 
-    assert_eq!(pres.activex_binary_bytes(0, idx).expect("state"), None);
+    assert_eq!(pres.activex_state_bytes(0, idx).expect("state"), None);
     assert_eq!(
         pres.activex_persistence(0, idx).expect("persistence"),
         Some(ActiveXPersistence::PropertyBag)

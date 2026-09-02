@@ -416,13 +416,13 @@ merged:
 
 With the `spPr` visual trilogy done, the remaining `PLAN.md` Phase-3 items are **images** and
 **layout/master**. Images is next: **a picture cannot be put on a slide today** — `mjx-pptx` has no
-image support, and `FillSpec::Blip` writes only an `a:blip@r:embed` reference whose image part must
+image support, and `FillSpec::Picture` writes only an `a:blip@r:embed` reference whose image part must
 already exist. See **`docs/IMAGES_HANDOFF.md`** for the full brief (verified groundwork, `CT_Picture`
 schema, and guardrails).
 
 - ⏳ **I1 — image parts:** `ImageFormat` (magic-byte sniffing) + `REL_IMAGE`/content-type constants +
   `Presentation::add_image` (allocate `/ppt/media/imageN.ext`, dedupe identical bytes, `insert_part` +
-  `add_relationship`). Makes `set_shape_fill(.., FillSpec::Blip)` work end-to-end.
+  `add_relationship`). Makes `set_shape_fill(.., FillSpec::Picture)` work end-to-end.
 - ⏳ **I2 — `p:pic` picture shapes:** `add_picture` building a whole `p:pic`, plus a picture index
   space (`shapes()` is `p:sp`-only, so pictures cannot share it).
 - ⏳ **I3 (optional) — read/replace:** `picture_image_bytes` / `set_picture_image`.
