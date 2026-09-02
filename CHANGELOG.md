@@ -15,6 +15,91 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [Unreleased — 0.1.0]
+
+`v0.1` is where the public API stops being free to change. The milestone ships when the PowerPoint
+slice is complete; until then the working versions stay `0.0.x` and this section accumulates every
+break made on the way, so the migration note for `0.1.0` is written as the breaks happen rather than
+reconstructed afterwards.
+
+### Breaking changes
+
+| Was | Is | Why |
+|-----|----|-----|
+| `Presentation::cell_span` → `(columns, rows)` | → `(rows, columns)` | `table_dimensions` answers `(rows, columns)`, `merged_cell_anchor` answers `(row, column)`, and every cell method takes `(row, column)`. Two same-typed `usize`s are read as a habit, not as a signature. |
+| `mjx_dml::BlipFill`, `BlipFillMode` | `PictureFill`, `PictureFillMode` | `blip` is ECMA's abbreviation for "binary large image or picture" and nothing else's. This crate already expanded `a:buBlip` to `BulletPicture`. |
+| `mjx_dml::Fill::Blip`, `FillSpec::Blip` | `Fill::Picture`, `FillSpec::Picture` | Same token, same expansion. Office's own name for it is "Picture fill". |
+| `mjx_dml::StyleMatrixReference::idx` | `index` | An abbreviation named after the `@idx` attribute; the docs already called it an index. |
+| `mjx_chart::DataLabelSpec::show_*` (7 fields) | `shows_*` | The struct a caller reads (`DataLabelSettings`) already said `shows_*`; the two differed by one letter. `TrendlineSpec` / `ChartTrendlineData` agree on all nine of theirs. |
+| `mjx_chart::ErrorBarSpec::plus`, `minus` | `plus_values`, `minus_values` | Matches `ChartErrorBarData` and `ErrorBars::plus_values()`; `plus` alone did not say plus *what*. |
+| `mjx_pptx::ChartErrorBarData::has_no_end_cap` | `no_end_cap` | Matches `ErrorBarSpec`, the struct that writes the same `c:noEndCap`. |
+| `mjx_pptx::PptxError::PictureHasNoBlipFill` | `PictureHasNoImage` | Drops the token, and says what the caller can act on. |
+| `mjx_pptx::Presentation::activex_binary_bytes` | `activex_state_bytes` | Reads exactly what `set_activex_state` writes; the pair named one artefact two ways. |
+
+Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
+identifiers of the eleven merged PowerPoint children; everything else either already followed the
+convention or is a spec-sourced proper noun (`Srgb`, `ScRgb`, `OleObject`, the preset-shape names
+whose digits are part of their identity).
+
+One candidate is deliberately **not** taken here and needs a decision:
+`Presentation::delete_chart_data_labels` (writes `c:delete val="1"` — *draw nothing here*) sits
+beside `remove_chart_data_labels` (removes the element — *say nothing here*), and `delete` and
+`remove` are near-synonyms in English. Renaming the first to `suppress_*` would fix the collision,
+but `delete` is the spec element's own name and is used consistently across a dozen `mjx-chart`
+identifiers (`Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted`, …); renaming only
+the `mjx-pptx` method would trade one inconsistency for another, and renaming the family is a larger
+break through a subsystem that is currently coherent.
+
+## [0.0.66] - 2026-09-02
+
+API review and reorganisation — the last iteration before `v0.1` freezes the surface (MJX-37).
+
+`crates/mjx-pptx/src/presentation.rs` had reached **12,771 lines and 266 public methods** in a single
+`impl Presentation` block. It is the file the whole PowerPoint surface lives in, and the file
+`mjx-docx` and `mjx-xlsx` will copy on day one of Phases C and D, so its shape is worth more than its
+size suggests.
+
+**The split changes no path a caller imports.** `presentation/` is sixteen modules along the seams
+the guide already reads in — deck addressing, slide lifecycle, the shape tree, notes, text,
+hyperlinks, table cells, table structure, bounds, appearance, the effective readers, charts, chart
+decoration, pictures, legacy content, and the element builders shared by more than one of them. Every
+method stays an inherent method on the one re-exported `Presentation`; the helpers that moved out are
+`pub(super)`, visible only inside `presentation`. The public-item lines before and after are identical
+as a set, and the workspace suite was unchanged at 1,528 passing tests across the move — which is what
+a reorganisation is supposed to look like. It is committed separately from every behaviour change so a
+reviewer can see that the move moved nothing.
+
+`tests/public_paths.rs` guards that from outside the crate: one authored deck driven through every
+seam using only `mjx_pptx::` paths, because a test that reached into `crate::presentation::text` would
+prove nothing a caller can rely on.
+
+**The three named inconsistencies are settled.** `cell_span` answers `(rows, columns)` like
+everything else on the table surface. The eight DrawingML effects each take what the schema makes
+required in `new` and name the rest with `with_` — so a shadow's distance no longer costs eight
+`None`s — while an attribute the builder does not name stays unset, and an unset attribute is not
+written. And the three `#[allow(clippy::too_many_arguments)]` sites, re-examined now that `Cells` and
+`CellFormat` exist: one was dead and is gone, and the two that remain — eight distinct cell
+coordinates apiece — are `#[expect]` with their reason, so the day the list fits, the attribute fails
+the build instead of quietly outliving its cause.
+
+**A loop in a doc example is a design defect.** Three remained across the guide, the README-adjacent
+pages and the examples, all the same shape: `for i in 0..count()` with a fallible accessor inside,
+rebuilding a list the deck already has and re-borrowing the part once per entry.
+`Presentation::layouts` answers the layout inventory as `Vec<LayoutInfo>`, `Presentation::shapes`
+answers a surface's shapes as `Vec<ShapeInfo>` — index, kind, and the placeholder slot each fills —
+in one read, and `Presentation::shape_for_placeholder` answers the search *where did this template put
+the title?*. Every loop still standing in a doc example iterates a collection the API handed over,
+with no `?` inside it.
+
+**The naming sweep** covered all 1,561 public identifiers of the eleven merged children. Its nine
+breaks are tabulated under **Unreleased — 0.1.0** above; the summary is that `blip` is not a word,
+that an abbreviation named after an attribute is still an abbreviation, and that a struct a caller
+reads and the struct it writes back should name the same field the same way.
+
+Fidelity is unchanged and was the acceptance criterion throughout: per-part byte identity, modeled
+round-trips, and edit isolation all hold, `MJX_REQUIRE_SCHEMA=1` passes 51 (52 with `--features
+vml`), and all eight examples verify their own output.
+
 ## [0.0.65] - 2026-09-02
 
 Chart decoration — data labels, per-point formatting, trendlines and error bars (MJX-116).
