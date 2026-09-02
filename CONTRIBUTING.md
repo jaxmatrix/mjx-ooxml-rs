@@ -52,6 +52,21 @@ The sample round-trip tests are the fastest confirmation that real files still p
 `.pptx`/`.docx`/`.xlsx` fixtures and assert byte-identical round-trips. See the README's *Testing*
 section.
 
+### The schema gate
+
+Round-tripping proves we do not corrupt a file, and the LibreOffice canary proves a deck *opens* —
+neither proves the markup we *write* is legal. Before touching an authoring path, run
+
+```sh
+MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --test schema_validity
+```
+
+which validates every fixture part and every deck the library authors against the ECMA-376 Part 4
+Transitional and Part 2 OPC schemas via `xmllint`. It needs the reference schemas in the git-ignored
+`References/` tree (or `MJX_SCHEMA_DIR` / `MJX_OPC_SCHEMA_DIR`) and skips cleanly without them, so CI
+does not run it yet. **A new authoring path gets a case in that file**, or nothing checks the markup
+it emits.
+
 ## Git & commit conventions
 
 - **Atomic commits** — one self-contained change per commit, so history is easy to roll back and
