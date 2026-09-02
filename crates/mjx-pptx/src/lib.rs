@@ -102,10 +102,15 @@ pub use legacy::{
 };
 // Chart types, re-exported so a caller of the chart methods need not depend on `mjx-chart`.
 pub use mjx_chart::{
-    AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind, LegendPosition,
-    TickLabelPosition, TickMark,
+    AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind,
+    DanglingPointReference, DataLabelPosition, DataLabelSettings, DataLabelSpec, ErrorBarDirection,
+    ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition, TickLabelPosition, TickMark,
+    TrendlineKind, TrendlineSpec,
 };
-pub use presentation::{ChartAxisData, ChartLegendData, ChartSeriesData, Presentation};
+pub use presentation::{
+    ChartAxisData, ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData,
+    ChartSeriesData, ChartTrendlineData, Presentation,
+};
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
