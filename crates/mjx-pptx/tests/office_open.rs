@@ -22,8 +22,10 @@ use mjx_dml::{
     Transform2D,
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
+use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_pptx::{
-    CellFormat, CellMargins, Cells, Geometry, Presentation, ShapeBounds, Surface, TableStyleFormat,
+    CellFormat, CellMargins, Cells, Geometry, Presentation, ShapeBounds, SlideSize, Surface,
+    TableStyleFormat,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -158,6 +160,70 @@ fn convert_opens(pptx: &[u8], tag: &str) -> Outcome {
         "produced file does not start with the %PDF signature"
     );
     Outcome::Opened
+}
+
+/// The widescreen extent every blank-deck canary below uses.
+fn widescreen() -> SlideSize {
+    SlideSize {
+        width_emu: 12_192_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen16X9,
+    }
+}
+
+#[test]
+fn a_blank_deck_opens() {
+    // The strongest claim this child makes: a `.pptx` built from *nothing* — no template, no
+    // fixture, not one byte taken from a file — is a document a real Office implementation accepts.
+    // Schema validity is necessary and not sufficient: a deck can satisfy every XSD and still be
+    // refused for a broken relationship graph or a missing required part, which is what this catches.
+    let deck = Presentation::blank(widescreen()).expect("blank");
+    let _ = convert_opens(&deck.save().expect("save"), "blank_deck");
+}
+
+#[test]
+fn a_blank_deck_with_a_slide_and_text_opens() {
+    // The story a caller actually follows: blank, a slide from the deck's own layout, its two
+    // placeholders filled, and a text box. Every part here — master, layout, theme, slide — is
+    // markup this library wrote.
+    let mut deck = Presentation::blank(widescreen()).expect("blank");
+    let slide = deck
+        .add_slide_from_layout(0)
+        .expect("add slide from layout");
+    deck.set_shape_text_content(slide, 0, "Built from nothing")
+        .expect("set the title");
+    deck.set_shape_text_content(slide, 1, "First point\nSecond point")
+        .expect("set the body");
+    deck.add_text_box(
+        slide,
+        "…and a text box",
+        ShapeBounds::from_inches(1.0, 5.0, 4.0, 1.0),
+    )
+    .expect("add text box");
+    deck.add_slide_with_text(
+        "A second slide",
+        ShapeBounds::from_inches(1.0, 1.0, 6.0, 2.0),
+    )
+    .expect("add slide with text");
+    let _ = convert_opens(&deck.save().expect("save"), "blank_deck_with_text");
+}
+
+#[test]
+fn a_blank_four_by_three_deck_opens() {
+    // A slide size other than the one the placeholder geometry was measured against: the rescaled
+    // `a:xfrm` must still put the title inside the slide, not off its right edge.
+    let mut deck = Presentation::blank(SlideSize {
+        width_emu: 9_144_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen4X3,
+    })
+    .expect("blank");
+    let slide = deck
+        .add_slide_from_layout(0)
+        .expect("add slide from layout");
+    deck.set_shape_text_content(slide, 0, "Four by three")
+        .expect("set the title");
+    let _ = convert_opens(&deck.save().expect("save"), "blank_deck_4x3");
 }
 
 #[test]
