@@ -375,6 +375,34 @@ pub enum PptxError {
         kind: &'static str,
     },
 
+    /// A [`ChartData`](mjx_chart::ChartData) description cannot be written as a schema-valid chart
+    /// part — a stock chart given the wrong number of series, for instance. Refused before anything
+    /// is written, so the document is untouched.
+    ///
+    /// The "nothing to draw" case has its own variant, [`InvalidChartData`](Self::InvalidChartData),
+    /// because it long predates this one.
+    #[error(transparent)]
+    ChartData(#[from] mjx_chart::ChartDataError),
+
+    /// The addressed axis is outside the chart, whose plot area declares `count` axes.
+    #[error("chart axis {index} is outside a plot area with {count} axes")]
+    ChartAxisOutOfRange {
+        /// The axis index asked for.
+        index: usize,
+        /// The number of axes the plot area declares.
+        count: usize,
+    },
+
+    /// The chart part declares no `c:chart`, so it has no title, legend or plot area to edit. The
+    /// schema requires one, so this means the part is malformed.
+    #[error("chart part declares no c:chart element")]
+    ChartHasNoChartElement,
+
+    /// An image fill was asked for on a chart series. An image fill names an image *relationship*,
+    /// and a chart part relates to no images, so writing one would leave a dangling reference.
+    #[error("a chart series cannot take an image fill: a chart part relates to no images")]
+    ChartFillNotSupported,
+
     /// The addressed cell is outside the table, which is `rows` by `columns`.
     ///
     /// Merged cells do not create holes — every position within the table is addressable — so this

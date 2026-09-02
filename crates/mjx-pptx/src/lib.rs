@@ -94,9 +94,12 @@ pub use external::{
 };
 pub use geometry::{CellMargins, Geometry, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
-// Chart authoring types, re-exported so a caller of `add_chart` need not depend on `mjx-chart`.
-pub use mjx_chart::{ChartData, ChartKind};
-pub use presentation::{ChartSeriesData, Presentation};
+// Chart types, re-exported so a caller of the chart methods need not depend on `mjx-chart`.
+pub use mjx_chart::{
+    AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind, LegendPosition,
+    TickLabelPosition, TickMark,
+};
+pub use presentation::{ChartAxisData, ChartLegendData, ChartSeriesData, Presentation};
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
