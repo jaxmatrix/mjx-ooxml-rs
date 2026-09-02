@@ -3,8 +3,8 @@
 //!
 //! [`Scene3D`] and [`Shape3D`] are **fidelity wrappers** over their elements (name, attributes,
 //! children and self-closing flag preserved verbatim); the modeled facets are read through typed
-//! accessors, while an unmodeled child (`a:backdrop`, `extLst`, an MCE bucket) stays opaque so the
-//! element round-trips byte-for-byte. [`Scene3DSpec`] / [`Shape3DSpec`] are the interner-free values
+//! accessors, while an unmodeled child (`extLst`, an MCE bucket) stays opaque so the element
+//! round-trips byte-for-byte. [`Scene3DSpec`] / [`Shape3DSpec`] are the interner-free values
 //! `mjx-pptx`'s `shape_scene_3d` / `shape_3d_properties` read and write.
 //!
 //! The pieces, from the schema:
@@ -17,6 +17,8 @@
 //!   and zoom, optionally rotated.
 //! - [`SphereCoordinates`] (`CT_SphereCoords`) — a latitude/longitude/revolution rotation, shared by
 //!   the camera and the light rig.
+//! - [`Backdrop`] (`CT_Backdrop`) — the plane the scene's shadows and reflections fall on: a
+//!   [`Point3D`] anchor and two [`Vector3D`]s, the plane's normal and its up direction.
 //!
 //! Every measure follows the rest of this crate: an unstated attribute reads `None`, distinct from
 //! the schema default, so a caller can tell "unset" from "zero". A 1:1 mirror of [`crate::effect`].
@@ -90,6 +92,67 @@ pub struct LightRig {
     pub rotation: Option<SphereCoordinates>,
 }
 
+/// `a:anchor` (`CT_Point3D`) — a point in the scene's 3-D space. All three coordinates are
+/// schema-required, so an absent one reads as zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Point3D {
+    /// The horizontal coordinate (`@x`, EMU).
+    pub x: Emu,
+    /// The vertical coordinate (`@y`, EMU).
+    pub y: Emu,
+    /// The depth coordinate (`@z`, EMU).
+    pub z: Emu,
+}
+
+impl Default for Point3D {
+    /// The scene origin — what an absent (schema-required) `a:anchor` reads as.
+    fn default() -> Self {
+        Self {
+            x: Emu::from_emu(0),
+            y: Emu::from_emu(0),
+            z: Emu::from_emu(0),
+        }
+    }
+}
+
+/// `a:norm` / `a:up` (`CT_Vector3D`) — a direction in the scene's 3-D space, as the three components
+/// of a vector. All three are schema-required, so an absent one reads as zero.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Vector3D {
+    /// The horizontal component (`@dx`, EMU).
+    pub x: Emu,
+    /// The vertical component (`@dy`, EMU).
+    pub y: Emu,
+    /// The depth component (`@dz`, EMU).
+    pub z: Emu,
+}
+
+impl Default for Vector3D {
+    /// The zero vector — what an absent (schema-required) `a:norm` / `a:up` reads as.
+    fn default() -> Self {
+        Self {
+            x: Emu::from_emu(0),
+            y: Emu::from_emu(0),
+            z: Emu::from_emu(0),
+        }
+    }
+}
+
+/// `a:backdrop` (`CT_Backdrop`) — the plane a 3-D scene's shadows and reflections are cast on,
+/// given as a point on the plane and the two directions that orient it.
+///
+/// All three children are schema-required. Read through [`Scene3D::backdrop`]; the element itself
+/// stays verbatim in the [`Scene3D`] wrapper, so reading it never changes what is written back.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Backdrop {
+    /// A point the plane passes through (`a:anchor`).
+    pub anchor: Point3D,
+    /// The plane's normal — the direction it faces (`a:norm`).
+    pub normal: Vector3D,
+    /// The plane's up direction (`a:up`).
+    pub up: Vector3D,
+}
+
 // ---------------------------------------------------------------------------------------------
 // Scene3D — the fidelity wrapper over `a:scene3d`
 // ---------------------------------------------------------------------------------------------
@@ -120,6 +183,24 @@ impl Scene3D {
         dml_child(&self.children, interner, "lightRig").and_then(|el| read_light_rig(el, interner))
     }
 
+    /// The plane the scene's shadows and reflections fall on (`a:backdrop`), or `None` if the scene
+    /// states none — as almost every scene does, the element being optional and rare.
+    #[must_use]
+    pub fn backdrop(&self, interner: &Interner) -> Option<Backdrop> {
+        let backdrop = dml_child(&self.children, interner, "backdrop")?;
+        Some(Backdrop {
+            anchor: dml_child(&backdrop.children, interner, "anchor")
+                .map(|anchor| Point3D {
+                    x: coordinate(anchor, interner, "x"),
+                    y: coordinate(anchor, interner, "y"),
+                    z: coordinate(anchor, interner, "z"),
+                })
+                .unwrap_or_default(),
+            normal: read_vector(backdrop, interner, "norm"),
+            up: read_vector(backdrop, interner, "up"),
+        })
+    }
+
     /// This scene as an interner-free [`Scene3DSpec`], or `None` if it is missing either
     /// schema-required part — a scene without a camera or a light rig is not one this describes.
     #[must_use]
@@ -135,8 +216,9 @@ fidelity_element_impls!(Scene3D);
 
 /// An interner-free description of a shape's 3-D scene (`a:scene3d`) — the camera and light rig an
 /// interner-less caller reads and writes. Convert with [`Scene3D::spec`] /
-/// [`Scene3DSpec::to_scene_3d`]. Rebuilding from a spec drops opaque internals (`a:backdrop`,
-/// `extLst`); to preserve those, keep the [`Scene3D`] itself.
+/// [`Scene3DSpec::to_scene_3d`]. Rebuilding from a spec drops the rarer internals (the
+/// [`Backdrop`](Scene3D::backdrop), `extLst`); to preserve those — the usual case, since a read
+/// [`Scene3D`] holds them verbatim — keep the [`Scene3D`] itself.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Scene3DSpec {
     /// The camera (`a:camera`).
@@ -319,6 +401,23 @@ pub(crate) fn read_bevel(element: &RawElement, interner: &Interner) -> Bevel {
         height: attr_emu(&element.attributes, interner, "h"),
         preset: attr_str(&element.attributes, interner, "prst").and_then(BevelPreset::from_wire),
     }
+}
+
+/// Reads one `a:norm` / `a:up` child of a backdrop (`CT_Vector3D`); an absent one reads as the zero
+/// vector rather than failing, since a malformed backdrop must still leave the file readable.
+fn read_vector(backdrop: &RawElement, interner: &Interner, local: &str) -> Vector3D {
+    dml_child(&backdrop.children, interner, local)
+        .map(|vector| Vector3D {
+            x: coordinate(vector, interner, "dx"),
+            y: coordinate(vector, interner, "dy"),
+            z: coordinate(vector, interner, "dz"),
+        })
+        .unwrap_or_default()
+}
+
+/// A schema-required EMU coordinate; an absent one reads as zero rather than failing the read.
+fn coordinate(element: &RawElement, interner: &Interner, name: &str) -> Emu {
+    attr_emu(&element.attributes, interner, name).unwrap_or(Emu::from_emu(0))
 }
 
 /// Reads an `a:rot` (`CT_SphereCoords`). The three angles are schema-required; an absent one reads
