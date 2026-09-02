@@ -28,17 +28,29 @@ Four mechanisms make it true:
   reproduced identically, because deflate parameters vary by encoder. If you need to compare two decks,
   compare parts, not archives.
 
-## What is preserved but not modelled
+## The content that is not DrawingML
 
-These round-trip perfectly and can be *read*, but there is no typed surface and no authoring:
+A `.pptx` carries five kinds of content that are not DrawingML shapes: OLE objects, ActiveX controls,
+ink, SmartArt diagrams and legacy VML. Each of them lives in its own part (or four), referenced from
+the slide by relationship id — and each now has the same three things every other shape kind has.
 
-| Content | What you get |
-|---|---|
-| OLE objects | `ole_objects`, the payload bytes, the `progId`, the fallback image |
-| ActiveX controls | control count and name, the `.bin` state bytes, the fallback image |
-| Ink (InkML) | the part names and bytes — **not** tied back to a shape |
-| Legacy VML | part names and bytes, behind the `vml` Cargo feature |
-| SmartArt / diagrams | recognised as `GraphicFrameKind::Diagram`, nothing more |
+| Content | Read | Author | Edit |
+|---|---|---|---|
+| OLE objects | `ole_objects`, `ole_prog_id`, the payload bytes, the snapshot image, `ole_legacy_shape_id` | `add_ole_object` — an embedded stream, a whole embedded package, or a link | `set_ole_prog_id`, `set_ole_object_data`, `set_ole_snapshot_image`, `replace_ole_object_with_placeholder` |
+| ActiveX controls | `activex_control_count` / `_name` / `_shape_id`, `activex_class_id`, `activex_persistence`, the `.bin` state, the snapshot image | `add_activex_control` | `set_activex_control_name`, `set_activex_state`, `set_activex_snapshot_image`, `remove_activex_control` |
+| Ink (InkML) | `ink_references` ties each part to the shape that names it, both ways (`ink_part_for_shape`, `shape_for_ink_part`) | `add_ink` | `set_ink_content` |
+| SmartArt / diagrams | `diagram_relationship_ids`, `diagram_parts` (all five, the cached drawing included), `diagram_part_bytes` | `add_diagram` — four generated documents, or four of your own | `set_diagram_part` |
+| Legacy VML | `vml_drawing_part`, `with_vml_drawing` (a typed `mjx_vml::Drawing`), `with_vml_shape_for_ole_object` / `_for_activex_control` | `add_vml_drawing` | `edit_vml_drawing` |
+
+The VML column is behind the `vml` Cargo feature. That flag decides only whether **this** crate
+re-exposes the surface: `mjx-vml` is a normal crate any consumer depends on directly, and a VML part
+round-trips byte-identically whether or not the feature is on, because that is the packaging layer's
+job rather than the feature's.
+
+The one thing worth knowing about the VML surface is *why* it exists. A legacy construct is only
+useful if you can get from the modern markup that points at it to the legacy shape that draws it, and
+that hop is an identifier match: `p:oleObj@spid`, `p:control@spid` and `o:OLEObject@ShapeID` all name
+a VML shape's `id`. `with_vml_shape_for_ole_object` walks it for you.
 
 ## The gaps
 
@@ -58,6 +70,16 @@ multi-level (`c:multiLvlStrRef`) sources read; and the axes, gridlines, titles, 
 fill/outline have a typed surface. **The workbook is written by a minimal SpreadsheetML writer inside
 `mjx-chart`, scheduled for removal once `mjx-xlsx` can write** — it writes one sheet, a shared-string
 table and a styles skeleton, and deliberately nothing else.
+
+### Legacy and non-DrawingML content
+
+| Gap | Consequence | Issue |
+|---|---|---|
+| The **InkML strokes themselves** are not modelled | A stroke set is carried verbatim and handed to you as bytes. InkML is a W3C vocabulary with no OOXML semantics of its own; `add_ink` and `set_ink_content` check the root namespace and store what you give them. A deliberate non-goal: parsing it would buy reach into a format this library does not render | — |
+| A **SmartArt layout is not run** | `add_diagram` writes the data, layout, style and colour documents and the frame that names them; it does not compute where the nodes land. PowerPoint regenerates the cached `dsp:drawing` when it opens the deck, and a diagram that already has one keeps it verbatim (`DiagramParts::drawing`). A deliberate non-goal: a layout engine is a rendering feature, and there is no rendering here | — |
+| An **ActiveX control's properties** (`ax:ocxPr`) are not modelled | The control part's class id and persistence read and write; the property bag inside it is carried verbatim. It is a Microsoft extension outside ECMA-376, and its meaning is per-control-class | — |
+| **VML geometry is preserved, not evaluated** | A `v:shape`'s identity, style, references, fill, stroke and children are typed; the `path` command string and `v:formulas` are carried verbatim rather than evaluated into a path. The same non-goal as the layout engine: evaluating them is a rendering feature | — |
+| A **start tag whose attributes are wrapped across lines re-flows** when its part is edited | The fidelity reader records each attribute's name, value and quote, but not the whitespace that separated it from the previous one, so re-serialising writes one space. This never touches a part you did not edit — an untouched part re-emits its original bytes and is never serialised at all — but a part you *do* edit comes back with its start tags on one line. Office wraps VML start tags far more often than it wraps a slide's, so it shows there first; `crates/mjx-opc/tests/tree_roundtrip.rs` pins it | — |
 
 ### Tables
 
@@ -84,8 +106,8 @@ table and a styles skeleton, and deliberately nothing else.
 
 | Gap | Consequence | Issue |
 |---|---|---|
-| **Every fixture is hand-crafted** | No test in this repository reads a file that Microsoft PowerPoint wrote. LibreOffice confirms decks *open*; nothing yet confirms they *render as intended* | MJX-211 R2, MJX-140 |
-| **The schema gate covers only the markup this project authors** | `crates/mjx-pptx/tests/schema_validity.rs` validates every fixture part and every deck this library authors against the ECMA-376 XSDs, and CI runs it as a blocking job (`schema-validity`, with `MJX_REQUIRE_SCHEMA=1`, fetching the schemas by pinned checksum). The namespaces it validates are the ones we write — PresentationML, DrawingML, DrawingML charts, and the two OPC control streams; InkML, ActiveX, VML and document properties are markup we only preserve and are reported as skipped, never validated against a schema they were not written to | MJX-248 |
+| **Every fixture is hand-crafted** | No test in this repository reads a file that Microsoft PowerPoint wrote. LibreOffice confirms decks *open*; nothing yet confirms they *render as intended*. This is the one part of the legacy-content work that is not closed: the surfaces are built and schema-checked, but against markup we wrote ourselves | MJX-211 R2, MJX-140 |
+| **The schema gate covers only the markup this project authors** | `crates/mjx-pptx/tests/schema_validity.rs` validates every fixture part and every deck this library authors against the ECMA-376 XSDs, and CI runs it as a blocking job (`schema-validity`, with `MJX_REQUIRE_SCHEMA=1`, fetching the schemas by pinned checksum). The namespaces it validates are the ones we write — PresentationML, DrawingML, DrawingML charts, DrawingML diagrams, SpreadsheetML, and the two OPC control streams; InkML, ActiveX, VML and document properties are markup we only preserve and are reported as skipped, never validated against a schema they were not written to | MJX-248 |
 | Parts carrying `mc:AlternateContent` are not schema-validated | Markup Compatibility lives outside the base schema by design, so such parts are skipped with a named reason. This shades nothing this library writes — no authoring path emits `mc:AlternateContent` | MJX-248 |
 | The 0.0.58 text-inheritance change | A non-placeholder shape now takes the master's `p:otherStyle` / `p:bodyStyle` per ECMA-376 §19.3.1.35. This follows the spec, but real PowerPoint is believed to match the *previous* behaviour. It is isolated in one revertible commit pending validation | MJX-211 R1, MJX-208 |
 

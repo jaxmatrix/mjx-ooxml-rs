@@ -5,6 +5,7 @@ use mjx_ooxml_core::FromXmlError;
 use mjx_opc::OpcError;
 use mjx_xml::XmlError;
 
+use crate::legacy::DiagramPartKind;
 use crate::slide::ShapeKind;
 use crate::surface::Surface;
 
@@ -448,5 +449,49 @@ pub enum PptxError {
     ShapeCannotBePositioned {
         /// The kind of shape addressed.
         kind: ShapeKind,
+    },
+
+    /// The addressed shape frames no SmartArt diagram — it is not a `p:graphicFrame`, or the graphic
+    /// it frames is a table, a chart or an OLE object rather than a `dgm:relIds`.
+    #[error("the addressed shape does not frame a SmartArt diagram")]
+    ShapeIsNotADiagram,
+
+    /// A diagram frame names the part but the package does not hold it — a broken relationship, or a
+    /// diagram whose optional cached drawing was never written.
+    #[error("the diagram has no {kind:?} part")]
+    DiagramPartMissing {
+        /// Which of the diagram's parts is absent.
+        kind: DiagramPartKind,
+    },
+
+    /// The bytes handed to an ink method are not an InkML document — they do not parse as XML, or
+    /// their root element is not in the InkML namespace (`http://www.w3.org/2003/InkML`).
+    ///
+    /// Checked because an ink part is registered under the `application/inkml+xml` content type: a
+    /// package that declares InkML and carries something else is malformed the moment it is saved.
+    #[error("the bytes are not an InkML document")]
+    InvalidInkContent,
+
+    /// The addressed shape is not a content part, so it references no ink.
+    #[error("the addressed shape is not a content part referencing ink")]
+    ShapeIsNotAContentPart,
+
+    /// The ActiveX control index is past the end of the surface's controls. A control is not a
+    /// shape: it has its own per-surface index space (see
+    /// [`activex_control_count`](crate::Presentation::activex_control_count)).
+    #[error("ActiveX control index {index} out of range (surface has {count})")]
+    ActiveXControlOutOfRange {
+        /// The index asked for.
+        index: usize,
+        /// How many controls the surface has.
+        count: usize,
+    },
+
+    /// The named part is not a legacy VML drawing — its content type is not
+    /// `application/vnd.openxmlformats-officedocument.vmlDrawing`.
+    #[error("part {part} is not a VML drawing")]
+    PartIsNotVmlDrawing {
+        /// The part asked for.
+        part: String,
     },
 }

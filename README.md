@@ -147,6 +147,7 @@ cargo run -p mjx-pptx --example edit_text                  # and report which pa
 cargo run -p mjx-pptx --example style_shapes
 cargo run -p mjx-pptx --example build_table
 cargo run -p mjx-pptx --example charts_and_media
+cargo run -p mjx-pptx --example legacy_content            # OLE, ActiveX, ink, SmartArt (add --features vml)
 ```
 
 ## Contributing
