@@ -11600,6 +11600,46 @@ mod tests {
         std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
     }
 
+    /// Whether the slide part still holds its original bytes — a part marked dirty has none, and is
+    /// re-serialized from its tree on save. This is the only way to see dirtiness: re-serializing is
+    /// byte-identical for a well-formed part, so a needless rebuild is invisible from outside.
+    fn slide_is_clean(pres: &Presentation) -> bool {
+        pres.package
+            .entries()
+            .iter()
+            .find(|entry| entry.name == "ppt/slides/slide1.xml")
+            .expect("the slide part")
+            .bytes()
+            .is_some()
+    }
+
+    #[test]
+    fn a_clear_that_finds_nothing_leaves_the_part_clean() {
+        let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/text_levels.pptx");
+        let bytes = std::fs::read(&path)
+            .unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()));
+
+        let mut pres = Presentation::open(&bytes).expect("open");
+        assert!(slide_is_clean(&pres));
+        assert!(!pres
+            .clear_shape_list_style_level(0, 1, IndentLevel::of(5))
+            .expect("clear a level the shape never stated"));
+        assert!(!pres
+            .clear_shape_list_style_default(0, 1)
+            .expect("clear a default the shape never stated"));
+        assert!(
+            slide_is_clean(&pres),
+            "a clear that finds nothing must not rebuild the part"
+        );
+
+        // The contrast: a clear that finds something does dirty it.
+        assert!(pres
+            .clear_shape_list_style_level(0, 1, IndentLevel::of(2))
+            .expect("clear the level the shape states"));
+        assert!(!slide_is_clean(&pres));
+    }
+
     #[test]
     fn color_map_resolves_master_mapping() {
         // The fixture master's p:clrMap is the standard mapping (bg1=lt1, tx1=dk1, …), and slide 0

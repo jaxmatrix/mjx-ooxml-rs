@@ -235,7 +235,11 @@ fn clearing_a_level_falls_back_to_the_tier_below() {
 }
 
 #[test]
-fn clearing_a_level_the_shape_never_stated_does_not_dirty_the_part() {
+fn clearing_a_level_the_shape_never_stated_leaves_the_file_as_it_was() {
+    // The *dirtiness* half of this claim is not observable from the public API — re-serialising a
+    // well-formed part is byte-identical, so a needless rebuild leaves no trace out here. It is
+    // pinned by `a_clear_that_finds_nothing_leaves_the_part_clean` in `presentation.rs`, which can
+    // see the package. What this test adds is the end-to-end file comparison.
     let bytes = fixture("text_levels.pptx");
     let before = byte_map(&Package::open(&bytes).expect("baseline"));
 
