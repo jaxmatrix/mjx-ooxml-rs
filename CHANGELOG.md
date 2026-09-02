@@ -91,6 +91,12 @@ in one read, and `Presentation::shape_for_placeholder` answers the search *where
 the title?*. Every loop still standing in a doc example iterates a collection the API handed over,
 with no `?` inside it.
 
+**`Presentation::from_package` is public**, as the facade needs: the constructor for a caller who
+already holds the package — one `mjx-opc` opened directly, or one a facade opened once and dispatched
+on by content type rather than handing the bytes back to each format crate to re-open.
+`mjx_opc::Package` is re-exported from `mjx-pptx` alongside it, on the same reasoning the chart types
+already are: a caller should not have to name another crate to state a parameter type.
+
 **The naming sweep** covered all 1,561 public identifiers of the eleven merged children. Its nine
 breaks are tabulated under **Unreleased — 0.1.0** above; the summary is that `blip` is not a word,
 that an abbreviation named after an attribute is still an abbreviation, and that a struct a caller

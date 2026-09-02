@@ -16,8 +16,8 @@ use mjx_dml::{ColorSpec, FillSpec};
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_pptx::{
-    Cells, ChartData, ChartKind, Geometry, Hyperlink, Presentation, ShapeBounds, ShapeKind,
-    SlideSize, Surface, DEFAULT_PLACEHOLDER_IMAGE,
+    Cells, ChartData, ChartKind, Geometry, Hyperlink, Package, Presentation, ShapeBounds,
+    ShapeKind, SlideSize, Surface, DEFAULT_PLACEHOLDER_IMAGE,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -207,4 +207,34 @@ fn the_legacy_content_seam_is_reachable_on_the_re_exported_presentation() {
         .ole_prog_id(0, objects[0].shape_index)
         .expect("the object's ProgID")
         .is_some());
+}
+
+/// `from_package` is the constructor for a caller who already holds the package — the facade opens a
+/// container once and dispatches on its content type rather than handing the bytes back to each
+/// format crate to re-open. It answers exactly what `open` answers for the same bytes, and it takes
+/// its parameter type from `mjx_pptx::Package`, so a caller need not name `mjx-opc` to call it.
+#[test]
+fn from_package_resolves_the_same_deck_open_does() {
+    let bytes = fixture("layouts.pptx");
+
+    let mut opened = Presentation::open(&bytes).expect("open the bytes");
+    let package = Package::open(&bytes).expect("open the package");
+    let mut resolved = Presentation::from_package(package).expect("resolve the package");
+
+    assert_eq!(resolved.slide_count(), opened.slide_count());
+    assert_eq!(resolved.master_count(), opened.master_count());
+    assert_eq!(
+        resolved.layouts().expect("layouts"),
+        opened.layouts().expect("layouts"),
+        "the same layout inventory, resolved the same way"
+    );
+    assert_eq!(
+        resolved.shapes(0).expect("shapes"),
+        opened.shapes(0).expect("shapes")
+    );
+    assert_eq!(
+        resolved.save().expect("save"),
+        opened.save().expect("save"),
+        "and it saves the same container bytes"
+    );
 }
