@@ -85,6 +85,11 @@ The ECMA-376 reference schemas live under `References/` (git-ignored, local-only
 cargo test --workspace                       # everything
 cargo test -p mjx-opc --test roundtrip       # OPC container: open → save → reopen, per-part byte identity
 cargo test -p mjx-opc --test tree_roundtrip  # fidelity tree: every XML part re-serializes byte-identical
+
+# Schema validity: every fixture part and every deck the library authors, against the ECMA-376 XSDs.
+# Needs `xmllint` and the reference schemas; skips cleanly without them, and MJX_REQUIRE_SCHEMA=1
+# turns their absence into a failure.
+MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --test schema_validity
 ```
 
 The sample files under [`tests/fixtures/`](tests/fixtures) — a real LibreOffice `.docx` and `.xlsx`
@@ -93,6 +98,13 @@ Phase 1 core, **all three parse without failure**: `tree_roundtrip` runs every `
 all three files (20+ parts) through the fidelity reader/writer and asserts **byte-for-byte** identity,
 and `roundtrip` re-zips each package with per-part byte identity. A broader multi-producer corpus and
 fuzzing come in a later iteration.
+
+Round-tripping proves we do not *corrupt* a file; it does not prove the markup we *write* is legal, and
+neither does the LibreOffice canary — LibreOffice opens invalid markup happily. `schema_validity`
+closes that: it validates every fixture's PresentationML / DrawingML / chart parts and both OPC control
+streams, plus every deck the library authors, against the ECMA-376 Part 4 Transitional and Part 2 OPC
+schemas. The schemas are not committed (`References/` is git-ignored), so it is a **local gate** for
+now.
 
 ## Documentation
 
