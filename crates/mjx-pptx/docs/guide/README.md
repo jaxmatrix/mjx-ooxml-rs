@@ -5,7 +5,7 @@ reference.
 
 | Page | Read it when |
 |---|---|
-| [Building a deck](building_a_deck) | You want the whole story once: open, add slides, fill them, save |
+| [Building a deck](building_a_deck) | You want the whole story once: start blank or from a file, add slides, fill them, save |
 | [Shapes and text](shapes_and_text) | You need to address a particular shape, or edit text precisely |
 | [Tables, charts and pictures](tables_charts_pictures) | You are placing structured content |
 | [Inheritance, layouts and masters](inheritance_and_masters) | A property is not where you expected it |
@@ -19,9 +19,9 @@ what a file *states* versus what a renderer *shows*.
 Three facts explain most of it.
 
 **Bytes in, bytes out.** [`Presentation::open`] takes `&[u8]` and [`save`](Presentation::save)
-returns `Vec<u8>`. The library never touches a filesystem, a network, or a clock. Whoever calls it
-owns the file handle — which is also why the same code compiles to WebAssembly and runs in a browser
-unchanged.
+returns `Vec<u8>`; [`Presentation::blank`] takes no bytes at all and builds a deck from nothing. The
+library never touches a filesystem, a network, or a clock. Whoever calls it owns the file handle —
+which is also why the same code compiles to WebAssembly and runs in a browser unchanged.
 
 ```no_run
 # fn main() -> Result<(), Box<dyn std::error::Error>> {
