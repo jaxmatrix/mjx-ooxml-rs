@@ -31,8 +31,23 @@ use mjx_dml::{Fill, FillSpec, LineProperties, LineSpec};
 use mjx_ooxml_core::{FromXml, ToXml};
 use mjx_ooxml_types::support::on_off;
 
-use crate::build::{chart_element, fidelity_element_impls, is_dml, raw_child_attr};
+use mjx_ooxml_types::child_order::{
+    ChildOrder, ChildSlot, AREA_3D_CHART, AREA_CHART, AREA_SERIES, BAR_3D_CHART, BAR_CHART,
+    BAR_SERIES, BUBBLE_CHART, BUBBLE_SERIES, DOUGHNUT_CHART, LINE_3D_CHART, LINE_CHART,
+    LINE_SERIES, OF_PIE_CHART, PIE_3D_CHART, PIE_CHART, PIE_SERIES, RADAR_CHART, RADAR_SERIES,
+    SCATTER_CHART, SCATTER_SERIES, STOCK_CHART, SURFACE_3D_CHART, SURFACE_CHART, SURFACE_SERIES,
+};
+
+use crate::author::ChartDataError;
+use crate::axis::chart_local;
+use crate::build::{
+    chart_element, fidelity_element_impls, insert_position, is_dml, raw_child_attr,
+};
 use crate::data::{CategoryData, NumericData, SeriesText};
+use crate::decoration::{
+    DanglingPointReference, DataLabelSettings, DataLabelSpec, DataLabels, DataPointFormat,
+    ErrorBarSpec, ErrorBars, Trendline, TrendlineSpec,
+};
 
 /// Which way a bar plot's bars run (`c:barDir@val`, `ST_BarDir`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -251,6 +266,74 @@ impl ChartKind {
         matches!(self, Self::Scatter | Self::Bubble)
     }
 
+    /// The generated child order of the `CT_*Chart` complex type this kind *is* — where a
+    /// plot-level `c:dLbls` belongs among its siblings, which differs by kind (a bar plot puts it
+    /// before `c:gapWidth`, a stock plot before `c:dropLines`).
+    #[must_use]
+    pub fn plot_child_order(self) -> &'static ChildOrder {
+        match self {
+            Self::Bar => BAR_CHART,
+            Self::Bar3D => BAR_3D_CHART,
+            Self::Line => LINE_CHART,
+            Self::Line3D => LINE_3D_CHART,
+            Self::Pie => PIE_CHART,
+            Self::Pie3D => PIE_3D_CHART,
+            Self::OfPie => OF_PIE_CHART,
+            Self::Area => AREA_CHART,
+            Self::Area3D => AREA_3D_CHART,
+            Self::Scatter => SCATTER_CHART,
+            Self::Doughnut => DOUGHNUT_CHART,
+            Self::Radar => RADAR_CHART,
+            Self::Bubble => BUBBLE_CHART,
+            Self::Stock => STOCK_CHART,
+            Self::Surface => SURFACE_CHART,
+            Self::Surface3D => SURFACE_3D_CHART,
+        }
+    }
+
+    /// The generated child order of the `CT_*Ser` complex type a series of this kind *is*.
+    ///
+    /// The sixteen plot types share only eight series types, and they differ in more than placement:
+    /// `CT_PieSer` declares no `c:trendline` and no `c:errBars`, and `CT_SurfaceSer` declares no
+    /// decoration at all. This is the one source of truth for both questions — see
+    /// [`admits_series_child`](Self::admits_series_child).
+    #[must_use]
+    pub fn series_child_order(self) -> &'static ChildOrder {
+        match self {
+            Self::Bar | Self::Bar3D => BAR_SERIES,
+            Self::Line | Self::Line3D | Self::Stock => LINE_SERIES,
+            Self::Pie | Self::Pie3D | Self::OfPie | Self::Doughnut => PIE_SERIES,
+            Self::Area | Self::Area3D => AREA_SERIES,
+            Self::Scatter => SCATTER_SERIES,
+            Self::Radar => RADAR_SERIES,
+            Self::Bubble => BUBBLE_SERIES,
+            Self::Surface | Self::Surface3D => SURFACE_SERIES,
+        }
+    }
+
+    /// Whether a series of this kind may carry a child named `local` — asked of the generated table,
+    /// never of a hand-written list.
+    ///
+    /// ```
+    /// use mjx_chart::ChartKind;
+    /// // A bar series may carry a trendline; a pie slice may not.
+    /// assert!(ChartKind::Bar.admits_series_child("trendline"));
+    /// assert!(!ChartKind::Pie.admits_series_child("trendline"));
+    /// // A surface series carries no decoration at all.
+    /// assert!(!ChartKind::Surface.admits_series_child("dLbls"));
+    /// ```
+    #[must_use]
+    pub fn admits_series_child(self, local: &str) -> bool {
+        self.series_child_order().slot(None, local).is_some()
+    }
+
+    /// Whether a plot of this kind may carry a child named `local`. The two surface plots declare no
+    /// `c:dLbls`, so a chart-wide label setting is not something they can be given.
+    #[must_use]
+    pub fn admits_plot_child(self, local: &str) -> bool {
+        self.plot_child_order().slot(None, local).is_some()
+    }
+
     /// How many axes a plot of this kind names with `c:axId` — two for a flat plot, three for a
     /// depth-bearing one, none for the pie family, which draws against no axis at all.
     #[must_use]
@@ -387,8 +470,9 @@ fn dml_local<'a>(node: &RawNode, interner: &'a Interner) -> Option<&'a str> {
 }
 
 /// One ordered child of a [`Series`]: its name, its category/value data (bar/line/pie/area/doughnut)
-/// or its X/Y data (scatter), or an opaque node.
+/// or its X/Y data (scatter), its decoration, or an opaque node.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum SeriesContent {
     /// The series name (`c:tx`).
     Text(SeriesText),
@@ -404,6 +488,14 @@ pub enum SeriesContent {
     BubbleSizes(NumericData),
     /// The series' shape properties (`c:spPr`) — the fill and outline that decide what it looks like.
     ShapeProperties(SeriesShapeProperties),
+    /// One point drawn differently from the rest (`c:dPt`). A series may carry many.
+    PointFormat(DataPointFormat),
+    /// The series' data-label settings (`c:dLbls`) — at most one.
+    DataLabels(DataLabels),
+    /// A curve fitted through the series (`c:trendline`). A series may carry many.
+    Trendline(Trendline),
+    /// The uncertainty drawn around each point (`c:errBars`).
+    ErrorBars(ErrorBars),
     /// Any other child — `c:idx`, `c:order`, `c:marker`, whitespace, unknown — preserved verbatim.
     Raw(RawNode),
 }
@@ -425,7 +517,11 @@ pub struct Series {
         child(local = "xVal", variant = XValues, ty = CategoryData),
         child(local = "yVal", variant = YValues, ty = NumericData),
         child(local = "bubbleSize", variant = BubbleSizes, ty = NumericData),
-        child(local = "spPr", variant = ShapeProperties, ty = SeriesShapeProperties)
+        child(local = "spPr", variant = ShapeProperties, ty = SeriesShapeProperties),
+        child(local = "dPt", variant = PointFormat, ty = DataPointFormat),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels),
+        child(local = "trendline", variant = Trendline, ty = Trendline),
+        child(local = "errBars", variant = ErrorBars, ty = ErrorBars)
     )]
     content: Vec<SeriesContent>,
 }
@@ -537,8 +633,11 @@ impl Series {
         self.shape_properties_mut(interner).set_line(interner, line);
     }
 
-    /// The series' shape properties, creating an empty `c:spPr` in its schema position (after the
-    /// `c:tx` that may precede it, before the data sources) if it has none.
+    /// The series' shape properties, creating an empty `c:spPr` at its schema rank if it has none.
+    ///
+    /// `c:spPr` is a member of `EG_SerShared`, which every one of the eight `CT_*Ser` types opens
+    /// with, so it sits at rank 3 in all of them and the bar series' order places it correctly for
+    /// any kind — `every_series_type_places_shape_properties_alike` holds that.
     fn shape_properties_mut(&mut self, interner: &mut Interner) -> &mut SeriesShapeProperties {
         if let Some(index) = self
             .content
@@ -550,20 +649,7 @@ impl Series {
             };
             return properties;
         }
-        let at = self
-            .content
-            .iter()
-            .position(|item| {
-                matches!(
-                    item,
-                    SeriesContent::Categories(_)
-                        | SeriesContent::Values(_)
-                        | SeriesContent::XValues(_)
-                        | SeriesContent::YValues(_)
-                        | SeriesContent::BubbleSizes(_)
-                )
-            })
-            .unwrap_or(self.content.len());
+        let at = self.insert_index(BAR_SERIES, interner, "spPr");
         self.content.insert(
             at,
             SeriesContent::ShapeProperties(SeriesShapeProperties::new(interner)),
@@ -606,6 +692,198 @@ impl Series {
         false
     }
 
+    // --- decoration: read ------------------------------------------------------------------------
+
+    /// How many points the series has — the addressing space every `c:idx` in its decoration is
+    /// measured against.
+    ///
+    /// A series' points are its **values** (`c:val`, or `c:yVal` for an X/Y plot): a category axis
+    /// may name more categories than a series has values, and those extra categories are not points
+    /// of it. Only a series with no numeric source at all falls back to counting its categories.
+    ///
+    /// The count is the one its source **declares** (`c:ptCount`) where it declares one, rather than
+    /// the number of `c:pt` it lists. A sparse cache omits the points that were blank, and a `c:dPt`
+    /// naming one of the omitted points is addressing real data — counting the listed points alone
+    /// would fault correct markup as dangling.
+    #[must_use]
+    pub fn point_count(&self, interner: &Interner) -> usize {
+        if let Some(numeric) = self.values().or_else(|| self.y_data()) {
+            let declared = numeric
+                .declared_point_count(interner)
+                .map_or(0, |count| count as usize);
+            return declared.max(numeric.values().len());
+        }
+        self.categories()
+            .or_else(|| self.x_data())
+            .map_or(0, |data| data.labels().len())
+    }
+
+    /// The series' data-label settings (`c:dLbls`), or `None` when it states none and takes its
+    /// plot's. This is the **middle** of the three tiers — see [`DataLabelSettings::inherit`].
+    #[must_use]
+    pub fn data_labels(&self) -> Option<&DataLabels> {
+        self.content.iter().find_map(|item| match item {
+            SeriesContent::DataLabels(labels) => Some(labels),
+            _ => None,
+        })
+    }
+
+    /// The series' data-label settings, mutably. `None` when it declares none — use
+    /// [`SeriesDecoration::data_labels_mut`] to create them, which knows whether the series' type
+    /// admits them at all.
+    pub fn data_labels_mut(&mut self) -> Option<&mut DataLabels> {
+        self.content.iter_mut().find_map(|item| match item {
+            SeriesContent::DataLabels(labels) => Some(labels),
+            _ => None,
+        })
+    }
+
+    /// The label settings in force for one point of this series, merging the point tier over the
+    /// series tier. `plot` is the outermost tier, from the owning plot's own `c:dLbls`.
+    #[must_use]
+    pub fn resolved_data_labels(
+        &self,
+        interner: &Interner,
+        plot: &DataLabelSettings,
+        point_index: Option<u32>,
+    ) -> DataLabelSettings {
+        let labels = self.data_labels();
+        let series = labels
+            .map(|labels| labels.settings(interner))
+            .unwrap_or_default();
+        let merged = series.inherit(plot);
+        let Some(point_index) = point_index else {
+            return merged;
+        };
+        labels
+            .and_then(|labels| labels.label_for_point(interner, point_index))
+            .map(|label| label.settings(interner))
+            .unwrap_or_default()
+            .inherit(&merged)
+    }
+
+    /// Every point of the series that carries its own formatting (`c:dPt`), in document order.
+    pub fn point_formats(&self) -> impl Iterator<Item = &DataPointFormat> {
+        self.content.iter().filter_map(|item| match item {
+            SeriesContent::PointFormat(format) => Some(format),
+            _ => None,
+        })
+    }
+
+    /// The formatting of the point at `index`, matched on its `c:idx` — never on its position in
+    /// the list.
+    #[must_use]
+    pub fn point_format(&self, interner: &Interner, index: u32) -> Option<&DataPointFormat> {
+        self.point_formats()
+            .find(|format| format.index(interner) == Some(index))
+    }
+
+    /// Every trendline fitted through the series (`c:trendline`), in document order.
+    pub fn trendlines(&self) -> impl Iterator<Item = &Trendline> {
+        self.content.iter().filter_map(|item| match item {
+            SeriesContent::Trendline(trendline) => Some(trendline),
+            _ => None,
+        })
+    }
+
+    /// Every set of error bars the series carries (`c:errBars`) — one for a bar or line series, up
+    /// to two (x and y) for scatter, area and bubble.
+    pub fn error_bars(&self) -> impl Iterator<Item = &ErrorBars> {
+        self.content.iter().filter_map(|item| match item {
+            SeriesContent::ErrorBars(bars) => Some(bars),
+            _ => None,
+        })
+    }
+
+    /// The series' per-point formatting, mutably — for editing one point's fill, outline or
+    /// explosion in place. Adding one goes through [`SeriesDecoration::point_format_mut`], which
+    /// knows where the schema puts it.
+    pub fn point_formats_mut(&mut self) -> impl Iterator<Item = &mut DataPointFormat> {
+        self.content.iter_mut().filter_map(|item| match item {
+            SeriesContent::PointFormat(format) => Some(format),
+            _ => None,
+        })
+    }
+
+    /// The series' trendlines, mutably — for editing a curve in place.
+    pub fn trendlines_mut(&mut self) -> impl Iterator<Item = &mut Trendline> {
+        self.content.iter_mut().filter_map(|item| match item {
+            SeriesContent::Trendline(trendline) => Some(trendline),
+            _ => None,
+        })
+    }
+
+    /// The series' error bars, mutably — for editing a set in place.
+    pub fn error_bars_mut(&mut self) -> impl Iterator<Item = &mut ErrorBars> {
+        self.content.iter_mut().filter_map(|item| match item {
+            SeriesContent::ErrorBars(bars) => Some(bars),
+            _ => None,
+        })
+    }
+
+    /// Every `c:dPt` and `c:dLbl` whose `c:idx` names a point at or past
+    /// [`point_count`](Self::point_count) — the decoration an edit that shortened the series left
+    /// pointing at nothing.
+    ///
+    /// This crate never renumbers such an element, so this is a *report*, not a repair: what was
+    /// anchored to point 4 still says point 4. [`SeriesDecoration::drop_decoration_beyond_data`]
+    /// removes them when a caller decides that is what they want.
+    #[must_use]
+    pub fn decoration_beyond_data(&self, interner: &Interner) -> Vec<DanglingPointReference> {
+        let count = self.point_count(interner);
+        let limit = u32::try_from(count).unwrap_or(u32::MAX);
+        let mut dangling: Vec<DanglingPointReference> = self
+            .point_formats()
+            .filter_map(|format| format.index(interner))
+            .filter(|index| *index >= limit)
+            .map(|index| DanglingPointReference {
+                element: "dPt",
+                index,
+            })
+            .collect();
+        if let Some(labels) = self.data_labels() {
+            dangling.extend(
+                labels
+                    .labels_beyond(interner, count)
+                    .into_iter()
+                    .map(|index| DanglingPointReference {
+                        element: "dLbl",
+                        index,
+                    }),
+            );
+        }
+        dangling
+    }
+
+    // --- decoration: placement -------------------------------------------------------------------
+
+    /// Each child's local name in document order, or `None` for a node the schema does not name.
+    fn content_locals<'a>(
+        &'a self,
+        interner: &'a Interner,
+    ) -> impl Iterator<Item = Option<&'a str>> {
+        self.content.iter().map(move |item| match item {
+            SeriesContent::Text(_) => Some("tx"),
+            SeriesContent::Categories(_) => Some("cat"),
+            SeriesContent::Values(_) => Some("val"),
+            SeriesContent::XValues(_) => Some("xVal"),
+            SeriesContent::YValues(_) => Some("yVal"),
+            SeriesContent::BubbleSizes(_) => Some("bubbleSize"),
+            SeriesContent::ShapeProperties(_) => Some("spPr"),
+            SeriesContent::PointFormat(_) => Some("dPt"),
+            SeriesContent::DataLabels(_) => Some("dLbls"),
+            SeriesContent::Trendline(_) => Some("trendline"),
+            SeriesContent::ErrorBars(_) => Some("errBars"),
+            SeriesContent::Raw(node) => chart_local(node, interner),
+        })
+    }
+
+    /// Where a child named `local` belongs among the series' current children, according to the
+    /// `CT_*Ser` the owning plot's kind names.
+    fn insert_index(&self, order: &ChildOrder, interner: &Interner, local: &str) -> usize {
+        insert_position(order, self.content_locals(interner), local)
+    }
+
     /// Reads the `@val` of a raw scalar child (`c:idx`, `c:order`) as a `u32`.
     fn raw_val(&self, interner: &Interner, local: &str) -> Option<u32> {
         let raw = self.content.iter().filter_map(|item| match item {
@@ -616,15 +894,448 @@ impl Series {
     }
 }
 
-/// One ordered child of a plot (`c:barChart`, `c:lineChart`, …): a typed series (`c:ser`), or an
-/// opaque node (`c:barDir`, `c:grouping`, `c:axId`, `c:firstSliceAng`, whitespace, unknown).
+/// A series together with the plot type that owns it — the **write** surface for decoration.
+///
+/// Reading a series' decoration needs nothing but the series ([`Series::data_labels`],
+/// [`Series::point_formats`], …). Writing it needs the plot's kind, for two reasons the schema
+/// makes unavoidable:
+///
+/// * **Placement.** `CT_BarSer` puts `c:dPt` at rank 6 and `CT_PieSer` at rank 5, because the bar
+///   series declares `c:invertIfNegative` and `c:pictureOptions` first and the pie series declares
+///   `c:explosion`. A child at the wrong rank is invalid markup, not untidy markup.
+/// * **Admissibility.** `CT_PieSer` declares no `c:trendline` and no `c:errBars`; `CT_SurfaceSer`
+///   declares no decoration at all. Asking for one of those is refused with
+///   [`ChartDataError::DecorationNotAllowed`] *before* anything is written, the same way
+///   [`ChartData::validate`](crate::ChartData::validate) refuses a shape the schema rejects.
+///
+/// Obtain one from the plot that owns the series (`series_decoration_mut`), from
+/// [`PlotArea::series_decoration_mut`](crate::PlotArea::series_decoration_mut) or from
+/// [`ChartSpace::series_decoration_mut`](crate::ChartSpace::series_decoration_mut).
+#[derive(Debug)]
+pub struct SeriesDecoration<'a> {
+    series: &'a mut Series,
+    kind: ChartKind,
+}
+
+impl<'a> SeriesDecoration<'a> {
+    /// Binds `series` to the `kind` of plot that holds it.
+    pub(crate) fn new(series: &'a mut Series, kind: ChartKind) -> Self {
+        Self { series, kind }
+    }
+
+    /// The kind of plot this series belongs to.
+    #[must_use]
+    pub fn kind(&self) -> ChartKind {
+        self.kind
+    }
+
+    /// The series itself.
+    #[must_use]
+    pub fn series(&self) -> &Series {
+        self.series
+    }
+
+    /// The series' data-label settings, creating an empty `c:dLbls` at its schema rank if it had
+    /// none.
+    ///
+    /// # Errors
+    /// [`ChartDataError::DecorationNotAllowed`] when the series' type declares no `c:dLbls` — the
+    /// two surface plots.
+    pub fn data_labels_mut(
+        &mut self,
+        interner: &mut Interner,
+    ) -> Result<&mut DataLabels, ChartDataError> {
+        self.require("dLbls")?;
+        if self
+            .series
+            .content
+            .iter()
+            .all(|item| !matches!(item, SeriesContent::DataLabels(_)))
+        {
+            let labels = DataLabels::new(interner, &DataLabelSpec::default());
+            let at = self
+                .series
+                .insert_index(self.kind.series_child_order(), interner, "dLbls");
+            self.series
+                .content
+                .insert(at, SeriesContent::DataLabels(labels));
+            self.series.empty = false;
+        }
+        self.series
+            .data_labels_mut()
+            .ok_or(ChartDataError::DecorationNotAllowed {
+                plot: self.kind.element_local_name(),
+                element: "dLbls",
+                series_type: self.kind.series_child_order().symbol,
+            })
+    }
+
+    /// Applies `spec` to the series' data labels, creating them if it had none and leaving every
+    /// setting `spec` does not state alone.
+    ///
+    /// # Errors
+    /// As [`data_labels_mut`](Self::data_labels_mut).
+    pub fn set_data_labels(
+        &mut self,
+        interner: &mut Interner,
+        spec: &DataLabelSpec,
+    ) -> Result<(), ChartDataError> {
+        self.data_labels_mut(interner)?;
+        let Some(labels) = self.series.data_labels_mut() else {
+            return Ok(());
+        };
+        labels.apply(interner, spec);
+        Ok(())
+    }
+
+    /// Suppresses every label of the series — a `c:dLbls` carrying `c:delete val="1"`, which is how
+    /// one series of a labelled plot is silenced.
+    ///
+    /// # Errors
+    /// As [`data_labels_mut`](Self::data_labels_mut).
+    pub fn delete_data_labels(&mut self, interner: &mut Interner) -> Result<(), ChartDataError> {
+        self.data_labels_mut(interner)?;
+        if let Some(labels) = self.series.data_labels_mut() {
+            labels.delete_all(interner);
+        }
+        Ok(())
+    }
+
+    /// Removes the series' `c:dLbls` entirely, so it inherits its plot's. Answers whether one was
+    /// there.
+    pub fn remove_data_labels(&mut self) -> bool {
+        let before = self.series.content.len();
+        self.series
+            .content
+            .retain(|item| !matches!(item, SeriesContent::DataLabels(_)));
+        before != self.series.content.len()
+    }
+
+    /// Sets the label of one point, overriding the series' settings for it alone.
+    ///
+    /// # Errors
+    /// [`ChartDataError::DataPointOutOfRange`] when `point` names no point of this series,
+    /// [`ChartDataError::DecorationNotAllowed`] when the series' type declares no `c:dLbls`, and
+    /// [`ChartDataError::SettingNotAtThisTier`] when `spec` asks for leader lines.
+    pub fn set_point_label(
+        &mut self,
+        interner: &mut Interner,
+        point: u32,
+        spec: &DataLabelSpec,
+    ) -> Result<(), ChartDataError> {
+        self.require_point(interner, point)?;
+        self.data_labels_mut(interner)?;
+        let Some(labels) = self.series.data_labels_mut() else {
+            return Ok(());
+        };
+        labels.set_label_for_point(interner, point, spec)
+    }
+
+    /// Suppresses the label of one point, leaving the rest of the series labelled.
+    ///
+    /// # Errors
+    /// As [`set_point_label`](Self::set_point_label), minus the leader-line case.
+    pub fn delete_point_label(
+        &mut self,
+        interner: &mut Interner,
+        point: u32,
+    ) -> Result<(), ChartDataError> {
+        self.require_point(interner, point)?;
+        self.data_labels_mut(interner)?;
+        if let Some(labels) = self.series.data_labels_mut() {
+            labels.delete_label_for_point(interner, point);
+        }
+        Ok(())
+    }
+
+    /// Removes one point's label override, so it falls back to the series' settings. Answers
+    /// whether one was there.
+    pub fn remove_point_label(&mut self, interner: &Interner, point: u32) -> bool {
+        self.series
+            .data_labels_mut()
+            .is_some_and(|labels| labels.remove_label_for_point(interner, point))
+    }
+
+    /// The formatting of the point at `point`, creating a `c:dPt` at its schema rank if there is
+    /// none. Existing formatting is found by `c:idx`, never by list position.
+    ///
+    /// # Errors
+    /// [`ChartDataError::DataPointOutOfRange`] when `point` names no point of this series, and
+    /// [`ChartDataError::DecorationNotAllowed`] when the series' type declares no `c:dPt`.
+    pub fn point_format_mut(
+        &mut self,
+        interner: &mut Interner,
+        point: u32,
+    ) -> Result<&mut DataPointFormat, ChartDataError> {
+        self.require("dPt")?;
+        self.require_point(interner, point)?;
+        let existing = self.series.content.iter().position(|item| match item {
+            SeriesContent::PointFormat(format) => format.index(interner) == Some(point),
+            _ => false,
+        });
+        let at = match existing {
+            Some(at) => at,
+            None => {
+                let format = DataPointFormat::new(interner, point);
+                let at = self.point_format_insert_index(interner, point);
+                self.series
+                    .content
+                    .insert(at, SeriesContent::PointFormat(format));
+                self.series.empty = false;
+                at
+            }
+        };
+        match &mut self.series.content[at] {
+            SeriesContent::PointFormat(format) => Ok(format),
+            _ => unreachable!("the index names a PointFormat"),
+        }
+    }
+
+    /// Colours the point at `point` differently from the rest of its series.
+    ///
+    /// # Errors
+    /// As [`point_format_mut`](Self::point_format_mut).
+    pub fn set_point_fill(
+        &mut self,
+        interner: &mut Interner,
+        point: u32,
+        fill: &FillSpec,
+    ) -> Result<(), ChartDataError> {
+        self.point_format_mut(interner, point)?;
+        let Some(at) = self.point_format_position(interner, point) else {
+            return Ok(());
+        };
+        if let SeriesContent::PointFormat(format) = &mut self.series.content[at] {
+            format.set_fill(interner, fill);
+        }
+        Ok(())
+    }
+
+    /// Outlines the point at `point` differently from the rest of its series.
+    ///
+    /// # Errors
+    /// As [`point_format_mut`](Self::point_format_mut).
+    pub fn set_point_line(
+        &mut self,
+        interner: &mut Interner,
+        point: u32,
+        line: &LineSpec,
+    ) -> Result<(), ChartDataError> {
+        self.point_format_mut(interner, point)?;
+        let Some(at) = self.point_format_position(interner, point) else {
+            return Ok(());
+        };
+        if let SeriesContent::PointFormat(format) = &mut self.series.content[at] {
+            format.set_line(interner, line);
+        }
+        Ok(())
+    }
+
+    /// Removes the formatting of the point at `point`, so it is drawn like the rest of its series.
+    /// Answers whether any was there.
+    pub fn remove_point_format(&mut self, interner: &Interner, point: u32) -> bool {
+        match self.point_format_position(interner, point) {
+            Some(at) => {
+                self.series.content.remove(at);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Adds a trendline to the series. `c:trendline` is repeatable, so this appends rather than
+    /// replacing — a series may carry a linear fit and a moving average at once.
+    ///
+    /// # Errors
+    /// [`ChartDataError::DecorationNotAllowed`] when the series' type declares no `c:trendline`
+    /// (pie, doughnut, pie-of-pie, radar and surface), plus whatever
+    /// [`TrendlineSpec::validate`] answers — all checked before anything is written.
+    pub fn add_trendline(
+        &mut self,
+        interner: &mut Interner,
+        spec: &TrendlineSpec,
+    ) -> Result<(), ChartDataError> {
+        self.require("trendline")?;
+        spec.validate()?;
+        let trendline = Trendline::new(interner, spec);
+        let at = self
+            .series
+            .insert_index(self.kind.series_child_order(), interner, "trendline");
+        self.series
+            .content
+            .insert(at, SeriesContent::Trendline(trendline));
+        self.series.empty = false;
+        Ok(())
+    }
+
+    /// Rewrites the `n`-th trendline of the series from `spec`, in place. Answers `false`, changing
+    /// nothing, when the series carries fewer.
+    ///
+    /// # Errors
+    /// Whatever [`TrendlineSpec::validate`] answers.
+    pub fn set_trendline(
+        &mut self,
+        interner: &mut Interner,
+        trendline_idx: usize,
+        spec: &TrendlineSpec,
+    ) -> Result<bool, ChartDataError> {
+        spec.validate()?;
+        match self.series.trendlines_mut().nth(trendline_idx) {
+            Some(trendline) => trendline.apply_spec(interner, spec).map(|()| true),
+            None => Ok(false),
+        }
+    }
+
+    /// Removes every trendline from the series, answering how many went.
+    pub fn remove_trendlines(&mut self) -> usize {
+        let before = self.series.content.len();
+        self.series
+            .content
+            .retain(|item| !matches!(item, SeriesContent::Trendline(_)));
+        before - self.series.content.len()
+    }
+
+    /// Gives the series error bars, replacing an existing set that runs along the same axis and
+    /// inserting a new one otherwise.
+    ///
+    /// A series type whose `c:errBars` is not repeatable (`CT_BarSer`, `CT_LineSer`) admits only
+    /// one set, so an existing set is replaced whatever its direction; scatter, area and bubble
+    /// admit two — one per axis — and this keeps them apart by `c:errDir`.
+    ///
+    /// # Errors
+    /// [`ChartDataError::DecorationNotAllowed`] when the series' type declares no `c:errBars`, plus
+    /// whatever [`ErrorBarSpec::validate`] answers.
+    pub fn set_error_bars(
+        &mut self,
+        interner: &mut Interner,
+        spec: &ErrorBarSpec,
+    ) -> Result<(), ChartDataError> {
+        let slot = self.require("errBars")?;
+        spec.validate()?;
+        let existing = self.series.content.iter().position(|item| match item {
+            SeriesContent::ErrorBars(bars) => {
+                !slot.repeatable || bars.direction(interner) == spec.direction
+            }
+            _ => false,
+        });
+        if let Some(at) = existing {
+            if let SeriesContent::ErrorBars(bars) = &mut self.series.content[at] {
+                return bars.apply_spec(interner, spec);
+            }
+        }
+        let bars = ErrorBars::new(interner, spec);
+        let at = self
+            .series
+            .insert_index(self.kind.series_child_order(), interner, "errBars");
+        self.series
+            .content
+            .insert(at, SeriesContent::ErrorBars(bars));
+        self.series.empty = false;
+        Ok(())
+    }
+
+    /// Removes every set of error bars from the series, answering how many went.
+    pub fn remove_error_bars(&mut self) -> usize {
+        let before = self.series.content.len();
+        self.series
+            .content
+            .retain(|item| !matches!(item, SeriesContent::ErrorBars(_)));
+        before - self.series.content.len()
+    }
+
+    /// Removes every `c:dPt` and `c:dLbl` that names a point at or past the end of the series'
+    /// data, answering how many went — the explicit repair for what
+    /// [`Series::decoration_beyond_data`] reports.
+    ///
+    /// Nothing calls this on a caller's behalf. An edit that shortens a series leaves its `c:idx`
+    /// values exactly as they were, because renumbering them would silently move one point's colour
+    /// onto another; dropping them is a decision, and this is where a caller makes it.
+    pub fn drop_decoration_beyond_data(&mut self, interner: &Interner) -> usize {
+        let count = self.series.point_count(interner);
+        let limit = u32::try_from(count).unwrap_or(u32::MAX);
+        let before = self.series.content.len();
+        self.series.content.retain(|item| match item {
+            SeriesContent::PointFormat(format) => {
+                format.index(interner).is_none_or(|index| index < limit)
+            }
+            _ => true,
+        });
+        let mut removed = before - self.series.content.len();
+        if let Some(labels) = self.series.data_labels_mut() {
+            removed += labels.drop_labels_beyond(interner, count);
+        }
+        removed
+    }
+
+    /// Checks that the series' type declares a child named `local`, answering its slot so a caller
+    /// can also ask whether it repeats.
+    fn require(&self, local: &'static str) -> Result<&'static ChildSlot, ChartDataError> {
+        self.kind.series_child_order().slot(None, local).ok_or(
+            ChartDataError::DecorationNotAllowed {
+                plot: self.kind.element_local_name(),
+                element: local,
+                series_type: self.kind.series_child_order().symbol,
+            },
+        )
+    }
+
+    /// Checks that `point` names a point this series actually has.
+    fn require_point(&self, interner: &Interner, point: u32) -> Result<(), ChartDataError> {
+        let count = self.series.point_count(interner);
+        if (point as usize) < count {
+            return Ok(());
+        }
+        Err(ChartDataError::DataPointOutOfRange {
+            index: point,
+            count,
+        })
+    }
+
+    /// The position in the series' content of the `c:dPt` naming `point`.
+    fn point_format_position(&self, interner: &Interner, point: u32) -> Option<usize> {
+        self.series.content.iter().position(|item| match item {
+            SeriesContent::PointFormat(format) => format.index(interner) == Some(point),
+            _ => false,
+        })
+    }
+
+    /// Where a new `c:dPt` for `point` belongs: at the schema rank of the `c:dPt` run, and within
+    /// that run in ascending `c:idx` order — which is how Office writes them.
+    fn point_format_insert_index(&self, interner: &Interner, point: u32) -> usize {
+        let rank_at = self
+            .series
+            .insert_index(self.kind.series_child_order(), interner, "dPt");
+        let mut at = rank_at;
+        for (offset, item) in self.series.content[..rank_at].iter().enumerate().rev() {
+            match item {
+                SeriesContent::PointFormat(format) => {
+                    if format.index(interner).is_some_and(|index| index > point) {
+                        at = offset;
+                    } else {
+                        break;
+                    }
+                }
+                _ => break,
+            }
+        }
+        at
+    }
+}
+
+/// One ordered child of a plot (`c:barChart`, `c:lineChart`, …): a typed series (`c:ser`), the
+/// plot-wide data-label settings (`c:dLbls`), or an opaque node (`c:barDir`, `c:grouping`,
+/// `c:axId`, `c:firstSliceAng`, whitespace, unknown).
 ///
 /// Every plot type shares this shape — a run of series interleaved with the type-specific scalars
 /// and axes this tier does not model — so it needs one content enum, not one per type.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum PlotContent {
     /// A series (`c:ser`).
     Series(Series),
+    /// The data-label settings for every series of this plot (`c:dLbls`) — the outermost of the
+    /// three tiers. The two surface plots declare none.
+    DataLabels(DataLabels),
     /// Any other child — a type-specific scalar, an axis id, whitespace, unknown — kept verbatim.
     Raw(RawNode),
 }
@@ -640,7 +1351,7 @@ macro_rules! series_plot_impls {
             pub fn series(&self) -> impl Iterator<Item = &Series> {
                 self.content.iter().filter_map(|item| match item {
                     PlotContent::Series(series) => Some(series),
-                    PlotContent::Raw(_) => None,
+                    _ => None,
                 })
             }
 
@@ -648,7 +1359,7 @@ macro_rules! series_plot_impls {
             pub fn series_mut(&mut self) -> impl Iterator<Item = &mut Series> {
                 self.content.iter_mut().filter_map(|item| match item {
                     PlotContent::Series(series) => Some(series),
-                    PlotContent::Raw(_) => None,
+                    _ => None,
                 })
             }
 
@@ -701,11 +1412,142 @@ macro_rules! series_plot_impls {
                     .collect()
             }
 
+            /// The `n`-th series bound to this plot's kind — the write surface for its decoration.
+            /// `None` when the plot has fewer series.
+            pub fn series_decoration_mut(&mut self, n: usize) -> Option<SeriesDecoration<'_>> {
+                self.series_mut()
+                    .nth(n)
+                    .map(|series| SeriesDecoration::new(series, $kind))
+            }
+
+            /// The plot-wide data-label settings (`c:dLbls`) — the outermost of the three tiers —
+            /// or `None` when the plot states none.
+            #[must_use]
+            pub fn data_labels(&self) -> Option<&DataLabels> {
+                self.content.iter().find_map(|item| match item {
+                    PlotContent::DataLabels(labels) => Some(labels),
+                    _ => None,
+                })
+            }
+
+            /// The plot-wide data-label settings, creating an empty `c:dLbls` at its schema rank if
+            /// the plot had none.
+            ///
+            /// # Errors
+            /// [`ChartDataError::DecorationNotAllowed`] when this plot type declares no `c:dLbls`
+            /// — `CT_SurfaceChart` and `CT_Surface3DChart` do not.
+            pub fn data_labels_mut(
+                &mut self,
+                interner: &mut Interner,
+            ) -> Result<&mut DataLabels, ChartDataError> {
+                if !$kind.admits_plot_child("dLbls") {
+                    return Err(ChartDataError::DecorationNotAllowed {
+                        plot: $kind.element_local_name(),
+                        element: "dLbls",
+                        series_type: $kind.plot_child_order().symbol,
+                    });
+                }
+                let existing = self
+                    .content
+                    .iter()
+                    .position(|item| matches!(item, PlotContent::DataLabels(_)));
+                let at = match existing {
+                    Some(at) => at,
+                    None => {
+                        let labels = DataLabels::new(interner, &DataLabelSpec::default());
+                        let at = insert_position(
+                            $kind.plot_child_order(),
+                            self.plot_content_locals(interner),
+                            "dLbls",
+                        );
+                        self.content.insert(at, PlotContent::DataLabels(labels));
+                        self.empty = false;
+                        at
+                    }
+                };
+                match &mut self.content[at] {
+                    PlotContent::DataLabels(labels) => Ok(labels),
+                    _ => unreachable!("the index names a DataLabels"),
+                }
+            }
+
+            /// Applies `spec` to the plot's data labels, creating them if it had none. Every series
+            /// that states nothing of its own takes these.
+            ///
+            /// # Errors
+            /// As [`data_labels_mut`](Self::data_labels_mut).
+            pub fn set_data_labels(
+                &mut self,
+                interner: &mut Interner,
+                spec: &DataLabelSpec,
+            ) -> Result<(), ChartDataError> {
+                self.data_labels_mut(interner)?;
+                let Some(at) = self
+                    .content
+                    .iter()
+                    .position(|item| matches!(item, PlotContent::DataLabels(_)))
+                else {
+                    return Ok(());
+                };
+                if let PlotContent::DataLabels(labels) = &mut self.content[at] {
+                    labels.apply(interner, spec);
+                }
+                Ok(())
+            }
+
+            /// Removes the plot's `c:dLbls`, answering whether one was there.
+            pub fn remove_data_labels(&mut self) -> bool {
+                let before = self.content.len();
+                self.content
+                    .retain(|item| !matches!(item, PlotContent::DataLabels(_)));
+                before != self.content.len()
+            }
+
+            /// The label settings the plot states in its own right — the tier every series of it
+            /// inherits from.
+            #[must_use]
+            pub fn plot_label_settings(&self, interner: &Interner) -> DataLabelSettings {
+                self.data_labels()
+                    .map(|labels| labels.settings(interner))
+                    .unwrap_or_default()
+            }
+
+            /// The label settings in force for one point of one series, merged across all three
+            /// tiers: the point's `c:dLbl` over the series' `c:dLbls` over this plot's.
+            ///
+            /// Pass `point_index = None` to stop at the series tier. A `series_index` the plot does
+            /// not have yields the plot tier alone.
+            #[must_use]
+            pub fn resolved_data_labels(
+                &self,
+                interner: &Interner,
+                series_index: usize,
+                point_index: Option<u32>,
+            ) -> DataLabelSettings {
+                let plot = self.plot_label_settings(interner);
+                match self.series_at(series_index) {
+                    Some(series) => series.resolved_data_labels(interner, &plot, point_index),
+                    None => plot,
+                }
+            }
+
+            /// Each child's local name in document order, for placement.
+            fn plot_content_locals<'a>(
+                &'a self,
+                interner: &'a Interner,
+            ) -> impl Iterator<Item = Option<&'a str>> {
+                self.content.iter().map(move |item| match item {
+                    PlotContent::Series(_) => Some("ser"),
+                    PlotContent::DataLabels(_) => Some("dLbls"),
+                    PlotContent::Raw(node) => chart_local(node, interner),
+                })
+            }
+
             /// Reads the `@val` of a raw scalar child of this plot (`c:grouping`, `c:holeSize`, …).
             fn raw_val(&self, interner: &Interner, local: &str) -> Option<&str> {
                 let raw = self.content.iter().filter_map(|item| match item {
                     PlotContent::Raw(node) => Some(node),
-                    PlotContent::Series(_) => None,
+                    _ => None,
                 });
                 raw_child_attr(raw, interner, local, "val")
             }
@@ -720,7 +1562,11 @@ pub struct BarChart {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+    #[xml(
+        children,
+        child(local = "ser", variant = Series, ty = Series),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+    )]
     content: Vec<PlotContent>,
 }
 
@@ -764,7 +1610,11 @@ pub struct LineChart {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+    #[xml(
+        children,
+        child(local = "ser", variant = Series, ty = Series),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+    )]
     content: Vec<PlotContent>,
 }
 
@@ -786,7 +1636,11 @@ pub struct PieChart {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+    #[xml(
+        children,
+        child(local = "ser", variant = Series, ty = Series),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+    )]
     content: Vec<PlotContent>,
 }
 
@@ -799,7 +1653,11 @@ pub struct AreaChart {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+    #[xml(
+        children,
+        child(local = "ser", variant = Series, ty = Series),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+    )]
     content: Vec<PlotContent>,
 }
 
@@ -822,7 +1680,11 @@ pub struct ScatterChart {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+    #[xml(
+        children,
+        child(local = "ser", variant = Series, ty = Series),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+    )]
     content: Vec<PlotContent>,
 }
 
@@ -844,7 +1706,11 @@ pub struct DoughnutChart {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+    #[xml(
+        children,
+        child(local = "ser", variant = Series, ty = Series),
+        child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+    )]
     content: Vec<PlotContent>,
 }
 
@@ -879,7 +1745,11 @@ macro_rules! declare_plot {
             name: RawName,
             attributes: Vec<RawAttribute>,
             empty: bool,
-            #[xml(children, child(local = "ser", variant = Series, ty = Series))]
+            #[xml(
+                children,
+                child(local = "ser", variant = Series, ty = Series),
+                child(local = "dLbls", variant = DataLabels, ty = DataLabels)
+            )]
             content: Vec<PlotContent>,
         }
 

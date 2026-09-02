@@ -233,6 +233,22 @@ impl NumberCache {
         self.empty = false;
     }
 
+    /// The number of points the cache **declares** (`c:ptCount@val`), which is not always the number
+    /// it lists: a sparse cache omits the points that were blank.
+    ///
+    /// This is what a per-point index is really bounded by. A cache that lists three `c:pt` for a
+    /// ten-row range still describes ten points, and a `c:dPt` naming the ninth is addressing real
+    /// data, not dangling.
+    #[must_use]
+    pub fn declared_point_count(&self, interner: &Interner) -> Option<u32> {
+        let raw = self.content.iter().filter_map(|item| match item {
+            CacheContent::Raw(node) => Some(node),
+            CacheContent::Point(_) => None,
+        });
+        crate::build::raw_child_attr(raw, interner, "ptCount", "val")
+            .and_then(|value| value.trim().parse().ok())
+    }
+
     /// A fresh empty `c:numCache` — what a numeric reference gets when it had no cache before an edit.
     pub(crate) fn empty(interner: &mut Interner) -> Self {
         Self {
@@ -542,6 +558,20 @@ impl NumericData {
             return reference.values();
         }
         self.literal().map(NumberCache::values).unwrap_or_default()
+    }
+
+    /// The number of points the source **declares** (`c:ptCount@val`), through whichever cache it
+    /// names — the bound a per-point `c:idx` is really measured against. See
+    /// [`NumberCache::declared_point_count`].
+    #[must_use]
+    pub fn declared_point_count(&self, interner: &Interner) -> Option<u32> {
+        if let Some(reference) = self.reference() {
+            return reference
+                .cache()
+                .and_then(|cache| cache.declared_point_count(interner));
+        }
+        self.literal()
+            .and_then(|literal| literal.declared_point_count(interner))
     }
 
     /// Rewrites the values — through the `c:numRef`'s cache, or through the `c:numLit` when the

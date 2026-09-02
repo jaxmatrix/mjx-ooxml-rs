@@ -18,13 +18,15 @@ use mjx_ooxml_types::support::on_off;
 use crate::axis::{chart_local, Axis, AxisKind, BlankDisplay, ChartTitle, Legend, LegendPosition};
 use mjx_ooxml_types::child_order::CHART;
 
+use crate::author::ChartDataError;
 use crate::build::{
     chart_val_leaf, insert_position, namespace_declaration, raw_child_attr, set_attr,
 };
+use crate::decoration::{DataLabelSettings, DataLabelSpec, DataLabels};
 use crate::plot::{
     Area3DChart, AreaChart, Bar3DChart, BarChart, BubbleChart, ChartKind, DoughnutChart,
     Line3DChart, LineChart, OfPieChart, Pie3DChart, PieChart, RadarChart, ScatterChart, Series,
-    StockChart, Surface3DChart, SurfaceChart,
+    SeriesDecoration, StockChart, Surface3DChart, SurfaceChart,
 };
 
 /// One ordered child of a [`PlotArea`]: a typed plot, a typed axis, or an opaque node.
@@ -295,6 +297,147 @@ impl PlotArea {
     /// The `n`-th axis (document order), mutably — `None` when the plot area declares fewer.
     pub fn axis_mut(&mut self, n: usize) -> Option<&mut Axis> {
         self.axes_mut().nth(n)
+    }
+
+    /// The `n`-th plot's own data-label settings (`c:dLbls`) — the outermost of the three tiers —
+    /// or `None` when the plot area holds fewer plots or that plot states none.
+    ///
+    /// Plots are numbered as [`chart_kinds`](Self::chart_kinds) numbers them, so a combo chart's
+    /// two plots are 0 and 1 and each carries its own label defaults.
+    #[must_use]
+    pub fn plot_data_labels(&self, plot_idx: usize) -> Option<&DataLabels> {
+        let item = self.plots().nth(plot_idx)?;
+        with_plot!(item, |plot| plot.data_labels(), None)
+    }
+
+    /// Applies `spec` to the `n`-th plot's data labels, creating them at their schema rank if it had
+    /// none. Answers `false`, changing nothing, when the plot area holds fewer plots.
+    ///
+    /// # Errors
+    /// [`ChartDataError::DecorationNotAllowed`] when that plot type declares no `c:dLbls` — the two
+    /// surface plots.
+    pub fn set_plot_data_labels(
+        &mut self,
+        interner: &mut Interner,
+        plot_idx: usize,
+        spec: &DataLabelSpec,
+    ) -> Result<bool, ChartDataError> {
+        let Some(item) = self.plot_content_mut(plot_idx) else {
+            return Ok(false);
+        };
+        with_plot!(
+            item,
+            |plot| plot.set_data_labels(interner, spec).map(|()| true),
+            Ok(false)
+        )
+    }
+
+    /// Suppresses every label of the `n`-th plot — a `c:dLbls` carrying `c:delete val="1"`.
+    /// Answers `false` when the plot area holds fewer plots.
+    ///
+    /// # Errors
+    /// As [`set_plot_data_labels`](Self::set_plot_data_labels).
+    pub fn delete_plot_data_labels(
+        &mut self,
+        interner: &mut Interner,
+        plot_idx: usize,
+    ) -> Result<bool, ChartDataError> {
+        let Some(item) = self.plot_content_mut(plot_idx) else {
+            return Ok(false);
+        };
+        with_plot!(
+            item,
+            |plot| {
+                plot.data_labels_mut(interner)?.delete_all(interner);
+                Ok(true)
+            },
+            Ok(false)
+        )
+    }
+
+    /// Removes the `n`-th plot's `c:dLbls` entirely, answering whether one was there.
+    pub fn remove_plot_data_labels(&mut self, plot_idx: usize) -> bool {
+        match self.plot_content_mut(plot_idx) {
+            Some(item) => with_plot!(item, |plot| plot.remove_data_labels(), false),
+            None => false,
+        }
+    }
+
+    /// Every plot of the plot area, in document order — the numbering
+    /// [`chart_kinds`](Self::chart_kinds) uses.
+    fn plots(&self) -> impl Iterator<Item = &PlotAreaContent> {
+        self.content
+            .iter()
+            .filter(|item| with_plot!(*item, |_plot| true, false))
+    }
+
+    /// The `n`-th plot's content slot, mutably.
+    fn plot_content_mut(&mut self, plot_idx: usize) -> Option<&mut PlotAreaContent> {
+        self.content
+            .iter_mut()
+            .filter(|item| with_plot!(&**item, |_plot| true, false))
+            .nth(plot_idx)
+    }
+
+    /// The `n`-th series across every plot (document order), bound to the kind of plot that holds
+    /// it — the write surface for its decoration. `None` when the chart draws fewer.
+    ///
+    /// A combo chart's plots have different series types, and the decoration a series may carry and
+    /// where it is placed both follow from that, so a decoration edit has to be addressed through
+    /// the owning plot rather than through the series alone.
+    pub fn series_decoration_mut(&mut self, n: usize) -> Option<SeriesDecoration<'_>> {
+        let mut remaining = n;
+        for item in &mut self.content {
+            let count = with_plot!(item, |plot| plot.series_count(), 0);
+            if remaining < count {
+                return with_plot!(item, |plot| plot.series_decoration_mut(remaining), None);
+            }
+            remaining -= count;
+        }
+        None
+    }
+
+    /// The data-label settings in force for one point of one series, merged across all three tiers
+    /// — the point's `c:dLbl` over the series' `c:dLbls` over the owning plot's.
+    ///
+    /// `series_index` is global across the plot area's plots, matching
+    /// [`all_series`](Self::all_series). `point_index` of `None` stops at the series tier. `None`
+    /// when the chart draws fewer series.
+    #[must_use]
+    pub fn resolved_data_labels(
+        &self,
+        interner: &Interner,
+        series_index: usize,
+        point_index: Option<u32>,
+    ) -> Option<DataLabelSettings> {
+        let mut remaining = series_index;
+        for item in &self.content {
+            let count = with_plot!(item, |plot| plot.series_count(), 0);
+            if remaining < count {
+                return with_plot!(
+                    item,
+                    |plot| Some(plot.resolved_data_labels(interner, remaining, point_index)),
+                    None
+                );
+            }
+            remaining -= count;
+        }
+        None
+    }
+
+    /// The kind of plot that holds the `n`-th series across every plot, or `None` when the chart
+    /// draws fewer.
+    #[must_use]
+    pub fn kind_of_series(&self, n: usize) -> Option<ChartKind> {
+        let mut remaining = n;
+        for item in &self.content {
+            let count = with_plot!(item, |plot| plot.series_count(), 0);
+            if remaining < count {
+                return with_plot!(item, |plot| Some(plot.kind()), None);
+            }
+            remaining -= count;
+        }
+        None
     }
 
     /// The plot area's ordered content — the typed plots and axes interleaved with the nodes this
@@ -594,6 +737,25 @@ impl ChartSpace {
     /// fewer. This is what a `set_chart_series_*` edit addresses.
     pub fn series_mut(&mut self, n: usize) -> Option<&mut Series> {
         self.plot_area_mut()?.all_series_mut().nth(n)
+    }
+
+    /// The `n`-th series across every plot, bound to the kind of plot that holds it — the write
+    /// surface for its decoration. `None` when the chart draws fewer.
+    pub fn series_decoration_mut(&mut self, n: usize) -> Option<SeriesDecoration<'_>> {
+        self.plot_area_mut()?.series_decoration_mut(n)
+    }
+
+    /// The data-label settings in force for one point of one series, merged across all three tiers.
+    /// See [`PlotArea::resolved_data_labels`].
+    #[must_use]
+    pub fn resolved_data_labels(
+        &self,
+        interner: &Interner,
+        series_index: usize,
+        point_index: Option<u32>,
+    ) -> Option<DataLabelSettings> {
+        self.plot_area()?
+            .resolved_data_labels(interner, series_index, point_index)
     }
 
     /// The built-in chart style the part names (`c:style@val`, `ST_Style` — 1 to 48), or `None` when

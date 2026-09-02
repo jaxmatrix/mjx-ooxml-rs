@@ -950,8 +950,9 @@ pub(crate) fn build_axis(
     chart_element(interner, kind.element_local_name(), Vec::new(), children)
 }
 
-/// Builds a `c:numFmt formatCode="…" sourceLinked="0"` element — an axis' number format.
-#[allow(dead_code)]
+/// Builds a `c:numFmt formatCode="…" sourceLinked="0"` element — an axis' or a data label's number
+/// format. `sourceLinked="0"` says the format is the one written here rather than the one the
+/// workbook cell carries, which is what a caller who states a format means.
 pub(crate) fn build_number_format(
     interner: &mut Interner,
     format_code: &str,
