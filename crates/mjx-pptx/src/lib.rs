@@ -1,10 +1,10 @@
 //! `mjx-pptx` — PresentationML: presentation, slides, shape trees.
 //!
-//! The entry point is [`Presentation`]: open a `.pptx`'s container bytes, read the slides and the text
-//! of their shapes, edit a run's text, and save. It owns an [`mjx_opc::Package`] and reuses the
-//! DrawingML text model ([`mjx_dml::TextBody`]) for shape text; everything it does not model is
-//! preserved verbatim by the OPC copy-on-write layer, so editing one run leaves every other part
-//! byte-identical.
+//! The entry point is [`Presentation`]: open a `.pptx`'s container bytes — or start from nothing with
+//! [`Presentation::blank`] — read the slides and the text of their shapes, edit a run's text, and
+//! save. It owns an [`mjx_opc::Package`] and reuses the DrawingML text model ([`mjx_dml::TextBody`])
+//! for shape text; everything it does not model is preserved verbatim by the OPC copy-on-write layer,
+//! so editing one run leaves every other part byte-identical.
 //!
 //! # Addressing shapes
 //!
@@ -67,6 +67,7 @@
 //! ```
 
 mod address;
+mod blank;
 mod build;
 pub mod constants;
 mod cursor;

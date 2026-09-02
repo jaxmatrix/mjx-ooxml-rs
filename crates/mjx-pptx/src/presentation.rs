@@ -37,7 +37,7 @@ use crate::slide::GraphicFrameKind;
 use crate::slide::{PlaceholderInfo, ShapeKind};
 use crate::surface::Surface;
 use crate::table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
-use crate::{build, constants, group, nav, placement, slide};
+use crate::{blank, build, constants, group, nav, placement, slide};
 
 /// An open PresentationML document: an OPC [`Package`] plus its resolved presentation part and the
 /// ordered list of slide parts.
@@ -69,8 +69,53 @@ impl Presentation {
     /// Returns [`PptxError`] if the package is unreadable, has no `officeDocument` relationship, or its
     /// `presentation.xml` / relationships are malformed.
     pub fn open(bytes: &[u8]) -> Result<Self, PptxError> {
-        let mut package = Package::open(bytes)?;
+        Self::from_package(Package::open(bytes)?)
+    }
 
+    /// Creates a blank deck: one slide master, one slide layout, a theme, and no slides.
+    ///
+    /// This is the constructor that does not need a file. Every part is authored from code (see the
+    /// `blank` module) rather than unpacked from a committed template, so the markup is markup this
+    /// project can explain and the same schema gate that validates an edited deck validates this one.
+    ///
+    /// The deck it hands back is a *starting point*, not a finished document: it has no slides.
+    /// [`add_slide_from_layout(0)`](Self::add_slide_from_layout) builds one on the layout, carrying a
+    /// title and a body placeholder to fill with
+    /// [`set_shape_text_content`](Self::set_shape_text_content); [`add_slide`](Self::add_slide)
+    /// builds an empty one for [`add_text_box`](Self::add_text_box).
+    ///
+    /// ```
+    /// # fn main() -> Result<(), mjx_pptx::PptxError> {
+    /// use mjx_pptx::{Presentation, SlideSize};
+    /// use mjx_ooxml_types::presentationml::SlideSizeKind;
+    ///
+    /// let mut deck = Presentation::blank(SlideSize {
+    ///     width_emu: 12_192_000,
+    ///     height_emu: 6_858_000,
+    ///     kind: SlideSizeKind::Screen16X9,
+    /// })?;
+    /// let slide = deck.add_slide_from_layout(0)?;
+    /// deck.set_shape_text_content(slide, 0, "Hello")?;
+    /// let bytes = deck.save()?;
+    /// # let _ = bytes;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError::InvalidSlideSize`] if either extent is outside the range `p:sldSz` can
+    /// express (`914400`..=`51206400` EMU), or another [`PptxError`] if building the package fails.
+    pub fn blank(size: SlideSize) -> Result<Self, PptxError> {
+        Self::from_package(blank::package(size)?)
+    }
+
+    /// Resolves an already-loaded package into a presentation: the `officeDocument` relationship, the
+    /// presentation part, and the slide / master / layout part graph.
+    ///
+    /// Shared by [`open`](Self::open) and [`blank`](Self::blank) so that a deck built from nothing is
+    /// navigated by exactly the same code that navigates a deck read from a file — a blank package
+    /// that this could not resolve would fail here rather than surviving as a special case.
+    fn from_package(mut package: Package) -> Result<Self, PptxError> {
         // Package root -> officeDocument relationship -> the presentation part.
         let presentation_part = {
             let root_rels = package
@@ -4580,9 +4625,10 @@ impl Presentation {
         group::move_out_of_group(root, interner, surface, &path)
     }
 
-    /// Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0, and
-    /// returns its index. The new slide is a blank shape tree; add content with
-    /// [`add_text_box`](Self::add_text_box) or use [`add_slide_with_text`](Self::add_slide_with_text).
+    /// Adds a new empty slide at the end of the deck, wired to the same slide layout as slide 0 — or,
+    /// on a deck with no slides yet, to the deck's first layout — and returns its index. The new
+    /// slide is a blank shape tree; add content with [`add_text_box`](Self::add_text_box) or use
+    /// [`add_slide_with_text`](Self::add_slide_with_text).
     ///
     /// This performs the package edits an added slide requires: it inserts the new slide part (with
     /// its content type), synthesizes the slide's relationships (to the layout), adds the
@@ -4590,12 +4636,25 @@ impl Presentation {
     /// part other than `presentation.xml` stays byte-identical.
     ///
     /// # Errors
-    /// Returns [`PptxError::NoSlideLayout`] if the deck has no slide to inherit a layout from, or
-    /// another [`PptxError`] if `presentation.xml` is malformed or a package edit fails.
+    /// Returns [`PptxError::NoSlideLayout`] if the deck offers no layout at all — neither a slide to
+    /// inherit one from nor a layout of its own — or another [`PptxError`] if `presentation.xml` is
+    /// malformed or a package edit fails.
     pub fn add_slide(&mut self) -> Result<usize, PptxError> {
         // Inherit slide 0's layout: reuse its relationship target verbatim (the new slide shares the
         // same directory, so the relative target resolves identically).
-        let first_slide = self.slides.first().ok_or(PptxError::NoSlideLayout)?.clone();
+        let Some(first_slide) = self.slides.first().cloned() else {
+            // A deck with no slides at all — one from [`blank`](Self::blank) — has nothing to
+            // inherit from, so build on the deck's first layout instead. Refusing here would make a
+            // blank deck a deck you cannot put a slide on, which is no deck at all.
+            let layout = self
+                .layouts
+                .first()
+                .ok_or(PptxError::NoSlideLayout)?
+                .clone();
+            let new_part = self.next_slide_part()?;
+            let layout_target = nav::relative_target(&new_part, &layout);
+            return self.insert_slide_part(&layout_target);
+        };
         let layout_target = {
             let rels = self
                 .package
@@ -6892,14 +6951,21 @@ impl Presentation {
         Ok(idx)
     }
 
-    /// A fresh slide part name in slide 0's directory: `slide{N}.xml` with `N` one past the largest
-    /// existing slide number.
+    /// A fresh slide part name: `slide{N}.xml` with `N` one past the largest existing slide number,
+    /// in the directory the deck's slides already live in.
+    ///
+    /// A deck with no slides yet — one from [`blank`](Self::blank) — has no slide 0 to take the
+    /// directory from, so it falls back to `slides/` beside the presentation part, which is where
+    /// every Office-written package puts them. The scan still runs: a package can hold a
+    /// `slideN.xml` that no `p:sldId` lists, and reusing that name would collide on insert.
     fn next_slide_part(&self) -> Result<PartName, PptxError> {
-        let first = self.slides.first().ok_or(PptxError::NoSlideLayout)?;
-        let dir = dir_of(first.as_str());
+        let dir = match self.slides.first() {
+            Some(first) => dir_of(first.as_str()).to_owned(),
+            None => format!("{}slides/", dir_of(self.presentation_part.as_str())),
+        };
         let mut max_n = 0u32;
         for part in self.package.part_names() {
-            if let Some(n) = slide_number(part.as_str(), dir) {
+            if let Some(n) = slide_number(part.as_str(), &dir) {
                 max_n = max_n.max(n);
             }
         }
