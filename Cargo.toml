@@ -15,6 +15,11 @@ members = [
     "crates/mjx-docx",
     "crates/mjx-xlsx",
     "crates/mjx-ooxml",
+    # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
+    # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
+    # number cover them too. The cross-build matrix excludes them: a PyO3 cdylib needs a Python
+    # interpreter for the *host*.
+    "bindings/mjx-python",
     "xtask",
 ]
 
@@ -22,7 +27,7 @@ members = [
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
 # PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
 # this one line. See CHANGELOG.md.
-version = "0.0.67"
+version = "0.0.68"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -63,6 +68,9 @@ mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
 mjx-ooxml = { path = "crates/mjx-ooxml" }
 
+# --- binding toolkits (used only by `bindings/*`) ---
+pyo3 = { version = "0.29", default-features = false, features = ["abi3-py39", "macros"] }
+
 # Workspace-wide lints. Each member opts in with `[lints] workspace = true`.
 # `unsafe_code` is `deny` (not `forbid`) so a crate that genuinely needs it (arena/interner)
 # can `#[allow(unsafe_code)]` locally with a written justification.
@@ -74,3 +82,15 @@ unreachable_pub = "warn"
 
 [workspace.lints.clippy]
 all = { level = "warn", priority = -1 }
+
+# Release-profile settings, added for the WebAssembly bundle and applied workspace-wide because a
+# smaller, faster release build is right everywhere.
+#
+# `panic` is left at the default `unwind` **on purpose**: PyO3 turns a Rust panic into a Python
+# exception by catching the unwind, and `panic = "abort"` would turn any panic into a hard process
+# abort — undefined behaviour across the FFI boundary rather than a raised exception. The wasm bundle
+# pays a few KB for that; the trade is not close.
+[profile.release]
+lto = true
+codegen-units = 1
+strip = "debuginfo"

@@ -1,0 +1,44 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "mjx-ooxml"
+requires-python = ">=3.9"
+description = "Read, edit and write PowerPoint (.pptx) files — a pure-Rust OOXML library."
+readme = "README.md"
+license = { text = "MIT OR Apache-2.0" }
+authors = [{ name = "Jai Shukla" }]
+keywords = ["ooxml", "pptx", "powerpoint", "office", "presentation"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Office/Business :: Office Suites",
+    "Typing :: Typed",
+]
+dynamic = ["version"]
+
+[project.urls]
+Repository = "https://github.com/jaxmatrix/mjx-ooxml-rs"
+
+[tool.maturin]
+# A mixed layout: the compiled half is `mjx_ooxml._mjx_ooxml`, and the pure-Python half beside it
+# carries `__init__.py`, the committed stubs and `py.typed`. That is what lets `mypy --strict` see
+# the whole surface without generating anything at build time.
+python-source = "python"
+module-name = "mjx_ooxml._mjx_ooxml"
+# `extension-module` drops the libpython link so the wheel resolves its symbols from whichever
+# interpreter loads it. `cargo build` and `cargo test` leave it off and link normally.
+features = ["pyo3/extension-module"]
+
+[tool.mypy]
+strict = true
+# The stubs are the contract; the tests are checked against them and nothing else.
+mypy_path = "python"
+files = ["tests"]
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
