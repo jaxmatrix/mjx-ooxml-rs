@@ -34,9 +34,11 @@
 use mjx_ooxml_core::{Interner, RawAttribute, RawElement};
 use mjx_ooxml_types::support::on_off;
 
+use mjx_ooxml_types::child_order::GROUP_TRANSFORM_2D;
+
 use crate::build::{
     angle_to_wire, attr_angle, attr_bool, attr_emu, dml_attr, dml_child, dml_child_mut,
-    dml_element, replace_or_insert_child, set_attr,
+    dml_element, set_attr,
 };
 use crate::geometry::{Angle, Emu};
 
@@ -411,23 +413,7 @@ fn insert_in_order(
     attributes: Vec<RawAttribute>,
 ) {
     let child = dml_element(interner, local, attributes, Vec::new());
-    replace_or_insert_child(
-        &mut element.children,
-        interner,
-        child,
-        |candidate| candidate == local,
-        child_rank,
-    );
-}
-
-/// A transform child's position in `CT_GroupTransform2D`'s `xsd:sequence`. `CT_Transform2D` is the
-/// same sequence without its last two members, so one ranking serves both.
-fn child_rank(local: &str) -> Option<usize> {
-    match local {
-        "off" => Some(0),
-        "ext" => Some(1),
-        "chOff" => Some(2),
-        "chExt" => Some(3),
-        _ => None,
-    }
+    GROUP_TRANSFORM_2D.replace_or_insert(&mut element.children, interner, child, |candidate| {
+        candidate == local
+    });
 }

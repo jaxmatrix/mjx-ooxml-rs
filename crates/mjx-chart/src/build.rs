@@ -6,6 +6,7 @@
 //! read model; the builders (added in C3) construct the `c:pt` / `c:v` a cache edit rewrites.
 
 use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
+use mjx_ooxml_types::child_order::ChildOrder;
 use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN};
 use mjx_xml::text::{escape_attribute, escape_text};
 
@@ -186,34 +187,24 @@ pub(crate) fn is_dml(name: &RawName, interner: &Interner) -> bool {
     namespace == Some(DML_MAIN.transitional) || namespace == DML_MAIN.strict
 }
 
-/// The index at which a child named `local` belongs among `existing`, given the schema's element
-/// order `order` (a list of local names in sequence order).
+/// The index at which a child named `local` belongs among `existing`, according to `order` — the
+/// generated `xsd:sequence` of the complex type being written.
 ///
-/// `existing` yields each present child's local name in document order, or `None` for a node that is
-/// not a named element this ordering knows (text, a comment, a foreign element) — such a node never
-/// moves the insertion point, so an unrecognised child keeps its place. The result is one past the
-/// last child that must precede `local`; a `local` the order does not name appends at the end.
+/// `existing` yields each present child's local name in document order, or `None` for a node the
+/// order does not name (text, a comment, a foreign element) — such a node never moves the insertion
+/// point, so unmodelled markup keeps its place. A `local` the order does not name goes at the end.
+///
+/// This is the raw-node-free form of [`ChildOrder::insert_index`], for the chart models whose
+/// children are typed enum values rather than [`RawNode`]s.
 pub(crate) fn insert_position<'a>(
+    order: &ChildOrder,
     existing: impl Iterator<Item = Option<&'a str>>,
-    order: &[&str],
     local: &str,
 ) -> usize {
-    let rank = order.iter().position(|&name| name == local);
-    let mut at = 0;
-    let mut count = 0;
-    for (index, name) in existing.enumerate() {
-        count = index + 1;
-        let Some(rank) = rank else { continue };
-        if let Some(other) = name.and_then(|name| order.iter().position(|&o| o == name)) {
-            if other <= rank {
-                at = index + 1;
-            }
-        }
-    }
-    if rank.is_none() {
-        return count;
-    }
-    at
+    order.insert_index_of_names(
+        existing.map(|name| name.and_then(|name| order.rank_of(None, name))),
+        local,
+    )
 }
 
 /// Builds an `xmlns:prefix="uri"` namespace declaration attribute. A freshly authored chart part is

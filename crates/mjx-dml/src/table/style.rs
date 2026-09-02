@@ -27,9 +27,14 @@ use mjx_ooxml_core::{
 };
 
 use super::properties::{TablePart, TableProperties};
+use mjx_ooxml_types::child_order::{
+    TABLE_CELL_3D, TABLE_CELL_BORDER_STYLE, TABLE_PART_STYLE, TABLE_STYLE, TABLE_STYLE_CELL_STYLE,
+    TABLE_STYLE_TEXT_STYLE,
+};
+
 use crate::build::{
     attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
-    is_dml, replace_or_insert_child, set_attr,
+    is_dml, set_attr,
 };
 use crate::color::{Color, ColorSpec};
 use crate::effect::EffectList;
@@ -250,29 +255,6 @@ impl TableStylePart {
             Self::NorthEastCell,
             Self::NorthWestCell,
         ]
-    }
-
-    /// This part's rank in `CT_TableStyle`'s sequence (`tblBg` is `0`; the parts follow). Order is
-    /// validity, so a newly inserted part is placed by this rather than appended.
-    #[must_use]
-    pub fn rank(self) -> usize {
-        // The XSD order: tblBg, wholeTbl, band1H, band2H, band1V, band2V, lastCol, firstCol, lastRow,
-        // seCell, swCell, firstRow, neCell, nwCell.
-        match self {
-            Self::WholeTable => 1,
-            Self::Band1Horizontal => 2,
-            Self::Band2Horizontal => 3,
-            Self::Band1Vertical => 4,
-            Self::Band2Vertical => 5,
-            Self::LastColumn => 6,
-            Self::FirstColumn => 7,
-            Self::LastRow => 8,
-            Self::SouthEastCell => 9,
-            Self::SouthWestCell => 10,
-            Self::FirstRow => 11,
-            Self::NorthEastCell => 12,
-            Self::NorthWestCell => 13,
-        }
     }
 }
 
@@ -835,26 +817,18 @@ impl Cell3D {
     /// Sets the cell's bevel (`a:bevel`), replacing the existing one in place.
     pub fn set_bevel(&mut self, interner: &mut Interner, bevel: &Bevel) {
         let element = build_bevel(interner, "bevel", bevel);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "bevel",
-            cell_3d_child_rank,
-        );
+        TABLE_CELL_3D.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "bevel"
+        });
         self.empty = false;
     }
 
     /// Sets the cell's light rig (`a:lightRig`), replacing any existing one in place.
     pub fn set_light_rig(&mut self, interner: &mut Interner, light_rig: &LightRig) {
         let element = build_light_rig(interner, light_rig);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "lightRig",
-            cell_3d_child_rank,
-        );
+        TABLE_CELL_3D.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "lightRig"
+        });
         self.empty = false;
     }
 }
@@ -866,83 +840,6 @@ impl Cell3D {
 // schema sequence, so content this tier does not model (an `extLst`, a `cell3D`, an unknown child)
 // survives. The ranks below *are* those sequences — extend them, never append.
 // =================================================================================================
-
-/// A child's rank in `CT_TableStyle`'s sequence: `tblBg`, the thirteen part slots, then `extLst`.
-fn table_style_child_rank(local: &str) -> Option<usize> {
-    if local == "tblBg" {
-        return Some(0);
-    }
-    if let Some(part) = TableStylePart::all()
-        .into_iter()
-        .find(|p| p.wire() == local)
-    {
-        return Some(part.rank());
-    }
-    if local == "extLst" {
-        return Some(14);
-    }
-    None
-}
-
-/// A child's rank in `CT_TablePartStyle`'s sequence: `tcTxStyle`, then `tcStyle`.
-fn part_style_child_rank(local: &str) -> Option<usize> {
-    match local {
-        "tcTxStyle" => Some(0),
-        "tcStyle" => Some(1),
-        _ => None,
-    }
-}
-
-/// A child's rank in `CT_TableStyleCellStyle`'s sequence: `tcBdr`, the fill choice, then `cell3D`.
-fn cell_style_child_rank(local: &str) -> Option<usize> {
-    match local {
-        "tcBdr" => Some(0),
-        "fill" | "fillRef" => Some(1),
-        "cell3D" => Some(2),
-        _ => None,
-    }
-}
-
-/// A child's rank in `CT_Cell3D`'s sequence: `bevel` (required), then the optional `lightRig`, then
-/// `extLst`.
-fn cell_3d_child_rank(local: &str) -> Option<usize> {
-    match local {
-        "bevel" => Some(0),
-        "lightRig" => Some(1),
-        "extLst" => Some(2),
-        _ => None,
-    }
-}
-
-/// A child's rank in `CT_TableStyleTextStyle`'s sequence: the font choice, the colour, then `extLst`.
-fn text_style_child_rank(local: &str) -> Option<usize> {
-    if local == "font" || local == "fontRef" {
-        return Some(0);
-    }
-    if Color::is_choice_local(local) {
-        return Some(1);
-    }
-    if local == "extLst" {
-        return Some(2);
-    }
-    None
-}
-
-/// A child's rank in `CT_TableCellBorderStyle`'s sequence: the eight edges, then `extLst`.
-fn border_style_child_rank(local: &str) -> Option<usize> {
-    match local {
-        "left" => Some(0),
-        "right" => Some(1),
-        "top" => Some(2),
-        "bottom" => Some(3),
-        "insideH" => Some(4),
-        "insideV" => Some(5),
-        "tl2br" => Some(6),
-        "tr2bl" => Some(7),
-        "extLst" => Some(8),
-        _ => None,
-    }
-}
 
 /// Removes an unprefixed attribute, if present.
 fn remove_unprefixed_attr(attributes: &mut Vec<RawAttribute>, interner: &Interner, local: &str) {
@@ -1031,13 +928,7 @@ impl TableStyle {
         let mut element = part_style.to_xml(interner);
         element.name = dml_name(interner, part.wire());
         let wire = part.wire();
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == wire,
-            table_style_child_rank,
-        );
+        TABLE_STYLE.replace_or_insert(&mut self.children, interner, element, |local| local == wire);
         self.empty = false;
     }
 
@@ -1045,13 +936,9 @@ impl TableStyle {
     pub fn set_background(&mut self, interner: &mut Interner, background: &TableBackgroundStyle) {
         let mut element = background.to_xml(interner);
         element.name = dml_name(interner, "tblBg");
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "tblBg",
-            table_style_child_rank,
-        );
+        TABLE_STYLE.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "tblBg"
+        });
         self.empty = false;
     }
 }
@@ -1072,13 +959,9 @@ impl TablePartStyle {
     pub fn set_text_style(&mut self, interner: &mut Interner, text: &TableStyleTextStyle) {
         let mut element = text.to_xml(interner);
         element.name = dml_name(interner, "tcTxStyle");
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "tcTxStyle",
-            part_style_child_rank,
-        );
+        TABLE_PART_STYLE.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "tcTxStyle"
+        });
         self.empty = false;
     }
 
@@ -1086,13 +969,9 @@ impl TablePartStyle {
     pub fn set_cell_style(&mut self, interner: &mut Interner, cell: &TableStyleCellStyle) {
         let mut element = cell.to_xml(interner);
         element.name = dml_name(interner, "tcStyle");
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "tcStyle",
-            part_style_child_rank,
-        );
+        TABLE_PART_STYLE.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "tcStyle"
+        });
         self.empty = false;
     }
 }
@@ -1123,12 +1002,11 @@ impl TableStyleTextStyle {
     pub fn set_color(&mut self, interner: &mut Interner, color: &ColorSpec) {
         if let Some(color) = Color::from_spec(interner, color) {
             let element = color.to_xml(interner);
-            replace_or_insert_child(
+            TABLE_STYLE_TEXT_STYLE.replace_or_insert(
                 &mut self.children,
                 interner,
                 element,
                 Color::is_choice_local,
-                text_style_child_rank,
             );
             self.empty = false;
         }
@@ -1152,13 +1030,9 @@ impl TableStyleCellStyle {
     pub fn set_fill(&mut self, interner: &mut Interner, fill: &FillSpec) {
         let group = fill.to_fill(interner).to_xml(interner);
         let wrapper = dml_element(interner, "fill", Vec::new(), vec![RawNode::Element(group)]);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            wrapper,
-            |local| local == "fill" || local == "fillRef",
-            cell_style_child_rank,
-        );
+        TABLE_STYLE_CELL_STYLE.replace_or_insert(&mut self.children, interner, wrapper, |local| {
+            local == "fill" || local == "fillRef"
+        });
         self.empty = false;
     }
 
@@ -1169,26 +1043,18 @@ impl TableStyleCellStyle {
             .unwrap_or_else(|| TableCellBorderStyle::new(interner));
         borders.set_border(interner, edge, line);
         let element = borders.to_xml(interner);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "tcBdr",
-            cell_style_child_rank,
-        );
+        TABLE_STYLE_CELL_STYLE.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "tcBdr"
+        });
         self.empty = false;
     }
 
     /// Sets the cell's 3-D (`a:cell3D`), replacing any existing one in place.
     pub fn set_cell_3d(&mut self, interner: &mut Interner, cell_3d: &Cell3D) {
         let element = cell_3d.to_xml(interner);
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |local| local == "cell3D",
-            cell_style_child_rank,
-        );
+        TABLE_STYLE_CELL_STYLE.replace_or_insert(&mut self.children, interner, element, |local| {
+            local == "cell3D"
+        });
         self.empty = false;
     }
 }
@@ -1216,12 +1082,11 @@ impl TableCellBorderStyle {
             vec![RawNode::Element(ln)],
         );
         let wire = edge.wire();
-        replace_or_insert_child(
+        TABLE_CELL_BORDER_STYLE.replace_or_insert(
             &mut self.children,
             interner,
             edge_element,
             |local| local == wire,
-            border_style_child_rank,
         );
         self.empty = false;
     }

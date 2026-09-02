@@ -5,6 +5,9 @@
 //! type carries wire (de)serialization, and the original symbol + wire token are documented on the
 //! item. Regenerate with `cargo run -p xtask -- codegen`.
 //!
+//! Child order — where a child element belongs among its siblings, so a serializer cannot write an
+//! `xsd:sequence` out of order — is in [`child_order`], generated from the same schemas.
+//!
 //! Two-valued OOXML toggles (`ST_OnOff` family) are modeled as `bool` / `Option<bool>`; all wire
 //! spellings are normalized on read and one canonical form is written — see [`support`].
 //!
@@ -16,6 +19,7 @@
 //! assert_eq!(CalendarType::GregorianUnitedStates.to_wire(), "gregorianUs");
 //! ```
 
+pub mod child_order;
 pub mod drawingml;
 pub mod presentationml;
 pub mod support;

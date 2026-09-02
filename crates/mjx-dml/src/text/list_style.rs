@@ -14,7 +14,9 @@
 
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawName, RawNode, ToXml as _};
 
-use crate::build::{dml_child, dml_name, fidelity_element_impls, is_dml, replace_or_insert_child};
+use mjx_ooxml_types::child_order::TEXT_LIST_STYLE;
+
+use crate::build::{dml_child, dml_name, fidelity_element_impls, is_dml};
 use crate::geometry::IndentLevel;
 use crate::text::paragraph_properties::{ParagraphProperties, ParagraphPropertiesSpec};
 
@@ -128,13 +130,9 @@ impl TextListStyle {
             }
             None => spec.to_properties(interner, local).to_xml(interner),
         };
-        replace_or_insert_child(
-            &mut self.children,
-            interner,
-            element,
-            |candidate| candidate == local,
-            list_style_child_rank,
-        );
+        TEXT_LIST_STYLE.replace_or_insert(&mut self.children, interner, element, |candidate| {
+            candidate == local
+        });
         self.empty = false;
     }
 
@@ -164,24 +162,6 @@ fn level_local(level: IndentLevel) -> String {
     format!("lvl{}pPr", level.value() + 1)
 }
 
-/// A child's rank in `CT_TextListStyle`'s `xsd:sequence`: `a:defPPr`, then `a:lvl1pPr` through
-/// `a:lvl9pPr`, then `a:extLst`.
-///
-/// Order is validity, not style, so a newly inserted level is placed by this rather than appended.
-fn list_style_child_rank(local: &str) -> Option<usize> {
-    match local {
-        "defPPr" => return Some(0),
-        "extLst" => return Some(10),
-        _ => {}
-    }
-    let level: usize = local
-        .strip_prefix("lvl")?
-        .strip_suffix("pPr")?
-        .parse()
-        .ok()?;
-    (1..=9).contains(&level).then_some(level)
-}
-
 fidelity_element_impls!(TextListStyle);
 
 #[cfg(test)]
@@ -189,15 +169,18 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_schema_sequence_ranks_the_default_first_and_the_extension_list_last() {
-        assert_eq!(list_style_child_rank("defPPr"), Some(0));
-        assert_eq!(list_style_child_rank("lvl1pPr"), Some(1));
-        assert_eq!(list_style_child_rank("lvl9pPr"), Some(9));
-        assert_eq!(list_style_child_rank("extLst"), Some(10));
+    fn the_generated_sequence_ranks_the_default_first_and_the_extension_list_last() {
+        // The ranks this model places by are `CT_TextListStyle`'s, generated from the schema — not a
+        // table hand-copied into this file.
+        assert_eq!(TEXT_LIST_STYLE.symbol, "CT_TextListStyle");
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "defPPr"), Some(0));
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "lvl1pPr"), Some(1));
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "lvl9pPr"), Some(9));
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "extLst"), Some(10));
         // Not a member of the sequence, so it is not placed by rank.
-        assert_eq!(list_style_child_rank("lvl0pPr"), None);
-        assert_eq!(list_style_child_rank("lvl10pPr"), None);
-        assert_eq!(list_style_child_rank("bodyPr"), None);
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "lvl0pPr"), None);
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "lvl10pPr"), None);
+        assert_eq!(TEXT_LIST_STYLE.rank_of(None, "bodyPr"), None);
     }
 
     #[test]
