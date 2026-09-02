@@ -28,6 +28,54 @@ Four mechanisms make it true:
   reproduced identically, because deflate parameters vary by encoder. If you need to compare two decks,
   compare parts, not archives.
 
+## What the library refuses to write
+
+The guarantee above is about what this library *does not touch*. Its other half is about what it
+does: **a deck that would make PowerPoint say it "found a problem with the content and needs to
+repair" is not written at all.**
+
+`save` validates before it writes a byte, and the check is not opt-in — a check you have to remember
+is a check that ships the fault it was meant to catch. Two layers, both read-only:
+
+- **The package graph** (`mjx-opc`): every part has a content type; every internal relationship
+  resolves to a part the package holds; relationship ids are unique within their `.rels`; and markup
+  never names a relationship its own `.rels` does not declare. Each is refused as a typed
+  [`PackageDefect`](mjx_opc::PackageDefect) naming the part, the relationship and the identifier.
+- **PresentationML** (`mjx-pptx`): `p:cNvPr@id` is unique within a shape tree; `p:sldIdLst`,
+  `p:sldMasterIdLst` and `p:sldLayoutIdLst` have unique entry ids, name each relationship once, name
+  relationships that lead to the right kind of part, and list every part of that kind the deck relates
+  to. Refused as a typed [`PresentationDefect`](crate::PresentationDefect).
+
+None of these is visible to a schema check. Every one of them is a property of the *graph*: each part
+is perfectly valid against its XSD while the package is broken.
+
+The check is scoped to **the markup this library will write** — a part still holding the bytes it was
+opened with is re-emitted verbatim and is never faulted, so a file that arrives broken can still be
+written back, and *reading* a slide never changes whether a deck saves. The moment an edit makes those
+bytes ours, the same defect is refused.
+
+`save_unchecked` is the escape hatch, for when writing an inconsistent deck is the point:
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+use mjx_pptx::Presentation;
+
+let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+deck.set_shape_text_content(0, 0, "Q3 results")?;
+
+// The default: refuses to write a deck that would need repair.
+let bytes = deck.save()?;
+
+// Or ask for the invariants without writing anything.
+deck.validate()?;
+
+// The deliberate escape hatch — writes what `save` refuses.
+let bytes = deck.save_unchecked()?;
+# let _ = bytes;
+# Ok(())
+# }
+```
+
 ## The content that is not DrawingML
 
 A `.pptx` carries five kinds of content that are not DrawingML shapes: OLE objects, ActiveX controls,
