@@ -151,6 +151,323 @@ pub struct SoftEdgeEffect {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Constructing an effect
+// ---------------------------------------------------------------------------------------------
+//
+// Every effect above is a plain struct of `pub` fields, which is right for reading one but wrong
+// for writing one: naming a shadow's distance meant spelling out the eight other fields as `None`.
+// So each carries a `new` that takes exactly what the schema makes **required** — a color, a preset,
+// a radius — and a `with_` method per optional attribute, the same spec-builder shape `LineSpec`,
+// `CharacterPropertiesSpec` and `CellFormat` already use. An attribute a builder does not name stays
+// unset, and an unset attribute is not written, so the renderer applies the schema default.
+
+impl BlurEffect {
+    /// A blur that names no radius and no grow flag — the schema defaults (`0` EMU, growing).
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the blur radius (`@rad`).
+    #[must_use]
+    pub fn with_radius(mut self, radius: Emu) -> Self {
+        self.radius = Some(radius);
+        self
+    }
+
+    /// Sets whether the blur grows the object's bounds (`@grow`).
+    #[must_use]
+    pub fn with_grow(mut self, grow: bool) -> Self {
+        self.grow = Some(grow);
+        self
+    }
+}
+
+impl FillOverlayEffect {
+    /// An overlay of `fill`, blended with `blend`. Both are required by the schema.
+    #[must_use]
+    pub fn new(fill: FillSpec, blend: BlendMode) -> Self {
+        Self { fill, blend }
+    }
+}
+
+impl GlowEffect {
+    /// A glow of `color`, with no radius of its own (the schema default, `0`).
+    #[must_use]
+    pub fn new(color: ColorSpec) -> Self {
+        Self {
+            color,
+            radius: None,
+        }
+    }
+
+    /// Sets the glow radius (`@rad`).
+    #[must_use]
+    pub fn with_radius(mut self, radius: Emu) -> Self {
+        self.radius = Some(radius);
+        self
+    }
+}
+
+impl InnerShadowEffect {
+    /// An inner shadow of `color`, with no blur, offset or direction of its own.
+    #[must_use]
+    pub fn new(color: ColorSpec) -> Self {
+        Self {
+            color,
+            blur_radius: None,
+            distance: None,
+            direction: None,
+        }
+    }
+
+    /// Sets the blur radius (`@blurRad`).
+    #[must_use]
+    pub fn with_blur_radius(mut self, blur_radius: Emu) -> Self {
+        self.blur_radius = Some(blur_radius);
+        self
+    }
+
+    /// Sets the offset distance (`@dist`).
+    #[must_use]
+    pub fn with_distance(mut self, distance: Emu) -> Self {
+        self.distance = Some(distance);
+        self
+    }
+
+    /// Sets the offset direction (`@dir`).
+    #[must_use]
+    pub fn with_direction(mut self, direction: Angle) -> Self {
+        self.direction = Some(direction);
+        self
+    }
+}
+
+impl OuterShadowEffect {
+    /// An outer shadow of `color`, naming nothing else — no blur, offset, scale, skew, alignment or
+    /// rotation, so every one of them renders at its schema default.
+    #[must_use]
+    pub fn new(color: ColorSpec) -> Self {
+        Self {
+            color,
+            blur_radius: None,
+            distance: None,
+            direction: None,
+            scale_x: None,
+            scale_y: None,
+            skew_x: None,
+            skew_y: None,
+            alignment: None,
+            rotate_with_shape: None,
+        }
+    }
+
+    /// Sets the blur radius (`@blurRad`).
+    #[must_use]
+    pub fn with_blur_radius(mut self, blur_radius: Emu) -> Self {
+        self.blur_radius = Some(blur_radius);
+        self
+    }
+
+    /// Sets the offset distance (`@dist`).
+    #[must_use]
+    pub fn with_distance(mut self, distance: Emu) -> Self {
+        self.distance = Some(distance);
+        self
+    }
+
+    /// Sets the offset direction (`@dir`).
+    #[must_use]
+    pub fn with_direction(mut self, direction: Angle) -> Self {
+        self.direction = Some(direction);
+        self
+    }
+
+    /// Sets the horizontal scaling factor (`@sx`).
+    #[must_use]
+    pub fn with_scale_x(mut self, scale_x: Fraction) -> Self {
+        self.scale_x = Some(scale_x);
+        self
+    }
+
+    /// Sets the vertical scaling factor (`@sy`).
+    #[must_use]
+    pub fn with_scale_y(mut self, scale_y: Fraction) -> Self {
+        self.scale_y = Some(scale_y);
+        self
+    }
+
+    /// Sets the horizontal skew angle (`@kx`).
+    #[must_use]
+    pub fn with_skew_x(mut self, skew_x: Angle) -> Self {
+        self.skew_x = Some(skew_x);
+        self
+    }
+
+    /// Sets the vertical skew angle (`@ky`).
+    #[must_use]
+    pub fn with_skew_y(mut self, skew_y: Angle) -> Self {
+        self.skew_y = Some(skew_y);
+        self
+    }
+
+    /// Sets the origin the shadow is scaled and skewed about (`@algn`).
+    #[must_use]
+    pub fn with_alignment(mut self, alignment: RectangleAlignment) -> Self {
+        self.alignment = Some(alignment);
+        self
+    }
+
+    /// Sets whether the shadow rotates with the shape (`@rotWithShape`).
+    #[must_use]
+    pub fn with_rotate_with_shape(mut self, rotate_with_shape: bool) -> Self {
+        self.rotate_with_shape = Some(rotate_with_shape);
+        self
+    }
+}
+
+impl PresetShadowEffect {
+    /// One of the 20 preset shadows, in `color`, with no offset of its own.
+    #[must_use]
+    pub fn new(preset: PresetShadow, color: ColorSpec) -> Self {
+        Self {
+            preset,
+            color,
+            distance: None,
+            direction: None,
+        }
+    }
+
+    /// Sets the offset distance (`@dist`).
+    #[must_use]
+    pub fn with_distance(mut self, distance: Emu) -> Self {
+        self.distance = Some(distance);
+        self
+    }
+
+    /// Sets the offset direction (`@dir`).
+    #[must_use]
+    pub fn with_direction(mut self, direction: Angle) -> Self {
+        self.direction = Some(direction);
+        self
+    }
+}
+
+impl ReflectionEffect {
+    /// A reflection that names nothing — every attribute at its schema default.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Sets the blur radius (`@blurRad`).
+    #[must_use]
+    pub fn with_blur_radius(mut self, blur_radius: Emu) -> Self {
+        self.blur_radius = Some(blur_radius);
+        self
+    }
+
+    /// Sets the alpha the reflection starts at (`@stA`).
+    #[must_use]
+    pub fn with_start_alpha(mut self, start_alpha: Fraction) -> Self {
+        self.start_alpha = Some(start_alpha);
+        self
+    }
+
+    /// Sets where the alpha gradient starts (`@stPos`).
+    #[must_use]
+    pub fn with_start_position(mut self, start_position: Fraction) -> Self {
+        self.start_position = Some(start_position);
+        self
+    }
+
+    /// Sets the alpha the reflection ends at (`@endA`).
+    #[must_use]
+    pub fn with_end_alpha(mut self, end_alpha: Fraction) -> Self {
+        self.end_alpha = Some(end_alpha);
+        self
+    }
+
+    /// Sets where the alpha gradient ends (`@endPos`).
+    #[must_use]
+    pub fn with_end_position(mut self, end_position: Fraction) -> Self {
+        self.end_position = Some(end_position);
+        self
+    }
+
+    /// Sets the offset distance (`@dist`).
+    #[must_use]
+    pub fn with_distance(mut self, distance: Emu) -> Self {
+        self.distance = Some(distance);
+        self
+    }
+
+    /// Sets the offset direction (`@dir`).
+    #[must_use]
+    pub fn with_direction(mut self, direction: Angle) -> Self {
+        self.direction = Some(direction);
+        self
+    }
+
+    /// Sets the direction the alpha gradient fades in (`@fadeDir`).
+    #[must_use]
+    pub fn with_fade_direction(mut self, fade_direction: Angle) -> Self {
+        self.fade_direction = Some(fade_direction);
+        self
+    }
+
+    /// Sets the horizontal scaling factor (`@sx`).
+    #[must_use]
+    pub fn with_scale_x(mut self, scale_x: Fraction) -> Self {
+        self.scale_x = Some(scale_x);
+        self
+    }
+
+    /// Sets the vertical scaling factor (`@sy`).
+    #[must_use]
+    pub fn with_scale_y(mut self, scale_y: Fraction) -> Self {
+        self.scale_y = Some(scale_y);
+        self
+    }
+
+    /// Sets the horizontal skew angle (`@kx`).
+    #[must_use]
+    pub fn with_skew_x(mut self, skew_x: Angle) -> Self {
+        self.skew_x = Some(skew_x);
+        self
+    }
+
+    /// Sets the vertical skew angle (`@ky`).
+    #[must_use]
+    pub fn with_skew_y(mut self, skew_y: Angle) -> Self {
+        self.skew_y = Some(skew_y);
+        self
+    }
+
+    /// Sets the origin the reflection is scaled and skewed about (`@algn`).
+    #[must_use]
+    pub fn with_alignment(mut self, alignment: RectangleAlignment) -> Self {
+        self.alignment = Some(alignment);
+        self
+    }
+
+    /// Sets whether the reflection rotates with the shape (`@rotWithShape`).
+    #[must_use]
+    pub fn with_rotate_with_shape(mut self, rotate_with_shape: bool) -> Self {
+        self.rotate_with_shape = Some(rotate_with_shape);
+        self
+    }
+}
+
+impl SoftEdgeEffect {
+    /// Feathered edges of `radius`, which the schema requires.
+    #[must_use]
+    pub fn new(radius: Emu) -> Self {
+        Self { radius }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
 // EffectList — the fidelity wrapper
 // ---------------------------------------------------------------------------------------------
 

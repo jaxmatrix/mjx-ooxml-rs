@@ -77,20 +77,15 @@ fn main() -> Result<()> {
     deck.set_shape_effects(
         slide,
         shadowed,
-        // Only `color` is required; every schema-defaulted attribute may stay `None`.
+        // `new` takes what the schema makes required — here a colour — and each `with_` names one
+        // more attribute. Whatever is not named stays unset, and renders at its schema default.
         &EffectListSpec {
-            outer_shadow: Some(OuterShadowEffect {
-                color: ColorSpec::Srgb("404040".into()),
-                blur_radius: Some(Emu::from_points(4.0)),
-                distance: Some(Emu::from_points(3.0)),
-                direction: Some(Angle::from_degrees(45.0)),
-                scale_x: None,
-                scale_y: None,
-                skew_x: None,
-                skew_y: None,
-                alignment: None,
-                rotate_with_shape: None,
-            }),
+            outer_shadow: Some(
+                OuterShadowEffect::new(ColorSpec::Srgb("404040".into()))
+                    .with_blur_radius(Emu::from_points(4.0))
+                    .with_distance(Emu::from_points(3.0))
+                    .with_direction(Angle::from_degrees(45.0)),
+            ),
             ..EffectListSpec::new()
         },
     )?;
