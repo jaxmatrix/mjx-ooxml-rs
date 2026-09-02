@@ -123,7 +123,18 @@ therefore answer at level 8 — with the default, not with level 0's bullet.
 
 Tier 7 is deliberately conservative: a font slot the theme does not define keeps its `+mj-lt`
 reference rather than being replaced by a guess. The file points somewhere the theme does not go,
-and that is the honest answer.
+and that is the honest answer. The same holds for a `+…` spelling `a:fontScheme` has no slot for
+(`+mj-sym`): a reference is replaced only by a font the theme actually names, never by a plausible
+substitute, so a caller reading back a reference knows the deck asked for something its theme cannot
+supply. This is a **decision, not a gap** — see the non-goals in
+[fidelity and the known gaps](crate::guide::fidelity_and_gaps).
+
+Tier 3 is the only tier belonging to the shape itself, and it is the one you can author: state it
+with [`Presentation::set_shape_list_style_level`] (or
+[`Presentation::set_shape_list_style_default`] for the `a:defPPr` beneath the levels), read back what
+the shape declares with [`Presentation::shape_list_style_level`], and hand a level back to the tiers
+below with [`Presentation::clear_shape_list_style_level`]. Tiers 4 to 6 belong to the layout, the
+master and `presentation.xml`, and are authored by editing those surfaces.
 
 ## Table cells
 

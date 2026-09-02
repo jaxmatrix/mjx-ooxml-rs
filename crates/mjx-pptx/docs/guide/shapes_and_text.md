@@ -114,6 +114,46 @@ Splitting runs repeatedly leaves a paragraph fragmented.
 [`coalesce_paragraph_runs`](Presentation::coalesce_paragraph_runs) merges adjacent runs back together
 when their *effective* formatting matches, and returns how many it removed.
 
+## List formatting for the whole shape
+
+The four setters above each name a place in the text. A fifth scope sits underneath all of them: the
+shape's own list style (`a:lstStyle`), which says *every paragraph at this indent level, in this
+shape*. State it once and every paragraph at that level picks it up — including paragraphs added
+later, which is what makes it different from looping the paragraph setter.
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# use mjx_pptx::Presentation;
+# let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+use mjx_dml::{CharacterPropertiesSpec, IndentLevel, ParagraphPropertiesSpec};
+
+deck.set_shape_list_style_level(
+    0,
+    1,
+    IndentLevel::TOP,
+    &ParagraphPropertiesSpec::new()
+        .with_bullet_character("•")
+        .with_left_margin_points(18.0)
+        .with_default_run_properties(CharacterPropertiesSpec::new().with_size_points(20.0)),
+)?;
+let stated = deck.shape_list_style_level(0, 1, IndentLevel::TOP)?;
+# let _ = stated;
+# Ok(())
+# }
+```
+
+The level's `with_default_run_properties` is how its *character* formatting — size, weight, colour —
+is stated; there is one spec for both halves because `a:lvlNpPr` carries both.
+
+Three rules. The setter **merges**, as every other setter does, so naming an indent does not drop the
+bullet a previous call set. A paragraph that states the property itself still wins — this tier sits
+*beneath* the paragraph, not above it. And what you remove falls through rather than becoming a
+default: [`clear_shape_list_style_level`](Presentation::clear_shape_list_style_level) hands the level
+back to the layout, the master and `presentation.xml`, while
+[`clear_shape_list_style`](Presentation::clear_shape_list_style) drops the element entirely.
+[`set_shape_list_style_default`](Presentation::set_shape_list_style_default) states the `a:defPPr` that
+answers where the style names no level at all.
+
 ## Editing one shape several ways
 
 Stating the address once per edit reads badly. [`Presentation::shape`] opens a [`ShapeCursor`]: the
