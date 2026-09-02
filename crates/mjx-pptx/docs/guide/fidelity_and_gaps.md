@@ -48,11 +48,16 @@ Each row is a deliberate decision with an issue behind it, not an oversight.
 
 | Gap | Consequence | Issue |
 |---|---|---|
-| An authored chart has **no embedded workbook** | It renders correctly everywhere, but PowerPoint's "Edit Data" has nothing to open | MJX-116 |
-| Editing an existing chart does not rewrite its workbook | The workbook goes stale; the rendered cache is correct | MJX-116 |
-| Unmodelled plot types (radar, bubble, 3-D, surface) | Round-trip fine; `chart_series` does not see them | — |
-| Axes, legend, styling, colour parts | Preserved verbatim, no typed surface | — |
-| Literal data (`c:numLit`) and multi-level categories | Read path is cache-only | — |
+| Refreshing a chart's workbook **regenerates** it | A data edit rewrites the embedded workbook from the chart's own data, so the two always agree. Formatting or extra sheets a third-party workbook carried do not survive that. Detach the workbook first if you would rather keep it stale than lose it | MJX-116 |
+| Chart **colour and style parts** (`colors1.xml`, `style1.xml`) | Preserved verbatim, no typed surface. These are Office 2013+ extensions outside ECMA-376, and a chart renders without them; the in-schema styling — `c:style`, `c:varyColors`, a series' `c:spPr` — is modelled | — |
+| A series' data **labels**, **trendlines**, **error bars** and per-point formatting (`c:dLbls`, `c:trendline`, `c:errBars`, `c:dPt`) | Preserved verbatim, no typed surface | — |
+
+The rest of this block is closed (MJX-116): an authored chart now writes its embedded workbook and a
+data edit refreshes it; all sixteen plot types read their series; literal (`c:numLit`/`c:strLit`) and
+multi-level (`c:multiLvlStrRef`) sources read; and the axes, gridlines, titles, legend and series
+fill/outline have a typed surface. **The workbook is written by a minimal SpreadsheetML writer inside
+`mjx-chart`, scheduled for removal once `mjx-xlsx` can write** — it writes one sheet, a shared-string
+table and a styles skeleton, and deliberately nothing else.
 
 ### Tables
 

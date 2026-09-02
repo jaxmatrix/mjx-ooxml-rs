@@ -164,7 +164,28 @@ deck.add_chart(0, &chart, ShapeBounds::from_inches(1.0, 1.5, 8.0, 4.0))?;
 # }
 ```
 
-Six kinds are authored: `Bar`, `Line`, `Pie`, `Area`, `Scatter`, `Doughnut`.
+Every plot type `CT_PlotArea` admits can be authored and read: `Bar`, `Bar3D`, `Line`, `Line3D`,
+`Pie`, `Pie3D`, `OfPie`, `Area`, `Area3D`, `Scatter`, `Doughnut`, `Radar`, `Bubble`, `Stock`,
+`Surface` and `Surface3D`. `Stock` is the one with a shape requirement of its own — `CT_StockChart`
+declares three or four series (open, high, low, close), and `add_chart` refuses anything else rather
+than writing markup that fails validation.
+
+### The embedded workbook
+
+`add_chart` writes three parts, not one: the chart, a `/ppt/embeddings/Microsoft_Excel_SheetN.xlsx`
+**workbook**, and the relationship binding them. The workbook is laid out to match the chart's `c:f`
+formulas cell for cell — column `A` the categories, `B` onwards one per series — so PowerPoint's
+*Edit Data* opens on exactly the numbers the chart draws.
+
+[`set_chart_series_values`](Presentation::set_chart_series_values) and
+[`set_chart_series_categories`](Presentation::set_chart_series_categories) refresh that workbook in
+the same call, so it never goes stale.
+[`refresh_chart_workbook`](Presentation::refresh_chart_workbook) does it on demand for a chart edited
+some other way. The workbook is *regenerated*, not patched — a chart's embedded workbook is a
+chart-private artefact whose content is the chart's data — so formatting or extra sheets a
+third-party workbook carried do not survive a data edit. Detach it first
+([`chart_workbooks`](Presentation::chart_workbooks),
+[`detach_chart_workbook`](Presentation::detach_chart_workbook)) if you would rather keep it.
 
 ### Reading and editing an existing chart
 
@@ -180,12 +201,46 @@ deck.set_chart_series_values(0, 3, 0, &[10.0, 12.0, 11.5])?;
 # }
 ```
 
-Editing rewrites the chart's **cache** — `c:numCache` and `c:strCache` — which is what actually
-renders. A chart whose plot type this library does not model reads as an empty series list rather than
-failing; it still round-trips untouched.
+Editing rewrites whichever source the series names — a `c:numRef`'s cache or a `c:numLit` literal —
+and that is what renders. Multi-level categories (`c:multiLvlStrRef`) read too, level by level; a
+chart whose category source is numeric or multi-level answers
+[`ChartSeriesNotEditable`](PptxError::ChartSeriesNotEditable) to a label rewrite rather than
+inventing a cache.
 
-Two limits to plan around, both on [the gaps page](fidelity_and_gaps): an authored chart has no
-embedded workbook, and editing an existing chart leaves any workbook it *does* have stale.
+### Axes, legend, title and series styling
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# use mjx_pptx::Presentation;
+# let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+use mjx_dml::{ColorSpec, FillSpec};
+use mjx_pptx::{AxisOrientation, LegendPosition};
+
+for axis in deck.chart_axes(0, 3)? {
+    println!("{:?} axis, {:?} to {:?}", axis.kind, axis.minimum, axis.maximum);
+}
+
+deck.set_chart_title(0, 3, Some("Revenue by quarter"))?;
+deck.set_chart_legend(0, 3, Some(LegendPosition::Bottom))?;
+deck.set_chart_axis_title(0, 3, 1, Some("Millions"))?;
+deck.set_chart_axis_scale(0, 3, 1, Some(0.0), Some(25.0))?;
+deck.set_chart_axis_orientation(0, 3, 1, AxisOrientation::MinimumToMaximum)?;
+deck.set_chart_axis_gridlines(0, 3, 1, true, false)?;
+deck.set_chart_series_fill(0, 3, 0, &FillSpec::Solid(ColorSpec::Srgb("4472C4".to_owned())))?;
+# Ok(())
+# }
+```
+
+[`chart_axes`](Presentation::chart_axes) returns one [`ChartAxisData`] per axis in document order —
+its kind, id, position, bounds, orientation, title, gridlines, tick marks and number format. A field
+is `None` when the axis does not declare that setting: the axis inherits it, and the reader says so
+rather than guessing what Office would draw. Passing `None` to
+[`set_chart_title`](Presentation::set_chart_title) or
+[`set_chart_legend`](Presentation::set_chart_legend) removes the element entirely.
+
+An image fill is refused on a series
+([`ChartFillNotSupported`](PptxError::ChartFillNotSupported)): it would name an image relationship,
+and a chart part relates to no images.
 
 ## Pictures
 

@@ -10,10 +10,11 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
+use mjx_dml::{ColorSpec, FillSpec, LineSpec, LineWidth};
 use mjx_opc::{Package, PartName, TargetMode};
 use mjx_pptx::{
-    ChartData, ChartKind, ChartSeriesData, ChartWorkbook, GraphicFrameKind, PptxError,
-    Presentation, ShapeBounds,
+    AxisKind, AxisOrientation, AxisPosition, ChartData, ChartKind, ChartSeriesData, ChartWorkbook,
+    GraphicFrameKind, LegendPosition, PptxError, Presentation, ShapeBounds,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -32,6 +33,24 @@ fn byte_map(pkg: &Package) -> BTreeMap<String, Vec<u8>> {
 
 fn part(name: &str) -> PartName {
     PartName::new(name).expect("valid part name")
+}
+
+/// One part of an embedded workbook, as text — the workbook is a nested OPC package, so reading it
+/// means opening it.
+fn workbook_part(workbook: &[u8], name: &str) -> String {
+    let pkg = Package::open(workbook).expect("the embedded workbook is a package");
+    let bytes = pkg
+        .entries()
+        .iter()
+        .find(|entry| entry.name == name)
+        .and_then(|entry| entry.bytes().map(<[u8]>::to_vec))
+        .unwrap_or_else(|| panic!("the workbook has no {name}"));
+    String::from_utf8(bytes).expect("utf-8")
+}
+
+/// The embedded workbook's one worksheet, as text.
+fn workbook_sheet(workbook: &[u8]) -> String {
+    workbook_part(workbook, "xl/worksheets/sheet1.xml")
 }
 
 /// The chart frame is on slide 2 (surface index 1), shape 0; slide 1 (surface 0) shape 0 is a text box.
@@ -191,7 +210,7 @@ fn set_chart_series_categories_rewrites() {
 }
 
 #[test]
-fn editing_a_chart_dirties_only_the_chart_xml() {
+fn editing_a_chart_dirties_only_the_chart_xml_and_its_workbook() {
     let bytes = fixture("charts.pptx");
     let original = byte_map(&Package::open(&bytes).expect("baseline"));
 
@@ -206,13 +225,21 @@ fn editing_a_chart_dirties_only_the_chart_xml() {
         original.get("ppt/charts/chart1.xml"),
         "the edited chart part must have changed"
     );
-    // ...but everything else — including the now-stale embedded workbook — is untouched.
+    // ...and so did the workbook behind it, which is the point: the numbers PowerPoint's Edit Data
+    // opens are the numbers the chart draws.
+    assert_ne!(
+        reopened.get("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        original.get("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        "the embedded workbook must be refreshed, not left stale"
+    );
+    // Every other part is byte-identical — including the chart's own relationships, which still name
+    // the same workbook part.
     for name in [
         "ppt/charts/_rels/chart1.xml.rels",
-        "ppt/embeddings/Microsoft_Excel_Sheet1.xlsx",
         "ppt/slides/slide2.xml",
         "ppt/slides/_rels/slide2.xml.rels",
         "ppt/slides/slide1.xml",
+        "[Content_Types].xml",
     ] {
         assert_eq!(
             reopened.get(name),
@@ -220,6 +247,67 @@ fn editing_a_chart_dirties_only_the_chart_xml() {
             "editing chart data must leave {name} byte-identical"
         );
     }
+    // Nothing was added or removed from the package.
+    let before: Vec<&String> = original.keys().collect();
+    let after: Vec<&String> = reopened.keys().collect();
+    assert_eq!(before, after, "editing chart data must add no parts");
+}
+
+#[test]
+fn the_refreshed_workbook_holds_the_edited_values() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    pres.set_chart_series_values(CHART_SURFACE, 0, 0, &[41.5, 42.5, 43.5])
+        .expect("set values");
+    pres.set_chart_series_categories(CHART_SURFACE, 0, 0, &["Alpha", "Beta", "Gamma"])
+        .expect("set categories");
+
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    let sheet = workbook_sheet(
+        pkg.part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
+            .expect("the workbook part survives"),
+    );
+    for value in ["41.5", "42.5", "43.5"] {
+        assert!(
+            sheet.contains(&format!("<v>{value}</v>")),
+            "the refreshed sheet should hold {value}: {sheet}"
+        );
+    }
+    // The old cached numbers are gone from the sheet entirely.
+    for stale in ["19.2", "21.4", "16.7"] {
+        assert!(
+            !sheet.contains(&format!("<v>{stale}</v>")),
+            "the stale value {stale} must not survive the refresh: {sheet}"
+        );
+    }
+    let strings = workbook_part(
+        pkg.part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
+            .expect("the workbook part survives"),
+        "xl/sharedStrings.xml",
+    );
+    for label in ["Alpha", "Beta", "Gamma", "Sales"] {
+        assert!(
+            strings.contains(&format!("<t>{label}</t>")),
+            "the refreshed shared strings should hold {label}: {strings}"
+        );
+    }
+}
+
+#[test]
+fn refreshing_a_chart_with_no_workbook_changes_nothing() {
+    // A chart whose workbook has been detached names none, so there is nothing to refresh — and the
+    // absence is not an error.
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    pres.detach_chart_workbook(CHART_SURFACE, 0)
+        .expect("detach");
+    assert!(
+        !pres
+            .refresh_chart_workbook(CHART_SURFACE, 0)
+            .expect("refresh"),
+        "a chart with no c:externalData has no workbook to refresh"
+    );
+    // And a data edit on such a chart still succeeds.
+    pres.set_chart_series_values(CHART_SURFACE, 0, 0, &[1.0, 2.0, 3.0])
+        .expect("edit a workbook-less chart");
 }
 
 #[test]
@@ -525,13 +613,412 @@ fn detach_chart_workbook_rejects_the_wrong_shapes() {
         Err(PptxError::ShapeIsNotAChart)
     ));
 
-    // A freshly authored chart carries cached data only — no workbook to detach.
+    // An authored chart now embeds a workbook of its own, so detaching it is meaningful and
+    // succeeds; only a chart that has already been detached has nothing left to detach.
     let mut authored = Presentation::open(&fixture("sample.pptx")).expect("open");
     let idx = authored
         .add_chart(0, &bar_chart(), bounds())
         .expect("add chart");
+    authored
+        .detach_chart_workbook(0, idx)
+        .expect("an authored chart embeds a workbook");
     assert!(matches!(
         authored.detach_chart_workbook(0, idx),
         Err(PptxError::ChartHasNoExternalData)
     ));
+}
+
+// -------------------------------------------------------------------------------------------------
+// A5 / MJX-116 — the embedded workbook, the remaining plot types, and the typed axis/legend/styling
+// surface, through the `Presentation` façade.
+// -------------------------------------------------------------------------------------------------
+
+#[test]
+fn add_chart_writes_the_embedded_workbook_and_wires_it_to_the_chart() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+
+    // The workbook part exists, named the way Office names one...
+    let workbook = pkg
+        .part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
+        .expect("the embedded workbook was written");
+    assert_eq!(&workbook[..2], b"PK", "and it is a real package");
+
+    // ...registered with the spreadsheet content type...
+    let content_types = String::from_utf8(
+        pkg.part_bytes(&part("/[Content_Types].xml"))
+            .expect("content types")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    assert!(
+        content_types.contains("Microsoft_Excel_Sheet1.xlsx")
+            && content_types.contains("spreadsheetml.sheet"),
+        "the workbook has a content-type Override: {content_types}"
+    );
+
+    // ...related from the *chart* part, not the slide...
+    let rels = String::from_utf8(
+        pkg.part_bytes(&part("/ppt/charts/_rels/chart1.xml.rels"))
+            .expect("the chart has relationships")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    assert!(
+        rels.contains("relationships/package")
+            && rels.contains("../embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        "the chart relates to its workbook: {rels}"
+    );
+
+    // ...and named by the chart's own c:externalData.
+    let chart = String::from_utf8(
+        pkg.part_bytes(&part("/ppt/charts/chart1.xml"))
+            .expect("chart part")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    assert!(
+        chart.contains(r#"<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>"#),
+        "the chart names its workbook: {chart}"
+    );
+
+    // The workbook holds the numbers the chart draws.
+    let sheet = workbook_sheet(workbook);
+    for (cell, value) in [("B2", "10"), ("B3", "20.5"), ("B4", "15"), ("C2", "5")] {
+        assert!(
+            sheet.contains(&format!(r#"<c r="{cell}"><v>{value}</v></c>"#)),
+            "cell {cell} should hold {value}: {sheet}"
+        );
+    }
+}
+
+#[test]
+fn a_second_authored_chart_gets_its_own_workbook() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_chart(0, &bar_chart(), bounds()).expect("first");
+    pres.add_chart(0, &bar_chart(), bounds()).expect("second");
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+
+    for name in [
+        "/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx",
+        "/ppt/embeddings/Microsoft_Excel_Sheet2.xlsx",
+    ] {
+        assert!(
+            pkg.part_bytes(&part(name)).is_some(),
+            "{name} should have been written"
+        );
+    }
+    // And the second chart names the second workbook, not the first.
+    let rels = String::from_utf8(
+        pkg.part_bytes(&part("/ppt/charts/_rels/chart2.xml.rels"))
+            .expect("the second chart has relationships")
+            .to_vec(),
+    )
+    .expect("utf-8");
+    assert!(rels.contains("Microsoft_Excel_Sheet2.xlsx"), "{rels}");
+}
+
+#[test]
+fn adding_a_chart_beside_an_existing_workbook_does_not_collide_with_it() {
+    // `charts.pptx` already holds `Microsoft_Excel_Sheet1.xlsx`; a chart added to it must not
+    // overwrite that part or reuse its name.
+    let bytes = fixture("charts.pptx");
+    let original = byte_map(&Package::open(&bytes).expect("baseline"));
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.add_chart(0, &bar_chart(), bounds())
+        .expect("add a chart to the text-box slide");
+    let reopened = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    assert_eq!(
+        reopened.get("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        original.get("ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        "the pre-existing workbook is untouched"
+    );
+    assert!(
+        reopened.contains_key("ppt/embeddings/Microsoft_Excel_Sheet2.xlsx"),
+        "the new chart got a workbook of its own: {:?}",
+        reopened.keys().collect::<Vec<_>>()
+    );
+}
+
+#[test]
+fn every_plot_type_the_crate_names_reads_its_series() {
+    // Part 2 of MJX-116, through the façade: a chart of each kind is authored, saved, reopened, and
+    // its series read back. Before this tier the ten new kinds read as no series at all.
+    let kinds = [
+        ChartKind::Bar,
+        ChartKind::Bar3D,
+        ChartKind::Line,
+        ChartKind::Line3D,
+        ChartKind::Pie,
+        ChartKind::Pie3D,
+        ChartKind::OfPie,
+        ChartKind::Area,
+        ChartKind::Area3D,
+        ChartKind::Scatter,
+        ChartKind::Doughnut,
+        ChartKind::Radar,
+        ChartKind::Bubble,
+        ChartKind::Surface,
+        ChartKind::Surface3D,
+    ];
+    for kind in kinds {
+        let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+        let chart = ChartData::new(kind)
+            .categories(["A", "B"])
+            .series("S", [1.0, 2.0]);
+        let idx = pres.add_chart(0, &chart, bounds()).expect("add chart");
+        let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
+
+        assert_eq!(
+            reopened.chart_kinds(0, idx).expect("kinds"),
+            vec![kind],
+            "kind {kind:?} reads back as itself"
+        );
+        let series = reopened.chart_series(0, idx).expect("series");
+        assert_eq!(series.len(), 1, "kind {kind:?} exposes its one series");
+        assert_eq!(series[0].name.as_deref(), Some("S"), "kind {kind:?} name");
+        assert_eq!(series[0].values, vec![1.0, 2.0], "kind {kind:?} values");
+    }
+}
+
+#[test]
+fn a_stock_chart_needs_three_series_and_says_so() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let too_few = ChartData::new(ChartKind::Stock)
+        .categories(["Mon", "Tue"])
+        .series("Close", [1.0, 2.0]);
+    let error = pres
+        .add_chart(0, &too_few, bounds())
+        .expect_err("a one-series stock chart is not schema-valid");
+    assert!(
+        matches!(error, PptxError::ChartData(_)),
+        "expected a chart-data problem, got {error:?}"
+    );
+    assert!(
+        error.to_string().contains("stockChart"),
+        "the message names the plot type: {error}"
+    );
+    // Nothing was written.
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    assert!(pkg.part_bytes(&part("/ppt/charts/chart1.xml")).is_none());
+
+    // Three series is enough.
+    let ok = ChartData::new(ChartKind::Stock)
+        .categories(["Mon", "Tue"])
+        .series("High", [3.0, 4.0])
+        .series("Low", [1.0, 2.0])
+        .series("Close", [2.0, 3.0]);
+    let idx = pres.add_chart(0, &ok, bounds()).expect("a stock chart");
+    assert_eq!(pres.chart_series(0, idx).expect("series").len(), 3);
+}
+
+#[test]
+fn chart_axes_read_an_authored_chart() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    let axes = pres.chart_axes(0, idx).expect("axes");
+
+    assert_eq!(axes.len(), 2);
+    assert_eq!(axes[0].kind, AxisKind::Category);
+    assert_eq!(axes[0].position, Some(AxisPosition::Bottom));
+    assert_eq!(axes[0].deleted, Some(false));
+    assert_eq!(axes[1].kind, AxisKind::Value);
+    assert_eq!(axes[1].position, Some(AxisPosition::Left));
+
+    // The axis ids we author are unsigned — never the negative ones python-pptx writes.
+    let category_id = axes[0].axis_id.expect("an unsigned category axis id");
+    let value_id = axes[1].axis_id.expect("an unsigned value axis id");
+    assert_eq!(axes[0].cross_axis_id, Some(value_id));
+    assert_eq!(axes[1].cross_axis_id, Some(category_id));
+
+    // The fixture's chart, in contrast, carries ids no unsigned integer can hold — and we read them
+    // as absent rather than coercing them.
+    let mut producer = Presentation::open(&fixture("charts.pptx")).expect("open");
+    let axes = producer.chart_axes(CHART_SURFACE, 0).expect("axes");
+    assert_eq!(axes.len(), 2);
+    assert_eq!(axes[0].axis_id, None);
+    assert!(axes[1].major_gridlines, "the fixture rules gridlines");
+}
+
+#[test]
+fn the_axis_legend_title_and_styling_surfaces_round_trip() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+
+    pres.set_chart_title(0, idx, Some("Quarterly results"))
+        .expect("title");
+    pres.set_chart_legend(0, idx, Some(LegendPosition::Bottom))
+        .expect("legend");
+    pres.set_chart_axis_title(0, idx, 1, Some("Millions"))
+        .expect("axis title");
+    pres.set_chart_axis_scale(0, idx, 1, Some(0.0), Some(25.0))
+        .expect("axis scale");
+    pres.set_chart_axis_orientation(0, idx, 1, AxisOrientation::MaximumToMinimum)
+        .expect("axis orientation");
+    pres.set_chart_axis_gridlines(0, idx, 1, true, false)
+        .expect("gridlines");
+    pres.set_chart_series_fill(
+        0,
+        idx,
+        0,
+        &FillSpec::Solid(ColorSpec::Srgb("4472C4".to_owned())),
+    )
+    .expect("series fill");
+    pres.set_chart_series_line(
+        0,
+        idx,
+        1,
+        &LineSpec::solid(
+            LineWidth::from_points(1.5),
+            ColorSpec::Srgb("ED7D31".to_owned()),
+        ),
+    )
+    .expect("series line");
+
+    // Everything survives a save and reopen.
+    let mut reopened = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    assert_eq!(
+        reopened.chart_title(0, idx).expect("title").as_deref(),
+        Some("Quarterly results")
+    );
+    let legend = reopened
+        .chart_legend(0, idx)
+        .expect("legend")
+        .expect("a legend was placed");
+    assert_eq!(legend.position, Some(LegendPosition::Bottom));
+    assert_eq!(legend.overlays_plot, Some(false));
+
+    let axes = reopened.chart_axes(0, idx).expect("axes");
+    assert_eq!(axes[1].title.as_deref(), Some("Millions"));
+    assert_eq!(axes[1].minimum, Some(0.0));
+    assert_eq!(axes[1].maximum, Some(25.0));
+    assert_eq!(axes[1].orientation, Some(AxisOrientation::MaximumToMinimum));
+    assert!(axes[1].major_gridlines);
+    assert!(!axes[1].minor_gridlines);
+
+    assert_eq!(
+        reopened.chart_series_fill(0, idx, 0).expect("fill"),
+        Some(FillSpec::Solid(ColorSpec::Srgb("4472C4".to_owned())))
+    );
+    assert_eq!(
+        reopened.chart_series_fill(0, idx, 1).expect("fill"),
+        None,
+        "the second series was given an outline, not a fill"
+    );
+
+    // Removing the title and the legend takes both elements away.
+    reopened.set_chart_title(0, idx, None).expect("clear title");
+    reopened
+        .set_chart_legend(0, idx, None)
+        .expect("clear legend");
+    assert_eq!(reopened.chart_title(0, idx).expect("title"), None);
+    assert_eq!(reopened.chart_legend(0, idx).expect("legend"), None);
+}
+
+#[test]
+fn the_typed_chart_surfaces_reject_the_wrong_shapes_and_indices() {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+
+    // The text box on the same slide frames no chart.
+    assert!(matches!(
+        pres.chart_axes(0, 0),
+        Err(PptxError::ShapeIsNotAChart)
+    ));
+    // An axis past the last is an error, not a silent no-op.
+    assert!(matches!(
+        pres.set_chart_axis_title(0, idx, 9, Some("x")),
+        Err(PptxError::ChartAxisOutOfRange { index: 9, count: 2 })
+    ));
+    // So is a series past the last.
+    assert!(matches!(
+        pres.set_chart_series_fill(0, idx, 9, &FillSpec::None),
+        Err(PptxError::ChartSeriesOutOfRange { index: 9, count: 2 })
+    ));
+    // An image fill would name a relationship a chart part does not have.
+    assert!(matches!(
+        pres.set_chart_series_fill(
+            0,
+            idx,
+            0,
+            &FillSpec::Blip {
+                rel_id: "rId9".to_owned(),
+                mode: mjx_dml::BlipFillMode::Stretch,
+            }
+        ),
+        Err(PptxError::ChartFillNotSupported)
+    ));
+}
+
+#[test]
+fn styling_a_chart_dirties_only_the_chart_part() {
+    // Tier 3: the axis, legend, title and fill setters touch the chart part and nothing else — in
+    // particular they do not disturb the embedded workbook, which holds the data, not the styling.
+    let bytes = fixture("sample.pptx");
+    let mut pres = Presentation::open(&bytes).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    let baseline = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    let mut pres = Presentation::open(&pres.save().expect("save")).expect("reopen");
+    pres.set_chart_title(0, idx, Some("Styled")).expect("title");
+    pres.set_chart_axis_gridlines(0, idx, 1, true, true)
+        .expect("gridlines");
+    pres.set_chart_series_fill(0, idx, 0, &FillSpec::None)
+        .expect("fill");
+    let after = byte_map(&Package::open(&pres.save().expect("save")).expect("reopen"));
+
+    assert_ne!(
+        after.get("ppt/charts/chart1.xml"),
+        baseline.get("ppt/charts/chart1.xml"),
+        "the chart part must have changed"
+    );
+    for (name, bytes) in &baseline {
+        if name == "ppt/charts/chart1.xml" {
+            continue;
+        }
+        assert_eq!(
+            after.get(name),
+            Some(bytes),
+            "styling a chart must leave {name} byte-identical"
+        );
+    }
+}
+
+#[test]
+fn chart_style_id_reads_what_the_part_declares() {
+    // An authored chart declares no `c:style`, so it inherits — and that reads as `None`, not as a
+    // guessed default.
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let idx = pres
+        .add_chart(0, &bar_chart(), bounds())
+        .expect("add chart");
+    assert_eq!(pres.chart_style_id(0, idx).expect("style"), None);
+
+    // A chart that *does* name one reads it. `c:style` is the first thing after `c:roundedCorners`
+    // in `CT_ChartSpace`, so splicing it in ahead of `c:chart` gives a part shaped like Office's.
+    let mut pkg = Package::open(&pres.save().expect("save")).expect("reopen package");
+    let chart_part = part("/ppt/charts/chart1.xml");
+    let styled = String::from_utf8(pkg.part_bytes(&chart_part).expect("chart").to_vec())
+        .expect("utf-8")
+        .replacen("<c:chart>", r#"<c:style val="34"/><c:chart>"#, 1);
+    pkg.replace_part_bytes(&chart_part, styled.into_bytes())
+        .expect("splice in a chart style");
+
+    let mut styled = Presentation::open(&pkg.save().expect("save")).expect("reopen");
+    assert_eq!(
+        styled.chart_style_id(0, idx).expect("style"),
+        Some(34),
+        "the built-in style the part names"
+    );
 }

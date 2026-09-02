@@ -255,9 +255,11 @@ deck.add_chart(slide, &chart, ShapeBounds::from_inches(1.0, 2.0, 8.0, 4.0))?;
 # }
 ```
 
-One caveat worth knowing before you rely on it: the chart carries **cached** values, which is what
-PowerPoint renders, but no embedded workbook — so "Edit Data" in PowerPoint has nothing to open. See
-[the gaps page](fidelity_and_gaps).
+Three parts are written: the chart itself, the embedded `.xlsx` **workbook** whose cells PowerPoint's
+"Edit Data" opens, and the relationship binding them. The chart's cached values are what renders; the
+workbook holds the same numbers, and a later
+[`set_chart_series_values`](Presentation::set_chart_series_values) refreshes both together. See
+[Tables, charts and pictures](tables_charts_pictures) for the axis, legend and styling surfaces.
 
 ## Speaker notes
 

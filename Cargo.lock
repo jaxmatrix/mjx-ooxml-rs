@@ -134,7 +134,9 @@ dependencies = [
  "mjx-dml",
  "mjx-ooxml-core",
  "mjx-ooxml-types",
+ "mjx-opc",
  "mjx-xml",
+ "thiserror",
 ]
 
 [[package]]

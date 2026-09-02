@@ -649,6 +649,28 @@ impl Package {
         Ok(())
     }
 
+    /// Replaces the bytes of an existing part in place, keeping its position in the container, its
+    /// content type and its relationships.
+    ///
+    /// The new bytes are stored [`Raw`](PartBody::Raw) and re-emitted verbatim, and any parsed or
+    /// edited tree for the part is dropped — this is the write path for a part whose payload is not
+    /// XML this library models (an embedded workbook, an image), where re-serializing from a tree is
+    /// not an option. For an XML part the library *does* model, edit its tree through
+    /// [`part_tree_mut`](Self::part_tree_mut) instead, which preserves far more.
+    ///
+    /// # Errors
+    /// Returns [`OpcError::UnknownPart`] if the package holds no such part.
+    pub fn replace_part_bytes(&mut self, part: &PartName, bytes: Vec<u8>) -> Result<(), OpcError> {
+        let zip_name = part.zip_name();
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|e| e.name == zip_name)
+            .ok_or_else(|| OpcError::unknown_part(part.as_str()))?;
+        entry.body = PartBody::Raw(bytes);
+        Ok(())
+    }
+
     /// Removes a part, its content-type `Override` (if any), and its own outgoing `.rels` part.
     ///
     /// Shared `Default` content-type rules are left untouched. Inbound relationships *from other

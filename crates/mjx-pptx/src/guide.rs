@@ -10,9 +10,10 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            CellFormat, Cells, ChartData, ChartKind, Geometry, Hyperlink, PlaceholderInfo,
-            PptxError, Presentation, ShapeBounds, ShapeCursor, ShapeKind, ShapePath, SlideSize,
-            Surface, TableStyleDefinition, TableStyleFormat,
+            AxisOrientation, CellFormat, Cells, ChartAxisData, ChartData, ChartKind, Geometry,
+            Hyperlink, LegendPosition, PlaceholderInfo, PptxError, Presentation, ShapeBounds,
+            ShapeCursor, ShapeKind, ShapePath, SlideSize, Surface, TableStyleDefinition,
+            TableStyleFormat,
         };
     };
 }
