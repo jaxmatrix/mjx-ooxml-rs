@@ -6,7 +6,7 @@
 //! read model; the builders (added in C3) construct the `c:pt` / `c:v` a cache edit rewrites.
 
 use mjx_ooxml_core::{Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode};
-use mjx_ooxml_types::namespaces::DML_CHART;
+use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN};
 use mjx_xml::text::{escape_attribute, escape_text};
 
 /// Whether `name` is in the chart namespace (accepting both its transitional and strict URIs),
@@ -141,6 +141,79 @@ pub(crate) fn chart_text_leaf(interner: &mut Interner, local: &str, text: &str) 
 pub(crate) fn chart_val_leaf(interner: &mut Interner, local: &str, value: &str) -> RawElement {
     let attr = chart_attr(interner, "val", value);
     chart_element(interner, local, vec![attr], Vec::new())
+}
+
+/// Builds a DrawingML qualified name `a:local` — the `a:` half of a chart part, used by the
+/// shape properties (`c:spPr`) and rich text (`c:tx > c:rich`) a chart embeds.
+pub(crate) fn dml_name(interner: &mut Interner, local: &str) -> RawName {
+    RawName {
+        prefix: Some(interner.intern("a")),
+        local: interner.intern(local),
+        namespace: Some(interner.intern(DML_MAIN.transitional)),
+    }
+}
+
+/// Builds an `a:`-prefixed element with `attributes` and `children` (self-closing when empty).
+pub(crate) fn dml_element(
+    interner: &mut Interner,
+    local: &str,
+    attributes: Vec<RawAttribute>,
+    children: Vec<RawNode>,
+) -> RawElement {
+    let empty = children.is_empty();
+    RawElement {
+        name: dml_name(interner, local),
+        attributes,
+        children,
+        empty,
+    }
+}
+
+/// Builds a text-bearing `a:local` leaf (`a:t`) carrying `text` as an escaped `Text` child.
+pub(crate) fn dml_text_leaf(interner: &mut Interner, local: &str, text: &str) -> RawElement {
+    let escaped = escape_text(text);
+    let children = if escaped.is_empty() {
+        Vec::new()
+    } else {
+        vec![RawNode::Text(escaped.as_bytes().into())]
+    };
+    dml_element(interner, local, Vec::new(), children)
+}
+
+/// Whether `name` is in the DrawingML main namespace (accepting both URIs), regardless of prefix.
+pub(crate) fn is_dml(name: &RawName, interner: &Interner) -> bool {
+    let namespace = name.namespace.map(|symbol| interner.resolve(symbol));
+    namespace == Some(DML_MAIN.transitional) || namespace == DML_MAIN.strict
+}
+
+/// The index at which a child named `local` belongs among `existing`, given the schema's element
+/// order `order` (a list of local names in sequence order).
+///
+/// `existing` yields each present child's local name in document order, or `None` for a node that is
+/// not a named element this ordering knows (text, a comment, a foreign element) — such a node never
+/// moves the insertion point, so an unrecognised child keeps its place. The result is one past the
+/// last child that must precede `local`; a `local` the order does not name appends at the end.
+pub(crate) fn insert_position<'a>(
+    existing: impl Iterator<Item = Option<&'a str>>,
+    order: &[&str],
+    local: &str,
+) -> usize {
+    let rank = order.iter().position(|&name| name == local);
+    let mut at = 0;
+    let mut count = 0;
+    for (index, name) in existing.enumerate() {
+        count = index + 1;
+        let Some(rank) = rank else { continue };
+        if let Some(other) = name.and_then(|name| order.iter().position(|&o| o == name)) {
+            if other <= rank {
+                at = index + 1;
+            }
+        }
+    }
+    if rank.is_none() {
+        return count;
+    }
+    at
 }
 
 /// Builds an `xmlns:prefix="uri"` namespace declaration attribute. A freshly authored chart part is

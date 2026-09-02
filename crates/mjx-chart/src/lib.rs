@@ -36,26 +36,45 @@
 //!
 //! # Scope
 //!
-//! Read-only, the common plot types (bar, line, pie, area, scatter, doughnut). Cached data
-//! (`c:numCache`/`c:strCache`) is the read path — a literal source (`c:numLit`/`c:strLit`), a
-//! multi-level category (`c:multiLvlStrRef`), or an unmodeled plot type (radar, bubble, 3-D, …) rides
-//! through the `Raw` bucket and reads as empty/absent for now. Editing (C3) and authoring (C4) are
-//! later tiers.
+//! **All sixteen** plot types `CT_PlotArea` admits — bar, line, pie, area, scatter, doughnut, the
+//! four three-dimensional forms, radar, bubble, stock, pie-of-pie and the two surface forms — read
+//! their series through one API. All four data sources read: a workbook reference and its cache
+//! (`c:numRef`/`c:strRef`), a literal (`c:numLit`/`c:strLit`), and a multi-level category
+//! (`c:multiLvlStrRef`). The axes, their scaling and titles, the gridlines, the chart title, the
+//! legend and the series' own fill and outline all have a typed surface — [`Axis`], [`Scaling`],
+//! [`ChartTitle`], [`Legend`] and [`SeriesShapeProperties`].
+//!
+//! Authoring writes any of the sixteen kinds ([`ChartData`]) **together with the embedded workbook**
+//! that PowerPoint's Edit Data opens ([`EmbeddedWorkbook`]).
 
 mod author;
+mod axis;
 mod build;
 mod data;
 mod plot;
 mod space;
+mod workbook;
 
-pub use author::ChartData;
+pub use author::{ChartData, ChartDataError};
+pub use axis::{
+    Axis, AxisContent, AxisKind, AxisOrientation, AxisPosition, BlankDisplay, ChartTitle,
+    ChartTitleContent, Gridlines, Legend, LegendPosition, Scaling, TickLabelPosition, TickMark,
+    TitleText, TitleTextContent,
+};
 pub use data::{
-    CacheContent, CategoryData, CategoryDataContent, DataPoint, DataPointContent, Formula,
-    NumberCache, NumberReference, NumberReferenceContent, NumericData, NumericDataContent,
-    SeriesText, SeriesTextContent, StringCache, StringReference, StringReferenceContent, Value,
+    CacheContent, CategoryData, CategoryDataContent, CategoryLevel, CategoryLevelContent,
+    DataPoint, DataPointContent, Formula, MultiLevelStringCache, MultiLevelStringCacheContent,
+    MultiLevelStringReference, MultiLevelStringReferenceContent, NumberCache, NumberReference,
+    NumberReferenceContent, NumericData, NumericDataContent, SeriesText, SeriesTextContent,
+    StringCache, StringReference, StringReferenceContent, Value,
 };
 pub use plot::{
-    AreaChart, BarChart, BarDirection, BarGrouping, ChartKind, DoughnutChart, LineChart, PieChart,
-    PlotContent, ScatterChart, Series, SeriesContent,
+    Area3DChart, AreaChart, Bar3DChart, BarChart, BarDirection, BarGrouping, BubbleChart,
+    ChartKind, DoughnutChart, Line3DChart, LineChart, OfPieChart, OfPieType, Pie3DChart, PieChart,
+    PlotContent, RadarChart, RadarStyle, ScatterChart, ScatterStyle, Series, SeriesContent,
+    SeriesGrouping, SeriesShapeProperties, StockChart, Surface3DChart, SurfaceChart,
 };
 pub use space::{Chart, ChartContent, ChartSpace, ChartSpaceContent, PlotArea, PlotAreaContent};
+pub use workbook::{
+    EmbeddedWorkbook, WorkbookCell, CONTENT_TYPE_WORKBOOK_PACKAGE, DEFAULT_SHEET_NAME,
+};
