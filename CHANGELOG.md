@@ -35,6 +35,7 @@ reconstructed afterwards.
 | `mjx_pptx::ChartErrorBarData::has_no_end_cap` | `no_end_cap` | Matches `ErrorBarSpec`, the struct that writes the same `c:noEndCap`. |
 | `mjx_pptx::PptxError::PictureHasNoBlipFill` | `PictureHasNoImage` | Drops the token, and says what the caller can act on. |
 | `mjx_pptx::Presentation::activex_binary_bytes` | `activex_state_bytes` | Reads exactly what `set_activex_state` writes; the pair named one artefact two ways. |
+| `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -49,6 +50,64 @@ but `delete` is the spec element's own name and is used consistently across a do
 identifiers (`Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted`, …); renaming only
 the `mjx-pptx` method would trade one inconsistency for another, and renaming the family is a larger
 break through a subsystem that is currently coherent.
+
+## [0.0.67] - 2026-09-02
+
+The `mjx-ooxml` facade — `detect_format`, `Deck`, FFI-shaped errors, the curated surface (MJX-210).
+
+`mjx-ooxml` had been **62 lines of documentation and no code** since the workspace was laid out,
+while the docs called it "the binding-ready public API". It is now that API.
+
+**`detect_format` reads the package, not the filename.** It opens the OPC container, follows the root
+`officeDocument` relationship and maps the main part's content type against the fifteen ECMA-376 and
+macro-enabled types. That is the only way `.pptm` and `.potx` — the same PresentationML markup under a
+different declaration — can be told from `.pptx`, and the only answer that survives a renamed file.
+Word and Excel are recognized and refused by name (`ErrorCode::UnsupportedFormat`), so a caller who
+hands a `.docx` to a PowerPoint library is told it is a Word document rather than that some part
+failed to parse. Detection working before editing does is the whole point.
+
+**`Deck` restates 251 of `Presentation`'s 273 methods in types a foreign function boundary can
+express**: `impl Into<Surface>` becomes a concrete `Surface`, `impl Into<ShapePath>` a concrete
+`ShapePath`, `usize` becomes `u32` on every parameter and return, `&PartName` becomes `&str`, and a
+borrowed `Option<&[u8]>` becomes an owned `Option<Vec<u8>>`. The facade owns its own `Surface` and
+`ShapePath` — carrying `u32`, converting at the boundary, allocation-free for the top-level case —
+because adding `From<u32>` beside `From<usize>` on `mjx-pptx`'s would have made every bare integer
+literal in `deck.shape_fill(0, 2)` ambiguous across the workspace.
+
+Sixteen methods are deliberately absent, each unreachable across FFI or reachable another way:
+`Presentation::shape` (returns a cursor borrowing the deck), the five closure-taking table-style and
+VML readers, the four surface `*_part` accessors and the six `*_rel_id` accessors (part-graph
+identity for content that is already reachable by index or by bytes). `Deck::presentation_mut` is the
+Rust-only door to all of them; there is no `Deck::package`, because handing out `&mut Package` would
+give a caller the whole part graph and make every invariant `save` enforces unenforceable.
+
+**One exclusion the specification proposed was checked and reversed.** The per-cell formatting
+setters were to be dropped as reachable through `format_cells(Cells, &CellFormat)`. They are not:
+`format_cells` deliberately skips a cell covered by a merge, so only what renders is touched, while
+`set_cell_fill` reaches a covered cell — whose own formatting reappears when the region is unmerged.
+Dropping them would have dropped that, so all fifteen are exposed, and a test asserts the two
+spellings really are different calls.
+
+**One `Error`, eleven stable codes.** `Error { code, message, detail, source }` collapses all 65
+`PptxError` variants and all 9 `OpcError` variants into `Io`, `MalformedDocument`, `InvalidDocument`,
+`IndexOutOfRange`, `WrongKind`, `NotFound`, `NothingToRead`, `InvalidArgument`, `StructureConflict`,
+`UnsupportedContent` and `UnsupportedFormat`, plus the human message and the `surface` / `shape` /
+`row` / `column` / `index` coordinates a binding turns into exception attributes. Rust callers lose
+nothing: `source()` downcasts back to the `PptxError`. The classification is an exhaustive `match`
+with no wildcard arm — which is why `PptxError` stopped being `#[non_exhaustive]` — so a new variant
+fails the build until it is classified.
+
+**`Deck::save` inherits the validation `Presentation::save` performs** rather than routing around it.
+A facade that widened what a caller could break would be a regression, so this is tested on a deck
+that is genuinely invalid: `save` refuses it and `save_unchecked` writes it.
+
+Also here: `Presentation::{remove_unused_parts, external_links, retarget_external_link}` — package
+hygiene as three thin delegates rather than an exposed `package()` — and `SlideSize::{widescreen,
+standard, from_emu}`, so a caller building a deck from nothing states a size by name instead of by
+struct literal.
+
+`examples/build_a_deck.rs` is the guide's walkthrough written through the facade, **naming no crate
+below `mjx-ooxml`**; if the re-export list were insufficient it would not compile.
 
 ## [0.0.66] - 2026-09-02
 
