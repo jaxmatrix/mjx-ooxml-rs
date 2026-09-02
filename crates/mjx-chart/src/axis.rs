@@ -31,6 +31,10 @@ use mjx_dml::TextBody;
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 use mjx_ooxml_types::support::on_off;
 
+use mjx_ooxml_types::child_order::{
+    ChildOrder, CATEGORY_AXIS, DATE_AXIS, SCALING, SERIES_AXIS, VALUE_AXIS,
+};
+
 use crate::build::{
     chart_attr, chart_element, chart_name, chart_val_leaf, dml_element, dml_text_leaf, f64_wire,
     insert_position, is_chart, raw_child_attr, set_attr,
@@ -510,9 +514,6 @@ pub struct Scaling {
 
 crate::build::fidelity_element_impls!(Scaling);
 
-/// `CT_Scaling`'s element order — where a `c:min` or a `c:max` must be inserted.
-const SCALING_ORDER: [&str; 5] = ["logBase", "orientation", "max", "min", "extLst"];
-
 impl Scaling {
     /// A fresh `c:scaling` running smallest-value-first.
     pub(crate) fn new(interner: &mut Interner) -> Self {
@@ -608,8 +609,8 @@ impl Scaling {
             }
             (None, Some(value)) => {
                 let at = insert_position(
+                    SCALING,
                     self.children.iter().map(|node| chart_local(node, interner)),
-                    &SCALING_ORDER,
                     local,
                 );
                 let element = chart_val_leaf(interner, local, &value);
@@ -640,25 +641,6 @@ pub enum AxisContent {
     /// `c:txPr`, the type-specific tail — preserved verbatim.
     Raw(RawNode),
 }
-
-/// `EG_AxShared`'s element order — where a title or a set of gridlines must be inserted.
-const AXIS_ORDER: [&str; 15] = [
-    "axId",
-    "scaling",
-    "delete",
-    "axPos",
-    "majorGridlines",
-    "minorGridlines",
-    "title",
-    "numFmt",
-    "majorTickMark",
-    "minorTickMark",
-    "tickLblPos",
-    "spPr",
-    "txPr",
-    "crossAx",
-    "crosses",
-];
 
 /// `c:catAx` / `c:valAx` / `c:dateAx` / `c:serAx` — one axis of a plot area.
 ///
@@ -883,9 +865,26 @@ impl Axis {
         }
     }
 
+    /// The generated child order of the complex type this axis element *is*.
+    ///
+    /// All four axis elements open with the same `EG_AxShared` group and differ only in the tail
+    /// each adds, so placing a child by the wrong one would still put the shared members right — but
+    /// naming the actual type is what makes a `c:crossBetween` on a value axis land correctly too.
+    /// An element that is none of the four is placed by the category axis' order, which is the
+    /// shared group alone.
+    fn child_order(&self, interner: &Interner) -> &'static ChildOrder {
+        match self.kind(interner) {
+            Some(AxisKind::Value) => VALUE_AXIS,
+            Some(AxisKind::Date) => DATE_AXIS,
+            Some(AxisKind::Series) => SERIES_AXIS,
+            Some(AxisKind::Category) | None => CATEGORY_AXIS,
+        }
+    }
+
     /// Where a child named `local` belongs among the axis' current children.
     fn insert_index(&self, interner: &Interner, local: &str) -> usize {
         insert_position(
+            self.child_order(interner),
             self.content.iter().map(|item| match item {
                 AxisContent::Scaling(_) => Some("scaling"),
                 AxisContent::MajorGridlines(_) => Some("majorGridlines"),
@@ -893,7 +892,6 @@ impl Axis {
                 AxisContent::Title(_) => Some("title"),
                 AxisContent::Raw(node) => chart_local(node, interner),
             }),
-            &AXIS_ORDER,
             local,
         )
     }

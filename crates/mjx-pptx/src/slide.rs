@@ -10,6 +10,10 @@ use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::namespaces::{SchemaNamespace, DML_CHART, DML_DIAGRAM, DML_MAIN, PML};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 
+use mjx_ooxml_types::child_order::{
+    ChildOrder, GRAPHIC_FRAME, GROUP_SHAPE_PROPERTIES, SHAPE_PROPERTIES,
+};
+
 use crate::address::ShapePath;
 use crate::build;
 use crate::error::PptxError;
@@ -862,10 +866,10 @@ pub(crate) fn shape_transform_slot_mut<'a>(
         None => shape,
     };
 
-    // Insert before everything the transform must precede, rather than appending: in both
-    // `CT_ShapeProperties` and `CT_GroupShapeProperties` the transform is the *first* member of the
-    // sequence, and in `CT_GraphicalObjectFrame` it follows only `p:nvGraphicFramePr`. Order is
-    // validity here, not style.
+    // Insert at the transform's rank in the holder's generated `xsd:sequence`, rather than
+    // appending: in both `CT_ShapeProperties` and `CT_GroupShapeProperties` the transform is the
+    // *first* member, and in `CT_GraphicalObjectFrame` it follows only `p:nvGraphicFramePr`. Order
+    // is validity here, not style.
     let namespace = name.namespace();
     let existing = holder.children.iter().position(|node| match node {
         RawNode::Element(element) => nav::name_is(&element.name, interner, namespace, "xfrm"),
@@ -874,7 +878,9 @@ pub(crate) fn shape_transform_slot_mut<'a>(
     let index = match existing {
         Some(index) => index,
         None => {
-            let at = transform_insert_index(holder, interner, container.is_none());
+            let order =
+                transform_holder_order(kind).ok_or(PptxError::ShapeCannotBePositioned { kind })?;
+            let at = order.insert_index(&holder.children, interner, "xfrm");
             let element = build::node(interner, name.prefix(), namespace, "xfrm", vec![], vec![]);
             holder.children.insert(at, RawNode::Element(element));
             holder.empty = false;
@@ -889,33 +895,19 @@ pub(crate) fn shape_transform_slot_mut<'a>(
     }
 }
 
-/// Where a new transform child belongs in `holder`.
+/// The generated child order of the element a shape of `kind` keeps its transform in.
 ///
-/// In a `p:spPr` / `p:grpSpPr` the transform precedes every other element, so it goes before the
-/// first one. In a `p:graphicFrame` (`is_graphic_frame`) it goes after the required
-/// `p:nvGraphicFramePr` and before the `a:graphic`.
-fn transform_insert_index(
-    holder: &RawElement,
-    interner: &Interner,
-    is_graphic_frame: bool,
-) -> usize {
-    let first_element = holder
-        .children
-        .iter()
-        .position(|node| matches!(node, RawNode::Element(_)));
-    if !is_graphic_frame {
-        return first_element.unwrap_or(holder.children.len());
+/// `p:spPr` is `CT_ShapeProperties`, `p:grpSpPr` is `CT_GroupShapeProperties`, and a
+/// `p:graphicFrame` holds its `p:xfrm` directly, so the order is `CT_GraphicalObjectFrame`'s.
+fn transform_holder_order(kind: ShapeKind) -> Option<&'static ChildOrder> {
+    match kind {
+        ShapeKind::Shape | ShapeKind::Picture | ShapeKind::ConnectionShape => {
+            Some(SHAPE_PROPERTIES)
+        }
+        ShapeKind::GroupShape => Some(GROUP_SHAPE_PROPERTIES),
+        ShapeKind::GraphicFrame => Some(GRAPHIC_FRAME),
+        ShapeKind::ContentPart => None,
     }
-    holder
-        .children
-        .iter()
-        .position(|node| match node {
-            RawNode::Element(element) => {
-                !nav::name_is(&element.name, interner, PML, "nvGraphicFramePr")
-            }
-            _ => false,
-        })
-        .unwrap_or(holder.children.len())
 }
 
 /// Parses a `p:clrMap` / `a:overrideClrMapping` element into a [`ColorMap`] — the twelve logical

@@ -13,5 +13,6 @@ publish = false
 workspace = true
 
 [dependencies]
+mjx-ooxml-core.workspace = true
 mjx-xml.workspace = true
 anyhow.workspace = true

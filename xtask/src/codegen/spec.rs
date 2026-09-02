@@ -711,3 +711,187 @@ pub fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
     }
     None
 }
+
+/// The complex types whose child order a serializer in this workspace holds as a named constant.
+///
+/// Each row is `(Rust constant, schema file stem, XSD symbol, one-line description)`. The generated
+/// tables cover **every** complex type of every emitted schema and are reachable by symbol; this
+/// curated list is what gives the ones we actually write markup for a self-explanatory name, the
+/// same discipline the simple-type allowlist follows. A name is never derived mechanically from a
+/// cryptic symbol — `CT_CatAx` is `CATEGORY_AXIS` because ECMA-376 Part 1 calls `c:catAx` a Category
+/// Axis, not because an abbreviation table guessed it.
+///
+/// Grow this list when a new model starts placing children; the table behind it is already there.
+pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
+    // ---- DrawingML -------------------------------------------------------------------------
+    (
+        "CUSTOM_GEOMETRY_2D",
+        "dml-main",
+        "CT_CustomGeometry2D",
+        "A freeform shape's geometry",
+    ),
+    (
+        "EFFECT_LIST",
+        "dml-main",
+        "CT_EffectList",
+        "The eight effects a shape can carry, at most one of each",
+    ),
+    (
+        "GROUP_SHAPE_PROPERTIES",
+        "dml-main",
+        "CT_GroupShapeProperties",
+        "A group shape's visual properties",
+    ),
+    (
+        "GROUP_TRANSFORM_2D",
+        "dml-main",
+        "CT_GroupTransform2D",
+        "A group's position, size and child coordinate space",
+    ),
+    (
+        "LINE_PROPERTIES",
+        "dml-main",
+        "CT_LineProperties",
+        "An outline's fill, dash, join and ends",
+    ),
+    (
+        "PATH_2D",
+        "dml-main",
+        "CT_Path2D",
+        "One path of a freeform geometry — a repeating choice of drawing commands",
+    ),
+    (
+        "SHAPE_3D",
+        "dml-main",
+        "CT_Shape3D",
+        "A shape's 3-D bevels and material",
+    ),
+    (
+        "SHAPE_PROPERTIES",
+        "dml-main",
+        "CT_ShapeProperties",
+        "A shape's transform, geometry, fill, line and effects",
+    ),
+    (
+        "TABLE_CELL_BORDER_STYLE",
+        "dml-main",
+        "CT_TableCellBorderStyle",
+        "The eight edges a table style paints on a cell",
+    ),
+    (
+        "TABLE_CELL_PROPERTIES",
+        "dml-main",
+        "CT_TableCellProperties",
+        "A table cell's borders, fill and insets",
+    ),
+    (
+        "TABLE_CELL_3D",
+        "dml-main",
+        "CT_Cell3D",
+        "A table cell's 3-D bevel and lighting",
+    ),
+    (
+        "TABLE_PART_STYLE",
+        "dml-main",
+        "CT_TablePartStyle",
+        "One band or corner of a table style",
+    ),
+    (
+        "TABLE_PROPERTIES",
+        "dml-main",
+        "CT_TableProperties",
+        "A table's fill, effects and style reference",
+    ),
+    (
+        "TABLE_STYLE",
+        "dml-main",
+        "CT_TableStyle",
+        "A whole table style: its background and thirteen part slots",
+    ),
+    (
+        "TABLE_STYLE_CELL_STYLE",
+        "dml-main",
+        "CT_TableStyleCellStyle",
+        "The cell formatting one part of a table style applies",
+    ),
+    (
+        "TABLE_STYLE_TEXT_STYLE",
+        "dml-main",
+        "CT_TableStyleTextStyle",
+        "The text formatting one part of a table style applies",
+    ),
+    (
+        "TEXT_CHARACTER_PROPERTIES",
+        "dml-main",
+        "CT_TextCharacterProperties",
+        "A run's character formatting",
+    ),
+    (
+        "TEXT_LIST_STYLE",
+        "dml-main",
+        "CT_TextListStyle",
+        "A default plus nine per-level paragraph property sets",
+    ),
+    (
+        "TEXT_PARAGRAPH_PROPERTIES",
+        "dml-main",
+        "CT_TextParagraphProperties",
+        "A paragraph's spacing, bullet, tabs and default run properties",
+    ),
+    (
+        "TRANSFORM_2D",
+        "dml-main",
+        "CT_Transform2D",
+        "A shape's position and size",
+    ),
+    // ---- DrawingML charts ------------------------------------------------------------------
+    (
+        "CATEGORY_AXIS",
+        "dml-chart",
+        "CT_CatAx",
+        "A category axis (`c:catAx`)",
+    ),
+    (
+        "CHART",
+        "dml-chart",
+        "CT_Chart",
+        "A chart's title, plot area and legend",
+    ),
+    (
+        "DATE_AXIS",
+        "dml-chart",
+        "CT_DateAx",
+        "A date axis (`c:dateAx`)",
+    ),
+    (
+        "SCALING",
+        "dml-chart",
+        "CT_Scaling",
+        "An axis' orientation and explicit bounds",
+    ),
+    (
+        "SERIES_AXIS",
+        "dml-chart",
+        "CT_SerAx",
+        "A series axis (`c:serAx`)",
+    ),
+    (
+        "VALUE_AXIS",
+        "dml-chart",
+        "CT_ValAx",
+        "A value axis (`c:valAx`)",
+    ),
+    // ---- PresentationML --------------------------------------------------------------------
+    (
+        "GRAPHIC_FRAME",
+        "pml",
+        "CT_GraphicalObjectFrame",
+        "The frame a table, chart or diagram sits in on a slide",
+    ),
+    (
+        "PRESENTATION",
+        "pml",
+        "CT_Presentation",
+        "The presentation part's own children",
+    ),
+];

@@ -32,10 +32,11 @@
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
 use mjx_ooxml_types::support::on_off;
 
+use mjx_ooxml_types::child_order::TEXT_CHARACTER_PROPERTIES;
+
 use crate::build::{
     attr_by_local, attr_str, dml_attr, dml_child, dml_element, fidelity_element_impls,
-    first_color_child, first_fill_child, is_dml, parse_percentage, prefixed_attr,
-    replace_or_insert_child, set_attr,
+    first_color_child, first_fill_child, is_dml, parse_percentage, prefixed_attr, set_attr,
 };
 use crate::color::{Color, ColorSpec};
 use crate::effect::{EffectList, EffectListSpec};
@@ -524,31 +525,9 @@ impl CharacterProperties {
         element: RawElement,
         matches: impl Fn(&str) -> bool,
     ) {
-        replace_or_insert_child(&mut self.children, interner, element, matches, known_rank);
+        TEXT_CHARACTER_PROPERTIES.replace_or_insert(&mut self.children, interner, element, matches);
         self.empty = false;
     }
-}
-
-/// Children this model may write, in schema order. Anything else sorts last.
-fn known_rank(local: &str) -> Option<usize> {
-    let rank = match local {
-        "ln" => 0,
-        _ if Fill::is_fill_local(local) => 1,
-        "effectLst" | "effectDag" => 2,
-        "highlight" => 3,
-        "uLnTx" | "uLn" => 4,
-        "uFillTx" | "uFill" => 5,
-        "latin" => 6,
-        "ea" => 7,
-        "cs" => 8,
-        "sym" => 9,
-        "hlinkClick" => 10,
-        "hlinkMouseOver" => 11,
-        "rtl" => 12,
-        "extLst" => 13,
-        _ => return None,
-    };
-    Some(rank)
 }
 
 /// Whether `attribute` is one this model resolves into a spec (so it is compared via *effective*

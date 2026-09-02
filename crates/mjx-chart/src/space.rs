@@ -16,6 +16,8 @@ use mjx_ooxml_types::namespaces::DML_MAIN;
 use mjx_ooxml_types::support::on_off;
 
 use crate::axis::{chart_local, Axis, AxisKind, BlankDisplay, ChartTitle, Legend, LegendPosition};
+use mjx_ooxml_types::child_order::CHART;
+
 use crate::build::{
     chart_val_leaf, insert_position, namespace_declaration, raw_child_attr, set_attr,
 };
@@ -317,23 +319,6 @@ pub enum ChartContent {
     Raw(RawNode),
 }
 
-/// `CT_Chart`'s element order — where a title or a legend must be inserted.
-const CHART_ORDER: [&str; 13] = [
-    "title",
-    "autoTitleDeleted",
-    "pivotFmts",
-    "view3D",
-    "floor",
-    "sideWall",
-    "backWall",
-    "plotArea",
-    "legend",
-    "plotVisOnly",
-    "dispBlanksAs",
-    "showDLblsOverMax",
-    "extLst",
-];
-
 /// `c:chart` (`CT_Chart`) — a chart's title, plot area and legend.
 #[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
 #[xml(namespace = DML_CHART)]
@@ -511,13 +496,13 @@ impl Chart {
     /// Where a child named `local` belongs among the chart's current children.
     fn insert_index(&self, interner: &Interner, local: &str) -> usize {
         insert_position(
+            CHART,
             self.content.iter().map(|item| match item {
                 ChartContent::Title(_) => Some("title"),
                 ChartContent::PlotArea(_) => Some("plotArea"),
                 ChartContent::Legend(_) => Some("legend"),
                 ChartContent::Raw(node) => chart_local(node, interner),
             }),
-            &CHART_ORDER,
             local,
         )
     }
