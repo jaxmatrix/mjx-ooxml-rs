@@ -11,6 +11,11 @@ pub enum OpcError {
     #[error("io error: {0}")]
     Io(#[from] std::io::Error),
 
+    /// The package violates a packaging invariant, so [`Package::save`](crate::Package::save)
+    /// refused to write it. See [`PackageDefect`](crate::PackageDefect).
+    #[error(transparent)]
+    Invalid(#[from] crate::PackageDefect),
+
     /// An XML control part (`[Content_Types].xml` or a `.rels` part) was malformed.
     #[error("xml error: {0}")]
     Xml(#[from] mjx_xml::XmlError),
