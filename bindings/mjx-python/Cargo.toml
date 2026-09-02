@@ -1,0 +1,33 @@
+[package]
+name = "mjx-python"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Python bindings for mjx-ooxml (PyO3): the `mjx_ooxml` extension module."
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+# `_mjx_ooxml` is the compiled half of the `mjx_ooxml` package; `python/mjx_ooxml/__init__.py`
+# re-exports it so the committed `.pyi` and `py.typed` sit beside it in one importable package.
+name = "_mjx_ooxml"
+# `rlib` alongside `cdylib` so `cargo test --workspace` can build and run this crate's own unit
+# tests; the wheel only ever ships the `cdylib`.
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+mjx-ooxml.workspace = true
+pyo3.workspace = true
+
+[features]
+# maturin turns this on when it builds a wheel: it drops the libpython link so the module resolves
+# its symbols from the host interpreter. Left off for `cargo build`/`cargo test`, which must link.
+extension-module = ["pyo3/extension-module"]
+# Re-exposes the facade's legacy VML surface — the four part-addressed readers and writers an OLE
+# object's or a control's legacy fallback needs. Opt-in here for the same reason it is opt-in there.
+vml = ["mjx-ooxml/vml"]
