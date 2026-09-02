@@ -526,3 +526,52 @@ fn an_authored_control_can_be_bound_to_its_legacy_fallback() {
         Err(PptxError::ActiveXControlOutOfRange { index: 4, count: 1 })
     ));
 }
+
+#[test]
+fn the_control_parts_class_id_is_read_through_whatever_prefix_it_binds() {
+    // `ax` is only a convention: the reader leaves an attribute's prefix unresolved, so a part that
+    // binds the ActiveX namespace to some other prefix must still read. Rewrite the fixture's
+    // control part to use `activeX:` and prove nothing changes.
+    let mut pkg = Package::open(&fixture("activex.pptx")).expect("open");
+    let control_part = part("/ppt/activeX/activeX1.xml");
+    let rewritten = String::from_utf8(
+        pkg.part_bytes(&control_part)
+            .expect("the fixture's control part")
+            .to_vec(),
+    )
+    .expect("utf-8")
+    .replace("xmlns:ax=", "xmlns:activeX=")
+    .replace("ax:classid=", "activeX:classid=")
+    .replace("ax:persistence=", "activeX:persistence=");
+    pkg.replace_part_bytes(&control_part, rewritten.into_bytes())
+        .expect("replace");
+
+    let mut pres = Presentation::open(&pkg.save().expect("save")).expect("open");
+    assert_eq!(
+        pres.activex_class_id(0, 0).expect("class id").as_deref(),
+        Some(COMMAND_BUTTON),
+        "the class id reads through the prefix the part actually binds"
+    );
+    assert_eq!(
+        pres.activex_persistence(0, 0).expect("persistence"),
+        Some(ActiveXPersistence::Storage)
+    );
+}
+
+#[test]
+fn a_control_part_that_binds_no_activex_namespace_states_no_class_id() {
+    let mut pkg = Package::open(&fixture("activex.pptx")).expect("open");
+    let control_part = part("/ppt/activeX/activeX1.xml");
+    pkg.replace_part_bytes(
+        &control_part,
+        br#"<ax:ocx xmlns:ax="urn:example:not-activex" ax:classid="{0}"/>"#.to_vec(),
+    )
+    .expect("replace");
+
+    let mut pres = Presentation::open(&pkg.save().expect("save")).expect("open");
+    assert_eq!(
+        pres.activex_class_id(0, 0).expect("class id"),
+        None,
+        "a prefix bound to another namespace is not the ActiveX one"
+    );
+}
