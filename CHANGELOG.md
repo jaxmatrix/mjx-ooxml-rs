@@ -15,6 +15,50 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.62] - 2026-09-02
+
+Package invariant validation — a deck that would need repair is not written (MJX-248). This library
+was very good at *not touching* what it does not understand, and had essentially no defence for what
+it *does* write. `Package::save` performed no package-level check of any kind, so markup naming a
+relationship its `.rels` never declared, a relationship pointing at a part that was not there, a part
+no content-type rule covered, and duplicate identifiers where the format requires uniqueness could all
+be written and shipped. Every one of them makes PowerPoint say it "found a problem with the content
+and needs to repair", and none of them is visible to the schema gate: A1/A2 validate each part against
+its XSD in isolation, and every one of these defects is a property of the package *graph*, perfectly
+schema-valid part by part.
+
+**`save` now validates first, and the check is not opt-in.** A check you have to remember is a check
+that ships the fault it was meant to catch.
+
+- `mjx-opc`: `Package::validate`, `Package::save_unchecked`, and `PackageDefect` — one variant per
+  invariant, each naming the part, relationship and identifier at fault:
+  `PartWithoutContentType` (ECMA-376 Part 2 §6.2.3), `RelationshipTargetMissing`,
+  `UnresolvableRelationshipTarget`, `DuplicateRelationshipId` (§6.5.3),
+  `UndeclaredRelationshipReference` — every attribute in the shared relationship-reference namespace,
+  not `r:id` alone, because `shared-relationshipReference.xsd` types all fourteen of them
+  `ST_RelationshipId` — and `PartIsNotWellFormedXml`. Reached through `OpcError::Invalid`.
+- `mjx-pptx`: `Presentation::validate`, `Presentation::save_unchecked`, and `PresentationDefect`:
+  `DuplicateShapeId`, `DuplicateListEntryId`, `DuplicateListEntryReference`,
+  `ListEntryTargetHasWrongContentType` and `UnlistedRelationship` — the `p:sldIdLst` /
+  `p:sldMasterIdLst` / `p:sldLayoutIdLst` agreement with a part's relationships, in both directions.
+  Reached through `PptxError::InvalidPresentation`.
+- `mjx-opc`: `Package::authored_xml_parts`, `ZipEntry::provenance`, `ZipEntry::tree` and
+  `PartProvenance` — the validation scope, defined once so both layers agree on it.
+
+**The scope is the markup this library will write.** A part still holding the bytes it was opened with
+is re-emitted verbatim and is never faulted, so a file that arrives broken can still be written back,
+and *reading* a part can never change whether a package saves. The moment an edit makes those bytes
+ours, the same defect is refused. `save_unchecked` is the deliberate escape hatch.
+
+**A corrupting bug the validator found on its first run.** `add_ole_object` gave its snapshot picture
+a hard-coded `p:cNvPr@id` of `0` while the frame took an allocated id, so two OLE objects on one slide
+wrote two shapes with the same non-visual id — a duplicate PowerPoint repairs. Fixed, with a
+regression test that asserts the ids rather than only that the save succeeded.
+
+The cost, measured on the largest fixture (`charts.pptx`, 43 entries, 39 relationships): **35.7 µs**
+to validate against 3.2 ms to write the container — about 1% of a save. Nothing that arrived as
+container bytes is ever tokenised.
+
 ## [0.0.61] - 2026-09-02
 
 The remaining model gaps, and an honest gap table (MJX-43). The guide's gap list had accumulated
