@@ -276,11 +276,13 @@ impl Gridlines {
     /// A fresh, empty `c:local` gridlines element (`majorGridlines` or `minorGridlines`).
     pub(crate) fn new(interner: &mut Interner, local: &str) -> Self {
         let element = chart_element(interner, local, Vec::new(), Vec::new());
+        let (name, empty) = (element.name, element.empty);
+        let content = element.into_content();
         Self {
-            name: element.name,
-            attributes: element.attributes,
-            children: element.children,
-            empty: element.empty,
+            name,
+            attributes: content.attributes,
+            children: content.children,
+            empty,
         }
     }
 }
@@ -457,11 +459,13 @@ impl Legend {
             Vec::new(),
             vec![RawNode::Element(legend_position), RawNode::Element(overlay)],
         );
+        let (name, empty) = (element.name, element.empty);
+        let content = element.into_content();
         Self {
-            name: element.name,
-            attributes: element.attributes,
-            children: element.children,
-            empty: element.empty,
+            name,
+            attributes: content.attributes,
+            children: content.children,
+            empty,
         }
     }
 
@@ -524,11 +528,13 @@ impl Scaling {
             Vec::new(),
             vec![RawNode::Element(orientation)],
         );
+        let (name, empty) = (element.name, element.empty);
+        let content = element.into_content();
         Self {
-            name: element.name,
-            attributes: element.attributes,
-            children: element.children,
-            empty: element.empty,
+            name,
+            attributes: content.attributes,
+            children: content.children,
+            empty,
         }
     }
 

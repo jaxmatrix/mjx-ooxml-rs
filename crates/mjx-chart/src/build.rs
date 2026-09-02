@@ -117,12 +117,7 @@ pub(crate) fn chart_element(
     children: Vec<RawNode>,
 ) -> RawElement {
     let empty = children.is_empty();
-    RawElement {
-        name: chart_name(interner, local),
-        attributes,
-        children,
-        empty,
-    }
+    RawElement::new(chart_name(interner, local), attributes, children, empty)
 }
 
 /// Builds a text-bearing `c:local` leaf (`c:v`, `c:f`) carrying `text` as an escaped `Text` child.
@@ -162,12 +157,7 @@ pub(crate) fn dml_element(
     children: Vec<RawNode>,
 ) -> RawElement {
     let empty = children.is_empty();
-    RawElement {
-        name: dml_name(interner, local),
-        attributes,
-        children,
-        empty,
-    }
+    RawElement::new(dml_name(interner, local), attributes, children, empty)
 }
 
 /// Builds a text-bearing `a:local` leaf (`a:t`) carrying `text` as an escaped `Text` child.
@@ -280,12 +270,12 @@ macro_rules! fidelity_element_impls {
                 let children = self.children.clone();
                 // Preserve the self-closing flag, but never contradict "self-closing ⇒ no children".
                 let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement {
-                    name: self.name,
-                    attributes: self.attributes.clone(),
+                ::mjx_ooxml_core::RawElement::new(
+                    self.name,
+                    self.attributes.clone(),
                     children,
                     empty,
-                }
+                )
             }
         }
     };

@@ -277,16 +277,16 @@ impl ChartData {
     fn serialize(&self, workbook_rel_id: Option<&str>) -> Vec<u8> {
         let mut interner = Interner::new();
         let root = self.build_chart_space(&mut interner, workbook_rel_id);
-        let doc = RawDocument {
+        let doc = RawDocument::new(
             interner,
-            bom: false,
-            prologue: vec![
+            false,
+            vec![
                 RawNode::Declaration(XML_DECLARATION.into()),
                 RawNode::Text(Box::from(&b"\n"[..])),
             ],
             root,
-            epilogue: Vec::new(),
-        };
+            Vec::new(),
+        );
         mjx_xml::fidelity::serialize_to_vec(&doc)
     }
 

@@ -307,6 +307,7 @@ impl DrawingPart {
             prologue,
             root,
             epilogue,
+            ..
         } = document;
         let drawing = Drawing::from_xml(&root, &interner)?;
         Ok(Self {
@@ -371,18 +372,13 @@ impl DrawingPart {
         // The document owns the interner, so it is moved out and put back around the write. The
         // interner is `Default`, so the swap needs no clone and cannot fail.
         let interner = std::mem::take(&mut self.interner);
-        let mut document = RawDocument {
+        let mut document = RawDocument::new(
             interner,
-            bom: self.bom,
-            prologue: std::mem::take(&mut self.prologue),
-            root: RawElement {
-                name: self.drawing.name,
-                attributes: Vec::new(),
-                children: Vec::new(),
-                empty: true,
-            },
-            epilogue: std::mem::take(&mut self.epilogue),
-        };
+            self.bom,
+            std::mem::take(&mut self.prologue),
+            RawElement::new(self.drawing.name, Vec::new(), Vec::new(), true),
+            std::mem::take(&mut self.epilogue),
+        );
         document.root = self.drawing.to_xml(&mut document.interner);
         let bytes = mjx_xml::fidelity::serialize_to_vec(&document);
         self.interner = document.interner;
