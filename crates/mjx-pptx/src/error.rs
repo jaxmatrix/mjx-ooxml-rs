@@ -10,8 +10,19 @@ use crate::slide::ShapeKind;
 use crate::surface::Surface;
 
 /// Errors produced while opening, reading, editing, or saving a presentation.
+///
+/// # Deliberately exhaustive
+///
+/// This enum is **not** `#[non_exhaustive]`, so a `match` over it must name every variant. That is
+/// the load-bearing half of the facade's error contract: [`mjx_ooxml::Error`] collapses every
+/// variant here into one of its stable [`ErrorCode`]s through a `match` with no wildcard arm, so
+/// **adding a variant to this enum fails to compile until it is classified**. A wildcard arm would
+/// silently file the new failure under whatever code the catch-all named, which is exactly the bug
+/// the exhaustive match exists to prevent.
+///
+/// [`mjx_ooxml::Error`]: https://docs.rs/mjx-ooxml
+/// [`ErrorCode`]: https://docs.rs/mjx-ooxml
 #[derive(Debug, thiserror::Error)]
-#[non_exhaustive]
 pub enum PptxError {
     /// The underlying OPC package could not be read, edited, or written.
     #[error(transparent)]

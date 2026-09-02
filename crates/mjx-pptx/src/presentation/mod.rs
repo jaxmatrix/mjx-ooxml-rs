@@ -19,6 +19,7 @@ mod charts;
 mod deck;
 mod effective;
 mod element_builders;
+mod hygiene;
 mod hyperlinks;
 mod legacy_content;
 mod notes;
