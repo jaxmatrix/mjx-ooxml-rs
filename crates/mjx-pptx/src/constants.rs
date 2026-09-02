@@ -148,3 +148,64 @@ pub const CONTENT_TYPE_ACTIVEX_BINARY: &str = "application/vnd.ms-office.activeX
 /// The content type of an ink (InkML) part (`/ppt/ink/inkN.xml`). Shares the `xml` extension with every
 /// other part, so it is registered as a per-part Override, not a Default.
 pub const CONTENT_TYPE_INKML: &str = "application/inkml+xml";
+
+/// The relationship type from a slide to a SmartArt **Diagram Data** part
+/// (`/ppt/diagrams/dataN.xml`) — the target a `dgm:relIds@r:dm` names (ECMA-376 Part 1 §21.4.2.22).
+pub const REL_DIAGRAM_DATA: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramData";
+
+/// The relationship type from a slide to a SmartArt **Diagram Layout Definition** part
+/// (`/ppt/diagrams/layoutN.xml`) — the target a `dgm:relIds@r:lo` names.
+pub const REL_DIAGRAM_LAYOUT: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramLayout";
+
+/// The relationship type from a slide to a SmartArt **Diagram Style** part
+/// (`/ppt/diagrams/quickStyleN.xml`) — the target a `dgm:relIds@r:qs` names. Note the mismatch the
+/// spec itself carries: the relationship says `diagramQuickStyle`, the content type says
+/// `diagramStyle`.
+pub const REL_DIAGRAM_QUICK_STYLE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramQuickStyle";
+
+/// The relationship type from a slide to a SmartArt **Diagram Colors** part
+/// (`/ppt/diagrams/colorsN.xml`) — the target a `dgm:relIds@r:cs` names.
+pub const REL_DIAGRAM_COLORS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/diagramColors";
+
+/// The relationship type from a diagram's **data** part to the cached drawing
+/// (`/ppt/diagrams/drawingN.xml`) that holds the laid-out shapes. An Office 2007 extension outside
+/// ECMA-376, hung off the data part rather than the frame.
+pub const REL_DIAGRAM_DRAWING: &str =
+    "http://schemas.microsoft.com/office/2007/relationships/diagramDrawing";
+
+/// The content type of a SmartArt Diagram Data part (`dgm:dataModel` markup).
+pub const CONTENT_TYPE_DIAGRAM_DATA: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.diagramData+xml";
+
+/// The content type of a SmartArt Diagram Layout Definition part (`dgm:layoutDef` markup).
+pub const CONTENT_TYPE_DIAGRAM_LAYOUT: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.diagramLayout+xml";
+
+/// The content type of a SmartArt Diagram Style part (`dgm:styleDef` markup).
+pub const CONTENT_TYPE_DIAGRAM_STYLE: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.diagramStyle+xml";
+
+/// The content type of a SmartArt Diagram Colors part (`dgm:colorsDef` markup).
+pub const CONTENT_TYPE_DIAGRAM_COLORS: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.diagramColors+xml";
+
+/// The content type of a SmartArt cached drawing part (`dsp:drawing` markup). A Microsoft extension.
+pub const CONTENT_TYPE_DIAGRAM_DRAWING: &str =
+    "application/vnd.ms-office.drawingml.diagramDrawing+xml";
+
+/// The namespace of the Office 2010 PowerPoint extensions, where `p14:contentPart` lives — the
+/// element producers wrap in `mc:AlternateContent` to reference an ink part.
+pub const POWERPOINT_2010_NAMESPACE: &str =
+    "http://schemas.microsoft.com/office/powerpoint/2010/main";
+
+/// The namespace of the InkML markup an ink part is rooted in (`inkml:ink`), used to check that
+/// bytes handed to [`add_ink`](crate::Presentation::add_ink) really are ink.
+pub const INKML_NAMESPACE: &str = "http://www.w3.org/2003/InkML";
+
+/// The namespace of an ActiveX control part's markup (`ax:ocx`). A Microsoft extension outside
+/// ECMA-376.
+pub const ACTIVEX_NAMESPACE: &str = "http://schemas.microsoft.com/office/2006/activeX";

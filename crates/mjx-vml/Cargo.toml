@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Legacy VML (Transitional-only), feature-gated, preserve-first."
+description = "Legacy VML (Transitional-only): the vocabulary, the model, and the shape-level references."
 
 [lints]
 workspace = true
@@ -16,3 +16,4 @@ mjx-ooxml-core.workspace = true
 mjx-xml.workspace = true
 mjx-derive.workspace = true
 mjx-ooxml-types.workspace = true
+thiserror.workspace = true

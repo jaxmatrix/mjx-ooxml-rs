@@ -78,6 +78,7 @@ mod geometry;
 mod group;
 pub mod guide;
 mod hyperlink;
+mod legacy;
 mod nav;
 mod placement;
 mod presentation;
@@ -94,6 +95,10 @@ pub use external::{
 };
 pub use geometry::{CellMargins, Geometry, ShapeBounds, SlideSize};
 pub use hyperlink::Hyperlink;
+pub use legacy::{
+    ActiveXControlSpec, ActiveXPersistence, DiagramContent, DiagramPartKind, DiagramParts,
+    DiagramRelationshipIds, InkReference, OleObjectData, OleObjectSpec,
+};
 // Chart types, re-exported so a caller of the chart methods need not depend on `mjx-chart`.
 pub use mjx_chart::{
     AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind, LegendPosition,

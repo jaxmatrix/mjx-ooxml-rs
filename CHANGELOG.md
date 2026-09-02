@@ -15,6 +15,84 @@ iteration until the first milestone. Milestones then advance the minor version:
 Further milestones (rendering, bindings, …) are defined as that work is scheduled. The public API is
 **not** stable until `v0.1`.
 
+## [0.0.60] - 2026-09-02
+
+Typed surfaces for the content that is not DrawingML (MJX-140, absorbing MJX-139). Five kinds of
+content — OLE objects, ActiveX controls, ink, SmartArt diagrams and legacy VML — round-tripped
+perfectly and could be *read*, and that was all. There was no authoring, no editing, and no way to
+answer the question that makes any of it useful: **which shape is this?** An InkML part was findable
+but untraceable; a diagram was `GraphicFrameKind::Diagram` and nothing more; `mjx-vml` had been 69
+lines since Phase 0, its own doc comment deferring "rich modeling and shape-level references" to "a
+later phase" that had no owner and no date.
+
+Every one of the five now has read, author **and** edit coverage. Nothing about the round-trip
+guarantee changes: modelling a type only adds reach, and the edit-isolation tier over each fixture is
+the gate this release is measured against.
+
+`mjx-vml` — from 69 lines to a real model:
+
+- `Drawing` (the `<xml>` root of a `vmlDrawingN.vml`, or any element holding VML shapes — a Word
+  `w:pict`, an `mc:Fallback` branch), `Shape`, `ShapeTemplate`, `ShapeGroup`, `ImageData`, `TextBox`,
+  `Fill`, `Stroke`, `ShapePath`, `DiagramText`; the Office extensions that carry the references —
+  `ShapeLayout` / `ShapeIdMap`, `EmbeddedOleObject`, `Ink`, `ShapeProtections`; and
+  `AttachedObjectData`, the legacy form control's own record. `DrawingPart` reads and writes a whole
+  part.
+- The point of it is one hop: `p:oleObj@spid`, `p:control@spid` and `o:OLEObject@ShapeID` all name a
+  VML shape's `id`, and `Drawing::shape_by_identifier` resolves it.
+- Names come from the ECMA-376 Part 4 §19 prose, never the wire token — `v:shapetype` is a
+  `ShapeTemplate`, `o:idmap` a `ShapeIdMap`, `x:ClientData` an `AttachedObjectData` — and
+  `ST_ObjectType`'s nineteen values expand to `PushButton`, `DropdownBox`, `AuditingLine` and the rest.
+
+`mjx-pptx`:
+
+- **Ink.** `ink_references` ties every InkML part to the content part that names it, finding both
+  PresentationML's `p:contentPart` and the `p14:contentPart` producers wrap in `mc:AlternateContent`;
+  `ink_part_for_shape` and `shape_for_ink_part` walk it either way. `add_ink` writes the part and the
+  reference; `set_ink_content` replaces the strokes without touching the slide. Both check the root
+  namespace, so a package cannot end up declaring `application/inkml+xml` over something else.
+- **SmartArt.** `diagram_relationship_ids` and `diagram_parts` expose the whole graph — the four parts
+  a `dgm:relIds` names plus the cached drawing, which hangs off the *data* part rather than the frame.
+  `add_diagram` writes all four with their relationships and the frame; `DiagramContent::vertical_list`
+  generates a working diagram from a list of labels, `from_parts` takes four documents of your own.
+  `set_diagram_part` replaces one of them in place.
+- **OLE and ActiveX.** `add_ole_object` (an embedded stream, a whole embedded package, or a link) and
+  `add_activex_control` (the `ax:ocx` part, its `.bin` state and the `p:controls` container), plus
+  `set_ole_prog_id`, `set_ole_object_data`, `set_ole_snapshot_image`, `set_activex_control_name`,
+  `set_activex_state`, `set_activex_snapshot_image` and `remove_activex_control`. Reading gains
+  `activex_class_id` and `activex_persistence`. Both kinds can be bound to their legacy fallback with
+  `set_ole_legacy_shape_id` / `set_activex_control_shape_id` and read back with
+  `ole_legacy_shape_id` / `activex_control_shape_id`.
+- **VML** (behind the `vml` feature): `vml_drawing_part`, `with_vml_drawing`, `edit_vml_drawing`,
+  `add_vml_drawing`, and the headline `with_vml_shape_for_ole_object` /
+  `with_vml_shape_for_activex_control`, which walk from the modern frame to the legacy shape that
+  draws it. The feature's boundary is unchanged and now documented: it decides only whether *this*
+  crate re-exposes the surface, since `mjx-vml` is a normal crate `mjx-docx` will depend on directly.
+
+Verification: the schema gate gains a DrawingML-diagram arm, because this project now writes those
+four parts — `dml-diagram.xsd` joins the markers `harness()` requires, and a new case pins that all
+four are *validated* rather than skipped. Seven new schema cases cover the authored diagram, OLE
+object, ActiveX control, ink and VML deck plus an edited OLE object. `mjx-opc`'s `tree_roundtrip` now
+covers the four legacy fixtures.
+
+One limitation surfaced and is recorded rather than hidden: the fidelity reader does not preserve the
+whitespace *between* attributes, so a start tag whose attributes were wrapped across lines re-flows
+onto one line when its part is edited. It never touches a part nobody edited — those keep their
+original bytes and are never re-serialised — but Office wraps VML start tags far more often than it
+wraps a slide's, so it shows there first. `KNOWN_REFLOWS` in `crates/mjx-opc/tests/tree_roundtrip.rs`
+pins it, and the fidelity guide states it. Fixing it means adding a field to `RawAttribute` and
+`RawElement` in `mjx-ooxml-core` and touching ~140 construction sites across every crate, which is an
+architectural decision rather than a fix to take inside this change.
+
+The guide's "preserved but not modelled" table is gone, replaced by a read/author/edit table for the
+five and five honest non-goal rows (InkML strokes, the SmartArt layout engine, `ax:ocxPr`, VML path
+evaluation, and the re-flow above). A seventh example, `legacy_content`, exercises all five and runs
+in both feature modes.
+
+Still open from MJX-140: **producer-authentic validation**. Every fixture here is still hand-crafted,
+so what the schema gate proves is that our reader agrees with our writer against markup we wrote.
+Obtaining decks Microsoft PowerPoint actually produced needs Office, and belongs with the runtime
+verification work.
+
 ## [0.0.59] - 2026-07-31
 
 The usage guide and the first runnable examples (MJX-209). The repository documented every *item* —

@@ -25,11 +25,19 @@ thiserror.workspace = true
 unicode-segmentation.workspace = true
 
 [features]
-# Preserve-first legacy VML recognition (opt-in). Off by default: VML parts round-trip
-# byte-identically regardless; this feature only surfaces them for reading.
+# The legacy VML surface (opt-in). Off by default: a VML part round-trips byte-identically whether
+# or not this is on, because that is the packaging layer's job, not this feature's. What the feature
+# adds is *reach* — enumerating a deck's VML parts, reading them as a typed `mjx_vml::Drawing`,
+# resolving the shape an OLE object's or a control's `spid` names, and authoring or editing one.
+#
+# `mjx-vml` itself is not gated: it is a normal shared-markup crate that any consumer (`mjx-docx`
+# for Word headers and footers, say) depends on directly. The flag decides only whether *this* crate
+# re-exposes it, so PresentationML callers who never touch Transitional-only markup do not compile it.
 vml = ["dep:mjx-vml"]
 
 [dev-dependencies]
 # Examples are the one place file I/O belongs — the library is bytes-in/bytes-out, and the *caller*
 # reads and writes. `anyhow` is sanctioned in tooling, tests and examples, never in library code.
 anyhow.workspace = true
+# The VML tests read the typed model the `vml` feature exposes, which lives in `mjx-vml`.
+mjx-vml.workspace = true
