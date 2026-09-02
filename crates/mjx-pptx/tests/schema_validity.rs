@@ -70,6 +70,7 @@ use mjx_dml::{
     TextAlignment, TextAnchoring, TextSpacing,
 };
 use mjx_ooxml_core::{Interner, RawElement, RawNode};
+use mjx_ooxml_types::child_order;
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_opc::{Package, PartName, CONTENT_TYPES_ZIP_NAME};
@@ -600,10 +601,81 @@ fn assert_outcomes_are_valid(label: &str, outcomes: &[(String, PartOutcome)]) {
 
 /// Validates a deck this library **authored**. No deviation is tolerated: everything in a deck we
 /// write is ours.
+///
+/// Two gates run here, and only the first needs `References/`:
+///
+/// 1. [`assert_deck_is_in_schema_order`] — child order, from the committed tables. It runs
+///    **always**, so the ordering guarantee does not evaporate on a machine with no schemas.
+/// 2. `xmllint` against the XSDs, when the harness is available.
 fn assert_authored_deck_is_schema_valid(label: &str, bytes: &[u8]) {
+    assert_deck_is_in_schema_order(label, bytes);
     let Some(harness) = harness() else { return };
     let outcomes = inspect_deck(&harness, label, bytes, &[]);
     assert_outcomes_are_valid(label, &outcomes);
+}
+
+/// Asserts that no element of any part of `bytes` carries a child out of its complex type's
+/// `xsd:sequence`, using the generated `mjx-ooxml-types::child_order` tables.
+///
+/// This is the half of schema validity that needs no external tool: `xmllint` catches an ordering
+/// fault only for the shape some case happens to author, and only where `References/` exists, while
+/// this walks **every element of every part** whose root the tables know, on every run.
+///
+/// # Why this may be pointed at a whole deck
+///
+/// Some of these decks are a committed fixture opened, edited and saved, so they carry parts this
+/// library did not write. That is deliberate and safe here: the fixtures are themselves schema-valid
+/// (the `*_fixture_is_schema_valid` cases prove it with `xmllint`), so a fault this raises is
+/// markup **this** library placed. The library itself never re-orders what it reads — placement only
+/// ever runs on a child a caller asked to write — and the byte-identity suites in `mjx-opc` are what
+/// hold that line.
+fn assert_deck_is_in_schema_order(label: &str, bytes: &[u8]) {
+    let audited = audit_deck_order(label, bytes);
+    assert!(
+        !audited.is_empty(),
+        "{label}: not one part was audited for child order"
+    );
+}
+
+/// Runs the child-order audit over every part of `bytes` whose root element the generated tables
+/// name, panicking on the first defect. Returns `(part name, elements checked)` per audited part, so
+/// a caller can prove the walk is not passing vacuously.
+fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<(String, usize)> {
+    let mut audited = Vec::new();
+    let mut package =
+        Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
+    let parts: Vec<PartName> = package.part_names().collect();
+    for part in parts {
+        let Some(content_type) = package.content_type_of(&part).map(str::to_owned) else {
+            continue;
+        };
+        if !is_xml_content_type(&content_type) {
+            continue;
+        }
+        let Ok(document) = package.part_tree(&part) else {
+            continue;
+        };
+        let interner = &document.interner;
+        let root = &document.root;
+        let Some(namespace) = root.name.namespace.map(|symbol| interner.resolve(symbol)) else {
+            continue;
+        };
+        let Some(order) = child_order::root_element(namespace, interner.resolve(root.name.local))
+        else {
+            // A part whose root the tables do not name: an OPC control stream, VML, InkML, ActiveX,
+            // document properties. Never faulted — see the module docs on foreign markup.
+            continue;
+        };
+        let audit = child_order::audit_tree(order, root, interner);
+        if let Some(defect) = audit.defect {
+            panic!(
+                "{label}: {} is out of schema order — {defect}",
+                part.as_str()
+            );
+        }
+        audited.push((part.as_str().to_owned(), audit.elements_visited));
+    }
+    audited
 }
 
 /// Validates a committed fixture, allowing only the deviations [`TOLERATED_DEVIATIONS`] records for
@@ -875,6 +947,46 @@ fn the_blank_deck_validates_every_part_it_ships() {
         "every entry of a blank deck must be validated, none skipped"
     );
     assert_eq!(outcomes.len(), validated.len());
+}
+
+#[test]
+fn the_child_order_audit_reaches_every_authored_markup_part_and_is_not_vacuous() {
+    // An audit that visits nothing passes for the wrong reason. Pin which parts of a filled blank
+    // deck the child-order walk reaches, and that it descends into each of them rather than stopping
+    // at the root — this is what makes `assert_authored_deck_is_schema_valid` a real ordering gate
+    // on every one of the authoring cases in this file, with or without `References/`.
+    let mut deck = Presentation::blank(SlideSize {
+        width_emu: 12_192_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen16X9,
+    })
+    .expect("blank");
+    let slide = deck
+        .add_slide_from_layout(0)
+        .expect("add slide from layout");
+    deck.set_shape_text_content(slide, 0, "Ordered by construction")
+        .expect("set the title");
+    let saved = deck.save().expect("save");
+
+    let audited = audit_deck_order("blank deck order coverage", &saved);
+    let parts: Vec<&str> = audited.iter().map(|(name, _)| name.as_str()).collect();
+    assert_eq!(
+        parts,
+        [
+            "/ppt/presentation.xml",
+            "/ppt/slideMasters/slideMaster1.xml",
+            "/ppt/slideLayouts/slideLayout1.xml",
+            "/ppt/theme/theme1.xml",
+            "/ppt/slides/slide1.xml",
+        ],
+        "every PresentationML and DrawingML part this deck authors must be audited"
+    );
+    for (name, visited) in &audited {
+        assert!(
+            *visited > 5,
+            "{name}: the walk checked only {visited} elements — it is not descending"
+        );
+    }
 }
 
 #[test]
