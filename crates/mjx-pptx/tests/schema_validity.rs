@@ -1545,6 +1545,66 @@ fn formatted_text_is_schema_valid() {
 }
 
 #[test]
+fn an_authored_shape_list_style_is_schema_valid() {
+    // `CT_TextBody` is `bodyPr`, `lstStyle?`, `p+` and `CT_TextListStyle` is `defPPr` then
+    // `lvl1pPr` … `lvl9pPr` — both sequences, so an authored list style is only valid if every
+    // element lands in order. Level 8 first, then level 0, then the default: written in the reverse
+    // of the schema's order, so an implementation that appended would fail here.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    let slide = pres.add_slide_from_layout(1).expect("add slide");
+    pres.set_shape_text(slide, 1, 0, "A body whose levels are stated by the shape")
+        .expect("set the body");
+    pres.set_shape_list_style_level(
+        slide,
+        1,
+        IndentLevel::of(8),
+        &ParagraphPropertiesSpec::new()
+            .with_left_margin_points(72.0)
+            .with_bullet_character("-"),
+    )
+    .expect("author the deepest level");
+    pres.set_shape_list_style_level(
+        slide,
+        1,
+        IndentLevel::TOP,
+        &ParagraphPropertiesSpec::new()
+            .with_alignment(TextAlignment::Center)
+            .with_space_before(TextSpacing::points(6.0))
+            .with_default_run_properties(
+                CharacterPropertiesSpec::new()
+                    .with_size_points(20.0)
+                    .with_color(ColorSpec::Scheme(SchemeColor::Accent2)),
+            ),
+    )
+    .expect("author level 0");
+    pres.set_shape_list_style_default(
+        slide,
+        1,
+        &ParagraphPropertiesSpec::new().with_indent_points(9.0),
+    )
+    .expect("author the default");
+
+    // A text box authors its list style the same way, on a body this library wrote itself.
+    let box_idx = pres
+        .add_text_box(
+            slide,
+            "A text box",
+            ShapeBounds::from_inches(1.0, 5.0, 3.0, 1.0),
+        )
+        .expect("add text box");
+    pres.set_shape_list_style_level(
+        slide,
+        box_idx,
+        IndentLevel::of(1),
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Right),
+    )
+    .expect("author a level on the text box");
+
+    let saved = pres.save().expect("save");
+    assert_authored_deck_is_schema_valid("authored shape list style", &saved);
+}
+
+#[test]
 fn hyperlinks_are_schema_valid() {
     // `a:hlinkClick` on a run and on a shape, external and internal — both add a relationship and an
     // element whose attribute set the schema constrains tightly.

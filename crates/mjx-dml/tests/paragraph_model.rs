@@ -452,6 +452,158 @@ fn a_text_body_reaches_its_list_style() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Authoring a list style (MJX-43)
+//
+// The read side above is only half of the tier. A list style a caller cannot write is a tier they
+// can resolve through and never state, so these pin the writing half: schema order, merging rather
+// than replacing, and where a brand-new `a:lstStyle` lands in a body that had none.
+// ---------------------------------------------------------------------------------------------
+
+/// Parses an `a:lstStyle` whose body is `inner`.
+fn list_style(inner: &str) -> (TextListStyle, RawDocument) {
+    let fragment = format!(r#"<a:lstStyle xmlns:a="{A}">{inner}</a:lstStyle>"#);
+    parse_typed(fragment.as_bytes())
+}
+
+#[test]
+fn a_new_level_lands_where_the_schema_sequence_puts_it() {
+    // `CT_TextListStyle` is `defPPr`, `lvl1pPr` … `lvl9pPr`, `extLst`. Level 1 (`a:lvl2pPr`) added to
+    // a style that already states level 2 and carries an extension list must land between them.
+    let (mut style, mut doc) = list_style(r#"<a:lvl3pPr algn="r"/><a:extLst/>"#);
+    style.set_level(
+        &mut doc.interner,
+        IndentLevel::of(1),
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Center),
+    );
+    style.set_default_properties(
+        &mut doc.interner,
+        &ParagraphPropertiesSpec::new().with_indent_points(9.0),
+    );
+
+    let out = serialize_edited(doc, &style);
+    let at = |needle: &str| {
+        out.find(needle)
+            .unwrap_or_else(|| panic!("{needle}: {out}"))
+    };
+    assert!(at("<a:defPPr") < at("<a:lvl2pPr"), "{out}");
+    assert!(at("<a:lvl2pPr") < at("<a:lvl3pPr"), "{out}");
+    assert!(at("<a:lvl3pPr") < at("<a:extLst"), "{out}");
+}
+
+#[test]
+fn setting_a_level_merges_into_what_it_already_states() {
+    // A property the spec does not name is left where it was — including an unmodeled child.
+    let (mut style, mut doc) = list_style(
+        r#"<a:lvl1pPr algn="ctr" marL="457200"><a:extLst><a:ext uri="x"/></a:extLst></a:lvl1pPr>"#,
+    );
+    style.set_level(
+        &mut doc.interner,
+        IndentLevel::TOP,
+        &ParagraphPropertiesSpec::new().with_indent_points(18.0),
+    );
+
+    let out = serialize_edited(doc, &style);
+    assert!(out.contains(r#"algn="ctr""#), "{out}");
+    assert!(out.contains(r#"marL="457200""#), "{out}");
+    assert!(out.contains(r#"indent="228600""#), "{out}");
+    assert!(out.contains(r#"<a:ext uri="x"/>"#), "{out}");
+    assert_eq!(out.matches("<a:lvl1pPr").count(), 1, "duplicated: {out}");
+}
+
+#[test]
+fn removing_a_level_leaves_every_other_one_alone() {
+    let (mut style, doc) =
+        list_style(r#"<a:defPPr algn="l"/><a:lvl1pPr algn="ctr"/><a:lvl2pPr algn="r"/>"#);
+    assert!(style.remove_level(&doc.interner, IndentLevel::TOP));
+    assert!(
+        !style.remove_level(&doc.interner, IndentLevel::TOP),
+        "removing what is no longer there reports so"
+    );
+    assert!(style.remove_default_properties(&doc.interner));
+
+    let out = serialize_edited(doc, &style);
+    assert!(!out.contains("<a:lvl1pPr"), "{out}");
+    assert!(!out.contains("<a:defPPr"), "{out}");
+    assert!(out.contains(r#"<a:lvl2pPr algn="r"/>"#), "{out}");
+}
+
+#[test]
+fn a_new_list_style_lands_between_the_body_properties_and_the_first_paragraph() {
+    // `CT_TextBody` is `bodyPr`, `lstStyle?`, `p+`. A body that declares no list style must gain one
+    // in that gap — appending it after the paragraphs would make the body invalid.
+    let fragment = format!(
+        r#"<a:txBody xmlns:a="{A}"><a:bodyPr/><a:p><a:r><a:t>x</a:t></a:r></a:p></a:txBody>"#,
+        A = A
+    );
+    let (mut body, mut doc): (TextBody, _) = parse_typed(fragment.as_bytes());
+    assert!(body.list_style().is_none(), "the body starts with none");
+
+    let mut style = TextListStyle::new(&mut doc.interner);
+    style.set_level(
+        &mut doc.interner,
+        IndentLevel::TOP,
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Center),
+    );
+    body.set_list_style(style);
+
+    let out = serialize_edited(doc, &body);
+    assert!(
+        out.contains(r#"<a:bodyPr/><a:lstStyle><a:lvl1pPr algn="ctr"/></a:lstStyle><a:p>"#),
+        "{out}"
+    );
+}
+
+#[test]
+fn setting_a_list_style_replaces_the_one_the_body_already_has_in_place() {
+    let fragment = format!(
+        concat!(
+            r#"<a:txBody xmlns:a="{A}"><a:bodyPr/>"#,
+            r#"<a:lstStyle><a:lvl1pPr algn="l"/></a:lstStyle>"#,
+            r#"<a:p><a:r><a:t>x</a:t></a:r></a:p></a:txBody>"#
+        ),
+        A = A
+    );
+    let (mut body, mut doc): (TextBody, _) = parse_typed(fragment.as_bytes());
+    let mut style = body.list_style().cloned().expect("a list style");
+    style.set_level(
+        &mut doc.interner,
+        IndentLevel::TOP,
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Right),
+    );
+    body.set_list_style(style);
+
+    let out = serialize_edited(doc, &body);
+    assert_eq!(out.matches("<a:lstStyle").count(), 1, "{out}");
+    assert!(out.contains(r#"<a:lvl1pPr algn="r"/>"#), "{out}");
+    assert!(
+        out.find("<a:lstStyle").expect("lstStyle") < out.find("<a:p>").expect("p"),
+        "{out}"
+    );
+}
+
+#[test]
+fn removing_a_bodys_list_style_leaves_its_paragraphs_where_they_were() {
+    let fragment = format!(
+        concat!(
+            r#"<a:txBody xmlns:a="{A}"><a:bodyPr/>"#,
+            r#"<a:lstStyle><a:lvl1pPr algn="l"/></a:lstStyle>"#,
+            r#"<a:p><a:r><a:t>x</a:t></a:r></a:p></a:txBody>"#
+        ),
+        A = A
+    );
+    let (mut body, doc): (TextBody, _) = parse_typed(fragment.as_bytes());
+    assert!(body.remove_list_style());
+    assert!(
+        !body.remove_list_style(),
+        "a second removal reports nothing"
+    );
+
+    let out = serialize_edited(doc, &body);
+    assert!(!out.contains("<a:lstStyle"), "{out}");
+    assert!(out.contains("<a:t>x</a:t>"), "{out}");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Bullets — four groups that inherit independently
 // ---------------------------------------------------------------------------------------------
 
