@@ -1548,21 +1548,12 @@ fn formatted_text_is_schema_valid() {
 fn an_authored_shape_list_style_is_schema_valid() {
     // `CT_TextBody` is `bodyPr`, `lstStyle?`, `p+` and `CT_TextListStyle` is `defPPr` then
     // `lvl1pPr` … `lvl9pPr` — both sequences, so an authored list style is only valid if every
-    // element lands in order. Level 8 first, then level 0, then the default: written in the reverse
-    // of the schema's order, so an implementation that appended would fail here.
+    // element lands in order. The levels are written *in* schema order (0, then 8, then the default
+    // that precedes both), which is the order an implementation ignoring the sequence gets wrong.
     let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
     let slide = pres.add_slide_from_layout(1).expect("add slide");
     pres.set_shape_text(slide, 1, 0, "A body whose levels are stated by the shape")
         .expect("set the body");
-    pres.set_shape_list_style_level(
-        slide,
-        1,
-        IndentLevel::of(8),
-        &ParagraphPropertiesSpec::new()
-            .with_left_margin_points(72.0)
-            .with_bullet_character("-"),
-    )
-    .expect("author the deepest level");
     pres.set_shape_list_style_level(
         slide,
         1,
@@ -1577,6 +1568,15 @@ fn an_authored_shape_list_style_is_schema_valid() {
             ),
     )
     .expect("author level 0");
+    pres.set_shape_list_style_level(
+        slide,
+        1,
+        IndentLevel::of(8),
+        &ParagraphPropertiesSpec::new()
+            .with_left_margin_points(72.0)
+            .with_bullet_character("-"),
+    )
+    .expect("author the deepest level");
     pres.set_shape_list_style_default(
         slide,
         1,

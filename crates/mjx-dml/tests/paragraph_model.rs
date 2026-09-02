@@ -467,17 +467,25 @@ fn list_style(inner: &str) -> (TextListStyle, RawDocument) {
 
 #[test]
 fn a_new_level_lands_where_the_schema_sequence_puts_it() {
-    // `CT_TextListStyle` is `defPPr`, `lvl1pPr` … `lvl9pPr`, `extLst`. Level 1 (`a:lvl2pPr`) added to
-    // a style that already states level 2 and carries an extension list must land between them.
+    // `CT_TextListStyle` is `defPPr`, `lvl1pPr` … `lvl9pPr`, `extLst`. Three children are added to a
+    // style that already states level 2 and carries an extension list, and they are added *in* schema
+    // order — so a writer that ignored the sequence and put every new child in the same place would
+    // emit them reversed rather than pass by luck. Level 4 is the one that must land *after* what the
+    // style already states, which no single insertion point gets right alongside the other two.
     let (mut style, mut doc) = list_style(r#"<a:lvl3pPr algn="r"/><a:extLst/>"#);
+    style.set_default_properties(
+        &mut doc.interner,
+        &ParagraphPropertiesSpec::new().with_indent_points(9.0),
+    );
     style.set_level(
         &mut doc.interner,
         IndentLevel::of(1),
         &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Center),
     );
-    style.set_default_properties(
+    style.set_level(
         &mut doc.interner,
-        &ParagraphPropertiesSpec::new().with_indent_points(9.0),
+        IndentLevel::of(4),
+        &ParagraphPropertiesSpec::new().with_alignment(TextAlignment::Right),
     );
 
     let out = serialize_edited(doc, &style);
@@ -487,7 +495,8 @@ fn a_new_level_lands_where_the_schema_sequence_puts_it() {
     };
     assert!(at("<a:defPPr") < at("<a:lvl2pPr"), "{out}");
     assert!(at("<a:lvl2pPr") < at("<a:lvl3pPr"), "{out}");
-    assert!(at("<a:lvl3pPr") < at("<a:extLst"), "{out}");
+    assert!(at("<a:lvl3pPr") < at("<a:lvl5pPr"), "{out}");
+    assert!(at("<a:lvl5pPr") < at("<a:extLst"), "{out}");
 }
 
 #[test]
