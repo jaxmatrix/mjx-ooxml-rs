@@ -7,7 +7,11 @@
 
 use crate::codegen::naming::NameEngine;
 
-/// The naming engine configured for the shared slice.
+/// The naming engine for the three schemas whose `ST_*` symbol sets are disjoint and so can
+/// share one table: `shared-commonSimpleTypes.xsd`, `dml-main.xsd` and `pml.xsd`.
+///
+/// `wml.xsd` and `shared-math.xsd` have their own engines below, because they redeclare symbols
+/// these three already use — see the note there.
 pub const ENGINE: NameEngine = NameEngine {
     type_overrides: TYPE_OVERRIDES,
     variant_overrides: VARIANT_OVERRIDES,
@@ -675,6 +679,479 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_PresetMaterialType", "softmetal", "SoftMetal"),
 ];
 
+// ---------------------------------------------------------------------------------------------
+// WordprocessingML (`wml.xsd`) and Office Math (`shared-math.xsd`)
+//
+// An `ST_*` symbol is scoped to the schema that declares it, and OOXML reuses symbols across
+// schemas with different meanings. `ST_Jc` is declared by **both** `wml.xsd` (twelve values, a
+// paragraph's horizontal alignment) and `shared-math.xsd` (four, a math paragraph's), and
+// `ST_Direction` by **both** `wml.xsd` (`ltr`/`rtl`) and `pml.xsd` (`horz`/`vert`, already emitted
+// as `Orientation`). One flat table keyed on the bare symbol cannot express two meanings, and a
+// row written for one schema would silently apply to the other.
+//
+// So the naming data is partitioned the way the symbols are: **one `NameEngine` per emitted
+// module**, each with its own overrides. `naming.rs` is unchanged — the engine already takes its
+// tables by reference, so adding a schema still means growing the tables.
+// ---------------------------------------------------------------------------------------------
+
+/// The naming engine for the WordprocessingML slice — `wml.xsd`, all 110 simple types.
+pub const WORDPROCESSINGML_ENGINE: NameEngine = NameEngine {
+    type_overrides: WORDPROCESSINGML_TYPE_OVERRIDES,
+    variant_overrides: WORDPROCESSINGML_VARIANT_OVERRIDES,
+    abbreviations: WORDPROCESSINGML_ABBREVIATIONS,
+};
+
+/// The naming engine for the Office Math slice — `shared-math.xsd`, all 14 simple types.
+pub const OFFICEMATH_ENGINE: NameEngine = NameEngine {
+    type_overrides: OFFICEMATH_TYPE_OVERRIDES,
+    variant_overrides: OFFICEMATH_VARIANT_OVERRIDES,
+    abbreviations: &[],
+};
+
+/// lowercase word → PascalCase expansion for WordprocessingML tokens.
+///
+/// Deliberately small: only the four abbreviations that recur across several types. Everything
+/// else is an explicit variant override, so an expansion can never reach a token it was not
+/// written for. `horz`/`vert`/`diag` carry `ST_Shd`'s stripe and cross patterns and
+/// `ST_TblStyleOverrideType`'s banding; `chars` carries `ST_DocGrid`.
+const WORDPROCESSINGML_ABBREVIATIONS: &[(&str, &str)] = &[
+    ("chars", "Characters"),
+    ("diag", "Diagonal"),
+    ("horz", "Horizontal"),
+    ("vert", "Vertical"),
+];
+
+/// `ST_*` → comprehensive Rust type name for `wml.xsd`, where the mechanical name is not
+/// self-explanatory. Names are sourced from the ECMA-376 Part 1 §17.18 prose; the 32 types with no
+/// row here already expand cleanly (`ST_HighlightColor`, `ST_NumberFormat`, `ST_ThemeColor`, …).
+const WORDPROCESSINGML_TYPE_OVERRIDES: &[(&str, &str)] = &[
+    ("ST_LongHexNumber", "EightDigitHexadecimalNumber"),
+    ("ST_ShortHexNumber", "FourDigitHexadecimalNumber"),
+    ("ST_UcharHexNumber", "TwoDigitHexadecimalNumber"),
+    ("ST_DecimalNumberOrPercent", "DecimalNumberOrPercentage"),
+    ("ST_HpsMeasure", "HalfPointMeasure"),
+    ("ST_SignedHpsMeasure", "SignedHalfPointMeasure"),
+    ("ST_TextScalePercent", "TextScalePercentage"),
+    ("ST_MeasurementOrPercent", "MeasurementOrPercentage"),
+    ("ST_HexColorAuto", "AutomaticColor"),
+    ("ST_HexColor", "HexadecimalColor"),
+    ("ST_Border", "BorderStyle"),
+    ("ST_Shd", "ShadingPattern"),
+    ("ST_Em", "EmphasisMark"),
+    ("ST_Wrap", "TextFrameWrapping"),
+    ("ST_VAnchor", "VerticalAnchor"),
+    ("ST_HAnchor", "HorizontalAnchor"),
+    ("ST_TabJc", "TabStopType"),
+    ("ST_TabTlc", "TabStopLeader"),
+    ("ST_Jc", "Justification"),
+    ("ST_JcTable", "TableJustification"),
+    ("ST_View", "DocumentView"),
+    ("ST_Zoom", "ZoomPreset"),
+    ("ST_Proof", "ProofingState"),
+    ("ST_DocType", "DocumentClassification"),
+    ("ST_DocProtect", "DocumentProtection"),
+    ("ST_MailMergeDocType", "MailMergeDocumentType"),
+    ("ST_MailMergeDest", "MailMergeDestination"),
+    ("ST_MailMergeOdsoFMDFieldType", "MailMergeFieldMappingType"),
+    ("ST_TextDirection", "TextFlowDirection"),
+    ("ST_TextAlignment", "VerticalTextAlignment"),
+    ("ST_AnnotationVMerge", "VerticalMergeRevision"),
+    ("ST_TextboxTightWrap", "TextBoxTightWrap"),
+    ("ST_FldCharType", "FieldCharacterType"),
+    ("ST_InfoTextType", "HelpOrStatusTextType"),
+    ("ST_FFHelpTextVal", "FormFieldHelpText"),
+    ("ST_FFStatusTextVal", "FormFieldStatusText"),
+    ("ST_FFName", "FormFieldName"),
+    ("ST_FFTextType", "FormFieldTextType"),
+    ("ST_SectionMark", "SectionBreakType"),
+    ("ST_PageBorderZOrder", "PageBorderZOrder"),
+    ("ST_ChapterSep", "ChapterSeparator"),
+    ("ST_VerticalJc", "VerticalJustification"),
+    ("ST_DocGrid", "DocumentGridType"),
+    ("ST_HdrFtr", "HeaderFooterType"),
+    ("ST_FtnEdn", "FootnoteEndnoteType"),
+    ("ST_BrType", "BreakType"),
+    ("ST_BrClear", "BreakTextWrappingRestart"),
+    ("ST_PTabAlignment", "PositionalTabAlignment"),
+    ("ST_PTabRelativeTo", "PositionalTabBase"),
+    ("ST_PTabLeader", "PositionalTabLeader"),
+    ("ST_ProofErr", "ProofingErrorType"),
+    ("ST_EdGrp", "EditingGroup"),
+    ("ST_Hint", "FontTypeHint"),
+    ("ST_Theme", "ThemeFont"),
+    ("ST_RubyAlign", "PhoneticGuideAlignment"),
+    ("ST_Lock", "LockingType"),
+    ("ST_SdtDateMappingType", "DateStorageFormat"),
+    ("ST_Direction", "BidirectionalDirection"),
+    ("ST_TblWidth", "TableWidthUnit"),
+    ("ST_Merge", "MergedCellType"),
+    ("ST_Cnf", "ConditionalFormattingBitmask"),
+    ("ST_TblLayoutType", "TableLayoutType"),
+    ("ST_TblOverlap", "TableOverlap"),
+    ("ST_FtnPos", "FootnotePosition"),
+    ("ST_EdnPos", "EndnotePosition"),
+    ("ST_RestartNumber", "NumberingRestartLocation"),
+    ("ST_TargetScreenSz", "TargetScreenSize"),
+    ("ST_CharacterSpacing", "CharacterSpacingCompression"),
+    ("ST_WmlColorSchemeIndex", "ColorSchemeSlot"),
+    ("ST_StyleSort", "StyleSortMethod"),
+    ("ST_FrameScrollbar", "FrameScrollbarVisibility"),
+    ("ST_LevelSuffix", "NumberingLevelSuffix"),
+    ("ST_TblStyleOverrideType", "TableStyleOverrideType"),
+    ("ST_Pitch", "FontPitch"),
+    ("ST_DocPartBehavior", "DocumentPartBehavior"),
+    ("ST_DocPartType", "DocumentPartType"),
+    ("ST_DocPartGallery", "DocumentPartGallery"),
+    ("ST_CaptionPos", "CaptionPosition"),
+];
+
+/// (`ST_*`, wire value) → comprehensive Rust variant name for `wml.xsd`.
+///
+/// Every row is a token a reader cannot decode from its spelling, and every name comes from the
+/// ECMA-376 prose (Part 1 §17.18, or Part 4 §14.11 for the Transitional-only additions) — never
+/// from a guess. The 564 values with no row expand cleanly on their own.
+const WORDPROCESSINGML_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
+    // `w:effect@val` (§17.18.87). The token says `ants`; the prose names the animation.
+    ("ST_TextEffect", "antsBlack", "BlackDashedLine"),
+    ("ST_TextEffect", "antsRed", "MarchingRedAnts"),
+    ("ST_TextEffect", "blinkBackground", "BlinkingBackground"),
+    ("ST_TextEffect", "lights", "ColoredLights"),
+    ("ST_TextEffect", "sparkle", "SparklingLights"),
+    // the two 3-D borders: the mechanical split lower-cases the `D`. Every other token of the 193,
+    // the art borders included, is already self-describing English.
+    ("ST_Border", "threeDEmboss", "ThreeDEmboss"),
+    ("ST_Border", "threeDEngrave", "ThreeDEngrave"),
+    // `w:shd@val` fill percentages (§17.18.78). `pct12`, `pct37`, `pct62` and `pct87` are 12.5%,
+    // 37.5%, 62.5% and 87.5% — the token truncates the fraction, so the mechanical name would lie.
+    ("ST_Shd", "pct5", "Percent5"),
+    ("ST_Shd", "pct10", "Percent10"),
+    ("ST_Shd", "pct12", "Percent12Point5"),
+    ("ST_Shd", "pct15", "Percent15"),
+    ("ST_Shd", "pct20", "Percent20"),
+    ("ST_Shd", "pct25", "Percent25"),
+    ("ST_Shd", "pct30", "Percent30"),
+    ("ST_Shd", "pct35", "Percent35"),
+    ("ST_Shd", "pct37", "Percent37Point5"),
+    ("ST_Shd", "pct40", "Percent40"),
+    ("ST_Shd", "pct45", "Percent45"),
+    ("ST_Shd", "pct50", "Percent50"),
+    ("ST_Shd", "pct55", "Percent55"),
+    ("ST_Shd", "pct60", "Percent60"),
+    ("ST_Shd", "pct62", "Percent62Point5"),
+    ("ST_Shd", "pct65", "Percent65"),
+    ("ST_Shd", "pct70", "Percent70"),
+    ("ST_Shd", "pct75", "Percent75"),
+    ("ST_Shd", "pct80", "Percent80"),
+    ("ST_Shd", "pct85", "Percent85"),
+    ("ST_Shd", "pct87", "Percent87Point5"),
+    ("ST_Shd", "pct90", "Percent90"),
+    ("ST_Shd", "pct95", "Percent95"),
+    // `w:tab@val` (§17.18.84): `num` is the *list* tab, not a number.
+    ("ST_TabJc", "num", "List"),
+    // `w:jc@val` (§17.18.44). `left`/`right` are the Transitional spellings of `start`/`end`
+    // (Part 4 §14.11.2) and keep their own variants, because the wire token must round-trip.
+    ("ST_Jc", "both", "Justified"),
+    ("ST_Jc", "numTab", "AlignToListTab"),
+    ("ST_Jc", "highKashida", "WidestKashida"),
+    ("ST_MailMergeOdsoFMDFieldType", "dbColumn", "DatabaseColumn"),
+    // `w:textDirection@val` (§17.18.93). The first six are Part 1; the last six are the Transitional
+    // aliases (Part 4 §14.11.7), each semantically equal to one of the first six but a distinct
+    // wire token, so each keeps its own variant.
+    ("ST_TextDirection", "tb", "TopToBottom"),
+    ("ST_TextDirection", "rl", "RightToLeft"),
+    ("ST_TextDirection", "lr", "LeftToRight"),
+    ("ST_TextDirection", "tbV", "TopToBottomRotated"),
+    ("ST_TextDirection", "rlV", "RightToLeftRotated"),
+    ("ST_TextDirection", "lrV", "LeftToRightRotated"),
+    ("ST_TextDirection", "btLr", "BottomToTopLeftToRight"),
+    ("ST_TextDirection", "lrTb", "LeftToRightTopToBottom"),
+    ("ST_TextDirection", "lrTbV", "LeftToRightTopToBottomRotated"),
+    ("ST_TextDirection", "tbLrV", "TopToBottomLeftToRightRotated"),
+    ("ST_TextDirection", "tbRl", "TopToBottomRightToLeft"),
+    ("ST_TextDirection", "tbRlV", "TopToBottomRightToLeftRotated"),
+    ("ST_DisplacedByCustomXml", "prev", "Previous"),
+    // §17.18.1: `cont` is a vertically **merged** cell, `rest` a vertically **split** one.
+    ("ST_AnnotationVMerge", "cont", "Merged"),
+    ("ST_AnnotationVMerge", "rest", "Split"),
+    // `w:numFmt@val` (§17.18.59), the largest curation in this schema. `aiueo`, `iroha`, `ganada`,
+    // `chosung`, `chicago`, `bahtText` and the zodiac/legal ideograph formats name writing systems a
+    // reader cannot infer from the token; `decimalEnclosedFullstop` is *followed by* a period rather
+    // than enclosed by one, so the token itself is misleading.
+    ("ST_NumberFormat", "hex", "Hexadecimal"),
+    ("ST_NumberFormat", "chicago", "ChicagoManualOfStyle"),
+    ("ST_NumberFormat", "aiueo", "HalfWidthKatakanaAiueo"),
+    (
+        "ST_NumberFormat",
+        "aiueoFullWidth",
+        "FullWidthKatakanaAiueo",
+    ),
+    ("ST_NumberFormat", "iroha", "KatakanaIroha"),
+    (
+        "ST_NumberFormat",
+        "irohaFullWidth",
+        "FullWidthKatakanaIroha",
+    ),
+    ("ST_NumberFormat", "ganada", "KoreanGanada"),
+    ("ST_NumberFormat", "chosung", "KoreanChosung"),
+    ("ST_NumberFormat", "bahtText", "ThaiBahtText"),
+    ("ST_NumberFormat", "hebrew1", "HebrewLetters"),
+    ("ST_NumberFormat", "hebrew2", "HebrewAlphabet"),
+    ("ST_NumberFormat", "arabicAlpha", "ArabicAlphabet"),
+    ("ST_NumberFormat", "arabicAbjad", "ArabicAbjadNumerals"),
+    ("ST_NumberFormat", "upperLetter", "UppercaseLatinAlphabet"),
+    ("ST_NumberFormat", "lowerLetter", "LowercaseLatinAlphabet"),
+    ("ST_NumberFormat", "upperRoman", "UppercaseRomanNumerals"),
+    ("ST_NumberFormat", "lowerRoman", "LowercaseRomanNumerals"),
+    (
+        "ST_NumberFormat",
+        "russianUpper",
+        "UppercaseRussianAlphabet",
+    ),
+    (
+        "ST_NumberFormat",
+        "russianLower",
+        "LowercaseRussianAlphabet",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalFullWidth",
+        "FullWidthArabicNumerals",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalHalfWidth",
+        "HalfWidthArabicNumerals",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalZero",
+        "InitialZeroArabicNumerals",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalFullWidth2",
+        "FullWidthArabicNumeralsAlternate",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalEnclosedCircle",
+        "DecimalEnclosedInCircle",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalEnclosedCircleChinese",
+        "DecimalEnclosedInCircleChinese",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalEnclosedFullstop",
+        "DecimalFollowedByPeriod",
+    ),
+    (
+        "ST_NumberFormat",
+        "decimalEnclosedParen",
+        "DecimalEnclosedInParenthesis",
+    ),
+    (
+        "ST_NumberFormat",
+        "ideographEnclosedCircle",
+        "IdeographEnclosedInCircle",
+    ),
+    (
+        "ST_NumberFormat",
+        "ideographTraditional",
+        "TraditionalIdeograph",
+    ),
+    ("ST_NumberFormat", "ideographZodiac", "ZodiacIdeograph"),
+    (
+        "ST_NumberFormat",
+        "ideographZodiacTraditional",
+        "TraditionalZodiacIdeograph",
+    ),
+    (
+        "ST_NumberFormat",
+        "ideographLegalTraditional",
+        "TraditionalLegalIdeograph",
+    ),
+    (
+        "ST_NumberFormat",
+        "koreanDigital2",
+        "KoreanDigitalAlternate",
+    ),
+    ("ST_NumberFormat", "numberInDash", "NumberWithDashes"),
+    ("ST_NumberFormat", "thaiNumbers", "ThaiNumerals"),
+    (
+        "ST_NumberFormat",
+        "vietnameseCounting",
+        "VietnameseNumerals",
+    ),
+    ("ST_VerticalJc", "both", "Justified"),
+    ("ST_ProofErr", "spellStart", "SpellingStart"),
+    ("ST_ProofErr", "spellEnd", "SpellingEnd"),
+    ("ST_ProofErr", "gramStart", "GrammarStart"),
+    ("ST_ProofErr", "gramEnd", "GrammarEnd"),
+    // `w:rFonts@*Theme` (§17.18.90). `bidi` is the **complex script** slot; `hAnsi` is **high ANSI**,
+    // which the mechanical split would render `Hansi`. `Ascii` is spelled out so the pair reads alike.
+    ("ST_Theme", "majorAscii", "MajorAscii"),
+    ("ST_Theme", "majorBidi", "MajorComplexScript"),
+    ("ST_Theme", "majorHAnsi", "MajorHighAnsi"),
+    ("ST_Theme", "minorAscii", "MinorAscii"),
+    ("ST_Theme", "minorBidi", "MinorComplexScript"),
+    ("ST_Theme", "minorHAnsi", "MinorHighAnsi"),
+    // `w:lock@val` (§17.18.50): `sdt` is a structured document tag.
+    ("ST_Lock", "sdtLocked", "TagCannotBeDeleted"),
+    ("ST_Lock", "contentLocked", "ContentsCannotBeEdited"),
+    (
+        "ST_Lock",
+        "sdtContentLocked",
+        "ContentsCannotBeEditedAndTagCannotBeDeleted",
+    ),
+    ("ST_Direction", "ltr", "LeftToRight"),
+    ("ST_Direction", "rtl", "RightToLeft"),
+    // `w:tblW@type` (§17.18.91): `dxa` is twentieths of a point — this project's `Twips`.
+    ("ST_TblWidth", "pct", "Percent"),
+    ("ST_TblWidth", "dxa", "Twips"),
+    ("ST_FtnPos", "sectEnd", "SectionEnd"),
+    ("ST_FtnPos", "docEnd", "DocumentEnd"),
+    ("ST_EdnPos", "sectEnd", "SectionEnd"),
+    ("ST_EdnPos", "docEnd", "DocumentEnd"),
+    ("ST_RestartNumber", "eachSect", "EachSection"),
+    // `w:targetScreenSz@val` (§17.18.86): a pixel resolution. The mechanical name would be digit-leading.
+    ("ST_TargetScreenSz", "544x376", "Pixels544By376"),
+    ("ST_TargetScreenSz", "640x480", "Pixels640By480"),
+    ("ST_TargetScreenSz", "720x512", "Pixels720By512"),
+    ("ST_TargetScreenSz", "800x600", "Pixels800By600"),
+    ("ST_TargetScreenSz", "1024x768", "Pixels1024By768"),
+    ("ST_TargetScreenSz", "1152x882", "Pixels1152By882"),
+    ("ST_TargetScreenSz", "1152x900", "Pixels1152By900"),
+    ("ST_TargetScreenSz", "1280x1024", "Pixels1280By1024"),
+    ("ST_TargetScreenSz", "1600x1200", "Pixels1600By1200"),
+    ("ST_TargetScreenSz", "1800x1440", "Pixels1800By1440"),
+    ("ST_TargetScreenSz", "1920x1200", "Pixels1920By1200"),
+    // `w:stylePaneSortMethod@val` (§17.18.82). The six numeric tokens are Transitional-only aliases
+    // of the six named ones (Part 4 §14.11.5) — `0000` is `name`, `0001` is `priority`, `0002` is
+    // `default`, `0003` is `font`, `0004` is `basedOn`, `0005` is `type`. They keep separate
+    // variants because the wire token must round-trip, and the mechanical name would be `N0000`.
+    ("ST_StyleSort", "0000", "LegacyName"),
+    ("ST_StyleSort", "0001", "LegacyPriority"),
+    ("ST_StyleSort", "0002", "LegacyDefault"),
+    ("ST_StyleSort", "0003", "LegacyFont"),
+    ("ST_StyleSort", "0004", "LegacyBasedOn"),
+    ("ST_StyleSort", "0005", "LegacyType"),
+    ("ST_FrameLayout", "cols", "Columns"),
+    // `w:tblStylePr@type` (§17.18.92). The compass tokens are corner cells: `ne` is top **right**,
+    // `nw` top left, `se` bottom right, `sw` bottom left. The `band*Vert`/`band*Horz` values are
+    // handled by the abbreviation table.
+    ("ST_TblStyleOverrideType", "firstCol", "FirstColumn"),
+    ("ST_TblStyleOverrideType", "lastCol", "LastColumn"),
+    ("ST_TblStyleOverrideType", "neCell", "TopRightCell"),
+    ("ST_TblStyleOverrideType", "nwCell", "TopLeftCell"),
+    ("ST_TblStyleOverrideType", "seCell", "BottomRightCell"),
+    ("ST_TblStyleOverrideType", "swCell", "BottomLeftCell"),
+    // §17.18.15: `p` ensures the entry is in a new paragraph, `pg` on a new page.
+    ("ST_DocPartBehavior", "p", "NewParagraph"),
+    ("ST_DocPartBehavior", "pg", "NewPage"),
+    // §17.18.17. Every name here comes from the prose: `speller` is an AutoCorrect entry and
+    // `toolbar` an AutoText user-interface entry — neither is inferable from its token.
+    ("ST_DocPartType", "autoExp", "ReplaceNameWithContent"),
+    ("ST_DocPartType", "formFld", "FormFieldHelpText"),
+    (
+        "ST_DocPartType",
+        "bbPlcHdr",
+        "StructuredDocumentTagPlaceholderText",
+    ),
+    ("ST_DocPartType", "speller", "AutoCorrectEntry"),
+    ("ST_DocPartType", "toolbar", "AutoTextUserInterfaceEntry"),
+    // §17.18.16, the glossary-document galleries. `cust` is `Custom`, `pg`/`pgNum` page numbers,
+    // `eq` equations, `ftrs`/`hdrs` footers and headers, `tbls` tables, `txtBox` a text box and `bib`
+    // the bibliography. `any`, `default`, `placeholder`, `watermarks` and `custom1`–`custom5` need no
+    // row.
+    ("ST_DocPartGallery", "docParts", "DocumentParts"),
+    ("ST_DocPartGallery", "coverPg", "CoverPage"),
+    ("ST_DocPartGallery", "eq", "Equations"),
+    ("ST_DocPartGallery", "ftrs", "Footers"),
+    ("ST_DocPartGallery", "hdrs", "Headers"),
+    ("ST_DocPartGallery", "pgNum", "PageNumbers"),
+    ("ST_DocPartGallery", "tbls", "Tables"),
+    ("ST_DocPartGallery", "autoTxt", "AutoText"),
+    ("ST_DocPartGallery", "txtBox", "TextBox"),
+    ("ST_DocPartGallery", "pgNumT", "PageNumbersAtTop"),
+    ("ST_DocPartGallery", "pgNumB", "PageNumbersAtBottom"),
+    ("ST_DocPartGallery", "pgNumMargins", "PageNumbersAtMargins"),
+    ("ST_DocPartGallery", "tblOfContents", "TableOfContents"),
+    ("ST_DocPartGallery", "bib", "Bibliography"),
+    ("ST_DocPartGallery", "custQuickParts", "CustomQuickParts"),
+    ("ST_DocPartGallery", "custCoverPg", "CustomCoverPage"),
+    ("ST_DocPartGallery", "custEq", "CustomEquations"),
+    ("ST_DocPartGallery", "custFtrs", "CustomFooters"),
+    ("ST_DocPartGallery", "custHdrs", "CustomHeaders"),
+    ("ST_DocPartGallery", "custPgNum", "CustomPageNumbers"),
+    ("ST_DocPartGallery", "custTbls", "CustomTables"),
+    ("ST_DocPartGallery", "custWatermarks", "CustomWatermarks"),
+    ("ST_DocPartGallery", "custAutoTxt", "CustomAutoText"),
+    ("ST_DocPartGallery", "custTxtBox", "CustomTextBox"),
+    ("ST_DocPartGallery", "custPgNumT", "CustomPageNumbersAtTop"),
+    (
+        "ST_DocPartGallery",
+        "custPgNumB",
+        "CustomPageNumbersAtBottom",
+    ),
+    (
+        "ST_DocPartGallery",
+        "custPgNumMargins",
+        "CustomPageNumbersAtMargins",
+    ),
+    (
+        "ST_DocPartGallery",
+        "custTblOfContents",
+        "CustomTableOfContents",
+    ),
+    ("ST_DocPartGallery", "custBib", "CustomBibliography"),
+];
+
+/// `ST_*` → comprehensive Rust type name for `shared-math.xsd` (ECMA-376 Part 1 §22.1.3).
+/// `ST_SpacingRule` is the one type whose mechanical name already reads correctly.
+const OFFICEMATH_TYPE_OVERRIDES: &[(&str, &str)] = &[
+    ("ST_Integer255", "Integer1To255"),
+    ("ST_Integer2", "IntegerMinus2To2"),
+    ("ST_UnSignedInteger", "UnsignedInteger"),
+    ("ST_Char", "Character"),
+    ("ST_Shp", "DelimiterShape"),
+    ("ST_FType", "FractionType"),
+    ("ST_LimLoc", "LimitLocation"),
+    ("ST_TopBot", "TopBottom"),
+    ("ST_Script", "ScriptType"),
+    ("ST_Style", "MathStyle"),
+    ("ST_Jc", "Justification"),
+    ("ST_BreakBin", "BreakBinaryOperator"),
+    ("ST_BreakBinSub", "BreakBinarySubtraction"),
+];
+
+/// (`ST_*`, wire value) → comprehensive Rust variant name for `shared-math.xsd`.
+const OFFICEMATH_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
+    // §22.1.3.10: the delimiter is either centred on its argument or matched to the argument's shape.
+    ("ST_Shp", "match", "MatchArgument"),
+    // §22.1.3.4. `noBar` — the stack object — already reads as itself.
+    ("ST_FType", "skw", "Skewed"),
+    ("ST_FType", "lin", "Linear"),
+    // §22.1.3.8: limits sit above and below the base, or beside it as sub/superscripts.
+    ("ST_LimLoc", "undOvr", "UnderOver"),
+    ("ST_LimLoc", "subSup", "SubscriptSuperscript"),
+    ("ST_TopBot", "bot", "Bottom"),
+    // §22.1.3.12: a single-letter token per math style.
+    ("ST_Style", "p", "Plain"),
+    ("ST_Style", "b", "Bold"),
+    ("ST_Style", "i", "Italic"),
+    ("ST_Style", "bi", "BoldItalic"),
+    // §22.1.3.7: `centerGroup` centres the math paragraph as a group rather than each instance.
+    ("ST_Jc", "centerGroup", "CenteredAsGroup"),
+    // §22.1.3.2: the tokens are punctuation pairs. Without these rows all three would sanitize to
+    // the *same* identifier, because the word splitter finds no alphanumerics in any of them.
+    ("ST_BreakBinSub", "--", "MinusMinus"),
+    ("ST_BreakBinSub", "-+", "MinusPlus"),
+    ("ST_BreakBinSub", "+-", "PlusMinus"),
+];
+
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
 /// Modeled as Rust `bool`.
 pub const BOOL_TYPES: &[(&str, &str)] = &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
@@ -697,6 +1174,11 @@ pub fn primitive_for(base: &str) -> Option<&'static str> {
         "xsd:short" => "i16",
         "xsd:byte" => "i8",
         "xsd:double" => "f64",
+        // `shared-commonSimpleTypes.xsd` aliases, which `wml.xsd` restricts directly
+        // (`ST_PixelsMeasure`, `ST_EighthPointMeasure`, `ST_PointMeasure`). Resolving them here
+        // keeps a count of pixels a number rather than a string newtype.
+        "s:ST_UnsignedDecimalNumber" => "u64",
+        "s:ST_DecimalNumber" => "i64",
         _ => return None,
     })
 }
@@ -1069,3 +1551,42 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "The presentation part's own children",
     ),
 ];
+
+/// Reports naming-override rows that no emitted type or value matched.
+///
+/// An override is a claim about a schema — *this `ST_*` symbol exists, and it carries this wire
+/// value*. A row whose symbol or value is misspelled makes no name and produces no error: it simply
+/// does nothing, and the token it was written for keeps the mechanical name the row exists to
+/// replace. With hundreds of hand-authored rows sourced from a PDF that failure is likely enough to
+/// be worth closing, so `codegen` fails on a dead row.
+///
+/// `emitted` is every simple type an engine's modules actually rendered; both tables are checked
+/// against it. Returns the offending rows as human-readable strings, empty when all are live.
+pub fn unused_overrides(
+    engine: &NameEngine,
+    emitted: &[crate::codegen::xsd::SimpleType],
+) -> Vec<String> {
+    use crate::codegen::xsd::SimpleKind;
+
+    let mut dead = Vec::new();
+    for (st_name, _) in engine.type_overrides {
+        if !emitted.iter().any(|t| t.name == *st_name) {
+            dead.push(format!(
+                "type override for `{st_name}`, which is not emitted"
+            ));
+        }
+    }
+    for (st_name, wire, _) in engine.variant_overrides {
+        let live = emitted.iter().any(|t| {
+            t.name == *st_name
+                && matches!(&t.kind, SimpleKind::Enumeration { values, .. }
+                    if values.iter().any(|v| v == wire))
+        });
+        if !live {
+            dead.push(format!(
+                "variant override for `{st_name}` value {wire:?}, which the schema does not declare"
+            ));
+        }
+    }
+    dead
+}
