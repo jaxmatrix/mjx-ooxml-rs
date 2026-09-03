@@ -198,7 +198,11 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
+      # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
+      # reads the backslash line-continuations below as a unary `--` and fails to parse the step
+      # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
       - name: build (lib graph)
+        shell: bash
         run: |
           cargo build --workspace --exclude xtask \
             --exclude mjx-python --exclude mjx-wasm \
