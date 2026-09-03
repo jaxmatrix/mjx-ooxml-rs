@@ -229,6 +229,9 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
+      # `mjx-schema-gate` and `mjx-fixtures` are excluded for the same reason read the other way:
+      # they are test-only, `publish = false`, and nothing shipped depends on them, so building them
+      # for five targets would widen the claim this job makes rather than support it.
       # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
       # reads the backslash line-continuations below as a unary `--` and fails to parse the step
       # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
@@ -237,6 +240,7 @@ jobs:
         run: |
           cargo build --workspace --exclude xtask \
             --exclude mjx-python --exclude mjx-wasm \
+            --exclude mjx-schema-gate --exclude mjx-fixtures \
             --target ${{ matrix.target }}
 
   # The two binding members, built and linted on the host. `lint-test` already covers them as part of
