@@ -556,3 +556,81 @@ fn an_authored_element_gains_its_attributes_double_quoted_in_the_order_they_were
         .collect();
     assert_eq!(rendered, ["val=\"123ABC\"", "x=\"914400\"", "cap=\"flat\""]);
 }
+
+// ---------------------------------------------------------------------------------------------
+// The attribute vector a declaration works over need not be owned by the declaring type.
+//
+// `mjx-dml`'s effect, 3-D and line tiers project a handful of facts out of an element they do not
+// model as a type: there is no struct to hang `attributes: Vec<RawAttribute>` on, and cloning the
+// element's vector to make one would allocate on every read. The accessors need only `AsRef` to read
+// and `AsMut` to write, so **one** declaration serves a borrowed read and an owned write.
+// ---------------------------------------------------------------------------------------------
+
+/// The attribute face of an `a:demo`, over whatever holds its attributes.
+#[derive(XmlAttributes)]
+#[xml(attribute(local = "cap", codec = Enumeration<LineCap>, accessor = line_cap))]
+#[xml(attribute(local = "x", codec = EmuCoordinate, accessor = offset))]
+struct DemoAttributes<A> {
+    attributes: A,
+}
+
+/// A read-only view. `&[RawAttribute]` is `AsRef<[RawAttribute]>` and is not
+/// `AsMut<Vec<RawAttribute>>`, so this type has getters and no setters at all — the read-only case
+/// says so in its type rather than in a second grammar.
+#[derive(XmlAttributes)]
+#[xml(attribute(local = "cap", codec = Enumeration<LineCap>, accessor = line_cap))]
+struct DemoView<'a> {
+    attributes: &'a [RawAttribute],
+}
+
+#[test]
+fn a_borrowed_view_reads_the_element_it_does_not_own() {
+    let (_styled, document) = parse::<Styled>(ALL_PRESENT);
+    let view = DemoView {
+        attributes: &document.root.attributes,
+    };
+    assert_eq!(view.line_cap(&document.interner), Ok(Some(LineCap::Square)));
+    // The view borrows the element's own vector — nothing was copied to read through it.
+    assert!(std::ptr::eq(
+        view.attributes.as_ptr(),
+        document.root.attributes.as_ptr()
+    ));
+}
+
+#[test]
+fn one_declaration_serves_a_borrowed_read_and_an_owned_write() {
+    let (_styled, document) = parse::<Styled>(ALL_PRESENT);
+    let read = DemoAttributes {
+        attributes: &document.root.attributes,
+    };
+    let cap = read
+        .line_cap(&document.interner)
+        .expect("a legal @cap")
+        .expect("@cap is present");
+    let offset = read
+        .offset(&document.interner)
+        .expect("a legal @x")
+        .expect("@x is present");
+    assert_eq!((cap, offset), (LineCap::Square, Emu(-914_400)));
+
+    // The same declaration, writing the vector a newly built element will own.
+    let mut interner = document.interner;
+    let mut written = DemoAttributes {
+        attributes: Vec::new(),
+    };
+    written.set_line_cap(&mut interner, Some(cap));
+    written.set_offset(&mut interner, Some(offset));
+    let spelled: Vec<String> = written
+        .attributes
+        .iter()
+        .map(|attribute| {
+            format!(
+                "{}={}",
+                interner.resolve(attribute.name.local),
+                String::from_utf8_lossy(&attribute.value)
+            )
+        })
+        .collect();
+    // Written in declaration order, in the codecs' one canonical spelling each.
+    assert_eq!(spelled, ["cap=sq", "x=-914400"]);
+}
