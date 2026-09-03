@@ -52,6 +52,16 @@ pub enum XmlError {
     /// A byte sequence that should have been UTF-8 text was not.
     #[error("invalid UTF-8 in XML: {0}")]
     Utf8(#[from] std::str::Utf8Error),
+    /// The document nested elements more deeply than [`fidelity::MAXIMUM_DEPTH`].
+    ///
+    /// This is a *resource* limit, not a well-formedness one: the markup is legal XML and is
+    /// refused because consuming it is not safe. See the constant for why the tree, not the reader,
+    /// is what the depth costs.
+    #[error("XML nested more than {limit} elements deep")]
+    DepthLimit {
+        /// The depth that was exceeded.
+        limit: usize,
+    },
 }
 
 /// A resolved element name: its namespace URI (if bound) and local name.
