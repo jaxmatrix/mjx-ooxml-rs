@@ -23,6 +23,7 @@
 
 use std::borrow::Cow;
 
+use mjx_dml::diagram::{ConnectionType, DataModel, PointType};
 use mjx_dml::{
     AdjustCoordinate, Bullet, BulletSize, CharacterProperties, Color, CustomGeometry, DrawCommand,
     EffectList, Emu, FontSlot, GeometryGuide, GradientFill, LineDash, LineProperties, LineWidth,
@@ -30,7 +31,6 @@ use mjx_dml::{
     TabAlignment, Table, TablePart, TextAlignment, TextAnchoring, TextBody, TextBodyContent,
     TextSpacing, TextUnderline, Transform2D,
 };
-use mjx_dml::diagram::{ConnectionType, DataModel, PointType};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_opc::{Package, PartName};
 use mjx_xml::fidelity;
@@ -613,7 +613,7 @@ fn a_diagram_data_model_written_in_forms_we_never_emit_survives_byte_for_byte() 
         assert_eq!(points.len(), 2, "two points");
         assert_eq!(
             points[0].point_type(i),
-            Ok(Some(PointType::Document)),
+            Ok(PointType::Document),
             "the document point's @type"
         );
         let root_properties = points[0].properties().expect("dgm:prSet");
@@ -636,10 +636,13 @@ fn a_diagram_data_model_written_in_forms_we_never_emit_survives_byte_for_byte() 
         assert_eq!(connections.len(), 1, "one connection");
         assert_eq!(
             connections[0].connection_type(i),
-            Ok(Some(ConnectionType::ParentOf))
+            Ok(ConnectionType::ParentOf)
         );
         assert_eq!(
-            connections[0].source_id(i).expect("required @srcId").as_ref(),
+            connections[0]
+                .source_id(i)
+                .expect("required @srcId")
+                .as_ref(),
             "1"
         );
         assert_eq!(
