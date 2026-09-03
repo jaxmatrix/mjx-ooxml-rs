@@ -11,6 +11,13 @@
 //! order, prefixes, self-closing style, the declaration, and the trailing bytes are all preserved).
 //! This is the reader the document model is built on.
 //!
+//! # [`attribute`] — typed access to one attribute, in place
+//!
+//! [`attribute::find`] / [`attribute::decoded_value`] read one attribute out of a retained
+//! attribute vector, and [`attribute::set`] / [`attribute::remove`] write one — rewriting in place so
+//! position and quote character survive, and never rebuilding the vector. These are what the accessors
+//! `#[derive(XmlAttributes)]` generates are made of.
+//!
 //! # [`Reader`] — a small control-part reader
 //!
 //! A namespace-resolving pull reader that unescapes values and returns owned [`Event`]s. It is used
@@ -26,6 +33,7 @@
 //! assert_eq!(out, xml); // identical bytes — entities, prefixes, and structure preserved
 //! ```
 
+pub mod attribute;
 pub mod fidelity;
 pub mod text;
 
