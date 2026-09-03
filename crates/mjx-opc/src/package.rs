@@ -146,6 +146,29 @@ impl ZipEntry {
     }
 }
 
+/// The largest buffer [`Package::open`] will reserve up front for one part, before any of that
+/// part's bytes have arrived.
+///
+/// **A ZIP entry's declared uncompressed size is attacker-controlled and unverified.** It lives in
+/// the entry's header, is checked against the data only after the data has been read, and a
+/// container that declares four gigabytes for four bytes of payload is trivially written — the fuzz
+/// campaign's very first hostile container is one, in 757 bytes. Reserving from that figure turns a
+/// tiny file into a multi-gigabyte allocation, which on a smaller machine is an abort before any
+/// error can be returned.
+///
+/// One mebibyte, then, and the buffer grows from there as bytes actually arrive. This is purely the
+/// speculative reservation: no container that opened before opens differently now, because nothing
+/// about what is *accepted* changed. It only stops the header being believed before the data backs
+/// it up.
+const MAXIMUM_SPECULATIVE_PART_CAPACITY: usize = 1024 * 1024;
+
+/// The capacity to reserve for a part whose header declares `declared_size` bytes.
+fn speculative_capacity(declared_size: u64) -> usize {
+    usize::try_from(declared_size)
+        .unwrap_or(MAXIMUM_SPECULATIVE_PART_CAPACITY)
+        .min(MAXIMUM_SPECULATIVE_PART_CAPACITY)
+}
+
 /// An OOXML package loaded fully into memory.
 #[derive(Debug)]
 pub struct Package {
@@ -169,7 +192,7 @@ impl Package {
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
             let name = file.name().to_owned();
-            let mut data = Vec::with_capacity(usize::try_from(file.size()).unwrap_or(0));
+            let mut data = Vec::with_capacity(speculative_capacity(file.size()));
             file.read_to_end(&mut data)?;
             entries.push(ZipEntry::from_container(name, PartBody::Raw(data)));
         }

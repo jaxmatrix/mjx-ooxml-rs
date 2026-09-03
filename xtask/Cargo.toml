@@ -16,3 +16,9 @@ workspace = true
 mjx-ooxml-core.workspace = true
 mjx-xml.workspace = true
 anyhow.workspace = true
+# The fuzz campaign's targets are the three untrusted-input entry points, so it reaches the crates
+# that own them. All three edges point downward from a host-only developer binary that nothing
+# depends on, and `mjx-fixtures` (which supplies the seed corpus) has no dependencies at all.
+mjx-opc.workspace = true
+mjx-mce.workspace = true
+mjx-fixtures.workspace = true

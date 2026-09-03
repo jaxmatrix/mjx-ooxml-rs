@@ -15,3 +15,9 @@ workspace = true
 mjx-ooxml-core.workspace = true
 quick-xml.workspace = true
 thiserror.workspace = true
+
+# Test-only: the shared fixture corpus, including the adversarial XML list the byte-identity gate in
+# `tests/subtree_cow.rs` and the fuzz campaign both read. `mjx-fixtures` has no dependencies at all,
+# so this adds no edge to the shipped graph.
+[dev-dependencies]
+mjx-fixtures.workspace = true

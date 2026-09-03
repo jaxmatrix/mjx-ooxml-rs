@@ -472,38 +472,14 @@ fn an_end_tag_with_whitespace_is_still_recognised() {
 }
 
 /// Whatever the input, parse-then-serialize must not panic, and whatever parses must come back
-/// byte-for-byte. These are the shapes that stress span measurement specifically: markup inside
-/// CDATA and comments, a name that is a prefix of a sibling's, empty text runs, nesting, and bytes
-/// that are not XML at all.
+/// byte-for-byte.
+///
+/// The corpus lives in `mjx-fixtures` because the fuzz campaign (`cargo run -p xtask -- fuzz`,
+/// MJXOFF-146) seeds its mutator from the same slice: one list, read by the hand-written gate and by
+/// the campaign that generalises it.
 #[test]
 fn hostile_and_malformed_inputs_never_panic_and_never_lose_bytes() {
-    let cases: &[&[u8]] = &[
-        b"",
-        b"<",
-        b"<a",
-        b"<a>",
-        b"</a>",
-        b"<a><b></a>",
-        b"not xml at all",
-        b"<a b=>",
-        b"<a b='c>",
-        b"<\xff\xfe/>",
-        b"<a><![CDATA[</a><b/>]]></a>",
-        b"<a><!-- </a><b/> --></a>",
-        b"<a><?pi </a> ?></a>",
-        b"<a/><!-- trailing -->",
-        b"<a></a><b/>",
-        b"<abbr><a/></abbr>",
-        b"<a  \t\r\n b = 'c'  />",
-        b"<a></a >",
-        b"<a>&#38;&amp;&#x26;</a>",
-        b"\xEF\xBB\xBF<a  x='1' />",
-        b"<a><a><a><a><a/></a></a></a></a>",
-        b"<!DOCTYPE a><a/>",
-        b"<a xmlns='urn:x'><b:c xmlns:b='urn:b'/></a>",
-        b"<a xmlns:b='urn:b'><b:c/></a>",
-    ];
-    for case in cases {
+    for case in mjx_fixtures::adversarial_xml() {
         // Rejecting malformed input is fine; panicking, or losing bytes, is not.
         if let Ok(doc) = fidelity::parse(case) {
             assert_eq!(
@@ -520,14 +496,7 @@ fn hostile_and_malformed_inputs_never_panic_and_never_lose_bytes() {
 /// reconstructed start tag with verbatim children, which is where a bad range would show.
 #[test]
 fn dirtying_the_root_of_a_hostile_input_still_produces_the_document_it_describes() {
-    let cases: &[&[u8]] = &[
-        b"<a><![CDATA[</a><b/>]]></a>",
-        b"<a><!-- </a><b/> --></a>",
-        b"<abbr><a/></abbr>",
-        b"<a xmlns:b='urn:b'><b:c d='1'/></a>",
-        b"<a><a><a/></a></a>",
-    ];
-    for case in cases {
+    for case in mjx_fixtures::adversarial_xml_dirtied_at_the_root() {
         let Ok(mut doc) = fidelity::parse(case) else {
             continue;
         };

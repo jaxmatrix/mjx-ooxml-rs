@@ -49,6 +49,76 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.77] - 2026-09-03
+
+The untrusted-input paths are fuzzed, and three defects they were hiding are fixed (MJXOFF-146).
+
+`CLAUDE.md` has always said it: *no `unwrap`/`panic`/`expect` on untrusted input — inputs are
+untrusted files.* Nothing in the repository proved it. A grep finds the obvious cases and says
+nothing about a recursion depth, a slice index, or an allocation an attacker sizes. This adds a
+campaign that tries, and it found three things a grep could not.
+
+### Added
+
+- **`cargo run -p xtask -- fuzz`** — a campaign against the three untrusted-input entry points
+  (`mjx_xml::fidelity::parse`, `mjx_opc::Package::open`, `mjx_mce::resolve`) plus the round-trip
+  oracle, in five targets. Run **on demand, not on every push**; `--list`, `--target`, `--seed`,
+  `--iterations` and `--seconds` select and bound a run, and a seed makes one reproducible.
+
+  It is stable Rust with no new dependency. `cargo-fuzz` needs a nightly toolchain for its sanitizer
+  flags, and a gate only some machines can run is not a gate. It lives in `xtask`, which is host-only
+  and which nothing depends on, so the harness cannot reach the shipped graph.
+
+  It asserts properties rather than the absence of a crash: every input the reader accepts must
+  re-serialize **byte-for-byte**; the same corpus is re-run with the document dirtied at its root,
+  where a byte range that does not describe its element shows; a package written back and reopened
+  must hold the same part bytes. Panics are caught per execution, a counting global allocator
+  measures each execution's peak against a ceiling so unbounded allocation is a *finding* rather than
+  an OOM kill, and a watchdog turns a hang into an abort that names its input.
+
+- **`mjx_fixtures::adversarial_xml`** and **`adversarial_xml_dirtied_at_the_root`** — the hostile XML
+  corpus, moved out of `crates/mjx-xml/tests/subtree_cow.rs` so the hand-written gate and the
+  campaign read the same list instead of drifting apart.
+
+- **`mjx_xml::fidelity::MAXIMUM_DEPTH`** and **`XmlError::DepthLimit`** — see below.
+
+- Regression suites for every finding, in the crate that owns the path:
+  `crates/mjx-xml/tests/untrusted_input.rs`, `crates/mjx-opc/tests/untrusted_input.rs`,
+  `crates/mjx-mce/tests/untrusted_input.rs`, and the minimised container
+  `tests/fixtures/declared_size_lie.zip`.
+
+### Fixed
+
+- **A 140 KB document could abort the process.** The reader is iterative and would build a tree of
+  any depth; every walk *over* that tree recurses, because the data does — `Drop` and `Clone` are
+  compiler-generated, the serializer descends a dirty element, and `mjx_mce::resolve` descends the
+  whole document. `resolve` died first, overflowing the stack at a nesting depth reachable in about
+  140 KB of `<a>`. Not a catchable panic: an abort. `fidelity::parse` now refuses to build a tree
+  deeper than `MAXIMUM_DEPTH` (256), which bounds every walk downstream, including the ones Phase C
+  and D have not written yet. The deepest part in the committed corpus is **13**.
+
+- **A 757-byte container could ask for four gigabytes.** A ZIP entry's uncompressed size is a header
+  field, attacker-controlled and checked against the data only after the data has arrived.
+  `Package::open` reserved exactly that many bytes per part, so a container declaring 4 GiB for a
+  four-byte payload allocated 4 GiB before it could return an error. The speculative reservation is
+  now capped at 1 MiB and the buffer grows from bytes that actually arrive. **Nothing about what is
+  accepted changed.**
+
+- **`<!DoCTYPE a>` lost a byte and changed case.** The writer wraps a doctype in the constant
+  `<!DOCTYPE` … `>`, so a source spelling the keyword any other way could not come back —
+  sixteen bytes in, fifteen out. `quick-xml` accepts spellings XML 1.0 §2.8 does not, and the reader
+  now refuses a doctype it could not reproduce rather than silently rewriting it.
+
+- **An element name that could not be written back is now refused.** `quick-xml` scans an element
+  name up to whitespace, so `<a" b"c="1"/>` produced an element literally named `a"`. Untouched it
+  round-tripped; *rewritten*, the writer put that name between `<` and `>` and emitted markup that
+  will not parse. Names carrying a byte that would end a name or the tag around it are refused; names
+  XML would reject but that re-serialize exactly (a leading digit, say) are still preserved, because
+  fidelity is the tie-breaker in both directions.
+
+Every one of these fixes **tightens** what the readers accept. None loosens anything: trading a crash
+for a corruption is the one thing this project exists to prevent.
+
 ## [0.0.76] - 2026-09-03
 
 The SpreadsheetML vocabulary is generated (MJXOFF-145).
