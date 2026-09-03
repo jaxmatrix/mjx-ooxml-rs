@@ -72,15 +72,18 @@ fn full_line_reads_every_field_and_round_trips() {
     let (line, doc): (LineProperties, _) = parse_typed(fragment.as_bytes());
     let i = &doc.interner;
 
-    assert_eq!(line.width(i), Some(LineWidth::from_emu(19_050)));
-    assert_eq!(line.width(i).unwrap().points(), 1.5);
-    assert_eq!(line.cap(i), Some(LineCap::Round));
-    assert_eq!(line.compound(i), Some(CompoundLine::Single));
-    assert_eq!(line.pen_alignment(i), Some(PenAlignment::Center));
+    assert_eq!(line.width(i), Ok(Some(LineWidth::from_emu(19_050))));
+    assert_eq!(
+        line.width(i).expect("a legal @w").expect("@w").points(),
+        1.5
+    );
+    assert_eq!(line.cap(i), Ok(Some(LineCap::Round)));
+    assert_eq!(line.compound(i), Ok(Some(CompoundLine::Single)));
+    assert_eq!(line.pen_alignment(i), Ok(Some(PenAlignment::Center)));
 
     match line.fill(i) {
         Some(Fill::Solid(solid)) => {
-            assert_eq!(solid.color().unwrap().hex(i), Some("FF0000"));
+            assert_eq!(solid.color().unwrap().hex(i).as_deref(), Some("FF0000"));
         }
         other => panic!("expected a solid stroke fill, got {other:?}"),
     }
@@ -132,8 +135,8 @@ fn custom_dash_extlst_and_unknown_attr_survive_verbatim() {
 
     // The dash is reported as a custom dash; its stops are not modeled but must round-trip.
     assert_eq!(line.dash(i), Some(LineDash::Custom));
-    assert_eq!(line.cap(i), Some(LineCap::Flat));
-    assert_eq!(line.width(i), Some(LineWidth::from_emu(9_525)));
+    assert_eq!(line.cap(i), Ok(Some(LineCap::Flat)));
+    assert_eq!(line.width(i), Ok(Some(LineWidth::from_emu(9_525))));
     // Unknown attribute and extLst are not modeled — verified by the byte-exact round-trip below.
     assert_round_trips(&line, doc, fragment.as_bytes());
 }
@@ -142,7 +145,7 @@ fn custom_dash_extlst_and_unknown_attr_survive_verbatim() {
 fn empty_line_round_trips_self_closing() {
     let fragment = format!(r#"<a:ln xmlns:a="{A}"/>"#);
     let (line, doc): (LineProperties, _) = parse_typed(fragment.as_bytes());
-    assert_eq!(line.width(&doc.interner), None);
+    assert_eq!(line.width(&doc.interner), Ok(None));
     assert_eq!(line.fill(&doc.interner), None);
     assert_eq!(line.dash(&doc.interner), None);
     assert_round_trips(&line, doc, fragment.as_bytes());

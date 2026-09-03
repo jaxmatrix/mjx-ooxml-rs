@@ -23,18 +23,84 @@
 //! Every measure follows the rest of this crate: an unstated attribute reads `None`, distinct from
 //! the schema default, so a caller can tell "unset" from "zero". A 1:1 mirror of [`crate::effect`].
 
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
-
-use crate::build::{
-    attr_angle, attr_emu, attr_fraction, attr_str, dml_attr, dml_child, dml_element,
-    fidelity_element_impls, push_angle, push_emu, push_fraction,
+use mjx_ooxml_core::{
+    Enumeration, FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
 };
+
+use crate::build::{dml_child, dml_element, fidelity_element_impls};
+use crate::codec::{EmuCoordinate, Percentage, SixtyThousandthsOfADegree};
 use crate::color::{Color, ColorSpec};
 use crate::geometry::{Angle, Emu, Fraction};
 
 pub use mjx_ooxml_types::drawingml::{
     BevelPreset, LightRigDirection, LightRigType, PresetCamera, PresetMaterial,
 };
+
+// ---------------------------------------------------------------------------------------------
+// The attribute faces of the 3-D child elements
+// ---------------------------------------------------------------------------------------------
+//
+// A bevel, a rotation, a camera, a light rig, a point and a vector are projections out of `a:scene3d`
+// and `a:sp3d`'s children, not modeled types. Each declares its attributes through the
+// `#[xml(attribute(..))]` grammar over the vector it is handed — borrowed to read, a fresh one to
+// write — so one declaration serves both directions and both go through the same generated accessor.
+//
+// A schema-*required* attribute is declared `required`, so an absent one is a typed error rather than
+// a silently substituted value; where this module chooses to carry on regardless (a malformed scene
+// must still leave the file readable) it says so at the call site, in one place.
+
+/// `a:bevel` / `a:bevelT` / `a:bevelB` (`CT_Bevel`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "w", codec = EmuCoordinate, accessor = width))]
+#[xml(attribute(local = "h", codec = EmuCoordinate, accessor = height))]
+#[xml(attribute(local = "prst", codec = Enumeration<BevelPreset>, accessor = preset))]
+struct BevelAttributes<A> {
+    attributes: A,
+}
+
+/// `a:rot` (`CT_SphereCoords`) — all three angles are schema-required.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "lat", codec = SixtyThousandthsOfADegree, accessor = latitude, required))]
+#[xml(attribute(local = "lon", codec = SixtyThousandthsOfADegree, accessor = longitude, required))]
+#[xml(attribute(local = "rev", codec = SixtyThousandthsOfADegree, accessor = revolution, required))]
+struct SphereCoordinatesAttributes<A> {
+    attributes: A,
+}
+
+/// `a:camera` (`CT_Camera`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "prst", codec = Enumeration<PresetCamera>, accessor = preset, required))]
+#[xml(attribute(local = "fov", codec = SixtyThousandthsOfADegree, accessor = field_of_view))]
+#[xml(attribute(local = "zoom", codec = Percentage, accessor = zoom))]
+struct CameraAttributes<A> {
+    attributes: A,
+}
+
+/// `a:lightRig` (`CT_LightRig`) — both attributes are schema-required.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "rig", codec = Enumeration<LightRigType>, accessor = rig, required))]
+#[xml(attribute(local = "dir", codec = Enumeration<LightRigDirection>, accessor = direction, required))]
+struct LightRigAttributes<A> {
+    attributes: A,
+}
+
+/// `a:anchor` (`CT_Point3D`) — all three coordinates are schema-required.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "x", codec = EmuCoordinate, accessor = x, required))]
+#[xml(attribute(local = "y", codec = EmuCoordinate, accessor = y, required))]
+#[xml(attribute(local = "z", codec = EmuCoordinate, accessor = z, required))]
+struct Point3DAttributes<A> {
+    attributes: A,
+}
+
+/// `a:norm` / `a:up` (`CT_Vector3D`) — all three components are schema-required.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "dx", codec = EmuCoordinate, accessor = dx, required))]
+#[xml(attribute(local = "dy", codec = EmuCoordinate, accessor = dy, required))]
+#[xml(attribute(local = "dz", codec = EmuCoordinate, accessor = dz, required))]
+struct Vector3DAttributes<A> {
+    attributes: A,
+}
 
 // ---------------------------------------------------------------------------------------------
 // Value types (interner-free)
@@ -190,10 +256,17 @@ impl Scene3D {
         let backdrop = dml_child(&self.children, interner, "backdrop")?;
         Some(Backdrop {
             anchor: dml_child(&backdrop.children, interner, "anchor")
-                .map(|anchor| Point3D {
-                    x: coordinate(anchor, interner, "x"),
-                    y: coordinate(anchor, interner, "y"),
-                    z: coordinate(anchor, interner, "z"),
+                .map(|anchor| {
+                    let point = Point3DAttributes {
+                        attributes: &anchor.attributes,
+                    };
+                    // Schema-required, but a malformed backdrop must still leave the file readable,
+                    // so an unstated coordinate is the origin rather than a rejected element.
+                    Point3D {
+                        x: point.x(interner).unwrap_or(ORIGIN),
+                        y: point.y(interner).unwrap_or(ORIGIN),
+                        z: point.z(interner).unwrap_or(ORIGIN),
+                    }
                 })
                 .unwrap_or_default(),
             normal: read_vector(backdrop, interner, "norm"),
@@ -250,7 +323,11 @@ impl Scene3DSpec {
 /// colors.
 ///
 /// A fidelity wrapper: every modeled facet is read typed; an `extLst` stays opaque.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "z", codec = EmuCoordinate, accessor = z))]
+#[xml(attribute(local = "extrusionH", codec = EmuCoordinate, accessor = extrusion_height))]
+#[xml(attribute(local = "contourW", codec = EmuCoordinate, accessor = contour_width))]
+#[xml(attribute(local = "prstMaterial", codec = Enumeration<PresetMaterial>, accessor = material))]
 pub struct Shape3D {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -259,30 +336,6 @@ pub struct Shape3D {
 }
 
 impl Shape3D {
-    /// How far the shape stands off the scene floor (`@z`, EMU; schema default `0`).
-    #[must_use]
-    pub fn z(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "z")
-    }
-
-    /// The extrusion (depth) height (`@extrusionH`, EMU; schema default `0`).
-    #[must_use]
-    pub fn extrusion_height(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "extrusionH")
-    }
-
-    /// The contour (edge outline) width (`@contourW`, EMU; schema default `0`).
-    #[must_use]
-    pub fn contour_width(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "contourW")
-    }
-
-    /// The material the surface imitates (`@prstMaterial`; schema default `warmMatte`).
-    #[must_use]
-    pub fn material(&self, interner: &Interner) -> Option<PresetMaterial> {
-        attr_str(&self.attributes, interner, "prstMaterial").and_then(PresetMaterial::from_wire)
-    }
-
     /// The top bevel (`a:bevelT`), or `None` if absent.
     #[must_use]
     pub fn bevel_top(&self, interner: &Interner) -> Option<Bevel> {
@@ -312,10 +365,10 @@ impl Shape3D {
     #[must_use]
     pub fn spec(&self, interner: &Interner) -> Shape3DSpec {
         Shape3DSpec {
-            z: self.z(interner),
-            extrusion_height: self.extrusion_height(interner),
-            contour_width: self.contour_width(interner),
-            material: self.material(interner),
+            z: self.z(interner).ok().flatten(),
+            extrusion_height: self.extrusion_height(interner).ok().flatten(),
+            contour_width: self.contour_width(interner).ok().flatten(),
+            material: self.material(interner).ok().flatten(),
             bevel_top: self.bevel_top(interner),
             bevel_bottom: self.bevel_bottom(interner),
             extrusion_color: self.extrusion_color(interner),
@@ -360,14 +413,6 @@ impl Shape3DSpec {
     /// attributes and children are written in `CT_Shape3D`'s schema order.
     #[must_use]
     pub fn to_shape_3d(&self, interner: &mut Interner) -> Shape3D {
-        let mut attrs = Vec::new();
-        push_emu(&mut attrs, interner, "z", self.z);
-        push_emu(&mut attrs, interner, "extrusionH", self.extrusion_height);
-        push_emu(&mut attrs, interner, "contourW", self.contour_width);
-        if let Some(material) = self.material {
-            attrs.push(dml_attr(interner, "prstMaterial", material.to_wire()));
-        }
-
         let mut children = Vec::new();
         if let Some(bevel) = self.bevel_top {
             children.push(RawNode::Element(build_bevel(interner, "bevelT", &bevel)));
@@ -383,8 +428,14 @@ impl Shape3DSpec {
         );
         push_color_child(&mut children, interner, "contourClr", &self.contour_color);
 
-        let element = dml_element(interner, "sp3d", attrs, children);
-        Shape3D::from_xml(&element, interner).expect("built sp3d is well-formed")
+        let element = dml_element(interner, "sp3d", Vec::new(), children);
+        let mut shape = Shape3D::from_xml(&element, interner).expect("built sp3d is well-formed");
+        // `CT_Shape3D`'s schema order, which is the order these four setters append in.
+        shape.set_z(interner, self.z);
+        shape.set_extrusion_height(interner, self.extrusion_height);
+        shape.set_contour_width(interner, self.contour_width);
+        shape.set_material(interner, self.material);
+        shape
     }
 }
 
@@ -396,10 +447,13 @@ impl Shape3DSpec {
 /// bare `<a:bevelT/>` is a valid bevel that states nothing. `pub(crate)` so the table `a:cell3D`
 /// reuses it.
 pub(crate) fn read_bevel(element: &RawElement, interner: &Interner) -> Bevel {
+    let bevel = BevelAttributes {
+        attributes: &element.attributes,
+    };
     Bevel {
-        width: attr_emu(&element.attributes, interner, "w"),
-        height: attr_emu(&element.attributes, interner, "h"),
-        preset: attr_str(&element.attributes, interner, "prst").and_then(BevelPreset::from_wire),
+        width: bevel.width(interner).ok().flatten(),
+        height: bevel.height(interner).ok().flatten(),
+        preset: bevel.preset(interner).ok().flatten(),
     }
 }
 
@@ -407,38 +461,41 @@ pub(crate) fn read_bevel(element: &RawElement, interner: &Interner) -> Bevel {
 /// vector rather than failing, since a malformed backdrop must still leave the file readable.
 fn read_vector(backdrop: &RawElement, interner: &Interner, local: &str) -> Vector3D {
     dml_child(&backdrop.children, interner, local)
-        .map(|vector| Vector3D {
-            x: coordinate(vector, interner, "dx"),
-            y: coordinate(vector, interner, "dy"),
-            z: coordinate(vector, interner, "dz"),
+        .map(|vector| {
+            let components = Vector3DAttributes {
+                attributes: &vector.attributes,
+            };
+            Vector3D {
+                x: components.dx(interner).unwrap_or(ORIGIN),
+                y: components.dy(interner).unwrap_or(ORIGIN),
+                z: components.dz(interner).unwrap_or(ORIGIN),
+            }
         })
         .unwrap_or_default()
-}
-
-/// A schema-required EMU coordinate; an absent one reads as zero rather than failing the read.
-fn coordinate(element: &RawElement, interner: &Interner, name: &str) -> Emu {
-    attr_emu(&element.attributes, interner, name).unwrap_or(Emu::from_emu(0))
 }
 
 /// Reads an `a:rot` (`CT_SphereCoords`). The three angles are schema-required; an absent one reads
 /// as zero rather than failing, since a malformed rotation must still leave the file readable.
 fn read_sphere_coordinates(element: &RawElement, interner: &Interner) -> SphereCoordinates {
-    let angle = |name| attr_angle(&element.attributes, interner, name).unwrap_or(ZERO_ANGLE);
+    let rotation = SphereCoordinatesAttributes {
+        attributes: &element.attributes,
+    };
     SphereCoordinates {
-        latitude: angle("lat"),
-        longitude: angle("lon"),
-        revolution: angle("rev"),
+        latitude: rotation.latitude(interner).unwrap_or(ZERO_ANGLE),
+        longitude: rotation.longitude(interner).unwrap_or(ZERO_ANGLE),
+        revolution: rotation.revolution(interner).unwrap_or(ZERO_ANGLE),
     }
 }
 
 /// Reads an `a:camera` (`CT_Camera`), or `None` if it states no preset view (the one required field).
 fn read_camera(element: &RawElement, interner: &Interner) -> Option<Camera> {
-    let preset =
-        attr_str(&element.attributes, interner, "prst").and_then(PresetCamera::from_wire)?;
+    let camera = CameraAttributes {
+        attributes: &element.attributes,
+    };
     Some(Camera {
-        preset,
-        field_of_view: attr_angle(&element.attributes, interner, "fov"),
-        zoom: attr_fraction(&element.attributes, interner, "zoom"),
+        preset: camera.preset(interner).ok()?,
+        field_of_view: camera.field_of_view(interner).ok().flatten(),
+        zoom: camera.zoom(interner).ok().flatten(),
         rotation: dml_child(&element.children, interner, "rot")
             .map(|rot| read_sphere_coordinates(rot, interner)),
     })
@@ -447,12 +504,12 @@ fn read_camera(element: &RawElement, interner: &Interner) -> Option<Camera> {
 /// Reads an `a:lightRig` (`CT_LightRig`), or `None` if it states no rig or no direction (both
 /// required). `pub(crate)` so the table `a:cell3D` reuses it.
 pub(crate) fn read_light_rig(element: &RawElement, interner: &Interner) -> Option<LightRig> {
-    let rig = attr_str(&element.attributes, interner, "rig").and_then(LightRigType::from_wire)?;
-    let direction =
-        attr_str(&element.attributes, interner, "dir").and_then(LightRigDirection::from_wire)?;
+    let light_rig = LightRigAttributes {
+        attributes: &element.attributes,
+    };
     Some(LightRig {
-        rig,
-        direction,
+        rig: light_rig.rig(interner).ok()?,
+        direction: light_rig.direction(interner).ok()?,
         rotation: dml_child(&element.children, interner, "rot")
             .map(|rot| read_sphere_coordinates(rot, interner)),
     })
@@ -472,47 +529,53 @@ fn color_child(children: &[RawNode], interner: &Interner, local: &str) -> Option
 /// Builds a `CT_Bevel` element with the given local name, writing only the attributes that are set.
 /// `pub(crate)` so the table `a:cell3D` reuses it (with `local` = `"bevel"`).
 pub(crate) fn build_bevel(interner: &mut Interner, local: &str, bevel: &Bevel) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "w", bevel.width);
-    push_emu(&mut attrs, interner, "h", bevel.height);
-    if let Some(preset) = bevel.preset {
-        attrs.push(dml_attr(interner, "prst", preset.to_wire()));
-    }
-    dml_element(interner, local, attrs, Vec::new())
+    let mut attributes = BevelAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_width(interner, bevel.width);
+    attributes.set_height(interner, bevel.height);
+    attributes.set_preset(interner, bevel.preset);
+    dml_element(interner, local, attributes.attributes, Vec::new())
 }
 
 /// Builds an `a:rot` (`CT_SphereCoords`) — all three angles, since the schema requires them.
 fn build_sphere_coordinates(interner: &mut Interner, rot: &SphereCoordinates) -> RawElement {
-    let mut attrs = Vec::new();
-    push_angle(&mut attrs, interner, "lat", Some(rot.latitude));
-    push_angle(&mut attrs, interner, "lon", Some(rot.longitude));
-    push_angle(&mut attrs, interner, "rev", Some(rot.revolution));
-    dml_element(interner, "rot", attrs, Vec::new())
+    let mut attributes = SphereCoordinatesAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_latitude(interner, rot.latitude);
+    attributes.set_longitude(interner, rot.longitude);
+    attributes.set_revolution(interner, rot.revolution);
+    dml_element(interner, "rot", attributes.attributes, Vec::new())
 }
 
 /// Builds an `a:camera` (`CT_Camera`).
 fn build_camera(interner: &mut Interner, camera: &Camera) -> RawElement {
-    let mut attrs = vec![dml_attr(interner, "prst", camera.preset.to_wire())];
-    push_angle(&mut attrs, interner, "fov", camera.field_of_view);
-    push_fraction(&mut attrs, interner, "zoom", camera.zoom);
+    let mut attributes = CameraAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_preset(interner, camera.preset);
+    attributes.set_field_of_view(interner, camera.field_of_view);
+    attributes.set_zoom(interner, camera.zoom);
     let children = camera
         .rotation
         .map(|rot| vec![RawNode::Element(build_sphere_coordinates(interner, &rot))])
         .unwrap_or_default();
-    dml_element(interner, "camera", attrs, children)
+    dml_element(interner, "camera", attributes.attributes, children)
 }
 
 /// Builds an `a:lightRig` (`CT_LightRig`). `pub(crate)` so the table `a:cell3D` reuses it.
 pub(crate) fn build_light_rig(interner: &mut Interner, light_rig: &LightRig) -> RawElement {
-    let attrs = vec![
-        dml_attr(interner, "rig", light_rig.rig.to_wire()),
-        dml_attr(interner, "dir", light_rig.direction.to_wire()),
-    ];
+    let mut attributes = LightRigAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_rig(interner, light_rig.rig);
+    attributes.set_direction(interner, light_rig.direction);
     let children = light_rig
         .rotation
         .map(|rot| vec![RawNode::Element(build_sphere_coordinates(interner, &rot))])
         .unwrap_or_default();
-    dml_element(interner, "lightRig", attrs, children)
+    dml_element(interner, "lightRig", attributes.attributes, children)
 }
 
 /// Pushes a named color-wrapper child (`a:extrusionClr` / `a:contourClr`) holding `color`'s
@@ -538,3 +601,6 @@ fn push_color_child(
 
 /// Zero degrees — the value an absent required sphere angle reads as.
 const ZERO_ANGLE: Angle = Angle::from_radians(0.0);
+
+/// Zero EMU — the value an absent required point or vector component reads as.
+const ORIGIN: Emu = Emu::from_emu(0);

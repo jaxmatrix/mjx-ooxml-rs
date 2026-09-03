@@ -6,15 +6,19 @@
 //! [`ColorMap`] models the master's `p:clrMap` (with any `p:clrMapOvr`): it maps the logical color
 //! names a shape can name (`bg1`/`tx1`/…) to the concrete [`ColorSchemeSlot`]s of the theme scheme.
 
-use mjx_ooxml_core::{FromXml, FromXmlError, Interner, RawElement};
+use mjx_ooxml_core::{FromXml, FromXmlError, Interner, Number, RawElement};
 
-use crate::build::{attr_str, first_color_child};
+use crate::build::first_color_child;
 use crate::color::{Color, SchemeColor};
 use crate::theme::ColorSchemeSlot;
 
 /// A style-matrix reference (`CT_StyleMatrixReference`: `a:fillRef` / `a:lnRef` / `a:effectRef`) — the
 /// `@idx` into a theme style list plus the optional color that replaces the referenced style's
 /// `phClr`. A read-only parsed view (this workstream does not write style references).
+///
+/// `@idx` is declared through the `#[xml(attribute(..))]` grammar on the attribute face below rather
+/// than on this type, because this type does not retain the element's attributes: it is a projection
+/// of two facts out of an `a:fillRef`, not a fidelity wrapper over it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StyleMatrixReference {
     idx: Option<u32>,
@@ -38,10 +42,23 @@ impl StyleMatrixReference {
     }
 }
 
+/// `a:fillRef` / `a:lnRef` / `a:effectRef` (`CT_StyleMatrixReference`) — the attribute face of a
+/// style-matrix reference.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "idx", codec = Number<u32>, accessor = index, required))]
+struct StyleMatrixReferenceAttributes<A> {
+    attributes: A,
+}
+
 impl FromXml for StyleMatrixReference {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let idx =
-            attr_str(&element.attributes, interner, "idx").and_then(|s| s.parse::<u32>().ok());
+        // A reference whose `@idx` is absent or unreadable is a reference to nothing, which is what
+        // `index()` already reports as `None`; it is not a reason to reject the whole element.
+        let idx = StyleMatrixReferenceAttributes {
+            attributes: &element.attributes,
+        }
+        .index(interner)
+        .ok();
         let color = first_color_child(element, interner);
         Ok(Self { idx, color })
     }

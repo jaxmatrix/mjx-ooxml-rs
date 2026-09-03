@@ -42,7 +42,7 @@ fn fill_ref_missing_index_is_none() {
     let (reference, doc) = parse_ref(fragment.as_bytes());
     assert_eq!(reference.index(), None);
     assert_eq!(
-        reference.color().unwrap().hex(&doc.interner),
+        reference.color().unwrap().hex(&doc.interner).as_deref(),
         Some("FF0000")
     );
 }

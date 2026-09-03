@@ -98,7 +98,7 @@ fn every_modeled_property_reads_back() {
     assert_eq!(
         properties
             .outline(interner)
-            .and_then(|line| line.width(interner))
+            .and_then(|line| line.width(interner).ok().flatten())
             .map(LineWidth::emu),
         Some(9525)
     );

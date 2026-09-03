@@ -78,7 +78,7 @@ fn gradient_fill_reads_stops_angle_and_preserves_internals() {
     assert_eq!(stops.len(), 2);
     assert!((stops[0].position.ratio() - 0.0).abs() < 1e-9);
     assert_eq!(stops[0].color.kind(&doc.interner), ColorKind::Srgb);
-    assert_eq!(stops[0].color.hex(&doc.interner), Some("FF0000"));
+    assert_eq!(stops[0].color.hex(&doc.interner).as_deref(), Some("FF0000"));
     assert!((stops[1].position.ratio() - 1.0).abs() < 1e-9);
     assert_eq!(
         stops[1].color.scheme_color(&doc.interner),
@@ -88,8 +88,11 @@ fn gradient_fill_reads_stops_angle_and_preserves_internals() {
     let angle = fill.linear_angle(&doc.interner).expect("linear angle");
     assert!((angle.degrees() - 90.0).abs() < 1e-9);
 
-    assert_eq!(fill.flip(&doc.interner), Some("none"));
-    assert_eq!(fill.rot_with_shape(&doc.interner), Some(true));
+    assert_eq!(
+        fill.flip(&doc.interner).expect("a legal @flip").as_deref(),
+        Some("none")
+    );
+    assert_eq!(fill.rot_with_shape(&doc.interner), Ok(Some(true)));
 
     // The opaque tileRect and the `scaled` attribute survive verbatim.
     assert_round_trips(&fill, doc, fragment.as_bytes());
@@ -126,7 +129,7 @@ fn blip_fill_reads_rel_id_mode_and_preserves_effects() {
     );
     let (fill, doc): (PictureFill, _) = parse_typed(fragment.as_bytes());
 
-    assert_eq!(fill.image_rel_id(&doc.interner), Some("rId2"));
+    assert_eq!(fill.image_rel_id(&doc.interner).as_deref(), Some("rId2"));
     assert_eq!(fill.image_link_id(&doc.interner), None);
     assert_eq!(fill.mode(&doc.interner), PictureFillMode::Stretch);
 
@@ -162,13 +165,19 @@ fn pattern_fill_reads_preset_and_colors() {
     );
     let (fill, doc): (PatternFill, _) = parse_typed(fragment.as_bytes());
 
-    assert_eq!(fill.preset(&doc.interner), Some(PatternType::Percent25));
+    assert_eq!(fill.preset(&doc.interner), Ok(Some(PatternType::Percent25)));
     assert_eq!(
-        fill.foreground(&doc.interner).unwrap().hex(&doc.interner),
+        fill.foreground(&doc.interner)
+            .unwrap()
+            .hex(&doc.interner)
+            .as_deref(),
         Some("000000")
     );
     assert_eq!(
-        fill.background(&doc.interner).unwrap().hex(&doc.interner),
+        fill.background(&doc.interner)
+            .unwrap()
+            .hex(&doc.interner)
+            .as_deref(),
         Some("FFFFFF")
     );
     assert_round_trips(&fill, doc, fragment.as_bytes());
@@ -248,7 +257,10 @@ fn fill_solid_variant_exposes_its_color() {
         panic!("expected a solid fill");
     };
     let _: &SolidFill = solid;
-    assert_eq!(solid.color().unwrap().hex(&doc.interner), Some("112233"));
+    assert_eq!(
+        solid.color().unwrap().hex(&doc.interner).as_deref(),
+        Some("112233")
+    );
     assert_round_trips(&fill, doc, fragment.as_bytes());
 }
 

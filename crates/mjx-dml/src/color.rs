@@ -1,11 +1,11 @@
 //! DrawingML color: the `EG_ColorChoice` elements (`a:srgbClr`, `a:schemeClr`, `a:sysClr`,
 //! `a:prstClr`, `a:scrgbClr`, `a:hslClr`).
 
-use mjx_ooxml_core::{
-    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
-};
+use std::borrow::Cow;
 
-use crate::build::{attr_str, dml_attr, dml_name};
+use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode, Text};
+
+use crate::build::{dml_name, fidelity_element_impls};
 
 pub use mjx_ooxml_types::drawingml::SchemeColor;
 
@@ -55,8 +55,13 @@ pub enum ColorSpec {
 /// name, attributes, transform children, and the self-closing flag are preserved verbatim, while
 /// [`kind`](Self::kind) / [`hex`](Self::hex) / [`scheme_color`](Self::scheme_color) expose the common
 /// cases. Its [`FromXml`]/[`ToXml`] impls are hand-written because the element name is the discriminant,
-/// which the derive does not model.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// which the derive does not model. Its one attribute is declared through the `#[xml(attribute)]`
+/// grammar: `@val` is shared by all six kinds, and its *meaning* differs per kind (a hex triplet on
+/// `a:srgbClr`, a scheme token on `a:schemeClr`, a system-colour name on `a:sysClr`), so the declared
+/// kind is [`Text`] and [`hex`](Self::hex) / [`scheme_color`](Self::scheme_color) interpret it once
+/// the element name has said which kind this is.
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = Text, accessor = value))]
 pub struct Color {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -68,23 +73,13 @@ impl Color {
     /// Builds an sRGB color `<a:srgbClr val="{hex}"/>` (e.g. `hex = "FF0000"`).
     #[must_use]
     pub fn srgb(interner: &mut Interner, hex: &str) -> Self {
-        Self {
-            name: dml_name(interner, "srgbClr"),
-            attributes: vec![dml_attr(interner, "val", hex)],
-            children: Vec::new(),
-            empty: true,
-        }
+        Self::of_val(interner, "srgbClr", Some(hex))
     }
 
     /// Builds a theme color reference `<a:schemeClr val="{scheme}"/>`.
     #[must_use]
     pub fn scheme(interner: &mut Interner, scheme: SchemeColor) -> Self {
-        Self {
-            name: dml_name(interner, "schemeClr"),
-            attributes: vec![dml_attr(interner, "val", scheme.to_wire())],
-            children: Vec::new(),
-            empty: true,
-        }
+        Self::of_val(interner, "schemeClr", Some(scheme.to_wire()))
     }
 
     /// The `EG_ColorChoice` element local name for a [`ColorKind`], or `None` for
@@ -107,15 +102,21 @@ impl Color {
     #[must_use]
     pub fn of_kind(interner: &mut Interner, kind: ColorKind, value: Option<&str>) -> Option<Self> {
         let local = Self::kind_local(kind)?;
-        let attributes = value
-            .map(|value| vec![dml_attr(interner, "val", value)])
-            .unwrap_or_default();
-        Some(Self {
+        Some(Self::of_val(interner, local, value))
+    }
+
+    /// Builds a self-closing `<a:{local} val="{value}"/>` (with no `@val` at all when `value` is
+    /// `None`) — the one place this type authors a color element, so every `@val` it writes is
+    /// written by the same generated setter that a later edit would use.
+    fn of_val(interner: &mut Interner, local: &str, value: Option<&str>) -> Self {
+        let mut color = Self {
             name: dml_name(interner, local),
-            attributes,
+            attributes: Vec::new(),
             children: Vec::new(),
             empty: true,
-        })
+        };
+        color.set_value(interner, value);
+        color
     }
 
     /// The six `EG_ColorChoice` element local names (`a:srgbClr`, `a:schemeClr`, …), in schema order.
@@ -149,10 +150,13 @@ impl Color {
     }
 
     /// The sRGB hex value (the `val` of an `a:srgbClr`), or `None` if this is not an sRGB color.
+    ///
+    /// The file's own letter case is preserved — `ff0000` and `FF0000` are the same color, and this
+    /// is not the place to decide which spelling a file should have used.
     #[must_use]
-    pub fn hex(&self, interner: &Interner) -> Option<&str> {
+    pub fn hex(&self, interner: &Interner) -> Option<Cow<'_, str>> {
         if self.kind(interner) == ColorKind::Srgb {
-            attr_str(&self.attributes, interner, "val")
+            self.value(interner).ok().flatten()
         } else {
             None
         }
@@ -165,13 +169,10 @@ impl Color {
         if self.kind(interner) != ColorKind::Scheme {
             return None;
         }
-        attr_str(&self.attributes, interner, "val").and_then(SchemeColor::from_wire)
-    }
-
-    /// The raw `val` attribute value (for any color kind), or `None` if absent.
-    #[must_use]
-    pub fn value(&self, interner: &Interner) -> Option<&str> {
-        attr_str(&self.attributes, interner, "val")
+        self.value(interner)
+            .ok()
+            .flatten()
+            .and_then(|value| SchemeColor::from_wire(&value))
     }
 
     /// This color as an interner-free [`ColorSpec`] — sRGB and scheme colors resolve to their first-
@@ -180,17 +181,17 @@ impl Color {
     #[must_use]
     pub fn spec(&self, interner: &Interner) -> ColorSpec {
         match self.kind(interner) {
-            ColorKind::Srgb => ColorSpec::Srgb(self.value(interner).unwrap_or_default().to_owned()),
+            ColorKind::Srgb => ColorSpec::Srgb(self.raw_value(interner).unwrap_or_default()),
             ColorKind::Scheme => match self.scheme_color(interner) {
                 Some(scheme) => ColorSpec::Scheme(scheme),
                 None => ColorSpec::Other {
                     kind: ColorKind::Scheme,
-                    value: self.value(interner).map(str::to_owned),
+                    value: self.raw_value(interner),
                 },
             },
             kind => ColorSpec::Other {
                 kind,
-                value: self.value(interner).map(str::to_owned),
+                value: self.raw_value(interner),
             },
         }
     }
@@ -217,24 +218,16 @@ impl Color {
     pub fn transforms(&self) -> &[RawNode] {
         &self.children
     }
-}
 
-impl FromXml for Color {
-    fn from_xml(element: &RawElement, _interner: &Interner) -> Result<Self, FromXmlError> {
-        Ok(Self {
-            name: element.name,
-            attributes: element.attributes.clone(),
-            children: element.children.clone(),
-            empty: element.empty,
-        })
+    /// `@val` as an owned string, with a malformed one (unreadable bytes, an undecodable entity)
+    /// treated as absent — what [`spec`](Self::spec) wants, since a [`ColorSpec`] is a value
+    /// description that carries no error channel.
+    fn raw_value(&self, interner: &Interner) -> Option<String> {
+        self.value(interner)
+            .ok()
+            .flatten()
+            .map(std::borrow::Cow::into_owned)
     }
 }
 
-impl ToXml for Color {
-    fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        let children = self.children.clone();
-        // Preserve the self-closing flag, but never contradict "self-closing ⇒ no children".
-        let empty = self.empty && children.is_empty();
-        RawElement::new(self.name, self.attributes.clone(), children, empty)
-    }
-}
+fidelity_element_impls!(Color);
