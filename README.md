@@ -122,8 +122,10 @@ rule is unaffected.
 into its own crate — a harness in one crate's `tests/` is unreachable from another's.
 `mjx-fixtures` holds the committed corpus at `tests/fixtures/` and has **no dependencies at all**,
 so `mjx-opc`'s byte-identity suites — which sit below the gate — read the same corpus without any
-edge pointing upwards. Neither is published and nothing shipped depends on either. They are the only crates in the workspace that carry `#![allow(unsafe_code)]`,
-for macro-generated `unsafe` only; CI greps them to keep that claim true.
+edge pointing upwards. Neither is published and nothing shipped depends on either.
+
+The two binding crates are the only ones in the workspace that carry `#![allow(unsafe_code)]`, for
+macro-generated `unsafe` only; CI greps them to keep that claim true.
 
 See [`PLAN.md`](PLAN.md) for what each crate does and the phase it lands in.
 
