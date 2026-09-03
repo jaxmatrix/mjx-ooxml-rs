@@ -551,3 +551,176 @@ fn dirtying_the_root_of_a_hostile_input_still_produces_the_document_it_describes
         );
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// A typed model's round trip through the tree (MJXOFF-143)
+// ---------------------------------------------------------------------------------------------
+
+/// What a `FromXml` / `ToXml` pass leaves behind: the same markup, every source range gone, because
+/// a model clones what it preserves and constructs what it models. `Clone` is the whole of it —
+/// `mjx-xml` sits below every typed model, so this reproduces the shape rather than importing one.
+fn as_a_typed_model_rebuilds_it(element: &RawElement) -> RawElement {
+    let rebuilt = element.clone();
+    assert_eq!(
+        rebuilt.source_span(),
+        None,
+        "a clone must not carry a range — that is what makes this test worth writing"
+    );
+    rebuilt
+}
+
+/// A whole-part typed model reads a part into a value and writes the part back from it. Assigning
+/// that value's element over the root throws away every range in the part, and the part comes back
+/// re-flowed; `replace_preserving_verbatim_source` gives back the ranges of everything the rebuild
+/// reproduced.
+///
+/// The fixture wraps `p:sld`'s attributes across four lines and quotes `xmlns:r` and `a:off/@y` with
+/// apostrophes, so byte identity here cannot be an accident of reconstruction.
+#[test]
+fn a_whole_part_rebuild_that_changed_nothing_comes_back_byte_identical() {
+    let mut doc = parse();
+    let rebuilt = as_a_typed_model_rebuilds_it(&doc.root);
+
+    // What the surfaces used to do.
+    let mut reflowed = parse();
+    reflowed.root = as_a_typed_model_rebuilds_it(&reflowed.root);
+    let reflowed = fidelity::serialize_to_vec(&reflowed);
+    assert_ne!(
+        reflowed.as_slice(),
+        SOURCE,
+        "the fixture must be one a plain rebuild cannot reproduce, or this test proves nothing"
+    );
+
+    // What they do now.
+    doc.root.replace_preserving_verbatim_source(rebuilt);
+    let out = fidelity::serialize_to_vec(&doc);
+    assert_eq!(
+        String::from_utf8_lossy(&out),
+        String::from_utf8_lossy(SOURCE),
+        "a rebuild that changed nothing must re-emit the source"
+    );
+}
+
+/// The same pass with one attribute changed: the element that changed and its ancestors are
+/// reconstructed, and **nothing else is**.
+#[test]
+fn a_whole_part_rebuild_reconstructs_only_the_path_to_what_changed() {
+    let mut doc = parse();
+    let mut rebuilt = as_a_typed_model_rebuilds_it(&doc.root);
+
+    // `p:sld > p:cSld > a:ext@cx`, three rungs down.
+    let cs_ld = match &mut rebuilt.children[1] {
+        RawNode::Element(element) => element,
+        other => panic!("expected p:cSld, found {other:?}"),
+    };
+    let ext = cs_ld
+        .children
+        .iter_mut()
+        .find_map(|node| match node {
+            RawNode::Element(element) if doc.interner.resolve(element.name.local) == "ext" => {
+                Some(element)
+            }
+            _ => None,
+        })
+        .expect("a:ext");
+    ext.attributes[0].value = Box::from(&b"99"[..]);
+
+    doc.root.replace_preserving_verbatim_source(rebuilt);
+    let out = fidelity::serialize_to_vec(&doc);
+
+    assert!(
+        find(&out, b"cx=\"99\"").is_some(),
+        "the edit did not land:\n{}",
+        String::from_utf8_lossy(&out)
+    );
+    // Every sibling of the changed element kept its bytes — the comment, the processing
+    // instruction, the two-spaces-after-the-name `a:off`, and the numeric character reference.
+    for verbatim in [
+        &b"<!-- a comment that must survive byte-for-byte -->"[..],
+        &b"<?office-hint value=\"1\"?>"[..],
+        &b"<a:off  x=\"1\"\n            y='2' />"[..],
+        &b"<a:t r:id='rId1'>Q &#38; A</a:t>"[..],
+        &b"<p:clrMapOvr/>"[..],
+    ] {
+        assert!(
+            find(&out, verbatim).is_some(),
+            "an untouched node was re-flowed:\n{}\n\nwanted verbatim:\n{}",
+            String::from_utf8_lossy(&out),
+            String::from_utf8_lossy(verbatim)
+        );
+    }
+    // The two elements on the path to the change *are* rebuilt, so `p:sld`'s wrapped start tag is
+    // now on one line — and it still carries every declaration its verbatim descendants need.
+    assert!(
+        find(
+            &out,
+            b"<p:sld xmlns:p=\"urn:p\" xmlns:a=\"urn:a\" xmlns:r='urn:r' p:tag=\"keep\">"
+        )
+        .is_some(),
+        "the rewritten root lost its shape or its declarations:\n{}",
+        String::from_utf8_lossy(&out)
+    );
+    // And the output is still the document it describes.
+    assert_eq!(resolved_namespace(&out, "off").as_deref(), Some("urn:a"));
+}
+
+/// **A range that does not describe its element degrades to a reflow, never to wrong bytes.**
+///
+/// The restoration only ever moves a range from the element being replaced, so this feeds the writer
+/// a wrong one directly: a `p:cSld` claiming the extent of `p:clrMapOvr`. The writer's checks — the
+/// range must open with `<` and this element's qualified name — reject it, and the element is
+/// reconstructed from the model instead.
+#[test]
+fn a_range_that_describes_a_different_element_is_refused_by_the_writer() {
+    let mut doc = parse();
+    let text = std::str::from_utf8(SOURCE).expect("fixture is UTF-8");
+    let wrong_start =
+        u32::try_from(text.find("<p:clrMapOvr/>").expect("in fixture")).expect("fits");
+
+    let original = child(&doc, &doc.root, "cSld").clone();
+    let span = child(&doc, &doc.root, "cSld")
+        .source_span()
+        .expect("p:cSld was parsed with a range");
+    let RawDocument { root, .. } = &mut doc;
+    let slot = root
+        .children
+        .iter_mut()
+        .find_map(|node| match node {
+            RawNode::Element(element) => Some(element),
+            _ => None,
+        })
+        .expect("p:cSld");
+    // The same length as the real range, at the wrong offset: it fits the buffer, so only the
+    // qualified-name check can catch it.
+    let wrong = RawElement::parsed(
+        original.name,
+        original.attributes.to_vec(),
+        original.children.to_vec(),
+        original.empty,
+        wrong_start..wrong_start + (span.end - span.start),
+    );
+    assert!(
+        wrong.source_span().is_some(),
+        "the wrong range must actually be recorded, or this test proves nothing"
+    );
+    *slot = wrong;
+
+    let out = fidelity::serialize_to_vec(&doc);
+    let reparsed = fidelity::parse(&out).expect("the output is still well-formed XML");
+    assert_eq!(
+        reparsed.interner.resolve(reparsed.root.name.local),
+        "sld",
+        "the document must still be the document it was:\n{}",
+        String::from_utf8_lossy(&out)
+    );
+    assert!(
+        find(&out, b"<a:t r:id='rId1'>Q &#38; A</a:t>").is_some(),
+        "the refused range should have reflowed p:cSld's start tag and no more:\n{}",
+        String::from_utf8_lossy(&out)
+    );
+    assert!(
+        find(&out, b"<p:clrMapOvr/></p:cSld>").is_none(),
+        "the writer emitted the bytes the wrong range pointed at:\n{}",
+        String::from_utf8_lossy(&out)
+    );
+}

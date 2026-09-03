@@ -1027,3 +1027,86 @@ fn editing_one_cell_leaves_every_other_cell_row_and_attribute_byte_identical() {
         "an edit three rungs down moved something it did not write"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// What only the source bytes remember (MJXOFF-143)
+// ---------------------------------------------------------------------------------------------
+//
+// Everything above asserts byte identity through `*slot = typed.to_xml(interner)`, and must keep
+// doing so: that is what holds the *writer* to the corpus. Once an element re-emits from the byte
+// range it was parsed from, the writer never runs on it, and a write-path regression would be
+// invisible. So the two cases below are separate, and they are the only ones here that go through
+// `ToXml::write_back`.
+//
+// What they add is the one property no assertion above can make, because reconstruction genuinely
+// cannot reproduce it: the whitespace *between* attributes. The decomposed tree does not record it
+// — a deliberate choice, since the next property (entity spelling, comment placement) would cost the
+// same again — and the source range subsumes the whole family instead.
+
+/// `a:tbl` with three start tags wrapped across lines, the way Office writes them. Nothing else here
+/// differs from `table_with_extensions`.
+fn table_with_wrapped_start_tags() -> Vec<u8> {
+    format!(
+        "<a:tbl xmlns:a=\"{A}\" xmlns:z=\"{Z}\"><a:tblPr\r\n    firstRow=\"1\"\r\n    bandRow=\"1\"><a:extLst><a:ext uri=\"{{11111111-1111-1111-1111-111111111111}}\"><z:tag\r\n          value=\"table\"/></a:ext></a:extLst></a:tblPr><a:tblGrid><a:gridCol\r\n      w=\"1000\"/></a:tblGrid><a:tr h=\"370\"><a:tc><a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>One</a:t></a:r></a:p></a:txBody><a:tcPr z:note=\"in front of marL\" marL='1' anchor=\"t\"/></a:tc></a:tr></a:tbl>"
+    )
+    .into_bytes()
+}
+
+#[test]
+fn a_typed_round_trip_that_changed_nothing_keeps_the_wrapping_only_the_bytes_remember() {
+    let markup = table_with_wrapped_start_tags();
+    let mut document = fidelity::parse(&markup).expect("the markup is well-formed");
+    let RawDocument { interner, root, .. } = &mut document;
+    let table = Table::from_xml(root, interner).expect("from_xml");
+
+    // The assertion the rest of this file makes would fail here, and that is the point.
+    let mut reflowed = fidelity::parse(&markup).expect("well-formed");
+    {
+        let RawDocument { interner, root, .. } = &mut reflowed;
+        let value = Table::from_xml(root, interner).expect("from_xml");
+        *root = value.to_xml(interner);
+    }
+    assert_ne!(
+        String::from_utf8_lossy(&fidelity::serialize_to_vec(&reflowed)),
+        String::from_utf8_lossy(&markup),
+        "the literal must be one a rebuild cannot reproduce, or this case proves nothing"
+    );
+
+    table.write_back(root, interner);
+    assert_eq!(
+        String::from_utf8_lossy(&fidelity::serialize_to_vec(&document)),
+        String::from_utf8_lossy(&markup),
+        "a typed round-trip that changed nothing must re-emit the source"
+    );
+}
+
+#[test]
+fn an_edit_three_rungs_down_leaves_every_wrapped_start_tag_beside_it_alone() {
+    let markup = table_with_wrapped_start_tags();
+    let mut document = fidelity::parse(&markup).expect("the markup is well-formed");
+    let RawDocument { interner, root, .. } = &mut document;
+    let mut table = Table::from_xml(root, interner).expect("from_xml");
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr")
+        .set_margins(interner, Some(Emu::from_emu(7)), None, None, None);
+    table.write_back(root, interner);
+    let edited = fidelity::serialize_to_vec(&document);
+
+    // Exactly one attribute value differs from the source, and it differs where it stood — the
+    // wrapped `a:tblPr`, `z:tag` and `a:gridCol` start tags included, none of which any
+    // reconstruction from the model could have produced.
+    let expected = String::from_utf8_lossy(&markup).replacen(
+        r#"<a:tcPr z:note="in front of marL" marL='1' anchor="t"/>"#,
+        r#"<a:tcPr z:note="in front of marL" marL='7' anchor="t"/>"#,
+        1,
+    );
+    assert_ne!(expected, String::from_utf8_lossy(&markup));
+    assert_eq!(
+        String::from_utf8_lossy(&edited),
+        expected,
+        "an edit three rungs down re-flowed something it did not write"
+    );
+}

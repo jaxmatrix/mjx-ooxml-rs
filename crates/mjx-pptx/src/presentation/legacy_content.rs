@@ -1456,7 +1456,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let mut drawing = mjx_vml::Drawing::from_xml(root, interner)?;
         let outcome = edit(&mut drawing, interner);
-        *root = drawing.to_xml(interner);
+        drawing.write_back(root, interner);
         Ok(outcome)
     }
 

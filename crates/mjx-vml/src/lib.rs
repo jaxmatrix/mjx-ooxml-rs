@@ -56,6 +56,12 @@
 //! Every modelled type keeps the element's name (prefix included), its attributes in source order,
 //! its self-closing flag, and every child it does not itself model. A drawing parsed and re-emitted
 //! without an edit is byte-identical, and an edit to one shape leaves its siblings untouched.
+//!
+//! That holds down to the whitespace, which matters here more than anywhere else: Office wraps a VML
+//! start tag across lines far more often than it wraps a slide's, and a decomposed tree does not
+//! record the whitespace *between* attributes. [`DrawingPart`] therefore keeps the document it
+//! parsed, and an element a model rebuilt without changing it is copied out of the original bytes
+//! rather than reconstructed — so a wrapped start tag comes back wrapped.
 
 mod build;
 mod control;

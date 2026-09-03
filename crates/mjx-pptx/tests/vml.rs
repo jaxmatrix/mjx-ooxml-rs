@@ -418,3 +418,98 @@ fn reading_a_vml_drawing_through_the_model_dirties_nothing() {
         "reading a VML drawing through the model must dirty nothing"
     );
 }
+
+// -------------------------------------------------------------------------------------------
+// Tier 3, inside a part: an edit through the whole-part typed model rewrites only what it changed
+// -------------------------------------------------------------------------------------------
+
+/// The bytes of `<open … </close>` in `haystack`, start tag through end tag.
+fn subtree_bytes<'a>(haystack: &'a [u8], open: &str, close: &str) -> &'a [u8] {
+    let text = std::str::from_utf8(haystack).expect("the fixture part is UTF-8");
+    let start = text
+        .find(open)
+        .unwrap_or_else(|| panic!("no {open} in the part"));
+    let end = text
+        .find(close)
+        .unwrap_or_else(|| panic!("no {close} in the part"))
+        + close.len();
+    &haystack[start..end]
+}
+
+/// `edit_vml_drawing` reads the whole part into a typed model and writes the whole part back from
+/// it. Until MJXOFF-143 that rebuilt every element, so the part came back re-flowed even where
+/// nothing had changed. Now each element the model reproduced unchanged is copied out of the buffer
+/// the part was parsed from.
+///
+/// The fixture discriminates: `vmlDrawing1.vml` wraps its start tags across lines **with CRLF**, so
+/// no reconstruction from the model could produce these bytes — the writer emits exactly one `0x20`
+/// between attributes. A part whose start tags were already on one line would pass this test with
+/// the mechanism deleted.
+#[test]
+fn editing_one_vml_shape_leaves_every_other_element_byte_identical() {
+    let bytes = fixture("vml.pptx");
+    let name = part("/ppt/drawings/vmlDrawing1.vml");
+    let before = Package::open(&bytes)
+        .expect("baseline")
+        .part_bytes(&name)
+        .expect("the drawing part")
+        .to_vec();
+    assert!(
+        before.windows(2).any(|w| w == b"\r\n"),
+        "the fixture must wrap its start tags, or this test proves nothing"
+    );
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.edit_vml_drawing(&name, |drawing, interner| {
+        let shape = drawing
+            .shape_by_identifier_mut(interner, "_x0000_s1026")
+            .expect("the fixture's shape");
+        shape.set_fill_color(interner, "#123456");
+    })
+    .expect("edit");
+    let saved = pres.save().expect("save");
+    let after = Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&name)
+        .expect("the drawing part")
+        .to_vec();
+
+    assert_ne!(after, before, "the edit should have changed the part");
+    let contains = |haystack: &[u8], needle: &[u8]| {
+        haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
+    };
+    assert!(
+        contains(&after, br##"fillcolor="#123456""##),
+        "the edit did not land:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+
+    // Every element outside the path from the root to the edited shape is *literally* its original
+    // bytes — CRLF wrapping, two-space indent and all.
+    for (open, close) in [
+        ("<o:shapelayout ", "</o:shapelayout>"),
+        ("<v:shapetype ", "</v:shapetype>"),
+    ] {
+        let untouched = subtree_bytes(&before, open, close);
+        assert!(
+            contains(&after, untouched),
+            "{open} was re-flowed rather than copied:\n{}\n\nwanted verbatim:\n{}",
+            String::from_utf8_lossy(&after),
+            String::from_utf8_lossy(untouched)
+        );
+        assert!(
+            contains(untouched, b"\r\n"),
+            "{open} is not wrapped in the fixture, so asserting on it proves nothing"
+        );
+    }
+
+    // The edited shape itself is the one thing rebuilt from the model, so its own start tag is now
+    // on one line — the reflow is confined to what actually changed.
+    assert!(
+        contains(&after, br##"<v:shape id="_x0000_s1026" type="#_x0000_t202" style="position:absolute;margin-left:10pt;margin-top:10pt;width:100pt;height:50pt" filled="f" stroked="f" fillcolor="#123456">"##),
+        "the edited element should reconstruct from the model:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+}

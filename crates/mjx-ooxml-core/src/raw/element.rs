@@ -128,6 +128,15 @@ struct SourceSpan {
 /// * The range is untrusted on the way *out* as well as in: a serializer must slice fallibly and
 ///   reconstruct if the range does not fit its buffer.
 ///
+/// Those rules make a span *travel* nowhere by default, which costs one thing: a typed model is a
+/// view, so a `FromXml` / `ToXml` pass rebuilds every element it looked at and the whole part
+/// re-flows even where nothing changed. [`replace_preserving_verbatim_source`] closes that without
+/// loosening any of the above — it restores a range only onto a node that compares equal to the one
+/// it replaces, at the position it replaces it, so both the "same markup" and the "same buffer"
+/// halves of the invariant are re-established rather than assumed.
+///
+/// [`replace_preserving_verbatim_source`]: RawElement::replace_preserving_verbatim_source
+///
 /// The whole mechanism costs **8 bytes per element**: the span packs into two `u32`s whose second
 /// half is a [`NonZeroU32`], so `Option` needs no discriminant, and the lists moving behind a
 /// `Deref` costs nothing at all.
@@ -241,6 +250,99 @@ impl RawElement {
     pub fn into_content(self) -> RawElementContent {
         self.content
     }
+
+    /// Overwrites this element with `rebuilt` — what a typed model made of it — and gives back the
+    /// verbatim [source range](Self::source_span) of every node the rebuild reproduced unchanged.
+    ///
+    /// This is the whole-subtree counterpart of [`DerefMut`](RawElement) dropping a span: a typed
+    /// model is a *view*, so a `FromXml` / `ToXml` pass rebuilds every element it looked at, and
+    /// nearly all of them come back byte-for-byte the same. Assigning the rebuild over the original
+    /// (`*slot = value.to_xml(interner)`) throws away the range each of those could still have been
+    /// copied from, and the part re-flows. Doing it through here does not.
+    ///
+    /// # Why this may set a range, when nothing else outside [`parsed`](Self::parsed) may
+    ///
+    /// A range is a claim that a stretch of some buffer *is* an element's markup, and a wrong claim
+    /// is the one way this design writes the wrong bytes. Two facts discharge that burden here, and
+    /// both are structural rather than remembered:
+    ///
+    /// * **The bytes still describe the element.** A range is moved onto a rebuilt node only where
+    ///   that node compares [equal](PartialEq) to the original it replaces — same name, same
+    ///   self-closing style, same attributes in the same order with the same quoting, and, all the
+    ///   way down, the same children. That is precisely the set of properties an element's markup
+    ///   determines, so "equal" *is* "these bytes spell this element". Where anything differs, the
+    ///   node keeps the `None` a rebuild is born with and serializes from the model, and so does
+    ///   every ancestor of it.
+    /// * **The buffer is the right one.** The range comes from the element being overwritten, and
+    ///   lands on its replacement at that same position — so the destination document is, by
+    ///   construction, the one that measured it. A caller cannot pass an original from one document
+    ///   and a rebuild destined for another, because the original *is* the destination.
+    ///
+    /// The serializer re-checks what it can regardless (that the range fits, opens with `<` and this
+    /// element's qualified name, and closes the way `empty` says it closes), so even a range that
+    /// reached here wrongly degrades to a reflow rather than to wrong bytes.
+    ///
+    /// Costs one structural comparison of the two subtrees — a single pass, each node visited once,
+    /// which is the same order as the rebuild that produced `rebuilt`.
+    pub fn replace_preserving_verbatim_source(&mut self, mut rebuilt: Self) {
+        restore_verbatim_source(self, &mut rebuilt);
+        *self = rebuilt;
+    }
+}
+
+/// Copies `original`'s source range onto `rebuilt` wherever the two spell the same markup, and
+/// reports whether they do.
+///
+/// Bottom-up and single-pass: each node of each tree is visited once, so a deep subtree costs no
+/// more than a shallow one of the same size. The `&=` is deliberate — it must not short-circuit,
+/// because a child whose sibling already differs can still be restored.
+fn restore_verbatim_source(original: &RawElement, rebuilt: &mut RawElement) -> bool {
+    // Named field access throughout, never `Deref`/`DerefMut`: reaching the content mutably would
+    // clear the very range this function exists to restore.
+    let mut same = original.name == rebuilt.name
+        && original.empty == rebuilt.empty
+        && original.content.attributes == rebuilt.content.attributes;
+
+    let were = &original.content.children;
+    let are = &mut rebuilt.content.children;
+    if were.len() == are.len() {
+        for (was, is) in were.iter().zip(are.iter_mut()) {
+            same &= restore_verbatim_source_node(was, is);
+        }
+    } else {
+        // A child was inserted or removed, so positions no longer line up. Match what still does —
+        // the unbroken run at each end — and leave the middle to serialize from the model. The
+        // element itself differs either way, so it keeps no range.
+        same = false;
+        let (was_len, is_len) = (were.len(), are.len());
+        let common = was_len.min(is_len);
+        let mut front = 0;
+        while front < common && restore_verbatim_source_node(&were[front], &mut are[front]) {
+            front += 1;
+        }
+        let mut back = 0;
+        while back < common - front
+            && restore_verbatim_source_node(&were[was_len - 1 - back], &mut are[is_len - 1 - back])
+        {
+            back += 1;
+        }
+    }
+
+    if same {
+        rebuilt.source = original.source;
+    }
+    same
+}
+
+/// [`restore_verbatim_source`] for a node: recurse into a pair of elements, compare anything else.
+///
+/// Only an element carries a range; text, CDATA, comments and processing instructions are stored as
+/// their verbatim bytes already, so for them "reproduced unchanged" is just equality.
+fn restore_verbatim_source_node(original: &RawNode, rebuilt: &mut RawNode) -> bool {
+    match (original, rebuilt) {
+        (RawNode::Element(was), RawNode::Element(is)) => restore_verbatim_source(was, is),
+        (was, is) => was == &*is,
+    }
 }
 
 impl Deref for RawElement {
@@ -303,6 +405,12 @@ mod tests {
     use super::*;
 
     /// The budget the design was chosen against: one span, eight bytes, nothing else.
+    ///
+    /// The guarantee is deliberately **relative**. What matters is that the span costs eight bytes
+    /// and nothing else costs anything — that a later field, or a wider span, would show up here.
+    /// `RawElement`'s absolute size is not pinned because it is not a property of this design: it
+    /// follows from `Vec`, `Box<[u8]>` and `Symbol`, and so differs by target. An absolute figure
+    /// would fail on a 32-bit build while the budget it claims to guard was still met.
     #[test]
     fn subtree_copy_on_write_costs_eight_bytes_per_element() {
         struct WithoutTheSpan {
@@ -315,6 +423,188 @@ mod tests {
             std::mem::size_of::<RawElement>() - std::mem::size_of::<WithoutTheSpan>(),
             8
         );
+    }
+
+    /// A tree shaped like what a typed model rebuilds: a root, three element children, some text.
+    fn sample_tree(interner: &mut crate::Interner) -> RawElement {
+        let named = |interner: &mut crate::Interner, local: &str| RawName {
+            prefix: None,
+            local: interner.intern(local),
+            namespace: None,
+        };
+        let attribute = |interner: &mut crate::Interner, local: &str, value: &str| RawAttribute {
+            name: named(interner, local),
+            value: value.as_bytes().into(),
+            quote: QuoteStyle::Double,
+        };
+        let first = RawElement::parsed(
+            named(interner, "first"),
+            vec![attribute(interner, "val", "1")],
+            Vec::new(),
+            true,
+            10..30,
+        );
+        let second = RawElement::parsed(
+            named(interner, "second"),
+            vec![attribute(interner, "val", "2")],
+            Vec::new(),
+            true,
+            30..50,
+        );
+        let third = RawElement::parsed(
+            named(interner, "third"),
+            vec![attribute(interner, "val", "3")],
+            Vec::new(),
+            true,
+            50..70,
+        );
+        RawElement::parsed(
+            named(interner, "root"),
+            Vec::new(),
+            vec![
+                RawNode::Element(first),
+                RawNode::Text(b"\n".as_slice().into()),
+                RawNode::Element(second),
+                RawNode::Element(third),
+            ],
+            false,
+            0..80,
+        )
+    }
+
+    /// What a `from_xml` / `to_xml` pass produces: the same markup with every span gone.
+    fn as_a_model_rebuilds_it(element: &RawElement) -> RawElement {
+        let rebuilt = element.clone();
+        assert_eq!(rebuilt.source_span(), None, "Clone must drop the span");
+        rebuilt
+    }
+
+    #[test]
+    fn a_rebuild_that_changed_nothing_gets_every_span_back() {
+        let mut interner = crate::Interner::new();
+        let mut original = sample_tree(&mut interner);
+        let rebuilt = as_a_model_rebuilds_it(&original);
+        let expected = original.clone();
+
+        original.replace_preserving_verbatim_source(rebuilt);
+
+        assert_eq!(original, expected, "the markup is untouched");
+        assert_eq!(
+            original.source_span(),
+            Some(0..80),
+            "the root's span is back"
+        );
+        let spans: Vec<_> = original
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                RawNode::Element(element) => Some(element.source_span()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(spans, vec![Some(10..30), Some(30..50), Some(50..70)]);
+    }
+
+    #[test]
+    fn a_changed_child_loses_its_span_and_so_does_every_ancestor_while_its_siblings_keep_theirs() {
+        let mut interner = crate::Interner::new();
+        let mut original = sample_tree(&mut interner);
+        let mut rebuilt = as_a_model_rebuilds_it(&original);
+        // Exactly the shape of a typed setter: one attribute value, three levels down from nothing.
+        match &mut rebuilt.children[2] {
+            RawNode::Element(second) => second.attributes[0].value = b"changed".as_slice().into(),
+            other => panic!("expected the second element, found {other:?}"),
+        }
+
+        original.replace_preserving_verbatim_source(rebuilt);
+
+        assert_eq!(
+            original.source_span(),
+            None,
+            "the root contains a changed descendant, so it must serialize from the model"
+        );
+        let spans: Vec<_> = original
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                RawNode::Element(element) => Some(element.source_span()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            spans,
+            vec![Some(10..30), None, Some(50..70)],
+            "only the element that changed reflows"
+        );
+    }
+
+    #[test]
+    fn a_removed_child_costs_no_sibling_its_span() {
+        let mut interner = crate::Interner::new();
+        let mut original = sample_tree(&mut interner);
+        let mut rebuilt = as_a_model_rebuilds_it(&original);
+        rebuilt.children.remove(2); // the second element
+
+        original.replace_preserving_verbatim_source(rebuilt);
+
+        assert_eq!(original.source_span(), None, "the root's children changed");
+        let spans: Vec<_> = original
+            .children
+            .iter()
+            .filter_map(|child| match child {
+                RawNode::Element(element) => Some(element.source_span()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            spans,
+            vec![Some(10..30), Some(50..70)],
+            "the run before the removal and the run after it both still match"
+        );
+    }
+
+    /// The soundness argument in one assertion: a span is restored **iff** the two elements are
+    /// equal, and `PartialEq` here compares exactly the properties an element's markup determines.
+    #[test]
+    fn a_span_is_restored_exactly_where_the_rebuild_compares_equal() {
+        let mut interner = crate::Interner::new();
+        let original = sample_tree(&mut interner);
+        type Mutation = Box<dyn Fn(&mut RawElement)>;
+        let mut mutations: Vec<Mutation> = Vec::new();
+        mutations.push(Box::new(|_| {}));
+        mutations.push(Box::new(|element: &mut RawElement| {
+            let name = element.name;
+            element.attributes.push(RawAttribute {
+                name,
+                value: b"x".as_slice().into(),
+                quote: QuoteStyle::Single,
+            });
+        }));
+        mutations.push(Box::new(|element: &mut RawElement| {
+            element.children.clear();
+        }));
+        mutations.push(Box::new(|element: &mut RawElement| {
+            element.empty = !element.empty;
+        }));
+        mutations.push(Box::new(|element: &mut RawElement| {
+            if let Some(RawNode::Element(first)) = element.children.first_mut() {
+                first.attributes[0].quote = QuoteStyle::Single;
+            }
+        }));
+
+        for mutate in &mutations {
+            let mut rebuilt = as_a_model_rebuilds_it(&original);
+            mutate(&mut rebuilt);
+            let equal = rebuilt == original;
+            // A second parse of the same tree, so the destination carries the real spans.
+            let mut destination = sample_tree(&mut interner);
+            destination.replace_preserving_verbatim_source(rebuilt);
+            assert_eq!(
+                destination.source_span().is_some(),
+                equal,
+                "a span must be restored exactly when the rebuild reproduced the element"
+            );
+        }
     }
 
     #[test]
