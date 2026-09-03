@@ -34,7 +34,7 @@ members = [
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
 # PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
 # this one line. See CHANGELOG.md.
-version = "0.0.77"
+version = "0.0.78"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -58,6 +58,9 @@ syn = { version = "2", features = ["full"] }
 # Grapheme-cluster segmentation for text ranges a user selects. Pure Rust: the cross-compile
 # matrix (wasm/Android/iOS) is unaffected.
 unicode-segmentation = "1"
+# Benchmarking only (MJXOFF-147): dev-dependency of the three format crates' `benches/`, never of a
+# shipped target. Pure Rust, no `unsafe` of its own.
+criterion = "0.8"
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }

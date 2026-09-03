@@ -25,3 +25,14 @@ mjx-omml.workspace = true
 # The shared ECMA-376 schema and child-order gate — the same harness `mjx-pptx` and `mjx-xlsx` are
 # held to. Test-only, and nothing shipped depends on it.
 mjx-schema-gate.workspace = true
+# The baseline benchmarks (MJXOFF-147) and their corpus generator use `anyhow` (sanctioned in
+# tooling, tests and examples, never in library code) and `criterion`. Dev-only, `harness = false`.
+anyhow.workspace = true
+criterion.workspace = true
+# Locates the workspace root the corpus generator writes `target/corpus/` under. Dependency-free, so
+# this adds no edge beyond the one every other test suite already has.
+mjx-fixtures.workspace = true
+
+[[bench]]
+name = "docx_operations"
+harness = false
