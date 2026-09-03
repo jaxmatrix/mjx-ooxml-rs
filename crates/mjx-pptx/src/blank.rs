@@ -29,9 +29,23 @@
 //!   [`add_slide_from_layout`](crate::Presentation::add_slide_from_layout) slots to clone and give
 //!   the title and body text somewhere to inherit size, font and colour from.
 //!
-//! Deliberately absent: document properties (`docProps/*`, optional, and markup this project only
-//! preserves elsewhere), `p:defaultTextStyle`, a notes master, and any Office extension list.
+//! Deliberately absent: `p:defaultTextStyle`, a notes master, and any Office extension list.
+//!
+//! # Document properties
+//!
+//! `docProps/core.xml` and `docProps/app.xml` **are** written — MJXOFF-149 decided this project
+//! authors them, reversing an earlier "deliberately absent" position recorded here. The reasoning
+//! lives in `mjx_opc::doc_props` (the packaging-layer module every format's `blank` constructor
+//! shares) and in `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md`; in short: every file real Office
+//! writes has them (`tests/fixtures/sample.docx` and `sample.xlsx` each carry exactly these two), the
+//! typed surface is small (four fields between both parts), and `crates/mjx-schema-gate`'s
+//! three-category rule already anticipated the flip. [`Presentation::blank`](crate::Presentation::blank)
+//! writes both parts with every field absent — schema-valid and deterministic, since `CT_CoreProperties`
+//! / `CT_Properties` are `xs:all` groups with every child `minOccurs="0"`.
+//! [`Presentation::blank_with_properties`](crate::Presentation::blank_with_properties) is the same
+//! constructor for a caller who wants to set title, creator, created/modified or the application name.
 
+use mjx_opc::doc_props::{self, CoreProperties, ExtendedProperties};
 use mjx_opc::{Package, PartName, Relationship, TargetMode};
 
 use crate::constants;
@@ -80,13 +94,19 @@ const REFERENCE_HEIGHT_EMU: i64 = 6_858_000;
 /// # Errors
 /// Returns [`PptxError::InvalidSlideSize`] if either extent is outside the range `p:sldSz` can
 /// express, or another [`PptxError`] if a package edit fails.
-pub(crate) fn package(size: SlideSize) -> Result<Package, PptxError> {
+pub(crate) fn package(
+    size: SlideSize,
+    core_properties: &CoreProperties,
+    extended_properties: &ExtendedProperties,
+) -> Result<Package, PptxError> {
     validate(size)?;
 
     let presentation = PartName::new(PRESENTATION_PART)?;
     let master = PartName::new(SLIDE_MASTER_PART)?;
     let layout = PartName::new(SLIDE_LAYOUT_PART)?;
     let theme = PartName::new(THEME_PART)?;
+    let core_props_part = PartName::new(doc_props::CORE_PROPERTIES_PART)?;
+    let extended_props_part = PartName::new(doc_props::EXTENDED_PROPERTIES_PART)?;
 
     let mut package = Package::empty();
 
@@ -106,6 +126,16 @@ pub(crate) fn package(size: SlideSize) -> Result<Package, PptxError> {
         slide_layout_bytes(),
     )?;
     package.insert_part(&theme, constants::CONTENT_TYPE_THEME, theme_bytes())?;
+    package.insert_part(
+        &core_props_part,
+        doc_props::CORE_PROPERTIES_CONTENT_TYPE,
+        doc_props::core_xml(core_properties),
+    )?;
+    package.insert_part(
+        &extended_props_part,
+        doc_props::EXTENDED_PROPERTIES_CONTENT_TYPE,
+        doc_props::extended_xml(extended_properties),
+    )?;
 
     add_rel(
         &mut package,
@@ -113,6 +143,20 @@ pub(crate) fn package(size: SlideSize) -> Result<Package, PptxError> {
         "rId1",
         constants::REL_OFFICE_DOCUMENT,
         "ppt/presentation.xml",
+    )?;
+    add_rel(
+        &mut package,
+        None,
+        "rId2",
+        doc_props::CORE_PROPERTIES_REL_TYPE,
+        "docProps/core.xml",
+    )?;
+    add_rel(
+        &mut package,
+        None,
+        "rId3",
+        doc_props::EXTENDED_PROPERTIES_REL_TYPE,
+        "docProps/app.xml",
     )?;
 
     add_rel(
@@ -553,8 +597,9 @@ mod tests {
             height_emu: REFERENCE_HEIGHT_EMU,
             kind: SlideSizeKind::Custom,
         };
+        let defaults = (CoreProperties::default(), ExtendedProperties::default());
         assert!(matches!(
-            package(too_small),
+            package(too_small, &defaults.0, &defaults.1),
             Err(PptxError::InvalidSlideSize { .. })
         ));
         let too_large = SlideSize {
@@ -563,7 +608,7 @@ mod tests {
             kind: SlideSizeKind::Custom,
         };
         assert!(matches!(
-            package(too_large),
+            package(too_large, &defaults.0, &defaults.1),
             Err(PptxError::InvalidSlideSize { .. })
         ));
         // The boundaries themselves are legal.
@@ -572,6 +617,17 @@ mod tests {
             height_emu: MIN_SLIDE_EXTENT_EMU,
             kind: SlideSizeKind::Custom,
         };
-        assert!(package(smallest).is_ok());
+        assert!(package(smallest, &defaults.0, &defaults.1).is_ok());
+    }
+
+    #[test]
+    fn document_properties_are_written_with_every_field_absent_by_default() {
+        let defaults = (CoreProperties::default(), ExtendedProperties::default());
+        let built = package(widescreen(), &defaults.0, &defaults.1)
+            .expect("a reference-sized slide is valid");
+        let core = PartName::new(doc_props::CORE_PROPERTIES_PART).unwrap();
+        let extended = PartName::new(doc_props::EXTENDED_PROPERTIES_PART).unwrap();
+        assert!(built.part_bytes(&core).is_some());
+        assert!(built.part_bytes(&extended).is_some());
     }
 }

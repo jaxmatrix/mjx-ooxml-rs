@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<!--
+  An OASIS XML Catalog (https://www.oasis-open.org/committees/entity/spec-2001-08-06.html)
+  redirecting the two live network URLs `opc-coreProperties.xsd` imports (dc: and dcterms:) to the
+  minimal local schemas committed beside this file. See `harness.rs`'s module docs for why a catalog
+  rather than the driver-schema trick `wml.xsd`'s bare `xml:` import needed: these imports carry a
+  `schemaLocation`, so there is a URI for a catalog to rewrite (a bare import has none).
+-->
+<catalog xmlns="urn:oasis:names:tc:entity:xmlns:xml:catalog">
+  <system
+    systemId="http://dublincore.org/schemas/xmls/qdc/2003/04/02/dc.xsd"
+    uri="dc.xsd"/>
+  <system
+    systemId="http://dublincore.org/schemas/xmls/qdc/2003/04/02/dcterms.xsd"
+    uri="dcterms.xsd"/>
+</catalog>

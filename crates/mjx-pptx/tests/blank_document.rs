@@ -14,6 +14,7 @@ use std::collections::BTreeMap;
 
 use mjx_dml::{ColorSchemeSlot, FontSlot};
 use mjx_ooxml_types::presentationml::{PlaceholderType, SlideLayoutKind, SlideSizeKind};
+use mjx_opc::doc_props;
 use mjx_opc::{Package, PartName, TargetMode};
 use mjx_pptx::{constants, PptxError, Presentation, ShapeBounds, SlideSize};
 
@@ -205,6 +206,8 @@ fn a_blank_deck_ships_exactly_the_parts_it_declares_and_wires_them_together() {
         [
             "[Content_Types].xml",
             "_rels/.rels",
+            "docProps/app.xml",
+            "docProps/core.xml",
             "ppt/_rels/presentation.xml.rels",
             "ppt/presentation.xml",
             "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
@@ -238,6 +241,14 @@ fn a_blank_deck_ships_exactly_the_parts_it_declares_and_wires_them_together() {
             constants::CONTENT_TYPE_SLIDE_LAYOUT,
         ),
         ("/ppt/theme/theme1.xml", constants::CONTENT_TYPE_THEME),
+        (
+            "/docProps/core.xml",
+            doc_props::CORE_PROPERTIES_CONTENT_TYPE,
+        ),
+        (
+            "/docProps/app.xml",
+            doc_props::EXTENDED_PROPERTIES_CONTENT_TYPE,
+        ),
     ] {
         assert_eq!(
             package.content_type_of(&part(name)),
@@ -251,11 +262,23 @@ fn a_blank_deck_ships_exactly_the_parts_it_declares_and_wires_them_together() {
     let expected: &[(Option<&str>, &[RelationshipRow])] = &[
         (
             None,
-            &[(
-                "rId1",
-                constants::REL_OFFICE_DOCUMENT,
-                "ppt/presentation.xml",
-            )],
+            &[
+                (
+                    "rId1",
+                    constants::REL_OFFICE_DOCUMENT,
+                    "ppt/presentation.xml",
+                ),
+                (
+                    "rId2",
+                    doc_props::CORE_PROPERTIES_REL_TYPE,
+                    "docProps/core.xml",
+                ),
+                (
+                    "rId3",
+                    doc_props::EXTENDED_PROPERTIES_REL_TYPE,
+                    "docProps/app.xml",
+                ),
+            ],
         ),
         (
             Some("/ppt/presentation.xml"),

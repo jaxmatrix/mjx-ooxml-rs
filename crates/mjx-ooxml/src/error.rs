@@ -378,6 +378,9 @@ fn opc_code(error: &OpcError) -> ErrorCode {
         }
         OpcError::UnknownPart(_) => ErrorCode::NotFound,
         OpcError::ExternalTarget(_) | OpcError::ControlPart(_) => ErrorCode::UnsupportedContent,
+        // A `DocumentTimestamp` field out of range (MJXOFF-149) is refused before anything is
+        // written, the same shape as an out-of-range slide size.
+        OpcError::InvalidDocumentTimestamp { .. } => ErrorCode::InvalidArgument,
     }
 }
 

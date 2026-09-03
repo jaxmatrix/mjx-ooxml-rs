@@ -67,20 +67,21 @@ fn the_wordprocessingml_parts_are_validated_and_not_skipped() {
         );
     }
 
-    // And the document-properties streams are skipped for a *named* reason, not for want of an arm.
-    for part in ["/docProps/core.xml", "/docProps/app.xml"] {
+    // MJXOFF-149 decided document properties are authored, not merely preserved: the streams are
+    // validated for real now, against their own schemas — `opc-coreProperties.xsd` (ECMA-376 Part
+    // 2, Dublin Core) and `shared-documentPropertiesExtended.xsd` — not skipped as foreign.
+    for (part, schema) in [
+        ("/docProps/core.xml", "opc-coreProperties.xsd"),
+        ("/docProps/app.xml", "shared-documentPropertiesExtended.xsd"),
+    ] {
         let row = rows
             .iter()
             .find(|row| row.name == part)
             .unwrap_or_else(|| panic!("sample.docx: {part} is not in the sweep"));
         assert!(
-            matches!(row.outcome, PartOutcome::SkippedPreservedForeign { .. }),
-            "{part} must be skipped as preserved foreign markup with its reason; it reported: {}",
+            matches!(row.outcome, PartOutcome::Validated(s) if s == schema),
+            "{part} must be validated against {schema}; it reported: {}",
             row.outcome.describe()
-        );
-        assert!(
-            row.outcome.describe().contains("MJXOFF-149"),
-            "the docProps skip must name the work item that owns authoring them"
         );
     }
 }
