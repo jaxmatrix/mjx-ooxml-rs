@@ -69,7 +69,7 @@ pub enum FromXmlError {
     /// human-readable description of the offending reference.
     InvalidEntity(String),
     /// A typed attribute the model reads is absent (and required), or holds a value its declared
-    /// kind rejects. See [`AttributeError`](crate::AttributeError).
+    /// kind rejects. See [`AttributeError`].
     Attribute(AttributeError),
 }
 
