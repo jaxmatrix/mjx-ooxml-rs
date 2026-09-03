@@ -20,6 +20,7 @@ mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
 mjx-omml.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 # The shared ECMA-376 schema and child-order gate — the same harness `mjx-pptx` and `mjx-xlsx` are
