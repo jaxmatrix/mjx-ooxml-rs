@@ -54,8 +54,9 @@ pub enum ColorSpec {
 /// The element *name* is the color kind; its children are the transforms. This is a **fidelity view**:
 /// name, attributes, transform children, and the self-closing flag are preserved verbatim, while
 /// [`kind`](Self::kind) / [`hex`](Self::hex) / [`scheme_color`](Self::scheme_color) expose the common
-/// cases. Its [`FromXml`]/[`ToXml`] impls are hand-written because the element name is the discriminant,
-/// which the derive does not model. Its one attribute is declared through the `#[xml(attribute)]`
+/// cases. Its [`FromXml`](mjx_ooxml_core::FromXml) / [`ToXml`](mjx_ooxml_core::ToXml) impls come
+/// from `fidelity_element_impls!`, because the element name is the discriminant and the container
+/// derive does not model that. Its one attribute is declared through the `#[xml(attribute)]`
 /// grammar: `@val` is shared by all six kinds, and its *meaning* differs per kind (a hex triplet on
 /// `a:srgbClr`, a scheme token on `a:schemeClr`, a system-colour name on `a:sysClr`), so the declared
 /// kind is [`Text`] and [`hex`](Self::hex) / [`scheme_color`](Self::scheme_color) interpret it once
