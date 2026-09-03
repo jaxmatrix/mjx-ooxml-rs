@@ -122,7 +122,7 @@ impl ElementPropertySet {
 #[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = DML_DIAGRAM)]
 #[xml(attribute(local = "modelId", codec = Text, accessor = model_id, required))]
-#[xml(attribute(local = "type", codec = Enumeration<PointType>, accessor = point_type))]
+#[xml(attribute(local = "type", codec = Enumeration<PointType>, accessor = point_type, default = PointType::Node))]
 #[xml(attribute(local = "cxnId", codec = Text, accessor = connection_id))]
 pub struct Point {
     name: RawName,
@@ -263,7 +263,7 @@ impl PointList {
 /// opaque (rare in practice — this project has never seen one).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
 #[xml(attribute(local = "modelId", codec = Text, accessor = model_id, required))]
-#[xml(attribute(local = "type", codec = Enumeration<ConnectionType>, accessor = connection_type))]
+#[xml(attribute(local = "type", codec = Enumeration<ConnectionType>, accessor = connection_type, default = ConnectionType::ParentOf))]
 #[xml(attribute(local = "srcId", codec = Text, accessor = source_id, required))]
 #[xml(attribute(local = "destId", codec = Text, accessor = destination_id, required))]
 #[xml(attribute(local = "srcOrd", codec = Number<u32>, accessor = source_order, required))]
