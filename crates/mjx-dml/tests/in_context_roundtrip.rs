@@ -831,10 +831,36 @@ fn a_custom_geometry_written_in_forms_we_never_emit_survives_byte_for_byte() {
             };
             assert_eq!(*width_radius, AdjustCoordinate::Guide("hc".to_owned()));
             assert_eq!(*height_radius, AdjustCoordinate::Emu(Emu::from_emu(50)));
+            // Every edge is a different number, so a reader that swapped two of them is seen.
             let rectangle = geometry.text_rectangle(i).expect("a:rect");
+            assert_eq!(rectangle.left, AdjustCoordinate::Emu(Emu::from_emu(10)));
+            assert_eq!(rectangle.top, AdjustCoordinate::Emu(Emu::from_emu(20)));
             assert_eq!(rectangle.right, AdjustCoordinate::Guide("hc".to_owned()));
+            assert_eq!(rectangle.bottom, AdjustCoordinate::Emu(Emu::from_emu(40)));
+            // …and so is each coordinate of every point, for the same reason.
+            let DrawCommand::MoveTo(start) = &paths[0].commands[0] else {
+                panic!("expected a move")
+            };
+            assert_eq!(start.x, AdjustCoordinate::Emu(Emu::from_emu(11)));
+            assert_eq!(start.y, AdjustCoordinate::Emu(Emu::from_emu(22)));
             assert_eq!(geometry.connection_sites(i).len(), 1);
-            assert_eq!(geometry.adjust_handles(i).len(), 1);
+            let handles = geometry.adjust_handles(i);
+            assert_eq!(handles.len(), 1);
+            let mjx_dml::AdjustHandle::Xy {
+                position,
+                guide_ref_x,
+                min_x,
+                max_x,
+                ..
+            } = &handles[0]
+            else {
+                panic!("expected a Cartesian handle")
+            };
+            assert_eq!(position.x, AdjustCoordinate::Guide("hc".to_owned()));
+            assert_eq!(position.y, AdjustCoordinate::Emu(Emu::from_emu(33)));
+            assert_eq!(guide_ref_x.as_deref(), Some("adj"));
+            assert_eq!(*min_x, Some(AdjustCoordinate::Emu(Emu::from_emu(0))));
+            assert_eq!(*max_x, Some(AdjustCoordinate::Emu(Emu::from_emu(50_000))));
         },
     );
 }
