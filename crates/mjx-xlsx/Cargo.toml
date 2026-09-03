@@ -19,3 +19,8 @@ mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
+
+[dev-dependencies]
+# The shared ECMA-376 schema and child-order gate — the same harness `mjx-pptx` and `mjx-docx` are
+# held to. Test-only, and nothing shipped depends on it.
+mjx-schema-gate.workspace = true

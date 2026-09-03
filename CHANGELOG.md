@@ -49,6 +49,80 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.70] - 2026-09-03
+
+The gates reach Word and Excel — before a line of `wml` or `sml` model code exists (MJXOFF-110).
+
+`sample.docx` and `sample.xlsx` have been in `tests/fixtures/` since the first phase and **nothing
+had ever schema-validated either of them.** A `w:` part with no arm in the schema table was reported
+"skipped, foreign namespace"; the suite counted the remaining parts, found four of them valid, and
+reported green. The sentence "the schema gate covers Word" was true and empty at the same time. So
+were the ordering half (`assert_deck_is_in_schema_order` asserted only that *some* part had been
+audited, and `word/theme/theme1.xml` satisfied it) and the byte-identity half (three suites carried
+hand-maintained fixture lists that between them omitted six of the fifteen committed fixtures).
+
+Nothing shipped changes. Every byte this library writes is identical before and after; this release
+is test and CI infrastructure, and the round-trip suites did not move.
+
+### The harness is a crate
+
+`crates/mjx-schema-gate` is a new **test-only** crate (`publish = false`, a `dev-dependency` of
+`mjx-pptx`, `mjx-docx` and `mjx-xlsx` and of nothing else). An integration test compiles only into
+its own crate, so the harness that lived in `mjx-pptx/tests/schema_validity.rs` could never be
+reached from the two crates Phases C and D will fill. `crates/mjx-fixtures` is a second, entirely
+dependency-free test-only crate holding the committed corpus, so `mjx-opc`'s byte-identity suites —
+which sit *below* the gate in the layering — can read the same corpus without an upward edge.
+
+### The three-category rule, with no fourth branch
+
+`mjx_schema_gate::categories` is the only place the line is drawn. Markup we model is **validated**
+against its XSD; foreign markup we only preserve (VML, InkML, ActiveX, and the two `docProps`
+streams) is **skipped with a written reason**; a root element in a namespace on neither list is a
+**hard failure naming the namespace and the part**. There is no "skip anything we have no arm for"
+fallback, because that fallback is the hole being closed.
+
+`WordprocessingML` joins the table, so `sample.docx`'s `word/document.xml`, `word/styles.xml`,
+`word/fontTable.xml` and `word/settings.xml` are validated against `wml.xsd` for the first time.
+
+### `wml.xsd` can now be compiled at all
+
+`wml.xsd:21` and `shared-math.xsd:13` import `http://www.w3.org/XML/1998/namespace` with no
+`schemaLocation`, and the Transitional set ships no `xml.xsd`, so libxml2 could not resolve
+`xml:space` and both schemas failed to *compile*. A bare import gives libxml2 no URI, so a catalog
+has nothing to rewrite. `crates/mjx-schema-gate/schemas/xml.xsd` — hand-written for this repository,
+no third-party licence, nothing fetched at build time — is paired with each XSD through a generated
+driver schema. Every validation goes through one, so `shared-math.xsd` inherits the fix.
+
+### Markup compatibility is resolved, not skipped
+
+A part carrying `mc:AlternateContent` or `mc:Ignorable` used to be skipped, which is why LibreOffice's
+`word/document.xml` could never be reached. The gate now resolves it with the existing `mjx-mce`
+crate — the winning `mc:Choice` selected, ignorable markup in namespaces ECMA-376 does not define
+dropped — and validates that view. Only parts that actually carry markup compatibility are
+re-serialized; every other part is validated as the exact bytes the package holds.
+
+### Two pre-existing divergences in `sample.xlsx`, now recorded
+
+LibreOffice writes `xml:space="preserve"` on every `s:t` (which `sml.xsd` types as a simple type that
+can carry no attribute) and `dateCompatibility` on `s:workbookPr` (not in the 5th-edition
+Transitional schema). Both are inputs this project preserves verbatim, so both are recorded as
+tolerated deviations with their reasons, matched error-by-error: a *new* defect in either part still
+fails.
+
+### The corpus is the directory
+
+`crates/mjx-opc/tests/{roundtrip,tree_roundtrip,package_validation}.rs` and the schema gate all read
+`tests/fixtures/` instead of a list. All fifteen fixtures are now inside all four contracts; a file
+whose extension is on no list fails, naming it.
+
+### CI
+
+A new required `test (--all-features)` job runs `cargo clippy --workspace --all-targets
+--all-features` and `cargo test --workspace --all-features --no-fail-fast`; the existing test steps
+gain `--no-fail-fast`; the `schema-validity` job runs the Word and Excel gates beside the PowerPoint
+one. `.github/scripts/merge-when-checks-pass.sh` makes the merge step a command whose exit status
+gates the merge rather than a sentence instructing a person to look at one.
+
 ## [0.0.69] - 2026-09-03
 
 The chart `delete_*` family is `suppress_*` — the naming question v0.0.66's API review raised and

@@ -16,3 +16,9 @@ mjx-ooxml-core.workspace = true
 mjx-xml.workspace = true
 zip.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+# The committed fixture corpus, read from `tests/fixtures/` rather than listed here. Dependency-free
+# and test-only, so it adds no edge to the shipped graph — which matters, because this crate sits
+# below the schema gate and could not dev-depend on that without pointing upwards.
+mjx-fixtures.workspace = true

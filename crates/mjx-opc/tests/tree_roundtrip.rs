@@ -7,33 +7,13 @@
 //! quote but not the whitespace separating it from the previous one, and Office wraps VML start tags
 //! across lines. An element now carries the byte range it was parsed from and is copied out of it
 //! whole, so there is nothing left for such a list to hold.
+//!
+//! **The corpus is the directory** (`mjx_fixtures::package_fixtures`), not a list in this file: six
+//! of the fifteen committed fixtures used to be missing from the list that stood here.
 
-use std::path::PathBuf;
-
+use mjx_fixtures::{fixture, package_fixtures};
 use mjx_opc::Package;
 use mjx_xml::fidelity;
-
-const FIXTURES: &[&str] = &[
-    "sample.pptx",
-    "sample.docx",
-    "sample.xlsx",
-    "text_levels.pptx",
-    // The legacy-content fixtures (MJX-140): their slides, relationship streams and content types
-    // are ordinary XML and must round-trip like any other — and so, since MJX-248, does the VML.
-    "vml.pptx",
-    "ole.pptx",
-    "activex.pptx",
-    "ink.pptx",
-    // A table carrying `a:extLst` on its properties and on a cell (MJX-43).
-    "table_extensions.pptx",
-];
-
-fn fixture(name: &str) -> Vec<u8> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures")
-        .join(name);
-    std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
-}
 
 fn is_xml_part(name: &str) -> bool {
     name.ends_with(".xml") || name.ends_with(".rels") || name.ends_with(".vml")
@@ -44,7 +24,13 @@ fn every_xml_part_round_trips_byte_identical() {
     let mut mismatches = Vec::new();
     let mut checked = 0;
 
-    for &fname in FIXTURES {
+    let fixtures = package_fixtures();
+    assert!(
+        fixtures.len() >= 15,
+        "the committed corpus is {} fixture(s); this suite over an empty corpus passes vacuously",
+        fixtures.len()
+    );
+    for fname in &fixtures {
         let pkg = Package::open(&fixture(fname)).unwrap_or_else(|e| panic!("{fname}: open: {e}"));
         for entry in pkg.entries() {
             if !is_xml_part(&entry.name) {

@@ -1,0 +1,19 @@
+[package]
+name = "mjx-fixtures"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test-only: the committed OOXML fixture corpus at tests/fixtures/, derived from the directory."
+# Never published and never depended on by a shipped crate. It has **no dependencies at all**, which
+# is the point: every test suite in the workspace can `dev-dependency` it without creating an upward
+# or sideways edge in the shipped graph. `mjx-opc`'s byte-identity suites are below `mjx-schema-gate`
+# in the layering and could not reach the corpus any other way.
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
