@@ -87,6 +87,24 @@ later Word child hangs off.
   wrapping two runs, and a `w:fldChar` (a run-inner element whose payload is still `Unmodeled`),
   swept automatically into every byte-identity suite and the schema gate.
 
+### Also in this release: the Word crate spine (MJXOFF-90)
+
+MJXOFF-90 shipped without a version bump of its own, so its work reaches a release here rather than
+in a `0.0.81` of its own. Recorded rather than renumbered — the history is linear and a rewrite
+would cost more than the misfiled heading does.
+
+- **`mjx_docx::{Document, PartKind, DocumentParts, DocxError}`** — `Document::open`/`save`/
+  `save_unchecked`/`validate`, mirroring `Presentation`'s names so the Word method is guessable from
+  the deck one, and the part graph over `wml.xsd`'s fourteen global elements. `crates/mjx-docx` was
+  thirteen lines and zero public items before it.
+- **`xtask`'s child-order generator resolves `xsd:complexContent` and `xsd:simpleContent`.** An
+  extension splices the resolved base chain *before* the derived type's own particle; a restriction
+  replaces it; `simpleContent` contributes nothing. This is why `wml` can have an ordering table at
+  all — its schema uses `complexContent` in 41 derived types — and it is what unblocks MJXOFF-132
+  (`sml`, 6 `simpleContent`) and MJXOFF-134 (`shared-math`, 2) without either repeating the work.
+- **The `wml` child-order table**, generated and committed, with the ordering audit proved red then
+  green on real WordprocessingML.
+
 ## [0.0.80] - 2026-09-04
 
 Document properties (MJXOFF-149): the programme held two contradictory positions on `docProps/*` —
