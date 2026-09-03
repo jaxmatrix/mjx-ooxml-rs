@@ -23,15 +23,15 @@
 //! assert_eq!(quotation.left_margin_points(), Some(36.0));
 //! ```
 
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
-use mjx_ooxml_types::support::on_off;
+use mjx_ooxml_core::{
+    Enumeration, FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
+};
+use mjx_ooxml_types::support::OnOff;
 
 use mjx_ooxml_types::child_order::TEXT_PARAGRAPH_PROPERTIES;
 
-use crate::build::{
-    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, is_dml,
-    parse_percentage, set_attr,
-};
+use crate::build::{dml_child, dml_element, dml_name, fidelity_element_impls, is_dml};
+use crate::codec::{EmuCoordinate, Percentage, TextIndentLevel, TextPointSize};
 use crate::geometry::{Emu, Fraction, IndentLevel, TextPoint};
 use crate::text::bullet::{
     build_bullet, build_bullet_color, build_bullet_size, build_bullet_typeface,
@@ -42,6 +42,28 @@ use crate::text::bullet::{
 use crate::text::character::{CharacterProperties, CharacterPropertiesSpec};
 
 pub use mjx_ooxml_types::drawingml::{FontAlignment, TabAlignment, TextAlignment};
+
+/// `a:tab` (`CT_TextTabStop`) — the attribute face of one tab stop.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "pos", codec = EmuCoordinate, accessor = position, required))]
+#[xml(attribute(local = "algn", codec = Enumeration<TabAlignment>, accessor = alignment))]
+struct TabStopAttributes<A> {
+    attributes: A,
+}
+
+/// `a:spcPct` (`CT_TextSpacingPercent`) — the attribute face of a percentage spacing.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = Percentage, accessor = value, required))]
+struct SpacingPercentAttributes<A> {
+    attributes: A,
+}
+
+/// `a:spcPts` (`CT_TextSpacingPoint`) — the attribute face of a point-valued spacing.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = TextPointSize, accessor = value, required))]
+struct SpacingPointsAttributes<A> {
+    attributes: A,
+}
 
 /// How much room a paragraph leaves — before it, after it, or between its lines (`CT_TextSpacing`).
 ///
@@ -106,7 +128,15 @@ impl TabStop {
 /// (`eaLnBrk`, `latinLnBrk`, `hangingPunct`), `extLst` and anything unknown are preserved verbatim so
 /// a paragraph round-trips byte-for-byte. The element name is preserved too, so
 /// the same type reads and writes `a:pPr`, `a:defPPr` and each `a:lvlNpPr`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "lvl", codec = TextIndentLevel, accessor = level))]
+#[xml(attribute(local = "algn", codec = Enumeration<TextAlignment>, accessor = alignment))]
+#[xml(attribute(local = "marL", codec = EmuCoordinate, accessor = left_margin))]
+#[xml(attribute(local = "marR", codec = EmuCoordinate, accessor = right_margin))]
+#[xml(attribute(local = "indent", codec = EmuCoordinate, accessor = indent))]
+#[xml(attribute(local = "defTabSz", codec = EmuCoordinate, accessor = default_tab_size))]
+#[xml(attribute(local = "rtl", codec = OnOff, accessor = is_right_to_left))]
+#[xml(attribute(local = "fontAlgn", codec = Enumeration<FontAlignment>, accessor = font_alignment))]
 pub struct ParagraphProperties {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -115,61 +145,6 @@ pub struct ParagraphProperties {
 }
 
 impl ParagraphProperties {
-    /// The indent level (`@lvl`), or `None` if unset.
-    ///
-    /// Unset means the paragraph inherits its level, which resolves to [`IndentLevel::TOP`] — but that
-    /// substitution belongs to resolution, not to reading, so it is not made here.
-    #[must_use]
-    pub fn level(&self, interner: &Interner) -> Option<IndentLevel> {
-        attr_str(&self.attributes, interner, "lvl")
-            .and_then(|s| s.trim().parse::<u8>().ok())
-            .and_then(IndentLevel::new)
-    }
-
-    /// The horizontal alignment (`@algn`), or `None` if unset.
-    #[must_use]
-    pub fn alignment(&self, interner: &Interner) -> Option<TextAlignment> {
-        attr_str(&self.attributes, interner, "algn").and_then(TextAlignment::from_wire)
-    }
-
-    /// The left margin (`@marL`) — the whole paragraph's inset — or `None` if unset.
-    #[must_use]
-    pub fn left_margin(&self, interner: &Interner) -> Option<Emu> {
-        self.emu_attribute(interner, "marL")
-    }
-
-    /// The right margin (`@marR`), or `None` if unset.
-    #[must_use]
-    pub fn right_margin(&self, interner: &Interner) -> Option<Emu> {
-        self.emu_attribute(interner, "marR")
-    }
-
-    /// The first-line indent (`@indent`), relative to the left margin, or `None` if unset. A
-    /// **negative** value hangs the first line out to the left of the rest — how a bullet sits in the
-    /// margin of its text.
-    #[must_use]
-    pub fn indent(&self, interner: &Interner) -> Option<Emu> {
-        self.emu_attribute(interner, "indent")
-    }
-
-    /// The default gap between tab stops (`@defTabSz`), or `None` if unset.
-    #[must_use]
-    pub fn default_tab_size(&self, interner: &Interner) -> Option<Emu> {
-        self.emu_attribute(interner, "defTabSz")
-    }
-
-    /// Whether the paragraph runs right-to-left (`@rtl`), or `None` if unset.
-    #[must_use]
-    pub fn is_right_to_left(&self, interner: &Interner) -> Option<bool> {
-        attr_str(&self.attributes, interner, "rtl").and_then(on_off::from_wire)
-    }
-
-    /// Where letters sit between the baselines (`@fontAlgn`), or `None` if unset.
-    #[must_use]
-    pub fn font_alignment(&self, interner: &Interner) -> Option<FontAlignment> {
-        attr_str(&self.attributes, interner, "fontAlgn").and_then(FontAlignment::from_wire)
-    }
-
     /// The spacing between lines within the paragraph (`a:lnSpc`), or `None` if unset.
     #[must_use]
     pub fn line_spacing(&self, interner: &Interner) -> Option<TextSpacing> {
@@ -201,12 +176,14 @@ impl ParagraphProperties {
                     if is_dml(&child.name, interner)
                         && interner.resolve(child.name.local) == "tab" =>
                 {
+                    let stop = TabStopAttributes {
+                        attributes: &child.attributes,
+                    };
                     Some(TabStop {
-                        position: attr_str(&child.attributes, interner, "pos")
-                            .and_then(|s| s.trim().parse::<i64>().ok())
-                            .map_or(Emu::from_emu(0), Emu::from_emu),
-                        alignment: attr_str(&child.attributes, interner, "algn")
-                            .and_then(TabAlignment::from_wire),
+                        // `@pos` is schema-required; a stop that does not state one, or states a
+                        // value this model cannot read, is a stop at the left margin.
+                        position: stop.position(interner).unwrap_or(Emu::from_emu(0)),
+                        alignment: stop.alignment(interner).ok().flatten(),
                     })
                 }
                 _ => None,
@@ -250,15 +227,17 @@ impl ParagraphProperties {
     /// The interner-free description of these properties.
     #[must_use]
     pub fn spec(&self, interner: &Interner) -> ParagraphPropertiesSpec {
+        // A spec is a value description: an attribute it cannot represent — absent, or malformed —
+        // is simply not part of the description, which is what `None` says here.
         ParagraphPropertiesSpec {
-            level: self.level(interner),
-            alignment: self.alignment(interner),
-            left_margin: self.left_margin(interner),
-            right_margin: self.right_margin(interner),
-            indent: self.indent(interner),
-            default_tab_size: self.default_tab_size(interner),
-            right_to_left: self.is_right_to_left(interner),
-            font_alignment: self.font_alignment(interner),
+            level: self.level(interner).ok().flatten(),
+            alignment: self.alignment(interner).ok().flatten(),
+            left_margin: self.left_margin(interner).ok().flatten(),
+            right_margin: self.right_margin(interner).ok().flatten(),
+            indent: self.indent(interner).ok().flatten(),
+            default_tab_size: self.default_tab_size(interner).ok().flatten(),
+            right_to_left: self.is_right_to_left(interner).ok().flatten(),
+            font_alignment: self.font_alignment(interner).ok().flatten(),
             line_spacing: self.line_spacing(interner),
             space_before: self.space_before(interner),
             space_after: self.space_after(interner),
@@ -279,42 +258,31 @@ impl ParagraphProperties {
     /// A property the spec leaves unset is *not* cleared: unset means "don't touch". Build a fresh
     /// element with [`ParagraphPropertiesSpec::to_properties`] to drop what an old one carried.
     pub fn apply(&mut self, spec: &ParagraphPropertiesSpec, interner: &mut Interner) {
-        if let Some(level) = spec.level {
-            set_attr(
-                &mut self.attributes,
-                interner,
-                "lvl",
-                &level.value().to_string(),
-            );
+        // Each attribute is written only when the spec names it: an unset field means "don't
+        // touch", which is not what the setters' `None` means (that removes the attribute).
+        if spec.level.is_some() {
+            self.set_level(interner, spec.level);
         }
-        if let Some(alignment) = spec.alignment {
-            set_attr(&mut self.attributes, interner, "algn", alignment.to_wire());
+        if spec.alignment.is_some() {
+            self.set_alignment(interner, spec.alignment);
         }
-        for (name, value) in [
-            ("marL", spec.left_margin),
-            ("marR", spec.right_margin),
-            ("indent", spec.indent),
-            ("defTabSz", spec.default_tab_size),
-        ] {
-            if let Some(value) = value {
-                set_attr(
-                    &mut self.attributes,
-                    interner,
-                    name,
-                    &value.emu().to_string(),
-                );
-            }
+        if spec.left_margin.is_some() {
+            self.set_left_margin(interner, spec.left_margin);
         }
-        if let Some(rtl) = spec.right_to_left {
-            set_attr(&mut self.attributes, interner, "rtl", on_off::to_wire(rtl));
+        if spec.right_margin.is_some() {
+            self.set_right_margin(interner, spec.right_margin);
         }
-        if let Some(font_alignment) = spec.font_alignment {
-            set_attr(
-                &mut self.attributes,
-                interner,
-                "fontAlgn",
-                font_alignment.to_wire(),
-            );
+        if spec.indent.is_some() {
+            self.set_indent(interner, spec.indent);
+        }
+        if spec.default_tab_size.is_some() {
+            self.set_default_tab_size(interner, spec.default_tab_size);
+        }
+        if spec.right_to_left.is_some() {
+            self.set_is_right_to_left(interner, spec.right_to_left);
+        }
+        if spec.font_alignment.is_some() {
+            self.set_font_alignment(interner, spec.font_alignment);
         }
 
         for (local, spacing) in [
@@ -359,26 +327,24 @@ impl ParagraphProperties {
         self.empty = self.empty && self.children.is_empty();
     }
 
-    /// The value of an EMU-valued attribute.
-    fn emu_attribute(&self, interner: &Interner, local: &str) -> Option<Emu> {
-        attr_str(&self.attributes, interner, local)
-            .and_then(|s| s.trim().parse::<i64>().ok())
-            .map(Emu::from_emu)
-    }
-
     /// One of the three `CT_TextSpacing` children, read as a [`TextSpacing`].
     fn spacing_child(&self, interner: &Interner, local: &str) -> Option<TextSpacing> {
         let element = dml_child(&self.children, interner, local)?;
         element.children.iter().find_map(|node| match node {
             RawNode::Element(child) if is_dml(&child.name, interner) => {
-                let value = attr_str(&child.attributes, interner, "val")?;
                 match interner.resolve(child.name.local) {
-                    "spcPct" => parse_percentage(value).map(TextSpacing::Percentage),
-                    "spcPts" => value
-                        .trim()
-                        .parse::<i32>()
-                        .ok()
-                        .map(|points| TextSpacing::Points(TextPoint::from_wire(points))),
+                    "spcPct" => SpacingPercentAttributes {
+                        attributes: &child.attributes,
+                    }
+                    .value(interner)
+                    .ok()
+                    .map(TextSpacing::Percentage),
+                    "spcPts" => SpacingPointsAttributes {
+                        attributes: &child.attributes,
+                    }
+                    .value(interner)
+                    .ok()
+                    .map(TextSpacing::Points),
                     _ => None,
                 }
             }
@@ -405,13 +371,18 @@ fidelity_element_impls!(ParagraphProperties);
 fn build_spacing(interner: &mut Interner, local: &str, spacing: TextSpacing) -> RawElement {
     let inner = match spacing {
         TextSpacing::Percentage(fraction) => {
-            let native = (fraction.ratio() * 100_000.0).round() as i64;
-            let attributes = vec![dml_attr(interner, "val", &native.to_string())];
-            dml_element(interner, "spcPct", attributes, Vec::new())
+            let mut attributes = SpacingPercentAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_value(interner, fraction);
+            dml_element(interner, "spcPct", attributes.attributes, Vec::new())
         }
         TextSpacing::Points(points) => {
-            let attributes = vec![dml_attr(interner, "val", &points.to_wire().to_string())];
-            dml_element(interner, "spcPts", attributes, Vec::new())
+            let mut attributes = SpacingPointsAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_value(interner, points);
+            dml_element(interner, "spcPts", attributes.attributes, Vec::new())
         }
     };
     dml_element(interner, local, Vec::new(), vec![RawNode::Element(inner)])
@@ -422,11 +393,17 @@ fn build_tab_stops(interner: &mut Interner, stops: &[TabStop]) -> RawElement {
     let children = stops
         .iter()
         .map(|stop| {
-            let mut attributes = vec![dml_attr(interner, "pos", &stop.position.emu().to_string())];
-            if let Some(alignment) = stop.alignment {
-                attributes.push(dml_attr(interner, "algn", alignment.to_wire()));
-            }
-            RawNode::Element(dml_element(interner, "tab", attributes, Vec::new()))
+            let mut attributes = TabStopAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_position(interner, stop.position);
+            attributes.set_alignment(interner, stop.alignment);
+            RawNode::Element(dml_element(
+                interner,
+                "tab",
+                attributes.attributes,
+                Vec::new(),
+            ))
         })
         .collect();
     dml_element(interner, "tabLst", Vec::new(), children)

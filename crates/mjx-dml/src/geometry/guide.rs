@@ -1,10 +1,10 @@
 //! `a:avLst` (a list of adjustment guides) and `a:gd` (one guide).
 
 use mjx_ooxml_core::{
-    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
+    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, Text, ToXml,
 };
 
-use crate::build::{attr_str, dml_attr, dml_name};
+use crate::build::dml_name;
 
 /// `a:gd` — one geometry guide (`CT_GeomGuide`): a `name` and a formula `fmla`.
 ///
@@ -14,7 +14,13 @@ use crate::build::{attr_str, dml_attr, dml_name};
 /// for fidelity) verbatim, and exposes the two attribute values by name. Its
 /// [`FromXml`]/[`ToXml`] impls are hand-written because the derive models element children, not
 /// attributes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The two attributes are declared on the type itself rather than on a generic attribute face, so
+/// that a read borrows the guide's own bytes: `name` is compared once per guide when an `a:avLst`
+/// is resolved, which is the one place in this crate where reading a guide happens per shape.
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "name", codec = Text, accessor = name, required))]
+#[xml(attribute(local = "fmla", codec = Text, accessor = formula, required))]
 pub struct GeometryGuide {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -26,38 +32,21 @@ impl GeometryGuide {
     /// Builds a guide `<a:gd name="{name}" fmla="{formula}"/>`.
     #[must_use]
     pub fn new(interner: &mut Interner, name: &str, formula: &str) -> Self {
-        Self {
+        let mut guide = Self {
             name: dml_name(interner, "gd"),
-            attributes: vec![
-                dml_attr(interner, "name", name),
-                dml_attr(interner, "fmla", formula),
-            ],
+            attributes: Vec::new(),
             children: Vec::new(),
             empty: true,
-        }
-    }
-
-    /// The guide's `name` (e.g. `adj`, `adj1`), or `None` if the attribute is absent.
-    #[must_use]
-    pub fn name(&self, interner: &Interner) -> Option<&str> {
-        attr_str(&self.attributes, interner, "name")
-    }
-
-    /// The guide's formula `fmla` (e.g. `val 25000`, `*/ h adj 100000`), or `None` if absent.
-    #[must_use]
-    pub fn formula(&self, interner: &Interner) -> Option<&str> {
-        attr_str(&self.attributes, interner, "fmla")
+        };
+        guide.set_name(interner, name);
+        guide.set_formula(interner, formula);
+        guide
     }
 
     /// The guide's attributes, verbatim.
     #[must_use]
     pub fn attributes(&self) -> &[RawAttribute] {
         &self.attributes
-    }
-
-    /// Rewrites the guide's formula `fmla` in place (adding the attribute if it was missing).
-    pub fn set_formula(&mut self, interner: &mut Interner, formula: &str) {
-        crate::build::set_attr(&mut self.attributes, interner, "fmla", formula);
     }
 }
 
@@ -138,7 +127,9 @@ impl GeometryGuideList {
     /// new `a:gd` otherwise.
     pub fn set_guide_formula(&mut self, interner: &mut Interner, guide_name: &str, formula: &str) {
         let existing = self.content.iter().position(|item| match item {
-            GeometryGuideListContent::Guide(guide) => guide.name(interner) == Some(guide_name),
+            GeometryGuideListContent::Guide(guide) => {
+                matches!(guide.name(interner), Ok(name) if name == guide_name)
+            }
             GeometryGuideListContent::Raw(_) => false,
         });
         match existing {

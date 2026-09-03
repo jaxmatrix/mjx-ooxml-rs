@@ -6,14 +6,16 @@
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
-use crate::build::{attr_emu, dml_attr, dml_name, fidelity_element_impls, set_attr};
+use crate::build::{dml_name, fidelity_element_impls};
+use crate::codec::EmuCoordinate;
 use crate::geometry::Emu;
 
 /// `a:gridCol` (`CT_TableCol`) — one column of the table grid, carrying its width.
 ///
 /// The width is `use="required"` in the schema, but a file in the wild is read as it is written:
 /// a column whose `@w` is absent or unparsable reads as `None` rather than failing the parse.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "w", codec = EmuCoordinate, accessor = width))]
 pub struct TableColumn {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -28,29 +30,14 @@ impl TableColumn {
     /// inherited `extLst` or unknown attribute from the neighbour it copied the width from.
     #[must_use]
     pub fn new(interner: &mut Interner, width: Emu) -> Self {
-        Self {
+        let mut column = Self {
             name: dml_name(interner, "gridCol"),
-            attributes: vec![dml_attr(interner, "w", &width.emu().to_string())],
+            attributes: Vec::new(),
             children: Vec::new(),
             empty: true,
-        }
-    }
-
-    /// The column's width (`@w`, EMU).
-    #[must_use]
-    pub fn width(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "w")
-    }
-
-    /// Sets the column's width (`@w`), rewriting the attribute in place so anything else the element
-    /// carries — an `extLst`, an unknown attribute — is untouched.
-    pub fn set_width(&mut self, interner: &mut Interner, width: Emu) {
-        set_attr(
-            &mut self.attributes,
-            interner,
-            "w",
-            &width.emu().to_string(),
-        );
+        };
+        column.set_width(interner, Some(width));
+        column
     }
 }
 

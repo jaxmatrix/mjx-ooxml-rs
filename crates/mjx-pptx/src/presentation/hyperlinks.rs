@@ -227,7 +227,7 @@ impl Presentation {
         self.with_text_body(surface, shape_idx, |body, interner| {
             let paragraph = nth_paragraph(body, para_idx)?;
             let run = nth_run(paragraph, run_idx)?;
-            Ok(run.hyperlink_rel_id(interner).map(str::to_owned))
+            Ok(run.hyperlink_rel_id(interner))
         })
     }
 

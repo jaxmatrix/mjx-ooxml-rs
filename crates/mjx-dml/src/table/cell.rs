@@ -3,15 +3,17 @@
 
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{
-    FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
+    AttributeError, Enumeration, FromXml as _, Interner, Number, RawAttribute, RawElement, RawName,
+    RawNode, Text, ToXml as _,
 };
+use mjx_ooxml_types::support::OnOff;
 
 use mjx_ooxml_types::child_order::TABLE_CELL_PROPERTIES;
 
 use crate::build::{
-    attr_bool, attr_emu, attr_str, dml_child, dml_element, dml_name, fidelity_element_impls,
-    first_fill_child, is_dml, set_attr,
+    dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child, is_dml,
 };
+use crate::codec::EmuCoordinate;
 use crate::fill::{Fill, FillSpec};
 use crate::geometry::Emu;
 use crate::line::{LineProperties, LineSpec};
@@ -29,7 +31,19 @@ pub use mjx_ooxml_types::drawingml::{TextAnchoring, TextDirection, TextHorizonta
 /// bottom — 0.1" and 0.05"), so an unset margin is not a zero one. The accessors report what the
 /// file states; [`DEFAULT_MARGIN_HORIZONTAL`](Self::DEFAULT_MARGIN_HORIZONTAL) and
 /// [`DEFAULT_MARGIN_VERTICAL`](Self::DEFAULT_MARGIN_VERTICAL) are what a renderer substitutes.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "marL", codec = EmuCoordinate, accessor = left_margin))]
+#[xml(attribute(local = "marR", codec = EmuCoordinate, accessor = right_margin))]
+#[xml(attribute(local = "marT", codec = EmuCoordinate, accessor = top_margin))]
+#[xml(attribute(local = "marB", codec = EmuCoordinate, accessor = bottom_margin))]
+#[xml(attribute(local = "anchor", codec = Enumeration<TextAnchoring>, accessor = anchor))]
+#[xml(attribute(local = "anchorCtr", codec = OnOff, accessor = anchor_centered))]
+#[xml(attribute(local = "vert", codec = Enumeration<TextDirection>, accessor = text_direction))]
+#[xml(attribute(
+    local = "horzOverflow",
+    codec = Enumeration<TextHorizontalOverflow>,
+    accessor = horizontal_overflow
+))]
 pub struct TableCellProperties {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -95,59 +109,12 @@ impl TableCellProperties {
     /// The schema default for the top and bottom margins (`45720` EMU — 0.05 inch).
     pub const DEFAULT_MARGIN_VERTICAL: Emu = Emu::from_emu(45_720);
 
-    /// The left inset between the cell edge and its text (`@marL`), or `None` if unstated.
-    #[must_use]
-    pub fn left_margin(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "marL")
-    }
-
-    /// The right inset (`@marR`), or `None` if unstated.
-    #[must_use]
-    pub fn right_margin(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "marR")
-    }
-
-    /// The top inset (`@marT`), or `None` if unstated.
-    #[must_use]
-    pub fn top_margin(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "marT")
-    }
-
-    /// The bottom inset (`@marB`), or `None` if unstated.
-    #[must_use]
-    pub fn bottom_margin(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "marB")
-    }
-
-    /// Whether the cell's text is centred between its insets (`@anchorCtr`), or `None` if unstated.
-    #[must_use]
-    pub fn anchor_centered(&self, interner: &Interner) -> Option<bool> {
-        attr_bool(&self.attributes, interner, "anchorCtr")
-    }
-
-    /// Where the text sits vertically within the cell (`@anchor`; wire default `t`), or `None` if
-    /// unstated.
-    #[must_use]
-    pub fn anchor(&self, interner: &Interner) -> Option<TextAnchoring> {
-        attr_str(&self.attributes, interner, "anchor").and_then(TextAnchoring::from_wire)
-    }
-
-    /// Which way the cell's text flows (`@vert`; wire default `horz`), or `None` if unstated.
-    #[must_use]
-    pub fn text_direction(&self, interner: &Interner) -> Option<TextDirection> {
-        attr_str(&self.attributes, interner, "vert").and_then(TextDirection::from_wire)
-    }
-
-    /// What a character too wide for the cell does (`@horzOverflow`; wire default `clip`), or
-    /// `None` if unstated.
-    #[must_use]
-    pub fn horizontal_overflow(&self, interner: &Interner) -> Option<TextHorizontalOverflow> {
-        attr_str(&self.attributes, interner, "horzOverflow")
-            .and_then(TextHorizontalOverflow::from_wire)
-    }
-
     /// Sets the four insets between the cell's edges and its text, each independently: a `None`
     /// leaves that margin exactly as it was, stated or not.
+    ///
+    /// That is *not* what the generated per-margin setters mean — `set_left_margin(None)` removes
+    /// `@marL` — which is why this method exists beside them: "leave it alone" and "clear it" are
+    /// different instructions, and a caller adjusting one inset of four means the first.
     pub fn set_margins(
         &mut self,
         interner: &mut Interner,
@@ -156,45 +123,18 @@ impl TableCellProperties {
         top: Option<Emu>,
         bottom: Option<Emu>,
     ) {
-        for (local, value) in [
-            ("marL", left),
-            ("marR", right),
-            ("marT", top),
-            ("marB", bottom),
-        ] {
-            if let Some(value) = value {
-                set_attr(
-                    &mut self.attributes,
-                    interner,
-                    local,
-                    &value.emu().to_string(),
-                );
-            }
+        if left.is_some() {
+            self.set_left_margin(interner, left);
         }
-    }
-
-    /// Sets where the text sits vertically (`@anchor`).
-    pub fn set_anchor(&mut self, interner: &mut Interner, anchor: TextAnchoring) {
-        set_attr(&mut self.attributes, interner, "anchor", anchor.to_wire());
-    }
-
-    /// Sets which way the text flows (`@vert`).
-    pub fn set_text_direction(&mut self, interner: &mut Interner, direction: TextDirection) {
-        set_attr(&mut self.attributes, interner, "vert", direction.to_wire());
-    }
-
-    /// Sets what a character too wide for the cell does (`@horzOverflow`).
-    pub fn set_horizontal_overflow(
-        &mut self,
-        interner: &mut Interner,
-        overflow: TextHorizontalOverflow,
-    ) {
-        set_attr(
-            &mut self.attributes,
-            interner,
-            "horzOverflow",
-            overflow.to_wire(),
-        );
+        if right.is_some() {
+            self.set_right_margin(interner, right);
+        }
+        if top.is_some() {
+            self.set_top_margin(interner, top);
+        }
+        if bottom.is_some() {
+            self.set_bottom_margin(interner, bottom);
+        }
     }
 
     /// Sets the border on `edge`, or removes it when `line` is `None`.
@@ -282,8 +222,11 @@ impl TableCellProperties {
     }
 
     /// Sets an attribute on the properties element, rewriting it in place when already present.
+    ///
+    /// The untyped escape hatch, for the `CT_TableCellProperties` attributes this model does not
+    /// name.
     pub fn set_attribute(&mut self, interner: &mut Interner, local: &str, value: &str) {
-        set_attr(&mut self.attributes, interner, local, value);
+        mjx_xml::attribute::set(&mut self.attributes, interner, None, local, value);
         self.empty = self.empty && self.children.is_empty();
     }
 
@@ -383,6 +326,22 @@ pub enum TableCellContent {
     Raw(RawNode),
 }
 
+/// `a:tc`'s span and merge attributes — the four that [`TableCell`] projects into *total* answers.
+///
+/// Declared on a face of their own rather than on [`TableCell`] itself, because what a caller wants
+/// from them is not "what does the file say" but "how many columns does this cell cover" and "is it
+/// covered by a merge": every one has a schema default that makes the question always answerable, so
+/// the public methods return a `usize` and a `bool` and this face is where the file's own answer —
+/// absent, present, or unreadable — is turned into one.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "gridSpan", codec = Number<i64>, accessor = column_span))]
+#[xml(attribute(local = "rowSpan", codec = Number<i64>, accessor = row_span))]
+#[xml(attribute(local = "hMerge", codec = OnOff, accessor = merged_horizontally))]
+#[xml(attribute(local = "vMerge", codec = OnOff, accessor = merged_vertically))]
+struct CellMergeAttributes<A> {
+    attributes: A,
+}
+
 /// `a:tc` (`CT_TableCell`) — one cell of a table row.
 ///
 /// A cell holds a text body and its properties. It also carries the **merge** attributes, and those
@@ -390,8 +349,9 @@ pub enum TableCellContent {
 /// `gridSpan` and/or `rowSpan`; the cells it covers are still present, each stating `hMerge` or
 /// `vMerge`. Nothing is ever removed from the grid, so a row's cell count always matches the
 /// table's column count.
-#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = DML_MAIN)]
+#[xml(attribute(local = "id", codec = Text, accessor = id))]
 pub struct TableCell {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -445,30 +405,48 @@ impl TableCell {
         })
     }
 
-    /// How many **columns** this cell spans (`@gridSpan`; schema default `1`).
-    ///
-    /// Greater than one only on the anchor cell of a horizontally merged region.
-    #[must_use]
-    pub fn column_span(&self, interner: &Interner) -> usize {
-        span_attr(&self.attributes, interner, "gridSpan")
+    /// This cell's span and merge attributes, borrowed.
+    fn merge_face(&self) -> CellMergeAttributes<&[RawAttribute]> {
+        CellMergeAttributes {
+            attributes: &self.attributes,
+        }
     }
 
-    /// How many **rows** this cell spans (`@rowSpan`; schema default `1`).
+    /// How many **columns** this cell spans (`@gridSpan`; schema default `1`).
+    ///
+    /// Greater than one only on the anchor cell of a horizontally merged region. A value below one
+    /// is not a span and reads as one — a covered cell states `hMerge`, never `gridSpan="0"` — and
+    /// so does a value that is not a number at all.
+    #[must_use]
+    pub fn column_span(&self, interner: &Interner) -> usize {
+        span(self.merge_face().column_span(interner))
+    }
+
+    /// How many **rows** this cell spans (`@rowSpan`; schema default `1`); see
+    /// [`column_span`](Self::column_span).
     #[must_use]
     pub fn row_span(&self, interner: &Interner) -> usize {
-        span_attr(&self.attributes, interner, "rowSpan")
+        span(self.merge_face().row_span(interner))
     }
 
     /// Whether this cell is covered by a horizontal merge to its left (`@hMerge`).
     #[must_use]
     pub fn merged_horizontally(&self, interner: &Interner) -> bool {
-        attr_bool(&self.attributes, interner, "hMerge").unwrap_or(false)
+        self.merge_face()
+            .merged_horizontally(interner)
+            .ok()
+            .flatten()
+            .unwrap_or(false)
     }
 
     /// Whether this cell is covered by a vertical merge above it (`@vMerge`).
     #[must_use]
     pub fn merged_vertically(&self, interner: &Interner) -> bool {
-        attr_bool(&self.attributes, interner, "vMerge").unwrap_or(false)
+        self.merge_face()
+            .merged_vertically(interner)
+            .ok()
+            .flatten()
+            .unwrap_or(false)
     }
 
     /// Whether this cell is **covered** by a merge anchored elsewhere, and so renders nothing of its
@@ -515,14 +493,6 @@ impl TableCell {
         self.empty = self.content.is_empty();
     }
 
-    /// The cell's id (`@id`), or `None` if it has none — the handle another cell's
-    /// [`headers`](TableCellProperties::headers) names to associate it with this one for a screen
-    /// reader.
-    #[must_use]
-    pub fn id<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "id")
-    }
-
     /// The cell's attributes, verbatim.
     #[must_use]
     pub fn attributes(&self) -> &[RawAttribute] {
@@ -530,8 +500,10 @@ impl TableCell {
     }
 
     /// Sets an attribute on the cell, rewriting it in place when already present.
+    ///
+    /// The untyped escape hatch, for the `CT_TableCell` attributes this model does not name.
     pub fn set_attribute(&mut self, interner: &mut Interner, local: &str, value: &str) {
-        set_attr(&mut self.attributes, interner, local, value);
+        mjx_xml::attribute::set(&mut self.attributes, interner, None, local, value);
     }
 
     /// Makes this cell the **anchor** of a merged region `columns` wide and `rows` tall.
@@ -543,13 +515,12 @@ impl TableCell {
     /// This says nothing about the cells being covered — they must be told separately with
     /// [`set_merged`](Self::set_merged), which is what makes the region a region.
     pub fn set_spans(&mut self, interner: &mut Interner, columns: usize, rows: usize) {
-        for (local, span) in [("gridSpan", columns), ("rowSpan", rows)] {
-            if span > 1 {
-                set_attr(&mut self.attributes, interner, local, &span.to_string());
-            } else {
-                self.remove_attribute(interner, local);
-            }
-        }
+        let stated = |span: usize| (span > 1).then_some(span as i64);
+        let mut face = CellMergeAttributes {
+            attributes: &mut self.attributes,
+        };
+        face.set_column_span(interner, stated(columns));
+        face.set_row_span(interner, stated(rows));
     }
 
     /// Marks this cell as **covered** by a merge anchored to its left (`hMerge`) and/or above it
@@ -558,13 +529,11 @@ impl TableCell {
     /// `false` **removes** the attribute rather than writing `hMerge="0"`: the schema default is
     /// already false, and "not merged" is the absence of a claim, not a claim of absence.
     pub fn set_merged(&mut self, interner: &mut Interner, horizontally: bool, vertically: bool) {
-        for (local, merged) in [("hMerge", horizontally), ("vMerge", vertically)] {
-            if merged {
-                set_attr(&mut self.attributes, interner, local, "1");
-            } else {
-                self.remove_attribute(interner, local);
-            }
-        }
+        let mut face = CellMergeAttributes {
+            attributes: &mut self.attributes,
+        };
+        face.set_merged_horizontally(interner, horizontally.then_some(true));
+        face.set_merged_vertically(interner, vertically.then_some(true));
     }
 
     /// Clears every trace of merging from this cell — both spans and both covered flags — leaving
@@ -576,20 +545,13 @@ impl TableCell {
         self.set_spans(interner, 1, 1);
         self.set_merged(interner, false, false);
     }
-
-    /// Removes an unprefixed attribute, if the cell has one.
-    fn remove_attribute(&mut self, interner: &Interner, local: &str) {
-        self.attributes.retain(|attribute| {
-            attribute.name.prefix.is_some() || interner.resolve(attribute.name.local) != local
-        });
-    }
 }
 
-/// Reads a span attribute (`@gridSpan` / `@rowSpan`), defaulting to `1` per the schema. A value
-/// below one is not a span, and is read as one — a covered cell states `hMerge`, never `gridSpan="0"`.
-fn span_attr(attributes: &[RawAttribute], interner: &Interner, local: &str) -> usize {
-    attr_str(attributes, interner, local)
-        .and_then(|value| value.trim().parse::<i64>().ok())
+/// One span attribute's reading as a cell count: the schema default `1` for an absent, unreadable,
+/// or below-one value.
+fn span(read: Result<Option<i64>, AttributeError>) -> usize {
+    read.ok()
+        .flatten()
         .filter(|span| *span >= 1)
         .map_or(1, |span| span as usize)
 }

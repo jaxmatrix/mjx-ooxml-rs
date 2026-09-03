@@ -95,7 +95,7 @@ fn preserves_rpr_and_reads_text() {
         run.properties()
             .expect("the run has properties")
             .is_bold(&doc.interner),
-        Some(true)
+        Ok(Some(true))
     );
     assert_round_trips(&run, doc, RUN);
 }
@@ -213,7 +213,7 @@ fn a_line_break_carries_its_run_properties() {
             .properties()
             .expect("the break has properties")
             .is_bold(&doc.interner),
-        Some(true)
+        Ok(Some(true))
     );
     assert_round_trips(&paragraph, doc, P);
 }
@@ -226,10 +226,16 @@ fn a_field_is_addressable_and_its_cached_text_is_readable() {
     assert_eq!(paragraph.text(), "", "field text is not paragraph text");
     let field = paragraph.fields().next().expect("a field");
     assert_eq!(
-        field.id(&doc.interner),
+        field.id(&doc.interner).expect("a legal @id").as_deref(),
         Some("{5BCAD085-E8A6-8845-BD4E-CB4CCA059FC4}")
     );
-    assert_eq!(field.field_type(&doc.interner), Some("slidenum"));
+    assert_eq!(
+        field
+            .field_type(&doc.interner)
+            .expect("a legal @type")
+            .as_deref(),
+        Some("slidenum")
+    );
     assert_eq!(field.text(), "7");
     assert!(field.properties().is_some(), "the field carries an a:rPr");
     assert_round_trips(&paragraph, doc, P);
@@ -338,8 +344,14 @@ fn splitting_a_run_divides_its_text_and_copies_its_formatting() {
     let head_properties = run.properties().expect("head keeps its properties");
     let tail_properties = tail.properties().expect("tail gets a copy");
     assert_eq!(head_properties, tail_properties);
-    assert_eq!(tail_properties.is_bold(&doc.interner), Some(true));
-    assert_eq!(tail_properties.language(&doc.interner), Some("en-US"));
+    assert_eq!(tail_properties.is_bold(&doc.interner), Ok(Some(true)));
+    assert_eq!(
+        tail_properties
+            .language(&doc.interner)
+            .expect("a legal @lang")
+            .as_deref(),
+        Some("en-US")
+    );
 }
 
 #[test]

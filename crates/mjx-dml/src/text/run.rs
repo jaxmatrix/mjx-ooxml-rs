@@ -117,7 +117,7 @@ impl TextRun {
     /// The relationship id of the run's click hyperlink (`a:rPr > a:hlinkClick@r:id`), or `None` if
     /// the run declares no `a:rPr` or its properties carry no hyperlink.
     #[must_use]
-    pub fn hyperlink_rel_id<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
+    pub fn hyperlink_rel_id(&self, interner: &Interner) -> Option<String> {
         self.properties()
             .and_then(|properties| properties.hyperlink_rel_id(interner))
     }

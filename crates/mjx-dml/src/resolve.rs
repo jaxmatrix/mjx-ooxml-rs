@@ -8,14 +8,65 @@
 //!
 //! **Color transforms** (`EG_ColorTransform`: `a:lumMod`, `a:shade`, `a:alpha`, …) are applied on top
 //! of the base, in document order, at every level of the chain (the reference, the `phClr` placeholder,
-//! and each scheme slot can carry their own). The common transforms (`lumMod`/`lumOff`/`shade`/`tint`/
+//! and each scheme slot can carry their own).
+//!
+//! # Why nothing here returns an error
+//!
+//! Every entry point answers *what does this actually look like*, and every one of them already has
+//! a total answer for "the file does not say": [`resolve_color`] returns `None`, and the `resolve_*`
+//! functions that build a spec leave the field out. A value this model cannot read — an `@lastClr`
+//! that is not six hex digits, an `a:alpha@val` that is not a percentage — is the file not saying,
+//! and it is reported the same way. That is why the typed reads below end in `.ok()`: the
+//! [`AttributeError`](mjx_ooxml_core::AttributeError) is discarded **deliberately**, because there
+//! is no caller who could act on it differently than on an absent attribute, and because a renderer
+//! that refused to draw a shape over one malformed transform would be worse than one that drew it
+//! without the transform. The attribute itself round-trips byte-for-byte either way: resolution
+//! reads, and a read cannot change the file. The common transforms (`lumMod`/`lumOff`/`shade`/`tint`/
 //! `alpha`/`sat*`) follow the widely-adopted Apache-POI / LibreOffice algorithm and are value-pinned in
 //! the tests; the rarely-seen `comp`/`gray`/`gamma`/`invGamma` follow a documented interpretation and
 //! are **not** guaranteed pixel-identical to Microsoft Office's renderer.
 
-use mjx_ooxml_core::{Interner, RawNode};
+use mjx_ooxml_core::{Interner, RawAttribute, RawNode};
+use mjx_ooxml_types::support::HexColorRgb;
 
-use crate::build::{attr_str, parse_angle, parse_percentage};
+/// `a:sysClr` (`CT_SystemColor`) — the attribute face of a system colour's last-rendered value.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "lastClr", codec = HexColorRgb, accessor = last_color))]
+struct SystemColorAttributes<A> {
+    attributes: A,
+}
+
+/// `a:scrgbClr` (`CT_ScRgbColor`) and `a:hslClr` (`CT_HslColor`) — the attribute faces of the two
+/// colour kinds whose channels are percentages, plus the hue angle only the second carries.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "r", codec = Percentage, accessor = red))]
+#[xml(attribute(local = "g", codec = Percentage, accessor = green))]
+#[xml(attribute(local = "b", codec = Percentage, accessor = blue))]
+#[xml(attribute(local = "sat", codec = Percentage, accessor = saturation))]
+#[xml(attribute(local = "lum", codec = Percentage, accessor = luminance))]
+#[xml(attribute(local = "hue", codec = SixtyThousandthsOfADegree, accessor = hue))]
+struct ColorChannelAttributes<A> {
+    attributes: A,
+}
+
+/// `EG_ColorTransform`'s `@val`, read as a percentage — `a:alpha`, `a:lumMod`, `a:shade`, and the
+/// dozen others whose value is a fraction of something.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = Percentage, accessor = percentage))]
+struct PercentageTransformAttributes<A> {
+    attributes: A,
+}
+
+/// `EG_ColorTransform`'s `@val`, read as an angle — the two transforms (`a:hue`, `a:hueOff`) whose
+/// value is a position on the colour wheel rather than a fraction. The same attribute under a second
+/// codec, because the kind genuinely depends on which transform element carries it.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = SixtyThousandthsOfADegree, accessor = angle))]
+struct AngleTransformAttributes<A> {
+    attributes: A,
+}
+
+use crate::codec::{Percentage, SixtyThousandthsOfADegree};
 use crate::color::{Color, ColorKind, ColorSpec, SchemeColor};
 use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec, GradientStopSpec};
@@ -213,35 +264,35 @@ pub fn resolve_character_properties(
     interner: &Interner,
 ) -> CharacterPropertiesSpec {
     let mut spec = CharacterPropertiesSpec::new();
-    if let Some(size) = properties.size(interner) {
+    if let Some(size) = properties.size(interner).ok().flatten() {
         spec = spec.with_size(size);
     }
-    if let Some(bold) = properties.is_bold(interner) {
+    if let Some(bold) = properties.is_bold(interner).ok().flatten() {
         spec = spec.with_bold(bold);
     }
-    if let Some(italic) = properties.is_italic(interner) {
+    if let Some(italic) = properties.is_italic(interner).ok().flatten() {
         spec = spec.with_italic(italic);
     }
-    if let Some(underline) = properties.underline(interner) {
+    if let Some(underline) = properties.underline(interner).ok().flatten() {
         spec = spec.with_underline(underline);
     }
-    if let Some(strike) = properties.strike(interner) {
+    if let Some(strike) = properties.strike(interner).ok().flatten() {
         spec = spec.with_strike(strike);
     }
-    if let Some(capitalization) = properties.capitalization(interner) {
+    if let Some(capitalization) = properties.capitalization(interner).ok().flatten() {
         spec = spec.with_capitalization(capitalization);
     }
-    if let Some(spacing) = properties.spacing(interner) {
+    if let Some(spacing) = properties.spacing(interner).ok().flatten() {
         spec = spec.with_spacing_points(spacing.points());
     }
-    if let Some(kerning) = properties.kerning(interner) {
+    if let Some(kerning) = properties.kerning(interner).ok().flatten() {
         spec = spec.with_kerning_points(kerning.points());
     }
-    if let Some(baseline) = properties.baseline(interner) {
+    if let Some(baseline) = properties.baseline(interner).ok().flatten() {
         spec = spec.with_baseline(baseline);
     }
-    if let Some(language) = properties.language(interner) {
-        spec = spec.with_language(language);
+    if let Some(language) = properties.language(interner).ok().flatten() {
+        spec = spec.with_language(&language);
     }
     if let Some(fill) = properties.fill(interner) {
         spec = spec.with_fill(resolve_fill(&fill, scheme, map, placeholder, interner));
@@ -385,23 +436,26 @@ fn resolve_rgba(
 fn concrete_base(color: &Color, interner: &Interner) -> Option<[f64; 3]> {
     Some(match color.kind(interner) {
         ColorKind::Srgb => bytes_to_floats(hex_to_rgb(&color.value(interner).ok().flatten()?)?),
-        ColorKind::System => bytes_to_floats(hex_to_rgb(attr_str(
-            color.attributes(),
-            interner,
-            "lastClr",
-        )?)?),
+        ColorKind::System => bytes_to_floats(hex_to_rgb(
+            &SystemColorAttributes {
+                attributes: color.attributes(),
+            }
+            .last_color(interner)
+            .ok()
+            .flatten()?,
+        )?),
         ColorKind::ScRgb => {
-            let r = channel_percentage(color, interner, "r")?;
-            let g = channel_percentage(color, interner, "g")?;
-            let b = channel_percentage(color, interner, "b")?;
+            let channels = channels(color);
+            let r = ratio(channels.red(interner))?;
+            let g = ratio(channels.green(interner))?;
+            let b = ratio(channels.blue(interner))?;
             [linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b)]
         }
         ColorKind::Hsl => {
-            let hue = attr_str(color.attributes(), interner, "hue")
-                .and_then(parse_angle)?
-                .degrees();
-            let sat = channel_percentage(color, interner, "sat")?;
-            let lum = channel_percentage(color, interner, "lum")?;
+            let channels = channels(color);
+            let hue = channels.hue(interner).ok().flatten()?.degrees();
+            let sat = ratio(channels.saturation(interner))?;
+            let lum = ratio(channels.luminance(interner))?;
             hsl_to_rgb_f64(hue, sat, lum)
         }
         ColorKind::Preset => {
@@ -411,12 +465,19 @@ fn concrete_base(color: &Color, interner: &Interner) -> Option<[f64; 3]> {
     })
 }
 
-/// Reads a color's percentage-valued attribute (`r`/`g`/`b` of `scrgbClr`, `sat`/`lum` of `hslClr`) as
-/// a ratio (`1.0` = 100%).
-fn channel_percentage(color: &Color, interner: &Interner, local: &str) -> Option<f64> {
-    attr_str(color.attributes(), interner, local)
-        .and_then(parse_percentage)
-        .map(|fraction| fraction.ratio())
+/// A colour's channel face, borrowed (`r`/`g`/`b` of an `a:scrgbClr`, `hue`/`sat`/`lum` of an
+/// `a:hslClr`).
+fn channels(color: &Color) -> ColorChannelAttributes<&[RawAttribute]> {
+    ColorChannelAttributes {
+        attributes: color.attributes(),
+    }
+}
+
+/// One percentage-valued read as a ratio (`1.0` = 100 %); `None` when it is absent or unreadable.
+fn ratio(
+    read: Result<Option<crate::geometry::Fraction>, mjx_ooxml_core::AttributeError>,
+) -> Option<f64> {
+    read.ok().flatten().map(|fraction| fraction.ratio())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -437,9 +498,23 @@ fn apply_transforms(
             continue;
         };
         let local = interner.resolve(element.name.local);
-        let value = attr_str(&element.attributes, interner, "val");
-        let percent = || value.and_then(parse_percentage).map(|f| f.ratio());
-        let angle = || value.and_then(parse_angle).map(|a| a.degrees());
+        let percent = || {
+            ratio(
+                PercentageTransformAttributes {
+                    attributes: &element.attributes,
+                }
+                .percentage(interner),
+            )
+        };
+        let angle = || {
+            AngleTransformAttributes {
+                attributes: &element.attributes,
+            }
+            .angle(interner)
+            .ok()
+            .flatten()
+            .map(|angle| angle.degrees())
+        };
 
         match local {
             "alpha" => {

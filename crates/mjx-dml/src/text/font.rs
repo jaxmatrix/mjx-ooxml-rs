@@ -4,11 +4,25 @@
 //! Four attributes and no children, so [`TextFont`] is modeled **whole** as an interner-free value
 //! rather than as a fidelity wrapper: there is nothing left over to preserve opaquely.
 
-use mjx_ooxml_core::{Interner, RawAttribute, RawElement};
+use mjx_ooxml_core::{Interner, Number, RawAttribute, RawElement, Text};
 
-use crate::build::{attr_str, dml_attr, dml_element};
+use crate::build::dml_element;
 use crate::text::FontSlot;
 use crate::theme::{FontSchemeSlot, ThemeFontReference};
+
+/// `CT_TextFont` — the attribute face of a typeface reference.
+///
+/// One declaration for both directions: a font is *read* out of an element the crate models as a
+/// value rather than as a fidelity wrapper, and *built* as a fresh element, so neither side has an
+/// attribute vector of its own to declare on.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "typeface", codec = Text, accessor = typeface, required))]
+#[xml(attribute(local = "panose", codec = Text, accessor = panose))]
+#[xml(attribute(local = "pitchFamily", codec = Number<i32>, accessor = pitch_family))]
+#[xml(attribute(local = "charset", codec = Number<i32>, accessor = charset))]
+struct FontAttributes<A> {
+    attributes: A,
+}
 
 /// A typeface reference (`CT_TextFont`) — the font a run asks for.
 ///
@@ -73,15 +87,21 @@ impl TextFont {
     /// malformed, not unreadable.
     #[must_use]
     pub(crate) fn read(element: &RawElement, interner: &Interner) -> Self {
+        let font = FontAttributes {
+            attributes: &element.attributes,
+        };
         Self {
-            typeface: attr_str(&element.attributes, interner, "typeface")
-                .unwrap_or_default()
-                .to_owned(),
-            panose: attr_str(&element.attributes, interner, "panose").map(str::to_owned),
-            pitch_family: attr_str(&element.attributes, interner, "pitchFamily")
-                .and_then(|s| s.trim().parse().ok()),
-            charset: attr_str(&element.attributes, interner, "charset")
-                .and_then(|s| s.trim().parse().ok()),
+            typeface: font
+                .typeface(interner)
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default(),
+            panose: font
+                .panose(interner)
+                .ok()
+                .flatten()
+                .map(std::borrow::Cow::into_owned),
+            pitch_family: font.pitch_family(interner).ok().flatten(),
+            charset: font.charset(interner).ok().flatten(),
         }
     }
 
@@ -89,17 +109,13 @@ impl TextFont {
     /// in `CT_TextFont` attribute order.
     #[must_use]
     pub(crate) fn build(&self, interner: &mut Interner, local: &str) -> RawElement {
-        let mut attributes: Vec<RawAttribute> =
-            vec![dml_attr(interner, "typeface", &self.typeface)];
-        if let Some(panose) = &self.panose {
-            attributes.push(dml_attr(interner, "panose", panose));
-        }
-        if let Some(pitch_family) = self.pitch_family {
-            attributes.push(dml_attr(interner, "pitchFamily", &pitch_family.to_string()));
-        }
-        if let Some(charset) = self.charset {
-            attributes.push(dml_attr(interner, "charset", &charset.to_string()));
-        }
-        dml_element(interner, local, attributes, Vec::new())
+        let mut font = FontAttributes {
+            attributes: Vec::<RawAttribute>::new(),
+        };
+        font.set_typeface(interner, &self.typeface);
+        font.set_panose(interner, self.panose.as_deref());
+        font.set_pitch_family(interner, self.pitch_family);
+        font.set_charset(interner, self.charset);
+        dml_element(interner, local, font.attributes, Vec::new())
     }
 }

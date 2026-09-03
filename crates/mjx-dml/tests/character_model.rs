@@ -69,30 +69,63 @@ fn every_modeled_property_reads_back() {
     let interner = &doc.interner;
 
     // Sizes read in points, never in the file's hundredths.
-    assert_eq!(properties.size(interner).map(|s| s.points()), Some(18.0));
-    assert_eq!(properties.is_bold(interner), Some(true));
-    assert_eq!(properties.is_italic(interner), Some(false));
     assert_eq!(
-        properties.underline(interner),
+        properties
+            .size(interner)
+            .expect("a legal @sz")
+            .map(|s| s.points()),
+        Some(18.0)
+    );
+    assert_eq!(
+        properties.is_bold(interner).expect("a legal @b"),
+        Some(true)
+    );
+    assert_eq!(
+        properties.is_italic(interner).expect("a legal @i"),
+        Some(false)
+    );
+    assert_eq!(
+        properties.underline(interner).expect("a legal @u"),
         Some(TextUnderline::HeavyDashed)
     );
-    assert_eq!(properties.strike(interner), Some(TextStrike::SingleStrike));
     assert_eq!(
-        properties.capitalization(interner),
+        properties.strike(interner).expect("a legal @strike"),
+        Some(TextStrike::SingleStrike)
+    );
+    assert_eq!(
+        properties.capitalization(interner).expect("a legal @cap"),
         Some(TextCapitalization::Small)
     );
     assert_eq!(
-        properties.spacing(interner).map(|s| s.points()),
+        properties
+            .spacing(interner)
+            .expect("a legal @spc")
+            .map(|s| s.points()),
         Some(-1.5),
         "negative spacing tightens"
     );
-    assert_eq!(properties.kerning(interner).map(|k| k.points()), Some(12.0));
     assert_eq!(
-        properties.baseline(interner).map(Fraction::ratio),
+        properties
+            .kerning(interner)
+            .expect("a legal @kern")
+            .map(|k| k.points()),
+        Some(12.0)
+    );
+    assert_eq!(
+        properties
+            .baseline(interner)
+            .expect("a legal @baseline")
+            .map(Fraction::ratio),
         Some(0.3),
         "30000 is 30% of the font size"
     );
-    assert_eq!(properties.language(interner), Some("en-GB"));
+    assert_eq!(
+        properties
+            .language(interner)
+            .expect("a legal @lang")
+            .as_deref(),
+        Some("en-GB")
+    );
 
     assert!(properties.fill(interner).is_some(), "text fill");
     assert_eq!(
@@ -128,10 +161,10 @@ fn an_unset_property_reads_as_none_not_as_a_default() {
     let fragment = format!(r#"<a:rPr xmlns:a="{A}"/>"#);
     let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
     let interner = &doc.interner;
-    assert_eq!(properties.size(interner), None);
-    assert_eq!(properties.is_bold(interner), None);
-    assert_eq!(properties.is_italic(interner), None);
-    assert_eq!(properties.underline(interner), None);
+    assert_eq!(properties.size(interner).expect("a legal @sz"), None);
+    assert_eq!(properties.is_bold(interner).expect("a legal @b"), None);
+    assert_eq!(properties.is_italic(interner).expect("a legal @i"), None);
+    assert_eq!(properties.underline(interner).expect("a legal @u"), None);
     assert_eq!(properties.fill(interner), None);
     assert_eq!(properties.font(interner, FontSlot::Latin), None);
     assert_round_trips(&properties, doc, fragment.as_bytes());
@@ -145,11 +178,18 @@ fn the_same_type_serves_every_name_the_complex_type_appears_under() {
         let fragment = format!(r#"<a:{local} xmlns:a="{A}" sz="2400" b="1"/>"#);
         let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
         assert_eq!(
-            properties.size(&doc.interner).map(|s| s.points()),
+            properties
+                .size(&doc.interner)
+                .expect("a legal @sz")
+                .map(|s| s.points()),
             Some(24.0),
             "{local}"
         );
-        assert_eq!(properties.is_bold(&doc.interner), Some(true), "{local}");
+        assert_eq!(
+            properties.is_bold(&doc.interner).expect("a legal @b"),
+            Some(true),
+            "{local}"
+        );
         assert_round_trips(&properties, doc, fragment.as_bytes());
     }
 }
@@ -249,9 +289,18 @@ fn a_spec_round_trips_through_an_element() {
 
     let mut interner = Interner::new();
     let rebuilt = spec.to_properties(&mut interner, "rPr");
-    assert_eq!(rebuilt.size(&interner).map(|s| s.points()), Some(14.0));
-    assert_eq!(rebuilt.is_bold(&interner), Some(true));
-    assert_eq!(rebuilt.underline(&interner), Some(TextUnderline::Single));
+    assert_eq!(
+        rebuilt
+            .size(&interner)
+            .expect("a legal @sz")
+            .map(|s| s.points()),
+        Some(14.0)
+    );
+    assert_eq!(rebuilt.is_bold(&interner).expect("a legal @b"), Some(true));
+    assert_eq!(
+        rebuilt.underline(&interner).expect("a legal @u"),
+        Some(TextUnderline::Single)
+    );
     assert!(rebuilt.fill(&interner).is_some());
 }
 
@@ -340,7 +389,10 @@ fn a_run_reaches_its_properties_and_keeps_their_position() {
     let (run, doc): (TextRun, _) = parse_typed(fragment.as_bytes());
     assert!(matches!(run.content()[0], RunContent::Properties(_)));
     assert_eq!(
-        run.properties().expect("properties").is_bold(&doc.interner),
+        run.properties()
+            .expect("properties")
+            .is_bold(&doc.interner)
+            .expect("a legal @b"),
         Some(true)
     );
     assert_eq!(run.text(), "Bold");
@@ -398,6 +450,7 @@ fn a_paragraph_reaches_its_end_properties() {
             .end_properties()
             .expect("end properties")
             .size(&doc.interner)
+            .expect("a legal @sz")
             .map(|s| s.points()),
         Some(32.0)
     );
@@ -565,7 +618,10 @@ fn an_unset_underline_group_reads_as_none() {
     let fragment = format!(r#"<a:rPr xmlns:a="{A}" u="sng"/>"#);
     let (properties, doc): (CharacterProperties, _) = parse_typed(fragment.as_bytes());
     let interner = &doc.interner;
-    assert_eq!(properties.underline(interner), Some(TextUnderline::Single));
+    assert_eq!(
+        properties.underline(interner).expect("a legal @u"),
+        Some(TextUnderline::Single)
+    );
     assert_eq!(properties.underline_line(interner), None);
     assert_eq!(properties.underline_fill(interner), None);
     assert_round_trips(&properties, doc, fragment.as_bytes());

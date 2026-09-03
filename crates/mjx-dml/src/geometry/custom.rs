@@ -28,16 +28,99 @@
 //! connection site is drawn through. Like [`GeometryGuide`](super::GeometryGuide) it is an
 //! attribute-only leaf.
 
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
+use std::borrow::Cow;
 
-use crate::build::{
-    angle_to_wire, attr_bool, attr_emu, attr_str, dml_attr, dml_child, dml_element, dml_name,
-    fidelity_element_impls, is_dml, push_bool, push_emu,
+use mjx_ooxml_core::{
+    AttributeCodec, AttributeError, Enumeration, FromXml, Interner, RawAttribute, RawElement,
+    RawName, RawNode, Text, ToXml,
 };
-use crate::geometry::formula::ANGLE_UNITS_PER_DEGREE;
+use mjx_ooxml_types::support::OnOff;
+
+use crate::build::{dml_child, dml_element, dml_name, fidelity_element_impls, is_dml};
+use crate::codec::{AngleOrGuideName, EmuCoordinate, EmuOrGuideName};
 use crate::geometry::{Angle, Emu, GeometryGuide};
 
 pub use mjx_ooxml_types::drawingml::PathFillMode;
+
+// ---------------------------------------------------------------------------------------------
+// The attribute faces
+// ---------------------------------------------------------------------------------------------
+//
+// Custom geometry is the crate's densest *value-projection* tier: an `a:pt`, an `a:arcTo`, an
+// `a:rect`, an `a:cxn` and the two adjust handles are read out of elements the crate has no type
+// for, and are written by building a fresh element. So each declares once, generically over its
+// attribute container, and serves both directions — `{ attributes: &element.attributes }` to read,
+// which copies nothing, and `{ attributes: Vec::new() }` to build the vector a new element owns.
+
+/// `a:pt` / `a:pos` (`CT_AdjPoint2D`) — the attribute face of a point.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "x", codec = EmuOrGuideName, accessor = x, required))]
+#[xml(attribute(local = "y", codec = EmuOrGuideName, accessor = y, required))]
+struct PointAttributes<A> {
+    attributes: A,
+}
+
+/// `a:arcTo` (`CT_Path2DArcTo`) — the attribute face of an elliptical arc command.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "wR", codec = EmuOrGuideName, accessor = width_radius, required))]
+#[xml(attribute(local = "hR", codec = EmuOrGuideName, accessor = height_radius, required))]
+#[xml(attribute(local = "stAng", codec = AngleOrGuideName, accessor = start_angle, required))]
+#[xml(attribute(local = "swAng", codec = AngleOrGuideName, accessor = swing_angle, required))]
+struct ArcAttributes<A> {
+    attributes: A,
+}
+
+/// `a:path` (`CT_Path2D`) — the attribute face of one subpath.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "w", codec = EmuCoordinate, accessor = width))]
+#[xml(attribute(local = "h", codec = EmuCoordinate, accessor = height))]
+#[xml(attribute(local = "fill", codec = Enumeration<PathFillMode>, accessor = fill))]
+#[xml(attribute(local = "stroke", codec = OnOff, accessor = stroke))]
+#[xml(attribute(local = "extrusionOk", codec = OnOff, accessor = extrusion_ok))]
+struct PathAttributes<A> {
+    attributes: A,
+}
+
+/// `a:rect` (`CT_GeomRect`) — the attribute face of the text rectangle's four edges.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "l", codec = EmuOrGuideName, accessor = left, required))]
+#[xml(attribute(local = "t", codec = EmuOrGuideName, accessor = top, required))]
+#[xml(attribute(local = "r", codec = EmuOrGuideName, accessor = right, required))]
+#[xml(attribute(local = "b", codec = EmuOrGuideName, accessor = bottom, required))]
+struct RectangleAttributes<A> {
+    attributes: A,
+}
+
+/// `a:cxn` (`CT_ConnectionSite`) — the attribute face of a connection site.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "ang", codec = AngleOrGuideName, accessor = angle, required))]
+struct ConnectionSiteAttributes<A> {
+    attributes: A,
+}
+
+/// `a:ahXY` (`CT_XYAdjustHandle`) — the attribute face of a Cartesian adjust handle.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "gdRefX", codec = Text, accessor = guide_ref_x))]
+#[xml(attribute(local = "minX", codec = EmuOrGuideName, accessor = min_x))]
+#[xml(attribute(local = "maxX", codec = EmuOrGuideName, accessor = max_x))]
+#[xml(attribute(local = "gdRefY", codec = Text, accessor = guide_ref_y))]
+#[xml(attribute(local = "minY", codec = EmuOrGuideName, accessor = min_y))]
+#[xml(attribute(local = "maxY", codec = EmuOrGuideName, accessor = max_y))]
+struct XyHandleAttributes<A> {
+    attributes: A,
+}
+
+/// `a:ahPolar` (`CT_PolarAdjustHandle`) — the attribute face of a polar adjust handle.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "gdRefR", codec = Text, accessor = guide_ref_radius))]
+#[xml(attribute(local = "minR", codec = EmuOrGuideName, accessor = min_radius))]
+#[xml(attribute(local = "maxR", codec = EmuOrGuideName, accessor = max_radius))]
+#[xml(attribute(local = "gdRefAng", codec = Text, accessor = guide_ref_angle))]
+#[xml(attribute(local = "minAng", codec = AngleOrGuideName, accessor = min_angle))]
+#[xml(attribute(local = "maxAng", codec = AngleOrGuideName, accessor = max_angle))]
+struct PolarHandleAttributes<A> {
+    attributes: A,
+}
 
 /// `ST_AdjCoordinate` — an adjustable coordinate: a literal length in EMU, or the name of a geometry
 /// guide (`a:gdLst`) whose formula computes it.
@@ -55,21 +138,21 @@ pub enum AdjustCoordinate {
 
 impl AdjustCoordinate {
     /// Reads an `ST_AdjCoordinate` attribute value: an integer EMU literal, otherwise a guide name.
+    ///
+    /// One call to [`EmuOrGuideName`], the codec that is this union's single wire mapping — the same
+    /// one every declared `ST_AdjCoordinate` attribute reads through. It rejects nothing (a token
+    /// that is not an integer is a guide reference), so the fallback below is unreachable and is
+    /// written as a value rather than a panic.
     #[must_use]
     pub fn from_wire(value: &str) -> Self {
-        match value.trim().parse::<i64>() {
-            Ok(emu) => Self::Emu(Emu::from_emu(emu)),
-            Err(_) => Self::Guide(value.to_string()),
-        }
+        EmuOrGuideName::decode(Cow::Borrowed(value))
+            .unwrap_or_else(|_| Self::Guide(value.to_owned()))
     }
 
     /// This coordinate's wire form: the EMU integer, or the guide name verbatim.
     #[must_use]
     pub fn to_wire(&self) -> String {
-        match self {
-            Self::Emu(emu) => emu.emu().to_string(),
-            Self::Guide(name) => name.clone(),
-        }
+        EmuOrGuideName::encode(self).into_owned()
     }
 }
 
@@ -87,21 +170,19 @@ pub enum AdjustAngle {
 
 impl AdjustAngle {
     /// Reads an `ST_AdjAngle` attribute value: an integer angle literal, otherwise a guide name.
+    ///
+    /// One call to [`AngleOrGuideName`], this union's single wire mapping; as with
+    /// [`AdjustCoordinate::from_wire`] it rejects nothing, so the fallback is unreachable.
     #[must_use]
     pub fn from_wire(value: &str) -> Self {
-        match value.trim().parse::<i64>() {
-            Ok(native) => Self::Angle(Angle::from_degrees(native as f64 / ANGLE_UNITS_PER_DEGREE)),
-            Err(_) => Self::Guide(value.to_string()),
-        }
+        AngleOrGuideName::decode(Cow::Borrowed(value))
+            .unwrap_or_else(|_| Self::Guide(value.to_owned()))
     }
 
     /// This angle's wire form: the native 60000ths-of-a-degree integer, or the guide name verbatim.
     #[must_use]
     pub fn to_wire(&self) -> String {
-        match self {
-            Self::Angle(angle) => angle_to_wire(*angle),
-            Self::Guide(name) => name.clone(),
-        }
+        AngleOrGuideName::encode(self).into_owned()
     }
 }
 
@@ -131,25 +212,39 @@ impl AdjustPoint {
     ) -> Self {
         Self {
             name: dml_name(interner, local),
-            attributes: vec![
-                dml_attr(interner, "x", &x.to_wire()),
-                dml_attr(interner, "y", &y.to_wire()),
-            ],
+            attributes: point_attributes(
+                interner,
+                &Point {
+                    x: x.clone(),
+                    y: y.clone(),
+                },
+            ),
             children: Vec::new(),
             empty: true,
         }
     }
 
-    /// The point's `x` coordinate, or `None` if the (schema-required) attribute is absent.
-    #[must_use]
-    pub fn x(&self, interner: &Interner) -> Option<AdjustCoordinate> {
-        attr_str(&self.attributes, interner, "x").map(AdjustCoordinate::from_wire)
+    /// The point's `x` coordinate (`@x`).
+    ///
+    /// # Errors
+    /// [`AttributeError::Missing`] if the schema-required attribute is absent, or another
+    /// [`AttributeError`] if its bytes are not readable as text.
+    pub fn x(&self, interner: &Interner) -> Result<AdjustCoordinate, AttributeError> {
+        PointAttributes {
+            attributes: &self.attributes,
+        }
+        .x(interner)
     }
 
-    /// The point's `y` coordinate, or `None` if the (schema-required) attribute is absent.
-    #[must_use]
-    pub fn y(&self, interner: &Interner) -> Option<AdjustCoordinate> {
-        attr_str(&self.attributes, interner, "y").map(AdjustCoordinate::from_wire)
+    /// The point's `y` coordinate (`@y`).
+    ///
+    /// # Errors
+    /// As [`x`](Self::x).
+    pub fn y(&self, interner: &Interner) -> Result<AdjustCoordinate, AttributeError> {
+        PointAttributes {
+            attributes: &self.attributes,
+        }
+        .y(interner)
     }
 
     /// The point's attributes, verbatim.
@@ -162,10 +257,7 @@ impl AdjustPoint {
     /// as the origin coordinate (`0` EMU) rather than failing, so a malformed point still resolves.
     #[must_use]
     pub fn value(&self, interner: &Interner) -> Point {
-        Point {
-            x: self.x(interner).unwrap_or(Point::ORIGIN_COORD),
-            y: self.y(interner).unwrap_or(Point::ORIGIN_COORD),
-        }
+        read_point_attributes(&self.attributes, interner)
     }
 }
 
@@ -243,34 +335,55 @@ pub struct Path2D {
 }
 
 impl Path2D {
-    /// The width of the path's own coordinate box (`@w`, EMU; schema default `0`).
-    #[must_use]
-    pub fn width(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "w")
+    /// This path's attribute face, borrowed — the one declaration every accessor below reads
+    /// through, and the one [`build_path`] writes through.
+    fn attribute_face(&self) -> PathAttributes<&[RawAttribute]> {
+        PathAttributes {
+            attributes: &self.attributes,
+        }
     }
 
-    /// The height of the path's own coordinate box (`@h`, EMU; schema default `0`).
-    #[must_use]
-    pub fn height(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "h")
+    /// The width of the path's own coordinate box (`@w`, EMU; schema default `0`), or `None` if
+    /// unstated.
+    ///
+    /// # Errors
+    /// An [`AttributeError`] if the attribute is present but is not a whole number of EMU.
+    pub fn width(&self, interner: &Interner) -> Result<Option<Emu>, AttributeError> {
+        self.attribute_face().width(interner)
     }
 
-    /// How the path is filled (`@fill`; schema default `norm`).
-    #[must_use]
-    pub fn fill(&self, interner: &Interner) -> Option<PathFillMode> {
-        attr_str(&self.attributes, interner, "fill").and_then(PathFillMode::from_wire)
+    /// The height of the path's own coordinate box (`@h`, EMU; schema default `0`), or `None` if
+    /// unstated.
+    ///
+    /// # Errors
+    /// As [`width`](Self::width).
+    pub fn height(&self, interner: &Interner) -> Result<Option<Emu>, AttributeError> {
+        self.attribute_face().height(interner)
     }
 
-    /// Whether the path is stroked (`@stroke`; schema default `true`).
-    #[must_use]
-    pub fn stroke(&self, interner: &Interner) -> Option<bool> {
-        attr_bool(&self.attributes, interner, "stroke")
+    /// How the path is filled (`@fill`; schema default `norm`), or `None` if unstated.
+    ///
+    /// # Errors
+    /// An [`AttributeError`] if the attribute is present but is not an `ST_PathFillMode`.
+    pub fn fill(&self, interner: &Interner) -> Result<Option<PathFillMode>, AttributeError> {
+        self.attribute_face().fill(interner)
     }
 
-    /// Whether the path may be extruded in 3-D (`@extrusionOk`; schema default `true`).
-    #[must_use]
-    pub fn extrusion_ok(&self, interner: &Interner) -> Option<bool> {
-        attr_bool(&self.attributes, interner, "extrusionOk")
+    /// Whether the path is stroked (`@stroke`; schema default `true`), or `None` if unstated.
+    ///
+    /// # Errors
+    /// An [`AttributeError`] if the attribute is present but is not an `ST_OnOff`.
+    pub fn stroke(&self, interner: &Interner) -> Result<Option<bool>, AttributeError> {
+        self.attribute_face().stroke(interner)
+    }
+
+    /// Whether the path may be extruded in 3-D (`@extrusionOk`; schema default `true`), or `None`
+    /// if unstated.
+    ///
+    /// # Errors
+    /// As [`stroke`](Self::stroke).
+    pub fn extrusion_ok(&self, interner: &Interner) -> Result<Option<bool>, AttributeError> {
+        self.attribute_face().extrusion_ok(interner)
     }
 
     /// The path's drawing commands, in order. Unmodeled children are skipped in this view (they still
@@ -291,12 +404,14 @@ impl Path2D {
     /// This path as an interner-free [`Path2DSpec`].
     #[must_use]
     pub fn spec(&self, interner: &Interner) -> Path2DSpec {
+        // A spec is a value description: an attribute it cannot represent — absent, or malformed —
+        // is simply not part of the description, which is what `None` says here.
         Path2DSpec {
-            width: self.width(interner),
-            height: self.height(interner),
-            fill: self.fill(interner),
-            stroke: self.stroke(interner),
-            extrusion_ok: self.extrusion_ok(interner),
+            width: self.width(interner).ok().flatten(),
+            height: self.height(interner).ok().flatten(),
+            fill: self.fill(interner).ok().flatten(),
+            stroke: self.stroke(interner).ok().flatten(),
+            extrusion_ok: self.extrusion_ok(interner).ok().flatten(),
             commands: self.commands(interner),
         }
     }
@@ -395,12 +510,20 @@ fn read_command(element: &RawElement, interner: &Interner) -> Option<DrawCommand
         "close" => DrawCommand::Close,
         "moveTo" => DrawCommand::MoveTo(nth_point(element, interner, 0)),
         "lnTo" => DrawCommand::LineTo(nth_point(element, interner, 0)),
-        "arcTo" => DrawCommand::ArcTo {
-            width_radius: adjust_coordinate(element, interner, "wR"),
-            height_radius: adjust_coordinate(element, interner, "hR"),
-            start_angle: adjust_angle(element, interner, "stAng"),
-            swing_angle: adjust_angle(element, interner, "swAng"),
-        },
+        "arcTo" => {
+            let arc = ArcAttributes {
+                attributes: &element.attributes,
+            };
+            // Every attribute is schema-required; a malformed arc still resolves, to the same
+            // origin/zero an absent one does, because a command that cannot be read must not stop
+            // the rest of the path being read.
+            DrawCommand::ArcTo {
+                width_radius: arc.width_radius(interner).unwrap_or(Point::ORIGIN_COORD),
+                height_radius: arc.height_radius(interner).unwrap_or(Point::ORIGIN_COORD),
+                start_angle: arc.start_angle(interner).unwrap_or(ZERO_ANGLE),
+                swing_angle: arc.swing_angle(interner).unwrap_or(ZERO_ANGLE),
+            }
+        }
         "quadBezTo" => DrawCommand::QuadBezierTo(
             nth_point(element, interner, 0),
             nth_point(element, interner, 1),
@@ -435,36 +558,40 @@ fn nth_point(element: &RawElement, interner: &Interner, n: usize) -> Point {
 
 /// Reads an `a:pt` element's `x`/`y` as a [`Point`] (an absent coordinate reads as the origin).
 fn read_point(element: &RawElement, interner: &Interner) -> Point {
+    read_point_attributes(&element.attributes, interner)
+}
+
+/// Reads a point's `@x` / `@y` out of an attribute vector. Both are schema-required; one that is
+/// absent or malformed reads as the origin coordinate, so a malformed point still resolves.
+fn read_point_attributes(attributes: &[RawAttribute], interner: &Interner) -> Point {
+    let point = PointAttributes { attributes };
     Point {
-        x: adjust_coordinate(element, interner, "x"),
-        y: adjust_coordinate(element, interner, "y"),
+        x: point.x(interner).unwrap_or(Point::ORIGIN_COORD),
+        y: point.y(interner).unwrap_or(Point::ORIGIN_COORD),
     }
 }
 
-/// Reads a named `ST_AdjCoordinate` attribute (an absent one reads as `0` EMU).
-fn adjust_coordinate(element: &RawElement, interner: &Interner, name: &str) -> AdjustCoordinate {
-    attr_str(&element.attributes, interner, name)
-        .map(AdjustCoordinate::from_wire)
-        .unwrap_or(Point::ORIGIN_COORD)
-}
-
-/// Reads a named `ST_AdjAngle` attribute (an absent one reads as `0`).
-fn adjust_angle(element: &RawElement, interner: &Interner, name: &str) -> AdjustAngle {
-    attr_str(&element.attributes, interner, name)
-        .map(AdjustAngle::from_wire)
-        .unwrap_or(ZERO_ANGLE)
+/// Builds the `@x` / `@y` attribute vector of a fresh point element, in schema order.
+fn point_attributes(interner: &mut Interner, point: &Point) -> Vec<RawAttribute> {
+    let mut attributes = PointAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_x(interner, &point.x);
+    attributes.set_y(interner, &point.y);
+    attributes.attributes
 }
 
 /// Builds an `a:path` element from a spec.
 fn build_path(interner: &mut Interner, spec: &Path2DSpec) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "w", spec.width);
-    push_emu(&mut attrs, interner, "h", spec.height);
-    if let Some(fill) = spec.fill {
-        attrs.push(dml_attr(interner, "fill", fill.to_wire()));
-    }
-    push_bool(&mut attrs, interner, "stroke", spec.stroke);
-    push_bool(&mut attrs, interner, "extrusionOk", spec.extrusion_ok);
+    let mut path = PathAttributes {
+        attributes: Vec::new(),
+    };
+    path.set_width(interner, spec.width);
+    path.set_height(interner, spec.height);
+    path.set_fill(interner, spec.fill);
+    path.set_stroke(interner, spec.stroke);
+    path.set_extrusion_ok(interner, spec.extrusion_ok);
+    let attrs = path.attributes;
     let children = spec
         .commands
         .iter()
@@ -491,13 +618,14 @@ fn build_command(interner: &mut Interner, command: &DrawCommand) -> RawElement {
             start_angle,
             swing_angle,
         } => {
-            let attrs = vec![
-                dml_attr(interner, "wR", &width_radius.to_wire()),
-                dml_attr(interner, "hR", &height_radius.to_wire()),
-                dml_attr(interner, "stAng", &start_angle.to_wire()),
-                dml_attr(interner, "swAng", &swing_angle.to_wire()),
-            ];
-            dml_element(interner, "arcTo", attrs, Vec::new())
+            let mut arc = ArcAttributes {
+                attributes: Vec::new(),
+            };
+            arc.set_width_radius(interner, width_radius);
+            arc.set_height_radius(interner, height_radius);
+            arc.set_start_angle(interner, start_angle);
+            arc.set_swing_angle(interner, swing_angle);
+            dml_element(interner, "arcTo", arc.attributes, Vec::new())
         }
         DrawCommand::QuadBezierTo(control, end) => {
             let pts = vec![
@@ -525,10 +653,7 @@ fn build_point(interner: &mut Interner, point: &Point) -> RawElement {
 /// Builds a point element with the given local name (`pt` for a path command, `pos` for a handle /
 /// connection site) from a [`Point`].
 fn build_named_point(interner: &mut Interner, local: &str, point: &Point) -> RawElement {
-    let attrs = vec![
-        dml_attr(interner, "x", &point.x.to_wire()),
-        dml_attr(interner, "y", &point.y.to_wire()),
-    ];
+    let attrs = point_attributes(interner, point);
     dml_element(interner, local, attrs, Vec::new())
 }
 
@@ -683,7 +808,11 @@ impl CustomGeometry {
                         && interner.resolve(element.name.local) == "cxn" =>
                 {
                     Some(ConnectionSite {
-                        angle: adjust_angle(element, interner, "ang"),
+                        angle: ConnectionSiteAttributes {
+                            attributes: &element.attributes,
+                        }
+                        .angle(interner)
+                        .unwrap_or(ZERO_ANGLE),
                         position: child_position(element, interner),
                     })
                 }
@@ -696,11 +825,16 @@ impl CustomGeometry {
     #[must_use]
     pub fn text_rectangle(&self, interner: &Interner) -> Option<Rectangle> {
         let rect = dml_child(&self.children, interner, "rect")?;
+        let edges = RectangleAttributes {
+            attributes: &rect.attributes,
+        };
+        // All four edges are schema-required; one absent or malformed reads as the origin, so a
+        // malformed rectangle still resolves rather than making the whole geometry unreadable.
         Some(Rectangle {
-            left: adjust_coordinate(rect, interner, "l"),
-            top: adjust_coordinate(rect, interner, "t"),
-            right: adjust_coordinate(rect, interner, "r"),
-            bottom: adjust_coordinate(rect, interner, "b"),
+            left: edges.left(interner).unwrap_or(Point::ORIGIN_COORD),
+            top: edges.top(interner).unwrap_or(Point::ORIGIN_COORD),
+            right: edges.right(interner).unwrap_or(Point::ORIGIN_COORD),
+            bottom: edges.bottom(interner).unwrap_or(Point::ORIGIN_COORD),
         })
     }
 
@@ -825,9 +959,13 @@ fn read_guides(children: &[RawNode], interner: &Interner, local: &str) -> Vec<Gu
                 if is_dml(&element.name, interner)
                     && interner.resolve(element.name.local) == "gd" =>
             {
+                // Read through the type that declares `a:gd`'s two attributes, rather than
+                // re-declaring them here: a guide is two small attributes and no children, and
+                // both values are copied into the owned `GuideSpec` on the next line anyway.
+                let guide = GeometryGuide::from_xml(element, interner).ok()?;
                 Some(GuideSpec {
-                    name: attr_str(&element.attributes, interner, "name")?.to_owned(),
-                    formula: attr_str(&element.attributes, interner, "fmla")?.to_owned(),
+                    name: guide.name(interner).ok()?.into_owned(),
+                    formula: guide.formula(interner).ok()?.into_owned(),
                 })
             }
             _ => None,
@@ -842,49 +980,44 @@ fn child_position(element: &RawElement, interner: &Interner) -> Point {
         .unwrap_or_else(|| Point::from_emu(0, 0))
 }
 
-/// Reads an `a:ahXY` (`CT_XYAdjustHandle`).
+/// Reads an `a:ahXY` (`CT_XYAdjustHandle`). Every attribute is optional, and one that is present
+/// but unreadable is reported the same way an absent one is — a handle is a hint about how the
+/// shape may be dragged, so a malformed bound is a bound the model simply does not know.
 fn read_xy_handle(element: &RawElement, interner: &Interner) -> AdjustHandle {
+    let handle = XyHandleAttributes {
+        attributes: &element.attributes,
+    };
     AdjustHandle::Xy {
         position: child_position(element, interner),
-        guide_ref_x: opt_str(element, interner, "gdRefX"),
-        min_x: opt_coordinate(element, interner, "minX"),
-        max_x: opt_coordinate(element, interner, "maxX"),
-        guide_ref_y: opt_str(element, interner, "gdRefY"),
-        min_y: opt_coordinate(element, interner, "minY"),
-        max_y: opt_coordinate(element, interner, "maxY"),
+        guide_ref_x: owned(handle.guide_ref_x(interner)),
+        min_x: handle.min_x(interner).ok().flatten(),
+        max_x: handle.max_x(interner).ok().flatten(),
+        guide_ref_y: owned(handle.guide_ref_y(interner)),
+        min_y: handle.min_y(interner).ok().flatten(),
+        max_y: handle.max_y(interner).ok().flatten(),
     }
 }
 
-/// Reads an `a:ahPolar` (`CT_PolarAdjustHandle`).
+/// Reads an `a:ahPolar` (`CT_PolarAdjustHandle`); see [`read_xy_handle`].
 fn read_polar_handle(element: &RawElement, interner: &Interner) -> AdjustHandle {
+    let handle = PolarHandleAttributes {
+        attributes: &element.attributes,
+    };
     AdjustHandle::Polar {
         position: child_position(element, interner),
-        guide_ref_radius: opt_str(element, interner, "gdRefR"),
-        min_radius: opt_coordinate(element, interner, "minR"),
-        max_radius: opt_coordinate(element, interner, "maxR"),
-        guide_ref_angle: opt_str(element, interner, "gdRefAng"),
-        min_angle: opt_angle(element, interner, "minAng"),
-        max_angle: opt_angle(element, interner, "maxAng"),
+        guide_ref_radius: owned(handle.guide_ref_radius(interner)),
+        min_radius: handle.min_radius(interner).ok().flatten(),
+        max_radius: handle.max_radius(interner).ok().flatten(),
+        guide_ref_angle: owned(handle.guide_ref_angle(interner)),
+        min_angle: handle.min_angle(interner).ok().flatten(),
+        max_angle: handle.max_angle(interner).ok().flatten(),
     }
 }
 
-/// An optional string attribute, owned.
-fn opt_str(element: &RawElement, interner: &Interner, name: &str) -> Option<String> {
-    attr_str(&element.attributes, interner, name).map(str::to_owned)
-}
-
-/// An optional `ST_AdjCoordinate` attribute.
-fn opt_coordinate(
-    element: &RawElement,
-    interner: &Interner,
-    name: &str,
-) -> Option<AdjustCoordinate> {
-    attr_str(&element.attributes, interner, name).map(AdjustCoordinate::from_wire)
-}
-
-/// An optional `ST_AdjAngle` attribute.
-fn opt_angle(element: &RawElement, interner: &Interner, name: &str) -> Option<AdjustAngle> {
-    attr_str(&element.attributes, interner, name).map(AdjustAngle::from_wire)
+/// A text-valued optional attribute as an owned `String` — an [`AdjustHandle`] is interner-free, so
+/// the borrowed read cannot outlive the call.
+fn owned(read: Result<Option<Cow<'_, str>>, AttributeError>) -> Option<String> {
+    read.ok().flatten().map(Cow::into_owned)
 }
 
 /// Builds a named guide list (`avLst` / `gdLst`) from its guides.
@@ -912,15 +1045,17 @@ fn build_handle(interner: &mut Interner, handle: &AdjustHandle) -> RawElement {
             min_y,
             max_y,
         } => {
-            let mut attrs = Vec::new();
-            push_opt_str(&mut attrs, interner, "gdRefX", guide_ref_x);
-            push_opt_coordinate(&mut attrs, interner, "minX", min_x);
-            push_opt_coordinate(&mut attrs, interner, "maxX", max_x);
-            push_opt_str(&mut attrs, interner, "gdRefY", guide_ref_y);
-            push_opt_coordinate(&mut attrs, interner, "minY", min_y);
-            push_opt_coordinate(&mut attrs, interner, "maxY", max_y);
+            let mut handle = XyHandleAttributes {
+                attributes: Vec::new(),
+            };
+            handle.set_guide_ref_x(interner, guide_ref_x.as_deref());
+            handle.set_min_x(interner, min_x.as_ref());
+            handle.set_max_x(interner, max_x.as_ref());
+            handle.set_guide_ref_y(interner, guide_ref_y.as_deref());
+            handle.set_min_y(interner, min_y.as_ref());
+            handle.set_max_y(interner, max_y.as_ref());
             let pos = RawNode::Element(build_named_point(interner, "pos", position));
-            dml_element(interner, "ahXY", attrs, vec![pos])
+            dml_element(interner, "ahXY", handle.attributes, vec![pos])
         }
         AdjustHandle::Polar {
             position,
@@ -931,69 +1066,39 @@ fn build_handle(interner: &mut Interner, handle: &AdjustHandle) -> RawElement {
             min_angle,
             max_angle,
         } => {
-            let mut attrs = Vec::new();
-            push_opt_str(&mut attrs, interner, "gdRefR", guide_ref_radius);
-            push_opt_coordinate(&mut attrs, interner, "minR", min_radius);
-            push_opt_coordinate(&mut attrs, interner, "maxR", max_radius);
-            push_opt_str(&mut attrs, interner, "gdRefAng", guide_ref_angle);
-            push_opt_angle(&mut attrs, interner, "minAng", min_angle);
-            push_opt_angle(&mut attrs, interner, "maxAng", max_angle);
+            let mut handle = PolarHandleAttributes {
+                attributes: Vec::new(),
+            };
+            handle.set_guide_ref_radius(interner, guide_ref_radius.as_deref());
+            handle.set_min_radius(interner, min_radius.as_ref());
+            handle.set_max_radius(interner, max_radius.as_ref());
+            handle.set_guide_ref_angle(interner, guide_ref_angle.as_deref());
+            handle.set_min_angle(interner, min_angle.as_ref());
+            handle.set_max_angle(interner, max_angle.as_ref());
             let pos = RawNode::Element(build_named_point(interner, "pos", position));
-            dml_element(interner, "ahPolar", attrs, vec![pos])
+            dml_element(interner, "ahPolar", handle.attributes, vec![pos])
         }
     }
 }
 
 /// Builds an `a:cxn` from a [`ConnectionSite`].
 fn build_connection_site(interner: &mut Interner, site: &ConnectionSite) -> RawElement {
-    let attrs = vec![dml_attr(interner, "ang", &site.angle.to_wire())];
+    let mut attributes = ConnectionSiteAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_angle(interner, &site.angle);
     let pos = RawNode::Element(build_named_point(interner, "pos", &site.position));
-    dml_element(interner, "cxn", attrs, vec![pos])
+    dml_element(interner, "cxn", attributes.attributes, vec![pos])
 }
 
 /// Builds an `a:rect` from a [`Rectangle`] (all four edges required).
 fn build_rect(interner: &mut Interner, rect: &Rectangle) -> RawElement {
-    let attrs = vec![
-        dml_attr(interner, "l", &rect.left.to_wire()),
-        dml_attr(interner, "t", &rect.top.to_wire()),
-        dml_attr(interner, "r", &rect.right.to_wire()),
-        dml_attr(interner, "b", &rect.bottom.to_wire()),
-    ];
-    dml_element(interner, "rect", attrs, Vec::new())
-}
-
-/// Pushes an optional string attribute when set.
-fn push_opt_str(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: &Option<String>,
-) {
-    if let Some(value) = value {
-        attrs.push(dml_attr(interner, name, value));
-    }
-}
-
-/// Pushes an optional `ST_AdjCoordinate` attribute when set.
-fn push_opt_coordinate(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: &Option<AdjustCoordinate>,
-) {
-    if let Some(value) = value {
-        attrs.push(dml_attr(interner, name, &value.to_wire()));
-    }
-}
-
-/// Pushes an optional `ST_AdjAngle` attribute when set.
-fn push_opt_angle(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: &Option<AdjustAngle>,
-) {
-    if let Some(value) = value {
-        attrs.push(dml_attr(interner, name, &value.to_wire()));
-    }
+    let mut edges = RectangleAttributes {
+        attributes: Vec::new(),
+    };
+    edges.set_left(interner, &rect.left);
+    edges.set_top(interner, &rect.top);
+    edges.set_right(interner, &rect.right);
+    edges.set_bottom(interner, &rect.bottom);
+    dml_element(interner, "rect", edges.attributes, Vec::new())
 }

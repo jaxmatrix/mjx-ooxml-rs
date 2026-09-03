@@ -1,9 +1,7 @@
 //! `a:fld` — a text field: generated text (a slide number, a date) with a cached rendering.
 
 use mjx_derive::{FromXml, ToXml};
-use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
-
-use crate::build::attr_str;
+use mjx_ooxml_core::{RawAttribute, RawName, RawNode, Text as TextCodec};
 
 use super::character::CharacterProperties;
 use super::paragraph_properties::ParagraphProperties;
@@ -28,8 +26,10 @@ pub enum FieldContent {
 /// `datetime`, …) and an `id`, and carries a **cached** rendering in its `a:t`: the text the producer
 /// last computed, which is what [`text`](Self::text) reads. Its text is **not** reflected by
 /// [`Paragraph::text`](super::paragraph::Paragraph::text), which concatenates run text alone.
-#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = DML_MAIN)]
+#[xml(attribute(local = "id", codec = TextCodec, accessor = id))]
+#[xml(attribute(local = "type", codec = TextCodec, accessor = field_type))]
 pub struct TextField {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -44,19 +44,6 @@ pub struct TextField {
 }
 
 impl TextField {
-    /// The field's identifier (`@id`, an `ST_Guid`), or `None` if it declares none — a well-formed
-    /// field always does, so `None` signals malformed markup.
-    #[must_use]
-    pub fn id<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "id")
-    }
-
-    /// What the field generates (`@type`, e.g. `slidenum` or `datetime`), or `None` if it names none.
-    #[must_use]
-    pub fn field_type<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "type")
-    }
-
     /// The field's cached text (the content of its `a:t`), or `""` if it has none. This is the last
     /// rendering the producer computed, not a live value.
     #[must_use]

@@ -232,7 +232,13 @@ fn setting_a_table_part_keeps_the_table_propertys_extension_list() {
         "the extension came back verbatim: {xml}"
     );
     let properties = between(&xml, "<a:tblPr", "</a:tblPr>");
-    assert!(properties.contains(r#"lastRow="1""#), "{properties}");
+    // The one canonical `ST_OnOff` spelling a setter writes; the `firstRow="1"` and `bandRow="1"`
+    // the fixture states and nobody assigned to keep their own spelling, untouched.
+    assert!(properties.contains(r#"lastRow="true""#), "{properties}");
+    assert!(
+        properties.contains(r#"firstRow="1" bandRow="1" lastRow="true""#),
+        "{properties}"
+    );
     let at = |needle: &str| {
         properties
             .find(needle)

@@ -1,21 +1,18 @@
-//! Small shared builders/readers for DrawingML elements — used by the geometry and color/fill models
-//! to construct `a:`-prefixed elements and read/write their attributes, keeping the byte-level fidelity
-//! rules in one place.
+//! Small shared builders and finders for DrawingML **elements** — the `a:`-prefixed names this
+//! crate constructs, and the by-name child searches its accessors are made of.
+//!
+//! There is nothing here about attributes. There used to be: six hand-written readers and five
+//! writers, called 193 times across the crate. Every one of those call sites is now a declaration
+//! (`#[xml(attribute(..))]`) whose accessor is a single call to [`mjx_xml::attribute::read`] or
+//! [`mjx_xml::attribute::write`], so there is exactly one path from a wire attribute to a typed
+//! value and exactly one back. A helper family with two callers left is the half-migrated family
+//! MJXOFF-89 exists to warn about, so the family is gone rather than reduced.
 
-use std::borrow::Cow;
-
-use mjx_ooxml_core::{
-    AttributeCodec, FromXml, Interner, QuoteStyle, RawAttribute, RawElement, RawName, RawNode,
-};
+use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode};
 use mjx_ooxml_types::namespaces::DML_MAIN;
-use mjx_ooxml_types::support::OnOff;
-use mjx_xml::attribute;
-use mjx_xml::text::escape_attribute;
 
-use crate::codec::{EmuCoordinate, Percentage, SixtyThousandthsOfADegree};
 use crate::color::Color;
 use crate::fill::Fill;
-use crate::geometry::{Angle, Emu, Fraction};
 
 /// Builds a DrawingML qualified name `a:local` — literal prefix `a` plus the resolved transitional
 /// namespace, so a built element serializes as `a:local` and reads back by `(DML_MAIN, local)`.
@@ -24,40 +21,6 @@ pub(crate) fn dml_name(interner: &mut Interner, local: &str) -> RawName {
         prefix: Some(interner.intern("a")),
         local: interner.intern(local),
         namespace: Some(interner.intern(DML_MAIN.transitional)),
-    }
-}
-
-/// Builds an unprefixed, double-quoted attribute `local="value"`, escaping `value` for an attribute.
-pub(crate) fn dml_attr(interner: &mut Interner, local: &str, value: &str) -> RawAttribute {
-    RawAttribute {
-        name: RawName {
-            prefix: None,
-            local: interner.intern(local),
-            namespace: None,
-        },
-        value: escape_attribute(value).as_bytes().into(),
-        quote: QuoteStyle::Double,
-    }
-}
-
-/// Builds a prefixed, double-quoted attribute `prefix:local="value"` with the namespace left
-/// unresolved (only the literal prefix is kept) — mirroring how the fidelity reader stores a
-/// prefixed attribute such as `r:embed`, so a built value round-trips identically. The `prefix`'s
-/// binding to a namespace is the containing part's responsibility (declared on its root element).
-pub(crate) fn prefixed_attr(
-    interner: &mut Interner,
-    prefix: &str,
-    local: &str,
-    value: &str,
-) -> RawAttribute {
-    RawAttribute {
-        name: RawName {
-            prefix: Some(interner.intern(prefix)),
-            local: interner.intern(local),
-            namespace: None,
-        },
-        value: escape_attribute(value).as_bytes().into(),
-        quote: QuoteStyle::Double,
     }
 }
 
@@ -114,124 +77,6 @@ pub(crate) fn dml_child_mut<'a>(
         }
         _ => None,
     })
-}
-
-/// Sets an unprefixed attribute `local="value"` on `attributes` — rewriting the existing one in
-/// place (preserving order) or appending it — with `value` escaped for an attribute.
-pub(crate) fn set_attr(
-    attributes: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    local: &str,
-    value: &str,
-) {
-    attribute::set(attributes, interner, None, local, value);
-}
-
-/// The UTF-8 value of the first unprefixed attribute named `local`, or `None` if absent (or the bytes
-/// are not UTF-8). The value is returned verbatim — the attribute values these models read (guide
-/// names/formulas, color `val`s) contain no XML-special characters in practice.
-pub(crate) fn attr_str<'a>(
-    attributes: &'a [RawAttribute],
-    interner: &Interner,
-    local: &str,
-) -> Option<&'a str> {
-    attribute::find(attributes, interner, None, local)
-        .and_then(|attribute| std::str::from_utf8(&attribute.value).ok())
-}
-
-/// The UTF-8 value of the first attribute whose **local** name is `local`, regardless of prefix (or
-/// `None` if absent / not UTF-8). Used for the relationship attributes on `a:blip` (`r:embed` /
-/// `r:link`), whose prefix the fidelity reader leaves unresolved and whose locals are unambiguous.
-pub(crate) fn attr_by_local<'a>(
-    attributes: &'a [RawAttribute],
-    interner: &Interner,
-    local: &str,
-) -> Option<&'a str> {
-    attributes
-        .iter()
-        .find(|attribute| interner.resolve(attribute.name.local) == local)
-        .and_then(|attribute| std::str::from_utf8(&attribute.value).ok())
-}
-
-// ---------------------------------------------------------------------------------------------
-// Attribute readers/writers (measures & booleans)
-// ---------------------------------------------------------------------------------------------
-//
-// Shared by every typed DrawingML tier that carries measure-valued attributes — the effects
-// (`a:outerShdw@dist`, `@dir`), the transform (`a:off@x`, `a:xfrm@rot`, `@flipH`) — so a measure has
-// exactly one wire spelling on read and one on write.
-
-/// Reads an EMU-valued attribute (`ST_(Positive)Coordinate`) as an [`Emu`].
-pub(crate) fn attr_emu(
-    attributes: &[RawAttribute],
-    interner: &Interner,
-    name: &str,
-) -> Option<Emu> {
-    attribute::read::<EmuCoordinate>(attributes, interner, None, name, "")
-        .ok()
-        .flatten()
-}
-
-/// Reads an angle attribute (`ST_(Positive)FixedAngle`, 60000ths of a degree) as an [`Angle`].
-pub(crate) fn attr_angle(
-    attributes: &[RawAttribute],
-    interner: &Interner,
-    name: &str,
-) -> Option<Angle> {
-    attribute::read::<SixtyThousandthsOfADegree>(attributes, interner, None, name, "")
-        .ok()
-        .flatten()
-}
-
-/// Reads a boolean attribute (`ST_OnOff`) — accepting every accepted spelling.
-pub(crate) fn attr_bool(
-    attributes: &[RawAttribute],
-    interner: &Interner,
-    name: &str,
-) -> Option<bool> {
-    attribute::read::<OnOff>(attributes, interner, None, name, "")
-        .ok()
-        .flatten()
-}
-
-/// Pushes an EMU attribute (native integer form) when set.
-pub(crate) fn push_emu(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: Option<Emu>,
-) {
-    if value.is_some() {
-        attribute::write::<EmuCoordinate>(attrs, interner, None, name, value);
-    }
-}
-
-/// Pushes a boolean attribute (canonical `true`/`false`) when set.
-pub(crate) fn push_bool(
-    attrs: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    name: &str,
-    value: Option<bool>,
-) {
-    if value.is_some() {
-        attribute::write::<OnOff>(attrs, interner, None, name, value);
-    }
-}
-
-/// An [`Angle`] in its native wire form (60000ths of a degree) — the inverse of [`parse_angle`].
-pub(crate) fn angle_to_wire(angle: Angle) -> String {
-    SixtyThousandthsOfADegree::encode(angle).into_owned()
-}
-
-/// Parses a DrawingML percentage (`ST_Percentage` family) to a [`Fraction`]: the integer form
-/// (`50000` = 50%, native/100000) or an explicit-percent form (`50%`). `1.0` is 100%.
-pub(crate) fn parse_percentage(s: &str) -> Option<Fraction> {
-    Percentage::decode(Cow::Borrowed(s)).ok()
-}
-
-/// Parses a DrawingML angle attribute (`ST_Angle` family, 60000ths of a degree) to an [`Angle`].
-pub(crate) fn parse_angle(s: &str) -> Option<Angle> {
-    SixtyThousandthsOfADegree::decode(Cow::Borrowed(s)).ok()
 }
 
 /// The first `EG_ColorChoice` child of `element`, read as a [`Color`] — used wherever a wrapper

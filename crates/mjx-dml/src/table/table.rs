@@ -208,7 +208,11 @@ impl Table {
         let columns = self.column_count();
 
         let neighbour = if at < rows { at } else { at.saturating_sub(1) };
-        let height = self.row(neighbour).and_then(|row| row.height(interner));
+        // A neighbour whose `@h` is unreadable is a neighbour that states no height: the new row
+        // copies what the old one says, and it says nothing this model can use.
+        let height = self
+            .row(neighbour)
+            .and_then(|row| row.height(interner).ok().flatten());
 
         let mut cells = Vec::with_capacity(columns);
         for column in 0..columns {
@@ -306,7 +310,7 @@ impl Table {
         let width = self
             .grid()
             .and_then(|grid| grid.column(neighbour))
-            .and_then(|column| column.width(interner))
+            .and_then(|column| column.width(interner).ok().flatten())
             .unwrap_or(Emu::from_emu(0));
 
         for (anchor_row, anchor_column, column_span) in

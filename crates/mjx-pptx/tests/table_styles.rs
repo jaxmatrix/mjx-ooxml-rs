@@ -144,7 +144,10 @@ fn a_style_can_be_authored_formatted_and_resolved() {
                 cell.borders(interner)
                     .and_then(|b| b.border(interner, TableStyleBorder::Bottom))
                     .is_some(),
-                style.style_name(interner).map(str::to_owned),
+                style
+                    .style_name(interner)
+                    .ok()
+                    .map(|name| name.into_owned()),
             ))
         })
         .expect("resolve")
@@ -413,7 +416,10 @@ fn the_tables_fixture_resolves_its_style_and_reading_dirties_nothing() {
                     .and_then(|p| p.cell_style(interner))
                     .and_then(|c| c.fill(interner))
                     .is_some(),
-                style.style_name(interner).map(str::to_owned),
+                style
+                    .style_name(interner)
+                    .ok()
+                    .map(|name| name.into_owned()),
             ))
         })
         .expect("resolve")
@@ -458,7 +464,10 @@ fn an_inline_style_is_authored_resolved_and_rendered_without_a_shared_part() {
     // Resolves through the same reader a shared style does.
     let name = pres
         .with_table_style(0, table, |style, interner| {
-            Ok(style.style_name(interner).map(str::to_owned))
+            Ok(style
+                .style_name(interner)
+                .ok()
+                .map(|name| name.into_owned()))
         })
         .expect("resolve")
         .flatten();

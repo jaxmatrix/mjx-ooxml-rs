@@ -84,33 +84,53 @@ fn every_modeled_property_reads_back() {
     let (properties, doc): (ParagraphProperties, _) = parse_typed(fragment.as_bytes());
     let interner = &doc.interner;
 
-    assert_eq!(properties.level(interner), Some(IndentLevel::of(2)));
     assert_eq!(
-        properties.alignment(interner),
+        properties.level(interner).expect("a legal @lvl"),
+        Some(IndentLevel::of(2))
+    );
+    assert_eq!(
+        properties.alignment(interner).expect("a legal @algn"),
         Some(TextAlignment::Justified)
     );
     assert_eq!(
-        properties.font_alignment(interner),
+        properties
+            .font_alignment(interner)
+            .expect("a legal @fontAlgn"),
         Some(FontAlignment::Baseline)
     );
-    assert_eq!(properties.is_right_to_left(interner), Some(false));
+    assert_eq!(
+        properties.is_right_to_left(interner).expect("a legal @rtl"),
+        Some(false)
+    );
 
     // Margins and indents read in points — 457200 EMU is 36 pt.
     assert_eq!(
-        properties.left_margin(interner).map(|m| m.points()),
+        properties
+            .left_margin(interner)
+            .expect("a legal @marL")
+            .map(|m| m.points()),
         Some(36.0)
     );
     assert_eq!(
-        properties.right_margin(interner).map(|m| m.points()),
+        properties
+            .right_margin(interner)
+            .expect("a legal @marR")
+            .map(|m| m.points()),
         Some(7.2)
     );
     assert_eq!(
-        properties.indent(interner).map(|i| i.points()),
+        properties
+            .indent(interner)
+            .expect("a legal @indent")
+            .map(|i| i.points()),
         Some(-18.0),
         "a hanging indent is negative"
     );
     assert_eq!(
-        properties.default_tab_size(interner).map(|t| t.points()),
+        properties
+            .default_tab_size(interner)
+            .expect("a legal @defTabSz")
+            .map(|t| t.points()),
         Some(72.0)
     );
 
@@ -137,8 +157,14 @@ fn every_modeled_property_reads_back() {
     let default_run = properties
         .default_run_properties(interner)
         .expect("defRPr is typed as character properties");
-    assert_eq!(default_run.size(interner).map(|s| s.points()), Some(18.0));
-    assert_eq!(default_run.is_bold(interner), Some(true));
+    assert_eq!(
+        default_run
+            .size(interner)
+            .expect("a legal @sz")
+            .map(|s| s.points()),
+        Some(18.0)
+    );
+    assert_eq!(default_run.is_bold(interner), Ok(Some(true)));
 
     assert_round_trips(&properties, doc, fragment.as_bytes());
 }
@@ -150,9 +176,12 @@ fn an_unset_property_reads_as_none_not_as_a_default() {
     let interner = &doc.interner;
     // An absent `lvl` means the level is inherited. Reading must not substitute level 0 — that
     // substitution belongs to resolution.
-    assert_eq!(properties.level(interner), None);
-    assert_eq!(properties.alignment(interner), None);
-    assert_eq!(properties.left_margin(interner), None);
+    assert_eq!(properties.level(interner).expect("a legal @lvl"), None);
+    assert_eq!(properties.alignment(interner).expect("a legal @algn"), None);
+    assert_eq!(
+        properties.left_margin(interner).expect("a legal @marL"),
+        None
+    );
     assert_eq!(properties.line_spacing(interner), None);
     assert!(properties.tab_stops(interner).is_empty());
     assert_eq!(properties.default_run_properties(interner), None);
@@ -165,12 +194,15 @@ fn the_same_type_serves_every_name_the_complex_type_appears_under() {
         let fragment = format!(r#"<a:{local} xmlns:a="{A}" algn="ctr" marL="342900"/>"#);
         let (properties, doc): (ParagraphProperties, _) = parse_typed(fragment.as_bytes());
         assert_eq!(
-            properties.alignment(&doc.interner),
+            properties.alignment(&doc.interner).expect("a legal @algn"),
             Some(TextAlignment::Center),
             "{local}"
         );
         assert_eq!(
-            properties.left_margin(&doc.interner).map(|m| m.points()),
+            properties
+                .left_margin(&doc.interner)
+                .expect("a legal @marL")
+                .map(|m| m.points()),
             Some(27.0),
             "{local}"
         );
@@ -237,7 +269,10 @@ fn a_spec_round_trips_through_an_element() {
 
     let mut interner = Interner::new();
     let rebuilt = spec.to_properties(&mut interner, "pPr");
-    assert_eq!(rebuilt.level(&interner), Some(IndentLevel::of(3)));
+    assert_eq!(
+        rebuilt.level(&interner).expect("a legal @lvl"),
+        Some(IndentLevel::of(3))
+    );
     assert_eq!(
         rebuilt.line_spacing(&interner),
         Some(TextSpacing::proportion(2.0))
@@ -321,7 +356,7 @@ fn a_level_reads_the_element_one_past_its_number() {
     assert_eq!(
         style
             .level(interner, IndentLevel::TOP)
-            .and_then(|p| p.left_margin(interner))
+            .and_then(|p| p.left_margin(interner).expect("a legal @marL"))
             .map(|m| m.points()),
         Some(0.0),
         "level 0 reads lvl1pPr"
@@ -329,7 +364,7 @@ fn a_level_reads_the_element_one_past_its_number() {
     assert_eq!(
         style
             .level(interner, IndentLevel::of(1))
-            .and_then(|p| p.left_margin(interner))
+            .and_then(|p| p.left_margin(interner).expect("a legal @marL"))
             .map(|m| m.points()),
         Some(36.0),
         "level 1 reads lvl2pPr"
@@ -337,7 +372,7 @@ fn a_level_reads_the_element_one_past_its_number() {
     assert_eq!(
         style
             .level(interner, IndentLevel::of(8))
-            .and_then(|p| p.left_margin(interner))
+            .and_then(|p| p.left_margin(interner).expect("a legal @marL"))
             .map(|m| m.points()),
         Some(288.0),
         "level 8 reads lvl9pPr"
@@ -348,7 +383,7 @@ fn a_level_reads_the_element_one_past_its_number() {
     assert_eq!(
         style
             .default_properties(interner)
-            .and_then(|p| p.alignment(interner)),
+            .and_then(|p| p.alignment(interner).expect("a legal @algn")),
         Some(TextAlignment::Left)
     );
     // Only the levels actually defined are enumerated, shallowest first.
@@ -379,7 +414,8 @@ fn a_paragraph_reaches_its_properties_and_keeps_their_position() {
         paragraph
             .properties()
             .expect("properties")
-            .level(&doc.interner),
+            .level(&doc.interner)
+            .expect("a legal @lvl"),
         Some(IndentLevel::of(1))
     );
     assert_eq!(paragraph.text(), "Text");
@@ -438,7 +474,7 @@ fn a_text_body_reaches_its_list_style() {
     assert_eq!(
         style
             .level(&doc.interner, IndentLevel::TOP)
-            .and_then(|p| p.alignment(&doc.interner)),
+            .and_then(|p| p.alignment(&doc.interner).expect("a legal @algn")),
         Some(TextAlignment::Center)
     );
     assert_eq!(body.paragraphs().count(), 1);

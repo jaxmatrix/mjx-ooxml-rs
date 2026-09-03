@@ -29,15 +29,19 @@
 //! an existing element, touching only what the spec names;
 //! [`CharacterPropertiesSpec::to_properties`] builds a fresh element for a run that has none.
 
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
-use mjx_ooxml_types::support::on_off;
+use std::borrow::Cow;
+
+use mjx_ooxml_core::{
+    Enumeration, FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, Text, ToXml,
+};
+use mjx_ooxml_types::support::OnOff;
 
 use mjx_ooxml_types::child_order::TEXT_CHARACTER_PROPERTIES;
 
 use crate::build::{
-    attr_by_local, attr_str, dml_attr, dml_child, dml_element, fidelity_element_impls,
-    first_color_child, first_fill_child, is_dml, parse_percentage, prefixed_attr, set_attr,
+    dml_child, dml_element, fidelity_element_impls, first_color_child, first_fill_child, is_dml,
 };
+use crate::codec::{Percentage, TextFontSize, TextPointSize};
 use crate::color::{Color, ColorSpec};
 use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec};
@@ -46,6 +50,19 @@ use crate::line::{LineProperties, LineSpec};
 use crate::text::font::TextFont;
 
 pub use mjx_ooxml_types::drawingml::{TextCapitalization, TextStrike, TextUnderline};
+
+/// `a:hlinkClick` (`CT_Hyperlink`) — the attribute face of a run's click hyperlink.
+///
+/// `r:id` is matched on its **literal prefix**, as every relationship reference in this crate is:
+/// the fidelity reader resolves no namespace for an attribute, so the prefix is the strongest rule
+/// available — and an exact one, since `r` is bound to the relationships namespace by every part
+/// that carries a hyperlink.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "id", prefix = "r", codec = Text, accessor = relationship))]
+#[xml(attribute(local = "action", codec = Text, accessor = action))]
+struct HyperlinkAttributes<A> {
+    attributes: A,
+}
 
 /// The underline **line** group of a run (`a:uLn` / `a:uLnTx`) — how the underline stroke is drawn,
 /// separately from the glyph outline and from the underline's colour.
@@ -127,7 +144,21 @@ impl FontSlot {
 ///
 /// The element name is preserved too, so the same type reads and writes `a:rPr`, `a:defRPr` and
 /// `a:endParaRPr` alike.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "sz", codec = TextFontSize, accessor = size))]
+#[xml(attribute(local = "b", codec = OnOff, accessor = is_bold))]
+#[xml(attribute(local = "i", codec = OnOff, accessor = is_italic))]
+#[xml(attribute(local = "u", codec = Enumeration<TextUnderline>, accessor = underline))]
+#[xml(attribute(local = "strike", codec = Enumeration<TextStrike>, accessor = strike))]
+#[xml(attribute(
+    local = "cap",
+    codec = Enumeration<TextCapitalization>,
+    accessor = capitalization
+))]
+#[xml(attribute(local = "spc", codec = TextPointSize, accessor = spacing))]
+#[xml(attribute(local = "kern", codec = TextPointSize, accessor = kerning))]
+#[xml(attribute(local = "baseline", codec = Percentage, accessor = baseline))]
+#[xml(attribute(local = "lang", codec = Text, accessor = language))]
 pub struct CharacterProperties {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -136,74 +167,6 @@ pub struct CharacterProperties {
 }
 
 impl CharacterProperties {
-    /// The font size (`@sz`), or `None` if unset (an inherited size).
-    #[must_use]
-    pub fn size(&self, interner: &Interner) -> Option<FontSize> {
-        attr_str(&self.attributes, interner, "sz")
-            .and_then(|s| s.trim().parse::<i32>().ok())
-            .map(FontSize::from_wire)
-    }
-
-    /// Whether the run is bold (`@b`), or `None` if unset (inherited).
-    #[must_use]
-    pub fn is_bold(&self, interner: &Interner) -> Option<bool> {
-        attr_str(&self.attributes, interner, "b").and_then(on_off::from_wire)
-    }
-
-    /// Whether the run is italic (`@i`), or `None` if unset (inherited).
-    #[must_use]
-    pub fn is_italic(&self, interner: &Interner) -> Option<bool> {
-        attr_str(&self.attributes, interner, "i").and_then(on_off::from_wire)
-    }
-
-    /// The underline style (`@u`), or `None` if unset. Note [`TextUnderline::None`] is an explicit
-    /// "not underlined", which is not the same as unset: it overrides an inherited underline.
-    #[must_use]
-    pub fn underline(&self, interner: &Interner) -> Option<TextUnderline> {
-        attr_str(&self.attributes, interner, "u").and_then(TextUnderline::from_wire)
-    }
-
-    /// The strikethrough style (`@strike`), or `None` if unset.
-    #[must_use]
-    pub fn strike(&self, interner: &Interner) -> Option<TextStrike> {
-        attr_str(&self.attributes, interner, "strike").and_then(TextStrike::from_wire)
-    }
-
-    /// The capitalization applied to the run (`@cap`), or `None` if unset.
-    #[must_use]
-    pub fn capitalization(&self, interner: &Interner) -> Option<TextCapitalization> {
-        attr_str(&self.attributes, interner, "cap").and_then(TextCapitalization::from_wire)
-    }
-
-    /// The character spacing (`@spc`) — negative tightens — or `None` if unset.
-    #[must_use]
-    pub fn spacing(&self, interner: &Interner) -> Option<TextPoint> {
-        attr_str(&self.attributes, interner, "spc")
-            .and_then(|s| s.trim().parse::<i32>().ok())
-            .map(TextPoint::from_wire)
-    }
-
-    /// The size from which kerning applies (`@kern`), or `None` if unset.
-    #[must_use]
-    pub fn kerning(&self, interner: &Interner) -> Option<TextPoint> {
-        attr_str(&self.attributes, interner, "kern")
-            .and_then(|s| s.trim().parse::<i32>().ok())
-            .map(TextPoint::from_wire)
-    }
-
-    /// The baseline offset (`@baseline`) as a fraction of the font size — positive raises
-    /// (superscript), negative lowers (subscript) — or `None` if unset.
-    #[must_use]
-    pub fn baseline(&self, interner: &Interner) -> Option<Fraction> {
-        attr_str(&self.attributes, interner, "baseline").and_then(parse_percentage)
-    }
-
-    /// The language of the run's text (`@lang`, e.g. `en-US`), or `None` if unset.
-    #[must_use]
-    pub fn language<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "lang")
-    }
-
     /// The text fill (`EG_FillProperties`) — what the glyphs are painted with — or `None` if the run
     /// declares none.
     #[must_use]
@@ -289,17 +252,30 @@ impl CharacterProperties {
     /// declares no hyperlink — or its hyperlink names no relationship (an action-only jump). The
     /// packaging layer resolves the id to a URL or a slide.
     #[must_use]
-    pub fn hyperlink_rel_id<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
-        dml_child(&self.children, interner, "hlinkClick")
-            .and_then(|el| attr_by_local(&el.attributes, interner, "id"))
+    pub fn hyperlink_rel_id(&self, interner: &Interner) -> Option<String> {
+        self.hyperlink_face(interner)?
+            .relationship(interner)
+            .ok()
+            .flatten()
+            .map(Cow::into_owned)
+    }
+
+    /// The `a:hlinkClick`'s attribute face, if the run declares a hyperlink.
+    fn hyperlink_face(&self, interner: &Interner) -> Option<HyperlinkAttributes<&[RawAttribute]>> {
+        dml_child(&self.children, interner, "hlinkClick").map(|element| HyperlinkAttributes {
+            attributes: element.attributes.as_slice(),
+        })
     }
 
     /// The action of the run's click hyperlink (`a:hlinkClick@action`, e.g. `ppaction://hlinksldjump`
     /// for a slide jump), or `None` if it declares no hyperlink or the hyperlink carries no action.
     #[must_use]
-    pub fn hyperlink_action<'a>(&'a self, interner: &Interner) -> Option<&'a str> {
-        dml_child(&self.children, interner, "hlinkClick")
-            .and_then(|el| attr_str(&el.attributes, interner, "action"))
+    pub fn hyperlink_action(&self, interner: &Interner) -> Option<String> {
+        self.hyperlink_face(interner)?
+            .action(interner)
+            .ok()
+            .flatten()
+            .map(Cow::into_owned)
     }
 
     /// Sets the click hyperlink (`a:hlinkClick`) to name relationship `rel_id` and/or carry `action`,
@@ -323,14 +299,12 @@ impl CharacterProperties {
             self.empty = self.attributes.is_empty() && self.children.is_empty();
             return;
         }
-        let mut attributes = Vec::new();
-        if let Some(rel_id) = rel_id {
-            attributes.push(prefixed_attr(interner, "r", "id", rel_id));
-        }
-        if let Some(action) = action {
-            attributes.push(dml_attr(interner, "action", action));
-        }
-        let element = dml_element(interner, "hlinkClick", attributes, Vec::new());
+        let mut attributes = HyperlinkAttributes {
+            attributes: Vec::new(),
+        };
+        attributes.set_relationship(interner, rel_id);
+        attributes.set_action(interner, action);
+        let element = dml_element(interner, "hlinkClick", attributes.attributes, Vec::new());
         self.replace_child(interner, element, |local| local == "hlinkClick");
     }
 
@@ -378,17 +352,19 @@ impl CharacterProperties {
     /// stays a scheme color; see `resolve_character_properties` for the resolved form.
     #[must_use]
     pub fn spec(&self, interner: &Interner) -> CharacterPropertiesSpec {
+        // A spec is a value description: an attribute it cannot represent — absent, or malformed —
+        // is simply not part of the description, which is what `None` says here.
         CharacterPropertiesSpec {
-            size: self.size(interner),
-            bold: self.is_bold(interner),
-            italic: self.is_italic(interner),
-            underline: self.underline(interner),
-            strike: self.strike(interner),
-            capitalization: self.capitalization(interner),
-            spacing: self.spacing(interner),
-            kerning: self.kerning(interner),
-            baseline: self.baseline(interner),
-            language: self.language(interner).map(str::to_owned),
+            size: self.size(interner).ok().flatten(),
+            bold: self.is_bold(interner).ok().flatten(),
+            italic: self.is_italic(interner).ok().flatten(),
+            underline: self.underline(interner).ok().flatten(),
+            strike: self.strike(interner).ok().flatten(),
+            capitalization: self.capitalization(interner).ok().flatten(),
+            spacing: self.spacing(interner).ok().flatten(),
+            kerning: self.kerning(interner).ok().flatten(),
+            baseline: self.baseline(interner).ok().flatten(),
+            language: self.language(interner).ok().flatten().map(Cow::into_owned),
             fill: self.fill(interner).map(|fill| fill.spec(interner)),
             outline: self.outline(interner).map(|line| line.spec(interner)),
             effects: self.effects(interner).map(|fx| fx.spec(interner)),
@@ -410,56 +386,37 @@ impl CharacterProperties {
     /// property, build a fresh element with
     /// [`to_properties`](CharacterPropertiesSpec::to_properties) instead.
     pub fn apply(&mut self, spec: &CharacterPropertiesSpec, interner: &mut Interner) {
-        if let Some(size) = spec.size {
-            set_attr(
-                &mut self.attributes,
-                interner,
-                "sz",
-                &size.to_wire().to_string(),
-            );
+        // Each attribute is written only when the spec names it: an unset field means "don't
+        // touch", which is not what the setters' `None` means (that removes the attribute).
+        if spec.size.is_some() {
+            self.set_size(interner, spec.size);
         }
-        if let Some(bold) = spec.bold {
-            set_attr(&mut self.attributes, interner, "b", on_off::to_wire(bold));
+        if spec.bold.is_some() {
+            self.set_is_bold(interner, spec.bold);
         }
-        if let Some(italic) = spec.italic {
-            set_attr(&mut self.attributes, interner, "i", on_off::to_wire(italic));
+        if spec.italic.is_some() {
+            self.set_is_italic(interner, spec.italic);
         }
-        if let Some(underline) = spec.underline {
-            set_attr(&mut self.attributes, interner, "u", underline.to_wire());
+        if spec.underline.is_some() {
+            self.set_underline(interner, spec.underline);
         }
-        if let Some(strike) = spec.strike {
-            set_attr(&mut self.attributes, interner, "strike", strike.to_wire());
+        if spec.strike.is_some() {
+            self.set_strike(interner, spec.strike);
         }
-        if let Some(caps) = spec.capitalization {
-            set_attr(&mut self.attributes, interner, "cap", caps.to_wire());
+        if spec.capitalization.is_some() {
+            self.set_capitalization(interner, spec.capitalization);
         }
-        if let Some(spacing) = spec.spacing {
-            set_attr(
-                &mut self.attributes,
-                interner,
-                "spc",
-                &spacing.to_wire().to_string(),
-            );
+        if spec.spacing.is_some() {
+            self.set_spacing(interner, spec.spacing);
         }
-        if let Some(kerning) = spec.kerning {
-            set_attr(
-                &mut self.attributes,
-                interner,
-                "kern",
-                &kerning.to_wire().to_string(),
-            );
+        if spec.kerning.is_some() {
+            self.set_kerning(interner, spec.kerning);
         }
-        if let Some(baseline) = spec.baseline {
-            let native = (baseline.ratio() * 100_000.0).round() as i64;
-            set_attr(
-                &mut self.attributes,
-                interner,
-                "baseline",
-                &native.to_string(),
-            );
+        if spec.baseline.is_some() {
+            self.set_baseline(interner, spec.baseline);
         }
-        if let Some(language) = &spec.language {
-            set_attr(&mut self.attributes, interner, "lang", language);
+        if spec.language.is_some() {
+            self.set_language(interner, spec.language.as_deref());
         }
 
         // Children are replaced as whole elements — each is self-contained, so there is no partial
