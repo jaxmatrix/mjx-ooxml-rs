@@ -66,4 +66,4 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | vml-presentationDrawing | not modelled — as for `vml-main` |
 | vml-spreadsheetDrawing | not modelled — as for `vml-main` |
 | vml-wordprocessingDrawing | not modelled — as for `vml-main` |
-| wml | pending, owned by MJXOFF-90 — the Word crate spine is the child that starts placing `w:` children |
+| wml | generated — every complex type |
