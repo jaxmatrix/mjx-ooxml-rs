@@ -90,7 +90,10 @@ pub fn run() -> Result<()> {
     //     allowlist: the whole schema is emitted, because a serializer can only be prevented from
     //     writing out of sequence if the type it is writing is in the table.
     let mut schemas = Vec::new();
-    for stem in CHILD_ORDER_SCHEMAS.iter().chain(CHILD_ORDER_SCHEMA_DEPENDENCIES) {
+    for stem in CHILD_ORDER_SCHEMAS
+        .iter()
+        .chain(CHILD_ORDER_SCHEMA_DEPENDENCIES)
+    {
         let path = transitional_dir.join(format!("{stem}.xsd"));
         let bytes = std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
         schemas.push(complex::parse(&format!("{stem}.xsd"), &bytes)?);
@@ -620,12 +623,10 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "not modelled — as for `vml-main`",
         "not modelled — as for `vml-main`",
     ),
-    (
-        "wml",
-        "",
-        "pending, owned by MJXOFF-90 — the Word crate spine is the child that starts placing `w:` \
-         children",
-    ),
+    // `wml`'s child-order note is unused now that CHILD_ORDER_SCHEMAS contains it (its column is
+    // computed directly, the same as `dml-main`'s row below) — kept accurate rather than stale, on
+    // the same convention that row already follows.
+    ("wml", "", "generated — every complex type"),
     ("dml-main", "", "generated — every complex type"),
     (
         "shared-commonSimpleTypes",

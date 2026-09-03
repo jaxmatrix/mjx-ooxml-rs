@@ -192,12 +192,13 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
             set: SchemaSet::Markup,
             file: "wml.xsd",
         },
-        ordering: OrderingCoverage::Pending {
-            owner: "MJXOFF-90",
-            reason: "the `wml` row in `CHILD_ORDER_SCHEMAS` belongs to the Word crate spine, the \
-                     child that starts placing WordprocessingML children; nothing in this workspace \
-                     authors `w:` markup yet",
-        },
+        // MJXOFF-90 added `wml` to `CHILD_ORDER_SCHEMAS`, which first needed
+        // `xtask/src/codegen/complex.rs` to resolve `xsd:complexContent`/`xsd:simpleContent` (82 and
+        // 2 occurrences respectively in `wml.xsd`) — the generator had covered only schemas with
+        // neither. `mjx-docx`'s `MainDocument` (`CT_Document`) is the first writer checked against
+        // the generated table, so every part rooted here is now ordered by construction rather than
+        // left unaudited.
+        ordering: OrderingCoverage::Generated,
         probe_root_element: "document",
     },
     ModeledSchema {
