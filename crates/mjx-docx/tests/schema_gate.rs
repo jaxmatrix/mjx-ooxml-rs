@@ -182,5 +182,11 @@ fn a_docx_the_library_re_emits_unchanged_is_still_schema_valid() {
     // package no `wml` code has touched — and it is the case Phase C inherits.
     let package = Package::open(&fixture("sample.docx")).expect("open");
     let saved = package.save().expect("save");
+    // MJXOFF-90 flipped WordprocessingML's `OrderingCoverage` from `Pending` to `Generated` in
+    // `mjx-schema-gate::categories` — this is the ordering half of the gate turning on for `wml` for
+    // the first time, on the real `sample.docx` fixture rather than a synthetic one (the mirror of
+    // `mjx-xlsx`'s own `an_xlsx_the_library_re_emits_unchanged_is_still_schema_valid`, which already
+    // calls this for `sml`).
+    mjx_schema_gate::assert_deck_is_in_schema_order("saved unedited sample.docx", &saved);
     mjx_schema_gate::assert_authored_deck_is_schema_valid("saved unedited sample.docx", &saved);
 }
