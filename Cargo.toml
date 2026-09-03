@@ -58,6 +58,9 @@ syn = { version = "2", features = ["full"] }
 # Grapheme-cluster segmentation for text ranges a user selects. Pure Rust: the cross-compile
 # matrix (wasm/Android/iOS) is unaffected.
 unicode-segmentation = "1"
+# Benchmarking only (MJXOFF-147): dev-dependency of the three format crates' `benches/`, never of a
+# shipped target. Pure Rust, no `unsafe` of its own.
+criterion = "0.8"
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
