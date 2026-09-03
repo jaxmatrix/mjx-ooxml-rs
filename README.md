@@ -164,8 +164,23 @@ The sample files under [`tests/fixtures/`](tests/fixtures) — a real LibreOffic
 plus a structurally-complete `.pptx` — are the current confirmation that parsing works. As of the
 Phase 1 core, **all three parse without failure**: `tree_roundtrip` runs every `.xml`/`.rels` part of
 all three files (20+ parts) through the fidelity reader/writer and asserts **byte-for-byte** identity,
-and `roundtrip` re-zips each package with per-part byte identity. A broader multi-producer corpus and
-fuzzing come in a later iteration.
+and `roundtrip` re-zips each package with per-part byte identity. A broader multi-producer corpus
+comes in a later iteration.
+
+Round-tripping the files we *have* says nothing about the files an attacker has, so the untrusted
+entry points — the fidelity reader, the OPC opener and the MCE resolver — have a fuzz campaign of
+their own:
+
+```sh
+cargo run -p xtask -- fuzz            # every target; --list names them, --seed makes a run repeatable
+```
+
+It is stable Rust with no extra dependency (`cargo-fuzz` would need nightly), it is run **on demand
+rather than on every push**, and it asserts the round-trip oracle rather than merely the absence of a
+crash: whatever the reader accepts must come back byte-for-byte, a package written back and reopened
+must hold the same part bytes, and each execution's allocation is measured against a ceiling. Every
+finding is a committed regression test in `tests/untrusted_input.rs` of the crate that owns the path.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md#the-fuzz-campaign).
 
 Round-tripping proves we do not *corrupt* a file; it does not prove the markup we *write* is legal, and
 neither does the LibreOffice canary — LibreOffice opens invalid markup happily. `schema_validity`
