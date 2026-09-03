@@ -22,6 +22,42 @@ use quick_xml::NsReader;
 
 use crate::XmlError;
 
+/// The deepest element nesting [`parse`] will build a tree for.
+///
+/// # Why the reader is where this belongs
+///
+/// The reader itself is iterative and would happily build any depth. **The cost is paid by everyone
+/// who later walks the tree**, and those walks are recursive because the data is: `Drop` and `Clone`
+/// for [`RawNode`] are compiler-generated and recursive, [`serialize`](super::serialize) descends
+/// into a dirty element's children, and `mjx_mce::resolve` descends the whole document. None of them
+/// takes an attacker's input directly, so none of them is the place to check; all of them receive a
+/// tree that *this function* built out of untrusted bytes. One bound here bounds every one of them,
+/// including the ones Phase C and D have not written yet.
+///
+/// # Why 256 — measured from both ends, not guessed
+///
+/// **From above.** The deepest part in the committed fixture corpus is **depth 13**
+/// (`layouts.pptx :: ppt/slides/slide2.xml`), so this is nearly twenty times the deepest markup
+/// PowerPoint, Word and Excel actually write.
+///
+/// **From below.** The worst walk is `mjx_mce::resolve`, and the worst configuration is a debug
+/// build on a 2 MiB thread — the default for a spawned thread, which is where a library gets called
+/// from. Measured there, depth 768 completes and depth 1,024 overflows. On an optimised build with
+/// the main thread's 8 MiB, the overflow moves out to between 10,000 and 20,000. This limit is a
+/// third of the *smallest* measured survivor, which leaves roughly three quarters of a 2 MiB stack
+/// for the caller who was already on it.
+///
+/// The bound has to be small because the walks cannot be made iterative. `Drop` and `Clone` for
+/// [`RawNode`] are compiler-generated, and giving [`RawElement`] a hand-written `Drop` would forbid
+/// the partial moves this crate and `mjx-opc` both rely on. Bounding the tree at the one point where
+/// untrusted bytes become one is the fix that needs no cooperation from anybody downstream.
+///
+/// A document deeper than this is refused with [`XmlError::DepthLimit`]. That is the *stricter*
+/// answer, not the looser one: nothing that used to be accepted is now mis-parsed, and no byte that
+/// used to round-trip round-trips differently. Raising it is one constant — and the measurement
+/// above is what has to be redone with it.
+pub const MAXIMUM_DEPTH: usize = 256;
+
 /// Parses XML bytes into the lossless preservation tree.
 ///
 /// The input is copied into a buffer the document retains, so unmodified subtrees can later be
@@ -124,6 +160,11 @@ fn tokenize(source: &[u8]) -> Result<ParsedParts, XmlError> {
         let end = base + cursor;
         match event {
             Event::Start(e) => {
+                if stack.len() >= MAXIMUM_DEPTH {
+                    return Err(XmlError::DepthLimit {
+                        limit: MAXIMUM_DEPTH,
+                    });
+                }
                 let (name, attributes) = build_element(&mut interner, namespace, &e)?;
                 stack.push(OpenElement {
                     name,
