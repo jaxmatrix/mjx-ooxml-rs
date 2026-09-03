@@ -256,8 +256,8 @@ impl Presentation {
         let blip_fill = nav::child(picture, &doc.interner, PML, "blipFill")
             .ok_or(PptxError::PictureHasNoImage)?;
         let blip_fill = PictureFill::from_xml(blip_fill, &doc.interner)?;
-        let embed = blip_fill.image_rel_id(&doc.interner).map(str::to_owned);
-        let link = blip_fill.image_link_id(&doc.interner).map(str::to_owned);
+        let embed = blip_fill.image_rel_id(&doc.interner);
+        let link = blip_fill.image_link_id(&doc.interner);
         Ok((embed, link))
     }
 

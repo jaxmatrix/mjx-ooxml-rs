@@ -11,12 +11,12 @@
 //! (`noFill`/`solidFill`/`gradFill`/`pattFill`; no image or group fill) — so it reuses [`Fill`] /
 //! [`FillSpec`] directly.
 
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
-
-use crate::build::{
-    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
-    parse_percentage,
+use mjx_ooxml_core::{
+    Enumeration, FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
 };
+
+use crate::build::{dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child};
+use crate::codec::{EmuLineWidth, Percentage};
 use crate::color::ColorSpec;
 use crate::fill::{Fill, FillSpec};
 use crate::geometry::{Fraction, LineWidth};
@@ -68,6 +68,38 @@ pub struct LineEnd {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The attribute faces of the outline's child elements
+// ---------------------------------------------------------------------------------------------
+//
+// A dash preset, a miter limit and a line end are read out of the outline's own children and
+// projected into the interner-free values above; none of the three is a modeled type. Each declares
+// its attributes through the `#[xml(attribute(..))]` grammar over the vector it is handed — borrowed
+// to read, a fresh one to write — so one declaration serves both directions.
+
+/// `a:prstDash` (`CT_PresetLineDashProperties`) — the attribute face of a named dash pattern.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = Enumeration<PresetLineDash>, accessor = preset, required))]
+struct PresetDashAttributes<A> {
+    attributes: A,
+}
+
+/// `a:miter` (`CT_LineJoinMiterProperties`) — the attribute face of a mitered join.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "lim", codec = Percentage, accessor = limit))]
+struct MiterJoinAttributes<A> {
+    attributes: A,
+}
+
+/// `a:headEnd` / `a:tailEnd` (`CT_LineEndProperties`) — the attribute face of an end decoration.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "type", codec = Enumeration<LineEndType>, accessor = kind))]
+#[xml(attribute(local = "w", codec = Enumeration<LineEndWidth>, accessor = width))]
+#[xml(attribute(local = "len", codec = Enumeration<LineEndLength>, accessor = length))]
+struct LineEndAttributes<A> {
+    attributes: A,
+}
+
+// ---------------------------------------------------------------------------------------------
 // LineProperties — the fidelity wrapper
 // ---------------------------------------------------------------------------------------------
 
@@ -77,7 +109,11 @@ pub struct LineEnd {
 /// A fidelity wrapper: the width, cap, compound, and pen-alignment attributes and the key children are
 /// exposed typed, while any custom dash stops, `extLst`, and unknown attributes/children are preserved
 /// opaque so the outline round-trips byte-for-byte.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "w", codec = EmuLineWidth, accessor = width))]
+#[xml(attribute(local = "cap", codec = Enumeration<LineCap>, accessor = cap))]
+#[xml(attribute(local = "cmpd", codec = Enumeration<CompoundLine>, accessor = compound))]
+#[xml(attribute(local = "algn", codec = Enumeration<PenAlignment>, accessor = pen_alignment))]
 pub struct LineProperties {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -86,32 +122,6 @@ pub struct LineProperties {
 }
 
 impl LineProperties {
-    /// The line width (`@w`, in EMU), or `None` if unset (an inherited/default width).
-    #[must_use]
-    pub fn width(&self, interner: &Interner) -> Option<LineWidth> {
-        attr_str(&self.attributes, interner, "w")
-            .and_then(|s| s.trim().parse::<i64>().ok())
-            .map(LineWidth::from_emu)
-    }
-
-    /// The line end cap (`@cap`), or `None` if unset.
-    #[must_use]
-    pub fn cap(&self, interner: &Interner) -> Option<LineCap> {
-        attr_str(&self.attributes, interner, "cap").and_then(LineCap::from_wire)
-    }
-
-    /// The compound line type (`@cmpd`), or `None` if unset.
-    #[must_use]
-    pub fn compound(&self, interner: &Interner) -> Option<CompoundLine> {
-        attr_str(&self.attributes, interner, "cmpd").and_then(CompoundLine::from_wire)
-    }
-
-    /// The pen alignment (`@algn`), or `None` if unset.
-    #[must_use]
-    pub fn pen_alignment(&self, interner: &Interner) -> Option<PenAlignment> {
-        attr_str(&self.attributes, interner, "algn").and_then(PenAlignment::from_wire)
-    }
-
     /// The stroke fill (`EG_LineFillProperties`: `a:noFill`/`a:solidFill`/`a:gradFill`/`a:pattFill`),
     /// or `None` if the line declares none.
     #[must_use]
@@ -124,9 +134,12 @@ impl LineProperties {
     #[must_use]
     pub fn dash(&self, interner: &Interner) -> Option<LineDash> {
         if let Some(prst) = dml_child(&self.children, interner, "prstDash") {
-            return attr_str(&prst.attributes, interner, "val")
-                .and_then(PresetLineDash::from_wire)
-                .map(LineDash::Preset);
+            return PresetDashAttributes {
+                attributes: &prst.attributes,
+            }
+            .preset(interner)
+            .ok()
+            .map(LineDash::Preset);
         }
         dml_child(&self.children, interner, "custDash").map(|_| LineDash::Custom)
     }
@@ -141,7 +154,12 @@ impl LineProperties {
             return Some(LineJoin::Bevel);
         }
         if let Some(miter) = dml_child(&self.children, interner, "miter") {
-            let limit = attr_str(&miter.attributes, interner, "lim").and_then(parse_percentage);
+            let limit = MiterJoinAttributes {
+                attributes: &miter.attributes,
+            }
+            .limit(interner)
+            .ok()
+            .flatten();
             return Some(LineJoin::Miter { limit });
         }
         None
@@ -164,10 +182,10 @@ impl LineProperties {
     #[must_use]
     pub fn spec(&self, interner: &Interner) -> LineSpec {
         LineSpec {
-            width: self.width(interner),
-            cap: self.cap(interner),
-            compound: self.compound(interner),
-            pen_alignment: self.pen_alignment(interner),
+            width: self.width(interner).ok().flatten(),
+            cap: self.cap(interner).ok().flatten(),
+            compound: self.compound(interner).ok().flatten(),
+            pen_alignment: self.pen_alignment(interner).ok().flatten(),
             fill: self.fill(interner).map(|fill| fill.spec(interner)),
             dash: self.dash(interner),
             join: self.join(interner),
@@ -181,10 +199,13 @@ fidelity_element_impls!(LineProperties);
 
 /// Reads a `CT_LineEndProperties` element (`a:headEnd`/`a:tailEnd`) into a [`LineEnd`].
 fn read_line_end(element: &RawElement, interner: &Interner) -> LineEnd {
+    let end = LineEndAttributes {
+        attributes: &element.attributes,
+    };
     LineEnd {
-        kind: attr_str(&element.attributes, interner, "type").and_then(LineEndType::from_wire),
-        width: attr_str(&element.attributes, interner, "w").and_then(LineEndWidth::from_wire),
-        length: attr_str(&element.attributes, interner, "len").and_then(LineEndLength::from_wire),
+        kind: end.kind(interner).ok().flatten(),
+        width: end.width(interner).ok().flatten(),
+        length: end.length(interner).ok().flatten(),
     }
 }
 
@@ -252,20 +273,6 @@ impl LineSpec {
     /// → `tailEnd`.
     #[must_use]
     pub fn to_line_named(&self, interner: &mut Interner, local: &str) -> LineProperties {
-        let mut attributes = Vec::new();
-        if let Some(width) = self.width {
-            attributes.push(dml_attr(interner, "w", &width.emu().to_string()));
-        }
-        if let Some(cap) = self.cap {
-            attributes.push(dml_attr(interner, "cap", cap.to_wire()));
-        }
-        if let Some(compound) = self.compound {
-            attributes.push(dml_attr(interner, "cmpd", compound.to_wire()));
-        }
-        if let Some(algn) = self.pen_alignment {
-            attributes.push(dml_attr(interner, "algn", algn.to_wire()));
-        }
-
         let mut children = Vec::new();
         if let Some(fill) = &self.fill {
             children.push(RawNode::Element(fill.to_fill(interner).to_xml(interner)));
@@ -283,12 +290,19 @@ impl LineSpec {
             children.push(RawNode::Element(build_line_end(interner, "tailEnd", tail)));
         }
 
-        LineProperties {
+        let mut line = LineProperties {
             name: dml_name(interner, local),
-            attributes,
+            attributes: Vec::new(),
             empty: children.is_empty(),
             children,
-        }
+        };
+        // Schema order: `w`, `cap`, `cmpd`, `algn`. A setter appends to an empty vector in call
+        // order, so the order of these four calls is the order they are written in.
+        line.set_width(interner, self.width);
+        line.set_cap(interner, self.cap);
+        line.set_compound(interner, self.compound);
+        line.set_pen_alignment(interner, self.pen_alignment);
+        line
     }
 }
 
@@ -296,8 +310,11 @@ impl LineSpec {
 fn build_dash(interner: &mut Interner, dash: LineDash) -> RawElement {
     match dash {
         LineDash::Preset(preset) => {
-            let attributes = vec![dml_attr(interner, "val", preset.to_wire())];
-            dml_element(interner, "prstDash", attributes, Vec::new())
+            let mut dash = PresetDashAttributes {
+                attributes: Vec::new(),
+            };
+            dash.set_preset(interner, preset);
+            dml_element(interner, "prstDash", dash.attributes, Vec::new())
         }
         LineDash::Custom => dml_element(interner, "custDash", Vec::new(), Vec::new()),
     }
@@ -309,28 +326,22 @@ fn build_join(interner: &mut Interner, join: LineJoin) -> RawElement {
         LineJoin::Round => dml_element(interner, "round", Vec::new(), Vec::new()),
         LineJoin::Bevel => dml_element(interner, "bevel", Vec::new(), Vec::new()),
         LineJoin::Miter { limit } => {
-            let attributes = limit
-                .map(|f| {
-                    let native = (f.ratio() * 100_000.0).round() as i64;
-                    vec![dml_attr(interner, "lim", &native.to_string())]
-                })
-                .unwrap_or_default();
-            dml_element(interner, "miter", attributes, Vec::new())
+            let mut miter = MiterJoinAttributes {
+                attributes: Vec::new(),
+            };
+            miter.set_limit(interner, limit);
+            dml_element(interner, "miter", miter.attributes, Vec::new())
         }
     }
 }
 
 /// Builds an `a:headEnd`/`a:tailEnd` element from a [`LineEnd`].
 fn build_line_end(interner: &mut Interner, local: &str, end: &LineEnd) -> RawElement {
-    let mut attributes = Vec::new();
-    if let Some(kind) = end.kind {
-        attributes.push(dml_attr(interner, "type", kind.to_wire()));
-    }
-    if let Some(width) = end.width {
-        attributes.push(dml_attr(interner, "w", width.to_wire()));
-    }
-    if let Some(length) = end.length {
-        attributes.push(dml_attr(interner, "len", length.to_wire()));
-    }
-    dml_element(interner, local, attributes, Vec::new())
+    let mut end_attributes = LineEndAttributes {
+        attributes: Vec::new(),
+    };
+    end_attributes.set_kind(interner, end.kind);
+    end_attributes.set_width(interner, end.width);
+    end_attributes.set_length(interner, end.length);
+    dml_element(interner, local, end_attributes.attributes, Vec::new())
 }

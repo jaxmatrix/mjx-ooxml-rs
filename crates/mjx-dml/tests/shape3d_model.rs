@@ -245,13 +245,28 @@ const SP3D: &str = concat!(
 fn a_shape_3d_reads_its_extrusion_bevels_and_colors() {
     let (sp3d, doc) = parse_typed::<Shape3D>(SP3D.as_bytes());
 
-    assert_eq!(sp3d.z(&doc.interner).expect("z").emu(), 12_700);
     assert_eq!(
-        sp3d.extrusion_height(&doc.interner).expect("h").emu(),
+        sp3d.z(&doc.interner).expect("a legal @z").expect("z").emu(),
+        12_700
+    );
+    assert_eq!(
+        sp3d.extrusion_height(&doc.interner)
+            .expect("a legal @extrusionH")
+            .expect("h")
+            .emu(),
         63_500
     );
-    assert_eq!(sp3d.contour_width(&doc.interner).expect("w").emu(), 6_350);
-    assert_eq!(sp3d.material(&doc.interner), Some(PresetMaterial::Metal));
+    assert_eq!(
+        sp3d.contour_width(&doc.interner)
+            .expect("a legal @contourW")
+            .expect("w")
+            .emu(),
+        6_350
+    );
+    assert_eq!(
+        sp3d.material(&doc.interner),
+        Ok(Some(PresetMaterial::Metal))
+    );
 
     let top = sp3d.bevel_top(&doc.interner).expect("bevelT");
     assert_eq!(top.width.expect("w").emu(), 88_900);
@@ -307,9 +322,9 @@ fn an_unstated_measure_reads_none_not_the_schema_default() {
     // A bare bevel and a bare sp3d state nothing — `None`, not 76200 / 0 / warmMatte.
     let sp3d_xml = format!(r#"<a:sp3d xmlns:a="{A}"><a:bevelT/></a:sp3d>"#);
     let (sp3d, doc) = parse_typed::<Shape3D>(sp3d_xml.as_bytes());
-    assert_eq!(sp3d.z(&doc.interner), None);
-    assert_eq!(sp3d.extrusion_height(&doc.interner), None);
-    assert_eq!(sp3d.material(&doc.interner), None);
+    assert_eq!(sp3d.z(&doc.interner), Ok(None));
+    assert_eq!(sp3d.extrusion_height(&doc.interner), Ok(None));
+    assert_eq!(sp3d.material(&doc.interner), Ok(None));
     let bevel = sp3d.bevel_top(&doc.interner).expect("bevelT present");
     assert_eq!(bevel.width, None);
     assert_eq!(bevel.height, None);
