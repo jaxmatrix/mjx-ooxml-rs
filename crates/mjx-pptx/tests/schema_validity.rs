@@ -1,63 +1,16 @@
-//! Schema validity: markup this project ships or authors must never deviate from ECMA-376.
+//! Schema validity for PowerPoint: markup this project ships or authors must never deviate from
+//! ECMA-376.
 //!
-//! Nothing else in the repository validates against the XSDs. The office-open canary
-//! (`office_open.rs`) proves a deck *opens* in LibreOffice; it does not prove the markup is *legal*,
-//! and LibreOffice tolerated an empty `a:overrideClrMapping` and a `a:scene3d` with no `a:lightRig`
-//! across 58 releases. PowerPoint is stricter. This suite closes that gap: it validates
+//! The harness itself lives in the workspace-level [`mjx_schema_gate`] crate — an integration test
+//! compiles only into its own crate, so a harness in this directory could never be reached from
+//! `mjx-docx` or `mjx-xlsx`. What stays here is what is genuinely PresentationML: the committed
+//! `.pptx` corpus and **every deck this library authors**, which is the half that protects future
+//! work, because a new authoring path cannot land invalid markup without a case here going red.
 //!
-//! * every committed `.pptx` fixture's PresentationML / DrawingML / chart parts, and
-//! * **every deck this library authors** — the half that protects future work, because a new
-//!   authoring path cannot land invalid markup without a case here going red.
-//!
-//! The line it draws is *every namespace this project authors*: PresentationML, DrawingML, DrawingML
-//! charts, and the two OPC control streams `mjx-opc` rewrites on every single save
-//! (`[Content_Types].xml` and `_rels/*.rels`). Markup we only ever preserve — InkML, ActiveX, VML,
-//! document properties — is reported as skipped, never validated against a schema it was not written
-//! to.
-//!
-//! Validation is `xmllint --noout --schema` against the ECMA-376 Part 4 **Transitional** schemas and
-//! the ECMA-376 Part 2 **OPC** schemas in the git-ignored `References/` tree. `xmllint` is a C tool,
-//! which is fine: only *shipped* crates are pure Rust — C tooling is sanctioned for CI and tests (the
-//! same rule that lets `office_open.rs` drive LibreOffice).
-//!
-//! # Skipping
-//!
-//! The schemas are not committed (`References/` is git-ignored), so when they — or `xmllint` — are
-//! absent the suite **skips**, printing a notice and passing, exactly as `office_open.rs` does for a
-//! missing LibreOffice. `MJX_REQUIRE_SCHEMA=1` turns any absence into a hard failure so the coverage
-//! can never silently disappear. `MJX_SCHEMA_DIR` and `MJX_OPC_SCHEMA_DIR` override where the two
-//! schema trees are looked for.
-//!
-//! **CI runs this suite as a blocking job**, so the skip is a local convenience and never a hole in
-//! coverage. The `schema-validity` job in `.github/workflows/ci.yml` downloads the two published
-//! ECMA-376 archives, verifies them against the committed SHA-256 manifest
-//! `.github/ecma-376-archives.sha256`, extracts them into `References/` via
-//! `.github/scripts/fetch-ecma-schemas.sh`, and sets `MJX_REQUIRE_SCHEMA=1` — so a missing tool or
-//! schema tree fails the job rather than skipping it. That script is the same one-liner a developer
-//! runs to populate `References/` locally; the schemas stay out of the tree because `References/` is
-//! git-ignored by a standing rule of this repository.
-//!
-//! # What is skipped, and why it is never silent
-//!
-//! Every part is classified and reported; nothing is dropped without a printed reason.
-//!
-//! * **`mc:AlternateContent`.** Markup Compatibility and Extensibility lives *outside* the base
-//!   schema by design (ECMA-376 Part 3), so a part carrying it cannot be validated against `pml.xsd`
-//!   as written. Such parts are skipped with the reason named, and
-//!   [`mce_parts_are_skipped_with_a_named_reason`] pins exactly which fixture parts that covers, so a
-//!   new one cannot appear unnoticed. This shades nothing we write: no authoring path in this
-//!   workspace emits `mc:AlternateContent` — it is only ever read.
-//! * **Foreign markup.** InkML, ActiveX `ocx`, VML and document properties are markup this project
-//!   preserves but never writes. (VML additionally has no validatable root: a `.vml` part's root is a
-//!   bare `<xml>` wrapper that the VML schemas declare no global element for, and `vml-main.xsd`
-//!   cannot compile without `xml.xsd`, which the Transitional set does not ship.)
-//! * **Binary payloads.** Images, OLE objects, embedded workbooks.
-//! * **Deviations in inputs we preserve verbatim** — see [`TOLERATED_DEVIATIONS`]. These are matched
-//!   error-by-error, so a *new* defect in the same part still fails.
-
-use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::atomic::{AtomicUsize, Ordering};
+//! `mjx_schema_gate` draws the line — see its `categories` module for the three-category rule, and
+//! its `harness` module for the skip behaviour and for how `wml.xsd`'s undeclared `xml.xsd` import
+//! is resolved. This file also carries the **whole-workspace meta-gate**, because it is the only
+//! place that can see both the committed corpus and the authoring paths at once.
 
 use mjx_dml::{
     AdjustAngle, AdjustCoordinate, Angle, Bevel, BevelPreset, Camera, CellBorder,
@@ -69,11 +22,8 @@ use mjx_dml::{
     RectangleAlignment, Scene3DSpec, SchemeColor, Shape3DSpec, ShapeGeometry, TablePart,
     TableStyleBorder, TableStylePart, TextAlignment, TextAnchoring, TextSpacing,
 };
-use mjx_ooxml_core::{Interner, RawElement, RawNode};
-use mjx_ooxml_types::child_order;
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
-use mjx_opc::{Package, PartName, CONTENT_TYPES_ZIP_NAME};
 use mjx_pptx::{
     default_placeholder_ole, ActiveXControlSpec, ActiveXPersistence, AxisOrientation, CellFormat,
     CellMargins, Cells, ChartData, ChartKind, ChartLabelScope, DataLabelPosition, DataLabelSpec,
@@ -81,623 +31,11 @@ use mjx_pptx::{
     Hyperlink, LegendPosition, OleObjectData, OleObjectSpec, Presentation, ShapeBounds, SlideSize,
     Surface, TableStyleFormat, TrendlineKind, TrendlineSpec,
 };
-use mjx_xml::fidelity;
-
-// ---------------------------------------------------------------------------------------------
-// Namespaces and schemas
-// ---------------------------------------------------------------------------------------------
-
-/// `p:` — PresentationML.
-const PRESENTATIONML_NS: &str = "http://schemas.openxmlformats.org/presentationml/2006/main";
-/// `a:` — DrawingML.
-const DRAWINGML_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
-/// `c:` — DrawingML charts.
-const DRAWINGML_CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
-/// `dgm:` — DrawingML diagrams (SmartArt), the four parts an authored diagram writes.
-const DRAWINGML_DIAGRAM_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
-/// SpreadsheetML — the markup inside a chart's embedded workbook, which this project now writes.
-const SPREADSHEETML_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
-/// `mc:` — Markup Compatibility and Extensibility (ECMA-376 Part 3).
-const MARKUP_COMPATIBILITY_NS: &str = "http://schemas.openxmlformats.org/markup-compatibility/2006";
-/// The OPC relationships stream (`_rels/*.rels`), written by `mjx-opc` on every save.
-const OPC_RELATIONSHIPS_NS: &str = "http://schemas.openxmlformats.org/package/2006/relationships";
-/// The OPC content-types stream (`[Content_Types].xml`), written by `mjx-opc` on every save.
-const OPC_CONTENT_TYPES_NS: &str = "http://schemas.openxmlformats.org/package/2006/content-types";
-
-/// Which schema set a namespace's XSD belongs to. The markup schemas are ECMA-376 Part 4
-/// (Transitional); the packaging schemas are ECMA-376 Part 2 (OPC) and ship in a separate tree.
-#[derive(Clone, Copy)]
-enum SchemaSet {
-    Markup,
-    Packaging,
-}
-
-/// The schema governing one namespace: which set it lives in and its file name.
-#[derive(Clone, Copy)]
-struct SchemaRef {
-    set: SchemaSet,
-    file: &'static str,
-}
-
-/// The schema governing each namespace **this project authors** — the markup formats and the two
-/// OPC control streams `mjx-opc` writes on every save. A part rooted in any other namespace is
-/// foreign markup this project only ever preserves, and is reported as skipped rather than validated.
-///
-/// SpreadsheetML is here because an authored chart embeds a whole `.xlsx` workbook: without this arm
-/// every part of that workbook would be reported skipped-as-foreign, which is the difference between
-/// the gate covering the workbook and only looking as though it does. DrawingML-diagram is here for
-/// the same reason: this project now writes a SmartArt diagram's four parts, so they are ours to
-/// answer for.
-///
-/// InkML, ActiveX and VML are deliberately **not** here. They are Microsoft or W3C vocabularies this
-/// project only ever preserves — nothing it authors is written *in* them, and the one InkML document
-/// a test hands to `add_ink` is the caller's bytes, stored verbatim. Validating them against a schema
-/// they were not written to would report noise, so they stay `SkippedForeignNamespace`.
-fn schema_for_namespace(namespace: &str) -> Option<SchemaRef> {
-    let (set, file) = match namespace {
-        PRESENTATIONML_NS => (SchemaSet::Markup, "pml.xsd"),
-        DRAWINGML_NS => (SchemaSet::Markup, "dml-main.xsd"),
-        DRAWINGML_CHART_NS => (SchemaSet::Markup, "dml-chart.xsd"),
-        DRAWINGML_DIAGRAM_NS => (SchemaSet::Markup, "dml-diagram.xsd"),
-        SPREADSHEETML_NS => (SchemaSet::Markup, "sml.xsd"),
-        OPC_RELATIONSHIPS_NS => (SchemaSet::Packaging, "opc-relationships.xsd"),
-        OPC_CONTENT_TYPES_NS => (SchemaSet::Packaging, "opc-contentTypes.xsd"),
-        _ => return None,
-    };
-    Some(SchemaRef { set, file })
-}
-
-// ---------------------------------------------------------------------------------------------
-// Tolerated deviations in inputs we preserve verbatim
-// ---------------------------------------------------------------------------------------------
-
-/// A schema deviation carried by an *input* this project preserves verbatim rather than markup it
-/// writes. Fidelity forbids "fixing" it on the way out, so the suite records it here instead of
-/// failing — but every error the validator reports for that part must match, so a *new* defect in
-/// the same part is still a failure. A tolerance never applies to a deck this library authors.
-struct ToleratedDeviation {
-    /// The fixture file name.
-    fixture: &'static str,
-    /// The absolute part name, e.g. `/ppt/charts/chart1.xml`.
-    part: &'static str,
-    /// Substring every tolerated validator error line contains.
-    error_contains: &'static str,
-    /// Why this is not ours to fix.
-    reason: &'static str,
-}
-
-/// The complete set of deviations this suite tolerates. Deliberately tiny: each entry is a claim
-/// that the markup came from somewhere else and that fidelity requires re-emitting it unchanged.
-const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[ToleratedDeviation {
-    fixture: "charts.pptx",
-    part: "/ppt/charts/chart1.xml",
-    error_contains: "is not a valid value of the atomic type 'xs:unsignedInt'",
-    reason: "charts.pptx is python-pptx's template and python-pptx derives c:axId/c:crossAx from a \
-             signed hash; the schema says xs:unsignedInt. An input we preserve verbatim, not markup \
-             we emit — `authored_charts_are_schema_valid` proves we never write a negative axis id \
-             ourselves",
-}];
-
-// ---------------------------------------------------------------------------------------------
-// The harness
-// ---------------------------------------------------------------------------------------------
-
-/// The external tools this suite needs: the validator and the two schema trees.
-struct Harness {
-    xmllint: PathBuf,
-    /// ECMA-376 Part 4, `OfficeOpenXML-XMLSchema-Transitional`.
-    markup_schemas: PathBuf,
-    /// ECMA-376 Part 2, `OpenPackagingConventions-XMLSchema`.
-    packaging_schemas: PathBuf,
-}
-
-impl Harness {
-    /// The absolute path of the XSD governing a namespace.
-    fn schema_path(&self, schema: SchemaRef) -> PathBuf {
-        match schema.set {
-            SchemaSet::Markup => self.markup_schemas.join(schema.file),
-            SchemaSet::Packaging => self.packaging_schemas.join(schema.file),
-        }
-    }
-}
-
-/// Searches `PATH`, then a few well-known locations, for `name`.
-fn find_on_path(name: &str) -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("PATH") {
-        for dir in std::env::split_paths(&path) {
-            let candidate = dir.join(name);
-            if candidate.is_file() {
-                return Some(candidate);
-            }
-        }
-    }
-    ["/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"]
-        .iter()
-        .map(|dir| Path::new(dir).join(name))
-        .find(|p| p.is_file())
-}
-
-/// A directory of XSDs, located from an environment override or the git-ignored `References/` tree
-/// at the workspace root, and confirmed present by **every** schema this suite validates against.
-///
-/// Checking all of them, not one marker, is what makes a half-extracted tree skip loudly instead of
-/// reporting perfectly good markup as invalid because the schema behind it was missing.
-///
-/// `References/` is never read as a *committed* test input — its absence skips the suite.
-fn find_schema_dir(env_var: &str, default_suffix: &str, markers: &[&str]) -> Option<PathBuf> {
-    let candidate = match std::env::var_os(env_var) {
-        Some(dir) => PathBuf::from(dir),
-        None => PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../../References")
-            .join(default_suffix),
-    };
-    if !markers
-        .iter()
-        .all(|marker| candidate.join(marker).is_file())
-    {
-        return None;
-    }
-    // Canonicalized: the schemas import one another by absolute path, and libxml2 warns about a
-    // "duplicate" import when the same file is reached by two spellings of the same directory.
-    Some(candidate.canonicalize().unwrap_or(candidate))
-}
-
-/// The harness, or `None` when the suite should skip.
-///
-/// Skipping prints a notice and passes, so the workspace stays green without the reference schemas.
-/// `MJX_REQUIRE_SCHEMA` turns a missing tool or schema tree into a hard failure.
-fn harness() -> Option<Harness> {
-    let xmllint = find_on_path("xmllint");
-    let markup = find_schema_dir(
-        "MJX_SCHEMA_DIR",
-        "ECMA-376-4_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Transitional",
-        &[
-            "pml.xsd",
-            "dml-main.xsd",
-            "dml-chart.xsd",
-            "dml-diagram.xsd",
-            "sml.xsd",
-        ],
-    );
-    let packaging = find_schema_dir(
-        "MJX_OPC_SCHEMA_DIR",
-        "ECMA-376-2_5th_edition_december_2021/OpenPackagingConventions-XMLSchema",
-        &["opc-relationships.xsd", "opc-contentTypes.xsd"],
-    );
-
-    if let (Some(xmllint), Some(markup_schemas), Some(packaging_schemas)) =
-        (&xmllint, &markup, &packaging)
-    {
-        return Some(Harness {
-            xmllint: xmllint.clone(),
-            markup_schemas: markup_schemas.clone(),
-            packaging_schemas: packaging_schemas.clone(),
-        });
-    }
-
-    let mut missing = Vec::new();
-    if xmllint.is_none() {
-        missing.push("xmllint");
-    }
-    if markup.is_none() {
-        missing.push("the ECMA-376 Part 4 Transitional schemas (References/ or MJX_SCHEMA_DIR)");
-    }
-    if packaging.is_none() {
-        missing.push("the ECMA-376 Part 2 OPC schemas (References/ or MJX_OPC_SCHEMA_DIR)");
-    }
-    let missing = missing.join(", ");
-    assert!(
-        std::env::var_os("MJX_REQUIRE_SCHEMA").is_none(),
-        "MJX_REQUIRE_SCHEMA is set but {missing} could not be found"
-    );
-    eprintln!("skipping schema-validity tests: {missing} not available on this machine");
-    None
-}
-
-/// A private working directory under the system temp dir, removed on drop.
-struct WorkDir(PathBuf);
-
-impl WorkDir {
-    fn new(tag: &str) -> Self {
-        // Cargo runs the cases in this binary concurrently and several of them inspect the same deck,
-        // so the pid alone does not make the name unique — a serial number does. Without it one case
-        // clears the directory another is still writing into.
-        static SERIAL: AtomicUsize = AtomicUsize::new(0);
-        let serial = SERIAL.fetch_add(1, Ordering::Relaxed);
-        let dir =
-            std::env::temp_dir().join(format!("mjx_schema_{tag}_{}_{serial}", std::process::id()));
-        // Fresh: clear any leftovers from a previous crashed run.
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).expect("create work dir");
-        Self(dir)
-    }
-    fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for WorkDir {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
-    }
-}
-
-// ---------------------------------------------------------------------------------------------
-// Per-part classification
-// ---------------------------------------------------------------------------------------------
-
-/// What became of one part.
-#[derive(Debug)]
-enum PartOutcome {
-    /// Validated clean against the named schema.
-    Validated(&'static str),
-    /// Failed only with errors covered by a [`ToleratedDeviation`].
-    Tolerated {
-        schema: &'static str,
-        reason: &'static str,
-    },
-    /// Carries `mc:AlternateContent`, which the base schema does not describe.
-    SkippedAlternateContent,
-    /// Not XML at all (an image, an OLE object, an embedded workbook).
-    SkippedBinary(String),
-    /// Declared XML, but the classifier could not reach a namespace decision at all.
-    SkippedNoNamespace,
-    /// XML, but rooted in a namespace this project does not author.
-    SkippedForeignNamespace(String),
-    /// Failed validation.
-    Failed {
-        schema: &'static str,
-        report: String,
-    },
-}
-
-impl PartOutcome {
-    /// The one-line report entry, always printed, so no skip is ever silent.
-    fn describe(&self) -> String {
-        match self {
-            Self::Validated(schema) => format!("valid ({schema})"),
-            Self::Tolerated { schema, reason } => {
-                format!("tolerated deviation ({schema}) — {reason}")
-            }
-            Self::SkippedAlternateContent => "skipped — carries mc:AlternateContent, which lives \
-                 outside the base schema by design (ECMA-376 Part 3); no authoring path in this \
-                 workspace emits it"
-                .to_owned(),
-            Self::SkippedBinary(content_type) => {
-                format!("skipped — not XML (content type {content_type})")
-            }
-            Self::SkippedNoNamespace => {
-                "skipped — the root element is in no namespace at all".to_owned()
-            }
-            Self::SkippedForeignNamespace(namespace) => format!(
-                "skipped — root element is in {namespace}, which this project does not author"
-            ),
-            Self::Failed { schema, report } => format!("INVALID ({schema})\n{report}"),
-        }
-    }
-}
-
-/// The content type of an embedded Office package — a chart's workbook. Its payload is a whole OPC
-/// container, so the suite opens it and validates the markup *inside* rather than skipping it as a
-/// binary blob.
-const EMBEDDED_PACKAGE_CONTENT_TYPES: [&str; 1] =
-    ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
-
-/// Whether a content type names an XML payload. `vmlDrawing` is XML despite the content type not
-/// saying so; it is classified as foreign markup a step later, which is the truthful reason.
-fn is_xml_content_type(content_type: &str) -> bool {
-    content_type.ends_with("+xml")
-        || content_type.ends_with("/xml")
-        || content_type.ends_with("vmlDrawing")
-}
-
-/// Whether any element anywhere in the subtree is in the MCE namespace. Iterative: a part is
-/// untrusted input and depth is not bounded by anything we control.
-fn carries_alternate_content(root: &RawElement, interner: &Interner) -> bool {
-    let mut stack = vec![root];
-    while let Some(element) = stack.pop() {
-        if element
-            .name
-            .namespace
-            .is_some_and(|ns| interner.resolve(ns) == MARKUP_COMPATIBILITY_NS)
-        {
-            return true;
-        }
-        for child in &element.children {
-            if let RawNode::Element(child) = child {
-                stack.push(child);
-            }
-        }
-    }
-    false
-}
-
-/// Runs the validator over one file and returns its report when the part fails to validate.
-///
-/// A schema that fails to *compile* is a harness fault, not a fixture defect, so it panics rather
-/// than being reported as invalid markup.
-fn xmllint_report(harness: &Harness, schema: SchemaRef, file: &Path) -> Option<String> {
-    let schema_path = harness.schema_path(schema);
-    let output = Command::new(&harness.xmllint)
-        .arg("--noout")
-        .arg("--schema")
-        .arg(&schema_path)
-        .arg(file)
-        .output()
-        .unwrap_or_else(|e| panic!("running {}: {e}", harness.xmllint.display()));
-
-    let stderr = String::from_utf8_lossy(&output.stderr).into_owned();
-    assert!(
-        !stderr.contains("failed to compile"),
-        "{} failed to compile — the schema tree is unusable:\n{stderr}",
-        schema_path.display()
-    );
-    if output.status.success() {
-        return None;
-    }
-    // Keep only the validity errors: the trailing "<file> fails to validate" line tells the caller
-    // nothing it does not know, and a libxml2 parser *warning* is not a deviation from the schema.
-    let report: Vec<&str> = stderr
-        .lines()
-        .filter(|line| !line.ends_with("fails to validate"))
-        .filter(|line| !line.contains("warning :"))
-        .collect();
-    Some(report.join("\n"))
-}
-
-/// Rewrites a validator report so each line names the part rather than the temporary file, and
-/// strips the `Schemas validity error :` boilerplate.
-fn readable_report(report: &str, temp_file: &Path, part: &str) -> String {
-    let prefix = temp_file.display().to_string();
-    report
-        .lines()
-        .map(|line| {
-            let line = line.replace(&prefix, part);
-            line.replace("Schemas validity error : ", "")
-        })
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-/// Classifies and validates every part of one package.
-///
-/// `tolerances` is empty for a deck this library authors: nothing it writes is ever excused.
-fn inspect_deck(
-    harness: &Harness,
-    label: &str,
-    bytes: &[u8],
-    tolerances: &[&ToleratedDeviation],
-) -> Vec<(String, PartOutcome)> {
-    let mut outcomes = Vec::new();
-    inspect_package(harness, label, bytes, tolerances, "", &mut outcomes);
-    outcomes
-}
-
-/// Classifies and validates every part of one package, appending to `outcomes`.
-///
-/// `prefix` names where the package sits: empty for the deck itself, and
-/// `/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx!` for a package **embedded inside** it — a chart's
-/// workbook, which this library now authors and whose SpreadsheetML must therefore be validated
-/// rather than skipped as a binary blob.
-fn inspect_package(
-    harness: &Harness,
-    label: &str,
-    bytes: &[u8],
-    tolerances: &[&ToleratedDeviation],
-    prefix: &str,
-    outcomes: &mut Vec<(String, PartOutcome)>,
-) {
-    let package = Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
-    let work = WorkDir::new(&format!("{label}{prefix}").replace(['.', '/', ' ', '!'], "_"));
-
-    // Every ZIP entry, not just the addressable parts: `[Content_Types].xml` is markup `mjx-opc`
-    // writes on every save and is exactly the kind of stream a bug would break silently.
-    for entry in package.entries() {
-        let name = format!("{prefix}/{}", entry.name);
-        let Some(payload) = entry.bytes() else {
-            panic!("{label}: {name} has no materialized bytes in a freshly opened package");
-        };
-        // The content-types stream describes every other part and has no content type of its own.
-        let content_type = PartName::from_zip_name(&entry.name)
-            .ok()
-            .and_then(|part| package.content_type_of(&part).map(str::to_owned));
-
-        if let Some(content_type) = content_type {
-            if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
-                let nested = format!("{name}!");
-                inspect_package(harness, label, payload, tolerances, &nested, outcomes);
-                continue;
-            }
-            if !is_xml_content_type(&content_type) {
-                outcomes.push((name, PartOutcome::SkippedBinary(content_type)));
-                continue;
-            }
-        } else if entry.name != CONTENT_TYPES_ZIP_NAME {
-            panic!("{label}: no content type for {name}");
-        }
-
-        let document = fidelity::parse(payload)
-            .unwrap_or_else(|e| panic!("{label}: {name} is declared XML but does not parse: {e}"));
-        let Some(namespace) = document
-            .root
-            .name
-            .namespace
-            .map(|ns| document.interner.resolve(ns).to_owned())
-        else {
-            outcomes.push((name, PartOutcome::SkippedNoNamespace));
-            continue;
-        };
-        let Some(schema) = schema_for_namespace(&namespace) else {
-            outcomes.push((name, PartOutcome::SkippedForeignNamespace(namespace)));
-            continue;
-        };
-        if carries_alternate_content(&document.root, &document.interner) {
-            outcomes.push((name, PartOutcome::SkippedAlternateContent));
-            continue;
-        }
-
-        let file = work.path().join(
-            name.trim_start_matches('/')
-                .replace(['/', '[', ']', '!'], "_"),
-        );
-        std::fs::write(&file, payload).expect("write part for validation");
-        let outcome = match xmllint_report(harness, schema, &file) {
-            None => PartOutcome::Validated(schema.file),
-            Some(report) => {
-                let tolerance = tolerances.iter().find(|t| {
-                    t.part == name
-                        && report
-                            .lines()
-                            .all(|line| line.contains(t.error_contains) || line.trim().is_empty())
-                });
-                match tolerance {
-                    Some(tolerance) => PartOutcome::Tolerated {
-                        schema: schema.file,
-                        reason: tolerance.reason,
-                    },
-                    None => PartOutcome::Failed {
-                        schema: schema.file,
-                        report: readable_report(&report, &file, &name),
-                    },
-                }
-            }
-        };
-        outcomes.push((name, outcome));
-    }
-}
-
-/// Prints the per-part report and fails on any invalid part.
-///
-/// Also fails when *nothing* was validated: a classification bug that skipped every part would
-/// otherwise let invalid markup through as a silent pass.
-fn assert_outcomes_are_valid(label: &str, outcomes: &[(String, PartOutcome)]) {
-    let mut validated = 0usize;
-    let mut failures = Vec::new();
-    let mut lines = Vec::new();
-    for (name, outcome) in outcomes {
-        if matches!(
-            outcome,
-            PartOutcome::Validated(_) | PartOutcome::Tolerated { .. }
-        ) {
-            validated += 1;
-        }
-        if let PartOutcome::Failed { .. } = outcome {
-            failures.push(format!("{name}: {}", outcome.describe()));
-        }
-        lines.push(format!("  {name}: {}", outcome.describe()));
-    }
-    println!("schema validity — {label}\n{}", lines.join("\n"));
-
-    assert!(
-        failures.is_empty(),
-        "{label}: {} part(s) do not validate against ECMA-376:\n{}",
-        failures.len(),
-        failures.join("\n")
-    );
-    assert!(
-        validated > 0,
-        "{label}: not one PresentationML/DrawingML part was validated — every part was classified \
-         away, which would let invalid markup pass unnoticed"
-    );
-}
-
-/// Validates a deck this library **authored**. No deviation is tolerated: everything in a deck we
-/// write is ours.
-///
-/// Two gates run here, and only the first needs `References/`:
-///
-/// 1. [`assert_deck_is_in_schema_order`] — child order, from the committed tables. It runs
-///    **always**, so the ordering guarantee does not evaporate on a machine with no schemas.
-/// 2. `xmllint` against the XSDs, when the harness is available.
-fn assert_authored_deck_is_schema_valid(label: &str, bytes: &[u8]) {
-    assert_deck_is_in_schema_order(label, bytes);
-    let Some(harness) = harness() else { return };
-    let outcomes = inspect_deck(&harness, label, bytes, &[]);
-    assert_outcomes_are_valid(label, &outcomes);
-}
-
-/// Asserts that no element of any part of `bytes` carries a child out of its complex type's
-/// `xsd:sequence`, using the generated `mjx-ooxml-types::child_order` tables.
-///
-/// This is the half of schema validity that needs no external tool: `xmllint` catches an ordering
-/// fault only for the shape some case happens to author, and only where `References/` exists, while
-/// this walks **every element of every part** whose root the tables know, on every run.
-///
-/// # Why this may be pointed at a whole deck
-///
-/// Some of these decks are a committed fixture opened, edited and saved, so they carry parts this
-/// library did not write. That is deliberate and safe here: the fixtures are themselves schema-valid
-/// (the `*_fixture_is_schema_valid` cases prove it with `xmllint`), so a fault this raises is
-/// markup **this** library placed. The library itself never re-orders what it reads — placement only
-/// ever runs on a child a caller asked to write — and the byte-identity suites in `mjx-opc` are what
-/// hold that line.
-fn assert_deck_is_in_schema_order(label: &str, bytes: &[u8]) {
-    let audited = audit_deck_order(label, bytes);
-    assert!(
-        !audited.is_empty(),
-        "{label}: not one part was audited for child order"
-    );
-}
-
-/// Runs the child-order audit over every part of `bytes` whose root element the generated tables
-/// name, panicking on the first defect. Returns `(part name, elements checked)` per audited part, so
-/// a caller can prove the walk is not passing vacuously.
-fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<(String, usize)> {
-    let mut audited = Vec::new();
-    let mut package =
-        Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
-    let parts: Vec<PartName> = package.part_names().collect();
-    for part in parts {
-        let Some(content_type) = package.content_type_of(&part).map(str::to_owned) else {
-            continue;
-        };
-        if !is_xml_content_type(&content_type) {
-            continue;
-        }
-        let Ok(document) = package.part_tree(&part) else {
-            continue;
-        };
-        let interner = &document.interner;
-        let root = &document.root;
-        let Some(namespace) = root.name.namespace.map(|symbol| interner.resolve(symbol)) else {
-            continue;
-        };
-        let Some(order) = child_order::root_element(namespace, interner.resolve(root.name.local))
-        else {
-            // A part whose root the tables do not name: an OPC control stream, VML, InkML, ActiveX,
-            // document properties. Never faulted — see the module docs on foreign markup.
-            continue;
-        };
-        let audit = child_order::audit_tree(order, root, interner);
-        if let Some(defect) = audit.defect {
-            panic!(
-                "{label}: {} is out of schema order — {defect}",
-                part.as_str()
-            );
-        }
-        audited.push((part.as_str().to_owned(), audit.elements_visited));
-    }
-    audited
-}
-
-/// Validates a committed fixture, allowing only the deviations [`TOLERATED_DEVIATIONS`] records for
-/// it.
-fn assert_fixture_is_schema_valid(name: &str) {
-    let Some(harness) = harness() else { return };
-    let tolerances: Vec<&ToleratedDeviation> = TOLERATED_DEVIATIONS
-        .iter()
-        .filter(|t| t.fixture == name)
-        .collect();
-    let outcomes = inspect_deck(&harness, name, &fixture(name), &tolerances);
-    assert_outcomes_are_valid(name, &outcomes);
-}
-
-fn fixture(name: &str) -> Vec<u8> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures")
-        .join(name);
-    std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
-}
+use mjx_schema_gate::{
+    assert_authored_deck_is_schema_valid, assert_fixture_is_schema_valid, audit_deck_order,
+    fixture, harness, inspect_deck, inspect_fixture, outcome_table, package_fixtures,
+    package_fixtures_with_extension, PartOutcome, Sweep,
+};
 
 /// A valid 2×2 truecolour PNG (76 bytes), inlined so no binary fixture is committed.
 const TINY_PNG: &[u8] = &[
@@ -709,145 +47,127 @@ const TINY_PNG: &[u8] = &[
 ];
 
 // ---------------------------------------------------------------------------------------------
-// The committed fixtures
+// The committed fixtures — the corpus is the directory, never a list
 // ---------------------------------------------------------------------------------------------
 
 #[test]
-fn sample_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("sample.pptx");
-}
-
-#[test]
-fn tables_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("tables.pptx");
-}
-
-#[test]
-fn table_extensions_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("table_extensions.pptx");
-}
-
-#[test]
-fn layouts_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("layouts.pptx");
-}
-
-#[test]
-fn notes_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("notes.pptx");
-}
-
-#[test]
-fn text_levels_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("text_levels.pptx");
-}
-
-#[test]
-fn hyperlinks_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("hyperlinks.pptx");
-}
-
-#[test]
-fn effects_theme_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("effects_theme.pptx");
-}
-
-#[test]
-fn charts_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("charts.pptx");
-}
-
-#[test]
-fn ole_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("ole.pptx");
-}
-
-#[test]
-fn ink_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("ink.pptx");
-}
-
-#[test]
-fn activex_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("activex.pptx");
-}
-
-#[test]
-fn vml_fixture_is_schema_valid() {
-    assert_fixture_is_schema_valid("vml.pptx");
-}
-
-#[test]
-fn every_pptx_fixture_is_covered_by_a_case() {
-    // A fixture added without a case here would never be validated. The directory is the source of
-    // truth; this fails the moment the two fall out of step.
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/fixtures");
-    let mut on_disk: Vec<String> = std::fs::read_dir(&dir)
-        .expect("read fixtures directory")
-        .filter_map(|entry| {
-            let name = entry.ok()?.file_name().to_string_lossy().into_owned();
-            name.ends_with(".pptx").then_some(name)
-        })
-        .collect();
-    on_disk.sort();
-
-    let mut covered: Vec<String> = [
-        "activex.pptx",
-        "charts.pptx",
-        "effects_theme.pptx",
-        "hyperlinks.pptx",
-        "ink.pptx",
-        "layouts.pptx",
-        "notes.pptx",
-        "ole.pptx",
-        "sample.pptx",
-        "table_extensions.pptx",
-        "tables.pptx",
-        "text_levels.pptx",
-        "vml.pptx",
-    ]
-    .iter()
-    .map(|&s| s.to_owned())
-    .collect();
-    covered.sort();
-
-    assert_eq!(
-        on_disk, covered,
-        "the .pptx fixtures on disk and the cases in this file disagree — add a case for every new \
-         fixture, or its markup is never validated"
+fn every_pptx_fixture_is_schema_valid() {
+    // This used to be thirteen named cases plus a fourteenth asserting the thirteen matched the
+    // directory. The directory is the only source of truth now: a fixture added in any later phase
+    // is validated the moment it lands, and there is no list to forget to update.
+    let fixtures = package_fixtures_with_extension("pptx");
+    assert!(
+        fixtures.len() >= 13,
+        "the .pptx corpus shrank to {} fixtures",
+        fixtures.len()
     );
+    for name in fixtures {
+        assert_fixture_is_schema_valid(&name);
+    }
 }
 
 #[test]
-fn mce_parts_are_skipped_with_a_named_reason() {
-    // The MCE skip must be an inspectable fact, not a silent hole. This pins exactly which fixture
-    // parts it covers: a *new* part carrying mc:AlternateContent fails here rather than quietly
-    // dropping out of validation.
+fn markup_compatibility_is_resolved_and_validated_rather_than_skipped() {
+    // The MCE skip used to be a hole with a name on it: a part carrying `mc:AlternateContent` was
+    // reported skipped and never validated. Resolving instead is what lets `word/document.xml` —
+    // which LibreOffice writes `mc:Ignorable` on — be validated at all, so pin the PowerPoint half
+    // of that mechanism: both fixtures that carry markup compatibility are *validated*, against
+    // `pml.xsd`, with the winning `mc:Choice` or `mc:Fallback` in place.
     let Some(harness) = harness() else { return };
 
-    let mut skipped = Vec::new();
-    for name in ["ole.pptx", "ink.pptx", "activex.pptx", "vml.pptx"] {
-        for (part, outcome) in inspect_deck(&harness, name, &fixture(name), &[]) {
-            if let PartOutcome::SkippedAlternateContent = outcome {
-                assert!(
-                    outcome.describe().contains("mc:AlternateContent"),
-                    "{name}: the skip reason must name mc:AlternateContent"
-                );
-                skipped.push(format!("{name}{part}"));
-            }
-        }
+    for (name, part) in [
+        ("ole.pptx", "/ppt/slides/slide1.xml"),
+        ("ink.pptx", "/ppt/slides/slide1.xml"),
+    ] {
+        let rows = inspect_deck(&harness, name, &fixture(name), &[]);
+        let row = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{name}: {part} is not in the sweep"));
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated("pml.xsd")),
+            "{name}{part} carries markup compatibility and must be resolved and validated, not \
+             skipped — it reported: {}",
+            row.outcome.describe()
+        );
     }
-    skipped.sort();
-    assert_eq!(
-        skipped,
-        vec![
-            "ink.pptx/ppt/slides/slide1.xml".to_owned(),
-            "ole.pptx/ppt/slides/slide1.xml".to_owned(),
-        ],
-        "the set of parts skipped for markup compatibility changed"
-    );
 }
 
+// ---------------------------------------------------------------------------------------------
+// The whole-workspace meta-gate
+// ---------------------------------------------------------------------------------------------
+
+/// A deck that reaches every authoring path whose markup no committed fixture carries.
+///
+/// Only the diagram parts need this today — `dgm:` markup exists in no fixture — but building it
+/// through the public surface rather than listing part names is what keeps the meta-gate honest.
+fn deck_reaching_the_authored_only_schemas() -> Vec<u8> {
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    pres.add_diagram(
+        0,
+        &DiagramContent::vertical_list(&["Plan", "Build", "Ship"]),
+        ShapeBounds::from_inches(1.0, 1.0, 4.0, 3.0),
+    )
+    .expect("add diagram");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["a", "b"])
+        .series("s", [1.0, 2.0]);
+    pres.add_chart(0, &chart, ShapeBounds::from_inches(1.0, 4.0, 4.0, 2.0))
+        .expect("add chart");
+    pres.save().expect("save")
+}
+
+#[test]
+fn every_schema_arm_is_exercised_and_every_preserved_skip_is_reached() {
+    // The systemic guard. Two facts about the sweep as a whole, neither of which any per-package
+    // assertion can state:
+    //
+    //  * every arm of the schema table is reached by something — an arm nothing exercises is an arm
+    //    nobody would notice breaking, and is indistinguishable from an arm that does not exist;
+    //  * every entry of the category-2 allowlist is reached by something — a dead entry is an
+    //    unproven claim about markup the corpus does not contain.
+    //
+    // The third fact — a namespace on neither list fails, naming it — is enforced per part by
+    // `PartOutcome::Uncategorised`, which is why it is not restated here.
+    let Some(harness) = harness() else { return };
+
+    let mut sweep = Sweep::new();
+    for name in package_fixtures() {
+        let tolerances = mjx_schema_gate::tolerances_for(&name);
+        sweep.record(
+            &name,
+            &inspect_deck(&harness, &name, &fixture(&name), &tolerances),
+        );
+    }
+    let authored = deck_reaching_the_authored_only_schemas();
+    sweep.record(
+        "a deck reaching the authored-only schemas",
+        &inspect_deck(&harness, "authored", &authored, &[]),
+    );
+
+    sweep.assert_every_modeled_schema_was_exercised();
+    sweep.assert_pinned_skips();
+}
+
+#[test]
+fn the_fixture_directory_holds_nothing_the_corpora_would_ignore() {
+    // A `.dotx` or a `.xlsm` dropped in here must join a corpus by being classified, never by being
+    // ignored: every byte-identity suite and this one derive their corpus from the same directory.
+    mjx_schema_gate::assert_every_fixture_has_a_known_kind();
+}
+
+#[test]
+fn the_per_part_table_is_printed_for_every_pptx_fixture() {
+    // The report this child is graded on. Printing it as a test keeps it reproducible rather than
+    // something someone once pasted into a ticket.
+    for name in package_fixtures_with_extension("pptx") {
+        let rows = inspect_fixture(&name);
+        if rows.is_empty() {
+            return;
+        }
+        println!("{}", outcome_table(&name, &rows));
+    }
+}
 // ---------------------------------------------------------------------------------------------
 // The decks this library authors — the half that protects future work
 // ---------------------------------------------------------------------------------------------
@@ -926,12 +246,12 @@ fn the_blank_deck_validates_every_part_it_ships() {
     })
     .expect("blank");
     let saved = deck.save().expect("save");
-    let outcomes = inspect_deck(&harness, "blank deck coverage", &saved, &[]);
+    let rows = inspect_deck(&harness, "blank deck coverage", &saved, &[]);
 
-    let validated: Vec<&str> = outcomes
+    let validated: Vec<&str> = rows
         .iter()
-        .filter(|(_, outcome)| matches!(outcome, PartOutcome::Validated(_)))
-        .map(|(name, _)| name.as_str())
+        .filter(|row| matches!(row.outcome, PartOutcome::Validated(_)))
+        .map(|row| row.name.as_str())
         .collect();
     assert_eq!(
         validated,
@@ -948,7 +268,7 @@ fn the_blank_deck_validates_every_part_it_ships() {
         ],
         "every entry of a blank deck must be validated, none skipped"
     );
-    assert_eq!(outcomes.len(), validated.len());
+    assert_eq!(rows.len(), validated.len());
 }
 
 #[test]
@@ -971,7 +291,7 @@ fn the_child_order_audit_reaches_every_authored_markup_part_and_is_not_vacuous()
     let saved = deck.save().expect("save");
 
     let audited = audit_deck_order("blank deck order coverage", &saved);
-    let parts: Vec<&str> = audited.iter().map(|(name, _)| name.as_str()).collect();
+    let parts: Vec<&str> = audited.iter().map(|part| part.name.as_str()).collect();
     assert_eq!(
         parts,
         [
@@ -983,10 +303,12 @@ fn the_child_order_audit_reaches_every_authored_markup_part_and_is_not_vacuous()
         ],
         "every PresentationML and DrawingML part this deck authors must be audited"
     );
-    for (name, visited) in &audited {
+    for part in &audited {
         assert!(
-            *visited > 5,
-            "{name}: the walk checked only {visited} elements — it is not descending"
+            part.elements_visited > 5,
+            "{}: the walk checked only {} elements — it is not descending",
+            part.name,
+            part.elements_visited
         );
     }
 }
@@ -2126,14 +1448,14 @@ fn the_diagram_parts_are_really_validated_and_not_skipped() {
     .expect("add diagram");
     let saved = pres.save().expect("save");
 
-    let outcomes = inspect_deck(&harness, "authored diagram", &saved, &[]);
-    let mut validated: Vec<&str> = outcomes
+    let rows = inspect_deck(&harness, "authored diagram", &saved, &[]);
+    let mut validated: Vec<&str> = rows
         .iter()
-        .filter(|(name, outcome)| {
-            name.contains("/ppt/diagrams/")
-                && matches!(outcome, PartOutcome::Validated("dml-diagram.xsd"))
+        .filter(|row| {
+            row.name.contains("/ppt/diagrams/")
+                && matches!(row.outcome, PartOutcome::Validated("dml-diagram.xsd"))
         })
-        .map(|(name, _)| name.as_str())
+        .map(|row| row.name.as_str())
         .collect();
     validated.sort_unstable();
     assert_eq!(

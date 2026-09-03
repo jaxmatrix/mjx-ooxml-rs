@@ -3,35 +3,32 @@
 //!
 //! Fixtures live at the workspace root under `tests/fixtures/` (shared across crates) and are
 //! committed independently of this crate's code — never taken from the git-ignored `References/`.
+//!
+//! **The corpus is the directory.** This file used to carry a hand-maintained list of nine of the
+//! fifteen committed fixtures, so six of them — `charts.pptx`, `tables.pptx`, `layouts.pptx`,
+//! `notes.pptx`, `hyperlinks.pptx`, `effects_theme.pptx` — sat outside the byte-identity contract,
+//! which is this project's core promise. `mjx_fixtures::package_fixtures` reads the directory, so a
+//! fixture added in any later phase joins this suite the moment it lands.
 
-use std::path::PathBuf;
-
+use mjx_fixtures::{fixture, package_fixtures};
 use mjx_opc::{Package, PartName, Relationship, TargetMode};
 
-const FIXTURES: &[&str] = &[
-    "sample.pptx",
-    "sample.docx",
-    "sample.xlsx",
-    "vml.pptx",
-    "ole.pptx",
-    "activex.pptx",
-    "ink.pptx",
-    "text_levels.pptx",
-    // A table whose `a:tblPr` and one `a:tcPr` carry an `a:extLst` (MJX-43): the extension bucket is
-    // preserved verbatim, so it must survive the container round-trip like any other markup.
-    "table_extensions.pptx",
-];
-
-fn fixture(name: &str) -> Vec<u8> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures")
-        .join(name);
-    std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
+/// The committed corpus must not quietly shrink to nothing: a suite iterating an empty list passes.
+fn corpus() -> Vec<String> {
+    let fixtures = package_fixtures();
+    assert!(
+        fixtures.len() >= 15,
+        "the committed corpus is {} fixture(s); a byte-identity suite over an empty corpus passes \
+         vacuously",
+        fixtures.len()
+    );
+    fixtures
 }
 
 #[test]
 fn opens_and_enumerates_every_fixture() {
-    for &name in FIXTURES {
+    for name in corpus() {
+        let name = name.as_str();
         let pkg = Package::open(&fixture(name)).unwrap_or_else(|e| panic!("{name}: open: {e}"));
 
         assert!(!pkg.entries().is_empty(), "{name}: no entries");
@@ -53,7 +50,8 @@ fn opens_and_enumerates_every_fixture() {
 
 #[test]
 fn round_trip_preserves_every_part_verbatim() {
-    for &name in FIXTURES {
+    for name in corpus() {
+        let name = name.as_str();
         let original = fixture(name);
         let pkg = Package::open(&original).unwrap_or_else(|e| panic!("{name}: open: {e}"));
         let saved = pkg.save().unwrap_or_else(|e| panic!("{name}: save: {e}"));

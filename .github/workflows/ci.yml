@@ -27,14 +27,39 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # `--no-fail-fast`: a plain `cargo test` stops at the first failing test *binary*, so a second
+      # broken crate is invisible until the first is fixed — one round trip per defect.
       - name: test
-        run: cargo test --workspace
+        run: cargo test --workspace --no-fail-fast
       # The `vml` feature gates a whole surface — the typed VML model and the `spid` resolution an
       # OLE object's legacy fallback needs — so the default-feature run above compiles none of it.
       - name: clippy (vml feature)
         run: cargo clippy --workspace --all-targets --features mjx-pptx/vml -- -D warnings
       - name: test (vml feature)
-        run: cargo test --workspace --features mjx-pptx/vml
+        run: cargo test --workspace --features mjx-pptx/vml --no-fail-fast
+
+  # Every feature of every crate at once. `lint-test` above runs the default features and the one
+  # `vml` combination; neither compiles the binding crates' feature surface, and neither is what a
+  # `cargo test --workspace --all-features` consumer gets.
+  #
+  # This job exists because a *documentary* fix already failed. `test (vml feature)` ran on every
+  # pull request, went red at one merge and stayed red through the next, while the process document
+  # said "the main agent watches CI". A gate converges only when something forces someone to look at
+  # its output — so this job is required, and the merge step is a command whose exit status gates
+  # the merge (`gh pr checks --required`) rather than a sentence instructing a person to look.
+  all-features:
+    name: test (--all-features)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: clippy (--all-features)
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: test (--all-features)
+        run: cargo test --workspace --all-features --no-fail-fast
 
   # The naming convention this repository is built on — a public identifier is self-explanatory to a
   # reader who does not have ECMA-376 open — has exactly one enforcement mechanism per rule that is
@@ -116,8 +141,14 @@ jobs:
 
       # `--features vml` so the authored-VML case is compiled: without it that deck is never built
       # and its content types are never validated.
-      - name: schema-validity suite
+      - name: schema-validity suite (PowerPoint, and the whole-workspace meta-gate)
         run: cargo test -p mjx-pptx --features vml --test schema_validity
+
+      # The same harness pointed at the other two formats. `mjx-docx` and `mjx-xlsx` carry no model
+      # code yet; these are the gates Phases C and D inherit, and they are what makes "the schema
+      # gate covers Word" a fact instead of a sentence.
+      - name: schema-validity suite (Word and Excel)
+        run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
 
   # The Phase-2 exit gate: a .pptx we construct actually opens in a real Office implementation.
   # Kept separate from lint-test so the heavy LibreOffice install cannot slow or flake the fast lane.

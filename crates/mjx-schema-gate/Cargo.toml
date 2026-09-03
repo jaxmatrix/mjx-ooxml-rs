@@ -1,0 +1,26 @@
+[package]
+name = "mjx-schema-gate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test-only: the ECMA-376 schema and child-order gate every format crate is held to."
+# Never published and never depended on by a shipped crate: this is a `dev-dependency` of
+# `mjx-pptx`, `mjx-docx` and `mjx-xlsx` and of nothing else. It exists because an integration test
+# compiles only into its own crate, so a harness living in `mjx-pptx/tests/` cannot be reached from
+# `mjx-docx` or `mjx-xlsx` at all.
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
+mjx-ooxml-types.workspace = true
+mjx-opc.workspace = true
+mjx-mce.workspace = true
+# The committed fixture corpus. Dependency-free by design so `mjx-opc`'s suites can reach it too.
+mjx-fixtures.workspace = true

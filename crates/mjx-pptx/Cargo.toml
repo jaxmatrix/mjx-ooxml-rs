@@ -41,3 +41,6 @@ vml = ["dep:mjx-vml"]
 anyhow.workspace = true
 # The VML tests read the typed model the `vml` feature exposes, which lives in `mjx-vml`.
 mjx-vml.workspace = true
+# The shared ECMA-376 schema and child-order gate. Test-only, and the same harness `mjx-docx` and
+# `mjx-xlsx` are held to — one gate, three crates.
+mjx-schema-gate.workspace = true

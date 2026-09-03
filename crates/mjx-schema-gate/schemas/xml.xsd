@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A schema for the XML namespace, http://www.w3.org/XML/1998/namespace.
+
+  WHY THIS FILE EXISTS
+  ====================
+  `wml.xsd:21` and `shared-math.xsd:13` of the ECMA-376 Part 4 Transitional set both declare
+
+      <xsd:import namespace="http://www.w3.org/XML/1998/namespace"/>
+
+  with **no `schemaLocation`**, and that schema set ships no `xml.xsd` of its own. libxml2 therefore
+  cannot resolve `xml:space`, and both schemas fail to *compile* — not to validate:
+
+      shared-math.xsd:154: element attribute: Schemas parser error : attribute use (unknown),
+        attribute 'ref': The QName value '{http://www.w3.org/XML/1998/namespace}space' does not
+        resolve to a(n) attribute declaration.
+      WXS schema .../wml.xsd failed to compile
+
+  A bare `xsd:import` gives libxml2 no URI to fetch, so an XML catalog entry has nothing to rewrite.
+  What does work is a *driver* schema that imports this file for the XML namespace **before** it
+  imports the OOXML schema; the components are then already present when the bare import is
+  processed. `crate::harness` writes that driver.
+
+  PROVENANCE AND LICENCE
+  ======================
+  This file is **hand-written for this repository**; it is not a copy of the W3C's `xml.xsd`, so no
+  third-party licence attaches to it and nothing needs fetching at build time. It declares the four
+  attributes the XML specifications define in this namespace, with the types those specifications
+  give them:
+
+    * `xml:space`  — XML 1.0 §2.10, the enumeration `default` | `preserve`;
+    * `xml:lang`   — XML 1.0 §2.12, an `xsd:language`;
+    * `xml:base`   — XML Base, an `xsd:anyURI`;
+    * `xml:id`     — xml:id Version 1.0, an `xsd:ID`.
+
+  Only `xml:space` is referenced by the ECMA-376 Transitional set (once in `wml.xsd`, once in
+  `shared-math.xsd`); the other three are declared because they belong to the namespace this file
+  describes, and declaring them costs nothing. `xml:space` keeps its exact enumeration so the gate
+  stays as strict as the specification: a `xml:space="Preserve"` would still fail.
+-->
+<xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema"
+            xmlns:xml="http://www.w3.org/XML/1998/namespace"
+            targetNamespace="http://www.w3.org/XML/1998/namespace"
+            elementFormDefault="qualified"
+            attributeFormDefault="unqualified">
+
+  <xsd:attribute name="space">
+    <xsd:simpleType>
+      <xsd:restriction base="xsd:NCName">
+        <xsd:enumeration value="default"/>
+        <xsd:enumeration value="preserve"/>
+      </xsd:restriction>
+    </xsd:simpleType>
+  </xsd:attribute>
+
+  <xsd:attribute name="lang" type="xsd:language"/>
+  <xsd:attribute name="base" type="xsd:anyURI"/>
+  <xsd:attribute name="id" type="xsd:ID"/>
+
+  <xsd:attributeGroup name="specialAttrs">
+    <xsd:attribute ref="xml:base"/>
+    <xsd:attribute ref="xml:lang"/>
+    <xsd:attribute ref="xml:space"/>
+    <xsd:attribute ref="xml:id"/>
+  </xsd:attributeGroup>
+
+</xsd:schema>

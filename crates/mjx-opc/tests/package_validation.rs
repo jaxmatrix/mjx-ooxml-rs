@@ -9,19 +9,11 @@
 //! can still be written back, and that validating changes nothing — are here too, because the cost of
 //! a validator that is too eager is a library that cannot round-trip a real file.
 
-use std::path::PathBuf;
-
+use mjx_fixtures::{fixture, package_fixtures};
 use mjx_opc::{OpcError, Package, PackageDefect, PartName, Relationship, TargetMode};
 
 fn part(name: &str) -> PartName {
     PartName::new(name).expect("valid part name")
-}
-
-fn fixture(name: &str) -> Vec<u8> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/fixtures")
-        .join(name);
-    std::fs::read(&path).unwrap_or_else(|e| panic!("reading fixture {}: {e}", path.display()))
 }
 
 /// The defect a save was refused for, or a panic naming what happened instead.
@@ -218,23 +210,15 @@ fn authored_bytes_that_are_not_well_formed_xml_are_refused() {
 /// Office files is worse than none.
 #[test]
 fn every_fixture_saves_clean() {
-    for name in [
-        "sample.pptx",
-        "sample.docx",
-        "sample.xlsx",
-        "vml.pptx",
-        "ole.pptx",
-        "activex.pptx",
-        "ink.pptx",
-        "text_levels.pptx",
-        "table_extensions.pptx",
-        "charts.pptx",
-        "tables.pptx",
-        "layouts.pptx",
-        "notes.pptx",
-        "hyperlinks.pptx",
-        "effects_theme.pptx",
-    ] {
+    // The corpus is the directory: a fixture added in any later phase is validated and saved here
+    // the moment it lands. The list that stood here held fifteen names and had to be edited by hand.
+    let fixtures = package_fixtures();
+    assert!(
+        fixtures.len() >= 15,
+        "the committed corpus is {} fixture(s); this suite over an empty corpus passes vacuously",
+        fixtures.len()
+    );
+    for name in &fixtures {
         let package = Package::open(&fixture(name)).unwrap_or_else(|e| panic!("{name}: open: {e}"));
         package
             .validate()

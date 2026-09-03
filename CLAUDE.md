@@ -30,6 +30,11 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   facade (`mjx-ooxml`) → bindings (`bindings/mjx-python`, `bindings/mjx-wasm`). Never introduce an
   upward or sideways dependency. **The bindings depend on `mjx-ooxml` alone** — never on a crate
   below it — and nothing depends on them.
+- **Two test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema and
+  child-order gate, a `dev-dependency` of the three format crates) and `mjx-fixtures` (the committed
+  corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can reach it
+  without an upward edge). Both are `publish = false` and no shipped crate depends on either. A test
+  suite reads its fixture corpus from `mjx-fixtures` — never from a `const FIXTURES` list.
 - **Pure-Rust only** in shipped crates — no C/system libs. C tools (`xmllint`, LibreOffice) are for
   CI/tests only. `quick-xml` lives *only* behind `mjx-xml`; the ZIP backend *only* behind `mjx-opc`.
   PyO3 and wasm-bindgen live *only* behind `bindings/`.
@@ -118,6 +123,11 @@ cargo build  --workspace
 cargo test   --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p xtask -- codegen        # regenerate mjx-ooxml-types from References/ (local only)
+
+# The ECMA-376 gate, one harness over all three formats. Skips without References/; MJX_REQUIRE_SCHEMA=1
+# turns any absence into a failure, which is what CI sets.
+MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --features vml --test schema_validity
+MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
 
 # Python binding (needs maturin, pytest, mypy — a virtualenv is enough)
 cd bindings/mjx-python && maturin develop && pytest && mypy --strict
