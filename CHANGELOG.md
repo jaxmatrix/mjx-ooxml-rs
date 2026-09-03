@@ -49,6 +49,44 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.81] - 2026-09-04
+
+The WordprocessingML block content model (MJXOFF-92): `mjx-docx` could open a `.docx` and name its
+parts (MJXOFF-90) but could not read a single word of one. This gives it `w:body`'s block content —
+paragraphs, runs, text and the rest of `EG_RunInnerContent`'s 33 members — the content spine every
+later Word child hangs off.
+
+### Added
+
+- **`mjx_docx::{Body, Paragraph, Run, Text, Hyperlink}`** and the two content enums that hold them
+  together — `BlockContent` (`EG_ContentBlockContent`, plus `w:sectPr`) and `ParagraphContent`
+  (`EG_PContent`). `Paragraph`/`Run`/`Hyperlink` are typed for real reach — a `w:hyperlink`'s own
+  runs stay reachable; `w:customXml`/`w:smartTag`/`w:sdt`/`w:dir`/`w:bdo`/`w:tbl` stay
+  `mjx_docx::Unmodeled` (opaque, unowned) until a later child claims one.
+- **`mjx_docx::RunInnerContent`** — all 33 `EG_RunInnerContent` members, every one with a variant now
+  (`Break`, `Text` reused for `t`/`delText`/`instrText`/`delInstrText`, `RelationshipReference`,
+  `Symbol`, `PositionalTab`, `PhoneticGuide` fully typed; the sixteen `CT_Empty`-based members and
+  seven later-child payloads — `w:fldChar` (MJXOFF-121), `w:object`/`w:pict`/`w:drawing`
+  (MJXOFF-131), `w:footnoteReference`/`w:endnoteReference`/`w:commentReference` — stay `Unmodeled`).
+  Adding a variant later would be a breaking change to an enum fifteen children depend on; a variant
+  whose payload is still `Unmodeled` is not.
+- **`mjx_docx::{BlockPath, RunPath}`** — the address of a paragraph and of a run, in
+  `crates/mjx-docx/src/address.rs`, mirroring `mjx_pptx::ShapePath`'s manners (a bare index for the
+  common case, an array/slice/`Vec` to descend a level) for WordprocessingML's own kind of nesting —
+  block containers for paragraphs, run containers (`w:hyperlink`, so far) for runs — rather than
+  `p:grpSp` groups.
+- **`Document::{paragraph_count, run_count, paragraph_text, run_text, set_run_text, insert_paragraph,
+  append_paragraph, remove_paragraph, insert_run, append_run, remove_run}`** — reading and editing
+  paragraphs and runs, each edit going through `ToXml::write_back` so only the touched subtree
+  re-serializes.
+- **The `xml:space` rule** for `w:t` (`Text::set_text`): writes `xml:space="preserve"` when the new
+  text starts or ends with ASCII whitespace, and removes the attribute otherwise — reading never
+  trims, regardless.
+- **`tests/fixtures/run_content.docx`** — a fixture carrying `w:br`, `w:tab`, `w:sym`, `w:cr`,
+  `w:noBreakHyphen`, `w:ptab`, `w:ruby`, a `w:t` with `xml:space="preserve"`, a `w:hyperlink`
+  wrapping two runs, and a `w:fldChar` (a run-inner element whose payload is still `Unmodeled`),
+  swept automatically into every byte-identity suite and the schema gate.
+
 ## [0.0.80] - 2026-09-04
 
 Document properties (MJXOFF-149): the programme held two contradictory positions on `docProps/*` —
