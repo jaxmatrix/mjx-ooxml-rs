@@ -206,7 +206,9 @@ jobs:
         run: cargo run -p mjx-pptx --features vml --example legacy_content
 
   # Prove the shipped library graph cross-compiles cleanly to mobile / wasm / desktop.
-  # xtask is a host-only dev tool (schema codegen), so it is excluded from cross builds.
+  # xtask is a host-only dev tool (schema codegen, and the fuzz campaign — MJXOFF-146), so it is
+  # excluded from cross builds. The campaign itself is deliberately on NO CI job: it has no natural
+  # end, and a run short enough for a push is a run that finds nothing. See CONTRIBUTING.md.
   cross-build:
     name: build ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
