@@ -68,7 +68,13 @@ fn reads_its_dimensions_from_the_grid_and_the_rows() {
         .grid()
         .expect("a grid")
         .columns()
-        .map(|column| column.width(&doc.interner).expect("a width").emu())
+        .map(|column| {
+            column
+                .width(&doc.interner)
+                .expect("a legal @w")
+                .expect("a width")
+                .emu()
+        })
         .collect();
     assert_eq!(widths, [3_048_000, 1_524_000]);
     assert_eq!(
@@ -76,6 +82,7 @@ fn reads_its_dimensions_from_the_grid_and_the_rows() {
             .row(0)
             .expect("row 0")
             .height(&doc.interner)
+            .expect("a legal @h")
             .expect("a height")
             .emu(),
         370_840
@@ -236,11 +243,39 @@ fn a_cells_borders_are_line_properties_and_read_per_edge() {
     let properties = table.cell(0, 0).expect("0,0").properties().expect("a:tcPr");
     let interner = &doc.interner;
 
-    assert_eq!(properties.left_margin(interner).expect("marL").emu(), 10);
-    assert_eq!(properties.right_margin(interner).expect("marR").emu(), 20);
-    assert_eq!(properties.top_margin(interner).expect("marT").emu(), 30);
-    assert_eq!(properties.bottom_margin(interner).expect("marB").emu(), 40);
-    assert_eq!(properties.anchor_centered(interner), Some(true));
+    assert_eq!(
+        properties
+            .left_margin(interner)
+            .expect("a legal @marL")
+            .expect("marL")
+            .emu(),
+        10
+    );
+    assert_eq!(
+        properties
+            .right_margin(interner)
+            .expect("a legal @marR")
+            .expect("marR")
+            .emu(),
+        20
+    );
+    assert_eq!(
+        properties
+            .top_margin(interner)
+            .expect("a legal @marT")
+            .expect("marT")
+            .emu(),
+        30
+    );
+    assert_eq!(
+        properties
+            .bottom_margin(interner)
+            .expect("a legal @marB")
+            .expect("marB")
+            .emu(),
+        40
+    );
+    assert_eq!(properties.anchor_centered(interner), Ok(Some(true)));
 
     let left = properties
         .border(interner, CellBorder::Left)
@@ -267,7 +302,7 @@ fn margins_have_non_zero_schema_defaults() {
         r#"<a:tr h="1"><a:tc><a:tcPr/></a:tc></a:tr>"#
     )));
     let properties = table.cell(0, 0).expect("0,0").properties().expect("a:tcPr");
-    assert_eq!(properties.left_margin(&doc.interner), None);
+    assert_eq!(properties.left_margin(&doc.interner), Ok(None));
     assert_eq!(TableCellProperties::DEFAULT_MARGIN_HORIZONTAL.emu(), 91_440);
     assert_eq!(TableCellProperties::DEFAULT_MARGIN_VERTICAL.emu(), 45_720);
 }
@@ -366,7 +401,7 @@ fn an_extension_list_on_a_cell_survives_an_edit_and_stays_last() {
         CellBorder::Left,
         Some(&LineSpec::default()),
     );
-    properties.set_anchor(&mut doc.interner, mjx_dml::TextAnchoring::Center);
+    properties.set_anchor(&mut doc.interner, Some(mjx_dml::TextAnchoring::Center));
 
     doc.root = table.to_xml(&mut doc.interner);
     let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
@@ -418,7 +453,14 @@ fn an_extension_list_on_the_table_properties_survives_an_edit_and_stays_last() {
         at("<a:tableStyleId>") < at("<a:extLst"),
         "the style reference goes in front of the extension list: {out}"
     );
-    assert!(out.contains(r#"bandRow="1""#), "{out}");
+    // A write has one canonical `ST_OnOff` spelling, and it is `true` — the same one every other
+    // boolean this crate writes uses. PowerPoint's own `1` is read, never re-emitted from a setter.
+    assert!(out.contains(r#"bandRow="true""#), "{out}");
+    // …and the `firstRow="1"` nobody assigned to still says `1`, in its own place.
+    assert!(
+        out.contains(r#"<a:tblPr firstRow="1" bandRow="true">"#),
+        "{out}"
+    );
 }
 
 #[test]
@@ -443,11 +485,11 @@ fn editing_a_width_leaves_the_rest_of_the_element_alone() {
         .expect("a grid")
         .column_mut(0)
         .expect("column 0")
-        .set_width(&mut doc.interner, mjx_dml::Emu::from_emu(999));
+        .set_width(&mut doc.interner, Some(mjx_dml::Emu::from_emu(999)));
     table
         .row_mut(0)
         .expect("row 0")
-        .set_height(&mut doc.interner, mjx_dml::Emu::from_emu(888));
+        .set_height(&mut doc.interner, Some(mjx_dml::Emu::from_emu(888)));
 
     doc.root = table.to_xml(&mut doc.interner);
     let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
@@ -710,7 +752,10 @@ fn setting_a_merge_leaves_the_cells_own_content_alone() {
     doc.root = table.to_xml(&mut doc.interner);
     let out = String::from_utf8(fidelity::serialize_to_vec(&doc)).expect("utf-8");
     assert!(out.contains(r#"gridSpan="2""#), "{out}");
-    assert!(out.contains(r#"vMerge="1""#), "{out}");
+    assert!(
+        out.contains(r#"vMerge="true""#),
+        "the one canonical spelling: {out}"
+    );
     assert!(!out.contains("hMerge"), "an unset flag is absent: {out}");
     // The merge attributes are the only change — the text, the properties and the id are untouched.
     assert!(out.contains("<a:t>kept</a:t>"), "{out}");
@@ -830,6 +875,7 @@ fn a_new_row_copies_its_neighbours_height() {
         .row(2)
         .expect("row 2")
         .height(&doc.interner)
+        .expect("a legal @h")
         .expect("a height");
     assert_eq!(height.emu(), 370_840);
 }
@@ -850,6 +896,7 @@ fn inserting_a_column_grows_the_grid_and_every_row_together() {
         .column(1)
         .expect("column 1")
         .width(&doc.interner)
+        .expect("a legal @w")
         .expect("a width");
     assert_eq!(width.emu(), 1_524_000);
     assert_eq!(
@@ -931,6 +978,7 @@ fn removing_the_anchor_column_promotes_the_next_cell_with_its_text() {
             .properties()
             .expect("a:tcPr")
             .anchor(interner)
+            .expect("a legal @anchor")
             .map(|a| a.to_wire()),
         Some("ctr"),
         "the anchor's a:tcPr came along"
@@ -1021,7 +1069,10 @@ fn a_cell_reports_its_id_and_header_associations() {
         r#"</a:tc></a:tr>"#
     )));
     let cell = table.cell(0, 0).expect("0,0");
-    assert_eq!(cell.id(&doc.interner), Some("dataA1"));
+    assert_eq!(
+        cell.id(&doc.interner).expect("a legal @id").as_deref(),
+        Some("dataA1")
+    );
     assert_eq!(
         cell.properties().expect("tcPr").headers(&doc.interner),
         vec!["hRegion".to_owned(), "hYear".to_owned()]
@@ -1098,7 +1149,10 @@ fn an_inline_table_style_is_reported() {
     let inline = properties
         .inline_style(&doc.interner)
         .expect("an inline style");
-    assert_eq!(inline.style_name(&doc.interner), Some("Inline Look"));
+    assert_eq!(
+        inline.style_name(&doc.interner).as_deref(),
+        Ok("Inline Look")
+    );
     assert!(inline
         .part(&doc.interner, mjx_dml::TableStylePart::WholeTable)
         .and_then(|p| p.cell_style(&doc.interner))
@@ -1126,7 +1180,10 @@ fn setting_an_inline_style_replaces_a_referenced_one() {
     let inline = properties
         .inline_style(&doc.interner)
         .expect("an inline style");
-    assert_eq!(inline.style_name(&doc.interner), Some("Inline Look"));
+    assert_eq!(
+        inline.style_name(&doc.interner).as_deref(),
+        Ok("Inline Look")
+    );
 
     // It serializes as `a:tableStyle`, not the `a:tblStyle` a shared style is.
     doc.root = table.to_xml(&mut doc.interner);

@@ -24,8 +24,11 @@
 use std::borrow::Cow;
 
 use mjx_dml::{
-    Color, EffectList, GradientFill, LineDash, LineProperties, LineWidth, PictureFill, Scene3D,
-    Shape3D, SolidFill, TextBody, TextBodyContent,
+    AdjustCoordinate, Bullet, BulletSize, CharacterProperties, Color, CustomGeometry, DrawCommand,
+    EffectList, Emu, FontSlot, GeometryGuide, GradientFill, LineDash, LineProperties, LineWidth,
+    ParagraphProperties, PathFillMode, PictureFill, PresetGeometry, Scene3D, Shape3D, SolidFill,
+    TabAlignment, Table, TablePart, TextAlignment, TextAnchoring, TextBody, TextBodyContent,
+    TextSpacing, TextUnderline, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_opc::{Package, PartName};
@@ -122,6 +125,7 @@ fn named_with_children(local: &'static str) -> impl Fn(&RawElement, &Interner) -
 
 const SAMPLE_SLIDE: &str = "/ppt/slides/slide1.xml";
 const THEME: &str = "/ppt/theme/theme1.xml";
+const SLIDE: &str = "/ppt/slides/slide1.xml";
 
 #[test]
 fn a_text_body_round_trips_byte_identical_in_context() {
@@ -205,6 +209,169 @@ fn a_3d_shape_round_trips_byte_identical_in_context() {
         assert_eq!(bevel.width.expect("w").emu(), 63_500);
         assert_eq!(bevel.height.expect("h").emu(), 25_400);
     });
+}
+
+// ---------------------------------------------------------------------------------------------
+// The composite tiers, out of real parts — and the nested assertion
+// ---------------------------------------------------------------------------------------------
+//
+// A table is the deepest nest this crate models: `a:tbl` → `a:tr` → `a:tc` → `a:tcPr` / `a:txBody`
+// → `a:p` → `a:r` → `a:rPr`. Every rung is a separate `to_xml`, so a cell's attributes can survive
+// a round trip *in isolation* and still lose their order when the cell is rebuilt as part of a row
+// rebuilt as part of a table. **These cases therefore assert at the outermost container**: the
+// element lifted out of the part is the `a:tbl`, and the whole part must come back byte-identical.
+
+#[test]
+fn a_table_round_trips_byte_identical_at_the_outermost_container() {
+    round_trips_in_context::<Table>("tables.pptx", SLIDE, named("tbl"), |table, i| {
+        // The structural closure is what discriminates: byte identity alone would be satisfied by a
+        // type that carried the table around opaquely and modelled none of it.
+        assert_eq!(table.row_count(), 3);
+        assert_eq!(table.column_count(), 3);
+        let properties = table.properties().expect("a:tblPr");
+        assert_eq!(properties.part(i, TablePart::FirstRow), Some(true));
+        assert_eq!(properties.part(i, TablePart::BandedRows), Some(true));
+        assert_eq!(properties.part(i, TablePart::LastRow), None);
+        let widths: Vec<i64> = table
+            .grid()
+            .expect("a:tblGrid")
+            .columns()
+            .map(|column| {
+                column
+                    .width(i)
+                    .expect("a legal @w")
+                    .expect("a stated width")
+                    .emu()
+            })
+            .collect();
+        assert_eq!(widths, [2_438_400, 2_438_400, 2_438_400]);
+        assert_eq!(
+            table
+                .row(0)
+                .expect("row 0")
+                .height(i)
+                .expect("a legal @h")
+                .expect("a stated height")
+                .emu(),
+            914_400
+        );
+        assert_eq!(table.cell(0, 0).expect("0,0").text(), "Region");
+        assert_eq!(table.cell(2, 2).expect("2,2").text(), "-3%");
+        assert_eq!(table.cell(0, 0).expect("0,0").column_span(i), 1);
+        assert!(!table.cell(0, 0).expect("0,0").is_covered_by_merge(i));
+    });
+}
+
+#[test]
+fn a_table_with_extension_lists_round_trips_byte_identical_at_the_outermost_container() {
+    // `table_extensions.pptx` carries an `a:extLst` on the table properties *and* on a cell's
+    // `a:tcPr` — the two places a rebuild of the nest would drop one.
+    round_trips_in_context::<Table>("table_extensions.pptx", SLIDE, named("tbl"), |table, i| {
+        let properties = table.properties().expect("a:tblPr");
+        assert!(
+            properties
+                .children()
+                .iter()
+                .any(|node| is_named(node, i, "extLst")),
+            "the table properties carry an extension list"
+        );
+        let cell = table.cell(0, 0).expect("0,0");
+        assert!(
+            cell.properties()
+                .expect("a:tcPr")
+                .children()
+                .iter()
+                .any(|node| is_named(node, i, "extLst")),
+            "the first cell's properties carry an extension list"
+        );
+    });
+}
+
+#[test]
+fn a_paragraphs_properties_round_trip_byte_identical_in_context() {
+    // The slide's *second* text body is the one with a level per paragraph; the title has one
+    // paragraph and no `@lvl` anywhere.
+    let has_five_paragraphs = |element: &RawElement, interner: &Interner| {
+        interner.resolve(element.name.local) == "txBody"
+            && element
+                .children
+                .iter()
+                .filter(|node| is_named(node, interner, "p"))
+                .count()
+                == 5
+    };
+    round_trips_in_context::<TextBody>(
+        "text_levels.pptx",
+        SLIDE,
+        has_five_paragraphs,
+        |body, i| {
+            let levels: Vec<u8> = body
+                .paragraphs()
+                .map(|paragraph| {
+                    paragraph
+                        .properties()
+                        .and_then(|properties| {
+                            properties
+                                .level(i)
+                                .expect("a legal @lvl")
+                                .map(|l| l.value())
+                        })
+                        .unwrap_or(0)
+                })
+                .collect();
+            assert_eq!(levels, [0, 1, 2, 3, 4]);
+        },
+    );
+}
+
+#[test]
+fn a_preset_geometry_round_trips_byte_identical_in_context() {
+    round_trips_in_context::<PresetGeometry>(
+        "text_levels.pptx",
+        SLIDE,
+        named("prstGeom"),
+        |geometry, i| {
+            assert_eq!(geometry.preset_token(i).expect("a legal @prst"), "rect");
+            assert!(geometry.adjust_values().is_some(), "an empty a:avLst");
+        },
+    );
+}
+
+#[test]
+fn a_transform_round_trips_byte_identical_in_context() {
+    // `Transform2D` is a *value* over an `a:xfrm`, not a fidelity type, so the round trip here is
+    // read-then-`apply`-back: every field it names is written onto the element it came from, in
+    // place, which must reproduce the bytes it read.
+    let package = Package::open(&mjx_fixtures::fixture("text_levels.pptx")).expect("opens");
+    let part = PartName::new(SLIDE).expect("a valid part name");
+    let original = package.part_bytes(&part).expect("slide1.xml").to_vec();
+
+    let mut document = fidelity::parse(&original).expect("the slide parses");
+    let RawDocument { interner, root, .. } = &mut document;
+    let slot = find_element_mut(root, &|element| {
+        interner.resolve(element.name.local) == "xfrm"
+    })
+    .expect("the slide has an a:xfrm");
+    let transform = Transform2D::read(slot, interner);
+    assert_eq!(transform.position.expect("a:off").x, Emu::from_emu(685_800));
+    assert_eq!(
+        transform.size.expect("a:ext").width,
+        Emu::from_emu(7_772_400)
+    );
+    assert_eq!(transform.rotation, None, "the shape states no rotation");
+    transform.apply(slot, interner);
+
+    assert_eq!(
+        String::from_utf8_lossy(&fidelity::serialize_to_vec(&document)),
+        String::from_utf8_lossy(&original),
+        "writing a transform's own values back moved a byte"
+    );
+}
+
+/// Whether `node` is an element with this local name.
+fn is_named(node: &RawNode, interner: &Interner, local: &str) -> bool {
+    matches!(node, RawNode::Element(element)
+        if interner.resolve(element.name.local) == local)
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -416,6 +583,342 @@ fn a_write_canonicalizes_only_what_it_wrote_and_moves_nothing() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The disagreeing corpus, composite tiers
+// ---------------------------------------------------------------------------------------------
+//
+// Same rules as above, aimed at what the composite tiers read. The text tier is the worst-served by
+// the fixtures: `a:rPr`'s `@b`, `@i`, `@u`, `@strike`, `@spc`, `@baseline`, `@lang` are an
+// `ST_OnOff`-and-measure thicket, and every fixture spells each of them the one way this project
+// would have written it, or not at all.
+
+/// `a:rPr` — an `ST_OnOff` in a spelling we never write on `@b` and `@i`, an unknown attribute
+/// *between* two modelled ones, single quotes throughout, a percentage baseline in the `%` form,
+/// a character reference inside `@lang` (a value a model reads), and a namespaced `r:id` on the
+/// nested `a:hlinkClick`.
+fn run_properties() -> Vec<u8> {
+    format!(
+        r#"<a:rPr xmlns:a="{A}" xmlns:r="{R}" xmlns:z="{Z}" sz='1800' b='on' z:note="between the known ones" i="off" u='dashHeavy' strike="sngStrike" cap='small' spc="-150" kern='1200' baseline='30%' lang="en&#x2D;GB"><a:solidFill><a:srgbClr val='FF0000'/></a:solidFill><a:latin typeface='Calibri' pitchFamily="34" charset='0'/><a:hlinkClick r:id="rId7" action='ppaction://hlinksldjump'/></a:rPr>"#
+    )
+    .into_bytes()
+}
+
+/// `a:pPr` — a level and margins in forms we never write, an unknown attribute between two
+/// modelled ones, `@rtl` in the `1` spelling, a `%`-spelled bullet size, and a tab stop.
+fn paragraph_properties() -> Vec<u8> {
+    format!(
+        r#"<a:pPr xmlns:a="{A}" xmlns:z="{Z}" marL='342900' z:note="between the known ones" indent="-342900" lvl='2' algn="just" defTabSz='914400' rtl="1" fontAlgn='base'><a:lnSpc><a:spcPct val='150%'/></a:lnSpc><a:spcBef><a:spcPts val="600"/></a:spcBef><a:buSzPct val='111%'/><a:buFont typeface="Wingdings" pitchFamily='2' charset="2"/><a:buChar char='&#x00A7;'/><a:tabLst><a:tab pos="457200" algn='ctr'/></a:tabLst></a:pPr>"#
+    )
+    .into_bytes()
+}
+
+/// `a:tbl` — the nested case in disagreeing form: `@gridSpan` and `@hMerge` spelled the ways we
+/// never write, an unknown attribute *between* two modelled ones on a cell, single-quoted cell
+/// margins, and an `a:extLst` inside a `a:tcPr`.
+fn table() -> Vec<u8> {
+    format!(
+        r#"<a:tbl xmlns:a="{A}" xmlns:z="{Z}"><a:tblPr firstRow='1' z:note="between the known ones" bandRow="on" rtl='0'/><a:tblGrid><a:gridCol w='2438400'/><a:gridCol w="2438400"/></a:tblGrid><a:tr h='914400'><a:tc id="c1" gridSpan='2' z:note="between the known ones" rowSpan="1"><a:txBody><a:bodyPr/><a:p><a:r><a:rPr b='on'/><a:t>Merged</a:t></a:r></a:p></a:txBody><a:tcPr marL='91440' marR="45720" anchor='ctr' anchorCtr="off" horzOverflow='clip'><a:extLst><a:ext uri="{{TAG}}"><z:tag keep='1'/></a:ext></a:extLst></a:tcPr></a:tc><a:tc hMerge="on"><a:txBody><a:bodyPr/><a:p/></a:txBody><a:tcPr/></a:tc></a:tr></a:tbl>"#
+    )
+    .into_bytes()
+}
+
+/// `a:custGeom` — a path whose flags are spelled the ways we never write, guide references beside
+/// literals in the same `ST_AdjCoordinate` position, an unknown attribute between two modelled ones
+/// on the `a:path`, and a character reference in an `a:gd@fmla` this model reads.
+fn custom_geometry() -> Vec<u8> {
+    format!(
+        r#"<a:custGeom xmlns:a="{A}" xmlns:z="{Z}"><a:avLst><a:gd name='adj' fmla="val 25000"/></a:avLst><a:gdLst><a:gd name="hc" fmla='*/ w 1 &#x32;'/></a:gdLst><a:ahLst><a:ahXY gdRefX='adj' minX="0" maxX='50000'><a:pos x='hc' y="33"/></a:ahXY></a:ahLst><a:cxnLst><a:cxn ang='0'><a:pos x="hc" y='0'/></a:cxn></a:cxnLst><a:rect l='10' t="20" r='hc' b="40"/><a:pathLst><a:path w='200' z:note="between the known ones" h="100" fill='lighten' stroke="0" extrusionOk='on'><a:moveTo><a:pt x='11' y="22"/></a:moveTo><a:arcTo wR='hc' hR="50" stAng='0' swAng="5400000"/><a:close/></a:path></a:pathLst></a:custGeom>"#
+    )
+    .into_bytes()
+}
+
+/// `a:xfrm` — a rotation and both mirror flags in spellings we never write, with an unknown
+/// attribute between two modelled ones and single-quoted child coordinates.
+fn transform() -> Vec<u8> {
+    format!(
+        r#"<a:xfrm xmlns:a="{A}" xmlns:z="{Z}" rot='2700000' z:note="between the known ones" flipH="1" flipV='off'><a:off x='914400' y="914400"/><a:ext cx="3657600" cy='1828800'/></a:xfrm>"#
+    )
+    .into_bytes()
+}
+
+#[test]
+fn run_properties_written_in_forms_we_never_emit_survive_byte_for_byte() {
+    round_trips_in_document::<CharacterProperties>(
+        &run_properties(),
+        named("rPr"),
+        |properties, i| {
+            assert_eq!(
+                properties.size(i).expect("a legal @sz").map(|s| s.points()),
+                Some(18.0)
+            );
+            assert_eq!(properties.is_bold(i), Ok(Some(true)), "`on` is true");
+            assert_eq!(properties.is_italic(i), Ok(Some(false)), "`off` is false");
+            assert_eq!(
+                properties.underline(i),
+                Ok(Some(TextUnderline::HeavyDashed)),
+                "a single-quoted enumeration reads like a double-quoted one"
+            );
+            assert_eq!(
+                properties
+                    .spacing(i)
+                    .expect("a legal @spc")
+                    .map(|s| s.points()),
+                Some(-1.5)
+            );
+            assert_eq!(
+                properties
+                    .kerning(i)
+                    .expect("a legal @kern")
+                    .map(|k| k.points()),
+                Some(12.0)
+            );
+            let baseline = properties
+                .baseline(i)
+                .expect("a legal @baseline")
+                .expect("stated");
+            assert!(
+                (baseline.ratio() - 0.3).abs() < 1e-9,
+                "`30%` is the `%` spelling of 30 %"
+            );
+            assert_eq!(
+                properties.language(i).expect("a legal @lang").as_deref(),
+                Some("en-GB"),
+                "the character reference is decoded on the way in"
+            );
+            assert_eq!(properties.hyperlink_rel_id(i).as_deref(), Some("rId7"));
+            assert_eq!(
+                properties.hyperlink_action(i).as_deref(),
+                Some("ppaction://hlinksldjump")
+            );
+            let font = properties.font(i, FontSlot::Latin).expect("a:latin");
+            assert_eq!(font.typeface, "Calibri");
+            assert_eq!(font.pitch_family, Some(34));
+            assert_eq!(font.charset, Some(0));
+        },
+    );
+    assert!(
+        String::from_utf8_lossy(&run_properties()).contains("en&#x2D;GB"),
+        "the fixture stopped carrying the character reference this case is about"
+    );
+}
+
+#[test]
+fn paragraph_properties_written_in_forms_we_never_emit_survive_byte_for_byte() {
+    round_trips_in_document::<ParagraphProperties>(
+        &paragraph_properties(),
+        named("pPr"),
+        |properties, i| {
+            assert_eq!(
+                properties
+                    .level(i)
+                    .expect("a legal @lvl")
+                    .map(|l| l.value()),
+                Some(2)
+            );
+            assert_eq!(properties.alignment(i), Ok(Some(TextAlignment::Justified)));
+            assert_eq!(
+                properties.left_margin(i),
+                Ok(Some(Emu::from_emu(342_900))),
+                "a single-quoted measure reads like a double-quoted one"
+            );
+            assert_eq!(properties.indent(i), Ok(Some(Emu::from_emu(-342_900))));
+            assert_eq!(
+                properties.is_right_to_left(i),
+                Ok(Some(true)),
+                "`1` is true"
+            );
+            let Some(TextSpacing::Percentage(line)) = properties.line_spacing(i) else {
+                panic!("a percentage line spacing")
+            };
+            assert!(
+                (line.ratio() - 1.5).abs() < 1e-9,
+                "`150%` is the `%` spelling"
+            );
+            let Some(TextSpacing::Points(before)) = properties.space_before(i) else {
+                panic!("a point-valued space before")
+            };
+            assert!((before.points() - 6.0).abs() < 1e-9);
+            let Some(BulletSize::Percentage(size)) = properties.bullet_size(i) else {
+                panic!("a percentage bullet size")
+            };
+            assert!((size.ratio() - 1.11).abs() < 1e-9, "`111%`");
+            assert!(
+                matches!(properties.bullet(i), Some(Bullet::Character(_))),
+                "a character bullet given by reference"
+            );
+            let stops = properties.tab_stops(i);
+            assert_eq!(stops.len(), 1);
+            assert_eq!(stops[0].position, Emu::from_emu(457_200));
+            assert_eq!(stops[0].alignment, Some(TabAlignment::Center));
+        },
+    );
+}
+
+#[test]
+fn a_table_written_in_forms_we_never_emit_survives_byte_for_byte_at_the_outermost_container() {
+    round_trips_in_document::<Table>(&table(), named("tbl"), |table, i| {
+        let properties = table.properties().expect("a:tblPr");
+        assert_eq!(properties.part(i, TablePart::FirstRow), Some(true));
+        assert_eq!(
+            properties.part(i, TablePart::BandedRows),
+            Some(true),
+            "`on` is true"
+        );
+        assert_eq!(
+            properties.part(i, TablePart::RightToLeft),
+            Some(false),
+            "`0` is false, and is not the same as unstated"
+        );
+        let anchor = table.cell(0, 0).expect("0,0");
+        assert_eq!(anchor.column_span(i), 2, "a single-quoted span");
+        assert!(!anchor.is_covered_by_merge(i), "the anchor is not covered");
+        assert_eq!(
+            anchor.id(i).expect("a legal @id").as_deref(),
+            Some("c1"),
+            "the id sits in front of the unknown attribute"
+        );
+        let cell_properties = anchor.properties().expect("a:tcPr");
+        // Two *different* margins, asserted apart: a pair of equal ones cannot tell a reader that
+        // swaps `@marL` and `@marR` from one that does not.
+        assert_eq!(
+            cell_properties.left_margin(i),
+            Ok(Some(Emu::from_emu(91_440)))
+        );
+        assert_eq!(
+            cell_properties.right_margin(i),
+            Ok(Some(Emu::from_emu(45_720)))
+        );
+        assert_eq!(cell_properties.anchor(i), Ok(Some(TextAnchoring::Center)));
+        assert_eq!(
+            cell_properties.anchor_centered(i),
+            Ok(Some(false)),
+            "`off` is false"
+        );
+        assert!(
+            table.cell(0, 1).expect("0,1").merged_horizontally(i),
+            "`on` is true"
+        );
+    });
+}
+
+#[test]
+fn a_custom_geometry_written_in_forms_we_never_emit_survives_byte_for_byte() {
+    round_trips_in_document::<CustomGeometry>(
+        &custom_geometry(),
+        named("custGeom"),
+        |geometry, i| {
+            let adjust_values = geometry.adjust_values(i);
+            assert_eq!(adjust_values.len(), 1);
+            assert_eq!(adjust_values[0].formula, "val 25000");
+            let guides = geometry.guides(i);
+            assert_eq!(
+                guides[0].formula, "*/ w 1 2",
+                "the character reference is decoded on the way in"
+            );
+            let paths = geometry.paths(i);
+            assert_eq!(paths.len(), 1);
+            assert_eq!(paths[0].width, Some(Emu::from_emu(200)));
+            assert_eq!(paths[0].fill, Some(PathFillMode::Lighten));
+            assert_eq!(paths[0].stroke, Some(false), "`0` is false");
+            assert_eq!(paths[0].extrusion_ok, Some(true), "`on` is true");
+            // An `ST_AdjCoordinate` is a length *or* a guide name, and the arc carries one of each.
+            let DrawCommand::ArcTo {
+                width_radius,
+                height_radius,
+                ..
+            } = &paths[0].commands[1]
+            else {
+                panic!("expected an arc")
+            };
+            assert_eq!(*width_radius, AdjustCoordinate::Guide("hc".to_owned()));
+            assert_eq!(*height_radius, AdjustCoordinate::Emu(Emu::from_emu(50)));
+            // Every edge is a different number, so a reader that swapped two of them is seen.
+            let rectangle = geometry.text_rectangle(i).expect("a:rect");
+            assert_eq!(rectangle.left, AdjustCoordinate::Emu(Emu::from_emu(10)));
+            assert_eq!(rectangle.top, AdjustCoordinate::Emu(Emu::from_emu(20)));
+            assert_eq!(rectangle.right, AdjustCoordinate::Guide("hc".to_owned()));
+            assert_eq!(rectangle.bottom, AdjustCoordinate::Emu(Emu::from_emu(40)));
+            // …and so is each coordinate of every point, for the same reason.
+            let DrawCommand::MoveTo(start) = &paths[0].commands[0] else {
+                panic!("expected a move")
+            };
+            assert_eq!(start.x, AdjustCoordinate::Emu(Emu::from_emu(11)));
+            assert_eq!(start.y, AdjustCoordinate::Emu(Emu::from_emu(22)));
+            assert_eq!(geometry.connection_sites(i).len(), 1);
+            let handles = geometry.adjust_handles(i);
+            assert_eq!(handles.len(), 1);
+            let mjx_dml::AdjustHandle::Xy {
+                position,
+                guide_ref_x,
+                min_x,
+                max_x,
+                ..
+            } = &handles[0]
+            else {
+                panic!("expected a Cartesian handle")
+            };
+            assert_eq!(position.x, AdjustCoordinate::Guide("hc".to_owned()));
+            assert_eq!(position.y, AdjustCoordinate::Emu(Emu::from_emu(33)));
+            assert_eq!(guide_ref_x.as_deref(), Some("adj"));
+            assert_eq!(*min_x, Some(AdjustCoordinate::Emu(Emu::from_emu(0))));
+            assert_eq!(*max_x, Some(AdjustCoordinate::Emu(Emu::from_emu(50_000))));
+        },
+    );
+}
+
+#[test]
+fn a_transform_written_in_forms_we_never_emit_survives_byte_for_byte() {
+    let markup = transform();
+    let mut document = fidelity::parse(&markup).expect("the markup is well-formed");
+    let RawDocument { interner, root, .. } = &mut document;
+    let read = Transform2D::read(root, interner);
+    assert_eq!(read.flip_horizontal, Some(true), "`1` is true");
+    assert_eq!(read.flip_vertical, Some(false), "`off` is false");
+    assert!((read.rotation.expect("@rot").degrees() - 45.0).abs() < 1e-9);
+    assert_eq!(read.position.expect("a:off").x, Emu::from_emu(914_400));
+    assert_eq!(read.size.expect("a:ext").height, Emu::from_emu(1_828_800));
+    // `apply` is a **write**, and a write canonicalizes: the two `ST_OnOff`s the transform names
+    // come back in the one spelling this project emits. Everything else is untouched — each
+    // attribute keeps its position and its quote character, the unknown one included, and `@rot`
+    // stays single-quoted because it was.
+    read.apply(root, interner);
+    let out = fidelity::serialize_to_vec(&document);
+    let out = String::from_utf8_lossy(&out);
+    assert!(
+        out.contains(r#"rot='2700000' z:note="between the known ones" flipH="true" flipV='false'"#),
+        "a write moved an attribute, changed a quote, or did not canonicalize: {out}"
+    );
+    assert!(
+        out.contains(r#"<a:off x='914400' y="914400"/><a:ext cx="3657600" cy='1828800'/>"#),
+        "the children were rewritten in place, keeping their own quoting: {out}"
+    );
+}
+
+#[test]
+fn a_guide_reads_its_pair_and_a_rewritten_formula_moves_nothing_else() {
+    let markup = format!(
+        r#"<a:gd xmlns:a="{A}" xmlns:z="{Z}" name='adj1' z:note="between the known ones" fmla="val 2&#x35;000"/>"#
+    )
+    .into_bytes();
+    let mut document = fidelity::parse(&markup).expect("well-formed");
+    let RawDocument { interner, root, .. } = &mut document;
+    let mut guide = GeometryGuide::from_xml(root, interner).expect("from_xml");
+    assert_eq!(guide.name(interner).expect("a legal @name"), "adj1");
+    assert_eq!(
+        guide.formula(interner).expect("a legal @fmla"),
+        "val 25000",
+        "the character reference is decoded on the way in"
+    );
+    guide.set_formula(interner, "val 50000");
+    *root = guide.to_xml(interner);
+    let out = fidelity::serialize_to_vec(&document);
+    let out = String::from_utf8_lossy(&out);
+    assert!(
+        out.contains(r#"name='adj1' z:note="between the known ones" fmla="val 50000""#),
+        "the rewritten formula stayed where it was, and nothing else moved: {out}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
 // Tier 3 — edit isolation
 // ---------------------------------------------------------------------------------------------
 
@@ -485,4 +988,42 @@ fn editing_one_part_leaves_every_other_part_byte_identical() {
     }
     // …and the edit really happened.
     assert!(String::from_utf8_lossy(&edited).contains(r#"prstMaterial="metal""#));
+}
+
+#[test]
+fn editing_one_cell_leaves_every_other_cell_row_and_attribute_byte_identical() {
+    // Tier 3 at the depth this child is about. The edit is one attribute of one cell, three rungs
+    // down (`a:tbl` → `a:tr` → `a:tc` → `a:tcPr`), and it is made through a `Table` that rebuilds
+    // *every* row and cell on the way out. What must not move: the other eight cells, the other two
+    // rows, the grid, the table properties, and — inside the edited cell's own `a:tcPr` — the
+    // unknown attribute that sits in front of the one being written.
+    let markup = format!(
+        r#"<a:tbl xmlns:a="{A}" xmlns:z="{Z}"><a:tblPr firstRow='1'/><a:tblGrid><a:gridCol w='1'/><a:gridCol w="2"/></a:tblGrid><a:tr h='3'><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>a</a:t></a:r></a:p></a:txBody><a:tcPr z:note="in front of marL" marL='1' anchor="t"/></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>b</a:t></a:r></a:p></a:txBody><a:tcPr marL='9'/></a:tc></a:tr><a:tr h="4"><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>c</a:t></a:r></a:p></a:txBody><a:tcPr marL='9'/></a:tc><a:tc><a:txBody><a:bodyPr/><a:p><a:r><a:t>d</a:t></a:r></a:p></a:txBody><a:tcPr marL='9'/></a:tc></a:tr></a:tbl>"#
+    )
+    .into_bytes();
+
+    let mut document = fidelity::parse(&markup).expect("the markup is well-formed");
+    let RawDocument { interner, root, .. } = &mut document;
+    let mut table = Table::from_xml(root, interner).expect("from_xml");
+    table
+        .cell_mut(0, 0)
+        .expect("0,0")
+        .properties_mut()
+        .expect("a:tcPr")
+        .set_margins(interner, Some(Emu::from_emu(7)), None, None, None);
+    *root = table.to_xml(interner);
+    let edited = fidelity::serialize_to_vec(&document);
+    let edited = String::from_utf8_lossy(&edited);
+
+    // Exactly one attribute value differs from the source, and it differs where it stood.
+    let expected = String::from_utf8_lossy(&markup).replacen(
+        r#"<a:tcPr z:note="in front of marL" marL='1' anchor="t"/>"#,
+        r#"<a:tcPr z:note="in front of marL" marL='7' anchor="t"/>"#,
+        1,
+    );
+    assert_ne!(expected, String::from_utf8_lossy(&markup));
+    assert_eq!(
+        edited, expected,
+        "an edit three rungs down moved something it did not write"
+    );
 }

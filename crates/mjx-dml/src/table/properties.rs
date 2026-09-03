@@ -2,13 +2,12 @@
 //! table's own fill and effects.
 
 use mjx_ooxml_core::{FromXml as _, Interner, RawAttribute, RawName, RawNode, ToXml as _};
+use mjx_ooxml_types::support::OnOff;
 
 use super::style::TableStyle;
 use mjx_ooxml_types::child_order::TABLE_PROPERTIES;
 
-use crate::build::{
-    attr_bool, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child, set_attr,
-};
+use crate::build::{dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child};
 use crate::effect::EffectList;
 use crate::fill::Fill;
 
@@ -71,7 +70,19 @@ impl TablePart {
 /// A fidelity wrapper: the flags and the fill/effect children are exposed typed, while the style
 /// choice (`a:tableStyle` / `a:tableStyleId`), `extLst` and anything unknown are preserved opaque.
 /// Every flag defaults to `false`, so an unstated one is off.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The seven flags are declared here and reached through [`part`](Self::part) /
+/// [`set_part`](Self::set_part), which take a [`TablePart`]: one method over seven attributes reads
+/// better than seven near-identical ones, and a caller that wants to copy the whole set can iterate
+/// [`TablePart::all`].
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "rtl", codec = OnOff, accessor = right_to_left))]
+#[xml(attribute(local = "firstRow", codec = OnOff, accessor = first_row))]
+#[xml(attribute(local = "firstCol", codec = OnOff, accessor = first_column))]
+#[xml(attribute(local = "lastRow", codec = OnOff, accessor = last_row))]
+#[xml(attribute(local = "lastCol", codec = OnOff, accessor = last_column))]
+#[xml(attribute(local = "bandRow", codec = OnOff, accessor = banded_rows))]
+#[xml(attribute(local = "bandCol", codec = OnOff, accessor = banded_columns))]
 pub struct TableProperties {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -86,9 +97,23 @@ impl TableProperties {
     ///
     /// Unstated and `false` render identically — the schema default is `false` — but they are
     /// reported apart, because a writer should not add attributes a file never had.
+    ///
+    /// A value that is not an `ST_OnOff` is reported the same way an absent one is: a flag this
+    /// model cannot read is a flag the table does not state, and the attribute round-trips verbatim
+    /// either way.
     #[must_use]
     pub fn part(&self, interner: &Interner, part: TablePart) -> Option<bool> {
-        attr_bool(&self.attributes, interner, part.wire())
+        match part {
+            TablePart::FirstRow => self.first_row(interner),
+            TablePart::FirstColumn => self.first_column(interner),
+            TablePart::LastRow => self.last_row(interner),
+            TablePart::LastColumn => self.last_column(interner),
+            TablePart::BandedRows => self.banded_rows(interner),
+            TablePart::BandedColumns => self.banded_columns(interner),
+            TablePart::RightToLeft => self.right_to_left(interner),
+        }
+        .ok()
+        .flatten()
     }
 
     /// Whether the table has `part` **in effect** — the flag if stated, else the schema default.
@@ -97,16 +122,20 @@ impl TableProperties {
         self.part(interner, part).unwrap_or(false)
     }
 
-    /// Turns `part` on or off. `false` **removes** the flag rather than writing `firstRow="0"`: the
-    /// schema default is already false, so "off" is the absence of a claim.
+    /// Turns `part` on or off. `false` **removes** the flag rather than writing `firstRow="false"`:
+    /// the schema default is already false, so "off" is the absence of a claim.
+    ///
+    /// `true` writes the one canonical `ST_OnOff` spelling this project emits, which is `true`.
     pub fn set_part(&mut self, interner: &mut Interner, part: TablePart, on: bool) {
-        if on {
-            set_attr(&mut self.attributes, interner, part.wire(), "1");
-        } else {
-            self.attributes.retain(|attribute| {
-                attribute.name.prefix.is_some()
-                    || interner.resolve(attribute.name.local) != part.wire()
-            });
+        let on = on.then_some(true);
+        match part {
+            TablePart::FirstRow => self.set_first_row(interner, on),
+            TablePart::FirstColumn => self.set_first_column(interner, on),
+            TablePart::LastRow => self.set_last_row(interner, on),
+            TablePart::LastColumn => self.set_last_column(interner, on),
+            TablePart::BandedRows => self.set_banded_rows(interner, on),
+            TablePart::BandedColumns => self.set_banded_columns(interner, on),
+            TablePart::RightToLeft => self.set_right_to_left(interner, on),
         }
     }
 
@@ -200,7 +229,10 @@ impl TableProperties {
     }
 
     /// Sets an attribute, rewriting it in place when already present.
+    ///
+    /// The untyped escape hatch: `local` and `value` are whatever the caller says, so this reaches
+    /// the attributes `CT_TableProperties` carries that this model does not name.
     pub fn set_attribute(&mut self, interner: &mut Interner, local: &str, value: &str) {
-        set_attr(&mut self.attributes, interner, local, value);
+        mjx_xml::attribute::set(&mut self.attributes, interner, None, local, value);
     }
 }

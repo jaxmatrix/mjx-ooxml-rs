@@ -65,13 +65,13 @@ fn resolves_the_default_and_a_style_by_id() {
     let interner = &doc.interner;
 
     let guid = "{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}";
-    assert_eq!(list.default_style_id(interner), Some(guid));
+    assert_eq!(list.default_style_id(interner).as_deref(), Ok(guid));
     assert_eq!(list.styles(interner).len(), 1);
 
     let style = list.style(interner, guid).expect("the style resolves");
     assert_eq!(
-        style.style_name(interner),
-        Some("Medium Style 2 - Accent 1")
+        style.style_name(interner).as_deref(),
+        Ok("Medium Style 2 - Accent 1")
     );
     assert!(
         list.style(interner, "{00000000-0000-0000-0000-000000000000}")
@@ -142,7 +142,7 @@ fn the_header_row_states_bold_and_a_colour_and_the_whole_table_defaults() {
     assert_eq!(
         whole_text
             .font_reference(interner)
-            .and_then(|f| f.index(interner)),
+            .and_then(|f| f.index(interner).ok().flatten()),
         Some(FontCollectionIndex::Minor),
         "the whole-table text names the minor theme font"
     );
@@ -160,7 +160,13 @@ fn a_cell_3d_reports_its_material_and_keeps_its_bevel() {
 
     let cell_3d = header_cell.cell_3d(interner).expect("cell3D");
     // The material reads both raw and typed.
-    assert_eq!(cell_3d.preset_material(interner), Some("matte"));
+    assert_eq!(
+        cell_3d
+            .preset_material(interner)
+            .expect("a legal @prstMaterial")
+            .as_deref(),
+        Some("matte")
+    );
     assert_eq!(cell_3d.material(interner), Some(PresetMaterial::Matte));
     // The bevel is decomposed into the typed 3-D model; the fixture states only its size.
     assert_eq!(
@@ -279,9 +285,9 @@ fn a_style_can_be_authored_from_parts_and_read_back() {
     let element = list.to_xml(&mut interner);
     let reparsed = TableStyleList::from_xml(&element, &interner).expect("re-parse");
 
-    assert_eq!(reparsed.default_style_id(&interner), Some(GUID));
+    assert_eq!(reparsed.default_style_id(&interner).as_deref(), Ok(GUID));
     let read = reparsed.style(&interner, GUID).expect("the authored style");
-    assert_eq!(read.style_name(&interner), Some("Authored"));
+    assert_eq!(read.style_name(&interner).as_deref(), Ok("Authored"));
 
     let header = read
         .part(&interner, TableStylePart::FirstRow)
@@ -320,7 +326,7 @@ fn authoring_the_same_style_id_twice_updates_it() {
     assert_eq!(list.styles(&interner).len(), 1, "not duplicated");
     assert_eq!(
         list.style(&interner, GUID)
-            .and_then(|s| s.style_name(&interner).map(str::to_owned)),
+            .and_then(|s| s.style_name(&interner).ok().map(|name| name.into_owned())),
         Some("Second".to_owned()),
         "the later authoring won"
     );

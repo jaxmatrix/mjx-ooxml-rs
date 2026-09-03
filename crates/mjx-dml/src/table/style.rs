@@ -22,8 +22,11 @@
 //!
 //! [`a:tcPr`]: super::TableCellProperties
 
+use std::borrow::Cow;
+
 use mjx_ooxml_core::{
-    FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
+    AttributeError, Enumeration, FromXml as _, Interner, RawAttribute, RawElement, RawName,
+    RawNode, Text, ToXml as _,
 };
 
 use super::properties::{TablePart, TableProperties};
@@ -33,9 +36,20 @@ use mjx_ooxml_types::child_order::{
 };
 
 use crate::build::{
-    attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child,
-    is_dml, set_attr,
+    dml_child, dml_element, dml_name, fidelity_element_impls, first_fill_child, is_dml,
 };
+
+/// `a:tcTxStyle`'s two tri-state flags (`@b` / `@i`, `ST_OnOffStyleType`).
+///
+/// A face of their own rather than a declaration on [`TableStyleTextStyle`], because the public
+/// pair maps the wire's third state onto the *absence* of the attribute: `def` is the schema
+/// default, so [`OnOffStyle::Default`] reads from an absent attribute and writes by removing one.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "b", codec = Enumeration<OnOffStyle>, accessor = bold))]
+#[xml(attribute(local = "i", codec = Enumeration<OnOffStyle>, accessor = italic))]
+struct TextStyleAttributes<A> {
+    attributes: A,
+}
 use crate::color::{Color, ColorSpec};
 use crate::effect::EffectList;
 use crate::fill::{Fill, FillSpec};
@@ -64,7 +78,8 @@ fn first_color(children: &[RawNode], interner: &Interner) -> Option<Color> {
 
 /// `a:tblStyleLst` (`CT_TableStyleList`) — every table style a presentation defines, and which is the
 /// default.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "def", codec = Text, accessor = default_style_id, required))]
 pub struct TableStyleList {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -75,13 +90,6 @@ pub struct TableStyleList {
 fidelity_element_impls!(TableStyleList);
 
 impl TableStyleList {
-    /// The GUID of the default style (`@def`) — the one a table with no `a:tableStyleId` of its own
-    /// takes.
-    #[must_use]
-    pub fn default_style_id<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "def")
-    }
-
     /// Every style the list defines, in order.
     #[must_use]
     pub fn styles(&self, interner: &Interner) -> Vec<TableStyle> {
@@ -105,7 +113,7 @@ impl TableStyleList {
     pub fn style(&self, interner: &Interner, style_id: &str) -> Option<TableStyle> {
         self.styles(interner)
             .into_iter()
-            .find(|style| style.style_id(interner) == Some(style_id))
+            .find(|style| matches!(style.style_id(interner), Ok(id) if id == style_id))
     }
 
     /// The list's children, verbatim.
@@ -122,7 +130,9 @@ impl TableStyleList {
 
 /// `a:tblStyle` (`CT_TableStyle`) — one named table style: its identity and the formatting it gives
 /// each part of a table.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "styleId", codec = Text, accessor = style_id, required))]
+#[xml(attribute(local = "styleName", codec = Text, accessor = style_name, required))]
 pub struct TableStyle {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -133,18 +143,6 @@ pub struct TableStyle {
 fidelity_element_impls!(TableStyle);
 
 impl TableStyle {
-    /// The style's GUID (`@styleId`) — what a table's `a:tableStyleId` names.
-    #[must_use]
-    pub fn style_id<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "styleId")
-    }
-
-    /// The style's human-readable name (`@styleName`), as shown in a designer's style gallery.
-    #[must_use]
-    pub fn style_name<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "styleName")
-    }
-
     /// The formatting the style gives `part` of a table (`a:wholeTbl`, `a:firstRow`, …), or `None` if
     /// it leaves that part unstyled.
     #[must_use]
@@ -427,17 +425,20 @@ impl TableStyleTextStyle {
     /// [`Default`]: OnOffStyle::Default
     #[must_use]
     pub fn bold(&self, interner: &Interner) -> OnOffStyle {
-        attr_str(&self.attributes, interner, "b")
-            .and_then(OnOffStyle::from_wire)
-            .unwrap_or(OnOffStyle::Default)
+        or_default(self.on_off_face().bold(interner))
+    }
+
+    /// This style's `@b` / `@i` face, borrowed.
+    fn on_off_face(&self) -> TextStyleAttributes<&[RawAttribute]> {
+        TextStyleAttributes {
+            attributes: &self.attributes,
+        }
     }
 
     /// The style's take on **italic** (`@i`); see [`bold`](Self::bold).
     #[must_use]
     pub fn italic(&self, interner: &Interner) -> OnOffStyle {
-        attr_str(&self.attributes, interner, "i")
-            .and_then(OnOffStyle::from_wire)
-            .unwrap_or(OnOffStyle::Default)
+        or_default(self.on_off_face().italic(interner))
     }
 
     /// The text colour (`EG_ColorChoice`), or `None` if the style leaves it to be inherited.
@@ -707,7 +708,8 @@ impl TableBackgroundStyle {
 
 /// `a:fontRef` (`CT_FontReference`) — a reference to one of the theme's font slots, optionally
 /// tinted.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "idx", codec = Enumeration<FontCollectionIndex>, accessor = index))]
 pub struct FontReference {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -718,13 +720,6 @@ pub struct FontReference {
 fidelity_element_impls!(FontReference);
 
 impl FontReference {
-    /// Which theme font slot this names (`@idx`: `major` / `minor` / `none`), or `None` if unstated
-    /// or unrecognised.
-    #[must_use]
-    pub fn index(&self, interner: &Interner) -> Option<FontCollectionIndex> {
-        attr_str(&self.attributes, interner, "idx").and_then(FontCollectionIndex::from_wire)
-    }
-
     /// The tint applied to the referenced font (`EG_ColorChoice`), or `None`.
     #[must_use]
     pub fn color(&self, interner: &Interner) -> Option<Color> {
@@ -738,7 +733,11 @@ impl FontReference {
 /// typed (reusing the DrawingML 3-D model in [`crate::shape3d`]); any `a:extLst` stays opaque and
 /// re-emits verbatim, so the element round-trips byte-for-byte. Unlike `a:sp3d`, a cell carries a
 /// single `a:bevel` (not a top and bottom), which the schema requires.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `@prstMaterial` is declared as [`Text`], so that both readings of the same bytes are available:
+/// the typed [`material`](Self::material) and the raw [`preset_material`](Self::preset_material).
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "prstMaterial", codec = Text, accessor = preset_material))]
 pub struct Cell3D {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -755,17 +754,11 @@ impl Cell3D {
     /// [`preset_material`](Self::preset_material) only to see a non-conforming raw token.
     #[must_use]
     pub fn material(&self, interner: &Interner) -> Option<PresetMaterial> {
-        attr_str(&self.attributes, interner, "prstMaterial").and_then(PresetMaterial::from_wire)
-    }
-
-    /// The `@prstMaterial` attribute as its raw wire token (schema default `plastic`). An escape
-    /// hatch, deliberately kept beside the typed [`material`](Self::material): a producer value that
-    /// falls outside `ST_PresetMaterialType` reads as `Some` here but `None` there — while the
-    /// attribute round-trips byte-for-byte in both cases. Prefer `material` unless you specifically
-    /// need to inspect such an out-of-enum token.
-    #[must_use]
-    pub fn preset_material<'a>(&'a self, interner: &'a Interner) -> Option<&'a str> {
-        attr_str(&self.attributes, interner, "prstMaterial")
+        self.preset_material(interner)
+            .ok()
+            .flatten()
+            .as_deref()
+            .and_then(PresetMaterial::from_wire)
     }
 
     /// The cell's bevel (`a:bevel`), or `None` if absent (a malformed cell without the schema-required
@@ -806,12 +799,7 @@ impl Cell3D {
 
     /// Sets the surface material (`@prstMaterial`).
     pub fn set_material(&mut self, interner: &mut Interner, material: PresetMaterial) {
-        set_attr(
-            &mut self.attributes,
-            interner,
-            "prstMaterial",
-            material.to_wire(),
-        );
+        self.set_preset_material(interner, Some(material.to_wire()));
     }
 
     /// Sets the cell's bevel (`a:bevel`), replacing the existing one in place.
@@ -841,53 +829,52 @@ impl Cell3D {
 // survives. The ranks below *are* those sequences — extend them, never append.
 // =================================================================================================
 
-/// Removes an unprefixed attribute, if present.
-fn remove_unprefixed_attr(attributes: &mut Vec<RawAttribute>, interner: &Interner, local: &str) {
-    attributes.retain(|attribute| {
-        attribute.name.prefix.is_some() || interner.resolve(attribute.name.local) != local
-    });
+/// An `ST_OnOffStyleType` read as the tri-state it is: the schema default `def` for an absent
+/// attribute, and for one this model cannot read — the attribute round-trips verbatim either way.
+fn or_default(read: Result<Option<OnOffStyle>, AttributeError>) -> OnOffStyle {
+    read.ok().flatten().unwrap_or(OnOffStyle::Default)
 }
 
-/// Sets an `ST_OnOffStyleType` attribute (`@b` / `@i`), **removing** it for [`OnOffStyle::Default`]
-/// — the wire and schema default is `def`, so "follow the parent" is the absence of a claim.
-fn set_on_off(
-    attributes: &mut Vec<RawAttribute>,
-    interner: &mut Interner,
-    local: &str,
-    value: OnOffStyle,
-) {
+/// [`OnOffStyle`] as the setters want it: `Default` is the *absence* of a claim, so it removes the
+/// attribute rather than writing `b="def"`.
+fn stated(value: OnOffStyle) -> Option<OnOffStyle> {
     match value {
-        OnOffStyle::Default => remove_unprefixed_attr(attributes, interner, local),
-        other => set_attr(attributes, interner, local, other.to_wire()),
+        OnOffStyle::Default => None,
+        other => Some(other),
     }
+}
+
+/// The `@styleId` of an `a:tblStyle` element this list has not built a [`TableStyle`] for yet — one
+/// call to the workspace's single attribute read, on the attribute `TableStyle` declares.
+fn style_id_of<'a>(element: &'a RawElement, interner: &Interner) -> Option<Cow<'a, str>> {
+    mjx_xml::attribute::read::<Text>(&element.attributes, interner, None, "styleId", "styleId")
+        .ok()
+        .flatten()
 }
 
 impl TableStyleList {
     /// A fresh, empty `a:tblStyleLst` whose default style (`@def`) is `default_style_id`.
     #[must_use]
     pub fn new(interner: &mut Interner, default_style_id: &str) -> Self {
-        Self {
+        let mut list = Self {
             name: dml_name(interner, "tblStyleLst"),
-            attributes: vec![dml_attr(interner, "def", default_style_id)],
+            attributes: Vec::new(),
             children: Vec::new(),
             empty: false,
-        }
-    }
-
-    /// Sets the default style GUID (`@def`).
-    pub fn set_default_style_id(&mut self, interner: &mut Interner, style_id: &str) {
-        set_attr(&mut self.attributes, interner, "def", style_id);
+        };
+        list.set_default_style_id(interner, default_style_id);
+        list
     }
 
     /// Adds `style`, replacing any existing style with the same `@styleId` in place — so authoring
     /// the same style twice updates it rather than duplicating it.
     pub fn upsert_style(&mut self, interner: &mut Interner, style: &TableStyle) {
-        if let Some(style_id) = style.style_id(interner).map(str::to_owned) {
+        if let Some(style_id) = style.style_id(interner).ok().map(Cow::into_owned) {
             let existing = self.children.iter().position(|node| match node {
                 RawNode::Element(element) => {
                     is_dml(&element.name, interner)
                         && interner.resolve(element.name.local) == "tblStyle"
-                        && attr_str(&element.attributes, interner, "styleId") == Some(&style_id)
+                        && style_id_of(element, interner).as_deref() == Some(style_id.as_str())
                 }
                 _ => false,
             });
@@ -907,15 +894,15 @@ impl TableStyle {
     /// A fresh, empty `a:tblStyle` with the given GUID and gallery name.
     #[must_use]
     pub fn new(interner: &mut Interner, style_id: &str, style_name: &str) -> Self {
-        Self {
+        let mut style = Self {
             name: dml_name(interner, "tblStyle"),
-            attributes: vec![
-                dml_attr(interner, "styleId", style_id),
-                dml_attr(interner, "styleName", style_name),
-            ],
+            attributes: Vec::new(),
             children: Vec::new(),
             empty: false,
-        }
+        };
+        style.set_style_id(interner, style_id);
+        style.set_style_name(interner, style_name);
+        style
     }
 
     /// Sets the formatting for `part`, replacing whatever the slot held.
@@ -988,14 +975,21 @@ impl TableStyleTextStyle {
         }
     }
 
-    /// Sets the take on bold (`@b`).
+    /// Sets the take on bold (`@b`), **removing** it for [`OnOffStyle::Default`] — the wire and
+    /// schema default is `def`, so "follow the parent" is the absence of a claim.
     pub fn set_bold(&mut self, interner: &mut Interner, value: OnOffStyle) {
-        set_on_off(&mut self.attributes, interner, "b", value);
+        TextStyleAttributes {
+            attributes: &mut self.attributes,
+        }
+        .set_bold(interner, stated(value));
     }
 
-    /// Sets the take on italic (`@i`).
+    /// Sets the take on italic (`@i`); see [`set_bold`](Self::set_bold).
     pub fn set_italic(&mut self, interner: &mut Interner, value: OnOffStyle) {
-        set_on_off(&mut self.attributes, interner, "i", value);
+        TextStyleAttributes {
+            attributes: &mut self.attributes,
+        }
+        .set_italic(interner, stated(value));
     }
 
     /// Sets the text colour (`EG_ColorChoice`).

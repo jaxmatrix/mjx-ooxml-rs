@@ -1,14 +1,14 @@
 //! `a:prstGeom` — a shape's preset geometry.
 
 use mjx_derive::{FromXml, ToXml};
-use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
+use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode, Text};
 use mjx_ooxml_types::drawingml::{
     adjustment_bound_guides_of, adjustments_of, AdjustmentBound, AdjustmentSpec, PresetShapeType,
 };
 
 use super::formula::{GuideContext, GuideError, ResolvedGuides};
 use super::GeometryGuideList;
-use crate::build::{attr_str, dml_attr, dml_name};
+use crate::build::dml_name;
 
 /// A shape adjustment resolved against a concrete [`PresetGeometry`]: its static spec plus the value
 /// currently in effect (see [`PresetGeometry::adjustments`]).
@@ -92,8 +92,15 @@ pub enum PresetGeometryContent {
 /// The preset kind is read as a [`PresetShapeType`]; unknown/future `prst` tokens still round-trip
 /// (they are preserved verbatim and readable via [`preset_token`](Self::preset_token)) even though
 /// [`preset`](Self::preset) cannot name them.
-#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+///
+/// `@prst` is declared as [`Text`] rather than as an `Enumeration<PresetShapeType>`, deliberately:
+/// this type exposes **both** readings of the same bytes — the typed [`preset`](Self::preset) and
+/// the raw [`preset_token`](Self::preset_token), which is what lets a shape kind this build does not
+/// know still be named. The typed reading layers `PresetShapeType::from_wire` — the generated
+/// enumeration's own wire mapping, the very one `Enumeration<T>` would call — over that one read.
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = DML_MAIN)]
+#[xml(attribute(local = "prst", codec = Text, accessor = preset_token, required))]
 pub struct PresetGeometry {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -116,25 +123,23 @@ impl PresetGeometry {
             Some(list) => vec![PresetGeometryContent::AdjustValues(list)],
             None => Vec::new(),
         };
-        Self {
+        let mut geometry = Self {
             name: dml_name(interner, "prstGeom"),
-            attributes: vec![dml_attr(interner, "prst", preset.to_wire())],
+            attributes: Vec::new(),
             empty,
             content,
-        }
+        };
+        geometry.set_preset_token(interner, preset.to_wire());
+        geometry
     }
 
     /// The preset shape kind, or `None` if `prst` is absent or names a token this build does not know.
     #[must_use]
     pub fn preset(&self, interner: &Interner) -> Option<PresetShapeType> {
         self.preset_token(interner)
+            .ok()
+            .as_deref()
             .and_then(PresetShapeType::from_wire)
-    }
-
-    /// The raw `prst` wire token (e.g. `roundRect`), preserving unknown/future shapes; `None` if absent.
-    #[must_use]
-    pub fn preset_token(&self, interner: &Interner) -> Option<&str> {
-        attr_str(&self.attributes, interner, "prst")
     }
 
     /// The adjustment overrides (`a:avLst`), or `None` if the shape has none.
@@ -269,11 +274,10 @@ impl PresetGeometry {
             return resolved;
         };
         for guide in list.guides() {
-            let (Some(name), Some(formula)) = (guide.name(interner), guide.formula(interner))
-            else {
+            let (Ok(name), Ok(formula)) = (guide.name(interner), guide.formula(interner)) else {
                 continue;
             };
-            if let Ok(value) = resolved.evaluate_formula(formula) {
+            if let Ok(value) = resolved.evaluate_formula(&formula) {
                 resolved.define(name, value);
             }
         }
@@ -301,6 +305,6 @@ impl PresetGeometry {
     /// Sets the preset shape kind, rewriting the existing `prst` attribute in place (or adding one if,
     /// against the schema, it was missing).
     pub fn set_preset(&mut self, interner: &mut Interner, preset: PresetShapeType) {
-        crate::build::set_attr(&mut self.attributes, interner, "prst", preset.to_wire());
+        self.set_preset_token(interner, preset.to_wire());
     }
 }

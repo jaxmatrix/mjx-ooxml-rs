@@ -32,15 +32,38 @@
 //! its own at all.
 
 use mjx_ooxml_core::{Interner, RawAttribute, RawElement};
-use mjx_ooxml_types::support::on_off;
+use mjx_ooxml_types::support::OnOff;
 
 use mjx_ooxml_types::child_order::GROUP_TRANSFORM_2D;
 
-use crate::build::{
-    angle_to_wire, attr_angle, attr_bool, attr_emu, dml_attr, dml_child, dml_child_mut,
-    dml_element, set_attr,
-};
+use crate::build::{dml_child, dml_child_mut, dml_element};
+use crate::codec::{EmuCoordinate, SixtyThousandthsOfADegree};
 use crate::geometry::{Angle, Emu};
+
+/// `a:xfrm` (`CT_Transform2D` / `CT_GroupTransform2D`) — the attribute face of a transform.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "rot", codec = SixtyThousandthsOfADegree, accessor = rotation))]
+#[xml(attribute(local = "flipH", codec = OnOff, accessor = flip_horizontal))]
+#[xml(attribute(local = "flipV", codec = OnOff, accessor = flip_vertical))]
+struct TransformAttributes<A> {
+    attributes: A,
+}
+
+/// `a:off` / `a:chOff` (`CT_Point2D`) — the attribute face of a point.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "x", codec = EmuCoordinate, accessor = x, required))]
+#[xml(attribute(local = "y", codec = EmuCoordinate, accessor = y, required))]
+struct PointAttributes<A> {
+    attributes: A,
+}
+
+/// `a:ext` / `a:chExt` (`CT_PositiveSize2D`) — the attribute face of an extent.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "cx", codec = EmuCoordinate, accessor = width, required))]
+#[xml(attribute(local = "cy", codec = EmuCoordinate, accessor = height, required))]
+struct ExtentAttributes<A> {
+    attributes: A,
+}
 
 /// A point in the coordinate space its holder is laid out in (`CT_Point2D` — `a:off`, `a:chOff`).
 ///
@@ -124,12 +147,15 @@ impl Transform2D {
     /// a transform this model cannot parse must still leave the file readable.
     #[must_use]
     pub fn read(element: &RawElement, interner: &Interner) -> Self {
+        let attributes = TransformAttributes {
+            attributes: &element.attributes,
+        };
         Self {
             position: read_point(element, interner, "off"),
             size: read_extent(element, interner, "ext"),
-            rotation: attr_angle(&element.attributes, interner, "rot"),
-            flip_horizontal: attr_bool(&element.attributes, interner, "flipH"),
-            flip_vertical: attr_bool(&element.attributes, interner, "flipV"),
+            rotation: attributes.rotation(interner).ok().flatten(),
+            flip_horizontal: attributes.flip_horizontal(interner).ok().flatten(),
+            flip_vertical: attributes.flip_vertical(interner).ok().flatten(),
             child_position: read_point(element, interner, "chOff"),
             child_size: read_extent(element, interner, "chExt"),
         }
@@ -308,29 +334,19 @@ impl Transform2D {
         if let Some(size) = self.child_size {
             write_extent(element, interner, "chExt", size);
         }
-        if let Some(rotation) = self.rotation {
-            set_attr(
-                &mut element.attributes,
-                interner,
-                "rot",
-                &angle_to_wire(rotation),
-            );
+        // Each of the three is written only when this transform names it: a `None` field means
+        // "leave it alone", which is not the same as the setter's `None` ("remove it").
+        let mut attributes = TransformAttributes {
+            attributes: &mut element.attributes,
+        };
+        if self.rotation.is_some() {
+            attributes.set_rotation(interner, self.rotation);
         }
-        if let Some(flip) = self.flip_horizontal {
-            set_attr(
-                &mut element.attributes,
-                interner,
-                "flipH",
-                on_off::to_wire(flip),
-            );
+        if self.flip_horizontal.is_some() {
+            attributes.set_flip_horizontal(interner, self.flip_horizontal);
         }
-        if let Some(flip) = self.flip_vertical {
-            set_attr(
-                &mut element.attributes,
-                interner,
-                "flipV",
-                on_off::to_wire(flip),
-            );
+        if self.flip_vertical.is_some() {
+            attributes.set_flip_vertical(interner, self.flip_vertical);
         }
         // A transform that gained a child can no longer serialize as `<a:xfrm/>`.
         element.empty = element.empty && element.children.is_empty();
@@ -364,45 +380,69 @@ fn round_emu(value: f64) -> i64 {
 /// a child missing either is not a point and reads as `None`.
 fn read_point(element: &RawElement, interner: &Interner, local: &str) -> Option<Position> {
     let child = dml_child(&element.children, interner, local)?;
+    let point = PointAttributes {
+        attributes: &child.attributes,
+    };
     Some(Position {
-        x: attr_emu(&child.attributes, interner, "x")?,
-        y: attr_emu(&child.attributes, interner, "y")?,
+        x: point.x(interner).ok()?,
+        y: point.y(interner).ok()?,
     })
 }
 
 /// Reads a `CT_PositiveSize2D` child (`a:ext` / `a:chExt`). Both extents are required by the schema.
 fn read_extent(element: &RawElement, interner: &Interner, local: &str) -> Option<Size> {
     let child = dml_child(&element.children, interner, local)?;
+    let extent = ExtentAttributes {
+        attributes: &child.attributes,
+    };
     Some(Size {
-        width: attr_emu(&child.attributes, interner, "cx")?,
-        height: attr_emu(&child.attributes, interner, "cy")?,
+        width: extent.width(interner).ok()?,
+        height: extent.height(interner).ok()?,
     })
 }
 
 /// Writes a `CT_Point2D` child, editing the existing element's attributes in place when there is one.
 fn write_point(element: &mut RawElement, interner: &mut Interner, local: &str, point: Position) {
-    let x = point.x.emu().to_string();
-    let y = point.y.emu().to_string();
     if let Some(child) = dml_child_mut(&mut element.children, interner, local) {
-        set_attr(&mut child.attributes, interner, "x", &x);
-        set_attr(&mut child.attributes, interner, "y", &y);
+        write_point_attributes(&mut child.attributes, interner, point);
         return;
     }
-    let attributes = vec![dml_attr(interner, "x", &x), dml_attr(interner, "y", &y)];
+    let mut attributes = Vec::new();
+    write_point_attributes(&mut attributes, interner, point);
     insert_in_order(element, interner, local, attributes);
+}
+
+/// Writes a point's `@x` / `@y` into `attributes` — an existing one in place, a new one appended.
+fn write_point_attributes(
+    attributes: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    point: Position,
+) {
+    let mut face = PointAttributes { attributes };
+    face.set_x(interner, point.x);
+    face.set_y(interner, point.y);
 }
 
 /// Writes a `CT_PositiveSize2D` child, editing the existing element's attributes in place.
 fn write_extent(element: &mut RawElement, interner: &mut Interner, local: &str, size: Size) {
-    let cx = size.width.emu().to_string();
-    let cy = size.height.emu().to_string();
     if let Some(child) = dml_child_mut(&mut element.children, interner, local) {
-        set_attr(&mut child.attributes, interner, "cx", &cx);
-        set_attr(&mut child.attributes, interner, "cy", &cy);
+        write_extent_attributes(&mut child.attributes, interner, size);
         return;
     }
-    let attributes = vec![dml_attr(interner, "cx", &cx), dml_attr(interner, "cy", &cy)];
+    let mut attributes = Vec::new();
+    write_extent_attributes(&mut attributes, interner, size);
     insert_in_order(element, interner, local, attributes);
+}
+
+/// Writes an extent's `@cx` / `@cy` into `attributes` — an existing one in place, a new one appended.
+fn write_extent_attributes(
+    attributes: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    size: Size,
+) {
+    let mut face = ExtentAttributes { attributes };
+    face.set_width(interner, size.width);
+    face.set_height(interner, size.height);
 }
 
 /// Inserts a newly built transform child at its rank in `CT_GroupTransform2D`'s sequence.

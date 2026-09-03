@@ -815,7 +815,7 @@ pub(super) fn paragraph_level(
     nth_paragraph(body, para_idx)
         .ok()
         .and_then(|paragraph| paragraph.properties())
-        .and_then(|properties| properties.level(interner))
+        .and_then(|properties| properties.level(interner).ok().flatten())
         .unwrap_or(IndentLevel::TOP)
 }
 
@@ -953,7 +953,9 @@ fn field_type_of(
     let paragraph = nth_paragraph(body, para_idx)?;
     Ok(nth_field(paragraph, field_idx)?
         .field_type(interner)
-        .map(str::to_owned))
+        .ok()
+        .flatten()
+        .map(std::borrow::Cow::into_owned))
 }
 
 /// The layout properties a paragraph declares of its own.

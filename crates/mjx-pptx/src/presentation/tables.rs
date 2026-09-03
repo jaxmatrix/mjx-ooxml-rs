@@ -114,7 +114,8 @@ impl Presentation {
                     columns,
                 },
             )?;
-            Ok(grid_column.width(interner))
+            // A width the column states unreadably is a width the column does not state.
+            Ok(grid_column.width(interner).ok().flatten())
         })
     }
 
@@ -151,7 +152,7 @@ impl Presentation {
             .ok_or(PptxError::MalformedSlide("table column vanished"))?;
             // Through the model's own setter, so a width has one spelling in the codebase.
             let mut typed = TableColumn::from_xml(slot, interner)?;
-            typed.set_width(interner, width);
+            typed.set_width(interner, Some(width));
             *slot = typed.to_xml(interner);
             Ok(())
         })
@@ -177,7 +178,8 @@ impl Presentation {
                 rows,
                 columns: table.column_count(),
             })?;
-            Ok(table_row.height(interner))
+            // A height the row states unreadably is a height the row does not state.
+            Ok(table_row.height(interner).ok().flatten())
         })
     }
 
@@ -205,7 +207,7 @@ impl Presentation {
             let slot = slide::nth_row_mut(table, interner, row)
                 .ok_or(PptxError::MalformedSlide("table row vanished"))?;
             let mut typed = TableRow::from_xml(slot, interner)?;
-            typed.set_height(interner, height);
+            typed.set_height(interner, Some(height));
             *slot = typed.to_xml(interner);
             Ok(())
         })
