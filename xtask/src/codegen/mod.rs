@@ -195,6 +195,14 @@ const SIMPLE_TYPE_MODULES: &[SimpleTypeModule] = &[
         engine: &spec::OFFICEMATH_ENGINE,
         selection: emit::Selection::Everything,
     },
+    SimpleTypeModule {
+        stem: "dml-diagram",
+        module: "diagram",
+        visibility: "pub",
+        module_doc: emit::DIAGRAM_MODULE_DOC,
+        engine: &spec::DIAGRAM_ENGINE,
+        selection: emit::Selection::Everything,
+    },
 ];
 
 /// Fails if any naming-override row matched nothing across the modules its engine names.
@@ -249,7 +257,7 @@ fn generated_module_root() -> String {
 /// markup in. They are parsed together so cross-schema `xsd:group` and `xsd:element` references
 /// (PresentationML's use of DrawingML's fill and effect groups) resolve. A schema joins this list
 /// when a crate starts authoring its markup — WordprocessingML and SpreadsheetML with Phases C/D.
-const CHILD_ORDER_SCHEMAS: &[&str] = &["dml-main", "pml", "dml-chart"];
+const CHILD_ORDER_SCHEMAS: &[&str] = &["dml-main", "pml", "dml-chart", "dml-diagram"];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
 ///
@@ -483,13 +491,6 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "not modelled — the drawing canvas inside a chart part; nothing in this workspace authors \
          one",
         "not modelled — as for its simple types",
-    ),
-    (
-        "dml-diagram",
-        "pending, owned by MJXOFF-148 — `add_diagram` writes its four parts from fixed templates \
-         today",
-        "pending, owned by MJXOFF-148 — the child-order row belongs to the child that models the \
-         markup",
     ),
     (
         "dml-lockedCanvas",

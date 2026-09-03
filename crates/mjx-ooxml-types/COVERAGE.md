@@ -10,7 +10,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 |---|---|---|
 | dml-chart | — | pending — charts are written through `mjx-chart`'s model, which uses no `ST_*` enumeration of its own yet |
 | dml-chartDrawing | — | not modelled — the drawing canvas inside a chart part; nothing in this workspace authors one |
-| dml-diagram | — | pending, owned by MJXOFF-148 — `add_diagram` writes its four parts from fixed templates today |
+| dml-diagram | `diagram` | generated — all 66 simple types |
 | dml-lockedCanvas | — | not modelled — a compatibility wrapper with no simple types this workspace reads |
 | dml-main | `drawingml` | partial (32 of the schema's simple types: `ST_BevelPresetType`, `ST_BlendMode`, `ST_ColorSchemeIndex`, `ST_CompoundLine`, `ST_FontCollectionIndex`, `ST_LightRigDirection`, `ST_LightRigType`, `ST_LineCap`, `ST_LineEndLength`, `ST_LineEndType`, `ST_LineEndWidth`, `ST_OnOffStyleType`, `ST_PathFillMode`, `ST_PenAlignment`, `ST_PresetCameraType`, `ST_PresetLineDashVal`, `ST_PresetMaterialType`, `ST_PresetPatternVal`, `ST_PresetShadowVal`, `ST_RectAlignment`, `ST_SchemeColorVal`, `ST_ShapeType`, `ST_TextAlignType`, `ST_TextAnchoringType`, `ST_TextAutonumberScheme`, `ST_TextCapsType`, `ST_TextFontAlignType`, `ST_TextHorzOverflowType`, `ST_TextStrikeType`, `ST_TextTabAlignType`, `ST_TextUnderlineType`, `ST_TextVerticalType`) |
 | dml-picture | — | not modelled — `pic:pic` carries DrawingML types, which `dml-main` already provides |
@@ -43,7 +43,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 |---|---|
 | dml-chart | generated — every complex type |
 | dml-chartDrawing | not modelled — as for its simple types |
-| dml-diagram | pending, owned by MJXOFF-148 — the child-order row belongs to the child that models the markup |
+| dml-diagram | generated — every complex type |
 | dml-lockedCanvas | not modelled — nothing in this workspace authors a locked canvas |
 | dml-main | generated — every complex type |
 | dml-picture | pending — the picture element is written through `mjx-dml`; its row joins when a model places its children |
