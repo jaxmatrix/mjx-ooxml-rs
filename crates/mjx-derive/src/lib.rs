@@ -45,10 +45,10 @@
 //! | key | meaning |
 //! |-----|---------|
 //! | `local = ".."` | **required.** The exact wire local name. |
-//! | `codec = ..` | **required.** A type implementing [`AttributeCodec`], which decides how values read and write. A `Type`, so `Enumeration<LineCap>` is fine. |
+//! | `codec = ..` | **required.** A type implementing `mjx_ooxml_core::AttributeCodec`, which decides how values read and write. A `Type`, so `Enumeration<LineCap>` is fine. |
 //! | `prefix = ".."` | Matches and writes a prefixed attribute (`r:embed`). Absent means an unprefixed one, which per XML is in no namespace. |
 //! | `accessor = ident` | The Rust base name. Defaults to the wire name in snake case; set it wherever the wire token is cryptic, which the naming convention requires. |
-//! | `required` | Absent is [`AttributeError::Missing`], never a substituted value. |
+//! | `required` | Absent is `mjx_ooxml_core::AttributeError::Missing`, never a substituted value. |
 //! | `default = expr` | The schema default, returned when the attribute is absent. Never written: an absent attribute stays absent. Contradicts `required`. |
 //!
 //! Neither `required` nor `default` makes the attribute *optional* — that is the third case, and it
@@ -61,9 +61,6 @@
 //! `on`, single-quoted, in its original position. `set_rtl_col(true)` writes the canonical `true`.
 //! That asymmetry is the contract — a grammar that canonicalized on read would rewrite every file it
 //! opened, invisibly, because our reader and our writer would agree with each other.
-//!
-//! [`AttributeCodec`]: mjx_ooxml_core::AttributeCodec
-//! [`AttributeError::Missing`]: mjx_ooxml_core::AttributeError::Missing
 //!
 //! The generated code refers to `mjx-ooxml-core`, `mjx-xml`, and `mjx-ooxml-types` by fully-qualified
 //! path, so the deriving crate must depend on those three; `mjx-derive` itself does not.

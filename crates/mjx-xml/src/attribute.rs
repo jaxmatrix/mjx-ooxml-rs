@@ -3,7 +3,7 @@
 //! These four functions are what a typed accessor is made of — the ones
 //! `#[derive(XmlAttributes)]` generates calls to, and the ones a hand-written accessor should use
 //! instead of open-coding a search over
-//! [`RawAttribute`](mjx_ooxml_core::RawAttribute)s. Every one of them treats the vector as the
+//! [`RawAttribute`]s. Every one of them treats the vector as the
 //! source of truth and touches **only** the attribute it was asked about:
 //!
 //! * [`find`] and [`decoded_value`] read. They take `&[RawAttribute]` and cannot change anything, so

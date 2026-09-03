@@ -1,6 +1,6 @@
 //! Hand-written support for the generated OOXML types: the wire-parse error, the boolean
 //! normalizers referenced by the generated two-valued type aliases, and the
-//! [`AttributeCodec`](mjx_ooxml_core::AttributeCodec)s that carry those simple types across the
+//! [`AttributeCodec`]s that carry those simple types across the
 //! attribute seam.
 //!
 //! The codecs are the OOXML-specific half of that seam; the XML-generic half — the trait itself, and
