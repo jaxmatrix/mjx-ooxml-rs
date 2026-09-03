@@ -27,12 +27,15 @@ mod error;
 
 pub use address::{BlockPath, RunPath};
 pub use document::{
-    Background, BlockContent, Body, Break, Document, DocumentParts, Hyperlink, MainDocument,
-    MainDocumentContent, Paragraph, ParagraphContent, PartKind, PermissionRangeEnd,
-    PermissionRangeStart, PhoneticGuide, PhoneticGuideChild, PhoneticGuideContent,
-    PhoneticGuideContentItem, PhoneticGuideProperties, PhoneticGuidePropertyContent,
-    PhoneticGuideTextAlignment, PositionalTab, ProofingError, RelationshipReference, Run,
-    RunInnerContent, Symbol, Text, Unmodeled,
+    Background, BlockContent, Body, Border, Break, CharacterStyle, Color, Document, DocumentParts,
+    EastAsianLayout, Emphasis, Fonts, HalfPointMeasureValue, Highlight, Hyperlink, Languages,
+    MainDocument, MainDocumentContent, ManualRunWidth, Paragraph, ParagraphContent, PartKind,
+    PermissionRangeEnd, PermissionRangeStart, PhoneticGuide, PhoneticGuideChild,
+    PhoneticGuideContent, PhoneticGuideContentItem, PhoneticGuideProperties,
+    PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
+    RelationshipReference, Run, RunInnerContent, RunProperties, RunPropertyContent, Shading,
+    SignedHalfPointMeasureValue, SignedTwipsMeasureValue, Symbol, Text, TextEffect, TextScaleValue,
+    Toggle, Underline, Unmodeled, VerticalAlignment,
 };
 pub use error::DocxError;
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package

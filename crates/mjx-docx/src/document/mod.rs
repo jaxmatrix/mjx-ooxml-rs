@@ -14,13 +14,15 @@
 //!   paragraphs (`w:p`), runs (`w:r`), text (`w:t`) and the rest of `EG_RunInnerContent`'s 33
 //!   members. `w:background` (`CT_Background`) stays the fidelity-wrapper skeleton C1 seeded it as —
 //!   nobody has claimed its own content yet.
+//! - `run_properties.rs` — `w:rPr` (`CT_RPr`) and `EG_RPrBase`'s 39 members, MJXOFF-94's own file:
+//!   [`RunProperties`], reached off [`Run::run_properties`].
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
-//! C): `run_properties.rs`, `paragraph_properties.rs`, `styles.rs`, `numbering.rs`, `effective.rs`,
-//! `sections.rs`, `headers.rs`, `tables.rs`, `fields.rs`, `annotations.rs`, `revisions.rs`,
-//! `drawing.rs`, `settings.rs`, `structured_content.rs`. A child that needs a subject not on this
-//! list adds the file and a line here, the same way `presentation/`'s own list grew past A8.
+//! C): `paragraph_properties.rs`, `styles.rs`, `numbering.rs`, `effective.rs`, `sections.rs`,
+//! `headers.rs`, `tables.rs`, `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`,
+//! `settings.rs`, `structured_content.rs`. A child that needs a subject not on this list adds the
+//! file and a line here, the same way `presentation/`'s own list grew past A8.
 
 use mjx_ooxml_core::{
     Enumeration, FromXml, FromXmlError, RawAttribute, RawDocument, RawName, RawNode, ToXml,
@@ -33,6 +35,7 @@ use crate::error::DocxError;
 
 mod body;
 mod parts;
+mod run_properties;
 
 pub use body::{
     Background, BlockContent, Body, Break, Hyperlink, Paragraph, ParagraphContent,
@@ -42,6 +45,12 @@ pub use body::{
     RelationshipReference, Run, RunInnerContent, Symbol, Text, Unmodeled,
 };
 pub use parts::{DocumentParts, PartKind};
+pub use run_properties::{
+    Border, CharacterStyle, Color, EastAsianLayout, Emphasis, Fonts, HalfPointMeasureValue,
+    Highlight, Languages, ManualRunWidth, RunProperties, RunPropertyContent, Shading,
+    SignedHalfPointMeasureValue, SignedTwipsMeasureValue, TextEffect, TextScaleValue, Toggle,
+    Underline, VerticalAlignment,
+};
 
 use crate::address::{BlockPath, RunPath};
 
