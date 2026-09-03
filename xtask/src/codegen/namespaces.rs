@@ -32,6 +32,20 @@ fn read_dir_namespaces(dir: &Path) -> Result<BTreeMap<String, String>> {
     Ok(map)
 }
 
+/// The schema file stems of the Transitional set, ordered exactly as the generated
+/// `namespaces::ALL` orders its constants (by `SCREAMING_SNAKE` name).
+///
+/// This is the list `ALL` itself is built from, so a coverage report driven off it lists exactly
+/// the namespaces the committed table declares — without `xtask` having to depend on the crate it
+/// generates, which would make a failed generation unfixable.
+pub fn schema_stems(transitional_dir: &Path) -> Result<Vec<String>> {
+    let mut by_constant: BTreeMap<String, String> = BTreeMap::new();
+    for stem in read_dir_namespaces(transitional_dir)?.into_keys() {
+        by_constant.insert(screaming_snake(&stem), stem);
+    }
+    Ok(by_constant.into_values().collect())
+}
+
 /// Renders the `namespaces` module from the Strict and Transitional schema directories.
 pub fn generate(strict_dir: &Path, transitional_dir: &Path) -> Result<String> {
     let strict = read_dir_namespaces(strict_dir)?;

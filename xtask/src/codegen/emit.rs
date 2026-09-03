@@ -6,13 +6,16 @@
 
 use std::fmt::Write as _;
 
-use anyhow::Result;
+use anyhow::{bail, Result};
 
+use std::collections::BTreeMap;
+
+use crate::codegen::naming::NameEngine;
 use crate::codegen::spec;
 use crate::codegen::xsd::{parse_simple_types, SimpleKind, SimpleType};
 
 /// Module-level doc block for the `shared` module (see [`file_header`]).
-const SHARED_MODULE_DOC: &str =
+pub const SHARED_MODULE_DOC: &str =
     "//! Comprehensively-named OOXML simple types (see the naming convention in `PLAN.md`).\n\
      //!\n\
      //! Each item records its original `ST_*` symbol and exact wire token(s).\n\n";
@@ -32,43 +35,108 @@ pub const PRESENTATIONML_MODULE_DOC: &str =
      //! Selected from `pml.xsd`; each item records its original `ST_*` symbol and exact wire\n\
      //! token(s). Types join the allowlist as the PresentationML workstream ports them.\n\n";
 
-/// Renders the `shared` module from the `shared-commonSimpleTypes.xsd` bytes.
-pub fn emit_shared_types(xsd: &[u8], source_note: &str) -> Result<String> {
-    let types = parse_simple_types(xsd)?;
-    let mut out = String::new();
-    out.push_str(&file_header(source_note, SHARED_MODULE_DOC));
-    for st in &types {
-        out.push_str(&emit_simple_type(st));
-    }
-    Ok(out)
+/// Module-level doc block for the `wordprocessingml` module (see [`file_header`]).
+pub const WORDPROCESSINGML_MODULE_DOC: &str =
+    "//! Comprehensively-named WordprocessingML simple types (see the naming convention in \
+     `PLAN.md`).\n\
+     //!\n\
+     //! The **whole** `ST_*` family of `wml.xsd`, not a slice: `mjx-docx` is modelled on top of\n\
+     //! this vocabulary, so a missing type would be an enum invented somewhere else. Each item\n\
+     //! records its original `ST_*` symbol and exact wire token(s).\n\n";
+
+/// Module-level doc block for the `officemath` module (see [`file_header`]).
+pub const OFFICEMATH_MODULE_DOC: &str =
+    "//! Comprehensively-named Office Math (OMML) simple types (see the naming convention in \
+     `PLAN.md`).\n\
+     //!\n\
+     //! The whole `ST_*` family of `shared-math.xsd`. Each item records its original `ST_*` symbol\n\
+     //! and exact wire token(s).\n\n";
+
+/// Which of a schema's simple types a module emits.
+#[derive(Debug, Clone, Copy)]
+pub enum Selection<'a> {
+    /// Every named `xsd:simpleType` the schema declares, in schema order.
+    Everything,
+    /// Only the listed types — for schemas where the un-curated remainder would be hundreds of
+    /// names nobody has read yet. The list grows as each type is given a comprehensive name.
+    Allowlist(&'a [&'a str]),
 }
 
-/// Renders a module holding only the `allowlist`ed simple types from `xsd`, in schema order, under
-/// `module_doc`.
+/// What one emitted module produced: its source, and the types that went into it.
 ///
-/// Used for large schemas (e.g. `dml-main.xsd`, `pml.xsd`) where emitting *every* simple type would
-/// produce hundreds of un-curated names; the allowlist grows as each type is given a comprehensive
-/// name.
-pub fn emit_selected_types(
+/// The types come back so the caller can check the naming tables against reality — an override row
+/// naming a type or a wire value the schema does not declare is a typo, and
+/// [`spec::unused_overrides`] turns it into a build failure rather than a name nobody notices.
+#[derive(Debug)]
+pub struct EmittedModule {
+    /// The rendered Rust source, before rustfmt.
+    pub source: String,
+    /// The simple types actually emitted, in schema order.
+    pub types: Vec<SimpleType>,
+}
+
+/// Renders one module of simple types from a schema, under `module_doc`, named by `engine`.
+///
+/// Fails rather than emitting Rust that would not compile — or, worse, would compile with two
+/// different wire tokens collapsed onto one variant: two emitted types that reach the same Rust
+/// name, or two values of one enumeration that reach the same variant, are hard errors here.
+pub fn emit_types(
     xsd: &[u8],
     source_note: &str,
     module_doc: &str,
-    allowlist: &[&str],
-) -> Result<String> {
-    let types = parse_simple_types(xsd)?;
+    engine: &NameEngine,
+    selection: Selection<'_>,
+) -> Result<EmittedModule> {
+    let all = parse_simple_types(xsd)?;
+    let types: Vec<SimpleType> = match selection {
+        Selection::Everything => all,
+        Selection::Allowlist(list) => all
+            .into_iter()
+            .filter(|st| list.contains(&st.name.as_str()))
+            .collect(),
+    };
+
     let mut out = String::new();
     out.push_str(&file_header(source_note, module_doc));
+    let mut type_names: BTreeMap<String, String> = BTreeMap::new();
     for st in &types {
-        if allowlist.contains(&st.name.as_str()) {
-            out.push_str(&emit_simple_type(st));
+        if spec::SKIP_TYPES.contains(&st.name.as_str()) {
+            out.push_str(&emit_simple_type(st, engine));
+            continue;
         }
+        let rust = engine.type_name(&st.name);
+        if let Some(first) = type_names.insert(rust.clone(), st.name.clone()) {
+            bail!(
+                "naming collision in {source_note}: `{first}` and `{}` both become `{rust}`",
+                st.name
+            );
+        }
+        // A two-valued type never becomes an enum — it becomes `bool` / `Option<bool>`, and its
+        // wire spellings are normalized by `crate::support` rather than named one variant each.
+        if let (SimpleKind::Enumeration { values, .. }, None) =
+            (&st.kind, spec::bool_kind(&st.name))
+        {
+            let mut variants: BTreeMap<String, &str> = BTreeMap::new();
+            for wire in values {
+                let variant = engine.variant_name(&st.name, wire);
+                if let Some(first) = variants.insert(variant.clone(), wire) {
+                    bail!(
+                        "naming collision in {source_note}: `{}`'s values {first:?} and {wire:?} \
+                         both become `{variant}`, which would collapse two wire tokens onto one \
+                         Rust value",
+                        st.name
+                    );
+                }
+            }
+        }
+        out.push_str(&emit_simple_type(st, engine));
     }
-    Ok(out)
+    Ok(EmittedModule { source: out, types })
 }
 
 /// Renders the Rust source for one simple type (skip comment, bool alias, enum, newtype, or numeric
 /// alias — the classification the shared and selected emitters share).
-fn emit_simple_type(st: &SimpleType) -> String {
+fn emit_simple_type(st: &SimpleType, engine: &NameEngine) -> String {
     if spec::SKIP_TYPES.contains(&st.name.as_str()) {
         return format!(
             "// `{}` — subsumed by another representation; intentionally not emitted.\n\n",
@@ -76,25 +144,25 @@ fn emit_simple_type(st: &SimpleType) -> String {
         );
     }
     if let Some((normalizer, optional)) = spec::bool_kind(&st.name) {
-        return emit_bool_alias(&st.name, normalizer, optional);
+        return emit_bool_alias(&st.name, normalizer, optional, engine);
     }
     match &st.kind {
-        SimpleKind::Enumeration { base, values } => emit_enum(&st.name, base, values),
+        SimpleKind::Enumeration { base, values } => emit_enum(&st.name, base, values, engine),
         SimpleKind::Restriction { base, pattern } => {
             if pattern.is_none() {
                 if let Some(primitive) = spec::primitive_for(base) {
-                    return emit_primitive_alias(&st.name, base, primitive);
+                    return emit_primitive_alias(&st.name, base, primitive, engine);
                 }
             }
-            emit_string_newtype(&st.name, base, pattern.as_deref())
+            emit_string_newtype(&st.name, base, pattern.as_deref(), engine)
         }
         SimpleKind::Union { members } => {
             let note = format!("union of {}", members.join(" | "));
-            emit_string_newtype(&st.name, &note, None)
+            emit_string_newtype(&st.name, &note, None, engine)
         }
         SimpleKind::List { item } => {
             let note = format!("list of {item}");
-            emit_string_newtype(&st.name, &note, None)
+            emit_string_newtype(&st.name, &note, None, engine)
         }
     }
 }
@@ -110,11 +178,11 @@ fn file_header(source_note: &str, module_doc: &str) -> String {
     )
 }
 
-fn emit_enum(st_name: &str, base: &str, values: &[String]) -> String {
-    let type_name = spec::ENGINE.type_name(st_name);
+fn emit_enum(st_name: &str, base: &str, values: &[String], engine: &NameEngine) -> String {
+    let type_name = engine.type_name(st_name);
     let variants: Vec<(String, &str)> = values
         .iter()
-        .map(|wire| (spec::ENGINE.variant_name(st_name, wire), wire.as_str()))
+        .map(|wire| (engine.variant_name(st_name, wire), wire.as_str()))
         .collect();
 
     let mut s = String::new();
@@ -158,8 +226,13 @@ fn emit_enum(st_name: &str, base: &str, values: &[String]) -> String {
     s
 }
 
-fn emit_string_newtype(st_name: &str, base_note: &str, pattern: Option<&str>) -> String {
-    let type_name = spec::ENGINE.type_name(st_name);
+fn emit_string_newtype(
+    st_name: &str,
+    base_note: &str,
+    pattern: Option<&str>,
+    engine: &NameEngine,
+) -> String {
+    let type_name = engine.type_name(st_name);
     let mut s = String::new();
     let _ = writeln!(
         s,
@@ -187,16 +260,16 @@ fn emit_string_newtype(st_name: &str, base_note: &str, pattern: Option<&str>) ->
     s
 }
 
-fn emit_primitive_alias(st_name: &str, base: &str, primitive: &str) -> String {
-    let type_name = spec::ENGINE.type_name(st_name);
+fn emit_primitive_alias(st_name: &str, base: &str, primitive: &str, engine: &NameEngine) -> String {
+    let type_name = engine.type_name(st_name);
     format!(
         "/// `{st_name}` — numeric OOXML type (base `{base}`); a `{primitive}`.\n\
          pub type {type_name} = {primitive};\n\n"
     )
 }
 
-fn emit_bool_alias(st_name: &str, normalizer: &str, optional: bool) -> String {
-    let type_name = spec::ENGINE.type_name(st_name);
+fn emit_bool_alias(st_name: &str, normalizer: &str, optional: bool, engine: &NameEngine) -> String {
+    let type_name = engine.type_name(st_name);
     let rust_ty = if optional { "Option<bool>" } else { "bool" };
     format!(
         "/// `{st_name}` — a two-valued OOXML toggle, modeled as `{rust_ty}`.\n\
@@ -235,9 +308,20 @@ mod tests {
           </xsd:simpleType>
         </xsd:schema>"#;
 
+    fn shared(xsd: &[u8]) -> Result<String> {
+        Ok(emit_types(
+            xsd,
+            "test",
+            SHARED_MODULE_DOC,
+            &spec::ENGINE,
+            Selection::Everything,
+        )?
+        .source)
+    }
+
     #[test]
     fn emits_expected_shapes() {
-        let src = emit_shared_types(SAMPLE, "test").unwrap();
+        let src = shared(SAMPLE).unwrap();
         // enum with comprehensive names + wire mapping
         assert!(src.contains("pub enum VerticalTextPosition"));
         assert!(src.contains("Baseline,"));
@@ -253,9 +337,70 @@ mod tests {
 
     #[test]
     fn output_is_deterministic() {
-        assert_eq!(
-            emit_shared_types(SAMPLE, "test").unwrap(),
-            emit_shared_types(SAMPLE, "test").unwrap()
-        );
+        assert_eq!(shared(SAMPLE).unwrap(), shared(SAMPLE).unwrap());
+    }
+
+    #[test]
+    fn an_allowlist_emits_only_what_it_names() {
+        let src = emit_types(
+            SAMPLE,
+            "test",
+            SHARED_MODULE_DOC,
+            &spec::ENGINE,
+            Selection::Allowlist(&["ST_Lang"]),
+        )
+        .unwrap();
+        assert!(src.source.contains("pub struct LanguageTag(pub String);"));
+        assert!(!src.source.contains("VerticalTextPosition"));
+        assert_eq!(src.types.len(), 1);
+    }
+
+    /// Two enumeration values that reach the same Rust variant would compile — and silently make
+    /// one of the two wire tokens unwritable. The generator refuses instead.
+    #[test]
+    fn two_values_reaching_one_variant_is_a_hard_error() {
+        const CLASHING: &[u8] = br#"<?xml version="1.0"?>
+            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:t">
+              <xsd:simpleType name="ST_Clash">
+                <xsd:restriction base="xsd:string">
+                  <xsd:enumeration value="--"/>
+                  <xsd:enumeration value="-+"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:schema>"#;
+        let err = emit_types(
+            CLASHING,
+            "test",
+            SHARED_MODULE_DOC,
+            &spec::ENGINE,
+            Selection::Everything,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("collapse two wire tokens"), "{err}");
+    }
+
+    /// The same rule one level up: two `ST_*` types that reach one Rust type name.
+    #[test]
+    fn two_types_reaching_one_name_is_a_hard_error() {
+        const CLASHING: &[u8] = br#"<?xml version="1.0"?>
+            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:t">
+              <xsd:simpleType name="ST_Thing">
+                <xsd:restriction base="xsd:string"/>
+              </xsd:simpleType>
+              <xsd:simpleType name="ST_THING">
+                <xsd:restriction base="xsd:string"/>
+              </xsd:simpleType>
+            </xsd:schema>"#;
+        let err = emit_types(
+            CLASHING,
+            "test",
+            SHARED_MODULE_DOC,
+            &spec::ENGINE,
+            Selection::Everything,
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(err.contains("both become `Thing`"), "{err}");
     }
 }
