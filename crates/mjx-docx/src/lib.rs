@@ -20,12 +20,19 @@
 //! See `crates/mjx-docx/src/document/mod.rs`'s own doc comment for the module layout this crate is
 //! built on and the plan for the files later children add.
 
+mod address;
 pub mod constants;
 mod document;
 mod error;
 
+pub use address::{BlockPath, RunPath};
 pub use document::{
-    Background, Body, Document, DocumentParts, MainDocument, MainDocumentContent, PartKind,
+    Background, BlockContent, Body, Break, Document, DocumentParts, Hyperlink, MainDocument,
+    MainDocumentContent, Paragraph, ParagraphContent, PartKind, PermissionRangeEnd,
+    PermissionRangeStart, PhoneticGuide, PhoneticGuideChild, PhoneticGuideContent,
+    PhoneticGuideContentItem, PhoneticGuideProperties, PhoneticGuidePropertyContent,
+    PhoneticGuideTextAlignment, PositionalTab, ProofingError, RelationshipReference, Run,
+    RunInnerContent, Symbol, Text, Unmodeled,
 };
 pub use error::DocxError;
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package
