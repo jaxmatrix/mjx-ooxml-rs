@@ -23,6 +23,7 @@
 //! [`Interner`]: crate::Interner
 //! [`RawName`]: crate::RawName
 
+use crate::attribute::AttributeError;
 use crate::intern::Interner;
 use crate::raw::RawElement;
 
@@ -67,6 +68,15 @@ pub enum FromXmlError {
     /// An entity or character reference in text content could not be decoded. The payload is a
     /// human-readable description of the offending reference.
     InvalidEntity(String),
+    /// A typed attribute the model reads is absent (and required), or holds a value its declared
+    /// kind rejects. See [`AttributeError`](crate::AttributeError).
+    Attribute(AttributeError),
+}
+
+impl From<AttributeError> for FromXmlError {
+    fn from(error: AttributeError) -> Self {
+        Self::Attribute(error)
+    }
 }
 
 impl core::fmt::Display for FromXmlError {
@@ -76,6 +86,7 @@ impl core::fmt::Display for FromXmlError {
             Self::InvalidEntity(detail) => {
                 write!(f, "could not decode an entity reference: {detail}")
             }
+            Self::Attribute(error) => write!(f, "{error}"),
         }
     }
 }
@@ -91,6 +102,7 @@ mod tests {
         for err in [
             FromXmlError::InvalidUtf8,
             FromXmlError::InvalidEntity("&bogus;".to_owned()),
+            FromXmlError::Attribute(AttributeError::Missing { attribute: "val" }),
         ] {
             assert!(!err.to_string().is_empty(), "empty Display for {err:?}");
             // Coerces to the std error trait (proves the hand-written impl compiles).
