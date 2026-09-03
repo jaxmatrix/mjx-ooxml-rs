@@ -20,6 +20,7 @@
 pub(crate) mod build;
 pub mod codec;
 pub mod color;
+pub mod diagram;
 pub mod effect;
 pub mod fill;
 pub mod geometry;
