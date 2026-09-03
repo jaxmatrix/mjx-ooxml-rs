@@ -57,4 +57,14 @@ pub enum DocxError {
         /// The external target.
         target: String,
     },
+
+    /// The document declares no `w:body` (legal per the schema — `CT_Document`'s `body` is
+    /// `minOccurs="0"` — but there is then nothing for a paragraph/run address to resolve against).
+    #[error("document has no w:body")]
+    NoBody,
+
+    /// A [`crate::BlockPath`] or [`crate::RunPath`] did not resolve — out of range, or (for a run
+    /// path) landing on a container rather than, in the end, a run.
+    #[error("{0}")]
+    AddressNotFound(String),
 }

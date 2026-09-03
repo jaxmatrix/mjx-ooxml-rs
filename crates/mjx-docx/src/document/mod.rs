@@ -10,9 +10,10 @@
 //! - `parts.rs` — [`PartKind`], the fourteen `wml.xsd` global elements classified as parts (thirteen
 //!   of them; `w:txbxContent` is an inline root, not a part — see that module), and
 //!   [`DocumentParts`], the resolved part graph.
-//! - `body.rs` — `w:body` (`CT_Body`) and `w:background` (`CT_Background`), **seeded here as fidelity
-//!   wrappers with no typed content**; MJXOFF-92 gives `Body` real fields (paragraphs, tables, the
-//!   closing `w:sectPr`) rather than starting the file from nothing.
+//! - `body.rs` — `w:body` (`CT_Body`) and the whole block content model MJXOFF-92 gives it:
+//!   paragraphs (`w:p`), runs (`w:r`), text (`w:t`) and the rest of `EG_RunInnerContent`'s 33
+//!   members. `w:background` (`CT_Background`) stays the fidelity-wrapper skeleton C1 seeded it as —
+//!   nobody has claimed its own content yet.
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
@@ -33,8 +34,16 @@ use crate::error::DocxError;
 mod body;
 mod parts;
 
-pub use body::{Background, Body};
+pub use body::{
+    Background, BlockContent, Body, Break, Hyperlink, Paragraph, ParagraphContent,
+    PermissionRangeEnd, PermissionRangeStart, PhoneticGuide, PhoneticGuideChild,
+    PhoneticGuideContent, PhoneticGuideContentItem, PhoneticGuideProperties,
+    PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
+    RelationshipReference, Run, RunInnerContent, Symbol, Text, Unmodeled,
+};
 pub use parts::{DocumentParts, PartKind};
+
+use crate::address::{BlockPath, RunPath};
 
 use parts::resolve_from_root;
 
@@ -154,6 +163,233 @@ impl Document {
         Ok(())
     }
 
+    /// How many paragraphs `w:body` holds, or `0` if the document declares no body.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if the main document part cannot be read.
+    pub fn paragraph_count(&mut self) -> Result<usize, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        Ok(main.body().map_or(0, Body::paragraph_count))
+    }
+
+    /// How many run-or-hyperlink slots the paragraph at `path` holds at its top level — see
+    /// [`Paragraph::run_count`] for what that counts.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `path` does not address a paragraph.
+    pub fn run_count(&mut self, paragraph: impl Into<BlockPath>) -> Result<usize, DocxError> {
+        Ok(self.resolve_paragraph(paragraph.into())?.run_count())
+    }
+
+    /// The whole text of the paragraph at `path` — every run reachable from it, including runs
+    /// nested inside a `w:hyperlink`, concatenated in document order.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `path` does not address a paragraph.
+    pub fn paragraph_text(&mut self, paragraph: impl Into<BlockPath>) -> Result<String, DocxError> {
+        Ok(self.resolve_paragraph(paragraph.into())?.text())
+    }
+
+    /// The text of the run at `run` within the paragraph at `paragraph` — the concatenation of every
+    /// `w:t` the run holds (see [`Run::text`] for why `w:delText`/`w:instrText` are not included).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if either address does not resolve.
+    pub fn run_text(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        run: impl Into<RunPath>,
+    ) -> Result<String, DocxError> {
+        let run_path = run.into();
+        let paragraph = self.resolve_paragraph(paragraph.into())?;
+        let run = paragraph
+            .run(&run_path)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no run at {run_path}")))?;
+        Ok(run.text())
+    }
+
+    /// Sets the text of the run at `run` within the paragraph at `paragraph` (see [`Run::set_text`]
+    /// for the `xml:space` rule this applies). Only `word/document.xml` is dirtied, and — because
+    /// this goes through [`ToXml::write_back`] — only the byte range containing the edited run
+    /// actually re-serializes; every sibling paragraph and run keeps its original bytes.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if either address does not resolve.
+    pub fn set_run_text(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        run: impl Into<RunPath>,
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let run_path = run.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let run = paragraph
+            .run_mut(&run_path)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no run at {run_path}")))?;
+        run.set_text(interner, text);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Inserts a new, empty paragraph so it becomes the paragraph at `at`, shifting every paragraph
+    /// at or after that position one place later. `at` must address an existing paragraph or the one
+    /// past the last (`0..=paragraph_count()`).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `at` is out of range.
+    pub fn insert_paragraph(&mut self, at: impl Into<BlockPath>) -> Result<(), DocxError> {
+        let at = at.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let paragraph = Paragraph::new(interner);
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        if !body.insert_paragraph(&at, paragraph) {
+            return Err(DocxError::AddressNotFound(format!(
+                "no paragraph slot at {at}"
+            )));
+        }
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Appends a new, empty paragraph as the body's new last paragraph (before `w:sectPr`, when the
+    /// body has one).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body.
+    pub fn append_paragraph(&mut self) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let paragraph = Paragraph::new(interner);
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        body.append_paragraph(paragraph);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Removes the paragraph at `at`.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `at` does not address a paragraph.
+    pub fn remove_paragraph(&mut self, at: impl Into<BlockPath>) -> Result<(), DocxError> {
+        let at = at.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        if body.remove_paragraph(&at).is_none() {
+            return Err(DocxError::AddressNotFound(format!("no paragraph at {at}")));
+        }
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Inserts a new run holding `text` so it becomes the top-level run-or-hyperlink slot `at`
+    /// within the paragraph at `paragraph`, shifting every slot at or after that position one place
+    /// later. `at` must address an existing slot or the one past the last (`0..=run_count()`).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if either address is out of range.
+    pub fn insert_run(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        at: impl Into<RunPath>,
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let at = at.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let run = Run::with_text(interner, text);
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        if !paragraph.insert_run(&at, run) {
+            return Err(DocxError::AddressNotFound(format!("no run slot at {at}")));
+        }
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Appends a new run holding `text` as the paragraph's new last top-level run.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph.
+    pub fn append_run(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let run = Run::with_text(interner, text);
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        paragraph.append_run(run);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Removes the run at `run` within the paragraph at `paragraph`.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if either address does not resolve.
+    pub fn remove_run(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        run: impl Into<RunPath>,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let run_path = run.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        if paragraph.remove_run(&run_path).is_none() {
+            return Err(DocxError::AddressNotFound(format!("no run at {run_path}")));
+        }
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Reads the paragraph at `path`, without dirtying the part.
+    fn resolve_paragraph(&mut self, path: BlockPath) -> Result<Paragraph, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        body.paragraph(&path)
+            .cloned()
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))
+    }
+
     /// Validates the document, then serializes it back to container bytes (only edited parts
     /// re-serialize).
     ///
@@ -243,5 +479,79 @@ impl MainDocument {
             MainDocumentContent::Background(background) => Some(background),
             _ => None,
         })
+    }
+
+    /// The document's body (`w:body`), mutably, or `None` if it declares none.
+    pub fn body_mut(&mut self) -> Option<&mut Body> {
+        self.content.iter_mut().find_map(|item| match item {
+            MainDocumentContent::Body(body) => Some(body),
+            _ => None,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use mjx_fixtures::fixture;
+    use mjx_ooxml_core::RawElement;
+
+    /// The retained [`RawElement::source_span`] of the second `<w:p>` under `<w:body>` — `None` if
+    /// the document has been reflowed rather than copied verbatim at that point in the tree.
+    ///
+    /// Same-crate access to `Document::package`/`document_part` is what makes this test possible at
+    /// all: the span is an internal fact about the live in-memory tree, not something the public API
+    /// exposes (nor should it — a caller does not need to know which bytes were copied, only that
+    /// they were).
+    fn sibling_paragraph_span(document: &mut Document) -> Option<std::ops::Range<u32>> {
+        let doc = document
+            .package
+            .part_tree(&document.document_part)
+            .expect("read word/document.xml");
+        let body = doc.root.children.iter().find_map(|node| match node {
+            RawNode::Element(element) if doc.interner.resolve(element.name.local) == "body" => {
+                Some(element)
+            }
+            _ => None,
+        })?;
+        body.children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(element) if doc.interner.resolve(element.name.local) == "p" => {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .nth(1)
+            .and_then(RawElement::source_span)
+    }
+
+    /// Edit isolation, proved at the mechanism `sample.docx`'s whole-part byte identity cannot
+    /// distinguish from a lucky coincidence: `sample.docx` has no incidental whitespace or unusual
+    /// attribute formatting, so a *complete* reflow from the model (bypassing
+    /// [`ToXml::write_back`]'s span-preserving restore entirely) still happens to reproduce
+    /// byte-identical output for this fixture — confirmed by hand while developing this test, and
+    /// the reason this test checks [`RawElement::source_span`] directly rather than only comparing
+    /// bytes. A element that has been reflowed from the model, rather than copied verbatim, carries
+    /// no span at all (`None`), regardless of whether its bytes happen to still match.
+    #[test]
+    fn editing_one_run_retains_the_untouched_sibling_paragraphs_source_span() {
+        let mut document = Document::open(&fixture("sample.docx")).expect("open sample.docx");
+
+        let before = sibling_paragraph_span(&mut document);
+        assert!(
+            before.is_some(),
+            "a freshly parsed, never-touched element always has a span"
+        );
+
+        document
+            .set_run_text(0, 0, "Edited text.")
+            .expect("edit paragraph 0's run");
+
+        let after = sibling_paragraph_span(&mut document);
+        assert_eq!(
+            before, after,
+            "editing paragraph 0's run must not disturb paragraph 1's retained source span"
+        );
     }
 }
