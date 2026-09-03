@@ -1144,14 +1144,14 @@ impl Deck {
     /// Suppresses the labels at one tier — a `c:delete val="1"` in place of the settings, which is
     /// how one series of a labelled plot, or one point of a labelled series, is silenced without
     /// disturbing the rest. Marks only the chart part dirty.
-    fn delete_chart_data_labels(
+    fn suppress_chart_data_labels(
         &mut self,
         surface: SurfaceArg,
         shape_idx: ShapePathArg,
         scope: ChartLabelScope,
     ) -> PyResult<()> {
         self.inner
-            .delete_chart_data_labels(surface.0, shape_idx.0, scope.0)
+            .suppress_chart_data_labels(surface.0, shape_idx.0, scope.0)
             .map_err(to_py_err)
     }
 

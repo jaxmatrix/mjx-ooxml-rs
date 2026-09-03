@@ -63,7 +63,7 @@ fn every_axis_setting_reads() {
     assert_eq!(category.axis_id(&doc.interner), Some(111));
     assert_eq!(category.cross_axis_id(&doc.interner), Some(222));
     assert_eq!(category.position(&doc.interner), Some(AxisPosition::Bottom));
-    assert_eq!(category.is_deleted(&doc.interner), Some(false));
+    assert_eq!(category.is_suppressed(&doc.interner), Some(false));
     assert!(!category.has_major_gridlines());
     assert_eq!(category.title_text(), None);
 
@@ -71,7 +71,7 @@ fn every_axis_setting_reads() {
     assert_eq!(kind, AxisKind::Value);
     assert_eq!(value.axis_id(&doc.interner), Some(222));
     assert_eq!(value.position(&doc.interner), Some(AxisPosition::Left));
-    assert_eq!(value.is_deleted(&doc.interner), Some(true));
+    assert_eq!(value.is_suppressed(&doc.interner), Some(true));
     assert_eq!(value.title_text().as_deref(), Some("Millions"));
     assert!(value.has_major_gridlines());
     assert!(value.has_minor_gridlines());
@@ -102,7 +102,7 @@ fn the_title_legend_and_chart_level_styling_read() {
     let chart = space.chart().expect("c:chart");
 
     assert_eq!(chart.title_text().as_deref(), Some("Quarterly results"));
-    assert_eq!(chart.auto_title_deleted(&doc.interner), Some(false));
+    assert_eq!(chart.auto_title_suppressed(&doc.interner), Some(false));
     assert_eq!(
         chart.display_blanks_as(&doc.interner),
         Some(BlankDisplay::Span)

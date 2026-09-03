@@ -898,7 +898,7 @@ pub struct ChartAxisData {
     /// The id of the axis this one crosses (`c:crossAx`).
     pub cross_axis_id: Option<u32>,
     /// Whether the axis is hidden (`c:delete`).
-    pub deleted: Option<bool>,
+    pub suppressed: Option<bool>,
     /// Where the axis sits against the plot area (`c:axPos`).
     pub position: Option<AxisPosition>,
     /// Which way the axis runs (`c:scaling > c:orientation`).
@@ -933,7 +933,7 @@ impl ChartAxisData {
             kind,
             axis_id: axis.axis_id(interner),
             cross_axis_id: axis.cross_axis_id(interner),
-            deleted: axis.is_deleted(interner),
+            suppressed: axis.is_suppressed(interner),
             position: axis.position(interner),
             orientation: scaling.and_then(|scaling| scaling.orientation(interner)),
             minimum: scaling.and_then(|scaling| scaling.minimum(interner)),

@@ -433,7 +433,7 @@ macro_rules! raw_child_access {
 /// The children `EG_DLblShared` and its two wrappers declare as settings — everything a `c:dLbls`
 /// or `c:dLbl` carries other than its identity (`c:idx`), its layout, its own text and its
 /// extensions. Turning a label's settings *on* has to clear a `c:delete` that stands in their place
-/// (`CT_DLbls` and `CT_DLbl` both put the two in one `xsd:choice`), and deleting a label has to
+/// (`CT_DLbls` and `CT_DLbl` both put the two in one `xsd:choice`), and suppressing a label has to
 /// clear all of them.
 const LABEL_SETTING_LOCALS: [&str; 11] = [
     "numFmt",
@@ -467,7 +467,7 @@ const CONTAINER_ONLY_LOCALS: [&str; 2] = ["showLeaderLines", "leaderLines"];
 #[non_exhaustive]
 pub struct DataLabelSettings {
     /// The label is suppressed entirely (`c:delete`). When `Some(true)` nothing else applies.
-    pub deleted: Option<bool>,
+    pub suppressed: Option<bool>,
     /// The point's value is shown (`c:showVal`).
     pub shows_value: Option<bool>,
     /// The point's category label is shown (`c:showCatName`).
@@ -501,16 +501,16 @@ impl DataLabelSettings {
     /// Merges this (more specific) tier over `parent`, **per setting**: a field this tier leaves
     /// unset takes `parent`'s.
     ///
-    /// A `c:delete` short-circuits: a tier that deletes its label inherits nothing, because
+    /// A `c:delete` short-circuits: a tier that suppresses its label inherits nothing, because
     /// `CT_DLbls`/`CT_DLbl` put `c:delete` and the settings group in one `xsd:choice` and an element
     /// carrying one cannot carry the other.
     #[must_use]
     pub fn inherit(&self, parent: &Self) -> Self {
-        if self.deleted == Some(true) {
+        if self.suppressed == Some(true) {
             return self.clone();
         }
         Self {
-            deleted: self.deleted.or(parent.deleted),
+            suppressed: self.suppressed.or(parent.suppressed),
             shows_value: self.shows_value.or(parent.shows_value),
             shows_category_name: self.shows_category_name.or(parent.shows_category_name),
             shows_series_name: self.shows_series_name.or(parent.shows_series_name),
@@ -952,7 +952,7 @@ impl DataLabel {
 
     /// A fresh `c:dLbl` that suppresses the point's label entirely
     /// (`<c:dLbl><c:idx val="n"/><c:delete val="1"/></c:dLbl>`).
-    fn deleted(interner: &mut Interner, index: u32) -> Self {
+    fn suppressed(interner: &mut Interner, index: u32) -> Self {
         let idx = chart_val_leaf(interner, "idx", &index.to_string());
         let delete = chart_val_leaf(interner, "delete", "1");
         Self {
@@ -988,7 +988,7 @@ impl DataLabel {
 
     /// Replaces the label's own words, adding a `c:tx` in its schema position if it had none.
     pub fn set_text(&mut self, interner: &mut Interner, text: &str) {
-        self.clear_delete(interner);
+        self.clear_suppression(interner);
         let replacement = TitleText::new(interner, text);
         if let Some(index) = self
             .content
@@ -1005,7 +1005,7 @@ impl DataLabel {
 
     /// Whether this point's label is suppressed (`c:delete`).
     #[must_use]
-    pub fn is_deleted(&self, interner: &Interner) -> Option<bool> {
+    pub fn is_suppressed(&self, interner: &Interner) -> Option<bool> {
         self.flag(interner, "delete")
     }
 
@@ -1052,13 +1052,13 @@ impl DataLabel {
         if spec.is_empty() {
             return;
         }
-        self.clear_delete(interner);
+        self.clear_suppression(interner);
         write_label_settings!(self, interner, spec);
     }
 
     /// Removes a `c:delete` — `CT_DLbl` puts it in one `xsd:choice` with the settings group, so a
-    /// label cannot both be deleted and say anything.
-    fn clear_delete(&mut self, interner: &mut Interner) {
+    /// label cannot both be suppressed and say anything.
+    fn clear_suppression(&mut self, interner: &mut Interner) {
         self.drop_raw(interner, "delete");
     }
 }
@@ -1136,7 +1136,7 @@ impl DataLabels {
 
     /// Whether every label under this element is suppressed (`c:delete`).
     #[must_use]
-    pub fn is_deleted(&self, interner: &Interner) -> Option<bool> {
+    pub fn is_suppressed(&self, interner: &Interner) -> Option<bool> {
         self.flag(interner, "delete")
     }
 
@@ -1200,13 +1200,13 @@ impl DataLabels {
 
     /// Suppresses the label of the point at `index` — a `c:dLbl` carrying only `c:delete`, which is
     /// how Office hides one label of a series that shows the rest.
-    pub fn delete_label_for_point(&mut self, interner: &mut Interner, index: u32) {
+    pub fn suppress_label_for_point(&mut self, interner: &mut Interner, index: u32) {
         if let Some(at) = self.label_index_of(interner, index) {
-            let label = DataLabel::deleted(interner, index);
+            let label = DataLabel::suppressed(interner, index);
             self.content[at] = DataLabelsContent::Label(label);
             return;
         }
-        let label = DataLabel::deleted(interner, index);
+        let label = DataLabel::suppressed(interner, index);
         self.insert_label(interner, label);
     }
 
@@ -1251,7 +1251,7 @@ impl DataLabels {
         if spec.is_empty() {
             return;
         }
-        self.clear_delete(interner);
+        self.clear_suppression(interner);
         write_label_settings!(self, interner, spec);
         if let Some(show) = spec.shows_leader_lines {
             self.set_flag(interner, "showLeaderLines", Some(show));
@@ -1260,7 +1260,7 @@ impl DataLabels {
 
     /// Suppresses every label under this element: a `c:delete val="1"` replacing the settings group,
     /// which `CT_DLbls` puts in one `xsd:choice` with it.
-    pub(crate) fn delete_all(&mut self, interner: &mut Interner) {
+    pub(crate) fn suppress_all(&mut self, interner: &mut Interner) {
         for local in LABEL_SETTING_LOCALS.iter().chain(&CONTAINER_ONLY_LOCALS) {
             self.drop_raw(interner, local);
         }
@@ -1271,7 +1271,7 @@ impl DataLabels {
     }
 
     /// Removes a `c:delete`, so the settings group may be written in its place.
-    fn clear_delete(&mut self, interner: &mut Interner) {
+    fn clear_suppression(&mut self, interner: &mut Interner) {
         self.drop_raw(interner, "delete");
     }
 
@@ -1318,7 +1318,7 @@ fn read_label_settings(
     number_format: impl Fn() -> Option<String>,
 ) -> DataLabelSettings {
     DataLabelSettings {
-        deleted: flag("delete"),
+        suppressed: flag("delete"),
         shows_value: flag("showVal"),
         shows_category_name: flag("showCatName"),
         shows_series_name: flag("showSerName"),

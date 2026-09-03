@@ -1432,14 +1432,14 @@ impl Deck {
     /// Suppresses the labels at one tier — a `c:delete val="1"` in place of the settings, which is
     /// how one series of a labelled plot, or one point of a labelled series, is silenced without
     /// disturbing the rest. Marks only the chart part dirty.
-    #[wasm_bindgen(js_name = "deleteChartDataLabels")]
-    pub fn delete_chart_data_labels(
+    #[wasm_bindgen(js_name = "suppressChartDataLabels")]
+    pub fn suppress_chart_data_labels(
         &mut self,
         surface: &SurfaceArg,
         shape_idx: &ShapePathArg,
         scope: &ChartLabelScope,
     ) -> Result<(), JsValue> {
-        map_error(self.inner.delete_chart_data_labels(
+        map_error(self.inner.suppress_chart_data_labels(
             surface_of(surface)?,
             path_of(shape_idx)?,
             scope.0,

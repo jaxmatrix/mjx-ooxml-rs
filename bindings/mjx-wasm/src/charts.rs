@@ -242,9 +242,9 @@ impl DataLabelSpec {
 #[wasm_bindgen]
 impl DataLabelSettings {
     /// Whether the labels are suppressed, when stated.
-    #[wasm_bindgen(getter, js_name = "deleted")]
-    pub fn deleted(&self) -> Option<bool> {
-        self.0.deleted
+    #[wasm_bindgen(getter, js_name = "suppressed")]
+    pub fn suppressed(&self) -> Option<bool> {
+        self.0.suppressed
     }
 
     /// Whether the value is shown, when stated.
@@ -534,9 +534,9 @@ impl ChartAxisData {
     }
 
     /// Whether the axis is hidden, when stated.
-    #[wasm_bindgen(getter, js_name = "deleted")]
-    pub fn deleted(&self) -> Option<bool> {
-        self.0.deleted
+    #[wasm_bindgen(getter, js_name = "suppressed")]
+    pub fn suppressed(&self) -> Option<bool> {
+        self.0.suppressed
     }
 
     /// Which side of the plot the axis sits on, when stated.

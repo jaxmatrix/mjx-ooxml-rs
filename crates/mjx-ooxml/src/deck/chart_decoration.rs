@@ -181,14 +181,14 @@ impl Deck {
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
     /// [`detail`](Error::detail) names where it happened.
     ///
-    /// See [`Presentation::delete_chart_data_labels`](mjx_pptx::Presentation::delete_chart_data_labels).
-    pub fn delete_chart_data_labels(
+    /// See [`Presentation::suppress_chart_data_labels`](mjx_pptx::Presentation::suppress_chart_data_labels).
+    pub fn suppress_chart_data_labels(
         &mut self,
         surface: Surface,
         shape_idx: ShapePath,
         scope: ChartLabelScope,
     ) -> Result<(), Error> {
-        Ok(self.presentation.delete_chart_data_labels(
+        Ok(self.presentation.suppress_chart_data_labels(
             surface.to_model(),
             shape_idx.to_model(),
             scope,

@@ -16,7 +16,7 @@
 //! `mjx-xlsx` is a Phase D crate and cannot be depended on from here anyway (it sits *above* shared
 //! markup in the layering, and `mjx-chart` must never point sideways or up). Until it exists, a chart
 //! that wants a workbook has to write one itself, so this is the workspace's one deliberate duplicate.
-//! **E1 deletes this module** and routes [`EmbeddedWorkbook::to_package_bytes`] through the real
+//! **E1 removes this module** and routes [`EmbeddedWorkbook::to_package_bytes`] through the real
 //! `mjx-xlsx` writer once Phase D lands. A duplicate with a scheduled removal is a debt; a duplicate
 //! nobody removes is an architecture — so this note names the executioner, and the module stays small
 //! enough to make the swap a deletion rather than a migration. Do not grow a second general-purpose
