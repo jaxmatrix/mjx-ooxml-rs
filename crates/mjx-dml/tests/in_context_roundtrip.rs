@@ -30,6 +30,7 @@ use mjx_dml::{
     TabAlignment, Table, TablePart, TextAlignment, TextAnchoring, TextBody, TextBodyContent,
     TextSpacing, TextUnderline, Transform2D,
 };
+use mjx_dml::diagram::{ConnectionType, DataModel, PointType};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_opc::{Package, PartName};
 use mjx_xml::fidelity;
@@ -579,6 +580,79 @@ fn a_write_canonicalizes_only_what_it_wrote_and_moves_nothing() {
     assert!(
         out.contains(r#"<a:gs pos='0%'><a:srgbClr val='FF0000'/></a:gs>"#),
         "a write reached past the attribute it was given: {out}"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// The disagreeing corpus, DrawingML Diagram (SmartArt)
+// ---------------------------------------------------------------------------------------------
+//
+// No committed fixture carries `dgm:` markup at all: this project only started authoring it, and no
+// `.pptx` in the corpus predates that, so every diagram case is disagreeing-corpus by necessity —
+// none of it is shaped the way `mjx-pptx`'s `DiagramContent::vertical_list` writes a data model
+// (which never quotes with `'`, never puts an unknown attribute mid-sequence, and never spells
+// `coherent3DOff` any way but `true`/`false`).
+
+const DGM: &str = "http://schemas.openxmlformats.org/drawingml/2006/diagram";
+
+/// `dgm:dataModel` — a document point and one child point joined by a `parOf` connection.
+/// Single-quoted throughout; an unknown namespaced attribute sits between two modelled ones on the
+/// document point's `dgm:pt`; `coherent3DOff` is spelled `1` rather than `true`; the child's text
+/// carries a character reference a model actually reads.
+fn diagram_data_model() -> Vec<u8> {
+    format!(
+        r#"<dgm:dataModel xmlns:dgm="{DGM}" xmlns:a="{A}" xmlns:z="{Z}"><dgm:ptLst><dgm:pt modelId='1' type='doc' z:note='between the known ones'><dgm:prSet loTypeId='urn:example/layout' loCatId='list' qsTypeId='urn:example/style' qsCatId='simple' csTypeId='urn:example/colors' csCatId='accent1' coherent3DOff='1'/><dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang='en-US'/></a:p></dgm:t></dgm:pt><dgm:pt modelId='2'><dgm:prSet phldrT='Plan &amp; Build'/><dgm:t><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang='en-US'/><a:t>Plan &amp; Build</a:t></a:r></a:p></dgm:t></dgm:pt></dgm:ptLst><dgm:cxnLst><dgm:cxn modelId='3' srcId='1' destId='2' srcOrd='0' destOrd='0' type='parOf'/></dgm:cxnLst><dgm:whole/></dgm:dataModel>"#
+    )
+    .into_bytes()
+}
+
+#[test]
+fn a_diagram_data_model_written_in_forms_we_never_emit_survives_byte_for_byte() {
+    round_trips_in_document::<DataModel>(&diagram_data_model(), named("dataModel"), |model, i| {
+        let points: Vec<_> = model.points().expect("dgm:ptLst").points().collect();
+        assert_eq!(points.len(), 2, "two points");
+        assert_eq!(
+            points[0].point_type(i),
+            Ok(Some(PointType::Document)),
+            "the document point's @type"
+        );
+        let root_properties = points[0].properties().expect("dgm:prSet");
+        assert_eq!(
+            root_properties.coherent_3d_off(i),
+            Ok(Some(true)),
+            "`1` is true"
+        );
+        assert_eq!(
+            points[1].text_content().as_deref(),
+            Some("Plan & Build"),
+            "the character reference is decoded on the way in"
+        );
+
+        let connections: Vec<_> = model
+            .connections()
+            .expect("dgm:cxnLst")
+            .connections()
+            .collect();
+        assert_eq!(connections.len(), 1, "one connection");
+        assert_eq!(
+            connections[0].connection_type(i),
+            Ok(Some(ConnectionType::ParentOf))
+        );
+        assert_eq!(
+            connections[0].source_id(i).expect("required @srcId").as_ref(),
+            "1"
+        );
+        assert_eq!(
+            connections[0]
+                .destination_id(i)
+                .expect("required @destId")
+                .as_ref(),
+            "2"
+        );
+    });
+    assert!(
+        String::from_utf8_lossy(&diagram_data_model()).contains("Plan &amp; Build"),
+        "the fixture stopped carrying the character reference this case is about"
     );
 }
 
