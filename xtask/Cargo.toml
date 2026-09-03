@@ -22,3 +22,10 @@ anyhow.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-fixtures.workspace = true
+# The large-file corpus (MJXOFF-147): the PowerPoint deck is built through the real edit surface
+# rather than invented markup, which is the one format this workspace has a model for. WordprocessingML
+# and SpreadsheetML have no model yet (Phase C/D), so their corpus files are built directly on
+# `mjx-opc`, already a dependency above. Another downward edge from a host-only binary nothing
+# depends on — the same shape as the three fuzz edges above.
+mjx-pptx.workspace = true
+mjx-ooxml-types.workspace = true

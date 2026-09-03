@@ -44,3 +44,12 @@ mjx-vml.workspace = true
 # The shared ECMA-376 schema and child-order gate. Test-only, and the same harness `mjx-docx` and
 # `mjx-xlsx` are held to — one gate, three crates.
 mjx-schema-gate.workspace = true
+# The baseline benchmarks (MJXOFF-147). Dev-only, `harness = false` below. `mjx-fixtures` locates
+# the workspace root the corpus generator writes `target/corpus/` under — dependency-free, so this
+# adds no edge beyond the one every other test suite already has.
+criterion.workspace = true
+mjx-fixtures.workspace = true
+
+[[bench]]
+name = "pptx_operations"
+harness = false
