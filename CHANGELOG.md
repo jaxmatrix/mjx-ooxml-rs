@@ -49,6 +49,43 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.78] - 2026-09-03
+
+A performance baseline and a large-file corpus generator (MJXOFF-147) — the numbers MJXOFF-95 (the
+Excel cell store) designs its memory budget against, and the numbers a later regression is compared
+to instead of intuition. Not an optimisation pass: nothing here got faster, the point is knowing.
+
+### Added
+
+- **`cargo run -p xtask -- corpus`** — (re)builds a git-ignored large-file corpus into
+  `target/corpus/`: a 300-slide `.pptx` (`mjx_pptx::Presentation`'s real edit surface), a
+  20,000-paragraph `.docx` and a 300,000-cell `.xlsx` (raw WordprocessingML/SpreadsheetML on
+  `mjx_opc::Package` — neither format has a model yet), and prints size/element/cell counts.
+  `corpus --mem <pptx|docx|xlsx>` runs its peak-resident-set checkpoints (open / first-mutation
+  materialisation / edit / save) in one process via `/proc/self/status`'s `VmHWM`, the kernel's own
+  peak-RSS counter — chosen over a counting allocator because it answers the literal question asked
+  ("peak resident set") rather than a proxy for it. Not a substitute for MJXOFF-130's Office-authored
+  fixtures, and does not claim to be.
+
+- **Criterion benchmarks** — `crates/{mjx-pptx,mjx-docx,mjx-xlsx}/benches/`, six operations per
+  format (`open`, `first_mutation_materialisation`, `edit_after_materialised`, and the three save
+  paths `save_untouched` / `save_lightly_edited` / `save_fully_materialized`, measured separately
+  because the gap between them is the result), plus a seventh for `mjx-pptx` exercising the real
+  `Presentation` edit surface rather than only the lower `Package` layer.
+
+- **`docs/BENCHMARKS.md`** — the baseline: the machine, the (existing, previously undocumented)
+  release profile, all four operations × three formats' time and peak RSS, the three save paths
+  compared, A7d's `mjx248_measure` reproduced on this machine (matches within ~10–35%, one direction,
+  explained by MJXOFF-143), the short-list of figures MJXOFF-95 designs against, and two measurement
+  bugs this child caught in its own harness before trusting its numbers.
+
+### Findings, filed rather than fixed here
+
+- Materialising the 610,005-element / 300,000-cell worksheet costs **+274 MiB of peak RSS** over an
+  8.54 MiB raw-XML part — roughly 32× the source bytes, ≈ 913 B/cell. Filed as **MJXOFF-151** (under
+  MJXOFF-88) for MJXOFF-95 to design against (an arena/columnar layout, per `PLAN.md`'s hybrid model),
+  not fixed in this child.
+
 ## [0.0.77] - 2026-09-03
 
 The untrusted-input paths are fuzzed, and three defects they were hiding are fixed (MJXOFF-146).
