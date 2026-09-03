@@ -307,7 +307,7 @@ macro_rules! fidelity_element_impls {
                 let children = self.children.clone();
                 // Preserve the self-closing flag, but never contradict "self-closing ⇒ no children".
                 let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement::new(
+                ::mjx_ooxml_core::RawElement::rebuilt(
                     self.name,
                     self.attributes.clone(),
                     children,
