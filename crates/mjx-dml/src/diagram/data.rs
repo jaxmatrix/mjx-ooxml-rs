@@ -238,8 +238,10 @@ impl PointList {
     /// never rejected, so a decode failure just means that point cannot match).
     #[must_use]
     pub fn point_by_id<'a>(&'a self, interner: &Interner, model_id: &str) -> Option<&'a Point> {
-        self.points()
-            .find(|pt| pt.model_id(interner).is_ok_and(|id| id.as_ref() == model_id))
+        self.points().find(|pt| {
+            pt.model_id(interner)
+                .is_ok_and(|id| id.as_ref() == model_id)
+        })
     }
 
     /// The list's ordered content (typed points interleaved with opaque nodes).
@@ -518,10 +520,15 @@ fn write_variable<T: ToString>(
     let mut element = find_variable(children, interner, local)
         .cloned()
         .unwrap_or_else(|| dgm_element(interner, local, Vec::new(), Vec::new()));
-    mjx_xml::attribute::set(&mut element.attributes, interner, None, "val", &value.to_string());
-    LAYOUT_VARIABLE_PROPERTY_SET.replace_or_insert(children, interner, element, |candidate| {
-        candidate == local
-    });
+    mjx_xml::attribute::set(
+        &mut element.attributes,
+        interner,
+        None,
+        "val",
+        &value.to_string(),
+    );
+    LAYOUT_VARIABLE_PROPERTY_SET
+        .replace_or_insert(children, interner, element, |candidate| candidate == local);
 }
 
 /// Sets or clears `local`'s `val` attribute as the canonical `ST_OnOff` spelling, placed the same
@@ -541,9 +548,8 @@ fn write_variable_bool(
         .unwrap_or_else(|| dgm_element(interner, local, Vec::new(), Vec::new()));
     let encoded = <OnOff as mjx_ooxml_core::AttributeCodec>::encode(value);
     mjx_xml::attribute::set(&mut element.attributes, interner, None, "val", &encoded);
-    LAYOUT_VARIABLE_PROPERTY_SET.replace_or_insert(children, interner, element, |candidate| {
-        candidate == local
-    });
+    LAYOUT_VARIABLE_PROPERTY_SET
+        .replace_or_insert(children, interner, element, |candidate| candidate == local);
 }
 
 /// `dgm:varLst` (`CT_LayoutVariablePropertySet`) — "a list of variables which interact with user
