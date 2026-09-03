@@ -236,7 +236,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -249,7 +249,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -261,7 +261,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-derive",
  "mjx-mce",
@@ -274,7 +274,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -283,12 +283,17 @@ dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
  "mjx-opc",
+ "mjx-schema-gate",
  "mjx-xml",
 ]
 
 [[package]]
+name = "mjx-fixtures"
+version = "0.0.70"
+
+[[package]]
 name = "mjx-mce"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -297,7 +302,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -307,7 +312,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-chart",
  "mjx-dml",
@@ -323,19 +328,20 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.69"
+version = "0.0.70"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
+ "mjx-fixtures",
  "mjx-ooxml-core",
  "mjx-xml",
  "thiserror",
@@ -344,7 +350,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "anyhow",
  "mjx-chart",
@@ -354,6 +360,7 @@ dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
  "mjx-opc",
+ "mjx-schema-gate",
  "mjx-vml",
  "mjx-xml",
  "thiserror",
@@ -362,15 +369,27 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
 ]
 
 [[package]]
+name = "mjx-schema-gate"
+version = "0.0.70"
+dependencies = [
+ "mjx-fixtures",
+ "mjx-mce",
+ "mjx-ooxml-core",
+ "mjx-ooxml-types",
+ "mjx-opc",
+ "mjx-xml",
+]
+
+[[package]]
 name = "mjx-vml"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -381,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -391,7 +410,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -399,12 +418,13 @@ dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
  "mjx-opc",
+ "mjx-schema-gate",
  "mjx-xml",
 ]
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "mjx-ooxml-core",
  "quick-xml",
@@ -804,7 +824,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.69"
+version = "0.0.70"
 dependencies = [
  "anyhow",
  "mjx-ooxml-core",
