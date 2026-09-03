@@ -549,27 +549,27 @@ fn a_series_can_be_switched_from_value_to_percentage_without_touching_the_others
 }
 
 #[test]
-fn deleting_labels_at_one_tier_clears_the_settings_that_stood_in_their_place() {
+fn suppressing_labels_at_one_tier_clears_the_settings_that_stood_in_their_place() {
     let (mut space, mut doc) = parse(THREE_TIER_CHART);
     {
         let mut decoration = space.series_decoration_mut(0).expect("series 0");
         decoration
-            .delete_data_labels(&mut doc.interner)
+            .suppress_data_labels(&mut doc.interner)
             .expect("a bar series admits data labels");
     }
     let xml = serialize(&space, doc);
-    assert_in_schema_order("a series whose labels are deleted", &xml);
+    assert_in_schema_order("a series whose labels are suppressed", &xml);
     assert!(
         xml.contains(r#"<c:dLbls><c:delete val="1"/></c:dLbls>"#),
-        "a deleted c:dLbls carries c:delete and nothing else, got:\n{xml}"
+        "a suppressed c:dLbls carries c:delete and nothing else, got:\n{xml}"
     );
 
     let (space, doc) = parse(&xml);
     let bar = space.bar_chart().expect("c:barChart");
     let resolved = bar.resolved_data_labels(&doc.interner, 0, None);
-    assert_eq!(resolved.deleted, Some(true));
-    // A deleted tier inherits nothing: `CT_DLbls` puts `c:delete` and the settings group in one
-    // `xsd:choice`, so a deleted element cannot also carry a position.
+    assert_eq!(resolved.suppressed, Some(true));
+    // A suppressed tier inherits nothing: `CT_DLbls` puts `c:delete` and the settings group in one
+    // `xsd:choice`, so a suppressed element cannot also carry a position.
     assert_eq!(resolved.position, None);
     assert_eq!(resolved.shows_value, None);
     // The plot tier itself is untouched, so the other series still labels its points.
@@ -585,7 +585,7 @@ fn one_point_can_be_silenced_while_the_rest_of_the_series_keeps_its_labels() {
     {
         let mut decoration = space.series_decoration_mut(0).expect("series 0");
         decoration
-            .delete_point_label(&mut doc.interner, 2)
+            .suppress_point_label(&mut doc.interner, 2)
             .expect("point 2 exists");
     }
     let xml = serialize(&space, doc);
@@ -594,12 +594,14 @@ fn one_point_can_be_silenced_while_the_rest_of_the_series_keeps_its_labels() {
     let (space, doc) = parse(&xml);
     let bar = space.bar_chart().expect("c:barChart");
     assert_eq!(
-        bar.resolved_data_labels(&doc.interner, 0, Some(2)).deleted,
+        bar.resolved_data_labels(&doc.interner, 0, Some(2))
+            .suppressed,
         Some(true)
     );
     // Its neighbours are unaffected, and point 1's own override still stands.
     assert_eq!(
-        bar.resolved_data_labels(&doc.interner, 0, Some(0)).deleted,
+        bar.resolved_data_labels(&doc.interner, 0, Some(0))
+            .suppressed,
         None
     );
     assert_eq!(

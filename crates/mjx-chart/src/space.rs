@@ -337,7 +337,7 @@ impl PlotArea {
     ///
     /// # Errors
     /// As [`set_plot_data_labels`](Self::set_plot_data_labels).
-    pub fn delete_plot_data_labels(
+    pub fn suppress_plot_data_labels(
         &mut self,
         interner: &mut Interner,
         plot_idx: usize,
@@ -348,7 +348,7 @@ impl PlotArea {
         with_plot!(
             item,
             |plot| {
-                plot.data_labels_mut(interner)?.delete_all(interner);
+                plot.data_labels_mut(interner)?.suppress_all(interner);
                 Ok(true)
             },
             Ok(false)
@@ -605,7 +605,7 @@ impl Chart {
 
     /// Whether Office is told **not** to invent a title of its own (`c:autoTitleDeleted`).
     #[must_use]
-    pub fn auto_title_deleted(&self, interner: &Interner) -> Option<bool> {
+    pub fn auto_title_suppressed(&self, interner: &Interner) -> Option<bool> {
         self.scalar(interner, "autoTitleDeleted")
             .and_then(on_off::from_wire)
     }

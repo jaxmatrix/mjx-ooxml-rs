@@ -698,7 +698,7 @@ impl Axis {
 
     /// Whether the axis is hidden (`c:delete`) — `Some(true)` means Office draws nothing for it.
     #[must_use]
-    pub fn is_deleted(&self, interner: &Interner) -> Option<bool> {
+    pub fn is_suppressed(&self, interner: &Interner) -> Option<bool> {
         self.scalar(interner, "delete").and_then(on_off::from_wire)
     }
 

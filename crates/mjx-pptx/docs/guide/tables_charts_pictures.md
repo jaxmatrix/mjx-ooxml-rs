@@ -276,7 +276,7 @@ deck.set_chart_data_labels(
 )?;
 
 // …and this one point, which is silenced entirely.
-deck.delete_chart_data_labels(
+deck.suppress_chart_data_labels(
     0,
     3,
     ChartLabelScope::Point { series_idx: 1, point_idx: 2 },
@@ -299,7 +299,7 @@ value on and leaves the position, the separator and the format exactly as they w
 of a label Office wrote can be changed without flattening the rest. Three verbs separate what are
 genuinely three different intentions:
 [`set_chart_data_labels`](Presentation::set_chart_data_labels) states settings,
-[`delete_chart_data_labels`](Presentation::delete_chart_data_labels) says *draw nothing here* (a
+[`suppress_chart_data_labels`](Presentation::suppress_chart_data_labels) says *draw nothing here* (a
 `c:delete`), and [`remove_chart_data_labels`](Presentation::remove_chart_data_labels) says *say
 nothing here*, returning the tier to what it inherits.
 [`chart_data_label_tier`](Presentation::chart_data_label_tier) reads one tier in isolation, which is

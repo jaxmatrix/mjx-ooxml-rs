@@ -20,6 +20,9 @@
 # Binding build artefacts. The sources are committed; the products are not.
 /bindings/*/target
 /bindings/mjx-python/dist
+# `maturin develop` drops the editable extension module beside the stub.
+/bindings/mjx-python/python/mjx_ooxml/*.so
+/bindings/mjx-python/python/mjx_ooxml/*.pyd
 /bindings/mjx-python/.venv
 /bindings/mjx-wasm/pkg
 /bindings/mjx-wasm/pkg-*

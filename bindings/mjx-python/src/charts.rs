@@ -236,8 +236,8 @@ impl DataLabelSpec {
 impl DataLabelSettings {
     /// Whether the labels are suppressed, when stated.
     #[getter]
-    fn deleted(&self) -> Option<bool> {
-        self.0.deleted
+    fn suppressed(&self) -> Option<bool> {
+        self.0.suppressed
     }
 
     /// Whether the value is shown, when stated.
@@ -566,8 +566,8 @@ impl ChartAxisData {
 
     /// Whether the axis is hidden, when stated.
     #[getter]
-    fn deleted(&self) -> Option<bool> {
-        self.0.deleted
+    fn suppressed(&self) -> Option<bool> {
+        self.0.suppressed
     }
 
     /// Which side of the plot the axis sits on, when stated.

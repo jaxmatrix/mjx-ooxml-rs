@@ -828,7 +828,7 @@ fn chart_axes_read_an_authored_chart() {
     assert_eq!(axes.len(), 2);
     assert_eq!(axes[0].kind, AxisKind::Category);
     assert_eq!(axes[0].position, Some(AxisPosition::Bottom));
-    assert_eq!(axes[0].deleted, Some(false));
+    assert_eq!(axes[0].suppressed, Some(false));
     assert_eq!(axes[1].kind, AxisKind::Value);
     assert_eq!(axes[1].position, Some(AxisPosition::Left));
 
@@ -1214,7 +1214,7 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
         &DataLabelSpec::new().category_name(true),
     )
     .expect("set point label");
-    pres.delete_chart_data_labels(
+    pres.suppress_chart_data_labels(
         0,
         frame,
         ChartLabelScope::Point {
@@ -1229,7 +1229,7 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
     assert_eq!(
         pres.chart_data_labels(0, frame, 0, Some(1))
             .expect("point 1")
-            .deleted,
+            .suppressed,
         Some(true)
     );
     assert_eq!(
@@ -1241,7 +1241,7 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
     assert_eq!(
         pres.chart_data_labels(0, frame, 0, Some(0))
             .expect("point 0")
-            .deleted,
+            .suppressed,
         None,
         "silencing one point leaves its neighbours alone"
     );
@@ -1259,7 +1259,7 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
     assert_eq!(
         pres.chart_data_labels(0, frame, 0, Some(1))
             .expect("point 1")
-            .deleted,
+            .suppressed,
         None
     );
 }

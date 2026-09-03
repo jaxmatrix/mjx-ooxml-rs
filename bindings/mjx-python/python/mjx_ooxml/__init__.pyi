@@ -1376,7 +1376,7 @@ class DataLabelSpec:
 @final
 class DataLabelSettings:
     """What data labels a chart part already states, at one tier of its hierarchy."""
-    deleted: bool | None
+    suppressed: bool | None
     """Whether the labels are suppressed, when stated."""
     shows_value: bool | None
     """Whether the value is shown, when stated."""
@@ -1502,7 +1502,7 @@ class ChartAxisData:
     """The axis's own identifier, when stated."""
     cross_axis_id: int | None
     """The identifier of the axis this one crosses, when stated."""
-    deleted: bool | None
+    suppressed: bool | None
     """Whether the axis is hidden, when stated."""
     position: AxisPosition | None
     """Which side of the plot the axis sits on, when stated."""
@@ -2194,7 +2194,7 @@ class Deck:
         part dirty.
         """
         ...
-    def delete_chart_data_labels(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scope: ChartLabelScope) -> None:
+    def suppress_chart_data_labels(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, scope: ChartLabelScope) -> None:
         """Suppresses the labels at one tier — a `c:delete val="1"` in place of the settings, which
         is how one series of a labelled plot, or one point of a labelled series, is silenced
         without disturbing the rest. Marks only the chart part dirty.

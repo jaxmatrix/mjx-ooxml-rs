@@ -993,10 +993,10 @@ impl<'a> SeriesDecoration<'a> {
     ///
     /// # Errors
     /// As [`data_labels_mut`](Self::data_labels_mut).
-    pub fn delete_data_labels(&mut self, interner: &mut Interner) -> Result<(), ChartDataError> {
+    pub fn suppress_data_labels(&mut self, interner: &mut Interner) -> Result<(), ChartDataError> {
         self.data_labels_mut(interner)?;
         if let Some(labels) = self.series.data_labels_mut() {
-            labels.delete_all(interner);
+            labels.suppress_all(interner);
         }
         Ok(())
     }
@@ -1035,7 +1035,7 @@ impl<'a> SeriesDecoration<'a> {
     ///
     /// # Errors
     /// As [`set_point_label`](Self::set_point_label), minus the leader-line case.
-    pub fn delete_point_label(
+    pub fn suppress_point_label(
         &mut self,
         interner: &mut Interner,
         point: u32,
@@ -1043,7 +1043,7 @@ impl<'a> SeriesDecoration<'a> {
         self.require_point(interner, point)?;
         self.data_labels_mut(interner)?;
         if let Some(labels) = self.series.data_labels_mut() {
-            labels.delete_label_for_point(interner, point);
+            labels.suppress_label_for_point(interner, point);
         }
         Ok(())
     }

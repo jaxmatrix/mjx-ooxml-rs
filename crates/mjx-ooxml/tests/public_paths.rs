@@ -787,7 +787,7 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
     let _ = deck
         .chart_point_label_text(slide, chart.clone(), 0, 0)
         .expect("reading");
-    deck.delete_chart_data_labels(
+    deck.suppress_chart_data_labels(
         slide,
         chart.clone(),
         ChartLabelScope::Series { series_idx: 0 },
