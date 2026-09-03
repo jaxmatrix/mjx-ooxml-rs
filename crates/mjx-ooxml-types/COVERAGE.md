@@ -27,7 +27,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | shared-documentPropertiesVariantTypes | — | not modelled — the variant vocabulary of the custom-properties part, preserved verbatim |
 | shared-math | `officemath` | generated — all 14 simple types |
 | shared-relationshipReference | — | not modelled — `r:id` is a token `mjx-opc` owns; the schema declares no enumeration |
-| sml | — | pending, owned by MJXOFF-145 — SpreadsheetML's simple types, split from this schema's siblings deliberately |
+| sml | `spreadsheetml` | generated — all 96 simple types |
 | vml-main | — | not modelled — VML is a legacy Microsoft vocabulary this project stores and re-emits verbatim; `mjx-vml` never authors a `ST_*` value |
 | vml-officeDrawing | — | not modelled — as for `vml-main` |
 | vml-presentationDrawing | — | not modelled — as for `vml-main` |
