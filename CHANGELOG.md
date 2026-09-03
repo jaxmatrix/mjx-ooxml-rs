@@ -49,6 +49,45 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.76] - 2026-09-03
+
+The SpreadsheetML vocabulary is generated (MJXOFF-145).
+
+`sml.xsd` is the largest schema in the set — 4,439 lines, 367 complex types, 96 simple types — and
+nothing in `mjx-ooxml-types` covered any of it. MJXOFF-132 (`mjx-sml`) is built on this vocabulary,
+so without it an Excel crate would have invented its own cell-type and error-value enumerations.
+This adds it **whole**, not as an allowlist:
+
+- **`mjx_ooxml_types::spreadsheetml`** — all 96 simple types of `sml.xsd`, carrying all 559
+  enumeration values of its named types. Cell types, formula kinds, the 18 conditional-format rule
+  kinds and 17 icon sets, the 66 PivotTable filters, the 28 table-style elements, border and
+  pattern fills, data-validation kinds and IME modes, the MDX cube vocabulary, and the rest.
+
+Every item documents its original `ST_*` symbol and its exact wire token, and 149 of the values are
+named from the ECMA-376 prose rather than from their token — `s` is a shared string and `str` a
+formula string, `3TrafficLights1` is `ThreeTrafficLights`, `gray125` is 12.5% grey, and `stdDevp`
+is the population standard deviation as against `stdDev`'s sample estimate. The `wire` suite grows
+26 → 61 → **94** tests: one per overridden `ST_*` pinning its named variants to exact bytes in both
+directions, plus an exhaustive pass over all 559 tokens.
+
+### Fixed
+
+- **The simple-type reader lost a type when one nested another.** `xtask`'s XSD reader closed a
+  named `xsd:simpleType` on the first `</xsd:simpleType>` it saw, so an `xsd:union` written with
+  inline anonymous members — `sml.xsd`'s `ST_TextRotation`, the only one in the emitted set — closed
+  its own definition early, swallowed the type declared after it, and attributed the inner
+  restrictions' base and facets to the type around them. The reader now tracks nesting depth.
+- **A union of one number is now that number.** `ST_TextRotation` (0–180 degrees, or 255) would
+  have been a `String` newtype. A union every member of which resolves to the same Rust primitive
+  is emitted as that primitive, the way a plain numeric restriction already was.
+
+### Changed
+
+- `assert_every_token_round_trips!` in the `wire` suite is now
+  `assert_every_token_round_trips_to_its_own_variant!`, and asserts that the number of distinct
+  variants an enumeration reaches equals the number of values its schema declares — the failure two
+  colliding naming-override rows would cause. It covers `wml`, `shared-math` and `sml` alike.
+
 ## [0.0.75] - 2026-09-03
 
 The WordprocessingML and Office Math vocabularies are generated (MJXOFF-144).
