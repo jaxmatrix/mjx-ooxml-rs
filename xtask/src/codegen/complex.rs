@@ -291,7 +291,10 @@ fn complex_content_derivation(
             _ => continue,
         };
         let base_qname = attribute(child, interner, "base").with_context(|| {
-            format!("{}: complexContent extension/restriction with no base", schema.file)
+            format!(
+                "{}: complexContent extension/restriction with no base",
+                schema.file
+            )
         })?;
         let base = schema.resolve_qname(&base_qname)?;
         let own = content_particle(child, interner, schema, false)?;
@@ -880,8 +883,7 @@ mod tests {
         // everything the level below it contributed — not merely after its immediate parent's.
         let set = schema_set(&[(
             "t.xsd",
-            &dml(
-                r#"<xsd:complexType name="CT_Root">
+            &dml(r#"<xsd:complexType name="CT_Root">
                      <xsd:sequence>
                        <xsd:element name="alpha" type="CT_Empty"/>
                      </xsd:sequence>
@@ -903,8 +905,7 @@ mod tests {
                          </xsd:sequence>
                        </xsd:extension>
                      </xsd:complexContent>
-                   </xsd:complexType>"#,
-            ),
+                   </xsd:complexType>"#),
         )]);
         let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
 
@@ -923,7 +924,11 @@ mod tests {
 
         // The intermediate level splices correctly too, independent of its own child.
         let mid = find(&flat, "CT_Mid");
-        let mid_ranks: Vec<_> = mid.slots.iter().map(|s| (s.local.as_str(), s.rank)).collect();
+        let mid_ranks: Vec<_> = mid
+            .slots
+            .iter()
+            .map(|s| (s.local.as_str(), s.rank))
+            .collect();
         assert_eq!(mid_ranks, vec![("alpha", 0), ("beta", 1)]);
     }
 
@@ -931,8 +936,7 @@ mod tests {
     fn restriction_replaces_the_base_particle_instead_of_appending() {
         let set = schema_set(&[(
             "t.xsd",
-            &dml(
-                r#"<xsd:complexType name="CT_Base">
+            &dml(r#"<xsd:complexType name="CT_Base">
                      <xsd:sequence>
                        <xsd:element name="alpha" type="CT_Empty"/>
                        <xsd:element name="beta" type="CT_Empty"/>
@@ -947,8 +951,7 @@ mod tests {
                          </xsd:sequence>
                        </xsd:restriction>
                      </xsd:complexContent>
-                   </xsd:complexType>"#,
-            ),
+                   </xsd:complexType>"#),
         )]);
         let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
         let narrowed = find(&flat, "CT_Narrowed");
@@ -964,8 +967,7 @@ mod tests {
     fn extension_of_an_attribute_only_base_takes_its_own_model() {
         let set = schema_set(&[(
             "t.xsd",
-            &dml(
-                r#"<xsd:complexType name="CT_Base">
+            &dml(r#"<xsd:complexType name="CT_Base">
                      <xsd:attribute name="id" type="xsd:string"/>
                    </xsd:complexType>
                    <xsd:complexType name="CT_Derived">
@@ -977,8 +979,7 @@ mod tests {
                          </xsd:choice>
                        </xsd:extension>
                      </xsd:complexContent>
-                   </xsd:complexType>"#,
-            ),
+                   </xsd:complexType>"#),
         )]);
         let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
         let derived = find(&flat, "CT_Derived");
@@ -990,15 +991,13 @@ mod tests {
     fn simple_content_contributes_no_particle() {
         let set = schema_set(&[(
             "t.xsd",
-            &dml(
-                r#"<xsd:complexType name="CT_Text">
+            &dml(r#"<xsd:complexType name="CT_Text">
                      <xsd:simpleContent>
                        <xsd:extension base="xsd:string">
                          <xsd:attribute name="space" type="xsd:string"/>
                        </xsd:extension>
                      </xsd:simpleContent>
-                   </xsd:complexType>"#,
-            ),
+                   </xsd:complexType>"#),
         )]);
         let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
         let text = find(&flat, "CT_Text");
@@ -1010,8 +1009,7 @@ mod tests {
     fn a_cyclic_complex_content_base_reference_fails_loudly() {
         let set = schema_set(&[(
             "t.xsd",
-            &dml(
-                r#"<xsd:complexType name="CT_A">
+            &dml(r#"<xsd:complexType name="CT_A">
                      <xsd:complexContent>
                        <xsd:extension base="CT_B"/>
                      </xsd:complexContent>
@@ -1020,8 +1018,7 @@ mod tests {
                      <xsd:complexContent>
                        <xsd:extension base="CT_A"/>
                      </xsd:complexContent>
-                   </xsd:complexType>"#,
-            ),
+                   </xsd:complexType>"#),
         )]);
         let error = set
             .flatten_schema(&set.schemas()[0])
