@@ -11,6 +11,11 @@
 //! Two-valued OOXML toggles (`ST_OnOff` family) are modeled as `bool` / `Option<bool>`; all wire
 //! spellings are normalized on read and one canonical form is written — see [`support`].
 //!
+//! [`support`] also holds the OOXML-specific [`AttributeCodec`](mjx_ooxml_core::AttributeCodec)s —
+//! [`OnOff`], [`TrueFalse`], [`TrueFalseBlank`], [`HexColorRgb`] — that carry those simple types
+//! across the attribute seam. An enumeration needs no codec of its own: every generated one is
+//! `Enumeration<T>`, because they all spell themselves with `FromStr` and `Display`.
+//!
 //! # Example
 //!
 //! ```
@@ -27,4 +32,7 @@ pub mod support;
 mod generated;
 
 pub use generated::{namespaces, shared};
-pub use support::{on_off, true_false, true_false_blank, UnknownWireValue};
+pub use support::{
+    on_off, true_false, true_false_blank, HexColorRgb, OnOff, TrueFalse, TrueFalseBlank,
+    UnknownWireValue,
+};
