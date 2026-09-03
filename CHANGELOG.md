@@ -49,6 +49,35 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.80] - 2026-09-04
+
+Document properties (MJXOFF-149): the programme held two contradictory positions on `docProps/*` —
+"deliberately absent" in `mjx-pptx`'s own blank-deck module doc, and already assumed in two Word/Excel
+tickets' part lists. Settled in favour of authoring: every file real Office writes carries
+`docProps/core.xml` and `docProps/app.xml`, and `mjx-schema-gate`'s three-category rule was written
+anticipating exactly this flip.
+
+### Added
+
+- **`mjx_opc::doc_props`** — `CoreProperties` (`title`, `creator`, `created`, `modified`),
+  `ExtendedProperties` (`application`) and `DocumentTimestamp` (built only from explicit calendar
+  fields — there is no `now()`), plus the writer, part-name, content-type and relationship-type
+  constants for `docProps/core.xml` (ECMA-376 Part 2's `opc-coreProperties.xsd`, Dublin Core) and
+  `docProps/app.xml` (`shared-documentPropertiesExtended.xsd`). Packaging-layer, so `mjx-pptx` and
+  the Word/Excel `blank()` constructors still to come share one implementation.
+- **`mjx_pptx::Presentation::blank_with_properties`** — `blank` with document properties set, rather
+  than left absent. `blank` itself now writes both parts on every call, all-`None` by default (a
+  schema-valid, childless part, since both are `xs:all` groups with every child optional).
+
+### Fixed
+
+- `mjx-schema-gate`'s `opc-coreProperties` and `shared-documentPropertiesExtended` namespaces move
+  from the preserved-foreign allowlist to the modelled-schema table: `docProps/core.xml` and
+  `docProps/app.xml`, in every fixture and every authored deck alike, are now genuinely validated
+  against ECMA-376 rather than skipped as foreign markup. `opc-coreProperties.xsd`'s Dublin Core
+  imports (`dc:`, `dcterms:`, real network `schemaLocation`s, unlike `wml.xsd`'s bare `xml:` import)
+  are resolved through a committed local XML catalog rather than a live fetch.
+
 ## [0.0.79] - 2026-09-03
 
 The DrawingML diagram (SmartArt) model (MJXOFF-148): `add_diagram` authored `dgm:` markup this
