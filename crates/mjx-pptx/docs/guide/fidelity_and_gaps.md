@@ -153,6 +153,66 @@ point's shape — is a documented non-goal**, unchanged by this: see [*A SmartAr
 run*](#non-goals) below. The markup that tree is built from is now fully typed; interpreting it is a
 rendering feature, and there is no rendering here.
 
+### Document properties: what `mjx_opc::doc_props` models
+
+`docProps/core.xml` and `docProps/app.xml` used to be a documented non-goal — "this project only
+preserves them elsewhere" — because `mjx-pptx` was the only format writing anything from nothing and
+Word's and Excel's own blank-document tickets both assumed the opposite without either side settling
+it. MJXOFF-149 settled it: every file real Office writes carries these two parts (`sample.docx` and
+`sample.xlsx` each ship exactly them), the typed surface a caller actually needs is small, and
+`mjx-schema-gate`'s three-category rule was written anticipating exactly this flip. They are now
+**authored**, at the packaging layer (`mjx_opc::doc_props`) rather than once per format, so
+`Presentation::blank`, and the `Document::blank` / `Workbook::blank` constructors still to come, all
+call the one writer.
+
+- **What is modelled.** [`CoreProperties`](mjx_opc::doc_props::CoreProperties) carries `title`,
+  `creator`, `created` and `modified` — four of `CT_CoreProperties`' fifteen elements.
+  [`ExtendedProperties`](mjx_opc::doc_props::ExtendedProperties) carries `application` alone, of
+  `CT_Properties`' twenty-five. The rest of both types is `minOccurs="0"`, so omitting them is
+  schema-valid, not a shortcut — the same "only what is needed" reasoning `Presentation::blank`
+  already states for the markup it writes elsewhere. [`DocumentTimestamp`](mjx_opc::doc_props::DocumentTimestamp)
+  is the typed value `created` / `modified` take: built only from explicit calendar fields (there is
+  no `now()`), so a package authored from nothing has no wall-clock dependency and two calls with the
+  same fields are byte-identical.
+- **`Presentation::blank` writes both parts on every call**, all-`None` by default — a schema-valid,
+  childless `<cp:coreProperties/>` and `<Properties/>`, since `CT_CoreProperties` and `CT_Properties`
+  are both `xs:all` groups with every child optional.
+  [`Presentation::blank_with_properties`](Presentation::blank_with_properties) is the same
+  constructor for a caller who wants to set any of the five fields.
+- **`docProps/custom.xml` is not modelled, and is not a `mjx-schema-gate` allowlist entry either.**
+  No committed fixture carries one and nothing here has a use for open-ended caller-defined
+  properties; a future child that starts authoring custom properties adds the writer and the
+  allowlist entry together, deliberately, rather than finding a stale one waiting.
+
+```
+# fn main() -> Result<(), mjx_pptx::PptxError> {
+use mjx_opc::doc_props::{CoreProperties, DocumentTimestamp, ExtendedProperties};
+use mjx_pptx::{Presentation, SlideSize};
+use mjx_ooxml_types::presentationml::SlideSizeKind;
+
+let created = DocumentTimestamp::new(2024, 1, 1, 0, 0, 0)?;
+let deck = Presentation::blank_with_properties(
+    SlideSize {
+        width_emu: 12_192_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen16X9,
+    },
+    &CoreProperties {
+        title: Some("Quarterly Review".to_owned()),
+        creator: Some("mjx-ooxml-rs".to_owned()),
+        created: Some(created),
+        modified: Some(created),
+    },
+    &ExtendedProperties {
+        application: Some("mjx-ooxml-rs".to_owned()),
+    },
+)?;
+let bytes = deck.save()?;
+# let _ = bytes;
+# Ok(())
+# }
+```
+
 ## The gaps
 
 Two lists, kept apart on purpose. The first is what this library **decides not to do**, each entry
@@ -175,7 +235,7 @@ loses. A deck carrying any of it round-trips unchanged.
 | **An ActiveX control's properties (`ax:ocxPr`) are not modelled** | The class id and persistence read and write; the property bag inside is verbatim | A Microsoft extension outside ECMA-376 whose meaning is per-control-class |
 | **VML geometry is preserved, not evaluated** | A `v:shape`'s identity, style, references, fill, stroke and children typed; the `path` command string and `v:formulas` verbatim | The same non-goal as the layout engine: evaluating them into a path is a rendering feature |
 | **Markup Compatibility parts are not schema-validated** | They are skipped by the schema gate with a named reason, never silently | `mc:AlternateContent` lives outside the base schema by design. This shades nothing this library writes: no authoring path emits it |
-| **The schema gate covers the markup this project authors, not the markup it only preserves** | Every fixture part and every authored deck is validated against the ECMA-376 XSDs for PresentationML, DrawingML, DrawingML charts, DrawingML diagrams, SpreadsheetML and the two OPC control streams, as a blocking CI job | InkML, ActiveX, VML and document properties are namespaces we carry rather than write. Validating them against a schema they were not written to would report noise, so they are reported as *skipped*, by name (MJX-248) |
+| **The schema gate covers the markup this project authors, not the markup it only preserves** | Every fixture part and every authored deck is validated against the ECMA-376 XSDs for PresentationML, DrawingML, DrawingML charts, DrawingML diagrams, SpreadsheetML, the two OPC control streams, and (MJXOFF-149) OPC core properties and extended document properties, as a blocking CI job | InkML, ActiveX and VML are namespaces we carry rather than write. Validating them against a schema they were not written to would report noise, so they are reported as *skipped*, by name (MJX-248) |
 | **No rendering, of any kind** | Measurement: resolved geometry, effective properties, absolute bounds | No layout engine, no SVG, no PDF. Rendering is a separate phase with no date |
 | **Encrypted and password-protected packages are out of scope**; digital signatures are preserved, not processed | A typed error rather than a guess | Decrypting an ECMA-376 Part 2 protected package is a cryptography project, and validating a signature this library may then invalidate by rewriting the container would be worse than not claiming to |
 
