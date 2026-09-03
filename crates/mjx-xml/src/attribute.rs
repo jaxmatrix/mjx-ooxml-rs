@@ -168,7 +168,7 @@ pub fn remove(
 ///
 /// **Reading never normalizes.** Nothing here can change the file: `attributes` is borrowed shared,
 /// so an attribute that is read and not assigned to re-emits its own spelling, its own quote
-/// character, in its own position. Canonicalization is [`write`]'s job alone.
+/// character, in its own position. Canonicalization is [`write()`]'s job alone.
 ///
 /// `qualified` is the attribute's wire name as the caller declared it (`"val"`, `"r:embed"`) — a
 /// `&'static str`, so naming the offending attribute in an error costs no allocation.

@@ -389,25 +389,29 @@ fn a_write_canonicalizes_only_what_it_wrote_and_moves_nothing() {
     let RawDocument { interner, root, .. } = &mut document;
     let mut fill = GradientFill::from_xml(root, interner).expect("from_xml");
 
-    // `on` is already `true`; assigning that same value is still a *write*, and a write has one
-    // canonical spelling. This is the half of the contract a read must never perform.
+    // Both modeled attributes are assigned the value they already have. That is still a *write*,
+    // and a write has one canonical spelling — the half of the contract a read must never perform.
+    // `@flip` is the **first** attribute and single-quoted, `@rotWithShape` the last and
+    // double-quoted, and the unknown `z:note` sits between them: a setter that removed and
+    // re-appended would move `@flip` to the end and re-quote it, which is invisible if only the
+    // last attribute is ever assigned to.
+    fill.set_flip(interner, Some("none"));
     fill.set_rot_with_shape(interner, Some(true));
     *root = fill.to_xml(interner);
     let out = fidelity::serialize_to_vec(&document);
     let out = String::from_utf8_lossy(&out);
 
     assert!(
-        out.contains(r#"rotWithShape="true""#),
-        "a write did not canonicalize `on`: {out}"
+        out.contains(
+            r#"flip='none' z:note='between the known ones' rotWithShape="true"><a:gsLst>"#
+        ),
+        "a write moved an attribute, changed a quote, or did not canonicalize: {out}"
     );
+    // Nothing below the start tag was touched, including the `%` stop position and the second
+    // stop's own quoting.
     assert!(
-        out.contains(r#"flip='no&#x6E;e' z:note='between the known ones' rotWithShape="true""#),
-        "the unknown attribute moved, or a neighbour was re-spelled: {out}"
-    );
-    // Everything after the start tag is untouched, including the `%` stop position.
-    assert!(
-        out.contains(r#"<a:gs pos='0%'>"#),
-        "a stop was re-spelled: {out}"
+        out.contains(r#"<a:gs pos='0%'><a:srgbClr val='FF0000'/></a:gs>"#),
+        "a write reached past the attribute it was given: {out}"
     );
 }
 
