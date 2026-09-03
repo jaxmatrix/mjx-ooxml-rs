@@ -18,9 +18,17 @@
 #     the pattern below cannot see it.
 #   * the element name in prose — `c:delete`, `<c:delete val="1"/>`, `c:dLbls`. Same reason: `:` and
 #     `<` are not identifier characters.
-#   * the exact wire spelling `autoTitleDeleted`, which *is* identifier-shaped. It is the only such
-#     token, so it is allow-listed by name below — and only in that exact casing, so
-#     `auto_title_deleted` and `AutoTitleDeleted` still fail.
+#   * the exact wire spelling `autoTitleDeleted`, which *is* identifier-shaped — allow-listed by
+#     name below, and only in that exact casing, so `auto_title_deleted` and `AutoTitleDeleted`
+#     still fail.
+#   * **WordprocessingML's tracked-change deletion vocabulary.** `w:delText` ("Deleted Text",
+#     ECMA-376 Part 1 §17.3.3.7), `w:delInstrText` ("Deleted Field Code", §17.16.13) and the
+#     `Deleted*` Rust names that model them. This gate exists for the *chart* concept `c:delete` —
+#     "this label tier is switched off" — which was renamed because `delete_*` sat beside `remove_*`
+#     and read as its synonym. A tracked deletion is not that concept: it is a real deletion, the
+#     spec's own caption is "Deleted Text", and `SuppressedText` would be wrong rather than clearer.
+#     Allow-listed by exact token and by the `Deleted`-prefixed identifiers derived from them, so an
+#     unrelated `deleted` still fails.
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #
@@ -53,12 +61,24 @@ fi
 # case-insensitively, so `Deleted` and `deleteChartDataLabels` are caught as well as `deleted`.
 pattern='(delete[a-zA-Z0-9_]|[a-zA-Z0-9_]delete|(^|[^a-zA-Z0-9_])delete[[:space:]]*\()'
 
-# Two passes with the same pattern: the first finds candidate lines, then the one permitted
-# identifier-shaped wire token is blanked out and the pattern is re-applied, so a line carrying both
-# `autoTitleDeleted` and a real offender is still reported. (Blanking beats dropping the line.)
+# Two passes with the same pattern: the first finds candidate lines, then every permitted spelling is
+# blanked out and the pattern is re-applied, so a line carrying both a permitted token and a real
+# offender is still reported. (Blanking beats dropping the line.)
+#
+# The `///`/`//!` arm is deliberately narrow. It blanks *only* the standalone English words
+# `deleted`/`deletion`/`delete` on a documentation line — never `delete_x`, `x_delete` or `delete(`,
+# which is what a reference to a renamed API looks like. So `delete_chart_data_labels` in a doc
+# comment is still caught, exactly as MJXOFF-89 intended, while ECMA-376's own captions ("Deleted
+# Text", "Deleted Field Code") and ordinary English about a tracked deletion are not. A doc comment
+# declares no public identifier, and this gate's subject is public identifiers.
 offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
   | grep -v '^crates/mjx-ooxml-types/src/generated/' \
-  | sed 's/autoTitleDeleted/<wire-token>/g' \
+  | sed -E '/^[^:]+:[0-9]+:[[:space:]]*(\/\/\/|\/\/!)/ s/\b([Dd]elet(ed|ion)|[Dd]elete)\b/<prose>/g' \
+  | sed -e 's/autoTitleDeleted/<wire-token>/g' \
+        -e 's/delInstrText/<wire-token>/g' \
+        -e 's/delText/<wire-token>/g' \
+        -e 's/DeletedFieldCode/<wml-revision>/g' \
+        -e 's/DeletedText/<wml-revision>/g' \
   | grep -Ei "$pattern" \
   || true)
 
