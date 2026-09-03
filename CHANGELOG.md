@@ -49,6 +49,59 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.75] - 2026-09-03
+
+The WordprocessingML and Office Math vocabularies are generated (MJXOFF-144).
+
+`mjx-ooxml-types` covered the shared common simple types, a curated slice of `dml-main` and a
+curated slice of `pml`. Word and equations had nothing, so MJXOFF-90 (`mjx-docx`) and MJXOFF-134
+(`mjx-omml`) would each have invented their own enumerations and the naming convention would have
+fractured across two crates at once. This adds both vocabularies **whole**, not as an allowlist:
+
+- **`mjx_ooxml_types::wordprocessingml`** — all 110 simple types of `wml.xsd`, carrying all 733
+  enumeration values. Justification, underline kinds, the 193 border styles, shading patterns,
+  section breaks, the 63 numbering formats, theme colours, text-flow direction, table-style
+  overrides, the glossary-document galleries, and the rest.
+- **`mjx_ooxml_types::officemath`** — all 14 simple types of `shared-math.xsd`, carrying all 30
+  enumeration values.
+
+Every item documents its original `ST_*` symbol and its exact wire token, and 183 of the values are
+named from the ECMA-376 prose rather than from their token — `pct12` is 12.5%, `neCell` is the top
+**right** table cell, `ideographZodiac` is the zodiac ideograph format, and `--`/`-+`/`+-` would
+otherwise have collapsed onto one identifier. The `wire` suite round-trips all 763 tokens and pins
+every one of those 183 names to its exact bytes in both directions.
+
+### The naming tables are now per schema
+
+An `ST_*` symbol is scoped to the schema that declares it, and OOXML reuses symbols: `ST_Jc` is
+declared by both `wml.xsd` and `shared-math.xsd`, and `ST_Direction` by both `wml.xsd` (`ltr`/`rtl`)
+and `pml.xsd` (`horz`/`vert`, already emitted as `Orientation`). One flat override table keyed on the
+bare symbol cannot hold two meanings. `xtask`'s naming data is therefore partitioned the way the
+symbols are — one `NameEngine` per emitted module — and the engine in `naming.rs` is unchanged: it
+already took its tables by reference. Adding a schema still means growing the tables. The existing
+`shared`, `drawingml` and `presentationml` output is byte-identical.
+
+### The generator refuses names that would lose a token
+
+Two `ST_*` types that reach one Rust type name, or two values of one enumeration that reach one Rust
+variant, are now hard errors in `xtask` rather than Rust that compiles with a wire token nobody can
+write back. So is a naming-override row that matched nothing — a misspelled symbol used to do
+nothing at all, silently leaving the mechanical name it was written to replace.
+
+### `COVERAGE.md` reports every schema
+
+The generated manifest listed six schemas of the twenty-six in the Transitional set, and printed
+`pending` for `wml`, `sml` and `shared-math` from a hard-coded string — so it would have kept saying
+`pending` after the work was done. It now has a row for **every** schema in **both** tables, with
+each status derived: the simple-type column from the generator's module table, the child-order column
+from `CHILD_ORDER_SCHEMAS`. A pending row names the work item that owns it, and
+`mjx-schema-gate`'s `the_declared_owners_agree_with_the_generated_coverage_document` fails if the
+document and the gate's `OrderingCoverage::Pending` name different owners. A schema that is in
+neither table and has no written reason fails the generator.
+
+No `CHILD_ORDER_SCHEMAS` row was added: those belong to the children that start authoring the markup
+(MJXOFF-90 for `wml`, MJXOFF-134 for `shared-math`, MJXOFF-132 for `sml`).
+
 ## [0.0.74] - 2026-09-03
 
 A typed model's round trip no longer re-flows the part it came from (MJXOFF-143).
