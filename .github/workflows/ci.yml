@@ -36,6 +36,20 @@ jobs:
       - name: test (vml feature)
         run: cargo test --workspace --features mjx-pptx/vml
 
+  # The naming convention this repository is built on — a public identifier is self-explanatory to a
+  # reader who does not have ECMA-376 open — has exactly one enforcement mechanism per rule that is
+  # worth enforcing, and a rule enforced by "remember to grep" is a rule that decays. `c:delete`
+  # markup ("draw nothing here") is spelled `suppress_*` / `suppressed` on the surface, because
+  # `delete_*` sat beside `remove_*` ("say nothing here") and read as its synonym. Needs no
+  # toolchain, so it reports in seconds instead of behind a Rust build.
+  naming:
+    name: naming (`suppress`, not `delete`)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: no identifier spells this concept `delete`
+        run: .github/scripts/check-suppress-naming.sh
+
   # Enforce a clean, complete rustdoc build (missing docs are already denied via clippy; this also
   # catches broken intra-doc links, which clippy does not).
   docs:
@@ -267,6 +281,13 @@ jobs:
 
       - name: build the npm package (both targets)
         run: bindings/mjx-wasm/build-npm.sh
+
+      # The `.d.ts` files are wasm-pack's output, not a committed artefact, so the `naming` job
+      # cannot see them — but they are the surface a TypeScript caller actually reads, including the
+      # mangled `_bg.wasm.d.ts` export names, which are derived from the Rust method names. Scanning
+      # them here proves the generated declarations agree with the sources the `naming` job scanned.
+      - name: no identifier spells this concept `delete` in the generated declarations
+        run: .github/scripts/check-suppress-naming.sh bindings/mjx-wasm/npm/dist
 
       # The published shape: the generated glue, the `.d.ts`, and the conditional exports — driven
       # exactly as an application would drive them. Includes the walkthrough comparison, which runs

@@ -282,7 +282,7 @@ impl Presentation {
     ///
     /// # Errors
     /// As [`set_chart_data_labels`](Self::set_chart_data_labels).
-    pub fn delete_chart_data_labels(
+    pub fn suppress_chart_data_labels(
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
@@ -294,7 +294,7 @@ impl Presentation {
                     .plot_area_mut()
                     .ok_or(PptxError::ChartHasNoChartElement)?;
                 let count = area.chart_kinds().len();
-                if !area.delete_plot_data_labels(interner, plot_idx)? {
+                if !area.suppress_plot_data_labels(interner, plot_idx)? {
                     return Err(PptxError::ChartPlotOutOfRange {
                         index: plot_idx,
                         count,
@@ -310,7 +310,7 @@ impl Presentation {
                         count,
                     },
                 )?;
-                decoration.delete_data_labels(interner)?;
+                decoration.suppress_data_labels(interner)?;
                 Ok(())
             }
             ChartLabelScope::Point {
@@ -324,7 +324,7 @@ impl Presentation {
                         count,
                     },
                 )?;
-                decoration.delete_point_label(interner, point_idx)?;
+                decoration.suppress_point_label(interner, point_idx)?;
                 Ok(())
             }
         })
@@ -333,8 +333,8 @@ impl Presentation {
     /// Removes the `c:dLbls`/`c:dLbl` at one tier entirely, so that tier inherits the one above it
     /// again. Answers whether an element was there. Marks only the chart part dirty.
     ///
-    /// This is the opposite of [`delete_chart_data_labels`](Self::delete_chart_data_labels):
-    /// deleting says "draw nothing here", removing says "say nothing here".
+    /// This is the opposite of [`suppress_chart_data_labels`](Self::suppress_chart_data_labels):
+    /// suppressing says "draw nothing here", removing says "say nothing here".
     ///
     /// # Errors
     /// As [`set_chart_data_labels`](Self::set_chart_data_labels).

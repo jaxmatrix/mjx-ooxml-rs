@@ -1652,7 +1652,7 @@ fn every_chart_decoration_edit_is_schema_valid() {
         )
         .expect("label a point");
     }
-    pres.delete_chart_data_labels(
+    pres.suppress_chart_data_labels(
         0,
         frame,
         ChartLabelScope::Point {
@@ -1661,7 +1661,7 @@ fn every_chart_decoration_edit_is_schema_valid() {
         },
     )
     .expect("silence a point");
-    pres.delete_chart_data_labels(0, frame, ChartLabelScope::Series { series_idx: 1 })
+    pres.suppress_chart_data_labels(0, frame, ChartLabelScope::Series { series_idx: 1 })
         .expect("silence a series");
     for point in [2_u32, 0] {
         pres.set_chart_point_fill(

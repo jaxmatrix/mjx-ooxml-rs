@@ -36,20 +36,43 @@ reconstructed afterwards.
 | `mjx_pptx::PptxError::PictureHasNoBlipFill` | `PictureHasNoImage` | Drops the token, and says what the caller can act on. |
 | `mjx_pptx::Presentation::activex_binary_bytes` | `activex_state_bytes` | Reads exactly what `set_activex_state` writes; the pair named one artefact two ways. |
 | `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
+| `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
 convention or is a spec-sourced proper noun (`Srgb`, `ScRgb`, `OleObject`, the preset-shape names
 whose digits are part of their identity).
 
-One candidate is deliberately **not** taken here and needs a decision:
-`Presentation::delete_chart_data_labels` (writes `c:delete val="1"` — *draw nothing here*) sits
-beside `remove_chart_data_labels` (removes the element — *say nothing here*), and `delete` and
-`remove` are near-synonyms in English. Renaming the first to `suppress_*` would fix the collision,
-but `delete` is the spec element's own name and is used consistently across a dozen `mjx-chart`
-identifiers (`Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted`, …); renaming only
-the `mjx-pptx` method would trade one inconsistency for another, and renaming the family is a larger
-break through a subsystem that is currently coherent.
+The one candidate the sweep declined to settle on its own — whether `delete_chart_data_labels`
+should become `suppress_*`, given that `delete` is the spec element's own name and runs through a
+dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
+whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
+for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.69] - 2026-09-03
+
+The chart `delete_*` family is `suppress_*` — the naming question v0.0.66's API review raised and
+left open, settled before Word and Excel copy the shape (MJXOFF-89).
+
+Twelve public identifiers change across `mjx-chart`, `mjx-pptx` and `mjx-ooxml`, and three of them
+are re-projected by each binding. Three `is_deleted` accessors (`DataLabel`, `DataLabels`, `Axis`)
+and two `deleted` fields (`DataLabelSettings`, `ChartAxisData`) become `is_suppressed` /
+`suppressed`; `delete_chart_data_labels` (on both `Presentation` and `Deck`),
+`delete_plot_data_labels`, `delete_data_labels`, `delete_point_label` and `delete_label_for_point`
+take a `suppress_` prefix; and `auto_title_deleted` becomes `auto_title_suppressed`. The crate-private
+`DataLabels::delete_all` and the two private `clear_delete` helpers move with them. Python sees the
+same names (the binding is the identity mapping); TypeScript sees `suppressChartDataLabels` and a
+`suppressed` getter in place of `deleteChartDataLabels` and `deleted`.
+
+Nothing else changes. This is a rename: the bytes written for any file are identical before and
+after, and no test was added, removed or skipped.
+
+The spelling is now enforced rather than remembered. `.github/scripts/check-suppress-naming.sh` — a
+new `naming` job in CI, plus a step in `wasm-pack` over the generated `.d.ts` — fails the build if
+any identifier under `crates/*/src`, `bindings/*/src`, the committed `.pyi` or the generated
+TypeScript declarations spells this concept `delete`. The wire token is untouched and explicitly
+permitted: `flag("delete")`, `"autoTitleDeleted"`, `c:delete` in prose, and the generated ordering
+tables in `mjx-ooxml-types` all pass, and each item's docs still name the exact element it writes.
 
 ## [0.0.68] - 2026-09-02
 
