@@ -5,6 +5,7 @@
 //! imports: `mjx_pptx::Presentation` has them all, wherever their source lives.
 
 use mjx_ooxml_types::namespaces::PML;
+use mjx_opc::doc_props::{CoreProperties, ExtendedProperties};
 use mjx_opc::{Package, PartName, TargetMode};
 
 use crate::error::PptxError;
@@ -106,7 +107,60 @@ impl Presentation {
     /// Returns [`PptxError::InvalidSlideSize`] if either extent is outside the range `p:sldSz` can
     /// express (`914400`..=`51206400` EMU), or another [`PptxError`] if building the package fails.
     pub fn blank(size: SlideSize) -> Result<Self, PptxError> {
-        Self::from_package(blank::package(size)?)
+        Self::blank_with_properties(
+            size,
+            &CoreProperties::default(),
+            &ExtendedProperties::default(),
+        )
+    }
+
+    /// [`blank`](Self::blank) with document properties (`docProps/core.xml` / `docProps/app.xml`)
+    /// set from `core_properties` / `extended_properties` rather than left absent.
+    ///
+    /// Both parts are always written — see [*Document properties* in the fidelity
+    /// guide](crate::guide::fidelity_and_gaps#document-properties-what-mjx_opcdoc_props-models) for
+    /// why — this constructor only chooses what goes in them. Every field of both is optional, so
+    /// `&CoreProperties::default()` / `&ExtendedProperties::default()` produce the same childless
+    /// parts [`blank`](Self::blank) does.
+    ///
+    /// ```
+    /// # fn main() -> Result<(), mjx_pptx::PptxError> {
+    /// use mjx_opc::doc_props::{CoreProperties, DocumentTimestamp, ExtendedProperties};
+    /// use mjx_pptx::{Presentation, SlideSize};
+    /// use mjx_ooxml_types::presentationml::SlideSizeKind;
+    ///
+    /// let created = DocumentTimestamp::new(2024, 1, 1, 0, 0, 0)?;
+    /// let deck = Presentation::blank_with_properties(
+    ///     SlideSize {
+    ///         width_emu: 12_192_000,
+    ///         height_emu: 6_858_000,
+    ///         kind: SlideSizeKind::Screen16X9,
+    ///     },
+    ///     &CoreProperties {
+    ///         title: Some("Quarterly Review".to_owned()),
+    ///         creator: Some("mjx-ooxml-rs".to_owned()),
+    ///         created: Some(created),
+    ///         modified: Some(created),
+    ///     },
+    ///     &ExtendedProperties {
+    ///         application: Some("mjx-ooxml-rs".to_owned()),
+    ///     },
+    /// )?;
+    /// let bytes = deck.save()?;
+    /// # let _ = bytes;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError::InvalidSlideSize`] if either extent is outside the range `p:sldSz` can
+    /// express (`914400`..=`51206400` EMU), or another [`PptxError`] if building the package fails.
+    pub fn blank_with_properties(
+        size: SlideSize,
+        core_properties: &CoreProperties,
+        extended_properties: &ExtendedProperties,
+    ) -> Result<Self, PptxError> {
+        Self::from_package(blank::package(size, core_properties, extended_properties)?)
     }
 
     /// Resolves an already-loaded [`Package`] into a presentation: the `officeDocument` relationship,

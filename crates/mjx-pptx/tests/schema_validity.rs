@@ -24,6 +24,8 @@ use mjx_dml::{
 };
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_ooxml_types::presentationml::SlideSizeKind;
+use mjx_opc::doc_props::{self, CoreProperties};
+use mjx_opc::{Package, PartName};
 use mjx_pptx::{
     default_placeholder_ole, ActiveXControlSpec, ActiveXPersistence, AxisOrientation, CellFormat,
     CellMargins, Cells, ChartData, ChartKind, ChartLabelScope, DataLabelPosition, DataLabelSpec,
@@ -236,8 +238,9 @@ fn a_blank_deck_filled_end_to_end_is_schema_valid() {
 #[test]
 fn the_blank_deck_validates_every_part_it_ships() {
     // A classification bug that skipped the new parts would let invalid markup through as a pass,
-    // so pin the verdicts: all nine entries are accounted for and the five markup streams are
-    // genuinely validated, not skipped.
+    // so pin the verdicts: all eleven entries are accounted for and the seven markup streams
+    // (including `docProps/core.xml` and `docProps/app.xml`, MJXOFF-149) are genuinely validated,
+    // not skipped.
     let Some(harness) = harness() else { return };
     let deck = Presentation::blank(SlideSize {
         width_emu: 12_192_000,
@@ -262,6 +265,8 @@ fn the_blank_deck_validates_every_part_it_ships() {
             "/ppt/slideMasters/slideMaster1.xml",
             "/ppt/slideLayouts/slideLayout1.xml",
             "/ppt/theme/theme1.xml",
+            "/docProps/core.xml",
+            "/docProps/app.xml",
             "/ppt/_rels/presentation.xml.rels",
             "/ppt/slideMasters/_rels/slideMaster1.xml.rels",
             "/ppt/slideLayouts/_rels/slideLayout1.xml.rels",
@@ -1637,4 +1642,139 @@ fn an_authored_vml_drawing_is_schema_valid() {
 
     let saved = pres.save().expect("save");
     assert_authored_deck_is_schema_valid("authored VML drawing", &saved);
+}
+
+#[test]
+fn a_malformed_dcterms_created_value_is_caught_naming_the_core_properties_part() {
+    // `a_blank_deck_filled_end_to_end_is_schema_valid` and `the_blank_deck_validates_every_part_it_ships`
+    // both prove the core-properties arm *accepts* what this library writes — neither can
+    // distinguish a live `xmllint` check from an arm that always reports success, exactly the gap
+    // MJXOFF-146's ledger and this programme's own "would this clause pass if the work were not
+    // done?" question exist to close. This one writes a `dcterms:created` value the committed
+    // `dcterms.xsd` (`crates/mjx-schema-gate/schemas/dcterms.xsd`) rejects — not the W3C-DTF form
+    // ECMA-376 Part 2 §8.3.4.3 requires — and asserts the sweep reports it `Failed` against
+    // `opc-coreProperties.xsd`, naming `/docProps/core.xml`, not silently `Validated` or skipped.
+    let Some(harness) = harness() else { return };
+    let deck = Presentation::blank(SlideSize {
+        width_emu: 12_192_000,
+        height_emu: 6_858_000,
+        kind: SlideSizeKind::Screen16X9,
+    })
+    .expect("blank");
+    let saved = deck.save().expect("save");
+
+    let mut package = Package::open(&saved).expect("reopen the blank deck");
+    let core = PartName::new(doc_props::CORE_PROPERTIES_PART).expect("a valid part name");
+    const MALFORMED_CREATED: &[u8] = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dcterms:created xsi:type="dcterms:W3CDTF">not-a-date</dcterms:created></cp:coreProperties>"#;
+    package
+        .replace_part_bytes(&core, MALFORMED_CREATED.to_vec())
+        .expect("replace core properties with invalid markup");
+    let mutated = package.save().expect("save the mutated package");
+
+    let rows = inspect_deck(
+        &harness,
+        "blank deck with a malformed dcterms:created",
+        &mutated,
+        &[],
+    );
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/docProps/core.xml")
+        .expect("the core properties part is in the sweep");
+    match &row.outcome {
+        PartOutcome::Failed { schema, report } => {
+            assert_eq!(
+                *schema, "opc-coreProperties.xsd",
+                "wrong schema named: {report}"
+            );
+            assert!(
+                report.contains("2024-06-01T12:00:00Z") || report.contains("pattern"),
+                "the report should name the malformed value: {report}"
+            );
+        }
+        other => panic!(
+            "a non-W3C-DTF `dcterms:created` must fail opc-coreProperties.xsd, not report {}",
+            other.describe()
+        ),
+    }
+}
+
+#[test]
+fn a_docs_props_part_from_a_real_office_written_fixture_validates_regardless_of_element_order() {
+    // `charts.pptx` was written by python-pptx, not this library, and its `docProps/core.xml`
+    // orders its children `title, subject, creator, keywords, description, lastModifiedBy,
+    // revision, created, modified, category` — a different order from `CoreProperties`'
+    // `title, creator, created, modified` (the one this project's own writer emits). Both are
+    // schema-valid: `CT_CoreProperties` is an `xs:all` group, so ECMA-376 places no order
+    // constraint on it at all. A round-trip through markup this library's own writer produced
+    // would only prove the reader agrees with the writer; this fixture disagrees with the writer's
+    // order and still must validate, which is the point.
+    let Some(harness) = harness() else { return };
+    let bytes = fixture("charts.pptx");
+    let package = Package::open(&bytes).expect("open the fixture");
+    let core = package
+        .part_bytes(&PartName::new(doc_props::CORE_PROPERTIES_PART).expect("valid part name"))
+        .expect("charts.pptx carries docProps/core.xml");
+    let core_text = String::from_utf8_lossy(core);
+    assert!(
+        core_text.find("dc:title").unwrap() < core_text.find("dc:creator").unwrap(),
+        "the fixture's element order must differ from CoreProperties' own field order for this \
+         test to prove anything: {core_text}"
+    );
+
+    let rows = inspect_deck(&harness, "charts.pptx", &bytes, &[]);
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/docProps/core.xml")
+        .expect("the core properties part is in the sweep");
+    assert!(
+        matches!(
+            row.outcome,
+            PartOutcome::Validated("opc-coreProperties.xsd")
+        ),
+        "a real Office-family file's differently-ordered core properties must validate: {}",
+        row.outcome.describe()
+    );
+}
+
+#[test]
+fn document_properties_set_through_blank_with_properties_are_schema_valid_and_readable_back() {
+    let created = doc_props::DocumentTimestamp::new(2024, 6, 1, 12, 0, 0).expect("valid timestamp");
+    let core = CoreProperties {
+        title: Some("Quarterly Review".to_owned()),
+        creator: Some("mjx-ooxml-rs".to_owned()),
+        created: Some(created),
+        modified: Some(created),
+    };
+    let extended = doc_props::ExtendedProperties {
+        application: Some("mjx-ooxml-rs".to_owned()),
+    };
+    let deck = Presentation::blank_with_properties(
+        SlideSize {
+            width_emu: 12_192_000,
+            height_emu: 6_858_000,
+            kind: SlideSizeKind::Screen16X9,
+        },
+        &core,
+        &extended,
+    )
+    .expect("blank with properties");
+    let saved = deck.save().expect("save");
+    assert_authored_deck_is_schema_valid("blank deck with populated document properties", &saved);
+
+    let package = Package::open(&saved).expect("reopen");
+    let core_bytes = package
+        .part_bytes(&PartName::new(doc_props::CORE_PROPERTIES_PART).expect("valid part name"))
+        .expect("core properties part is present");
+    let core_text = String::from_utf8_lossy(core_bytes);
+    assert!(core_text.contains("<dc:title>Quarterly Review</dc:title>"));
+    assert!(core_text.contains("<dc:creator>mjx-ooxml-rs</dc:creator>"));
+    assert!(core_text.contains(r#"xsi:type="dcterms:W3CDTF">2024-06-01T12:00:00Z"#));
+    let extended_bytes = package
+        .part_bytes(&PartName::new(doc_props::EXTENDED_PROPERTIES_PART).expect("valid part name"))
+        .expect("extended properties part is present");
+    assert!(
+        String::from_utf8_lossy(extended_bytes).contains("<Application>mjx-ooxml-rs</Application>")
+    );
 }
