@@ -2245,6 +2245,58 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "CT_LayoutVariablePropertySet",
         "A `dgm:varLst`'s nine named layout-variable overrides, in schema order",
     ),
+    // ---- WordprocessingML ------------------------------------------------------------------
+    (
+        "DOCUMENT_BASE",
+        "wml",
+        "CT_DocumentBase",
+        "The page background a document and a glossary document both start from (`w:background`)",
+    ),
+    (
+        "DOCUMENT",
+        "wml",
+        "CT_Document",
+        "The `w:document` root's own content — the background it extends, then the body",
+    ),
+    (
+        "BODY",
+        "wml",
+        "CT_Body",
+        "A document's or glossary document's body: block-level content, then the last section's \
+         properties (`w:body`)",
+    ),
+    (
+        "PARAGRAPH",
+        "wml",
+        "CT_P",
+        "One paragraph — its properties, then its runs and other inline content (`w:p`)",
+    ),
+    (
+        "PARAGRAPH_PROPERTIES_BASE",
+        "wml",
+        "CT_PPrBase",
+        "The paragraph-formatting properties shared by a paragraph's `w:pPr` and a paragraph mark's \
+         run properties container",
+    ),
+    (
+        "RUN",
+        "wml",
+        "CT_R",
+        "One run — its properties, then its text and other inline content (`w:r`)",
+    ),
+    (
+        "RUN_PROPERTIES",
+        "wml",
+        "CT_RPr",
+        "A run's character formatting (`w:rPr`)",
+    ),
+    (
+        "SECTION_PROPERTIES_BASE",
+        "wml",
+        "CT_SectPrBase",
+        "A section's page, column and layout properties, before the change-tracking wrapper adds \
+         its own attributes",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
