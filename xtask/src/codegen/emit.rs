@@ -61,6 +61,15 @@ pub const OFFICEMATH_MODULE_DOC: &str =
      //! The whole `ST_*` family of `shared-math.xsd`. Each item records its original `ST_*` symbol\n\
      //! and exact wire token(s).\n\n";
 
+/// Module-level doc block for the `diagram` module (see [`file_header`]).
+pub const DIAGRAM_MODULE_DOC: &str =
+    "//! Comprehensively-named DrawingML Diagram (SmartArt, `dgm:`) simple types (see the naming\n\
+     //! convention in `PLAN.md`).\n\
+     //!\n\
+     //! The **whole** `ST_*` family of `dml-diagram.xsd`, not a slice: `mjx-dml`'s diagram model is\n\
+     //! built on top of this vocabulary, so a missing type would be an enum invented somewhere\n\
+     //! else. Each item records its original `ST_*` symbol and exact wire token(s).\n\n";
+
 /// Which of a schema's simple types a module emits.
 #[derive(Debug, Clone, Copy)]
 pub enum Selection<'a> {

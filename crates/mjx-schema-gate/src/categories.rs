@@ -159,16 +159,11 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
             set: SchemaSet::Markup,
             file: "dml-diagram.xsd",
         },
-        // `add_diagram` authors four `dgm:` parts, so this schema *is* markup we write and cannot be
-        // foreign-allowlisted. The row is not this gate's to add: the child-order tables are claimed
-        // by the child that models the markup, and adding 58 unmodelled complex types here would put
-        // a generated table in the tree with no writer using it.
-        ordering: OrderingCoverage::Pending {
-            owner: "MJXOFF-148",
-            reason: "the DrawingML diagram model, and with it the `dml-diagram` row in \
-                     `CHILD_ORDER_SCHEMAS`, is MJXOFF-148's deliverable; `add_diagram` writes the \
-                     four parts from fixed templates today, which `xmllint` validates in full",
-        },
+        // `add_diagram` authors four `dgm:` parts, so this schema *is* markup we write. MJXOFF-148
+        // added `dml-diagram` to `CHILD_ORDER_SCHEMAS` and a typed point-and-connection graph model
+        // in `mjx-dml::diagram`, so every part rooted here is now ordered by construction rather
+        // than emitted from a fixed template with no writer checking its sequence.
+        ordering: OrderingCoverage::Generated,
         probe_root_element: "dataModel",
     },
     ModeledSchema {
