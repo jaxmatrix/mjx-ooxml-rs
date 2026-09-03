@@ -280,6 +280,29 @@ where
     }
 }
 
+/// A number written as a plain decimal — `xsd:int`, `xsd:unsignedInt`, `xsd:long` and the
+/// unrestricted OOXML simple types over them (`ST_StyleMatrixColumnIndex`, `ST_DrawingElementId`).
+///
+/// The same conversion as [`Enumeration`], and deliberately the *same type*: reading is
+/// [`FromStr`](core::str::FromStr) and writing is [`Display`](core::fmt::Display) whether the value
+/// is `sq` or `42`, so a second implementation would be the same six lines with a different name on
+/// them. The alias exists only so a declaration reads `codec = Number<u32>` rather than claiming an
+/// integer is an enumeration — the name is at the call site, not the behaviour.
+///
+/// A value with a leading `+`, a fractional part or surrounding whitespace is **rejected**, because
+/// that is what the standard library's integer parsers reject; a schema type that permits any of
+/// those needs a codec that says so.
+///
+/// ```
+/// use std::borrow::Cow;
+/// use mjx_ooxml_core::{AttributeCodec, Number};
+///
+/// assert_eq!(Number::<u32>::decode(Cow::Borrowed("3")), Ok(3));
+/// assert_eq!(Number::<u32>::encode(3), "3");
+/// assert!(Number::<u32>::decode(Cow::Borrowed("-1")).is_err());
+/// ```
+pub type Number<T> = Enumeration<T>;
+
 #[cfg(test)]
 mod tests {
     use super::*;
