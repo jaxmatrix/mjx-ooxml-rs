@@ -49,6 +49,65 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.72] - 2026-09-03
+
+`mjx-dml`'s shared property tiers on the attribute grammar — colour, fill, outline, effects, 3-D,
+theme and style (MJXOFF-141).
+
+MJXOFF-140 proved the `#[xml(attribute(..))]` grammar on a synthetic type inside `mjx-derive`'s own
+tests. This release is the first time anything shipped uses it: the seven files every other
+DrawingML tier reaches through no longer parse an attribute by hand. **86 calls to the `attr_*`
+family became 0 in those files**, and the four hand-written measure readers and writers they were
+the last users of are deleted.
+
+### There is now exactly one path from a wire attribute to a typed value
+
+`mjx_xml::attribute::read` and `mjx_xml::attribute::write` are that path — find, decode, hand to a
+codec; encode, escape for the quote in use, set or remove. Every accessor
+`#[derive(XmlAttributes)]` generates is one call to one of them, `mjx-dml`'s remaining `attr_*` /
+`push_*` helpers (which the tiers MJXOFF-142 owns still use) are one call to one of them, and a model
+reading an element it has no type for calls them directly. Two implementations of "attribute to
+value" is the duplicate this workstream exists to prevent; there is one.
+
+### A declaration no longer requires a type that owns its attributes
+
+`#[derive(XmlAttributes)]` reaches the vector through `AsRef<[RawAttribute]>` to read and
+`AsMut<Vec<RawAttribute>>` to write, so the `attributes` field may be a `Vec`, a `&[RawAttribute]`
+view (getters only — the bound that would give it setters is simply not satisfied), a
+`&mut Vec<RawAttribute>` cursor, or generic over all of them.
+
+That last form is what `mjx-dml`'s **value projections** use. An effect, a bevel, a camera, a
+gradient stop, a line end and a blip are facts read out of an element the crate does not model as a
+type; a conduit generic over its attribute container declares them once and serves both directions —
+`{ attributes: &element.attributes }` to read, which copies nothing, and `{ attributes: Vec::new() }`
+to write the vector the new element will own.
+
+### New
+
+- **`mjx_dml::codec`** — `EmuCoordinate`, `EmuLineWidth`, `SixtyThousandthsOfADegree` and
+  `Percentage`, the four measure codecs. A crate that owns a measure owns its codec.
+- **`mjx_ooxml_core::Number<T>`** — an alias for `Enumeration<T>`, so a numeric attribute is declared
+  `codec = Number<u32>` rather than claiming an integer is an enumeration.
+- **`RawElement::rebuilt`** — the single construction point every `ToXml` now goes through. Identical
+  to `new` today; it exists so that carrying a source range through a typed round trip (MJXOFF-143)
+  is one edit rather than one per `to_xml` in the workspace.
+- **`crates/mjx-dml/tests/in_context_roundtrip.rs`** — the generalised in-context harness (was
+  `txbody_roundtrip.rs`), now covering seven types out of real parts plus a corpus of hand-written
+  literals in forms this project's writer never emits, and both tier-3 isolation cases.
+
+### Breaking changes
+
+An accessor over a declared attribute reports a malformed value instead of silently reading `None`,
+so several `mjx-dml` accessors return `Result<Option<T>, AttributeError>` where they returned
+`Option<T>`, and the text-valued ones return a `Cow<str>` (entity references in the file are decoded)
+where they returned `&str`. The affected methods are `Color::{value, hex}`,
+`LineProperties::{width, cap, compound, pen_alignment}`, `GradientFill::{flip, rot_with_shape}`,
+`PatternFill::preset` and `Shape3D::{z, extrusion_height, contour_width, material}`.
+`PictureFill::{image_rel_id, image_link_id}` return `Option<String>`: they read through the blip's
+attribute face, which does not outlive the call, and both callers copied the id anyway. The value
+tiers (`LineSpec`, `Shape3DSpec`, every effect) are unchanged — a spec is a value description and
+still drops what it cannot represent.
+
 ## [0.0.71] - 2026-09-03
 
 An attribute grammar for `mjx-derive` — accessors over the retained attribute vector, not a lifting

@@ -77,7 +77,7 @@ impl ToXml for GeometryGuide {
         let children = self.children.clone();
         // Preserve the self-closing flag, but never contradict "self-closing ⇒ no children".
         let empty = self.empty && children.is_empty();
-        RawElement::new(self.name, self.attributes.clone(), children, empty)
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 

@@ -160,7 +160,7 @@ pub fn resolve_fill(
             mode: blip.mode(interner),
         },
         Fill::Pattern(pattern) => FillSpec::Pattern {
-            preset: pattern.preset(interner),
+            preset: pattern.preset(interner).ok().flatten(),
             foreground: pattern.foreground(interner).map(|color| to_spec(&color)),
             background: pattern.background(interner).map(|color| to_spec(&color)),
         },
@@ -180,10 +180,10 @@ pub fn resolve_line(
     interner: &Interner,
 ) -> LineSpec {
     LineSpec {
-        width: line.width(interner),
-        cap: line.cap(interner),
-        compound: line.compound(interner),
-        pen_alignment: line.pen_alignment(interner),
+        width: line.width(interner).ok().flatten(),
+        cap: line.cap(interner).ok().flatten(),
+        compound: line.compound(interner).ok().flatten(),
+        pen_alignment: line.pen_alignment(interner).ok().flatten(),
         fill: line
             .fill(interner)
             .map(|fill| resolve_fill(&fill, scheme, map, placeholder, interner)),
@@ -384,7 +384,7 @@ fn resolve_rgba(
 /// `prstClr`), before any transforms; `None` for a `schemeClr` / unknown element.
 fn concrete_base(color: &Color, interner: &Interner) -> Option<[f64; 3]> {
     Some(match color.kind(interner) {
-        ColorKind::Srgb => bytes_to_floats(hex_to_rgb(color.value(interner)?)?),
+        ColorKind::Srgb => bytes_to_floats(hex_to_rgb(&color.value(interner).ok().flatten()?)?),
         ColorKind::System => bytes_to_floats(hex_to_rgb(attr_str(
             color.attributes(),
             interner,
@@ -404,7 +404,9 @@ fn concrete_base(color: &Color, interner: &Interner) -> Option<[f64; 3]> {
             let lum = channel_percentage(color, interner, "lum")?;
             hsl_to_rgb_f64(hue, sat, lum)
         }
-        ColorKind::Preset => bytes_to_floats(preset_color_rgb(color.value(interner)?)?),
+        ColorKind::Preset => {
+            bytes_to_floats(preset_color_rgb(&color.value(interner).ok().flatten()?)?)
+        }
         ColorKind::Scheme | ColorKind::Unknown => return None,
     })
 }

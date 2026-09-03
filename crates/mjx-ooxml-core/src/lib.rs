@@ -54,7 +54,9 @@ pub mod convert;
 pub mod intern;
 pub mod raw;
 
-pub use attribute::{AttributeCodec, AttributeError, Enumeration, InvalidAttributeValue, Text};
+pub use attribute::{
+    AttributeCodec, AttributeError, Enumeration, InvalidAttributeValue, Number, Text,
+};
 pub use convert::{FromXml, FromXmlError, ToXml};
 pub use intern::{Interner, Symbol};
 pub use raw::{

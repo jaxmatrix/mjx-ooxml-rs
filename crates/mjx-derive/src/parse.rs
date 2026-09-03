@@ -46,6 +46,13 @@ pub(crate) struct AttributeModel {
     /// The struct's own visibility: the generated accessors match it, so a private type does not
     /// grow a `pub fn` (which `unreachable_pub` would rightly complain about).
     pub vis: Visibility,
+    /// The declared type of the `attributes` field.
+    ///
+    /// Kept because the generated accessors reach the vector through `AsRef`/`AsMut` rather than
+    /// through the field's concrete type, and the bound that makes that legal has to name this type.
+    /// It is what lets one declaration serve a type that *owns* its attributes and a view that only
+    /// borrows them.
+    pub attributes_ty: Type,
     pub attributes: Vec<AttributeSpec>,
 }
 
@@ -94,18 +101,19 @@ impl AttributeModel {
                 "XmlAttributes requires a struct with named fields",
             ));
         };
-        if !fields.named.iter().any(|field| {
+        let Some(attributes_field) = fields.named.iter().find(|field| {
             field
                 .ident
                 .as_ref()
                 .is_some_and(|ident| ident == "attributes")
-        }) {
+        }) else {
             return Err(syn::Error::new_spanned(
                 input,
                 "XmlAttributes generates accessors over the retained `attributes: Vec<RawAttribute>` \
                  field, which this type does not have",
             ));
-        }
+        };
+        let attributes_ty = attributes_field.ty.clone();
 
         let (_namespace, attributes) = parse_struct_xml(input)?;
         if attributes.is_empty() {
@@ -119,6 +127,7 @@ impl AttributeModel {
             self_ty: input.ident.clone(),
             generics: input.generics.clone(),
             vis: input.vis.clone(),
+            attributes_ty,
             attributes,
         })
     }

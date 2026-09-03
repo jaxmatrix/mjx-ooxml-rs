@@ -14,13 +14,15 @@
 //! reused as [`Fill`] / [`FillSpec`]. The rarer `effectDag` alternative of `EG_EffectProperties` is not
 //! an `effectLst` child and is handled (opaque) at the packaging layer.
 
-use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml};
+use mjx_ooxml_core::{
+    Enumeration, FromXml, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
+};
+use mjx_ooxml_types::support::OnOff;
 
 use crate::build::{
-    attr_angle, attr_bool, attr_emu, attr_fraction, attr_str, dml_attr, dml_child, dml_element,
-    dml_name, fidelity_element_impls, first_color_child, first_fill_child, push_angle, push_bool,
-    push_emu, push_fraction,
+    dml_child, dml_element, dml_name, fidelity_element_impls, first_color_child, first_fill_child,
 };
+use crate::codec::{EmuCoordinate, Percentage, SixtyThousandthsOfADegree};
 use crate::color::{Color, ColorSpec};
 use crate::fill::{Fill, FillSpec};
 use crate::geometry::{Angle, Emu, Fraction};
@@ -691,13 +693,112 @@ fn effect_color(element: &RawElement, interner: &Interner) -> Option<ColorSpec> 
 }
 
 // ---------------------------------------------------------------------------------------------
+// The attribute faces of the eight effect elements
+// ---------------------------------------------------------------------------------------------
+//
+// Every effect above is an interner-free *value*, not a fidelity wrapper: `EffectList` retains the
+// raw children and each effect is a projection out of one of them. The attribute face is what carries
+// the `#[xml(attribute(..))]` declaration, over whichever attribute vector it is handed —
+// `&element.attributes` when reading, which copies nothing, and a fresh `Vec` when building, which is
+// the vector the new element will own. One declaration therefore serves the read and the write, and
+// the same generated accessor performs both.
+//
+// The attributes are declared in **schema declaration order**, because a setter appends to an empty
+// vector, so on the build path the declaration order is the emitted order.
+
+/// `a:blur` (`CT_BlurEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "rad", codec = EmuCoordinate, accessor = radius))]
+#[xml(attribute(local = "grow", codec = OnOff, accessor = grow))]
+struct BlurAttributes<A> {
+    attributes: A,
+}
+
+/// `a:fillOverlay` (`CT_FillOverlayEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "blend", codec = Enumeration<BlendMode>, accessor = blend, required))]
+struct FillOverlayAttributes<A> {
+    attributes: A,
+}
+
+/// `a:glow` (`CT_GlowEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "rad", codec = EmuCoordinate, accessor = radius))]
+struct GlowAttributes<A> {
+    attributes: A,
+}
+
+/// `a:innerShdw` (`CT_InnerShadowEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "blurRad", codec = EmuCoordinate, accessor = blur_radius))]
+#[xml(attribute(local = "dist", codec = EmuCoordinate, accessor = distance))]
+#[xml(attribute(local = "dir", codec = SixtyThousandthsOfADegree, accessor = direction))]
+struct InnerShadowAttributes<A> {
+    attributes: A,
+}
+
+/// `a:outerShdw` (`CT_OuterShadowEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "blurRad", codec = EmuCoordinate, accessor = blur_radius))]
+#[xml(attribute(local = "dist", codec = EmuCoordinate, accessor = distance))]
+#[xml(attribute(local = "dir", codec = SixtyThousandthsOfADegree, accessor = direction))]
+#[xml(attribute(local = "sx", codec = Percentage, accessor = scale_x))]
+#[xml(attribute(local = "sy", codec = Percentage, accessor = scale_y))]
+#[xml(attribute(local = "kx", codec = SixtyThousandthsOfADegree, accessor = skew_x))]
+#[xml(attribute(local = "ky", codec = SixtyThousandthsOfADegree, accessor = skew_y))]
+#[xml(attribute(local = "algn", codec = Enumeration<RectangleAlignment>, accessor = alignment))]
+#[xml(attribute(local = "rotWithShape", codec = OnOff, accessor = rotate_with_shape))]
+struct OuterShadowAttributes<A> {
+    attributes: A,
+}
+
+/// `a:prstShdw` (`CT_PresetShadowEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "prst", codec = Enumeration<PresetShadow>, accessor = preset, required))]
+#[xml(attribute(local = "dist", codec = EmuCoordinate, accessor = distance))]
+#[xml(attribute(local = "dir", codec = SixtyThousandthsOfADegree, accessor = direction))]
+struct PresetShadowAttributes<A> {
+    attributes: A,
+}
+
+/// `a:reflection` (`CT_ReflectionEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "blurRad", codec = EmuCoordinate, accessor = blur_radius))]
+#[xml(attribute(local = "stA", codec = Percentage, accessor = start_alpha))]
+#[xml(attribute(local = "stPos", codec = Percentage, accessor = start_position))]
+#[xml(attribute(local = "endA", codec = Percentage, accessor = end_alpha))]
+#[xml(attribute(local = "endPos", codec = Percentage, accessor = end_position))]
+#[xml(attribute(local = "dist", codec = EmuCoordinate, accessor = distance))]
+#[xml(attribute(local = "dir", codec = SixtyThousandthsOfADegree, accessor = direction))]
+#[xml(attribute(local = "fadeDir", codec = SixtyThousandthsOfADegree, accessor = fade_direction))]
+#[xml(attribute(local = "sx", codec = Percentage, accessor = scale_x))]
+#[xml(attribute(local = "sy", codec = Percentage, accessor = scale_y))]
+#[xml(attribute(local = "kx", codec = SixtyThousandthsOfADegree, accessor = skew_x))]
+#[xml(attribute(local = "ky", codec = SixtyThousandthsOfADegree, accessor = skew_y))]
+#[xml(attribute(local = "algn", codec = Enumeration<RectangleAlignment>, accessor = alignment))]
+#[xml(attribute(local = "rotWithShape", codec = OnOff, accessor = rotate_with_shape))]
+struct ReflectionAttributes<A> {
+    attributes: A,
+}
+
+/// `a:softEdge` (`CT_SoftEdgesEffect`).
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "rad", codec = EmuCoordinate, accessor = radius, required))]
+struct SoftEdgeAttributes<A> {
+    attributes: A,
+}
+
+// ---------------------------------------------------------------------------------------------
 // Per-effect readers
 // ---------------------------------------------------------------------------------------------
 
 fn read_blur(element: &RawElement, interner: &Interner) -> BlurEffect {
+    let blur = BlurAttributes {
+        attributes: &element.attributes,
+    };
     BlurEffect {
-        radius: attr_emu(&element.attributes, interner, "rad"),
-        grow: attr_bool(&element.attributes, interner, "grow"),
+        radius: blur.radius(interner).ok().flatten(),
+        grow: blur.grow(interner).ok().flatten(),
     }
 }
 
@@ -705,75 +806,97 @@ fn read_fill_overlay(element: &RawElement, interner: &Interner) -> Option<FillOv
     let fill = first_fill_child(&element.children, interner)
         .and_then(|el| Fill::from_xml(el, interner).ok())?
         .spec(interner);
-    let blend = attr_str(&element.attributes, interner, "blend").and_then(BlendMode::from_wire)?;
+    let blend = FillOverlayAttributes {
+        attributes: &element.attributes,
+    }
+    .blend(interner)
+    .ok()?;
     Some(FillOverlayEffect { fill, blend })
 }
 
 fn read_glow(element: &RawElement, interner: &Interner) -> Option<GlowEffect> {
     Some(GlowEffect {
         color: effect_color(element, interner)?,
-        radius: attr_emu(&element.attributes, interner, "rad"),
+        radius: GlowAttributes {
+            attributes: &element.attributes,
+        }
+        .radius(interner)
+        .ok()
+        .flatten(),
     })
 }
 
 fn read_inner_shadow(element: &RawElement, interner: &Interner) -> Option<InnerShadowEffect> {
+    let shadow = InnerShadowAttributes {
+        attributes: &element.attributes,
+    };
     Some(InnerShadowEffect {
         color: effect_color(element, interner)?,
-        blur_radius: attr_emu(&element.attributes, interner, "blurRad"),
-        distance: attr_emu(&element.attributes, interner, "dist"),
-        direction: attr_angle(&element.attributes, interner, "dir"),
+        blur_radius: shadow.blur_radius(interner).ok().flatten(),
+        distance: shadow.distance(interner).ok().flatten(),
+        direction: shadow.direction(interner).ok().flatten(),
     })
 }
 
 fn read_outer_shadow(element: &RawElement, interner: &Interner) -> Option<OuterShadowEffect> {
-    let attrs = &element.attributes;
+    let shadow = OuterShadowAttributes {
+        attributes: &element.attributes,
+    };
     Some(OuterShadowEffect {
         color: effect_color(element, interner)?,
-        blur_radius: attr_emu(attrs, interner, "blurRad"),
-        distance: attr_emu(attrs, interner, "dist"),
-        direction: attr_angle(attrs, interner, "dir"),
-        scale_x: attr_fraction(attrs, interner, "sx"),
-        scale_y: attr_fraction(attrs, interner, "sy"),
-        skew_x: attr_angle(attrs, interner, "kx"),
-        skew_y: attr_angle(attrs, interner, "ky"),
-        alignment: attr_str(attrs, interner, "algn").and_then(RectangleAlignment::from_wire),
-        rotate_with_shape: attr_bool(attrs, interner, "rotWithShape"),
+        blur_radius: shadow.blur_radius(interner).ok().flatten(),
+        distance: shadow.distance(interner).ok().flatten(),
+        direction: shadow.direction(interner).ok().flatten(),
+        scale_x: shadow.scale_x(interner).ok().flatten(),
+        scale_y: shadow.scale_y(interner).ok().flatten(),
+        skew_x: shadow.skew_x(interner).ok().flatten(),
+        skew_y: shadow.skew_y(interner).ok().flatten(),
+        alignment: shadow.alignment(interner).ok().flatten(),
+        rotate_with_shape: shadow.rotate_with_shape(interner).ok().flatten(),
     })
 }
 
 fn read_preset_shadow(element: &RawElement, interner: &Interner) -> Option<PresetShadowEffect> {
-    let attrs = &element.attributes;
-    let preset = attr_str(attrs, interner, "prst").and_then(PresetShadow::from_wire)?;
+    let shadow = PresetShadowAttributes {
+        attributes: &element.attributes,
+    };
     Some(PresetShadowEffect {
-        preset,
+        preset: shadow.preset(interner).ok()?,
         color: effect_color(element, interner)?,
-        distance: attr_emu(attrs, interner, "dist"),
-        direction: attr_angle(attrs, interner, "dir"),
+        distance: shadow.distance(interner).ok().flatten(),
+        direction: shadow.direction(interner).ok().flatten(),
     })
 }
 
 fn read_reflection(element: &RawElement, interner: &Interner) -> ReflectionEffect {
-    let attrs = &element.attributes;
+    let reflection = ReflectionAttributes {
+        attributes: &element.attributes,
+    };
     ReflectionEffect {
-        blur_radius: attr_emu(attrs, interner, "blurRad"),
-        start_alpha: attr_fraction(attrs, interner, "stA"),
-        start_position: attr_fraction(attrs, interner, "stPos"),
-        end_alpha: attr_fraction(attrs, interner, "endA"),
-        end_position: attr_fraction(attrs, interner, "endPos"),
-        distance: attr_emu(attrs, interner, "dist"),
-        direction: attr_angle(attrs, interner, "dir"),
-        fade_direction: attr_angle(attrs, interner, "fadeDir"),
-        scale_x: attr_fraction(attrs, interner, "sx"),
-        scale_y: attr_fraction(attrs, interner, "sy"),
-        skew_x: attr_angle(attrs, interner, "kx"),
-        skew_y: attr_angle(attrs, interner, "ky"),
-        alignment: attr_str(attrs, interner, "algn").and_then(RectangleAlignment::from_wire),
-        rotate_with_shape: attr_bool(attrs, interner, "rotWithShape"),
+        blur_radius: reflection.blur_radius(interner).ok().flatten(),
+        start_alpha: reflection.start_alpha(interner).ok().flatten(),
+        start_position: reflection.start_position(interner).ok().flatten(),
+        end_alpha: reflection.end_alpha(interner).ok().flatten(),
+        end_position: reflection.end_position(interner).ok().flatten(),
+        distance: reflection.distance(interner).ok().flatten(),
+        direction: reflection.direction(interner).ok().flatten(),
+        fade_direction: reflection.fade_direction(interner).ok().flatten(),
+        scale_x: reflection.scale_x(interner).ok().flatten(),
+        scale_y: reflection.scale_y(interner).ok().flatten(),
+        skew_x: reflection.skew_x(interner).ok().flatten(),
+        skew_y: reflection.skew_y(interner).ok().flatten(),
+        alignment: reflection.alignment(interner).ok().flatten(),
+        rotate_with_shape: reflection.rotate_with_shape(interner).ok().flatten(),
     }
 }
 
 fn read_soft_edge(element: &RawElement, interner: &Interner) -> Option<SoftEdgeEffect> {
-    attr_emu(&element.attributes, interner, "rad").map(|radius| SoftEdgeEffect { radius })
+    SoftEdgeAttributes {
+        attributes: &element.attributes,
+    }
+    .radius(interner)
+    .ok()
+    .map(|radius| SoftEdgeEffect { radius })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -781,101 +904,102 @@ fn read_soft_edge(element: &RawElement, interner: &Interner) -> Option<SoftEdgeE
 // ---------------------------------------------------------------------------------------------
 
 fn build_blur(interner: &mut Interner, blur: &BlurEffect) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "rad", blur.radius);
-    push_bool(&mut attrs, interner, "grow", blur.grow);
-    dml_element(interner, "blur", attrs, Vec::new())
+    let mut attributes = BlurAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_radius(interner, blur.radius);
+    attributes.set_grow(interner, blur.grow);
+    dml_element(interner, "blur", attributes.attributes, Vec::new())
 }
 
 fn build_fill_overlay(interner: &mut Interner, effect: &FillOverlayEffect) -> RawElement {
-    let attrs = vec![dml_attr(interner, "blend", effect.blend.to_wire())];
+    let mut attributes = FillOverlayAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_blend(interner, effect.blend);
     let children = vec![RawNode::Element(
         effect.fill.to_fill(interner).to_xml(interner),
     )];
-    dml_element(interner, "fillOverlay", attrs, children)
+    dml_element(interner, "fillOverlay", attributes.attributes, children)
 }
 
 fn build_glow(interner: &mut Interner, glow: &GlowEffect) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "rad", glow.radius);
+    let mut attributes = GlowAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_radius(interner, glow.radius);
     let mut children = Vec::new();
     push_color(&mut children, interner, &glow.color);
-    dml_element(interner, "glow", attrs, children)
+    dml_element(interner, "glow", attributes.attributes, children)
 }
 
 fn build_inner_shadow(interner: &mut Interner, shadow: &InnerShadowEffect) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "blurRad", shadow.blur_radius);
-    push_emu(&mut attrs, interner, "dist", shadow.distance);
-    push_angle(&mut attrs, interner, "dir", shadow.direction);
+    let mut attributes = InnerShadowAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_blur_radius(interner, shadow.blur_radius);
+    attributes.set_distance(interner, shadow.distance);
+    attributes.set_direction(interner, shadow.direction);
     let mut children = Vec::new();
     push_color(&mut children, interner, &shadow.color);
-    dml_element(interner, "innerShdw", attrs, children)
+    dml_element(interner, "innerShdw", attributes.attributes, children)
 }
 
 fn build_outer_shadow(interner: &mut Interner, shadow: &OuterShadowEffect) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "blurRad", shadow.blur_radius);
-    push_emu(&mut attrs, interner, "dist", shadow.distance);
-    push_angle(&mut attrs, interner, "dir", shadow.direction);
-    push_fraction(&mut attrs, interner, "sx", shadow.scale_x);
-    push_fraction(&mut attrs, interner, "sy", shadow.scale_y);
-    push_angle(&mut attrs, interner, "kx", shadow.skew_x);
-    push_angle(&mut attrs, interner, "ky", shadow.skew_y);
-    if let Some(alignment) = shadow.alignment {
-        attrs.push(dml_attr(interner, "algn", alignment.to_wire()));
-    }
-    push_bool(
-        &mut attrs,
-        interner,
-        "rotWithShape",
-        shadow.rotate_with_shape,
-    );
+    let mut attributes = OuterShadowAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_blur_radius(interner, shadow.blur_radius);
+    attributes.set_distance(interner, shadow.distance);
+    attributes.set_direction(interner, shadow.direction);
+    attributes.set_scale_x(interner, shadow.scale_x);
+    attributes.set_scale_y(interner, shadow.scale_y);
+    attributes.set_skew_x(interner, shadow.skew_x);
+    attributes.set_skew_y(interner, shadow.skew_y);
+    attributes.set_alignment(interner, shadow.alignment);
+    attributes.set_rotate_with_shape(interner, shadow.rotate_with_shape);
     let mut children = Vec::new();
     push_color(&mut children, interner, &shadow.color);
-    dml_element(interner, "outerShdw", attrs, children)
+    dml_element(interner, "outerShdw", attributes.attributes, children)
 }
 
 fn build_preset_shadow(interner: &mut Interner, shadow: &PresetShadowEffect) -> RawElement {
-    let mut attrs = vec![dml_attr(interner, "prst", shadow.preset.to_wire())];
-    push_emu(&mut attrs, interner, "dist", shadow.distance);
-    push_angle(&mut attrs, interner, "dir", shadow.direction);
+    let mut attributes = PresetShadowAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_preset(interner, shadow.preset);
+    attributes.set_distance(interner, shadow.distance);
+    attributes.set_direction(interner, shadow.direction);
     let mut children = Vec::new();
     push_color(&mut children, interner, &shadow.color);
-    dml_element(interner, "prstShdw", attrs, children)
+    dml_element(interner, "prstShdw", attributes.attributes, children)
 }
 
 fn build_reflection(interner: &mut Interner, reflection: &ReflectionEffect) -> RawElement {
-    let mut attrs = Vec::new();
-    push_emu(&mut attrs, interner, "blurRad", reflection.blur_radius);
-    push_fraction(&mut attrs, interner, "stA", reflection.start_alpha);
-    push_fraction(&mut attrs, interner, "stPos", reflection.start_position);
-    push_fraction(&mut attrs, interner, "endA", reflection.end_alpha);
-    push_fraction(&mut attrs, interner, "endPos", reflection.end_position);
-    push_emu(&mut attrs, interner, "dist", reflection.distance);
-    push_angle(&mut attrs, interner, "dir", reflection.direction);
-    push_angle(&mut attrs, interner, "fadeDir", reflection.fade_direction);
-    push_fraction(&mut attrs, interner, "sx", reflection.scale_x);
-    push_fraction(&mut attrs, interner, "sy", reflection.scale_y);
-    push_angle(&mut attrs, interner, "kx", reflection.skew_x);
-    push_angle(&mut attrs, interner, "ky", reflection.skew_y);
-    if let Some(alignment) = reflection.alignment {
-        attrs.push(dml_attr(interner, "algn", alignment.to_wire()));
-    }
-    push_bool(
-        &mut attrs,
-        interner,
-        "rotWithShape",
-        reflection.rotate_with_shape,
-    );
-    dml_element(interner, "reflection", attrs, Vec::new())
+    let mut attributes = ReflectionAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_blur_radius(interner, reflection.blur_radius);
+    attributes.set_start_alpha(interner, reflection.start_alpha);
+    attributes.set_start_position(interner, reflection.start_position);
+    attributes.set_end_alpha(interner, reflection.end_alpha);
+    attributes.set_end_position(interner, reflection.end_position);
+    attributes.set_distance(interner, reflection.distance);
+    attributes.set_direction(interner, reflection.direction);
+    attributes.set_fade_direction(interner, reflection.fade_direction);
+    attributes.set_scale_x(interner, reflection.scale_x);
+    attributes.set_scale_y(interner, reflection.scale_y);
+    attributes.set_skew_x(interner, reflection.skew_x);
+    attributes.set_skew_y(interner, reflection.skew_y);
+    attributes.set_alignment(interner, reflection.alignment);
+    attributes.set_rotate_with_shape(interner, reflection.rotate_with_shape);
+    dml_element(interner, "reflection", attributes.attributes, Vec::new())
 }
 
 fn build_soft_edge(interner: &mut Interner, soft_edge: &SoftEdgeEffect) -> RawElement {
-    let attrs = vec![dml_attr(
-        interner,
-        "rad",
-        &soft_edge.radius.emu().to_string(),
-    )];
-    dml_element(interner, "softEdge", attrs, Vec::new())
+    let mut attributes = SoftEdgeAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_radius(interner, soft_edge.radius);
+    dml_element(interner, "softEdge", attributes.attributes, Vec::new())
 }

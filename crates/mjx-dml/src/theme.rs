@@ -10,9 +10,9 @@
 //! styles are the [`LineProperties`] fidelity wrappers (an `a:ln` is a fidelity type). The
 //! background-fill list and unknown children are simply not retained.
 
-use mjx_ooxml_core::{FromXml, FromXmlError, Interner, RawElement, RawNode};
+use mjx_ooxml_core::{FromXml, FromXmlError, Interner, RawElement, RawNode, Text};
 
-use crate::build::{attr_str, dml_child, first_color_child, is_dml};
+use crate::build::{dml_child, first_color_child, is_dml};
 use crate::color::{Color, ColorSpec};
 use crate::effect::{EffectList, EffectListSpec};
 use crate::fill::{Fill, FillSpec};
@@ -20,6 +20,29 @@ use crate::line::{LineProperties, LineSpec};
 use crate::text::{FontSlot, TextFont};
 
 pub use mjx_ooxml_types::drawingml::ColorSchemeSlot;
+
+// ---------------------------------------------------------------------------------------------
+// The attribute faces of the theme elements this module reads but does not model as types
+// ---------------------------------------------------------------------------------------------
+//
+// A font scheme and a supplemental font are projected into the owned values below, so neither is a
+// modeled type; both still declare their attributes through the `#[xml(attribute(..))]` grammar over
+// the borrowed vector, which copies nothing.
+
+/// `a:fontScheme` (`CT_FontScheme`) — the attribute face of a theme font scheme.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "name", codec = Text, accessor = name))]
+struct FontSchemeAttributes<A> {
+    attributes: A,
+}
+
+/// `a:font` (`CT_SupplementalFont`) — the attribute face of one script's substitute typeface.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "script", codec = Text, accessor = script, required))]
+#[xml(attribute(local = "typeface", codec = Text, accessor = typeface, required))]
+struct SupplementalFontAttributes<A> {
+    attributes: A,
+}
 
 /// `a:clrScheme` — the theme's twelve color slots (`dk1`/`lt1`/`dk2`/`lt2`, `accent1`..`accent6`,
 /// `hlink`, `folHlink`), each a [`Color`]. Look one up by [`ColorSchemeSlot`].
@@ -174,13 +197,12 @@ impl FontCollection {
                     if is_dml(&child.name, interner)
                         && interner.resolve(child.name.local) == "font" =>
                 {
+                    let font = SupplementalFontAttributes {
+                        attributes: &child.attributes,
+                    };
                     Some(SupplementalFont {
-                        script: attr_str(&child.attributes, interner, "script")
-                            .unwrap_or_default()
-                            .to_owned(),
-                        typeface: attr_str(&child.attributes, interner, "typeface")
-                            .unwrap_or_default()
-                            .to_owned(),
+                        script: font.script(interner).unwrap_or_default().into_owned(),
+                        typeface: font.typeface(interner).unwrap_or_default().into_owned(),
                     })
                 }
                 _ => None,
@@ -262,9 +284,14 @@ impl FontScheme {
                 .unwrap_or_default()
         };
         Self {
-            name: attr_str(&element.attributes, interner, "name")
-                .unwrap_or_default()
-                .to_owned(),
+            name: FontSchemeAttributes {
+                attributes: &element.attributes,
+            }
+            .name(interner)
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+            .into_owned(),
             major: collection("majorFont"),
             minor: collection("minorFont"),
         }

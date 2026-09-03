@@ -22,6 +22,7 @@ mjx-mce.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]
-# The txBody exit test opens a real .pptx to extract the slide part; mjx-opc is a
-# lower layer, so this test-only edge is a legal downward dependency.
+# The in-context round-trip suite opens real .pptx packages to extract the parts it round-trips;
+# both crates are lower layers, so these test-only edges are legal downward dependencies.
 mjx-opc.workspace = true
+mjx-fixtures.workspace = true

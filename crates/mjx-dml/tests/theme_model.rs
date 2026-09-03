@@ -85,18 +85,22 @@ fn color_scheme_exposes_srgb_and_system_slots() {
     // accent1 is an sRGB color.
     let accent1 = scheme.color(ColorSchemeSlot::Accent1).expect("accent1");
     assert_eq!(accent1.kind(&interner), ColorKind::Srgb);
-    assert_eq!(accent1.hex(&interner), Some("4472C4"));
+    assert_eq!(accent1.hex(&interner).as_deref(), Some("4472C4"));
 
     // dk1 is a system color; its raw `val` is the system name.
     let dark1 = scheme.color(ColorSchemeSlot::Dark1).expect("dk1");
     assert_eq!(dark1.kind(&interner), ColorKind::System);
-    assert_eq!(dark1.value(&interner), Some("windowText"));
+    assert_eq!(
+        dark1.value(&interner).expect("a legal @val").as_deref(),
+        Some("windowText")
+    );
 
     assert_eq!(
         scheme
             .color(ColorSchemeSlot::FollowedHyperlink)
             .unwrap()
-            .hex(&interner),
+            .hex(&interner)
+            .as_deref(),
         Some("954F72")
     );
 
@@ -134,7 +138,7 @@ fn line_styles_are_indexed_one_based() {
     assert!(theme.line_style(0).is_none());
     // idx 2 is the middle line (w=12700) whose stroke is the placeholder color.
     let ln = theme.line_style(2).expect("line style 2");
-    assert_eq!(ln.width(&interner), Some(LineWidth::from_emu(12700)));
+    assert_eq!(ln.width(&interner), Ok(Some(LineWidth::from_emu(12700))));
     let Some(Fill::Solid(solid)) = ln.fill(&interner) else {
         panic!("line style 2 should have a solid stroke fill");
     };
@@ -185,7 +189,8 @@ fn theme_without_fmt_scheme_has_no_fill_styles() {
             .unwrap()
             .color(ColorSchemeSlot::Dark1)
             .unwrap()
-            .hex(&interner),
+            .hex(&interner)
+            .as_deref(),
         Some("000000")
     );
 }

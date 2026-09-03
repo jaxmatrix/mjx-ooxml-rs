@@ -24,11 +24,39 @@
 //! # Deriving typed attributes
 //!
 //! `#[derive(XmlAttributes)]` is separate from the two above and composes with them (or with a
-//! hand-written pair of impls, or with none): it asks only for the retained
-//! `attributes: Vec<RawAttribute>` field and generates a **getter and a setter over that vector** for
-//! each declared attribute. It never rebuilds the vector, which is the whole point — an attribute the
-//! model has never heard of keeps its position, its prefix and its quote character, and so does one
-//! the model knows about but nobody assigned to.
+//! hand-written pair of impls, or with none): it asks only for a field named `attributes` and
+//! generates a **getter and a setter over that vector** for each declared attribute. It never
+//! rebuilds the vector, which is the whole point — an attribute the model has never heard of keeps
+//! its position, its prefix and its quote character, and so does one the model knows about but
+//! nobody assigned to.
+//!
+//! Each generated accessor is exactly one call to `mjx_xml::attribute::read` or
+//! `mjx_xml::attribute::write`, which are the workspace's only implementations of "wire attribute to
+//! typed value" and back. A model that reads an element it has no type for calls the same two
+//! functions by hand, so there is one such implementation and not two.
+//!
+//! ## What the `attributes` field may be
+//!
+//! Anything the accessors can reach the vector through: the getters need only
+//! `AsRef<[RawAttribute]>` and the setters only `AsMut<Vec<RawAttribute>>`, so
+//!
+//! | field type | what it is for | what it gets |
+//! |---|---|---|
+//! | `Vec<RawAttribute>` | a modelled type that owns its attributes | getters and setters |
+//! | `A`, generic | one declaration serving both directions | getters and setters, per instantiation |
+//! | `&[RawAttribute]` | a **view** over an element the crate does not model | getters only |
+//! | `&mut Vec<RawAttribute>` | a borrowed cursor onto someone else's element | getters and setters |
+//!
+//! The generic form is what a *value projection* uses — a type that reads a handful of facts out of
+//! an element it does not retain. `Attributes { attributes: &element.attributes }` reads without
+//! copying anything, and `Attributes { attributes: Vec::new() }` writes the vector the new element
+//! will own, from the same declaration. A `&[RawAttribute]` view simply has no setters: the bound
+//! that would give it any is not satisfied, so the read-only case is expressed by the type rather
+//! than by a second grammar.
+//!
+//! Because a declaration is a statement about the *schema*, the generated accessors carry
+//! `#[allow(dead_code)]`: an attribute a crate declares but does not currently read is the model
+//! being complete, not code being dead.
 //!
 //! Attributes are declared at the **struct** level, because there is no field to hang them on:
 //!
@@ -98,9 +126,10 @@ pub fn derive_to_xml(input: TokenStream) -> TokenStream {
 /// Derives typed accessors for the attributes declared with struct-level
 /// `#[xml(attribute(local = .., codec = .., ..))]`.
 ///
-/// One getter and one setter per attribute, as inherent methods over the type's retained
-/// `attributes: Vec<RawAttribute>` — which stays the source of truth, so unknown attributes, their
-/// order, their prefixes and their quote characters all survive. See the crate docs for the grammar.
+/// One getter and one setter per attribute, as inherent methods over the type's `attributes` field —
+/// which stays the source of truth, so unknown attributes, their order, their prefixes and their
+/// quote characters all survive. The field may own the vector, borrow it, or be generic over how it
+/// is held; see the crate docs for that and for the grammar.
 #[proc_macro_derive(XmlAttributes, attributes(xml))]
 pub fn derive_xml_attributes(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);

@@ -31,7 +31,10 @@
 
 use std::borrow::Cow;
 
-use mjx_ooxml_core::{AttributeError, Interner, QuoteStyle, RawAttribute, RawName};
+use mjx_ooxml_core::{
+    AttributeCodec, AttributeError, Interner, InvalidAttributeValue, QuoteStyle, RawAttribute,
+    RawName,
+};
 
 use crate::text;
 
@@ -150,6 +153,84 @@ pub fn remove(
     attributes.len() != before
 }
 
+/// Reads one typed attribute — **the single path from a wire attribute to a Rust value**.
+///
+/// The three steps a typed read is made of, composed once: locate the attribute by prefix and local
+/// name ([`find`]), turn its bytes into text ([`decoded_value`]), and hand that text to the
+/// [`AttributeCodec`] that knows the kind. `Ok(None)` means the attribute is simply not there, which
+/// is not an error — what an absent attribute *means* (a default, a `None`, a
+/// [`Missing`](AttributeError::Missing)) is the caller's decision, and the three presences of the
+/// `#[xml(attribute(..))]` grammar are exactly those three decisions.
+///
+/// The accessors `#[derive(XmlAttributes)]` generates are one call to this function each, and a
+/// model that reads an element it does not have a type for calls it directly. There is therefore one
+/// implementation of "attribute to value" in the workspace, and one place a bug in it could live.
+///
+/// **Reading never normalizes.** Nothing here can change the file: `attributes` is borrowed shared,
+/// so an attribute that is read and not assigned to re-emits its own spelling, its own quote
+/// character, in its own position. Canonicalization is [`write()`]'s job alone.
+///
+/// `qualified` is the attribute's wire name as the caller declared it (`"val"`, `"r:embed"`) — a
+/// `&'static str`, so naming the offending attribute in an error costs no allocation.
+///
+/// # Errors
+/// [`AttributeError::InvalidUtf8`] or [`AttributeError::InvalidEntity`] if the value's bytes are not
+/// readable as text, or [`AttributeError::InvalidValue`] if the codec rejects what they say. Every
+/// one of those comes from an untrusted file and is reported, never panicked on.
+pub fn read<'a, C>(
+    attributes: &'a [RawAttribute],
+    interner: &Interner,
+    prefix: Option<&str>,
+    local: &str,
+    qualified: &'static str,
+) -> Result<Option<C::Value<'a>>, AttributeError>
+where
+    C: AttributeCodec,
+{
+    let Some(attribute) = find(attributes, interner, prefix, local) else {
+        return Ok(None);
+    };
+    let raw = decoded_value(attribute, qualified)?;
+    C::decode(raw)
+        .map(Some)
+        .map_err(|invalid| InvalidAttributeValue::into_error(invalid, qualified))
+}
+
+/// Writes one typed attribute, or removes it — **the single path from a Rust value to a wire
+/// attribute**.
+///
+/// `Some(value)` encodes through the [`AttributeCodec`] and [`set`]s the result: an attribute already
+/// in the element is rewritten *where it is*, keeping its position among its siblings and the quote
+/// character the file used, with the new value escaped for that quote; a genuinely new one is
+/// appended, double-quoted. `None` [`remove`]s it, which is how an optional attribute is unset.
+///
+/// **A write is the only thing that canonicalizes.** The codec has exactly one output spelling per
+/// value, so `write::<OnOff>(.., Some(true))` writes `true` whatever the file said before — but only
+/// for the attribute actually assigned to. Every other attribute in the vector, including every one
+/// no model has heard of, is untouched: this function reaches one element of the list and never
+/// rebuilds it.
+///
+/// The setters `#[derive(XmlAttributes)]` generates are one call to this function each.
+pub fn write<'a, C>(
+    attributes: &mut Vec<RawAttribute>,
+    interner: &mut Interner,
+    prefix: Option<&str>,
+    local: &str,
+    value: Option<C::Input<'a>>,
+) where
+    C: AttributeCodec,
+{
+    match value {
+        Some(value) => {
+            let encoded = C::encode(value);
+            set(attributes, interner, prefix, local, &encoded);
+        }
+        None => {
+            remove(attributes, interner, prefix, local);
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -250,6 +331,91 @@ mod tests {
                 "z:keep='x'",
                 r#"b="it's &lt;b> &amp; &quot;q&quot;""#
             ]
+        );
+    }
+
+    /// A codec that accepts only `yes`/`no` and writes `yes` — small enough to be obviously right,
+    /// and different enough from the sample's values to make a wrong read visible.
+    #[derive(Debug)]
+    struct YesNo;
+
+    impl mjx_ooxml_core::AttributeCodec for YesNo {
+        type Value<'a> = bool;
+        type Input<'a> = bool;
+
+        fn decode<'a>(raw: Cow<'a, str>) -> Result<bool, InvalidAttributeValue> {
+            match raw.as_ref() {
+                "yes" => Ok(true),
+                "no" => Ok(false),
+                other => Err(InvalidAttributeValue::new(format!(
+                    "expected yes or no, found {other:?}"
+                ))),
+            }
+        }
+
+        fn encode<'a>(value: Self::Input<'a>) -> Cow<'a, str> {
+            Cow::Borrowed(if value { "yes" } else { "no" })
+        }
+    }
+
+    #[test]
+    fn reading_distinguishes_absent_from_malformed() {
+        let (mut interner, mut attributes) = sample();
+        // Absent is `Ok(None)`: not being there is not an error, and what it *means* is the
+        // caller's decision, not this function's.
+        assert_eq!(
+            read::<YesNo>(&attributes, &interner, None, "c", "c"),
+            Ok(None)
+        );
+        // Present but not a legal value is an error naming the attribute.
+        assert_eq!(
+            read::<YesNo>(&attributes, &interner, None, "a", "a"),
+            Err(AttributeError::InvalidValue {
+                attribute: "a",
+                detail: "expected yes or no, found \"1\"".to_owned(),
+            })
+        );
+        set(&mut attributes, &mut interner, None, "a", "yes");
+        assert_eq!(
+            read::<YesNo>(&attributes, &interner, None, "a", "a"),
+            Ok(Some(true))
+        );
+    }
+
+    #[test]
+    fn reading_decodes_references_and_never_normalizes() {
+        let (interner, mut attributes) = sample();
+        // `b` carries an entity: reading resolves it, and the stored bytes are untouched.
+        attributes[2].value = "5 &lt; 6".as_bytes().into();
+        assert_eq!(
+            read::<mjx_ooxml_core::Text>(&attributes, &interner, None, "b", "b"),
+            Ok(Some(Cow::Owned("5 < 6".to_owned())))
+        );
+        assert_eq!(
+            spellings(&attributes, &interner),
+            ["a='1'", "z:keep='x'", "b=\"5 &lt; 6\""],
+            "a read changed the file"
+        );
+    }
+
+    #[test]
+    fn writing_canonicalizes_only_the_attribute_it_is_given() {
+        let (mut interner, mut attributes) = sample();
+        // `a` was `'1'`; the codec's one output spelling is `yes`, written into the single quotes
+        // the file already used, where it already was.
+        write::<YesNo>(&mut attributes, &mut interner, None, "a", Some(true));
+        assert_eq!(
+            spellings(&attributes, &interner),
+            ["a='yes'", "z:keep='x'", "b=\"2\""]
+        );
+        // `None` removes that attribute and only that one.
+        write::<YesNo>(&mut attributes, &mut interner, None, "a", None);
+        assert_eq!(spellings(&attributes, &interner), ["z:keep='x'", "b=\"2\""]);
+        // A genuinely new one is appended, double-quoted.
+        write::<YesNo>(&mut attributes, &mut interner, None, "c", Some(false));
+        assert_eq!(
+            spellings(&attributes, &interner),
+            ["z:keep='x'", "b=\"2\"", "c=\"no\""]
         );
     }
 

@@ -233,7 +233,9 @@ fn a_scene_spec_is_interner_free_and_round_trips_a_value() {
 const SP3D: &str = concat!(
     r#"<a:sp3d xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
     r#" z="12700" extrusionH="63500" contourW="6350" prstMaterial="metal">"#,
-    r#"<a:bevelT w="88900" h="88900" prst="coolSlant"/>"#,
+    // Deliberately asymmetric: a bevel whose `@w` and `@h` are the same number cannot
+    // tell a reader that swaps them from one that does not.
+    r#"<a:bevelT w="88900" h="25400" prst="coolSlant"/>"#,
     r#"<a:bevelB w="50800" h="25400" prst="angle"/>"#,
     r#"<a:extrusionClr><a:srgbClr val="FF0000"/></a:extrusionClr>"#,
     r#"<a:contourClr><a:schemeClr val="accent1"/></a:contourClr>"#,
@@ -245,18 +247,36 @@ const SP3D: &str = concat!(
 fn a_shape_3d_reads_its_extrusion_bevels_and_colors() {
     let (sp3d, doc) = parse_typed::<Shape3D>(SP3D.as_bytes());
 
-    assert_eq!(sp3d.z(&doc.interner).expect("z").emu(), 12_700);
     assert_eq!(
-        sp3d.extrusion_height(&doc.interner).expect("h").emu(),
+        sp3d.z(&doc.interner).expect("a legal @z").expect("z").emu(),
+        12_700
+    );
+    assert_eq!(
+        sp3d.extrusion_height(&doc.interner)
+            .expect("a legal @extrusionH")
+            .expect("h")
+            .emu(),
         63_500
     );
-    assert_eq!(sp3d.contour_width(&doc.interner).expect("w").emu(), 6_350);
-    assert_eq!(sp3d.material(&doc.interner), Some(PresetMaterial::Metal));
+    assert_eq!(
+        sp3d.contour_width(&doc.interner)
+            .expect("a legal @contourW")
+            .expect("w")
+            .emu(),
+        6_350
+    );
+    assert_eq!(
+        sp3d.material(&doc.interner),
+        Ok(Some(PresetMaterial::Metal))
+    );
 
     let top = sp3d.bevel_top(&doc.interner).expect("bevelT");
     assert_eq!(top.width.expect("w").emu(), 88_900);
+    assert_eq!(top.height.expect("h").emu(), 25_400);
     assert_eq!(top.preset, Some(BevelPreset::CoolSlant));
     let bottom = sp3d.bevel_bottom(&doc.interner).expect("bevelB");
+    assert_eq!(bottom.width.expect("w").emu(), 50_800);
+    assert_eq!(bottom.height.expect("h").emu(), 25_400);
     assert_eq!(bottom.preset, Some(BevelPreset::Angle));
 
     assert_eq!(
@@ -307,9 +327,9 @@ fn an_unstated_measure_reads_none_not_the_schema_default() {
     // A bare bevel and a bare sp3d state nothing — `None`, not 76200 / 0 / warmMatte.
     let sp3d_xml = format!(r#"<a:sp3d xmlns:a="{A}"><a:bevelT/></a:sp3d>"#);
     let (sp3d, doc) = parse_typed::<Shape3D>(sp3d_xml.as_bytes());
-    assert_eq!(sp3d.z(&doc.interner), None);
-    assert_eq!(sp3d.extrusion_height(&doc.interner), None);
-    assert_eq!(sp3d.material(&doc.interner), None);
+    assert_eq!(sp3d.z(&doc.interner), Ok(None));
+    assert_eq!(sp3d.extrusion_height(&doc.interner), Ok(None));
+    assert_eq!(sp3d.material(&doc.interner), Ok(None));
     let bevel = sp3d.bevel_top(&doc.interner).expect("bevelT present");
     assert_eq!(bevel.width, None);
     assert_eq!(bevel.height, None);

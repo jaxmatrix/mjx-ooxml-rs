@@ -167,6 +167,28 @@ impl RawElement {
         }
     }
 
+    /// The element a typed model rebuilds when it serializes itself — **the one construction point
+    /// every `ToXml` goes through**.
+    ///
+    /// Identical to [`new`](Self::new) today, and deliberately a separate name: a rebuilt element is
+    /// not the same thing as a newly authored one. It is a model re-stating an element that already
+    /// existed in a document, so it is the only construction that could ever carry the original's
+    /// verbatim [source range](Self::source_span) forward. Nothing does that yet — every rebuild
+    /// serializes from the model — but when something does, it changes here, once, rather than at
+    /// every `to_xml` in the workspace.
+    ///
+    /// Use [`new`](Self::new) for an element the program invented, which has no original to carry
+    /// anything forward from.
+    #[must_use]
+    pub fn rebuilt(
+        name: RawName,
+        attributes: Vec<RawAttribute>,
+        children: Vec<RawNode>,
+        empty: bool,
+    ) -> Self {
+        Self::new(name, attributes, children, empty)
+    }
+
     /// An element a byte-faithful reader parsed from `source`, the byte range — `<` of the start tag
     /// through `>` of the end tag — it occupied in the document's source buffer.
     ///

@@ -245,7 +245,10 @@ fn a_cells_borders_are_line_properties_and_read_per_edge() {
     let left = properties
         .border(interner, CellBorder::Left)
         .expect("a left border");
-    assert_eq!(left.width(interner).expect("w").emu(), 12_700);
+    assert_eq!(
+        left.width(interner).expect("a legal @w").expect("w").emu(),
+        12_700
+    );
     assert!(properties.border(interner, CellBorder::Bottom).is_some());
     assert!(
         properties.border(interner, CellBorder::Right).is_none(),

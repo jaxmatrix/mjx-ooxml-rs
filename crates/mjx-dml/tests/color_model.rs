@@ -36,7 +36,7 @@ fn srgb_color_reads_and_preserves_transforms() {
         format!(r#"<a:srgbClr xmlns:a="{A}" val="FF0000"><a:lumMod val="50000"/></a:srgbClr>"#);
     let (color, doc): (Color, _) = parse_typed(fragment.as_bytes());
     assert_eq!(color.kind(&doc.interner), ColorKind::Srgb);
-    assert_eq!(color.hex(&doc.interner), Some("FF0000"));
+    assert_eq!(color.hex(&doc.interner).as_deref(), Some("FF0000"));
     assert_eq!(color.scheme_color(&doc.interner), None);
     // The lumMod transform is preserved opaquely.
     assert_eq!(color.transforms().len(), 1);
@@ -93,7 +93,10 @@ fn solid_fill_round_trips_and_exposes_its_color() {
     let (fill, doc): (SolidFill, _) = parse_typed(fragment.as_bytes());
     assert_eq!(fill.content().len(), 1);
     assert!(matches!(fill.content()[0], SolidFillContent::Color(_)));
-    assert_eq!(fill.color().unwrap().hex(&doc.interner), Some("00FF00"));
+    assert_eq!(
+        fill.color().unwrap().hex(&doc.interner).as_deref(),
+        Some("00FF00")
+    );
     assert_round_trips(&fill, doc, fragment.as_bytes());
 }
 

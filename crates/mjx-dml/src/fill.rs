@@ -7,15 +7,16 @@
 //! fill round-trips byte-for-byte. [`Fill`] is the exhaustive choice over all six, dispatching on the
 //! element's local name.
 
-use mjx_ooxml_core::{
-    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml,
-};
-use mjx_ooxml_types::support::on_off;
+use std::borrow::Cow;
 
-use crate::build::{
-    attr_by_local, attr_str, dml_attr, dml_child, dml_element, dml_name, fidelity_element_impls,
-    first_color_child, parse_angle, parse_percentage, prefixed_attr,
+use mjx_ooxml_core::{
+    Enumeration, FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, Text,
+    ToXml,
 };
+use mjx_ooxml_types::support::OnOff;
+
+use crate::build::{dml_child, dml_element, dml_name, fidelity_element_impls, first_color_child};
+use crate::codec::{Percentage, SixtyThousandthsOfADegree};
 use crate::color::{Color, ColorKind, ColorSpec};
 use crate::geometry::{Angle, Fraction};
 
@@ -141,6 +142,43 @@ impl GroupFill {
 fidelity_element_impls!(GroupFill);
 
 // ---------------------------------------------------------------------------------------------
+// The attribute faces of the fill elements this tier reads but does not model as types
+// ---------------------------------------------------------------------------------------------
+//
+// A gradient stop, a linear shade and a blip are read out of a wrapper's own children and projected
+// into interner-free values; none of them is a modeled type. Each still declares its attributes
+// through the `#[xml(attribute(..))]` grammar, by naming the attribute vector it works over rather
+// than owning one — `&element.attributes` to read (which copies nothing) and a fresh `Vec` to write.
+// One declaration therefore serves both directions, and both go through the same generated accessor.
+
+/// `a:gs` (`CT_GradientStop`) — the attribute face of one gradient stop.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "pos", codec = Percentage, accessor = position, required))]
+struct GradientStopAttributes<A> {
+    attributes: A,
+}
+
+/// `a:lin` (`CT_LinearShadeProperties`) — the attribute face of a gradient's linear shade.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "ang", codec = SixtyThousandthsOfADegree, accessor = angle))]
+struct LinearShadeAttributes<A> {
+    attributes: A,
+}
+
+/// `a:blip` (`CT_Blip`) — the attribute face of an image reference.
+///
+/// Both attributes are prefixed `r:`, and the grammar matches the **literal prefix**: the fidelity
+/// reader interns an attribute name with no resolved namespace at all, so the prefix is the strongest
+/// rule available — and an exact one, since `r` is bound to the relationships namespace by every part
+/// that carries a blip.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "embed", prefix = "r", codec = Text, accessor = image_relationship))]
+#[xml(attribute(local = "link", prefix = "r", codec = Text, accessor = link_relationship))]
+struct BlipAttributes<A> {
+    attributes: A,
+}
+
+// ---------------------------------------------------------------------------------------------
 // gradFill
 // ---------------------------------------------------------------------------------------------
 
@@ -160,7 +198,9 @@ pub struct GradientStop {
 ///
 /// The stop list and linear angle are exposed typed; the shade path, tile rect, and any other
 /// internals are preserved opaque so the fill round-trips.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "flip", codec = Text, accessor = flip))]
+#[xml(attribute(local = "rotWithShape", codec = OnOff, accessor = rot_with_shape))]
 pub struct GradientFill {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -191,8 +231,11 @@ impl GradientFill {
                     if crate::build::is_dml(&gs.name, interner)
                         && interner.resolve(gs.name.local) == "gs" =>
                 {
-                    let position =
-                        attr_str(&gs.attributes, interner, "pos").and_then(parse_percentage)?;
+                    let position = GradientStopAttributes {
+                        attributes: &gs.attributes,
+                    }
+                    .position(interner)
+                    .ok()?;
                     let color = first_color_child(gs, interner)?;
                     Some(GradientStop { position, color })
                 }
@@ -205,19 +248,12 @@ impl GradientFill {
     #[must_use]
     pub fn linear_angle(&self, interner: &Interner) -> Option<Angle> {
         let lin = dml_child(&self.children, interner, "lin")?;
-        attr_str(&lin.attributes, interner, "ang").and_then(parse_angle)
-    }
-
-    /// The tile flip mode (`@flip`: `none`/`x`/`y`/`xy`), verbatim, or `None` if unset.
-    #[must_use]
-    pub fn flip(&self, interner: &Interner) -> Option<&str> {
-        attr_str(&self.attributes, interner, "flip")
-    }
-
-    /// Whether the gradient rotates with the shape (`@rotWithShape`), or `None` if unset.
-    #[must_use]
-    pub fn rot_with_shape(&self, interner: &Interner) -> Option<bool> {
-        attr_str(&self.attributes, interner, "rotWithShape").and_then(on_off::from_wire)
+        LinearShadeAttributes {
+            attributes: &lin.attributes,
+        }
+        .angle(interner)
+        .ok()
+        .flatten()
     }
 }
 
@@ -263,8 +299,16 @@ impl PictureFill {
     /// part) must be added to the package separately.
     #[must_use]
     pub fn new(interner: &mut Interner, rel_id: &str, mode: PictureFillMode) -> Self {
-        let embed = prefixed_attr(interner, "r", "embed", rel_id);
-        let blip = RawNode::Element(dml_element(interner, "blip", vec![embed], Vec::new()));
+        let mut blip_attributes = BlipAttributes {
+            attributes: Vec::new(),
+        };
+        blip_attributes.set_image_relationship(interner, Some(rel_id));
+        let blip = RawNode::Element(dml_element(
+            interner,
+            "blip",
+            blip_attributes.attributes,
+            Vec::new(),
+        ));
         let mut children = vec![blip];
         match mode {
             PictureFillMode::Tile => {
@@ -295,17 +339,32 @@ impl PictureFill {
 
     /// The embedded image relationship id (`a:blip@r:embed`), or `None` if absent. Resolve it against
     /// the source part's `.rels` to reach the image part.
+    ///
+    /// Owned rather than borrowed: the value is read through the blip's own attribute face, which is
+    /// a view over a child element and does not outlive the call. Every caller copies the id anyway.
     #[must_use]
-    pub fn image_rel_id(&self, interner: &Interner) -> Option<&str> {
+    pub fn image_rel_id(&self, interner: &Interner) -> Option<String> {
         let blip = dml_child(&self.children, interner, "blip")?;
-        attr_by_local(&blip.attributes, interner, "embed")
+        BlipAttributes {
+            attributes: &blip.attributes,
+        }
+        .image_relationship(interner)
+        .ok()
+        .flatten()
+        .map(Cow::into_owned)
     }
 
     /// The linked (external) image relationship id (`a:blip@r:link`), or `None` if absent.
     #[must_use]
-    pub fn image_link_id(&self, interner: &Interner) -> Option<&str> {
+    pub fn image_link_id(&self, interner: &Interner) -> Option<String> {
         let blip = dml_child(&self.children, interner, "blip")?;
-        attr_by_local(&blip.attributes, interner, "link")
+        BlipAttributes {
+            attributes: &blip.attributes,
+        }
+        .link_relationship(interner)
+        .ok()
+        .flatten()
+        .map(Cow::into_owned)
     }
 
     /// The fill mode: [`Tile`](PictureFillMode::Tile) if an `a:tile` child is present,
@@ -331,7 +390,8 @@ fidelity_element_impls!(PictureFill);
 /// `a:pattFill` (`CT_PatternFillProperties`) — a two-color preset pattern fill: attribute `@prst`
 /// (the [`PatternType`]) with an `a:fgClr` foreground and an `a:bgClr` background (each wrapping one
 /// color).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "prst", codec = Enumeration<PatternType>, accessor = preset))]
 pub struct PatternFill {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -355,9 +415,6 @@ impl PatternFill {
         fg: Option<Color>,
         bg: Option<Color>,
     ) -> Self {
-        let attributes = preset
-            .map(|preset| vec![dml_attr(interner, "prst", preset.to_wire())])
-            .unwrap_or_default();
         let mut children = Vec::new();
         if let Some(fg) = fg {
             let fg_node = RawNode::Element(fg.to_xml(interner));
@@ -378,18 +435,14 @@ impl PatternFill {
             )));
         }
         let empty = children.is_empty();
-        Self {
+        let mut fill = Self {
             name: dml_name(interner, "pattFill"),
-            attributes,
+            attributes: Vec::new(),
             children,
             empty,
-        }
-    }
-
-    /// The preset pattern (`@prst`), or `None` if unset or its token is unrecognized.
-    #[must_use]
-    pub fn preset(&self, interner: &Interner) -> Option<PatternType> {
-        attr_str(&self.attributes, interner, "prst").and_then(PatternType::from_wire)
+        };
+        fill.set_preset(interner, preset);
+        fill
     }
 
     /// The foreground color (`a:fgClr`'s color child), or `None` if absent.
@@ -627,7 +680,7 @@ impl Fill {
                 mode: blip.mode(interner),
             },
             Fill::Pattern(pattern) => FillSpec::Pattern {
-                preset: pattern.preset(interner),
+                preset: pattern.preset(interner).ok().flatten(),
                 foreground: pattern
                     .foreground(interner)
                     .map(|color| color.spec(interner)),
@@ -649,10 +702,17 @@ fn build_gradient(
     let gs_nodes: Vec<RawNode> = stops
         .iter()
         .map(|(position, color)| {
-            let pos = (position.ratio() * 100_000.0).round() as i64;
-            let attributes = vec![dml_attr(interner, "pos", &pos.to_string())];
+            let mut stop = GradientStopAttributes {
+                attributes: Vec::new(),
+            };
+            stop.set_position(interner, *position);
             let color_node = RawNode::Element(color.to_xml(interner));
-            RawNode::Element(dml_element(interner, "gs", attributes, vec![color_node]))
+            RawNode::Element(dml_element(
+                interner,
+                "gs",
+                stop.attributes,
+                vec![color_node],
+            ))
         })
         .collect();
     let mut children = vec![RawNode::Element(dml_element(
@@ -662,12 +722,14 @@ fn build_gradient(
         gs_nodes,
     ))];
     if let Some(angle) = angle {
-        let ang = (angle.degrees() * 60_000.0).round() as i64;
-        let lin_attributes = vec![dml_attr(interner, "ang", &ang.to_string())];
+        let mut shade = LinearShadeAttributes {
+            attributes: Vec::new(),
+        };
+        shade.set_angle(interner, Some(angle));
         children.push(RawNode::Element(dml_element(
             interner,
             "lin",
-            lin_attributes,
+            shade.attributes,
             Vec::new(),
         )));
     }

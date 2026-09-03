@@ -18,6 +18,7 @@
 //! foreign elements) — so a parsed value re-serializes exactly. See [`text`] for the mechanism.
 
 pub(crate) mod build;
+pub mod codec;
 pub mod color;
 pub mod effect;
 pub mod fill;
