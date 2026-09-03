@@ -616,7 +616,7 @@ fn paragraph_properties() -> Vec<u8> {
 /// margins, and an `a:extLst` inside a `a:tcPr`.
 fn table() -> Vec<u8> {
     format!(
-        r#"<a:tbl xmlns:a="{A}" xmlns:z="{Z}"><a:tblPr firstRow='1' z:note="between the known ones" bandRow="on" rtl='0'/><a:tblGrid><a:gridCol w='2438400'/><a:gridCol w="2438400"/></a:tblGrid><a:tr h='914400'><a:tc id="c1" gridSpan='2' z:note="between the known ones" rowSpan="1"><a:txBody><a:bodyPr/><a:p><a:r><a:rPr b='on'/><a:t>Merged</a:t></a:r></a:p></a:txBody><a:tcPr marL='91440' marR="91440" anchor='ctr' anchorCtr="off" horzOverflow='clip'><a:extLst><a:ext uri="{{TAG}}"><z:tag keep='1'/></a:ext></a:extLst></a:tcPr></a:tc><a:tc hMerge="on"><a:txBody><a:bodyPr/><a:p/></a:txBody><a:tcPr/></a:tc></a:tr></a:tbl>"#
+        r#"<a:tbl xmlns:a="{A}" xmlns:z="{Z}"><a:tblPr firstRow='1' z:note="between the known ones" bandRow="on" rtl='0'/><a:tblGrid><a:gridCol w='2438400'/><a:gridCol w="2438400"/></a:tblGrid><a:tr h='914400'><a:tc id="c1" gridSpan='2' z:note="between the known ones" rowSpan="1"><a:txBody><a:bodyPr/><a:p><a:r><a:rPr b='on'/><a:t>Merged</a:t></a:r></a:p></a:txBody><a:tcPr marL='91440' marR="45720" anchor='ctr' anchorCtr="off" horzOverflow='clip'><a:extLst><a:ext uri="{{TAG}}"><z:tag keep='1'/></a:ext></a:extLst></a:tcPr></a:tc><a:tc hMerge="on"><a:txBody><a:bodyPr/><a:p/></a:txBody><a:tcPr/></a:tc></a:tr></a:tbl>"#
     )
     .into_bytes()
 }
@@ -626,7 +626,7 @@ fn table() -> Vec<u8> {
 /// on the `a:path`, and a character reference in an `a:gd@fmla` this model reads.
 fn custom_geometry() -> Vec<u8> {
     format!(
-        r#"<a:custGeom xmlns:a="{A}" xmlns:z="{Z}"><a:avLst><a:gd name='adj' fmla="val 25000"/></a:avLst><a:gdLst><a:gd name="hc" fmla='*/ w 1 &#x32;'/></a:gdLst><a:ahLst><a:ahXY gdRefX='adj' minX="0" maxX='50000'><a:pos x='hc' y="0"/></a:ahXY></a:ahLst><a:cxnLst><a:cxn ang='0'><a:pos x="hc" y='0'/></a:cxn></a:cxnLst><a:rect l='0' t="0" r='hc' b="0"/><a:pathLst><a:path w='200' z:note="between the known ones" h="100" fill='lighten' stroke="0" extrusionOk='on'><a:moveTo><a:pt x='0' y="0"/></a:moveTo><a:arcTo wR='hc' hR="50" stAng='0' swAng="5400000"/><a:close/></a:path></a:pathLst></a:custGeom>"#
+        r#"<a:custGeom xmlns:a="{A}" xmlns:z="{Z}"><a:avLst><a:gd name='adj' fmla="val 25000"/></a:avLst><a:gdLst><a:gd name="hc" fmla='*/ w 1 &#x32;'/></a:gdLst><a:ahLst><a:ahXY gdRefX='adj' minX="0" maxX='50000'><a:pos x='hc' y="33"/></a:ahXY></a:ahLst><a:cxnLst><a:cxn ang='0'><a:pos x="hc" y='0'/></a:cxn></a:cxnLst><a:rect l='10' t="20" r='hc' b="40"/><a:pathLst><a:path w='200' z:note="between the known ones" h="100" fill='lighten' stroke="0" extrusionOk='on'><a:moveTo><a:pt x='11' y="22"/></a:moveTo><a:arcTo wR='hc' hR="50" stAng='0' swAng="5400000"/><a:close/></a:path></a:pathLst></a:custGeom>"#
     )
     .into_bytes()
 }
@@ -777,9 +777,15 @@ fn a_table_written_in_forms_we_never_emit_survives_byte_for_byte_at_the_outermos
             "the id sits in front of the unknown attribute"
         );
         let cell_properties = anchor.properties().expect("a:tcPr");
+        // Two *different* margins, asserted apart: a pair of equal ones cannot tell a reader that
+        // swaps `@marL` and `@marR` from one that does not.
         assert_eq!(
             cell_properties.left_margin(i),
             Ok(Some(Emu::from_emu(91_440)))
+        );
+        assert_eq!(
+            cell_properties.right_margin(i),
+            Ok(Some(Emu::from_emu(45_720)))
         );
         assert_eq!(cell_properties.anchor(i), Ok(Some(TextAnchoring::Center)));
         assert_eq!(
