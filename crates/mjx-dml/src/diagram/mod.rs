@@ -42,11 +42,11 @@
 //! module's types as `mjx_dml::diagram::Point`, the same way it already reaches, say,
 //! `mjx_dml::table::TableCell`.
 
-mod colors;
-mod common;
-mod data;
-mod layout;
-mod style;
+pub mod colors;
+pub mod common;
+pub mod data;
+pub mod layout;
+pub mod style;
 mod support;
 
 pub use colors::{ColorList, ColorTransform, StyleLabelColors};

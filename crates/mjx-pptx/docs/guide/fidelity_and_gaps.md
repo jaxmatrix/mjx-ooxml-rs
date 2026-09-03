@@ -101,7 +101,7 @@ the slide by relationship id — and each now has the same three things every ot
 | OLE objects | `ole_objects`, `ole_prog_id`, the payload bytes, the snapshot image, `ole_legacy_shape_id` | `add_ole_object` — an embedded stream, a whole embedded package, or a link | `set_ole_prog_id`, `set_ole_object_data`, `set_ole_snapshot_image`, `replace_ole_object_with_placeholder` |
 | ActiveX controls | `activex_control_count` / `_name` / `_shape_id`, `activex_class_id`, `activex_persistence`, the `.bin` state, the snapshot image | `add_activex_control` | `set_activex_control_name`, `set_activex_state`, `set_activex_snapshot_image`, `remove_activex_control` |
 | Ink (InkML) | `ink_references` ties each part to the shape that names it, both ways (`ink_part_for_shape`, `shape_for_ink_part`) | `add_ink` | `set_ink_content` |
-| SmartArt / diagrams | `diagram_relationship_ids`, `diagram_parts` (all five, the cached drawing included), `diagram_part_bytes` | `add_diagram` — four generated documents, or four of your own | `set_diagram_part` |
+| SmartArt / diagrams | `diagram_relationship_ids`, `diagram_parts` (all five, the cached drawing included), `diagram_part_bytes` — and, as a typed point-and-connection graph rather than bytes, [`mjx_dml::diagram::DataModel`](https://docs.rs/mjx-dml/latest/mjx_dml/diagram/struct.DataModel.html) over any part's bytes | `add_diagram` — four generated documents, or four of your own | `set_diagram_part` |
 | Legacy VML | `vml_drawing_part`, `with_vml_drawing` (a typed `mjx_vml::Drawing`), `with_vml_shape_for_ole_object` / `_for_activex_control` | `add_vml_drawing` | `edit_vml_drawing` |
 
 The VML column is behind the `vml` Cargo feature. That flag decides only whether **this** crate
@@ -113,6 +113,45 @@ The one thing worth knowing about the VML surface is *why* it exists. A legacy c
 useful if you can get from the modern markup that points at it to the legacy shape that draws it, and
 that hop is an identifier match: `p:oleObj@spid`, `p:control@spid` and `o:OLEObject@ShapeID` all name
 a VML shape's `id`. `with_vml_shape_for_ole_object` walks it for you.
+
+### SmartArt: what `mjx_dml::diagram` models
+
+`add_diagram` used to write four fixed byte templates that nothing in this workspace could read back
+as anything but an opaque blob. `mjx_dml::diagram` (MJXOFF-148) now models `dml-diagram.xsd` — its 58
+complex types — to the depth that makes that output *explicable*: a caller reading a diagram back gets
+a typed point-and-connection graph, not bytes.
+
+The line falls in three places:
+
+- **The graph is fully typed.** The data part's point-and-connection graph (`DataModel`, `PointList` /
+  `Point`, `ConnectionList` / `Connection`, `ElementPropertySet`) and the layout definition's whole
+  algorithm *tree* (`LayoutDefinition`, `LayoutNode`, `Algorithm`, `Constraint`, `NumericRule`,
+  `Choose`/`LayoutCondition`/`LayoutOtherwise`) are typed down to their attributes — 50 of the 58
+  complex types, including the three duplicated title/description/category symbol families
+  (`CT_CTName`/`CT_Name`/`CT_SDName` and the two others alongside them) collapsed into the one Rust
+  type each that the identical wire shape earns, per [the module's own
+  note](https://docs.rs/mjx-dml/latest/mjx_dml/diagram/index.html).
+- **A handful of externally-defined DrawingML formatting groups stay opaque.** `spPr`, `style`, `txPr`
+  (`CT_TextProps`, a thin wrapper around `a:EG_Text3D`), `bg`, `whole`, `scene3d` and `sp3d` are
+  preserved verbatim wherever they appear, the same fidelity-wrapper choice this crate already makes
+  for a shape's own formatting (see [`SolidFill`](https://docs.rs/mjx-dml/latest/mjx_dml/struct.SolidFill.html)
+  and its neighbours) — modelling them here would mean a second, diagram-specific copy of DrawingML's
+  colour/fill/effect/3-D machinery. `CT_TextProps` is the one complex type this accounts for that gets
+  no Rust type at all, since it names nothing this project does not already choose to leave opaque.
+- **The SmartArt gallery catalog is out of scope entirely**, because this project never authors or
+  reads one: `colorsDefHdr(Lst)`, `layoutDefHdr(Lst)` and `styleDefHdr(Lst)` are separate parts naming
+  every built-in layout/style/colour choice PowerPoint's "Choose a SmartArt Graphic" picker offers, not
+  one of the four parts a `p:graphicFrame`'s `dgm:relIds` names. Their six complex types
+  (`CT_ColorTransformHeader(Lst)`, `CT_DiagramDefinitionHeader(Lst)`, `CT_StyleDefinitionHeader(Lst)`)
+  get no Rust type — not markup this project has met and left unmodelled, but a part kind it never
+  opens. (`CT_RelIds`, the 58th complex type this schema declares — the `dgm:relIds` a frame's
+  extension list carries — is a PresentationML concern already modelled as
+  [`DiagramRelationshipIds`](crate::DiagramRelationshipIds) in this crate, not in `mjx_dml::diagram`.)
+
+**Running the layout — walking `LayoutNode`'s algorithm tree to compute where a consumer draws each
+point's shape — is a documented non-goal**, unchanged by this: see [*A SmartArt layout is not
+run*](#non-goals) below. The markup that tree is built from is now fully typed; interpreting it is a
+rendering feature, and there is no rendering here.
 
 ## The gaps
 
@@ -132,7 +171,7 @@ loses. A deck carrying any of it round-trips unchanged.
 | **A chart's workbook is regenerated, not patched** | A data edit rewrites the embedded workbook from the chart's own data, so the two always agree | Reconciling an arbitrary third-party workbook with edited chart data is a merge problem with no correct answer. Detach the workbook first if you would rather keep it stale than lose the formatting or extra sheets it carried (MJX-116) |
 | **Chart colour and style parts** (`colors1.xml`, `style1.xml`) are preserved, not modelled | The parts, verbatim | They are Office 2013+ extensions outside ECMA-376, and a chart renders without them. The in-schema styling — `c:style`, `c:varyColors`, a series' `c:spPr` — *is* modelled |
 | **InkML strokes are not modelled** | The stroke set, verbatim, plus `add_ink` / `set_ink_content` checking the root namespace | InkML is a W3C vocabulary with no OOXML semantics of its own. Parsing it would buy reach into a format this library does not render |
-| **A SmartArt layout is not run** | `add_diagram` writes the data, layout, style and colour documents and the frame naming them; PowerPoint regenerates the cached `dsp:drawing`, and a diagram that already has one keeps it verbatim | A layout engine is a rendering feature, and there is no rendering here |
+| **A SmartArt layout is not run** | `add_diagram` writes the data, layout, style and colour documents and the frame naming them, and `mjx_dml::diagram` reads the markup of all four back fully typed — the algorithm tree included; PowerPoint regenerates the cached `dsp:drawing`, and a diagram that already has one keeps it verbatim | Walking `LayoutNode`'s typed algorithm tree to compute where a consumer draws each point's shape is a rendering feature, and there is no rendering here — see [*what `mjx_dml::diagram` models*](#smartart-what-mjx_dmldiagram-models) above for the line between the markup (typed) and the engine (not) |
 | **An ActiveX control's properties (`ax:ocxPr`) are not modelled** | The class id and persistence read and write; the property bag inside is verbatim | A Microsoft extension outside ECMA-376 whose meaning is per-control-class |
 | **VML geometry is preserved, not evaluated** | A `v:shape`'s identity, style, references, fill, stroke and children typed; the `path` command string and `v:formulas` verbatim | The same non-goal as the layout engine: evaluating them into a path is a rendering feature |
 | **Markup Compatibility parts are not schema-validated** | They are skipped by the schema gate with a named reason, never silently | `mc:AlternateContent` lives outside the base schema by design. This shades nothing this library writes: no authoring path emits it |
