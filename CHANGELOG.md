@@ -49,6 +49,93 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.73] - 2026-09-03
+
+`mjx-dml`'s composite tiers on the attribute grammar — geometry, tables, text and the colour
+resolver (MJXOFF-142).
+
+0.0.72 put the seven shared property tiers on the grammar. This completes the crate: **the 107
+remaining `attr_*` call sites across `geometry/`, `table/`, `text/` and `resolve.rs` became 0**, and
+with them every `dml_attr`, `prefixed_attr`, `push_*`, `set_attr`, `angle_to_wire`,
+`parse_percentage` and `parse_angle`. `crates/mjx-dml/src/build.rs` no longer mentions attributes at
+all: what is left there builds and finds *elements*.
+
+**There is one path from a wire attribute to a typed value in `mjx-dml`, and one back**, and both go
+through `mjx_xml::attribute::{read, write}`. A helper family with two callers left is the
+half-migrated family CI's naming check exists to warn about, so the family is gone rather than
+reduced.
+
+### Two shapes, one grammar
+
+The tiers here have the same split 0.0.72 found: some types retain an attribute vector and declare
+on themselves; most sites are *value projections* over elements the crate has no type for — an
+`a:pt`, an `a:arcTo`, an `a:tab`, an `a:buChar`, an `a:hlinkClick`, a colour transform's `@val` —
+and declare on a generic attribute face reached through `AsRef<[RawAttribute]>` / `AsMut<Vec<..>>`.
+Twenty-two such faces are declared here.
+
+Two attributes are declared as `Text` rather than as an `Enumeration<T>` *deliberately*:
+`a:prstGeom@prst` and `a:cell3D@prstMaterial` each expose **both** readings of the same bytes — the
+typed one and the raw token — which is what lets a shape kind or a material this build does not know
+still be named. The typed reading layers the generated enumeration's own `from_wire` over the one
+read, so the token → enum mapping still has one implementation.
+
+### New
+
+- **`mjx_dml::codec`** gains five: `TextFontSize` (`ST_TextFontSize`), `TextPointSize`
+  (`ST_TextPoint`), `TextIndentLevel` (`ST_TextIndentLevelType`, whose `0..=8` range is enforced),
+  `PercentageWithPercentSign` (the `111%` spelling `a:buSzPct@val` is written in), and
+  `EmuOrGuideName` / `AngleOrGuideName` for the two `ST_Adj*` unions custom geometry places points
+  with.
+- **`crates/mjx-dml/tests/in_context_roundtrip.rs`** grows from 16 cases to 28: a table lifted out
+  of `tables.pptx` and `table_extensions.pptx` and asserted **at the outermost container**, so a
+  cell's attributes must survive being rebuilt as part of a row rebuilt as part of a table; a
+  paragraph-level body and a preset geometry out of `text_levels.pptx`; a transform read and written
+  back; and five hand-written literals in forms this project's writer never emits, for the run
+  properties, paragraph properties, table, custom geometry and transform tiers.
+
+### Changed behaviour: a boolean a setter writes is spelled `true`
+
+`TableProperties::set_part` and `TableCell::set_merged` wrote `1`; they now write `true`, the one
+canonical `ST_OnOff` spelling every other boolean in the workspace is written in, because they go
+through the same `OnOff` codec. Reading is unchanged and still accepts all six spellings, and an
+attribute **nobody assigns to keeps its own spelling** — a file that says `firstRow="1"` still says
+`firstRow="1"` after an unrelated edit. (`mjx_pptx`'s `add_table` builds a fresh `a:tblPr` from a
+literal template and still writes `firstRow="1" bandRow="1"`, as PowerPoint does.)
+
+### Breaking changes
+
+As in 0.0.72: an accessor over a declared attribute reports a malformed value instead of silently
+reading `None`, so it returns `Result<Option<T>, AttributeError>` — or `Result<T, AttributeError>`
+where the attribute is `use="required"` — and a text-valued one returns a `Cow<str>` (entity
+references in the file are decoded) where it returned `&str`.
+
+| Was | Is |
+|-----|----|
+| `AdjustPoint::{x, y}` → `Option<AdjustCoordinate>` | `Result<AdjustCoordinate, AttributeError>` |
+| `Path2D::{width, height, fill, stroke, extrusion_ok}` → `Option<T>` | `Result<Option<T>, _>` |
+| `GeometryGuide::{name, formula}` → `Option<&str>` | `Result<Cow<str>, _>` |
+| `PresetGeometry::preset_token` → `Option<&str>` | `Result<Cow<str>, _>` |
+| `TableColumn::width`, `TableRow::height` → `Option<Emu>` | `Result<Option<Emu>, _>` |
+| `TableColumn::set_width`, `TableRow::set_height` took `Emu` | take `Option<Emu>` (`None` removes) |
+| `TableCellProperties`'s eight accessors → `Option<T>` | `Result<Option<T>, _>` |
+| `TableCellProperties::{set_anchor, set_text_direction, set_horizontal_overflow}` took a value | take an `Option` |
+| `TableCell::id`, `TextField::{id, field_type}` → `Option<&str>` | `Result<Option<Cow<str>>, _>` |
+| `TableStyleList::default_style_id`, `TableStyle::{style_id, style_name}` → `Option<&str>` | `Result<Cow<str>, _>` |
+| `FontReference::index` → `Option<FontCollectionIndex>` | `Result<Option<..>, _>` |
+| `Cell3D::preset_material` → `Option<&str>` | `Result<Option<Cow<str>>, _>` |
+| `CharacterProperties`'s ten attribute accessors → `Option<T>` | `Result<Option<T>, _>` |
+| `CharacterProperties::{hyperlink_rel_id, hyperlink_action}`, `TextRun::hyperlink_rel_id` → `Option<&str>` | `Option<String>` |
+| `ParagraphProperties`'s eight attribute accessors → `Option<T>` | `Result<Option<T>, _>` |
+| `ResolvedGuides::define` took `&'a str` | takes `impl Into<Cow<'a, str>>` |
+
+`Transform2D::read`, `CustomGeometry`'s spec readers, `TableCell::{column_span, row_span,
+merged_horizontally, merged_vertically}`, `TableProperties::part`, `TableStyleTextStyle::{bold,
+italic}`, `PresetGeometry::preset`, `Cell3D::material` and every `resolve_*` function keep their
+shape: each is a **total** projection with a documented answer for "the file does not say", and a
+value this model cannot read is the file not saying. That decision is written down in
+`resolve.rs`'s module docs, where it is load-bearing — a renderer that refused to draw a shape over
+one malformed colour transform would be worse than one that drew it without the transform.
+
 ## [0.0.72] - 2026-09-03
 
 `mjx-dml`'s shared property tiers on the attribute grammar — colour, fill, outline, effects, 3-D,
