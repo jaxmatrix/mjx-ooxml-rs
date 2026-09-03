@@ -1,6 +1,6 @@
 {
   "name": "@mjx/ooxml",
-  "version": "0.0.69",
+  "version": "0.0.70",
   "description": "Read, edit and write PowerPoint (.pptx) files — a pure-Rust OOXML library, compiled to WebAssembly.",
   "license": "MIT OR Apache-2.0",
   "author": "Jai Shukla",
