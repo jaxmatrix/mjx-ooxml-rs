@@ -605,3 +605,193 @@ fn authoring_an_inline_style_dirties_only_its_slide() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------------------------
+// Tier 3, inside a part: an edit through the whole-part typed model rewrites only what it changed
+// ---------------------------------------------------------------------------------------------
+
+/// `tables.pptx`'s `tableStyles.xml` is written with every start tag on one line, so a "did it
+/// re-flow?" assertion against it would pass whether or not anything preserved the source bytes.
+/// This puts the wrapping back — the way Office writes it — and rebuilds the deck around it.
+///
+/// The transformation is whitespace *inside start tags* only, which XML says is insignificant.
+fn deck_whose_table_styles_part_wraps_its_start_tags() -> (Vec<u8>, Vec<u8>) {
+    let name = mjx_opc::PartName::new("/ppt/tableStyles.xml").expect("valid part name");
+    let mut pkg = Package::open(&fixture("tables.pptx")).expect("open");
+    let flat = String::from_utf8(
+        pkg.part_bytes(&name)
+            .expect("the table-styles part")
+            .to_vec(),
+    )
+    .expect("the table-styles part is UTF-8");
+    let wrapped = flat
+        .replace(
+            r#" styleName="Report Style">"#,
+            "\r\n    styleName=\"Report Style\">",
+        )
+        .replace(
+            r#"<a:srgbClr val="D9E1F2"/>"#,
+            "<a:srgbClr\r\n            val=\"D9E1F2\"\r\n          />",
+        )
+        .replace(
+            r#"<a:tcTxStyle b="on">"#,
+            "<a:tcTxStyle\r\n        b=\"on\">",
+        );
+    assert_ne!(
+        wrapped, flat,
+        "the table-styles part did not have the shape expected"
+    );
+    pkg.replace_part_bytes(&name, wrapped.clone().into_bytes())
+        .expect("replace the table-styles part");
+    (pkg.save().expect("save"), wrapped.into_bytes())
+}
+
+/// The bytes of the styles part after `edit`, and the bytes it started from.
+fn table_styles_after(edit: impl FnOnce(&mut Presentation)) -> (Vec<u8>, Vec<u8>) {
+    let (deck, before) = deck_whose_table_styles_part_wraps_its_start_tags();
+    let name = mjx_opc::PartName::new("/ppt/tableStyles.xml").expect("valid part name");
+    let mut pres = Presentation::open(&deck).expect("open");
+    edit(&mut pres);
+    let saved = pres.save().expect("save");
+    let after = Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&name)
+        .expect("the table-styles part")
+        .to_vec();
+    (before, after)
+}
+
+fn contains(haystack: &[u8], needle: &[u8]) -> bool {
+    haystack
+        .windows(needle.len())
+        .any(|window| window == needle)
+}
+
+/// Start tags the wrapped fixture carries **inside** its one style, which neither edit below
+/// reaches. Each is CRLF-wrapped, so no reconstruction from the model could produce it: the writer
+/// emits exactly one `0x20` between attributes.
+const WRAPPED_DESCENDANTS: &[&[u8]] = &[
+    b"<a:srgbClr\r\n            val=\"D9E1F2\"\r\n          />",
+    b"<a:tcTxStyle\r\n        b=\"on\">",
+];
+
+/// The `a:tblStyle` start tag itself, wrapped. Only an edit that leaves that element alone keeps it.
+const WRAPPED_STYLE_START_TAG: &[u8] = b"\r\n    styleName=\"Report Style\">";
+
+/// `create_table_style` reads the whole `tableStyles.xml` into a `TableStyleList` and writes the
+/// whole part back from it. Until MJXOFF-143 that rebuilt every element, so adding a second style
+/// re-flowed the first one. Now the style that did not change is copied from the buffer the part was
+/// parsed from.
+#[test]
+fn adding_a_table_style_leaves_the_existing_one_byte_identical() {
+    let other = "{9A1B2C3D-4E5F-4061-8273-9AABBCCDDEEF}";
+    let (before, after) = table_styles_after(|pres| {
+        pres.create_table_style(other, "Second Style")
+            .expect("create");
+    });
+
+    assert_ne!(after, before, "the edit should have changed the part");
+    assert!(
+        contains(&after, b"Second Style"),
+        "the edit did not land:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+    for wrapped in WRAPPED_DESCENDANTS
+        .iter()
+        .chain(std::iter::once(&WRAPPED_STYLE_START_TAG))
+    {
+        assert!(
+            contains(&after, wrapped),
+            "the untouched style was re-flowed:\n{}\n\nwanted verbatim:\n{}",
+            String::from_utf8_lossy(&after),
+            String::from_utf8_lossy(wrapped)
+        );
+    }
+}
+
+/// The same for `format_table_style_part`, the other whole-part write on `tableStyles.xml`: it
+/// rewrites one part of one style, and everything else keeps its bytes.
+#[test]
+fn formatting_one_style_part_leaves_the_rest_of_the_part_byte_identical() {
+    let existing = "{2E9B8F31-6A47-4C8D-B0A2-9F4E7D3C1B65}";
+    let (before, after) = table_styles_after(|pres| {
+        pres.format_table_style_part(
+            existing,
+            TableStylePart::LastRow,
+            &TableStyleFormat::new()
+                .with_fill(FillSpec::solid(ColorSpec::Srgb("ABCDEF".to_owned()))),
+        )
+        .expect("format the footer part");
+    });
+
+    assert_ne!(after, before, "the edit should have changed the part");
+    assert!(
+        contains(&after, b"ABCDEF"),
+        "the edit did not land:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+    for wrapped in WRAPPED_DESCENDANTS {
+        assert!(
+            contains(&after, wrapped),
+            "an untouched element was re-flowed:\n{}\n\nwanted verbatim:\n{}",
+            String::from_utf8_lossy(&after),
+            String::from_utf8_lossy(wrapped)
+        );
+    }
+    // The reflow is confined to what changed: this edit gave the style a new `a:lastRow` child, so
+    // the `a:tblStyle` element itself *is* different and its own start tag is rebuilt — while the
+    // untouched elements beneath it above are still their source bytes.
+    assert!(
+        !contains(&after, WRAPPED_STYLE_START_TAG)
+            && contains(&after, b" styleName=\"Report Style\">"),
+        "the element the edit changed should reconstruct from the model:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+}
+
+/// `set_table_style` is the third surface the *Limitations* row named, and it is a different shape
+/// from the other two: it does not rewrite a whole part, it reads one `a:tblPr` out of a slide and
+/// writes that element back. The same loss applied — every descendant of `a:tblPr` was rebuilt — and
+/// the same fix closes it.
+///
+/// `table_extensions.pptx` carries an `a:extLst` inside its `a:tblPr`, which is exactly the markup
+/// the model preserves but does not understand. Wrapped across lines, it can only come back intact
+/// if it was copied rather than reconstructed.
+#[test]
+fn assigning_a_table_style_leaves_the_extension_beside_it_byte_identical() {
+    const WRAPPED_EXTENSION: &[u8] =
+        b"<mjx:tableTag\r\n          xmlns:mjx=\"urn:mjx-ooxml-rs:test-extension\"\r\n          value=\"quarterly\"/>";
+    let name = mjx_opc::PartName::new("/ppt/slides/slide1.xml").expect("valid part name");
+    let mut pkg = Package::open(&fixture("table_extensions.pptx")).expect("open");
+    let flat = String::from_utf8(pkg.part_bytes(&name).expect("the slide").to_vec())
+        .expect("the slide is UTF-8");
+    let wrapped = flat.replace(
+        r#"<mjx:tableTag xmlns:mjx="urn:mjx-ooxml-rs:test-extension" value="quarterly"/>"#,
+        std::str::from_utf8(WRAPPED_EXTENSION).expect("UTF-8"),
+    );
+    assert_ne!(wrapped, flat, "the slide did not have the shape expected");
+    pkg.replace_part_bytes(&name, wrapped.into_bytes())
+        .expect("replace the slide");
+    let deck = pkg.save().expect("save");
+
+    let mut pres = Presentation::open(&deck).expect("open");
+    pres.set_table_style(0, 1, "{9A1B2C3D-4E5F-4061-8273-9AABBCCDDEEF}")
+        .expect("assign");
+    let saved = pres.save().expect("save");
+    let after = Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&name)
+        .expect("the slide")
+        .to_vec();
+
+    assert!(
+        contains(&after, b"{9A1B2C3D-4E5F-4061-8273-9AABBCCDDEEF}"),
+        "the edit did not land:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+    assert!(
+        contains(&after, WRAPPED_EXTENSION),
+        "the extension beside the edited element was re-flowed:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+}

@@ -317,7 +317,7 @@ impl Presentation {
         let RawDocument { interner, root, .. } = doc;
         let mut space = ChartSpace::from_xml(root, interner)?;
         edit(&mut space, interner)?;
-        *root = space.to_xml(interner);
+        space.write_back(root, interner);
         Ok(())
     }
 

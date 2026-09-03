@@ -543,21 +543,24 @@ fn a_shape_can_be_removed_from_a_drawing() {
 }
 
 // ---------------------------------------------------------------------------------------------
-// A known `mjx-xml` limitation, pinned here so it is visible rather than silent
+// Whitespace only the source bytes remember
 // ---------------------------------------------------------------------------------------------
 
+/// Was `attributes_wrapped_across_lines_reflow_when_the_part_is_re_serialized`, which asserted the
+/// reflow *happened* and instructed its reader to replace it with byte identity the moment it
+/// stopped. It has stopped (MJXOFF-143).
+///
+/// The decomposed tree records each attribute's name, value and quote but **not** the whitespace
+/// that separated it from the previous one, and it never will — recording that would buy exactly one
+/// property and the next one would cost the same again. What carries the whitespace instead is the
+/// byte range each element was parsed from: a model that rebuilt an element without changing it
+/// hands the original element's range back, and the writer copies those bytes rather than
+/// reconstructing them.
+///
+/// The fixture is wrapped on purpose. A part whose start tags are already on one line reconstructs
+/// to its own bytes and would pass this test with the mechanism removed.
 #[test]
-fn attributes_wrapped_across_lines_reflow_when_the_part_is_re_serialized() {
-    // The `mjx-xml` fidelity reader records each attribute's name, value and quote but **not** the
-    // whitespace that separated it from the previous one, and the writer therefore emits exactly one
-    // space. Office wraps a VML start tag across lines far more often than it wraps a slide's, so
-    // this is where the gap shows.
-    //
-    // It is a `mjx-xml` gap, not a VML one, and it never breaks the round-trip contract: a part
-    // nobody edits keeps its original bytes through the `mjx-opc` copy-on-write layer and is never
-    // re-serialized at all. Only a part a caller deliberately edits is rewritten, and only its own
-    // start tags reflow. This test states exactly that, so a fix to `mjx-xml` fails here loudly
-    // rather than passing unnoticed.
+fn attributes_wrapped_across_lines_survive_re_serialization() {
     let wrapped = br#"<xml xmlns:v="urn:schemas-microsoft-com:vml">
  <v:shape id="s1"
   style="width:10pt"/>
@@ -565,14 +568,10 @@ fn attributes_wrapped_across_lines_reflow_when_the_part_is_re_serialized() {
     let mut part = DrawingPart::parse(wrapped).expect("parses");
     let written = part.to_bytes();
 
-    assert_ne!(
-        written, wrapped,
-        "if this now passes, mjx-xml preserves inter-attribute whitespace — delete this test and          assert byte identity instead"
-    );
     assert_eq!(
         String::from_utf8_lossy(&written),
-        "<xml xmlns:v=\"urn:schemas-microsoft-com:vml\">\n <v:shape id=\"s1\" style=\"width:10pt\"/>\n</xml>",
-        "the reflow collapses the wrap to one space and changes nothing else"
+        String::from_utf8_lossy(wrapped),
+        "a part nothing edited must come back byte-for-byte, wrap included"
     );
 
     // What must hold regardless: the model reads back identically.
@@ -585,4 +584,68 @@ fn attributes_wrapped_across_lines_reflow_when_the_part_is_re_serialized() {
         shape.style(reparsed.interner()).as_deref(),
         Some("width:10pt")
     );
+}
+
+/// Tier 3, at the granularity that matters: **edit one value, and everything else keeps its bytes**
+/// — including the wrapping of a sibling's start tag, which no reconstruction could reproduce.
+///
+/// This is the assertion `reading_a_vml_part_does_not_reflow_it` cannot make. That one passes
+/// because an unedited part is never re-serialized at all; this one re-serializes the part and still
+/// demands the untouched elements be literal source bytes.
+#[test]
+fn editing_one_shape_leaves_the_wrapping_of_every_other_start_tag_alone() {
+    let wrapped = br##"<xml xmlns:v="urn:schemas-microsoft-com:vml"
+ xmlns:o="urn:schemas-microsoft-com:office:office">
+ <v:shapetype id="_x0000_t202"
+  coordsize="21600,21600"
+  o:spt="202"/>
+ <v:shape id="s1"
+  type="#_x0000_t202"
+  style="width:10pt"/>
+ <v:shape id="s2"
+  style="width:20pt"
+  filled="f"/>
+</xml>"##;
+    let mut part = DrawingPart::parse(wrapped).expect("parses");
+    {
+        let (drawing, interner) = part.drawing_and_interner();
+        let shape = drawing
+            .shape_by_identifier_mut(interner, "s1")
+            .expect("the first shape");
+        shape.set_style(interner, "width:99pt");
+    }
+    let written = part.to_bytes();
+    let text = String::from_utf8(written).expect("UTF-8");
+
+    assert!(
+        text.contains(r#"style="width:99pt""#),
+        "the edit did not land:\n{text}"
+    );
+    // The edited shape is the one element that reflowed: its own start tag is now on one line.
+    assert!(
+        text.contains(r##"<v:shape id="s1" type="#_x0000_t202" style="width:99pt"/>"##),
+        "the edited element should reconstruct from the model:\n{text}"
+    );
+    // Everything else is literally the bytes it was parsed from.
+    for untouched in [
+        "<v:shapetype id=\"_x0000_t202\"\n  coordsize=\"21600,21600\"\n  o:spt=\"202\"/>",
+        "<v:shape id=\"s2\"\n  style=\"width:20pt\"\n  filled=\"f\"/>",
+    ] {
+        assert!(
+            text.contains(untouched),
+            "an untouched element lost the wrapping only its source bytes remember:\n{text}\n\nwanted:\n{untouched}"
+        );
+    }
+    // The root *did* change (one of its descendants did), so it is rewritten — and a rewritten
+    // element re-emits every namespace declaration its verbatim descendants depend on.
+    assert!(
+        text.starts_with(
+            "<xml xmlns:v=\"urn:schemas-microsoft-com:vml\" xmlns:o=\"urn:schemas-microsoft-com:office:office\">"
+        ),
+        "the rewritten root must keep its declarations:\n{text}"
+    );
+
+    // And the whole thing is still the drawing it was.
+    let reparsed = DrawingPart::parse(text.as_bytes()).expect("parses");
+    assert_eq!(reparsed.drawing().all_shapes().len(), 2);
 }

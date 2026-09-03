@@ -283,11 +283,24 @@ fn group_shape_by_identifier_mut<'a>(
 /// document in place.
 #[derive(Debug)]
 pub struct DrawingPart {
-    interner: Interner,
+    /// The document the drawing was parsed out of, kept whole.
+    ///
+    /// It carries the interner, the prologue and epilogue, the byte-order-mark flag — and the two
+    /// things a byte-identical rewrite needs and nothing else can supply: the **source buffer**, and
+    /// the **root element as it was parsed**, whose [source
+    /// ranges](mjx_ooxml_core::RawElement::source_span) say which stretches of that buffer may be
+    /// copied rather than reconstructed. [`to_bytes`](DrawingPart::to_bytes) writes the model back
+    /// over that root with
+    /// [`ToXml::write_back`](mjx_ooxml_core::ToXml::write_back), so everything the edit did not
+    /// reach re-emits verbatim, start-tag wrapping and all.
+    ///
+    /// It costs the parsed tree alongside the typed model — the model already holds a full copy of
+    /// the markup, so the part is two copies rather than one. That is the price of the guarantee
+    /// this type documents; a caller that owns the part's `RawDocument` already (through
+    /// `mjx_opc::Package::part_tree_mut`) should use [`Drawing::from_xml`] and `write_back` directly
+    /// and pay nothing.
+    document: RawDocument,
     drawing: Drawing,
-    bom: bool,
-    prologue: Vec<RawNode>,
-    epilogue: Vec<RawNode>,
 }
 
 /// The XML declaration a freshly authored VML drawing part opens with, matching what Office writes.
@@ -301,22 +314,8 @@ impl DrawingPart {
     /// content this crate models is malformed.
     pub fn parse(bytes: &[u8]) -> Result<Self, VmlError> {
         let document = mjx_xml::fidelity::parse(bytes)?;
-        let RawDocument {
-            interner,
-            bom,
-            prologue,
-            root,
-            epilogue,
-            ..
-        } = document;
-        let drawing = Drawing::from_xml(&root, &interner)?;
-        Ok(Self {
-            interner,
-            drawing,
-            bom,
-            prologue,
-            epilogue,
-        })
+        let drawing = Drawing::from_xml(&document.root, &document.interner)?;
+        Ok(Self { document, drawing })
     }
 
     /// A fresh, empty drawing part: an XML declaration and an `<xml>` root.
@@ -324,16 +323,20 @@ impl DrawingPart {
     pub fn new() -> Self {
         let mut interner = Interner::new();
         let drawing = Drawing::new(&mut interner);
-        Self {
+        // No source buffer and a placeholder root: an authored part has no original to copy from,
+        // so every element serializes from the model, which is exactly right.
+        let root = RawElement::new(*drawing.name(), Vec::new(), Vec::new(), true);
+        let document = RawDocument::new(
             interner,
-            drawing,
-            bom: false,
-            prologue: vec![
+            false,
+            vec![
                 RawNode::Declaration(XML_DECLARATION.as_bytes().into()),
                 RawNode::Text(b"\n".as_slice().into()),
             ],
-            epilogue: Vec::new(),
-        }
+            root,
+            Vec::new(),
+        );
+        Self { document, drawing }
     }
 
     /// The drawing this part holds.
@@ -350,41 +353,32 @@ impl DrawingPart {
     /// The interner every name in the drawing resolves through.
     #[must_use]
     pub fn interner(&self) -> &Interner {
-        &self.interner
+        &self.document.interner
     }
 
     /// The interner, mutably — needed to build new elements ([`Shape::new`] and friends all take one).
     pub fn interner_mut(&mut self) -> &mut Interner {
-        &mut self.interner
+        &mut self.document.interner
     }
 
     /// The drawing and its interner together, so a caller can build a shape and push it in one
     /// borrow.
     pub fn drawing_and_interner(&mut self) -> (&mut Drawing, &mut Interner) {
-        (&mut self.drawing, &mut self.interner)
+        (&mut self.drawing, &mut self.document.interner)
     }
 
     /// Serializes the part back to bytes.
     ///
-    /// A part parsed and re-emitted without an edit is **byte-identical**: the prologue, the root's
-    /// attributes and every unmodelled child are re-emitted verbatim.
+    /// A part parsed and re-emitted without an edit is **byte-identical** — including whitespace
+    /// only the source bytes remember, such as a start tag Office wrapped across several lines. An
+    /// edit reconstructs the path from the root down to what it changed and nothing else: every
+    /// other element is copied straight out of the buffer the part was parsed from.
     pub fn to_bytes(&mut self) -> Vec<u8> {
-        // The document owns the interner, so it is moved out and put back around the write. The
-        // interner is `Default`, so the swap needs no clone and cannot fail.
-        let interner = std::mem::take(&mut self.interner);
-        let mut document = RawDocument::new(
-            interner,
-            self.bom,
-            std::mem::take(&mut self.prologue),
-            RawElement::new(self.drawing.name, Vec::new(), Vec::new(), true),
-            std::mem::take(&mut self.epilogue),
-        );
-        document.root = self.drawing.to_xml(&mut document.interner);
-        let bytes = mjx_xml::fidelity::serialize_to_vec(&document);
-        self.interner = document.interner;
-        self.prologue = document.prologue;
-        self.epilogue = document.epilogue;
-        bytes
+        // Split the borrow: the model reads and interns, the document receives.
+        let Self { document, drawing } = self;
+        let rebuilt = drawing.to_xml(&mut document.interner);
+        document.root.replace_preserving_verbatim_source(rebuilt);
+        mjx_xml::fidelity::serialize_to_vec(document)
     }
 }
 

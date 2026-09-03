@@ -1701,3 +1701,94 @@ fn the_decoration_surfaces_reject_the_wrong_shapes_indices_and_plot_types() {
 fn assert_authored_deck_is_readable(bytes: &[u8]) {
     Presentation::open(bytes).expect("the saved deck reopens");
 }
+
+// -------------------------------------------------------------------------------------------
+// Tier 3, inside a part: an edit through the whole-part typed model rewrites only what it changed
+// -------------------------------------------------------------------------------------------
+
+/// `charts.pptx`'s chart part is written with every start tag on one line, so a "did it re-flow?"
+/// assertion against it would pass whether or not anything preserved the source bytes. This puts the
+/// wrapping back — the way Office writes it — and rebuilds the deck around it.
+///
+/// The transformation is whitespace *inside start tags* only, which XML says is insignificant, so
+/// the deck still parses, validates and means exactly what it did.
+fn deck_whose_chart_part_wraps_its_start_tags() -> (Vec<u8>, Vec<u8>) {
+    let name = part("/ppt/charts/chart1.xml");
+    let mut pkg = Package::open(&fixture("charts.pptx")).expect("open");
+    let flat = String::from_utf8(pkg.part_bytes(&name).expect("the chart part").to_vec())
+        .expect("the chart part is UTF-8");
+    let wrapped = flat
+        .replace(
+            r#"<c:barDir val="col"/>"#,
+            "<c:barDir\r\n          val=\"col\"/>",
+        )
+        .replace(
+            r#"<c:grouping val="clustered"/>"#,
+            "<c:grouping val=\"clustered\"\r\n          />",
+        )
+        .replace(
+            r#"<c:ptCount val="3"/>"#,
+            "<c:ptCount\r\n            val=\"3\"\r\n          />",
+        );
+    assert_ne!(
+        wrapped, flat,
+        "the chart part did not have the shape expected"
+    );
+    pkg.replace_part_bytes(&name, wrapped.clone().into_bytes())
+        .expect("replace the chart part");
+    (pkg.save().expect("save"), wrapped.into_bytes())
+}
+
+/// `edit_chart` reads the whole chart part into a [`ChartSpace`] and writes the whole part back from
+/// it. Until MJXOFF-143 that rebuilt every element, so a one-word title change re-flowed the entire
+/// chart. Now only the path from the root down to what changed is reconstructed.
+#[test]
+fn setting_a_chart_title_leaves_every_other_element_byte_identical() {
+    let (deck, before) = deck_whose_chart_part_wraps_its_start_tags();
+    let name = part("/ppt/charts/chart1.xml");
+
+    let mut pres = Presentation::open(&deck).expect("open");
+    pres.set_chart_title(CHART_SURFACE, 0, Some("Regional sales"))
+        .expect("set the title");
+    let saved = pres.save().expect("save");
+    let after = Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&name)
+        .expect("the chart part")
+        .to_vec();
+
+    let contains = |haystack: &[u8], needle: &[u8]| {
+        haystack
+            .windows(needle.len())
+            .any(|window| window == needle)
+    };
+    assert!(
+        contains(&after, b"Regional sales"),
+        "the edit did not land:\n{}",
+        String::from_utf8_lossy(&after)
+    );
+    assert_ne!(after, before, "the edit should have changed the part");
+
+    // The three wrapped start tags sit under `c:plotArea`, which the title edit never reaches. Each
+    // is still literally the bytes it was parsed from — CRLF and indent included, which no
+    // reconstruction from the model could produce.
+    for wrapped in [
+        &b"<c:barDir\r\n          val=\"col\"/>"[..],
+        &b"<c:grouping val=\"clustered\"\r\n          />"[..],
+        &b"<c:ptCount\r\n            val=\"3\"\r\n          />"[..],
+    ] {
+        assert!(
+            contains(&after, wrapped),
+            "an untouched element was re-flowed:\n{}\n\nwanted verbatim:\n{}",
+            String::from_utf8_lossy(&after),
+            String::from_utf8_lossy(wrapped)
+        );
+    }
+
+    // And the deck still reads back as itself.
+    let mut reopened = Presentation::open(&saved).expect("reopen");
+    assert_eq!(
+        reopened.chart_title(CHART_SURFACE, 0).expect("read"),
+        Some("Regional sales".to_owned())
+    );
+}

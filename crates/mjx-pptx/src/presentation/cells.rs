@@ -821,7 +821,7 @@ impl Presentation {
         let slot = cell_properties_slot(cell, interner)?;
         let mut properties = TableCellProperties::from_xml(slot, interner)?;
         edit(&mut properties, interner)?;
-        *slot = properties.to_xml(interner);
+        properties.write_back(slot, interner);
         Ok(())
     }
 
@@ -866,7 +866,7 @@ impl Presentation {
                 let slot = cell_properties_slot(cell, interner)?;
                 let mut properties = TableCellProperties::from_xml(slot, interner)?;
                 apply_cell_format(&mut properties, interner, format);
-                *slot = properties.to_xml(interner);
+                properties.write_back(slot, interner);
                 Ok(())
             },
         )
@@ -898,7 +898,7 @@ impl Presentation {
                 };
                 let mut body = TextBody::from_xml(slot, interner)?;
                 set_all_run_properties_in(&mut body, interner, spec)?;
-                *slot = body.to_xml(interner);
+                body.write_back(slot, interner);
                 Ok(())
             },
         )
@@ -930,7 +930,7 @@ impl Presentation {
                 for index in 0..count {
                     set_paragraph_properties_in(&mut body, interner, index, spec)?;
                 }
-                *slot = body.to_xml(interner);
+                body.write_back(slot, interner);
                 Ok(())
             },
         )
@@ -1055,7 +1055,7 @@ impl Presentation {
                     typed.set_spans(interner, 1, 1);
                     typed.set_merged(interner, column > first_column, row > first_row);
                 }
-                *cell = typed.to_xml(interner);
+                typed.write_back(cell, interner);
                 Ok(())
             },
         )
@@ -1103,7 +1103,7 @@ impl Presentation {
         self.edit_selected_cells(surface, &path, &region, false, |cell, interner, _, _| {
             let mut typed = TableCell::from_xml(cell, interner)?;
             typed.clear_merge(interner);
-            *cell = typed.to_xml(interner);
+            typed.write_back(cell, interner);
             Ok(())
         })
     }
