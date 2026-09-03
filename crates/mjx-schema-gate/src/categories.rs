@@ -106,7 +106,11 @@ pub const OPC_RELATIONSHIPS_NS: &str =
 /// The OPC content-types stream (`[Content_Types].xml`), rewritten by `mjx-opc` on every save.
 pub const OPC_CONTENT_TYPES_NS: &str =
     "http://schemas.openxmlformats.org/package/2006/content-types";
-/// The OPC core-properties stream (`docProps/core.xml`), ECMA-376 Part 2.
+/// The OPC core-properties stream (`docProps/core.xml`), ECMA-376 Part 2. Restated from
+/// [`mjx_opc::doc_props::CORE_PROPERTIES_NAMESPACE`] rather than imported: this crate sits above
+/// `mjx-opc` and could import it, but every other namespace constant in this module is a literal
+/// string, and a single imported one would be a trap for the next person adding an entry here who
+/// copies the pattern they see.
 pub const OPC_CORE_PROPERTIES_NS: &str =
     "http://schemas.openxmlformats.org/package/2006/metadata/core-properties";
 /// `inkml:` — the W3C Ink Markup Language, the payload of a `p:contentPart`.
@@ -224,6 +228,41 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
         },
         probe_root_element: "Types",
     },
+    ModeledSchema {
+        namespace: OPC_CORE_PROPERTIES_NS,
+        label: "OPC core properties",
+        schema: SchemaRef {
+            set: SchemaSet::Packaging,
+            file: "opc-coreProperties.xsd",
+        },
+        // MJXOFF-149: `mjx_opc::doc_props::core_xml` authors `docProps/core.xml`, and
+        // `Presentation::blank` writes one on every call (all-`None` by default). `CT_CoreProperties`
+        // is an `xs:all` group, which places no constraint on child order at all — there is no
+        // `xsd:sequence` for a child-order table to enforce, so this is `NotGenerated`, not `Pending`:
+        // no future work item closes this gap because there is no gap.
+        ordering: OrderingCoverage::NotGenerated {
+            reason: "`CT_CoreProperties` is declared `xs:all`; ECMA-376 places no order constraint \
+                     on an `xs:all` group's children, and the part is written whole by \
+                     `mjx_opc::doc_props::core_xml` on every call, never edited in place",
+        },
+        probe_root_element: "coreProperties",
+    },
+    ModeledSchema {
+        namespace: namespaces::SHARED_DOCUMENT_PROPERTIES_EXTENDED.transitional,
+        label: "extended properties",
+        schema: SchemaRef {
+            set: SchemaSet::Markup,
+            file: "shared-documentPropertiesExtended.xsd",
+        },
+        // Same reasoning as the core-properties entry above: `CT_Properties` is also `xs:all`, and
+        // `mjx_opc::doc_props::extended_xml` writes `docProps/app.xml` whole every time.
+        ordering: OrderingCoverage::NotGenerated {
+            reason: "`CT_Properties` is declared `xs:all`, the same as `CT_CoreProperties`; no order \
+                     constraint exists to enforce, and the part is written whole by \
+                     `mjx_opc::doc_props::extended_xml` on every call",
+        },
+        probe_root_element: "Properties",
+    },
 ];
 
 /// How a part in category 2 is keyed. VML is the reason this is not simply a namespace: a `.vml`
@@ -277,24 +316,16 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
                  `add_activex_control` writes the caller's class id and state through; the payload \
                  is opaque to this project",
     },
-    PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(
-            namespaces::SHARED_DOCUMENT_PROPERTIES_EXTENDED.transitional,
-        ),
-        label: "docProps/app.xml (extended properties)",
-        reason: "document properties are preserved and never authored: `Package::empty` writes \
-                 none, `Presentation::blank` ships none, and every one in the corpus arrived in a \
-                 committed fixture. MJXOFF-149 owns the decision to author them — the moment it \
-                 does, this entry moves to `MODELED_SCHEMAS` with \
-                 `shared-documentPropertiesExtended.xsd`",
-    },
-    PreservedForeignMarkup {
-        key: ForeignMarkupKey::Namespace(OPC_CORE_PROPERTIES_NS),
-        label: "docProps/core.xml (core properties)",
-        reason:
-            "the Part 2 core-properties stream, preserved and never authored, on the same terms \
-                 as the extended properties beside it. MJXOFF-149 owns the decision to author it",
-    },
+    // `docProps/core.xml` (`OPC_CORE_PROPERTIES_NS`) and `docProps/app.xml`
+    // (`shared-documentPropertiesExtended`) *were* here until MJXOFF-149: "document properties are
+    // preserved and never authored" was true through MJXOFF-148, and is not true now that
+    // `mjx_opc::doc_props` and `Presentation::blank` author both. They are `MODELED_SCHEMAS` entries
+    // above. `docProps/custom.xml` (`shared-documentPropertiesCustom` /
+    // `shared-documentPropertiesVariantTypes`) deliberately stays off *both* lists: no committed
+    // fixture carries one, so an entry here would be dead — caught by
+    // `the_allowlist_has_no_dead_entries` — and nothing authors it, so it is not a `MODELED_SCHEMAS`
+    // candidate either. A future child that starts authoring custom properties adds both the writer
+    // and this list's entry together.
 ];
 
 /// Which category a root element's namespace falls into.

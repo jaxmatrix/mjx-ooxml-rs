@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A minimal local stand-in for the Dublin Core Simple ("dc:") schema `opc-coreProperties.xsd`
+  imports from `http://dublincore.org/schemas/xmls/qdc/2003/04/02/dc.xsd` — a live network URL, not
+  something this repository can fetch during a test run (or ship a byte-identical mirror of without
+  a licence question this project has not asked). See `harness.rs`'s module docs for how this file
+  is substituted in via an XML catalog rather than by editing the (git-ignored, read-only)
+  `opc-coreProperties.xsd` itself.
+
+  Only the six elements `opc-coreProperties.xsd` actually references by `ref="dc:…"` are declared —
+  `creator`, `description`, `identifier`, `language`, `subject`, `title` — the same "only what is
+  needed" discipline `crates/mjx-pptx/src/blank.rs` states for the markup it writes. ECMA-376 Part 2
+  §8.3.4.2 additionally requires these elements to carry no child elements and no `xsi:type` or
+  `xml:lang` attribute, which a plain `xs:string` element type already guarantees (nothing declares
+  those attributes as permitted on it).
+-->
+<xs:schema targetNamespace="http://purl.org/dc/elements/1.1/"
+  xmlns="http://purl.org/dc/elements/1.1/" xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <xs:element name="creator" type="xs:string"/>
+  <xs:element name="description" type="xs:string"/>
+  <xs:element name="identifier" type="xs:string"/>
+  <xs:element name="language" type="xs:string"/>
+  <xs:element name="subject" type="xs:string"/>
+  <xs:element name="title" type="xs:string"/>
+</xs:schema>

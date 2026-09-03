@@ -536,15 +536,19 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
     ),
     (
         "shared-documentPropertiesCustom",
-        "not modelled — custom document properties are preserved verbatim; MJXOFF-149 owns the \
-         decision to author them",
+        "not modelled — `docProps/custom.xml` is preserved verbatim and never authored; MJXOFF-149 \
+         (which authored core and extended document properties) deliberately left it out of scope: \
+         no committed fixture carries one",
         "not modelled — as for its simple types",
     ),
     (
         "shared-documentPropertiesExtended",
-        "not modelled — `docProps/app.xml` is preserved verbatim; MJXOFF-149 owns the decision to \
-         author it",
-        "not modelled — as for its simple types",
+        "not modelled — `CT_Properties` declares no `xsd:simpleType` beyond XSD primitives, so \
+         there is nothing here for this generator to emit. `docProps/app.xml` **is** authored, by \
+         hand, in `mjx_opc::doc_props::extended_xml` (MJXOFF-149) — see \
+         `mjx-schema-gate::categories::MODELED_SCHEMAS`",
+        "not modelled — `CT_Properties` is an `xs:all` group; ECMA-376 places no order constraint \
+         on its children, so there is no `xsd:sequence` for this generator to place them by",
     ),
     (
         "shared-documentPropertiesVariantTypes",

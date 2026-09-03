@@ -22,8 +22,8 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | shared-commonSimpleTypes | `shared` | generated — all 27 simple types |
 | shared-customXmlDataProperties | — | not modelled — custom XML data parts are preserved verbatim |
 | shared-customXmlSchemaProperties | — | not modelled — custom XML schema references are preserved verbatim |
-| shared-documentPropertiesCustom | — | not modelled — custom document properties are preserved verbatim; MJXOFF-149 owns the decision to author them |
-| shared-documentPropertiesExtended | — | not modelled — `docProps/app.xml` is preserved verbatim; MJXOFF-149 owns the decision to author it |
+| shared-documentPropertiesCustom | — | not modelled — `docProps/custom.xml` is preserved verbatim and never authored; MJXOFF-149 (which authored core and extended document properties) deliberately left it out of scope: no committed fixture carries one |
+| shared-documentPropertiesExtended | — | not modelled — `CT_Properties` declares no `xsd:simpleType` beyond XSD primitives, so there is nothing here for this generator to emit. `docProps/app.xml` **is** authored, by hand, in `mjx_opc::doc_props::extended_xml` (MJXOFF-149) — see `mjx-schema-gate::categories::MODELED_SCHEMAS` |
 | shared-documentPropertiesVariantTypes | — | not modelled — the variant vocabulary of the custom-properties part, preserved verbatim |
 | shared-math | `officemath` | generated — all 14 simple types |
 | shared-relationshipReference | — | not modelled — `r:id` is a token `mjx-opc` owns; the schema declares no enumeration |
@@ -56,7 +56,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | shared-customXmlDataProperties | not modelled — as for its simple types |
 | shared-customXmlSchemaProperties | not modelled — as for its simple types |
 | shared-documentPropertiesCustom | not modelled — as for its simple types |
-| shared-documentPropertiesExtended | not modelled — as for its simple types |
+| shared-documentPropertiesExtended | not modelled — `CT_Properties` is an `xs:all` group; ECMA-376 places no order constraint on its children, so there is no `xsd:sequence` for this generator to place them by |
 | shared-documentPropertiesVariantTypes | not modelled — as for its simple types |
 | shared-math | pending, owned by MJXOFF-134 — the `mjx-omml` model is the child that starts placing `m:` children |
 | shared-relationshipReference | not modelled — relationship references are attributes, not a content model |
