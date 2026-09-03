@@ -28,7 +28,10 @@ Five mechanisms make it true:
   mutable access to an element's attributes or children drops its range, and every ancestor's range
   with it, so a stale range cannot be written. An element whose range is written is
   checked against it first: the bytes must open with that element's qualified name and close the way
-  it says it closes.
+  it says it closes. This survives a *typed* round trip too: a model is a view, so reading one into a
+  `TextBody`, a `Table`, a `ChartSpace` or a VML `Drawing` and writing it back rebuilds every element
+  it looked at — and each one that came back unchanged is given its range again, so only what the
+  edit really changed is written from the model.
 - **The unknown bucket.** Every modelled type carries the children it does not understand, and
   preserves unknown attributes, attribute order and namespace prefixes. A shape with an extension this
   library cannot read still round-trips through an edit to its text.
@@ -137,12 +140,6 @@ loses. A deck carrying any of it round-trips unchanged.
 | **No rendering, of any kind** | Measurement: resolved geometry, effective properties, absolute bounds | No layout engine, no SVG, no PDF. Rendering is a separate phase with no date |
 | **Encrypted and password-protected packages are out of scope**; digital signatures are preserved, not processed | A typed error rather than a guess | Decrypting an ECMA-376 Part 2 protected package is a cryptography project, and validating a signature this library may then invalidate by rewriting the container would be worse than not claiming to |
 
-One more, still true and worth stating plainly because it is a *limitation* rather than a choice:
-
-| Limitation | Consequence | What would remove it |
-|---|---|---|
-| **A part edited through a whole-part typed model is rebuilt, not copied** | Three surfaces read a whole part into a typed model and write the whole part back from it: the legacy VML drawing (`edit_vml_drawing`), a chart edit (`edit_chart`) and a table-style list (`set_table_style`, `create_table_style`). Subtree copy-on-write does not reach inside those, so such a part comes back re-flowed — its markup identical, its start tags on one line. Editing a *slide* does not work this way: slide edits navigate the tree in place, and every subtree they do not touch is copied byte-for-byte | Carrying each element's source range through `FromXml` / `ToXml`, so a typed model that did not change a value hands the original element back. That belongs with typed attributes in `mjx-derive` (B1), not with the fidelity layer |
-
 The embedded workbook a chart authors is written by a **minimal SpreadsheetML writer inside
 `mjx-chart`** — one sheet, a shared-string table and a styles skeleton, and deliberately nothing else.
 It is scheduled for removal once `mjx-xlsx` can write, which is the Excel slice's job (`v0.3`).
@@ -189,6 +186,18 @@ tell the difference between "gone" and "quietly dropped":
   `c:dPt`'s `c:idx` is never renumbered by an edit that changes a series' length; the anchors that
   end up past the end are reported and dropped only on request. See
   [tables, charts and pictures](crate::guide::tables_charts_pictures) (MJX-116).
+- **A part edited through a whole-part typed model is no longer rebuilt.** This was the one row that
+  was a *limitation* rather than a choice, and it had its own table. Three surfaces read a whole part
+  into a typed model and wrote the whole part back from it — the legacy VML drawing
+  (`edit_vml_drawing`), a chart edit, and the table-style list
+  ([`create_table_style`](Presentation::create_table_style),
+  [`format_table_style_part`](Presentation::format_table_style_part)) — so such a part came back
+  re-flowed: its markup identical, its start tags collapsed onto one line. Each element a model
+  rebuilds now carries the byte range it was parsed from wherever the rebuild reproduced it exactly,
+  so the part is copied and only what actually changed is written from the model. It reaches further
+  than those three: every edit that reads *one element* into a model and writes it back — a text
+  body, a cell, a row, a table's properties — keeps the bytes of everything inside it that it did not
+  change. What the table above says about a slide edit now holds for every edit there is (MJXOFF-143).
 - **`Scene3D::backdrop`** is typed, alongside the bevels, light rigs and cameras it sits with.
 - **The guide-formula evaluator**, **chart depth**, and **every kind of content that is not
   DrawingML** each closed a block of this page; the table above them is what is left.

@@ -153,7 +153,7 @@ impl Presentation {
             // Through the model's own setter, so a width has one spelling in the codebase.
             let mut typed = TableColumn::from_xml(slot, interner)?;
             typed.set_width(interner, Some(width));
-            *slot = typed.to_xml(interner);
+            typed.write_back(slot, interner);
             Ok(())
         })
     }
@@ -208,7 +208,7 @@ impl Presentation {
                 .ok_or(PptxError::MalformedSlide("table row vanished"))?;
             let mut typed = TableRow::from_xml(slot, interner)?;
             typed.set_height(interner, Some(height));
-            *slot = typed.to_xml(interner);
+            typed.write_back(slot, interner);
             Ok(())
         })
     }
@@ -252,7 +252,7 @@ impl Presentation {
                 });
             }
             typed.insert_row(interner, row, build_table_cell)?;
-            *table = typed.to_xml(interner);
+            typed.write_back(table, interner);
             Ok(())
         })
     }
@@ -286,7 +286,7 @@ impl Presentation {
                 return Err(PptxError::InvalidTableSize { rows: 0, columns });
             }
             typed.remove_row(interner, row);
-            *table = typed.to_xml(interner);
+            typed.write_back(table, interner);
             Ok(())
         })
     }
@@ -318,7 +318,7 @@ impl Presentation {
                 });
             }
             typed.insert_column(interner, column, build_table_cell)?;
-            *table = typed.to_xml(interner);
+            typed.write_back(table, interner);
             Ok(())
         })
     }
@@ -353,7 +353,7 @@ impl Presentation {
                 return Err(PptxError::InvalidTableSize { rows, columns: 0 });
             }
             typed.remove_column(interner, column);
-            *table = typed.to_xml(interner);
+            typed.write_back(table, interner);
             Ok(())
         })
     }
@@ -549,7 +549,7 @@ impl Presentation {
         let mut list = TableStyleList::from_xml(root, interner)?;
         let style = TableStyle::new(interner, style_id, style_name);
         list.upsert_style(interner, &style);
-        *root = list.to_xml(interner);
+        list.write_back(root, interner);
         Ok(())
     }
 
@@ -579,7 +579,7 @@ impl Presentation {
         format.apply(&mut part_style, interner);
         style.set_part(interner, part, &part_style);
         list.upsert_style(interner, &style);
-        *root = list.to_xml(interner);
+        list.write_back(root, interner);
         Ok(())
     }
 
@@ -712,7 +712,7 @@ impl Presentation {
             let slot = table_properties_slot(table, interner)?;
             let mut typed = TableProperties::from_xml(slot, interner)?;
             edit(&mut typed, interner)?;
-            *slot = typed.to_xml(interner);
+            typed.write_back(slot, interner);
             Ok(())
         })
     }

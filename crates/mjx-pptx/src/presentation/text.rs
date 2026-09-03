@@ -154,7 +154,7 @@ impl Presentation {
 
         let mut body = TextBody::from_xml(slot, interner)?;
         edit(&mut body, interner)?;
-        *slot = body.to_xml(interner);
+        body.write_back(slot, interner);
         Ok(())
     }
 
@@ -1380,7 +1380,7 @@ fn apply_text_model_edits(
             _ => {}
         }
     }
-    *slot = body.to_xml(interner);
+    body.write_back(slot, interner);
     Ok(())
 }
 
