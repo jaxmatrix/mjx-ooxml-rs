@@ -1482,6 +1482,363 @@ const SPREADSHEETML_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_ParameterType", "prompt", "PromptOnRefresh"),
 ];
 
+// ---------------------------------------------------------------------------------------------
+// DrawingML Diagram (`dml-diagram.xsd`, the `dgm:` namespace — SmartArt)
+//
+// `dml-diagram.xsd` redeclares three symbols the schemas above already use with different
+// meanings: `ST_Direction` (`dml-diagram`'s is `norm`/`rev`, a traversal-order flag; `pml`'s
+// `horz`/`vert` is already emitted as `Orientation`, `wml`'s `ltr`/`rtl` as
+// `BidirectionalDirection`), `ST_TextDirection` (`dml-diagram`'s is `fromT`/`fromB`; `wml`'s
+// `tb`/`rl`/`lr`/… is already emitted as `TextFlowDirection`), and `ST_VerticalAlignment`
+// (`dml-diagram`'s is `t`/`mid`/`b`/`none`; `sml`'s `top`/`center`/`bottom`/`justify`/`distributed`
+// is already emitted as `CommentTextVerticalAlignment`). Each gets its own name below rather than
+// reusing or moving an already-committed one.
+// ---------------------------------------------------------------------------------------------
+
+/// The naming engine for the DrawingML Diagram slice — `dml-diagram.xsd`, all 66 simple types.
+pub const DIAGRAM_ENGINE: NameEngine = NameEngine {
+    type_overrides: DIAGRAM_TYPE_OVERRIDES,
+    variant_overrides: DIAGRAM_VARIANT_OVERRIDES,
+    abbreviations: DIAGRAM_ABBREVIATIONS,
+};
+
+/// lowercase word → PascalCase expansion for DrawingML Diagram tokens.
+///
+/// `dml-diagram.xsd`'s vocabulary is unusually short-hand (single letters, `Ctr`/`Marg`/`Sz`-style
+/// contractions), so this table is larger than the other engines'. Every entry is a fragment with
+/// **one consistent meaning everywhere it appears in this schema** — checked by hand against every
+/// enumeration in ECMA-376 Part 1 §21.4.7 before being added; a fragment whose meaning depends on
+/// context (`rev`, `sp`) is left out of this table and given a per-value override instead, below.
+const DIAGRAM_ABBREVIATIONS: &[(&str, &str)] = &[
+    ("alg", "Algorithm"),
+    ("hier", "Hierarchy"),
+    ("horz", "Horizontal"),
+    ("vert", "Vertical"),
+    ("ctr", "Center"),
+    ("mid", "Middle"),
+    // Single-letter positional codes — §21.4.7.13 `ST_ChildAlignment` and consistent across every
+    // other enumeration that reuses them (`ST_ConstraintType`, `ST_HierarchyAlignment`, …).
+    ("t", "Top"),
+    ("b", "Bottom"),
+    ("l", "Left"),
+    ("r", "Right"),
+    ("h", "Height"),
+    ("w", "Width"),
+    // §21.4.7.6 `ST_AxisType` — reused by `ST_ConstraintRelationship` (§21.4.7.20) with the same
+    // meaning.
+    ("ch", "Child"),
+    ("des", "Descendant"),
+    ("par", "Parent"),
+    ("ancst", "Ancestor"),
+    ("preced", "Preceding"),
+    // `parTrans`/`sibTrans` (§21.4.7.51 `ST_PtType`) — the transition point between two data
+    // points.
+    ("trans", "Transition"),
+    ("sib", "Sibling"),
+    // §21.4.7.23 `ST_CxnType`'s `presOf`/`presParOf`, §21.4.7.51 `ST_PtType`'s `pres`.
+    ("pres", "Presentation"),
+    ("doc", "Document"),
+    ("asst", "Assistant"),
+    // §21.4.7.26 `ST_Direction`'s `norm`, reused by `ST_ElementType`'s `norm`/`nonNorm`.
+    ("norm", "Normal"),
+    // `ST_ContinueDirection`'s `revDir` (§21.4.7.22) and `ST_FunctionType`'s `revPos`
+    // (§21.4.7.33) both mean "reverse of"; `ST_Direction`'s bare `rev` (§21.4.7.26) means
+    // "Reversed" as a whole word instead, so that one value is overridden below.
+    ("rev", "Reverse"),
+    // The constraint/rule attribute vocabulary, §21.4.7.21 `ST_ConstraintType`.
+    ("marg", "Margin"),
+    ("pad", "Padding"),
+    ("dist", "Distance"),
+    ("diam", "Diameter"),
+    ("prim", "Primary"),
+    ("sec", "Secondary"),
+    ("sz", "Size"),
+    ("off", "Offset"),
+    ("beg", "Beginning"),
+    // §21.4.7.49 `ST_ParameterId`'s alignment parameters (`horzAlign`, `chAlign`, …) and
+    // §21.4.7.13/§21.4.7.56 `ST_ChildAlignment`/`ST_SecondaryChildAlignment`.
+    ("align", "Alignment"),
+    ("cust", "Custom"),
+    // §21.4.6.6 `dir` (Diagram Direction) and its many parameter-id compounds (`linDir`,
+    // `flowDir`, `contDir`, `txDir`, `txBlDir`, …).
+    ("dir", "Direction"),
+    ("cont", "Continue"),
+    ("gr", "Grow"),
+    ("bl", "Block"),
+    ("tx", "Text"),
+    ("shp", "Shape"),
+    // §21.4.7.35 `ST_GrowDirection` reuses `pyra`/`acct` from the pyramid algorithm parameters.
+    ("pyra", "Pyramid"),
+    ("acct", "Accent"),
+    // Comparison operators shared by §21.4.7.10 `ST_BoolOperator` and §21.4.7.32
+    // `ST_FunctionOperator`.
+    ("equ", "Equal"),
+    ("neq", "NotEqual"),
+    ("gt", "GreaterThan"),
+    ("lt", "LessThan"),
+    ("gte", "GreaterThanOrEqual"),
+    ("lte", "LessThanOrEqual"),
+    // §21.4.7.33 `ST_FunctionType`.
+    ("cnt", "Count"),
+    ("pos", "Position"),
+    ("var", "Variable"),
+    // §21.4.7.38 `ST_HueDir`.
+    ("cw", "Clockwise"),
+    ("ccw", "CounterClockwise"),
+    // §21.4.7.37 `ST_HierBranchStyle`.
+    ("std", "Standard"),
+    ("init", "Initial"),
+    // §21.4.7.30 `ST_FlowDirection`.
+    ("col", "Column"),
+    // §21.4.7.54 `ST_ResizeHandlesStr`.
+    ("rel", "Relative"),
+    // §21.4.7.52 `ST_PyramidAccentPosition`.
+    ("bef", "Before"),
+    ("aft", "After"),
+    // §21.4.7.8 `ST_BendPoint`.
+    ("def", "Default"),
+    // §21.4.7.11 `ST_Breakpoint`.
+    ("cnv", "Canvas"),
+    ("bal", "Balanced"),
+    // §21.4.7.1 `ST_AlgorithmType`'s `lin` (Linear Algorithm) and §21.4.7.42/.57
+    // `ST_LinearDirection`/`ST_SecondaryLinearDirection`'s `linDir`/`secLinDir` parameter ids.
+    ("lin", "Linear"),
+    // §21.4.3.4 `prSet`'s `loTypeId`/`qsTypeId`/`csTypeId` families and §21.4.6.8 `orgChart` share
+    // this fragment; `chMax`/`chPref` (§21.4.6.4/.5) need `pref` too.
+    ("org", "Organization"),
+    ("pref", "Preference"),
+    ("bul", "Bullets"),
+    ("lvl", "Level"),
+    // `ST_ParameterVal`/`ST_FunctionValue`'s trailing `Val`.
+    ("val", "Value"),
+];
+
+/// `ST_*` → comprehensive Rust type name for `dml-diagram.xsd`, where the mechanical name is not
+/// self-explanatory, or where the mechanical name would collide with an already-committed type
+/// from another schema. Names are sourced from the ECMA-376 Part 1 §21.4 prose.
+const DIAGRAM_TYPE_OVERRIDES: &[(&str, &str)] = &[
+    // Collisions with already-emitted types of the same bare `ST_*` symbol — see the module note
+    // above. `dgm:dir@val` (norm/rev) selects the order layout children are traversed in.
+    ("ST_Direction", "TraversalDirection"),
+    // `dgm:param[@type='txDir']@val` (fromT/fromB) — which end of the shape text starts from.
+    ("ST_TextDirection", "DiagramTextFlowOrigin"),
+    // `dgm:param[@type='vertAlign']@val` (t/mid/b/none) — the whole-diagram vertical alignment
+    // parameter; distinct from the per-node `ST_NodeVerticalAlignment` (t/mid/b, no `none`).
+    ("ST_VerticalAlignment", "LayoutVerticalAlignment"),
+    // §21.4.7.3/.2/.54 name these types by their wire-level `…Str` suffix ("a string to display in
+    // the UI"); the suffix is an implementation detail of the schema, not part of the concept.
+    ("ST_AnimOneStr", "OneByOneAnimation"),
+    ("ST_AnimLvlStr", "LevelAnimation"),
+    ("ST_ResizeHandlesStr", "ResizeHandleBehavior"),
+    // §21.4.7.66 "Property Set Customized Value" — `pr` does not appear as a fragment anywhere
+    // else in this schema's *type symbols* (only in the `prSet` *element* name, which this table
+    // does not name), so it is spelled out here rather than risking a broad `pr` → `Property`
+    // abbreviation nothing else needs.
+    ("ST_PrSetCustVal", "PropertySetCustomValue"),
+    // §21.4.7.51 `ST_PtType` — `Pt` is short for `dgm:pt`'s own name (Point); the bare mechanical
+    // name `PtType` keeps the abbreviation the naming convention says to expand. This is the `type`
+    // attribute of a point, so "the kind of point this is" — `PointType`.
+    ("ST_PtType", "PointType"),
+    // §21.4.7.23 `ST_CxnType` — likewise `Cxn` is short for `dgm:cxn`'s own name (Connection); this
+    // is the `type` attribute of a connection, so "the kind of connection this is" —
+    // `ConnectionType`.
+    ("ST_CxnType", "ConnectionType"),
+];
+
+/// (`ST_*` type, wire value) → Rust variant name for `dml-diagram.xsd`, where the mechanical name
+/// is not self-explanatory, or the abbreviation table above cannot apply because the fragment's
+/// meaning is not consistent across every type that uses it. Sourced from the ECMA-376 Part 1
+/// §21.4.7 prose tables; `ST_ConstraintType` and `ST_ParameterId` are large and idiosyncratic enough
+/// that every value is written out explicitly here rather than left to the abbreviation cascade, so
+/// each one is directly traceable to its prose entry rather than to an interaction between table
+/// rows.
+const DIAGRAM_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
+    // §21.4.7.26 `ST_Direction` — `norm` auto-resolves to `Normal` via the abbreviation table;
+    // `rev` needs the adjective form "Reversed" here, where `ST_ContinueDirection`'s `revDir` and
+    // `ST_FunctionType`'s `revPos` both want the prefix form "Reverse" the abbreviation gives.
+    ("ST_Direction", "rev", "Reversed"),
+    // §21.4.7.37 `ST_HierBranchStyle` — "Hanging" (adjective) rather than the abbreviation
+    // cascade's bare "Hang".
+    ("ST_HierBranchStyle", "hang", "Hanging"),
+    // §21.4.7.4 `ST_ArrowheadStyle`.
+    ("ST_ArrowheadStyle", "arr", "ArrowheadPresent"),
+    ("ST_ArrowheadStyle", "noArr", "NoArrowhead"),
+    // §21.4.7.17 `ST_ConnectorDimension` and §21.4.7.29 `ST_FallbackDimension` both restrict to
+    // `1D`/`2D`, a digit-leading token `sanitize_ident` would otherwise prefix with `N`.
+    ("ST_ConnectorDimension", "1D", "OneDimension"),
+    ("ST_ConnectorDimension", "2D", "TwoDimensions"),
+    ("ST_FallbackDimension", "1D", "OneDimension"),
+    ("ST_FallbackDimension", "2D", "TwoDimensions"),
+    // §21.4.7.12 `ST_CenterShapeMapping` — `fNode` is "First Node", not the letter `f` plus `Node`.
+    ("ST_CenterShapeMapping", "fNode", "FirstNode"),
+    // §21.4.7.64 `ST_VariableType` — `animOne`/`animLvl` want different grammatical forms of
+    // "animate" ("Animate One" vs. "Animation Level"), so neither can go in the abbreviation table
+    // without breaking the other.
+    ("ST_VariableType", "animOne", "AnimateOne"),
+    ("ST_VariableType", "animLvl", "AnimationLevel"),
+    // §21.4.7.2 `ST_AnimLvlStr` — `lvl`/`ctr` name *which* level/center behaviour is enabled, not
+    // bare "Level"/"Center".
+    ("ST_AnimLvlStr", "lvl", "ByLevel"),
+    ("ST_AnimLvlStr", "ctr", "FromCenter"),
+    // §21.4.7.11 `ST_Breakpoint` — "End of Canvas", not the abbreviation cascade's "EndCanvas".
+    ("ST_Breakpoint", "endCnv", "EndOfCanvas"),
+    // §21.4.7.59/.60 `ST_TextAnchorHorizontal`/`ST_TextAnchorVertical`'s `…Ch` values want the full
+    // "With Children" the prose titles give, not the abbreviation cascade's bare "…Child".
+    (
+        "ST_ParameterId",
+        "txAnchorHorzCh",
+        "TextAnchorHorizontalWithChildren",
+    ),
+    (
+        "ST_ParameterId",
+        "txAnchorVertCh",
+        "TextAnchorVerticalWithChildren",
+    ),
+    // §21.4.7.21 `ST_ConstraintType` (Constraint Type) — every value, from the ECMA-376 Part 1
+    // §21.4.7.21 table. `ctrX`/`ctrY` are transcribed exactly as the prose names them ("Center
+    // Height" / "Center Width") even though the pairing with the attribute name reads backwards —
+    // the naming convention sources names from the prose rather than correcting it.
+    ("ST_ConstraintType", "alignOff", "AlignmentOffset"),
+    ("ST_ConstraintType", "begMarg", "BeginningMargin"),
+    ("ST_ConstraintType", "begPad", "BeginningPadding"),
+    ("ST_ConstraintType", "bendDist", "BendingDistance"),
+    ("ST_ConstraintType", "bMarg", "BottomMargin"),
+    ("ST_ConstraintType", "bOff", "BottomOffset"),
+    ("ST_ConstraintType", "connDist", "ConnectionDistance"),
+    ("ST_ConstraintType", "ctrX", "CenterHeight"),
+    ("ST_ConstraintType", "ctrXOff", "CenterXOffset"),
+    ("ST_ConstraintType", "ctrY", "CenterWidth"),
+    ("ST_ConstraintType", "ctrYOff", "CenterYOffset"),
+    ("ST_ConstraintType", "diam", "Diameter"),
+    ("ST_ConstraintType", "endMarg", "EndMargin"),
+    ("ST_ConstraintType", "endPad", "EndPadding"),
+    ("ST_ConstraintType", "hArH", "ArrowheadHeight"),
+    ("ST_ConstraintType", "hOff", "HeightOffset"),
+    ("ST_ConstraintType", "lMarg", "LeftMargin"),
+    ("ST_ConstraintType", "lOff", "LeftOffset"),
+    ("ST_ConstraintType", "none", "Unknown"),
+    ("ST_ConstraintType", "primFontSz", "PrimaryFontSize"),
+    ("ST_ConstraintType", "pyraAcctRatio", "PyramidAccentRatio"),
+    ("ST_ConstraintType", "rMarg", "RightMargin"),
+    ("ST_ConstraintType", "rOff", "RightOffset"),
+    ("ST_ConstraintType", "secFontSz", "SecondaryFontSize"),
+    ("ST_ConstraintType", "secSibSp", "SecondarySiblingSpacing"),
+    ("ST_ConstraintType", "sibSp", "SiblingSpacing"),
+    ("ST_ConstraintType", "sp", "Spacing"),
+    ("ST_ConstraintType", "stemThick", "StemThickness"),
+    ("ST_ConstraintType", "tMarg", "TopMargin"),
+    ("ST_ConstraintType", "tOff", "TopOffset"),
+    ("ST_ConstraintType", "userA", "UserDefinedA"),
+    ("ST_ConstraintType", "userB", "UserDefinedB"),
+    ("ST_ConstraintType", "userC", "UserDefinedC"),
+    ("ST_ConstraintType", "userD", "UserDefinedD"),
+    ("ST_ConstraintType", "userE", "UserDefinedE"),
+    ("ST_ConstraintType", "userF", "UserDefinedF"),
+    ("ST_ConstraintType", "userG", "UserDefinedG"),
+    ("ST_ConstraintType", "userH", "UserDefinedH"),
+    ("ST_ConstraintType", "userI", "UserDefinedI"),
+    ("ST_ConstraintType", "userJ", "UserDefinedJ"),
+    ("ST_ConstraintType", "userK", "UserDefinedK"),
+    ("ST_ConstraintType", "userL", "UserDefinedL"),
+    ("ST_ConstraintType", "userM", "UserDefinedM"),
+    ("ST_ConstraintType", "userN", "UserDefinedN"),
+    ("ST_ConstraintType", "userO", "UserDefinedO"),
+    ("ST_ConstraintType", "userP", "UserDefinedP"),
+    ("ST_ConstraintType", "userQ", "UserDefinedQ"),
+    ("ST_ConstraintType", "userR", "UserDefinedR"),
+    ("ST_ConstraintType", "userS", "UserDefinedS"),
+    ("ST_ConstraintType", "userT", "UserDefinedT"),
+    ("ST_ConstraintType", "userU", "UserDefinedU"),
+    ("ST_ConstraintType", "userV", "UserDefinedV"),
+    ("ST_ConstraintType", "userW", "UserDefinedW"),
+    ("ST_ConstraintType", "userX", "UserDefinedX"),
+    ("ST_ConstraintType", "userY", "UserDefinedY"),
+    ("ST_ConstraintType", "userZ", "UserDefinedZ"),
+    ("ST_ConstraintType", "wArH", "ArrowheadWidth"),
+    ("ST_ConstraintType", "wOff", "WidthOffset"),
+    // §21.4.7.49 `ST_ParameterId` (Parameter Identifier) — every value, from the ECMA-376 Part 1
+    // §21.4.7.49 table.
+    ("ST_ParameterId", "alignTx", "TextAlignment"),
+    ("ST_ParameterId", "ar", "AspectRatio"),
+    ("ST_ParameterId", "begPts", "BeginningPoints"),
+    ("ST_ParameterId", "begSty", "BeginningArrowheadStyle"),
+    ("ST_ParameterId", "bkPtFixedVal", "BreakpointFixedValue"),
+    ("ST_ParameterId", "bkpt", "Breakpoint"),
+    ("ST_ParameterId", "connRout", "ConnectionRoute"),
+    ("ST_ParameterId", "ctrShpMap", "CenterShapeMapping"),
+    ("ST_ParameterId", "dim", "ConnectorDimension"),
+    ("ST_ParameterId", "dstNode", "DestinationNode"),
+    ("ST_ParameterId", "endPts", "EndPoints"),
+    ("ST_ParameterId", "endSty", "EndStyle"),
+    ("ST_ParameterId", "fallback", "FallbackScale"),
+    ("ST_ParameterId", "hierAlign", "HierarchyAlignment"),
+    (
+        "ST_ParameterId",
+        "lnSpAfChP",
+        "LineSpacingAfterChildrenParagraph",
+    ),
+    (
+        "ST_ParameterId",
+        "lnSpAfParP",
+        "LineSpacingAfterParentParagraph",
+    ),
+    ("ST_ParameterId", "lnSpCh", "LineSpacingChildren"),
+    ("ST_ParameterId", "lnSpPar", "LineSpacingParent"),
+    (
+        "ST_ParameterId",
+        "parTxLTRAlign",
+        "ParentTextLeftToRightAlignment",
+    ),
+    (
+        "ST_ParameterId",
+        "parTxRTLAlign",
+        "ParentTextRightToLeftAlignment",
+    ),
+    (
+        "ST_ParameterId",
+        "pyraAcctBkgdNode",
+        "PyramidAccentBackgroundNode",
+    ),
+    ("ST_ParameterId", "pyraAcctPos", "PyramidAccentPosition"),
+    ("ST_ParameterId", "pyraAcctTxMar", "PyramidAccentTextMargin"),
+    ("ST_ParameterId", "pyraAcctTxNode", "PyramidAccentTextNode"),
+    ("ST_ParameterId", "pyraLvlNode", "PyramidLevelNode"),
+    ("ST_ParameterId", "rtShortDist", "RouteShortestDistance"),
+    (
+        "ST_ParameterId",
+        "shpTxLTRAlignCh",
+        "ShapeTextLeftToRightAlignment",
+    ),
+    (
+        "ST_ParameterId",
+        "shpTxRTLAlignCh",
+        "ShapeTextRightToLeftAlignment",
+    ),
+    ("ST_ParameterId", "spanAng", "SpanAngle"),
+    ("ST_ParameterId", "srcNode", "SourceNode"),
+    ("ST_ParameterId", "stAng", "StartAngle"),
+    ("ST_ParameterId", "stBulletLvl", "StartBulletsAtLevel"),
+    ("ST_ParameterId", "stElem", "StartingElement"),
+    ("ST_ParameterId", "txAnchorHorz", "TextAnchorHorizontal"),
+    ("ST_ParameterId", "txAnchorVert", "TextAnchorVertical"),
+    ("ST_ParameterId", "txBlDir", "TextBlockDirection"),
+    ("ST_ParameterId", "txDir", "TextDirection"),
+    ("ST_ParameterId", "bendPt", "BendPoint"),
+    ("ST_ParameterId", "rotPath", "RotationPath"),
+    ("ST_ParameterId", "autoTxRot", "AutoTextRotation"),
+    // §21.4.7.1 `ST_AlgorithmType`'s `conn` (Connector Algorithm) means the connector-routing
+    // algorithm; §21.4.7.48 `ST_OutputShapeType`'s `conn` (Connection) names a shape kind — the
+    // same three letters, two different concepts, so neither can go in the abbreviation table.
+    ("ST_AlgorithmType", "conn", "Connector"),
+    ("ST_AlgorithmType", "sp", "Space"),
+    ("ST_OutputShapeType", "conn", "Connection"),
+    // §21.4.7.5 `ST_AutoTextRotation`.
+    ("ST_AutoTextRotation", "upr", "Upright"),
+    ("ST_AutoTextRotation", "grav", "Gravity"),
+    // §21.4.7.19 `ST_ConnectorRouting`.
+    ("ST_ConnectorRouting", "stra", "Straight"),
+];
+
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
 /// Modeled as Rust `bool`.
 pub const BOOL_TYPES: &[(&str, &str)] = &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
@@ -1880,6 +2237,13 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "pml",
         "CT_Presentation",
         "The presentation part's own children",
+    ),
+    // ---- DrawingML Diagram -----------------------------------------------------------------
+    (
+        "LAYOUT_VARIABLE_PROPERTY_SET",
+        "dml-diagram",
+        "CT_LayoutVariablePropertySet",
+        "A `dgm:varLst`'s nine named layout-variable overrides, in schema order",
     ),
 ];
 

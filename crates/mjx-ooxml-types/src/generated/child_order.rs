@@ -8,7 +8,7 @@
 //! See [`crate::child_order`] for what a rank is and how these tables are used.
 
 use crate::child_order::{in_namespace, ChildOrder, ChildSlot, ContentModel, TypeReference};
-use crate::generated::namespaces::{DML_CHART, DML_MAIN, PML};
+use crate::generated::namespaces::{DML_CHART, DML_DIAGRAM, DML_MAIN, PML};
 
 /// Every complex type of `dml-main.xsd`, sorted by XSD symbol.
 pub static DML_MAIN_TYPES: [ChildOrder; 231] = [
@@ -21294,6 +21294,1793 @@ pub static DML_CHART_TYPES: [ChildOrder; 136] = [
     },
 ];
 
+/// Every complex type of `dml-diagram.xsd`, sorted by XSD symbol.
+pub static DML_DIAGRAM_TYPES: [ChildOrder; 58] = [
+    ChildOrder {
+        symbol: "CT_Adj",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_AdjLst",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "adj",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_Adj",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Algorithm",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "param",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Parameter",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_AnimLvl",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_AnimOne",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_BulletEnabled",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_CTCategories",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "cat",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_CTCategory",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_CTCategory",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_CTDescription",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_CTName",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_CTStyleLabel",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "fillClrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Colors",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "linClrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Colors",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "effectClrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Colors",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "txLinClrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Colors",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "txFillClrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Colors",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "txEffectClrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Colors",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Categories",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "cat",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_Category",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Category",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_ChildMax",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_ChildPref",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Choose",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "if",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_When",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "else",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Otherwise",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_ColorTransform",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "title",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTName",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "desc",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTDescription",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "catLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTCategories",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "styleLbl",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTStyleLabel",
+                }),
+                rank: 3,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_ColorTransformHeader",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "title",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTName",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "desc",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTDescription",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "catLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CTCategories",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_ColorTransformHeaderLst",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "colorsDefHdr",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_ColorTransformHeader",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Colors",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "hslClr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_HslColor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "prstClr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_PresetColor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "schemeClr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_SchemeColor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "scrgbClr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ScRgbColor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "srgbClr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_SRgbColor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "sysClr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_SystemColor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Constraint",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "extLst",
+            complex_type: Some(TypeReference {
+                namespace: DML_MAIN,
+                symbol: "CT_OfficeArtExtensionList",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Constraints",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "constr",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_Constraint",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Cxn",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "extLst",
+            complex_type: Some(TypeReference {
+                namespace: DML_MAIN,
+                symbol: "CT_OfficeArtExtensionList",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_CxnList",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "cxn",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_Cxn",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_DataModel",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "ptLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_PtList",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "cxnLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_CxnList",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "bg",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_BackgroundFormatting",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "whole",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_WholeE2oFormatting",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Description",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_DiagramDefinition",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "title",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Name",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "desc",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Description",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "catLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Categories",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "sampData",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SampleData",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "styleData",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SampleData",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "clrData",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SampleData",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "layoutNode",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutNode",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 7,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_DiagramDefinitionHeader",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "title",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Name",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "desc",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Description",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "catLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Categories",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_DiagramDefinitionHeaderLst",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "layoutDefHdr",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_DiagramDefinitionHeader",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Direction",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_ElemPropSet",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "presLayoutVars",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutVariablePropertySet",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "style",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeStyle",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_ForEach",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Choice,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "alg",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Algorithm",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "choose",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Choose",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "constrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Constraints",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "forEach",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ForEach",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "layoutNode",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutNode",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "presOf",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_PresentationOf",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "ruleLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Rules",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "shape",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Shape",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_HierBranchStyle",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_LayoutNode",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Choice,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "alg",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Algorithm",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "choose",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Choose",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "constrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Constraints",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "forEach",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ForEach",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "layoutNode",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutNode",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "presOf",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_PresentationOf",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "ruleLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Rules",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "shape",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Shape",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "varLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutVariablePropertySet",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_LayoutVariablePropertySet",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "orgChart",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_OrgChart",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "chMax",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ChildMax",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "chPref",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ChildPref",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "bulletEnabled",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_BulletEnabled",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "dir",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Direction",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "hierBranch",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_HierBranchStyle",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "animOne",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_AnimOne",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "animLvl",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_AnimLvl",
+                }),
+                rank: 7,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "resizeHandles",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ResizeHandles",
+                }),
+                rank: 8,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Name",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_NumericRule",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "extLst",
+            complex_type: Some(TypeReference {
+                namespace: DML_MAIN,
+                symbol: "CT_OfficeArtExtensionList",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_OrgChart",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Otherwise",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Choice,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "alg",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Algorithm",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "choose",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Choose",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "constrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Constraints",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "forEach",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ForEach",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "layoutNode",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutNode",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "presOf",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_PresentationOf",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "ruleLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Rules",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "shape",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Shape",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Parameter",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_PresentationOf",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "extLst",
+            complex_type: Some(TypeReference {
+                namespace: DML_MAIN,
+                symbol: "CT_OfficeArtExtensionList",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Pt",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "prSet",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ElemPropSet",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "spPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "t",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_TextBody",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_PtList",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "pt",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_Pt",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_RelIds",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_ResizeHandles",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Rules",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "rule",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_NumericRule",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_SDCategories",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "cat",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_SDCategory",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_SDCategory",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_SDDescription",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_SDName",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_SampleData",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "dataModel",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_DataModel",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Shape",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "adjLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_AdjLst",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_StyleDefinition",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "title",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SDName",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "desc",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SDDescription",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "catLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SDCategories",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "scene3d",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Scene3D",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "styleLbl",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_StyleLabel",
+                }),
+                rank: 4,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_StyleDefinitionHeader",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "title",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SDName",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "desc",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SDDescription",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "catLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_SDCategories",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_StyleDefinitionHeaderLst",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_DIAGRAM,
+            local: "styleDefHdr",
+            complex_type: Some(TypeReference {
+                namespace: DML_DIAGRAM,
+                symbol: "CT_StyleDefinitionHeader",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_StyleLabel",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "scene3d",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Scene3D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "sp3d",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Shape3D",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "txPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_TextProps",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "style",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeStyle",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_TextProps",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "flatTx",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_FlatText",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "sp3d",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Shape3D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_When",
+        namespace: DML_DIAGRAM,
+        model: ContentModel::Choice,
+        slots: &[
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "alg",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Algorithm",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "choose",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Choose",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "constrLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Constraints",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "forEach",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_ForEach",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "layoutNode",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_LayoutNode",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "presOf",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_PresentationOf",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "ruleLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Rules",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_DIAGRAM,
+                local: "shape",
+                complex_type: Some(TypeReference {
+                    namespace: DML_DIAGRAM,
+                    symbol: "CT_Shape",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+];
+
 /// The child order of the complex type `symbol` declared in `namespace`, or `None` if the
 /// tables do not cover it.
 ///
@@ -21308,6 +23095,8 @@ pub fn find(namespace: &str, symbol: &str) -> Option<&'static ChildOrder> {
         &PML_TYPES
     } else if in_namespace(namespace, DML_CHART) {
         &DML_CHART_TYPES
+    } else if in_namespace(namespace, DML_DIAGRAM) {
+        &DML_DIAGRAM_TYPES
     } else {
         return None;
     };
@@ -21355,6 +23144,21 @@ pub fn root_element(namespace: &str, local: &str) -> Option<&'static ChildOrder>
         match local {
             "chart" => "CT_RelId",
             "chartSpace" => "CT_ChartSpace",
+            _ => return None,
+        }
+    } else if in_namespace(namespace, DML_DIAGRAM) {
+        match local {
+            "colorsDef" => "CT_ColorTransform",
+            "colorsDefHdr" => "CT_ColorTransformHeader",
+            "colorsDefHdrLst" => "CT_ColorTransformHeaderLst",
+            "dataModel" => "CT_DataModel",
+            "layoutDef" => "CT_DiagramDefinition",
+            "layoutDefHdr" => "CT_DiagramDefinitionHeader",
+            "layoutDefHdrLst" => "CT_DiagramDefinitionHeaderLst",
+            "relIds" => "CT_RelIds",
+            "styleDef" => "CT_StyleDefinition",
+            "styleDefHdr" => "CT_StyleDefinitionHeader",
+            "styleDefHdrLst" => "CT_StyleDefinitionHeaderLst",
             _ => return None,
         }
     } else {
@@ -21533,3 +23337,6 @@ pub static GRAPHIC_FRAME: &ChildOrder = &PML_TYPES[29];
 
 /// The presentation part's own children (`CT_Presentation`, `pml.xsd`).
 pub static PRESENTATION: &ChildOrder = &PML_TYPES[64];
+
+/// A `dgm:varLst`'s nine named layout-variable overrides, in schema order (`CT_LayoutVariablePropertySet`, `dml-diagram.xsd`).
+pub static LAYOUT_VARIABLE_PROPERTY_SET: &ChildOrder = &DML_DIAGRAM_TYPES[34];

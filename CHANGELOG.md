@@ -49,6 +49,36 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.79] - 2026-09-03
+
+The DrawingML diagram (SmartArt) model (MJXOFF-148): `add_diagram` authored `dgm:` markup this
+project neither modelled nor ordered, which is exactly the condition MJXOFF-110 exists to make
+impossible. Closes the hole.
+
+### Added
+
+- **`mjx_dml::diagram`** — a typed model of `dml-diagram.xsd`, 50 of its 58 complex types down to
+  their attributes: the data part as a point-and-connection graph (`DataModel`, `PointList`/`Point`,
+  `ConnectionList`/`Connection`), the layout definition's whole algorithm tree (`LayoutDefinition`,
+  `LayoutNode`, `Algorithm`, `Constraint`, `NumericRule`, `Choose`), the quick style
+  (`StyleDefinition`/`StyleLabel`) and the colour transform
+  (`ColorTransform`/`StyleLabelColors`/`ColorList`). A handful of externally-defined DrawingML
+  formatting groups (`spPr`, `style`, `txPr`, `bg`, `whole`, `scene3d`, `sp3d`) and the SmartArt
+  gallery-catalog header types this project never authors or reads stay unmodelled, by name and
+  reason, in `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md`. Running a `dgm:layoutDef` to compute
+  where a consumer draws each point remains a documented non-goal — a rendering concern.
+- **`mjx_ooxml_types::diagram`** — the whole `ST_*` family of `dml-diagram.xsd` (66 simple types),
+  comprehensively named; `dml-diagram` joins `CHILD_ORDER_SCHEMAS`, so an authored diagram's four
+  parts are ordered by construction rather than emitted from a fixed template with no writer checking
+  its sequence.
+
+### Fixed
+
+- `mjx-schema-gate`'s `dml-diagram` row now validates for real: `add_diagram`'s four parts were
+  already checked against `dml-diagram.xsd`, and a new case proves the check is live by writing
+  markup the schema rejects and asserting it is caught, naming the schema — not merely that markup
+  this project already writes happens to pass.
+
 ## [0.0.78] - 2026-09-03
 
 A performance baseline and a large-file corpus generator (MJXOFF-147) — the numbers MJXOFF-95 (the

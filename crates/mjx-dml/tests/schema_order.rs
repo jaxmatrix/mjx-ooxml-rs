@@ -14,11 +14,14 @@
 //!   its typed model — or that sorted it — would drop it or move it, and a writer that treated it as
 //!   a boundary would push the new child past `a:defRPr`.
 
+use mjx_dml::diagram::{LayoutVariables, TraversalDirection};
 use mjx_dml::{
     ParagraphProperties, ParagraphPropertiesSpec, TextListStyle, TextPoint, TextSpacing,
 };
 use mjx_ooxml_core::{FromXml, RawDocument, ToXml};
-use mjx_ooxml_types::child_order::{TEXT_LIST_STYLE, TEXT_PARAGRAPH_PROPERTIES};
+use mjx_ooxml_types::child_order::{
+    LAYOUT_VARIABLE_PROPERTY_SET, TEXT_LIST_STYLE, TEXT_PARAGRAPH_PROPERTIES,
+};
 use mjx_xml::fidelity;
 
 /// A `a:pPr` holding the two ends of the sequence with a caller's own element between them.
@@ -153,4 +156,54 @@ fn a_level_is_placed_by_rank_even_when_the_existing_levels_are_reversed() {
         "the caller's element survives\n{xml}"
     );
     assert_eq!(TEXT_LIST_STYLE.rank_of(None, "lvl5pPr"), Some(5));
+}
+
+// ---------------------------------------------------------------------------------------------
+// DrawingML Diagram — dgm:varLst (CT_LayoutVariablePropertySet)
+// ---------------------------------------------------------------------------------------------
+//
+// `LayoutVariables` (`dgm:varLst`) used to place its nine named children with a rank array
+// hand-copied into `mjx-dml` itself — exactly the kind of table A7c deleted fourteen of. It now goes
+// through the generated `LAYOUT_VARIABLE_PROPERTY_SET` table the same way `TextListStyle` goes
+// through `TEXT_LIST_STYLE` above, so this is the same test, once more, for the ninth schema.
+
+/// A `dgm:varLst` holding the two ends of the sequence (`orgChart` rank 0, `resizeHandles` rank 8)
+/// with a caller's own element between them.
+const VAR_LIST_WITH_FOREIGN_CHILD: &[u8] = br#"<dgm:varLst xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram" xmlns:x="urn:example:caller"><dgm:orgChart val="1"/><x:note kind='keep-me'>caller markup &amp; entities</x:note><dgm:resizeHandles val="exact"/></dgm:varLst>"#;
+
+#[test]
+fn a_new_layout_variable_lands_in_the_gap_the_sequence_leaves_for_it() {
+    let (mut variables, mut document) = parse::<LayoutVariables>(VAR_LIST_WITH_FOREIGN_CHILD);
+    variables.set_direction(&mut document.interner, Some(TraversalDirection::Reversed));
+    let xml = serialize(&variables, document);
+
+    // `dir` is rank 4: an appending writer puts it after `resizeHandles` (rank 8), a prepending one
+    // before `orgChart` (rank 0), and only a rank-driven one puts it between them — specifically
+    // right after `orgChart`, since nothing else named is between the two.
+    assert_eq!(
+        sequence_of(&xml, &["dgm:orgChart", "dgm:dir", "dgm:resizeHandles"]),
+        vec!["dgm:orgChart", "dgm:dir", "dgm:resizeHandles"],
+        "`dgm:dir` is rank 4: appending it after `dgm:resizeHandles` or prepending it before \
+         `dgm:orgChart` are both wrong, and both would show here\n{xml}"
+    );
+    // The caller's own element is never reordered, and keeps its own bytes exactly.
+    assert!(
+        xml.contains(r#"<x:note kind='keep-me'>caller markup &amp; entities</x:note>"#),
+        "the caller's element must survive verbatim\n{xml}"
+    );
+    // Stated as ranks too, so the assertion above cannot drift away from the schema it stands for —
+    // and confirming this is the generated table, not a hand-rolled one.
+    assert_eq!(
+        LAYOUT_VARIABLE_PROPERTY_SET.symbol,
+        "CT_LayoutVariablePropertySet"
+    );
+    assert_eq!(
+        LAYOUT_VARIABLE_PROPERTY_SET.rank_of(None, "orgChart"),
+        Some(0)
+    );
+    assert_eq!(LAYOUT_VARIABLE_PROPERTY_SET.rank_of(None, "dir"), Some(4));
+    assert_eq!(
+        LAYOUT_VARIABLE_PROPERTY_SET.rank_of(None, "resizeHandles"),
+        Some(8)
+    );
 }

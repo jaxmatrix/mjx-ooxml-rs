@@ -5,6 +5,7 @@
 // same name, so the crate's public surface stays curated; a `pub` one is complete and is
 // re-exported whole.
 pub(crate) mod child_order;
+pub mod diagram;
 pub(crate) mod drawingml;
 pub mod namespaces;
 pub mod officemath;
