@@ -1152,6 +1152,336 @@ const OFFICEMATH_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_BreakBinSub", "+-", "PlusMinus"),
 ];
 
+// ---------------------------------------------------------------------------------------------
+// SpreadsheetML (`sml.xsd`)
+//
+// A fourth engine, for the same reason the two above exist: `sml.xsd` redeclares `ST_FontFamily`
+// (which `wml.xsd` also declares, as an enumeration of family *names*, while Excel's is a numeric
+// family code) and `ST_Orientation` (which `dml-chart.xsd` also declares). A row written for one
+// schema must not reach the other, and the already-emitted `wordprocessingml::FontFamily` must not
+// move because a later schema arrived.
+// ---------------------------------------------------------------------------------------------
+
+/// The naming engine for the SpreadsheetML slice — `sml.xsd`, all 96 simple types.
+pub const SPREADSHEETML_ENGINE: NameEngine = NameEngine {
+    type_overrides: SPREADSHEETML_TYPE_OVERRIDES,
+    variant_overrides: SPREADSHEETML_VARIANT_OVERRIDES,
+    abbreviations: SPREADSHEETML_ABBREVIATIONS,
+};
+
+/// lowercase word → PascalCase expansion for SpreadsheetML tokens.
+///
+/// Deliberately small, and every row is used by more than one value or type. `col` carries
+/// `ST_rwColActionType` and `ST_ShowDataAs`; `max`/`min` carry the four aggregate-function
+/// families; `ref` carries `ST_FormulaExpression`; `avg` carries `ST_ItemType`. Everything else is
+/// an explicit variant override, so an expansion can never reach a token it was not written for.
+const SPREADSHEETML_ABBREVIATIONS: &[(&str, &str)] = &[
+    ("avg", "Average"),
+    ("col", "Column"),
+    ("max", "Maximum"),
+    ("min", "Minimum"),
+    ("ref", "Reference"),
+];
+
+/// `ST_*` → comprehensive Rust type name for `sml.xsd`, where the mechanical name is not
+/// self-explanatory. Names are sourced from the ECMA-376 Part 1 §18.18 prose (§18.18.N is given for
+/// each), or from Part 4 §15.8 for the two types Transitional adds. The 57 types with no row here
+/// already expand cleanly (`ST_BorderStyle`, `ST_PatternType`, `ST_TableStyleType`, …).
+const SPREADSHEETML_TYPE_OVERRIDES: &[(&str, &str)] = &[
+    // Cell and range references (§18.18.7, §18.18.62, §18.18.63, §18.18.76). Four distinct kinds
+    // of reference whose symbols differ by one letter; the prose titles keep them apart.
+    ("ST_CellRef", "CellReference"),
+    ("ST_Ref", "CellRangeReference"),
+    ("ST_RefA", "SingleCellReference"),
+    ("ST_Sqref", "ReferenceSequence"),
+    // §18.18.86 and Part 4 §15.8.2: the prose states the digit count, and `hexBinary`'s `length`
+    // facet is in octets, so `length="4"` is eight digits and `length="2"` is four. Named the way
+    // `wordprocessingml` names the same shape.
+    ("ST_UnsignedIntHex", "EightDigitHexadecimalNumber"),
+    ("ST_UnsignedShortHex", "FourDigitHexadecimalNumber"),
+    // §18.18.80 / §18.18.81. The mechanical names would be `TextHalign`/`TextValign`: the word
+    // splitter cannot see `HAlign` as two words, so the H and V vanish into lowercase.
+    ("ST_TextHAlign", "CommentTextHorizontalAlignment"),
+    ("ST_TextVAlign", "CommentTextVerticalAlignment"),
+    ("ST_CredMethod", "CredentialsMethod"),   // §18.18.16
+    ("ST_HtmlFmt", "HtmlFormattingHandling"), // §18.18.41
+    // §18.18.27. The symbol says "external connection", but the type is the datatype a *text
+    // import field* is parsed as — the prose title is "Text Field Datatype" and the values are
+    // date component orders.
+    ("ST_ExternalConnectionType", "TextFieldDataType"),
+    ("ST_SourceType", "PivotCacheSourceType"), // §18.18.75 "PivotCache Type"
+    ("ST_Scope", "ConditionalFormattingScope"), // §18.18.67
+    ("ST_Type", "TopNEvaluationType"),         // §18.18.84; a bare `Type` names nothing
+    ("ST_ItemType", "PivotItemType"),          // §18.18.43
+    ("ST_FormatAction", "PivotTableFormatAction"), // §18.18.34
+    ("ST_Axis", "PivotTableAxis"),             // §18.18.1
+    ("ST_rwColActionType", "RowColumnActionType"), // §18.18.66; the symbol is not even PascalCase
+    ("ST_CfType", "ConditionalFormatType"),    // §18.18.12
+    ("ST_CfvoType", "ConditionalFormatValueObjectType"), // §18.18.13
+    ("ST_DvAspect", "DataViewAspect"),         // §18.18.24
+    ("ST_OleUpdate", "OleUpdateType"),         // §18.18.49
+    // §18.18.45. The mechanical name is `MdxKpiproperty` — the splitter cannot break `KPIProperty`
+    // apart, and KPI is not a word a reader of this crate should have to know.
+    ("ST_MdxKPIProperty", "MdxKeyPerformanceIndicatorProperty"),
+    ("ST_NumFmtId", "NumberFormatId"),         // §18.18.47
+    ("ST_CellStyleXfId", "CellStyleFormatId"), // §18.18.10 "Cell Style Format Id"
+    // §18.18.25 with §18.8.15: `dxf` is a *differential* formatting record.
+    ("ST_DxfId", "DifferentialFormatId"),
+    ("ST_UnderlineValues", "UnderlineType"), // §18.18.85; `Values` is noise
+    // §18.18.94. Excel's `ST_FontFamily` is a *number* (0 = not applicable, 1 = Roman … 5 =
+    // Decorative, 6–14 reserved), not `wml`'s enumeration of the same name.
+    ("ST_FontFamily", "FontFamilyNumber"),
+    ("ST_DdeValueType", "DynamicDataExchangeValueType"), // §18.18.23
+    ("ST_VolDepType", "VolatileDependencyType"),         // §18.18.90
+    ("ST_VolValueType", "VolatileDependencyValueType"),  // §18.18.91
+    ("ST_Comments", "CommentDisplay"),                   // §18.18.14 "Comment Display Types"
+    ("ST_Objects", "ObjectDisplay"),                     // §18.18.48 "Object Display Types"
+    ("ST_SmartTagShow", "SmartTagDisplay"),              // §18.18.71 "Smart Tag Display Types"
+    ("ST_UpdateLinks", "UpdateLinksBehavior"),           // §18.18.87
+    ("ST_CalcMode", "CalculationMode"),                  // §18.18.4
+    ("ST_RefMode", "ReferenceMode"),                     // §18.18.64
+    // §18.18.50: "Print orientation for this sheet." Naming the print intent also keeps this type
+    // distinct from `dml-chart`'s `ST_Orientation`, which is an axis direction.
+    ("ST_Orientation", "PrintOrientation"),
+    // §18.18.61: the qualifier that denotes string data when text is imported from a file.
+    ("ST_Qualifier", "TextQualifier"),
+];
+
+/// (`ST_*`, wire value) → comprehensive Rust variant name for `sml.xsd`.
+///
+/// Seeded from the tokens a reader cannot decode: single letters, digit-leading icon-set and screen
+/// resolution names, OLE constants, and the abbreviated statistical aggregates. Every name is
+/// sourced from the ECMA-376 Part 1 §18.18 prose — either the value's own "friendly name" or, where
+/// that is wrong or useless, its Description column, noted at the row.
+const SPREADSHEETML_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
+    // §18.18.11: the archetypal cryptic family. `s` is a *shared* string (an index into the shared
+    // string table) and `str` is the string *result of a formula* — neither is inferable.
+    ("ST_CellType", "b", "Boolean"),
+    ("ST_CellType", "n", "Number"),
+    ("ST_CellType", "e", "Error"),
+    ("ST_CellType", "s", "SharedString"),
+    ("ST_CellType", "str", "FormulaString"),
+    ("ST_CellType", "inlineStr", "InlineString"),
+    // §18.18.23: the same letters again, with different meanings — `n` is a real number here.
+    ("ST_DdeValueType", "b", "Boolean"),
+    ("ST_DdeValueType", "n", "RealNumber"),
+    ("ST_DdeValueType", "e", "Error"),
+    ("ST_DdeValueType", "str", "String"),
+    // §18.18.91.
+    ("ST_VolValueType", "b", "Boolean"),
+    ("ST_VolValueType", "n", "RealNumber"),
+    ("ST_VolValueType", "e", "Error"),
+    ("ST_VolValueType", "s", "String"),
+    // §18.18.44: one letter per MDX cube function.
+    ("ST_MdxFunctionType", "m", "CubeMember"),
+    ("ST_MdxFunctionType", "v", "CubeValue"),
+    ("ST_MdxFunctionType", "s", "CubeSet"),
+    ("ST_MdxFunctionType", "c", "CubeSetCount"),
+    ("ST_MdxFunctionType", "r", "CubeRankedMember"),
+    ("ST_MdxFunctionType", "p", "CubeMemberProperty"),
+    (
+        "ST_MdxFunctionType",
+        "k",
+        "CubeKeyPerformanceIndicatorMember",
+    ),
+    // §18.18.46.
+    ("ST_MdxSetOrder", "u", "Unsorted"),
+    ("ST_MdxSetOrder", "a", "Ascending"),
+    ("ST_MdxSetOrder", "d", "Descending"),
+    ("ST_MdxSetOrder", "aa", "AlphabeticAscending"),
+    ("ST_MdxSetOrder", "ad", "AlphabeticDescending"),
+    ("ST_MdxSetOrder", "na", "NaturalAscending"),
+    ("ST_MdxSetOrder", "nd", "NaturalDescending"),
+    // §18.18.45.
+    ("ST_MdxKPIProperty", "v", "Value"),
+    ("ST_MdxKPIProperty", "g", "Goal"),
+    ("ST_MdxKPIProperty", "s", "Status"),
+    ("ST_MdxKPIProperty", "t", "Trend"),
+    ("ST_MdxKPIProperty", "w", "Weight"),
+    ("ST_MdxKPIProperty", "m", "CurrentTimeMember"),
+    // §18.18.42: every token is digit-leading, so every mechanical name would be `N3Arrows` and
+    // friends. The trailing digits are variants of one icon set, and the prose names them.
+    ("ST_IconSetType", "3Arrows", "ThreeArrows"),
+    ("ST_IconSetType", "3ArrowsGray", "ThreeArrowsGray"),
+    ("ST_IconSetType", "3Flags", "ThreeFlags"),
+    ("ST_IconSetType", "3TrafficLights1", "ThreeTrafficLights"),
+    (
+        "ST_IconSetType",
+        "3TrafficLights2",
+        "ThreeTrafficLightsBlack",
+    ),
+    ("ST_IconSetType", "3Signs", "ThreeSigns"),
+    ("ST_IconSetType", "3Symbols", "ThreeSymbolsCircled"),
+    ("ST_IconSetType", "3Symbols2", "ThreeSymbols"),
+    ("ST_IconSetType", "4Arrows", "FourArrows"),
+    ("ST_IconSetType", "4ArrowsGray", "FourArrowsGray"),
+    ("ST_IconSetType", "4RedToBlack", "FourRedToBlack"),
+    ("ST_IconSetType", "4Rating", "FourRatings"),
+    ("ST_IconSetType", "4TrafficLights", "FourTrafficLights"),
+    ("ST_IconSetType", "5Arrows", "FiveArrows"),
+    ("ST_IconSetType", "5ArrowsGray", "FiveArrowsGray"),
+    ("ST_IconSetType", "5Rating", "FiveRatings"),
+    ("ST_IconSetType", "5Quarters", "FiveQuarters"),
+    // §18.18.79: pixel resolutions. Mechanical names would be `N544X376`.
+    ("ST_TargetScreenSize", "544x376", "Resolution544By376"),
+    ("ST_TargetScreenSize", "640x480", "Resolution640By480"),
+    ("ST_TargetScreenSize", "720x512", "Resolution720By512"),
+    ("ST_TargetScreenSize", "800x600", "Resolution800By600"),
+    ("ST_TargetScreenSize", "1024x768", "Resolution1024By768"),
+    ("ST_TargetScreenSize", "1152x882", "Resolution1152By882"),
+    ("ST_TargetScreenSize", "1152x900", "Resolution1152By900"),
+    ("ST_TargetScreenSize", "1280x1024", "Resolution1280By1024"),
+    ("ST_TargetScreenSize", "1600x1200", "Resolution1600By1200"),
+    ("ST_TargetScreenSize", "1800x1440", "Resolution1800By1440"),
+    ("ST_TargetScreenSize", "1920x1200", "Resolution1920By1200"),
+    // §18.18.26 and §18.18.59 both carry the calendar-quarter and calendar-month filters. The
+    // friendly names are ordinals ("1st Month"), but each Description says which month it is —
+    // "Shows the dates that are in January, regardless of year".
+    ("ST_DynamicFilterType", "Q1", "FirstQuarter"),
+    ("ST_DynamicFilterType", "Q2", "SecondQuarter"),
+    ("ST_DynamicFilterType", "Q3", "ThirdQuarter"),
+    ("ST_DynamicFilterType", "Q4", "FourthQuarter"),
+    ("ST_DynamicFilterType", "M1", "January"),
+    ("ST_DynamicFilterType", "M2", "February"),
+    ("ST_DynamicFilterType", "M3", "March"),
+    ("ST_DynamicFilterType", "M4", "April"),
+    ("ST_DynamicFilterType", "M5", "May"),
+    ("ST_DynamicFilterType", "M6", "June"),
+    ("ST_DynamicFilterType", "M7", "July"),
+    ("ST_DynamicFilterType", "M8", "August"),
+    ("ST_DynamicFilterType", "M9", "September"),
+    ("ST_DynamicFilterType", "M10", "October"),
+    ("ST_DynamicFilterType", "M11", "November"),
+    ("ST_DynamicFilterType", "M12", "December"),
+    ("ST_PivotFilterType", "Q1", "FirstQuarter"),
+    ("ST_PivotFilterType", "Q2", "SecondQuarter"),
+    ("ST_PivotFilterType", "Q3", "ThirdQuarter"),
+    ("ST_PivotFilterType", "Q4", "FourthQuarter"),
+    ("ST_PivotFilterType", "M1", "January"),
+    ("ST_PivotFilterType", "M2", "February"),
+    ("ST_PivotFilterType", "M3", "March"),
+    ("ST_PivotFilterType", "M4", "April"),
+    ("ST_PivotFilterType", "M5", "May"),
+    ("ST_PivotFilterType", "M6", "June"),
+    ("ST_PivotFilterType", "M7", "July"),
+    ("ST_PivotFilterType", "M8", "August"),
+    ("ST_PivotFilterType", "M9", "September"),
+    ("ST_PivotFilterType", "M10", "October"),
+    ("ST_PivotFilterType", "M11", "November"),
+    ("ST_PivotFilterType", "M12", "December"),
+    // §18.18.27: date component orders. The friendly name printed for `MYD` is "Month Day Year",
+    // which is the same as `MDY`'s and is an error in the published table — its Description says
+    // "day, month, year" order for `DMY` and "month, year, day" for `MYD`, and the Descriptions
+    // are what these rows follow. Naming both from the friendly-name column would have collapsed
+    // two wire tokens onto one variant, which the generator refuses.
+    ("ST_ExternalConnectionType", "MDY", "MonthDayYear"),
+    ("ST_ExternalConnectionType", "DMY", "DayMonthYear"),
+    ("ST_ExternalConnectionType", "YMD", "YearMonthDay"),
+    ("ST_ExternalConnectionType", "MYD", "MonthYearDay"),
+    ("ST_ExternalConnectionType", "DYM", "DayYearMonth"),
+    ("ST_ExternalConnectionType", "YDM", "YearDayMonth"),
+    ("ST_ExternalConnectionType", "EMD", "EastAsianYearMonthDay"),
+    // §18.18.24 / §18.18.49: OLE constants carried verbatim into the markup. The prefix is the
+    // type's name repeated, so the variant keeps only what distinguishes it.
+    ("ST_DvAspect", "DVASPECT_CONTENT", "Content"),
+    ("ST_DvAspect", "DVASPECT_ICON", "Icon"),
+    ("ST_OleUpdate", "OLEUPDATE_ALWAYS", "Always"),
+    ("ST_OleUpdate", "OLEUPDATE_ONCALL", "OnCall"),
+    // §18.18.1: the `axis` prefix repeats the type. The published friendly name for `axisPage` is
+    // "Include Count Filter", which belongs to a different table entirely — its Description is
+    // "Page axis", and that is what this row follows.
+    ("ST_Axis", "axisRow", "Row"),
+    ("ST_Axis", "axisCol", "Column"),
+    ("ST_Axis", "axisPage", "Page"),
+    ("ST_Axis", "axisValues", "Values"),
+    // §18.18.43. `countA` is Excel's COUNTA — a count of non-empty cells; §18.18.17 states the
+    // equivalence ("the Count consolidation function works the same as the COUNTA worksheet
+    // function") and §18.18.83 names it "Non Empty Cell Count".
+    ("ST_ItemType", "countA", "CountNonEmpty"),
+    ("ST_ItemType", "stdDev", "StandardDeviation"),
+    ("ST_ItemType", "stdDevP", "PopulationStandardDeviation"),
+    ("ST_ItemType", "var", "Variance"),
+    ("ST_ItemType", "varP", "PopulationVariance"),
+    ("ST_ItemType", "grand", "GrandTotal"),
+    // §18.18.17: here `count` is the COUNTA-equivalent and `countNums` the COUNT-equivalent, and
+    // the `p` suffix marks the whole-population form rather than the sample estimate.
+    ("ST_DataConsolidateFunction", "count", "CountNonEmpty"),
+    ("ST_DataConsolidateFunction", "countNums", "CountNumbers"),
+    (
+        "ST_DataConsolidateFunction",
+        "stdDev",
+        "SampleStandardDeviation",
+    ),
+    (
+        "ST_DataConsolidateFunction",
+        "stdDevp",
+        "PopulationStandardDeviation",
+    ),
+    ("ST_DataConsolidateFunction", "var", "SampleVariance"),
+    ("ST_DataConsolidateFunction", "varp", "PopulationVariance"),
+    // §18.18.83.
+    ("ST_TotalsRowFunction", "count", "CountNonEmpty"),
+    ("ST_TotalsRowFunction", "countNums", "CountNumbers"),
+    (
+        "ST_TotalsRowFunction",
+        "stdDev",
+        "EstimatedStandardDeviation",
+    ),
+    ("ST_TotalsRowFunction", "var", "EstimatedVariance"),
+    ("ST_TotalsRowFunction", "custom", "CustomFormula"),
+    // §18.18.14: the `comm` prefix is the type's own name abbreviated.
+    ("ST_Comments", "commNone", "NoComments"),
+    ("ST_Comments", "commIndicator", "IndicatorOnly"),
+    ("ST_Comments", "commIndAndComment", "IndicatorAndComment"),
+    // §18.18.55: the trailing digits are a fraction, not a count — 0.125 and 0.0625 grey.
+    ("ST_PatternType", "gray125", "Gray12Point5Percent"),
+    ("ST_PatternType", "gray0625", "Gray6Point25Percent"),
+    // §18.18.13: `num` is a literal number, as against `percent`/`percentile`/`formula`.
+    ("ST_CfvoType", "num", "Number"),
+    // §18.18.60: `#N/A`, the not-available error value.
+    ("ST_PrintError", "NA", "NotAvailable"),
+    // §18.18.19: every one of these six is a full-width or half-width input mode; `alpha` is the
+    // alphanumeric mode.
+    (
+        "ST_DataValidationImeMode",
+        "fullKatakana",
+        "FullWidthKatakana",
+    ),
+    (
+        "ST_DataValidationImeMode",
+        "halfKatakana",
+        "HalfWidthKatakana",
+    ),
+    (
+        "ST_DataValidationImeMode",
+        "fullAlpha",
+        "FullWidthAlphanumeric",
+    ),
+    (
+        "ST_DataValidationImeMode",
+        "halfAlpha",
+        "HalfWidthAlphanumeric",
+    ),
+    ("ST_DataValidationImeMode", "fullHangul", "FullWidthHangul"),
+    ("ST_DataValidationImeMode", "halfHangul", "HalfWidthHangul"),
+    // §18.18.21: a validation against a whole number, as against `decimal`.
+    ("ST_DataValidationType", "whole", "WholeNumber"),
+    // §18.18.70.
+    ("ST_ShowDataAs", "percentDiff", "PercentageDifference"),
+    ("ST_ShowDataAs", "runTotal", "RunningTotal"),
+    // §18.18.67: a bare `Data`/`Field` says nothing about what the scope covers.
+    ("ST_Scope", "data", "DataFields"),
+    ("ST_Scope", "field", "FieldIntersections"),
+    // §18.18.29: the text-import file's platform.
+    ("ST_FileType", "mac", "Macintosh"),
+    ("ST_FileType", "win", "Windows"),
+    ("ST_FileType", "lin", "Linux"),
+    // §18.18.41: `rtf` here means "honour the imported rich text", not the RTF file format.
+    ("ST_HtmlFmt", "rtf", "RichText"),
+    // §18.18.54: the parameter's value is asked for each time the query refreshes.
+    ("ST_ParameterType", "prompt", "PromptOnRefresh"),
+];
+
 /// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
 /// Modeled as Rust `bool`.
 pub const BOOL_TYPES: &[(&str, &str)] = &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
@@ -1169,6 +1499,7 @@ pub fn primitive_for(base: &str) -> Option<&'static str> {
         "xsd:unsignedInt" => "u32",
         "xsd:unsignedShort" => "u16",
         "xsd:unsignedByte" => "u8",
+        "xsd:nonNegativeInteger" => "u64",
         "xsd:long" | "xsd:integer" => "i64",
         "xsd:int" => "i32",
         "xsd:short" => "i16",

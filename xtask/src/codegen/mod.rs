@@ -180,6 +180,14 @@ const SIMPLE_TYPE_MODULES: &[SimpleTypeModule] = &[
         selection: emit::Selection::Everything,
     },
     SimpleTypeModule {
+        stem: "sml",
+        module: "spreadsheetml",
+        visibility: "pub",
+        module_doc: emit::SPREADSHEETML_MODULE_DOC,
+        engine: &spec::SPREADSHEETML_ENGINE,
+        selection: emit::Selection::Everything,
+    },
+    SimpleTypeModule {
         stem: "shared-math",
         module: "officemath",
         visibility: "pub",
@@ -555,8 +563,7 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
     ),
     (
         "sml",
-        "pending, owned by MJXOFF-145 — SpreadsheetML's simple types, split from this schema's \
-         siblings deliberately",
+        "",
         "pending, owned by MJXOFF-132 — the Excel crate spine is the child that starts placing \
          `x:` children",
     ),

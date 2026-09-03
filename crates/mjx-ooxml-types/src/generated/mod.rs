@@ -10,4 +10,5 @@ pub mod namespaces;
 pub mod officemath;
 pub(crate) mod presentationml;
 pub mod shared;
+pub mod spreadsheetml;
 pub mod wordprocessingml;

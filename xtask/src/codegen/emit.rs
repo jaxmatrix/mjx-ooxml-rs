@@ -44,6 +44,15 @@ pub const WORDPROCESSINGML_MODULE_DOC: &str =
      //! this vocabulary, so a missing type would be an enum invented somewhere else. Each item\n\
      //! records its original `ST_*` symbol and exact wire token(s).\n\n";
 
+/// Module-level doc block for the `spreadsheetml` module (see [`file_header`]).
+pub const SPREADSHEETML_MODULE_DOC: &str =
+    "//! Comprehensively-named SpreadsheetML simple types (see the naming convention in \
+     `PLAN.md`).\n\
+     //!\n\
+     //! The **whole** `ST_*` family of `sml.xsd`, not a slice: `mjx-sml` and `mjx-xlsx` are\n\
+     //! modelled on top of this vocabulary, so a missing type would be an enum invented somewhere\n\
+     //! else. Each item records its original `ST_*` symbol and exact wire token(s).\n\n";
+
 /// Module-level doc block for the `officemath` module (see [`file_header`]).
 pub const OFFICEMATH_MODULE_DOC: &str =
     "//! Comprehensively-named Office Math (OMML) simple types (see the naming convention in \
@@ -151,13 +160,23 @@ fn emit_simple_type(st: &SimpleType, engine: &NameEngine) -> String {
         SimpleKind::Restriction { base, pattern } => {
             if pattern.is_none() {
                 if let Some(primitive) = spec::primitive_for(base) {
-                    return emit_primitive_alias(&st.name, base, primitive, engine);
+                    let phrase = format!("base `{base}`");
+                    return emit_primitive_alias(&st.name, &phrase, primitive, engine);
                 }
             }
             emit_string_newtype(&st.name, base, pattern.as_deref(), engine)
         }
         SimpleKind::Union { members } => {
             let note = format!("union of {}", members.join(" | "));
+            // A union every member of which is the same number *is* that number. `sml.xsd`'s
+            // `ST_TextRotation` unions two `xsd:nonNegativeInteger` restrictions (0–180 degrees,
+            // plus 255); a `String` newtype for a count of degrees would be a worse model than the
+            // one the schema states. Mixed unions stay strings, because no single Rust primitive
+            // holds both halves.
+            if let Some(primitive) = single_primitive(members) {
+                let phrase = format!("a {note}");
+                return emit_primitive_alias(&st.name, &phrase, primitive, engine);
+            }
             emit_string_newtype(&st.name, &note, None, engine)
         }
         SimpleKind::List { item } => {
@@ -165,6 +184,14 @@ fn emit_simple_type(st: &SimpleType, engine: &NameEngine) -> String {
             emit_string_newtype(&st.name, &note, None, engine)
         }
     }
+}
+
+/// The Rust primitive a union collapses to, or `None` unless it has members and every one of them
+/// resolves — through [`spec::primitive_for`] — to the *same* primitive.
+fn single_primitive(members: &[String]) -> Option<&'static str> {
+    let mut resolved = members.iter().map(|m| spec::primitive_for(m));
+    let first = resolved.next().flatten()?;
+    resolved.all(|p| p == Some(first)).then_some(first)
 }
 
 fn file_header(source_note: &str, module_doc: &str) -> String {
@@ -260,10 +287,17 @@ fn emit_string_newtype(
     s
 }
 
-fn emit_primitive_alias(st_name: &str, base: &str, primitive: &str, engine: &NameEngine) -> String {
+/// `base_phrase` is the parenthesised provenance, already spelled — `base \`xsd:int\`` for a plain
+/// restriction, `a union of …` for a union every member of which is the same number.
+fn emit_primitive_alias(
+    st_name: &str,
+    base_phrase: &str,
+    primitive: &str,
+    engine: &NameEngine,
+) -> String {
     let type_name = engine.type_name(st_name);
     format!(
-        "/// `{st_name}` — numeric OOXML type (base `{base}`); a `{primitive}`.\n\
+        "/// `{st_name}` — numeric OOXML type ({base_phrase}); a `{primitive}`.\n\
          pub type {type_name} = {primitive};\n\n"
     )
 }
@@ -378,6 +412,52 @@ mod tests {
         .unwrap_err()
         .to_string();
         assert!(err.contains("collapse two wire tokens"), "{err}");
+    }
+
+    /// A union whose members are all the same number is that number. Without this, `sml.xsd`'s
+    /// `ST_TextRotation` — a count of degrees — would be a `String` newtype.
+    #[test]
+    fn a_union_of_one_numeric_base_becomes_that_number() {
+        const UNION: &[u8] = br#"<?xml version="1.0"?>
+            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:t">
+              <xsd:simpleType name="ST_Rotation">
+                <xsd:union>
+                  <xsd:simpleType>
+                    <xsd:restriction base="xsd:nonNegativeInteger">
+                      <xsd:maxInclusive value="180"/>
+                    </xsd:restriction>
+                  </xsd:simpleType>
+                  <xsd:simpleType>
+                    <xsd:restriction base="xsd:nonNegativeInteger">
+                      <xsd:enumeration value="255"/>
+                    </xsd:restriction>
+                  </xsd:simpleType>
+                </xsd:union>
+              </xsd:simpleType>
+            </xsd:schema>"#;
+        let src = shared(UNION).unwrap();
+        assert!(src.contains("pub type Rotation = u64;"), "{src}");
+        assert!(!src.contains("pub struct Rotation"), "{src}");
+        // The provenance stays in the docs, both members of it.
+        assert!(
+            src.contains("a union of xsd:nonNegativeInteger | xsd:nonNegativeInteger"),
+            "{src}"
+        );
+    }
+
+    /// A union of *different* kinds has no single primitive, so it stays a verbatim string —
+    /// `ST_OnOff`'s shape, and every `memberTypes` union in `dml-main`.
+    #[test]
+    fn a_mixed_union_stays_a_string_newtype() {
+        const MIXED: &[u8] = br#"<?xml version="1.0"?>
+            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:t">
+              <xsd:simpleType name="ST_Mixed">
+                <xsd:union memberTypes="xsd:unsignedLong s:ST_UniversalMeasure"/>
+              </xsd:simpleType>
+            </xsd:schema>"#;
+        let src = shared(MIXED).unwrap();
+        assert!(src.contains("pub struct Mixed(pub String);"), "{src}");
+        assert!(!src.contains("pub type Mixed"), "{src}");
     }
 
     /// The same rule one level up: two `ST_*` types that reach one Rust type name.
