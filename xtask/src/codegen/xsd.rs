@@ -32,9 +32,10 @@ pub enum SimpleKind {
         /// A `xsd:pattern` value, if present.
         pattern: Option<String>,
     },
-    /// `xsd:union memberTypes="..."`.
+    /// `xsd:union`, either `memberTypes="..."` or inline anonymous `xsd:simpleType` members.
     Union {
-        /// The member type names.
+        /// The member type names. For an inline anonymous member this is the base its
+        /// `xsd:restriction` names, which is the only type identity such a member has.
         members: Vec<String>,
     },
     /// `xsd:list itemType="..."`.
@@ -47,6 +48,10 @@ pub enum SimpleKind {
 #[derive(Default)]
 struct Builder {
     name: String,
+    /// How many `xsd:simpleType` elements are currently open inside this named one. `1` is the
+    /// named type itself; anything above that is an anonymous inline member of a union, whose
+    /// base and facets describe the *member*, not the named type.
+    depth: usize,
     base: Option<String>,
     values: Vec<String>,
     pattern: Option<String>,
@@ -80,66 +85,96 @@ impl Builder {
 
 /// Parses all top-level named `xsd:simpleType` definitions from an XSD document, in document order.
 ///
-/// The OOXML shared/markup schemas do not nest named simple types, so a flat state machine keyed on
-/// the enclosing `simpleType` is sufficient and unambiguous.
+/// A named simple type may nest **anonymous** ones — `sml.xsd`'s `ST_TextRotation` is an
+/// `xsd:union` whose two members are inline `xsd:simpleType`s rather than a `memberTypes` list. The
+/// nesting is tracked by depth so an inner `</xsd:simpleType>` does not close the named type early,
+/// and so an inner restriction's base and facets are attributed to the member instead of leaking
+/// onto the type that contains it.
 pub fn parse_simple_types(xsd: &[u8]) -> Result<Vec<SimpleType>> {
     let mut reader = Reader::new(xsd);
     let mut out = Vec::new();
     let mut current: Option<Builder> = None;
 
     loop {
-        match reader.read().context("reading XSD")? {
-            Event::Start(e) | Event::Empty(e) => match e.local() {
-                "simpleType" => {
+        let (e, empty) = match reader.read().context("reading XSD")? {
+            Event::Start(e) => (e, false),
+            Event::Empty(e) => (e, true),
+            Event::End(name) => {
+                if name.local == "simpleType" {
+                    if let Some(b) = current.as_mut() {
+                        b.depth -= 1;
+                        if b.depth == 0 {
+                            // `take` cannot fail: `current` is `Some` in this branch.
+                            if let Some(b) = current.take() {
+                                out.push(b.finish());
+                            }
+                        }
+                    }
+                }
+                continue;
+            }
+            Event::Text(_) => continue,
+            Event::Eof => break,
+        };
+        match e.local() {
+            // A self-closing `<xsd:simpleType/>` has no content to attribute and no `End` to
+            // balance, so it is ignored rather than counted.
+            "simpleType" if !empty => match current.as_mut() {
+                Some(b) => b.depth += 1,
+                None => {
                     if let Some(name) = e.attr("name") {
                         current = Some(Builder {
                             name: name.to_owned(),
+                            depth: 1,
                             ..Builder::default()
                         });
                     }
                 }
-                "restriction" => {
-                    if let Some(b) = current.as_mut() {
-                        b.base = e.attr("base").map(str::to_owned);
-                    }
-                }
-                "enumeration" => {
-                    if let (Some(b), Some(value)) = (current.as_mut(), e.attr("value")) {
-                        b.values.push(value.to_owned());
-                    }
-                }
-                "union" => {
-                    if let Some(b) = current.as_mut() {
-                        b.union_members = Some(
-                            e.attr("memberTypes")
-                                .unwrap_or_default()
-                                .split_whitespace()
-                                .map(str::to_owned)
-                                .collect(),
-                        );
-                    }
-                }
-                "list" => {
-                    if let Some(b) = current.as_mut() {
-                        b.list_item = e.attr("itemType").map(str::to_owned);
-                    }
-                }
-                "pattern" => {
-                    if let Some(b) = current.as_mut() {
-                        b.pattern = e.attr("value").map(str::to_owned);
-                    }
-                }
-                _ => {}
             },
-            Event::End(name) => {
-                if name.local == "simpleType" {
-                    if let Some(b) = current.take() {
-                        out.push(b.finish());
+            "restriction" => {
+                if let Some(b) = current.as_mut() {
+                    let base = e.attr("base").map(str::to_owned);
+                    if b.depth > 1 {
+                        // An inline union member: its base *is* its type identity.
+                        if let (Some(members), Some(base)) = (b.union_members.as_mut(), base) {
+                            members.push(base);
+                        }
+                    } else {
+                        b.base = base;
                     }
                 }
             }
-            Event::Text(_) => {}
-            Event::Eof => break,
+            "enumeration" => {
+                if let (Some(b), Some(value)) = (current.as_mut(), e.attr("value")) {
+                    if b.depth == 1 {
+                        b.values.push(value.to_owned());
+                    }
+                }
+            }
+            "union" => {
+                if let Some(b) = current.as_mut() {
+                    b.union_members = Some(
+                        e.attr("memberTypes")
+                            .unwrap_or_default()
+                            .split_whitespace()
+                            .map(str::to_owned)
+                            .collect(),
+                    );
+                }
+            }
+            "list" => {
+                if let Some(b) = current.as_mut() {
+                    b.list_item = e.attr("itemType").map(str::to_owned);
+                }
+            }
+            "pattern" => {
+                if let Some(b) = current.as_mut() {
+                    if b.depth == 1 {
+                        b.pattern = e.attr("value").map(str::to_owned);
+                    }
+                }
+            }
+            _ => {}
         }
     }
 
@@ -208,6 +243,62 @@ mod tests {
             SimpleKind::Restriction {
                 base: "xsd:token".to_owned(),
                 pattern: Some("\\{.*\\}".to_owned()),
+            }
+        );
+    }
+
+    /// `sml.xsd`'s `ST_TextRotation` is a union of two **anonymous** inline simple types. A flat
+    /// state machine closes the named type on the first inner `</xsd:simpleType>`, silently drops
+    /// the type that follows it, and attributes the inner restrictions' base and facets to the
+    /// named type. Depth tracking is what keeps the named type whole.
+    #[test]
+    fn an_inline_anonymous_union_member_does_not_close_the_type_around_it() {
+        let xsd = br#"<?xml version="1.0"?>
+            <xsd:schema xmlns:xsd="http://www.w3.org/2001/XMLSchema" targetNamespace="urn:test">
+              <xsd:simpleType name="ST_TextRotation">
+                <xsd:union>
+                  <xsd:simpleType>
+                    <xsd:restriction base="xsd:nonNegativeInteger">
+                      <xsd:maxInclusive value="180"/>
+                    </xsd:restriction>
+                  </xsd:simpleType>
+                  <xsd:simpleType>
+                    <xsd:restriction base="xsd:nonNegativeInteger">
+                      <xsd:enumeration value="255"/>
+                    </xsd:restriction>
+                  </xsd:simpleType>
+                </xsd:union>
+              </xsd:simpleType>
+              <xsd:simpleType name="ST_After">
+                <xsd:restriction base="xsd:string">
+                  <xsd:enumeration value="kept"/>
+                </xsd:restriction>
+              </xsd:simpleType>
+            </xsd:schema>"#;
+        let types = parse_simple_types(xsd).unwrap();
+        assert_eq!(
+            types.len(),
+            2,
+            "the type declared after the nested one must survive: {types:?}"
+        );
+        assert_eq!(types[0].name, "ST_TextRotation");
+        assert_eq!(
+            types[0].kind,
+            SimpleKind::Union {
+                members: vec![
+                    "xsd:nonNegativeInteger".to_owned(),
+                    "xsd:nonNegativeInteger".to_owned(),
+                ],
+            },
+            "an inline member's base is the only type identity it has"
+        );
+        // The inner `xsd:enumeration` belongs to the member, not to the union around it.
+        assert_eq!(types[1].name, "ST_After");
+        assert_eq!(
+            types[1].kind,
+            SimpleKind::Enumeration {
+                base: "xsd:string".to_owned(),
+                values: vec!["kept".to_owned()],
             }
         );
     }

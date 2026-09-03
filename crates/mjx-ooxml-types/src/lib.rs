@@ -11,8 +11,8 @@
 //! Two-valued OOXML toggles (`ST_OnOff` family) are modeled as `bool` / `Option<bool>`; all wire
 //! spellings are normalized on read and one canonical form is written — see [`support`].
 //!
-//! `shared`, [`wordprocessingml`] and [`officemath`] are complete — every `ST_*` their schema
-//! declares. `drawingml` and `presentationml` are curated slices that grow with their workstreams;
+//! `shared`, [`wordprocessingml`], [`spreadsheetml`] and [`officemath`] are complete — every
+//! `ST_*` their schema declares. `drawingml` and `presentationml` are curated slices that grow with their workstreams;
 //! `crates/mjx-ooxml-types/COVERAGE.md` reports every schema of the set and the status of each.
 //!
 //! [`support`] also holds the OOXML-specific [`AttributeCodec`](mjx_ooxml_core::AttributeCodec)s —
@@ -35,7 +35,7 @@ pub mod support;
 
 mod generated;
 
-pub use generated::{namespaces, officemath, shared, wordprocessingml};
+pub use generated::{namespaces, officemath, shared, spreadsheetml, wordprocessingml};
 pub use support::{
     on_off, true_false, true_false_blank, HexColorRgb, OnOff, TrueFalse, TrueFalseBlank,
     UnknownWireValue,

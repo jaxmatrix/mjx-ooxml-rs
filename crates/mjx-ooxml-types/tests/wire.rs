@@ -2177,19 +2177,38 @@ fn officemath_break_binary_subtraction_overridden_tokens_round_trip() {
     assert_eq!(BreakBinarySubtraction::PlusMinus.to_wire(), "+-");
 }
 
-/// Round-trips **every** enumeration token of a schema through the generated types.
+/// Round-trips **every** enumeration token of a schema through the generated types, and asserts
+/// that each one reaches a variant of its own.
 ///
 /// `from_wire` and `to_wire` are emitted from one list, so this cannot fail by a token being
-/// missing from one of them — it fails when a token reaches a variant some *other* token also
-/// reaches, because then one of the two cannot spell itself again. That is the failure mode a
-/// naming override introduces, and it is silent everywhere else.
-macro_rules! assert_every_token_round_trips {
+/// missing from one of them. The failure it is built for is two values of one enumeration reaching
+/// the *same* Rust variant — the enum then has fewer variants than the schema has values, one of
+/// the two tokens can no longer spell itself, and a document that used it is rewritten with the
+/// other. The distinct-variant count is asserted directly rather than inferred, so the check holds
+/// even for a pair whose round trip happens to survive.
+macro_rules! assert_every_token_round_trips_to_its_own_variant {
     ($($ty:path => [$($tok:literal),* $(,)?]),* $(,)?) => {
-        $($({
-            let parsed = <$ty>::from_wire($tok)
-                .unwrap_or_else(|| panic!("{} does not accept {:?}", stringify!($ty), $tok));
-            assert_eq!(parsed.to_wire(), $tok, "{} lost {:?}", stringify!($ty), $tok);
-        })*)*
+        $({
+            let tokens: &[&str] = &[$($tok),*];
+            let mut reached = std::collections::HashSet::new();
+            for tok in tokens {
+                let parsed = <$ty>::from_wire(tok)
+                    .unwrap_or_else(|| panic!("{} does not accept {:?}", stringify!($ty), tok));
+                assert_eq!(parsed.to_wire(), *tok, "{} lost {:?}", stringify!($ty), tok);
+                assert!(
+                    reached.insert(parsed),
+                    "{}: {:?} reaches a variant another wire token already reached",
+                    stringify!($ty),
+                    tok,
+                );
+            }
+            assert_eq!(
+                reached.len(),
+                tokens.len(),
+                "{} has fewer variants than its schema declares values",
+                stringify!($ty),
+            );
+        })*
     };
 }
 
@@ -2197,7 +2216,7 @@ macro_rules! assert_every_token_round_trips {
 #[test]
 fn every_wordprocessingml_token_round_trips() {
     use mjx_ooxml_types::wordprocessingml::*;
-    assert_every_token_round_trips! {
+    assert_every_token_round_trips_to_its_own_variant! {
         HighlightColor => ["black", "blue", "cyan", "green", "magenta", "red", "yellow", "white", "darkBlue", "darkCyan", "darkGreen", "darkMagenta", "darkRed", "darkYellow", "darkGray", "lightGray", "none"],
         AutomaticColor => ["auto"],
         Underline => ["single", "words", "double", "thick", "dotted", "dottedHeavy", "dash", "dashedHeavy", "dashLong", "dashLongHeavy", "dotDash", "dashDotHeavy", "dotDotDash", "dashDotDotHeavy", "wave", "wavyHeavy", "wavyDouble", "none"],
@@ -2290,7 +2309,7 @@ fn every_wordprocessingml_token_round_trips() {
 #[test]
 fn every_officemath_token_round_trips() {
     use mjx_ooxml_types::officemath::*;
-    assert_every_token_round_trips! {
+    assert_every_token_round_trips_to_its_own_variant! {
         DelimiterShape => ["centered", "match"],
         FractionType => ["bar", "skw", "lin", "noBar"],
         LimitLocation => ["undOvr", "subSup"],
@@ -2362,4 +2381,1154 @@ fn wordprocessingml_measures_are_numbers_not_strings() {
     let eighths: EighthPointMeasure = 4;
     let points: PointMeasure = 12;
     assert_eq!(pixels + u64::from(eighths as u32) + points, 112);
+}
+// ---------------------------------------------------------------------------------------
+// SpreadsheetML (`sml.xsd`) — MJXOFF-145.
+//
+// Seeded from `SPREADSHEETML_VARIANT_OVERRIDES` in `xtask/src/codegen/spec.rs`, not from the
+// tokens the generator already gets right: a variant that is a mechanical PascalCase of its
+// token round-trips whatever the naming table says, so it discriminates nothing. Each test
+// below pins every *overridden* token of one `ST_*` to its named variant, in both directions,
+// against exact wire bytes. All 149 rows of the table are covered.
+// ---------------------------------------------------------------------------------------
+
+/// `ST_CellType` (sml.xsd) → `spreadsheetml::CellType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_cell_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::CellType;
+    assert_eq!(CellType::from_wire("b"), Some(CellType::Boolean));
+    assert_eq!(CellType::Boolean.to_wire(), "b");
+    assert_eq!(CellType::from_wire("n"), Some(CellType::Number));
+    assert_eq!(CellType::Number.to_wire(), "n");
+    assert_eq!(CellType::from_wire("e"), Some(CellType::Error));
+    assert_eq!(CellType::Error.to_wire(), "e");
+    assert_eq!(CellType::from_wire("s"), Some(CellType::SharedString));
+    assert_eq!(CellType::SharedString.to_wire(), "s");
+    assert_eq!(CellType::from_wire("str"), Some(CellType::FormulaString));
+    assert_eq!(CellType::FormulaString.to_wire(), "str");
+    assert_eq!(
+        CellType::from_wire("inlineStr"),
+        Some(CellType::InlineString)
+    );
+    assert_eq!(CellType::InlineString.to_wire(), "inlineStr");
+}
+
+/// `ST_DdeValueType` (sml.xsd) → `spreadsheetml::DynamicDataExchangeValueType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_dynamic_data_exchange_value_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::DynamicDataExchangeValueType;
+    assert_eq!(
+        DynamicDataExchangeValueType::from_wire("b"),
+        Some(DynamicDataExchangeValueType::Boolean)
+    );
+    assert_eq!(DynamicDataExchangeValueType::Boolean.to_wire(), "b");
+    assert_eq!(
+        DynamicDataExchangeValueType::from_wire("n"),
+        Some(DynamicDataExchangeValueType::RealNumber)
+    );
+    assert_eq!(DynamicDataExchangeValueType::RealNumber.to_wire(), "n");
+    assert_eq!(
+        DynamicDataExchangeValueType::from_wire("e"),
+        Some(DynamicDataExchangeValueType::Error)
+    );
+    assert_eq!(DynamicDataExchangeValueType::Error.to_wire(), "e");
+    assert_eq!(
+        DynamicDataExchangeValueType::from_wire("str"),
+        Some(DynamicDataExchangeValueType::String)
+    );
+    assert_eq!(DynamicDataExchangeValueType::String.to_wire(), "str");
+}
+
+/// `ST_VolValueType` (sml.xsd) → `spreadsheetml::VolatileDependencyValueType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_volatile_dependency_value_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::VolatileDependencyValueType;
+    assert_eq!(
+        VolatileDependencyValueType::from_wire("b"),
+        Some(VolatileDependencyValueType::Boolean)
+    );
+    assert_eq!(VolatileDependencyValueType::Boolean.to_wire(), "b");
+    assert_eq!(
+        VolatileDependencyValueType::from_wire("n"),
+        Some(VolatileDependencyValueType::RealNumber)
+    );
+    assert_eq!(VolatileDependencyValueType::RealNumber.to_wire(), "n");
+    assert_eq!(
+        VolatileDependencyValueType::from_wire("e"),
+        Some(VolatileDependencyValueType::Error)
+    );
+    assert_eq!(VolatileDependencyValueType::Error.to_wire(), "e");
+    assert_eq!(
+        VolatileDependencyValueType::from_wire("s"),
+        Some(VolatileDependencyValueType::String)
+    );
+    assert_eq!(VolatileDependencyValueType::String.to_wire(), "s");
+}
+
+/// `ST_MdxFunctionType` (sml.xsd) → `spreadsheetml::MdxFunctionType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_mdx_function_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::MdxFunctionType;
+    assert_eq!(
+        MdxFunctionType::from_wire("m"),
+        Some(MdxFunctionType::CubeMember)
+    );
+    assert_eq!(MdxFunctionType::CubeMember.to_wire(), "m");
+    assert_eq!(
+        MdxFunctionType::from_wire("v"),
+        Some(MdxFunctionType::CubeValue)
+    );
+    assert_eq!(MdxFunctionType::CubeValue.to_wire(), "v");
+    assert_eq!(
+        MdxFunctionType::from_wire("s"),
+        Some(MdxFunctionType::CubeSet)
+    );
+    assert_eq!(MdxFunctionType::CubeSet.to_wire(), "s");
+    assert_eq!(
+        MdxFunctionType::from_wire("c"),
+        Some(MdxFunctionType::CubeSetCount)
+    );
+    assert_eq!(MdxFunctionType::CubeSetCount.to_wire(), "c");
+    assert_eq!(
+        MdxFunctionType::from_wire("r"),
+        Some(MdxFunctionType::CubeRankedMember)
+    );
+    assert_eq!(MdxFunctionType::CubeRankedMember.to_wire(), "r");
+    assert_eq!(
+        MdxFunctionType::from_wire("p"),
+        Some(MdxFunctionType::CubeMemberProperty)
+    );
+    assert_eq!(MdxFunctionType::CubeMemberProperty.to_wire(), "p");
+    assert_eq!(
+        MdxFunctionType::from_wire("k"),
+        Some(MdxFunctionType::CubeKeyPerformanceIndicatorMember)
+    );
+    assert_eq!(
+        MdxFunctionType::CubeKeyPerformanceIndicatorMember.to_wire(),
+        "k"
+    );
+}
+
+/// `ST_MdxSetOrder` (sml.xsd) → `spreadsheetml::MdxSetOrder`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_mdx_set_order_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::MdxSetOrder;
+    assert_eq!(MdxSetOrder::from_wire("u"), Some(MdxSetOrder::Unsorted));
+    assert_eq!(MdxSetOrder::Unsorted.to_wire(), "u");
+    assert_eq!(MdxSetOrder::from_wire("a"), Some(MdxSetOrder::Ascending));
+    assert_eq!(MdxSetOrder::Ascending.to_wire(), "a");
+    assert_eq!(MdxSetOrder::from_wire("d"), Some(MdxSetOrder::Descending));
+    assert_eq!(MdxSetOrder::Descending.to_wire(), "d");
+    assert_eq!(
+        MdxSetOrder::from_wire("aa"),
+        Some(MdxSetOrder::AlphabeticAscending)
+    );
+    assert_eq!(MdxSetOrder::AlphabeticAscending.to_wire(), "aa");
+    assert_eq!(
+        MdxSetOrder::from_wire("ad"),
+        Some(MdxSetOrder::AlphabeticDescending)
+    );
+    assert_eq!(MdxSetOrder::AlphabeticDescending.to_wire(), "ad");
+    assert_eq!(
+        MdxSetOrder::from_wire("na"),
+        Some(MdxSetOrder::NaturalAscending)
+    );
+    assert_eq!(MdxSetOrder::NaturalAscending.to_wire(), "na");
+    assert_eq!(
+        MdxSetOrder::from_wire("nd"),
+        Some(MdxSetOrder::NaturalDescending)
+    );
+    assert_eq!(MdxSetOrder::NaturalDescending.to_wire(), "nd");
+}
+
+/// `ST_MdxKPIProperty` (sml.xsd) → `spreadsheetml::MdxKeyPerformanceIndicatorProperty`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_mdx_key_performance_indicator_property_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::MdxKeyPerformanceIndicatorProperty;
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::from_wire("v"),
+        Some(MdxKeyPerformanceIndicatorProperty::Value)
+    );
+    assert_eq!(MdxKeyPerformanceIndicatorProperty::Value.to_wire(), "v");
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::from_wire("g"),
+        Some(MdxKeyPerformanceIndicatorProperty::Goal)
+    );
+    assert_eq!(MdxKeyPerformanceIndicatorProperty::Goal.to_wire(), "g");
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::from_wire("s"),
+        Some(MdxKeyPerformanceIndicatorProperty::Status)
+    );
+    assert_eq!(MdxKeyPerformanceIndicatorProperty::Status.to_wire(), "s");
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::from_wire("t"),
+        Some(MdxKeyPerformanceIndicatorProperty::Trend)
+    );
+    assert_eq!(MdxKeyPerformanceIndicatorProperty::Trend.to_wire(), "t");
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::from_wire("w"),
+        Some(MdxKeyPerformanceIndicatorProperty::Weight)
+    );
+    assert_eq!(MdxKeyPerformanceIndicatorProperty::Weight.to_wire(), "w");
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::from_wire("m"),
+        Some(MdxKeyPerformanceIndicatorProperty::CurrentTimeMember)
+    );
+    assert_eq!(
+        MdxKeyPerformanceIndicatorProperty::CurrentTimeMember.to_wire(),
+        "m"
+    );
+}
+
+/// `ST_IconSetType` (sml.xsd) → `spreadsheetml::IconSetType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_icon_set_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::IconSetType;
+    assert_eq!(
+        IconSetType::from_wire("3Arrows"),
+        Some(IconSetType::ThreeArrows)
+    );
+    assert_eq!(IconSetType::ThreeArrows.to_wire(), "3Arrows");
+    assert_eq!(
+        IconSetType::from_wire("3ArrowsGray"),
+        Some(IconSetType::ThreeArrowsGray)
+    );
+    assert_eq!(IconSetType::ThreeArrowsGray.to_wire(), "3ArrowsGray");
+    assert_eq!(
+        IconSetType::from_wire("3Flags"),
+        Some(IconSetType::ThreeFlags)
+    );
+    assert_eq!(IconSetType::ThreeFlags.to_wire(), "3Flags");
+    assert_eq!(
+        IconSetType::from_wire("3TrafficLights1"),
+        Some(IconSetType::ThreeTrafficLights)
+    );
+    assert_eq!(IconSetType::ThreeTrafficLights.to_wire(), "3TrafficLights1");
+    assert_eq!(
+        IconSetType::from_wire("3TrafficLights2"),
+        Some(IconSetType::ThreeTrafficLightsBlack)
+    );
+    assert_eq!(
+        IconSetType::ThreeTrafficLightsBlack.to_wire(),
+        "3TrafficLights2"
+    );
+    assert_eq!(
+        IconSetType::from_wire("3Signs"),
+        Some(IconSetType::ThreeSigns)
+    );
+    assert_eq!(IconSetType::ThreeSigns.to_wire(), "3Signs");
+    assert_eq!(
+        IconSetType::from_wire("3Symbols"),
+        Some(IconSetType::ThreeSymbolsCircled)
+    );
+    assert_eq!(IconSetType::ThreeSymbolsCircled.to_wire(), "3Symbols");
+    assert_eq!(
+        IconSetType::from_wire("3Symbols2"),
+        Some(IconSetType::ThreeSymbols)
+    );
+    assert_eq!(IconSetType::ThreeSymbols.to_wire(), "3Symbols2");
+    assert_eq!(
+        IconSetType::from_wire("4Arrows"),
+        Some(IconSetType::FourArrows)
+    );
+    assert_eq!(IconSetType::FourArrows.to_wire(), "4Arrows");
+    assert_eq!(
+        IconSetType::from_wire("4ArrowsGray"),
+        Some(IconSetType::FourArrowsGray)
+    );
+    assert_eq!(IconSetType::FourArrowsGray.to_wire(), "4ArrowsGray");
+    assert_eq!(
+        IconSetType::from_wire("4RedToBlack"),
+        Some(IconSetType::FourRedToBlack)
+    );
+    assert_eq!(IconSetType::FourRedToBlack.to_wire(), "4RedToBlack");
+    assert_eq!(
+        IconSetType::from_wire("4Rating"),
+        Some(IconSetType::FourRatings)
+    );
+    assert_eq!(IconSetType::FourRatings.to_wire(), "4Rating");
+    assert_eq!(
+        IconSetType::from_wire("4TrafficLights"),
+        Some(IconSetType::FourTrafficLights)
+    );
+    assert_eq!(IconSetType::FourTrafficLights.to_wire(), "4TrafficLights");
+    assert_eq!(
+        IconSetType::from_wire("5Arrows"),
+        Some(IconSetType::FiveArrows)
+    );
+    assert_eq!(IconSetType::FiveArrows.to_wire(), "5Arrows");
+    assert_eq!(
+        IconSetType::from_wire("5ArrowsGray"),
+        Some(IconSetType::FiveArrowsGray)
+    );
+    assert_eq!(IconSetType::FiveArrowsGray.to_wire(), "5ArrowsGray");
+    assert_eq!(
+        IconSetType::from_wire("5Rating"),
+        Some(IconSetType::FiveRatings)
+    );
+    assert_eq!(IconSetType::FiveRatings.to_wire(), "5Rating");
+    assert_eq!(
+        IconSetType::from_wire("5Quarters"),
+        Some(IconSetType::FiveQuarters)
+    );
+    assert_eq!(IconSetType::FiveQuarters.to_wire(), "5Quarters");
+}
+
+/// `ST_TargetScreenSize` (sml.xsd) → `spreadsheetml::TargetScreenSize`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_target_screen_size_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::TargetScreenSize;
+    assert_eq!(
+        TargetScreenSize::from_wire("544x376"),
+        Some(TargetScreenSize::Resolution544By376)
+    );
+    assert_eq!(TargetScreenSize::Resolution544By376.to_wire(), "544x376");
+    assert_eq!(
+        TargetScreenSize::from_wire("640x480"),
+        Some(TargetScreenSize::Resolution640By480)
+    );
+    assert_eq!(TargetScreenSize::Resolution640By480.to_wire(), "640x480");
+    assert_eq!(
+        TargetScreenSize::from_wire("720x512"),
+        Some(TargetScreenSize::Resolution720By512)
+    );
+    assert_eq!(TargetScreenSize::Resolution720By512.to_wire(), "720x512");
+    assert_eq!(
+        TargetScreenSize::from_wire("800x600"),
+        Some(TargetScreenSize::Resolution800By600)
+    );
+    assert_eq!(TargetScreenSize::Resolution800By600.to_wire(), "800x600");
+    assert_eq!(
+        TargetScreenSize::from_wire("1024x768"),
+        Some(TargetScreenSize::Resolution1024By768)
+    );
+    assert_eq!(TargetScreenSize::Resolution1024By768.to_wire(), "1024x768");
+    assert_eq!(
+        TargetScreenSize::from_wire("1152x882"),
+        Some(TargetScreenSize::Resolution1152By882)
+    );
+    assert_eq!(TargetScreenSize::Resolution1152By882.to_wire(), "1152x882");
+    assert_eq!(
+        TargetScreenSize::from_wire("1152x900"),
+        Some(TargetScreenSize::Resolution1152By900)
+    );
+    assert_eq!(TargetScreenSize::Resolution1152By900.to_wire(), "1152x900");
+    assert_eq!(
+        TargetScreenSize::from_wire("1280x1024"),
+        Some(TargetScreenSize::Resolution1280By1024)
+    );
+    assert_eq!(
+        TargetScreenSize::Resolution1280By1024.to_wire(),
+        "1280x1024"
+    );
+    assert_eq!(
+        TargetScreenSize::from_wire("1600x1200"),
+        Some(TargetScreenSize::Resolution1600By1200)
+    );
+    assert_eq!(
+        TargetScreenSize::Resolution1600By1200.to_wire(),
+        "1600x1200"
+    );
+    assert_eq!(
+        TargetScreenSize::from_wire("1800x1440"),
+        Some(TargetScreenSize::Resolution1800By1440)
+    );
+    assert_eq!(
+        TargetScreenSize::Resolution1800By1440.to_wire(),
+        "1800x1440"
+    );
+    assert_eq!(
+        TargetScreenSize::from_wire("1920x1200"),
+        Some(TargetScreenSize::Resolution1920By1200)
+    );
+    assert_eq!(
+        TargetScreenSize::Resolution1920By1200.to_wire(),
+        "1920x1200"
+    );
+}
+
+/// `ST_DynamicFilterType` (sml.xsd) → `spreadsheetml::DynamicFilterType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_dynamic_filter_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::DynamicFilterType;
+    assert_eq!(
+        DynamicFilterType::from_wire("Q1"),
+        Some(DynamicFilterType::FirstQuarter)
+    );
+    assert_eq!(DynamicFilterType::FirstQuarter.to_wire(), "Q1");
+    assert_eq!(
+        DynamicFilterType::from_wire("Q2"),
+        Some(DynamicFilterType::SecondQuarter)
+    );
+    assert_eq!(DynamicFilterType::SecondQuarter.to_wire(), "Q2");
+    assert_eq!(
+        DynamicFilterType::from_wire("Q3"),
+        Some(DynamicFilterType::ThirdQuarter)
+    );
+    assert_eq!(DynamicFilterType::ThirdQuarter.to_wire(), "Q3");
+    assert_eq!(
+        DynamicFilterType::from_wire("Q4"),
+        Some(DynamicFilterType::FourthQuarter)
+    );
+    assert_eq!(DynamicFilterType::FourthQuarter.to_wire(), "Q4");
+    assert_eq!(
+        DynamicFilterType::from_wire("M1"),
+        Some(DynamicFilterType::January)
+    );
+    assert_eq!(DynamicFilterType::January.to_wire(), "M1");
+    assert_eq!(
+        DynamicFilterType::from_wire("M2"),
+        Some(DynamicFilterType::February)
+    );
+    assert_eq!(DynamicFilterType::February.to_wire(), "M2");
+    assert_eq!(
+        DynamicFilterType::from_wire("M3"),
+        Some(DynamicFilterType::March)
+    );
+    assert_eq!(DynamicFilterType::March.to_wire(), "M3");
+    assert_eq!(
+        DynamicFilterType::from_wire("M4"),
+        Some(DynamicFilterType::April)
+    );
+    assert_eq!(DynamicFilterType::April.to_wire(), "M4");
+    assert_eq!(
+        DynamicFilterType::from_wire("M5"),
+        Some(DynamicFilterType::May)
+    );
+    assert_eq!(DynamicFilterType::May.to_wire(), "M5");
+    assert_eq!(
+        DynamicFilterType::from_wire("M6"),
+        Some(DynamicFilterType::June)
+    );
+    assert_eq!(DynamicFilterType::June.to_wire(), "M6");
+    assert_eq!(
+        DynamicFilterType::from_wire("M7"),
+        Some(DynamicFilterType::July)
+    );
+    assert_eq!(DynamicFilterType::July.to_wire(), "M7");
+    assert_eq!(
+        DynamicFilterType::from_wire("M8"),
+        Some(DynamicFilterType::August)
+    );
+    assert_eq!(DynamicFilterType::August.to_wire(), "M8");
+    assert_eq!(
+        DynamicFilterType::from_wire("M9"),
+        Some(DynamicFilterType::September)
+    );
+    assert_eq!(DynamicFilterType::September.to_wire(), "M9");
+    assert_eq!(
+        DynamicFilterType::from_wire("M10"),
+        Some(DynamicFilterType::October)
+    );
+    assert_eq!(DynamicFilterType::October.to_wire(), "M10");
+    assert_eq!(
+        DynamicFilterType::from_wire("M11"),
+        Some(DynamicFilterType::November)
+    );
+    assert_eq!(DynamicFilterType::November.to_wire(), "M11");
+    assert_eq!(
+        DynamicFilterType::from_wire("M12"),
+        Some(DynamicFilterType::December)
+    );
+    assert_eq!(DynamicFilterType::December.to_wire(), "M12");
+}
+
+/// `ST_PivotFilterType` (sml.xsd) → `spreadsheetml::PivotFilterType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_pivot_filter_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::PivotFilterType;
+    assert_eq!(
+        PivotFilterType::from_wire("Q1"),
+        Some(PivotFilterType::FirstQuarter)
+    );
+    assert_eq!(PivotFilterType::FirstQuarter.to_wire(), "Q1");
+    assert_eq!(
+        PivotFilterType::from_wire("Q2"),
+        Some(PivotFilterType::SecondQuarter)
+    );
+    assert_eq!(PivotFilterType::SecondQuarter.to_wire(), "Q2");
+    assert_eq!(
+        PivotFilterType::from_wire("Q3"),
+        Some(PivotFilterType::ThirdQuarter)
+    );
+    assert_eq!(PivotFilterType::ThirdQuarter.to_wire(), "Q3");
+    assert_eq!(
+        PivotFilterType::from_wire("Q4"),
+        Some(PivotFilterType::FourthQuarter)
+    );
+    assert_eq!(PivotFilterType::FourthQuarter.to_wire(), "Q4");
+    assert_eq!(
+        PivotFilterType::from_wire("M1"),
+        Some(PivotFilterType::January)
+    );
+    assert_eq!(PivotFilterType::January.to_wire(), "M1");
+    assert_eq!(
+        PivotFilterType::from_wire("M2"),
+        Some(PivotFilterType::February)
+    );
+    assert_eq!(PivotFilterType::February.to_wire(), "M2");
+    assert_eq!(
+        PivotFilterType::from_wire("M3"),
+        Some(PivotFilterType::March)
+    );
+    assert_eq!(PivotFilterType::March.to_wire(), "M3");
+    assert_eq!(
+        PivotFilterType::from_wire("M4"),
+        Some(PivotFilterType::April)
+    );
+    assert_eq!(PivotFilterType::April.to_wire(), "M4");
+    assert_eq!(PivotFilterType::from_wire("M5"), Some(PivotFilterType::May));
+    assert_eq!(PivotFilterType::May.to_wire(), "M5");
+    assert_eq!(
+        PivotFilterType::from_wire("M6"),
+        Some(PivotFilterType::June)
+    );
+    assert_eq!(PivotFilterType::June.to_wire(), "M6");
+    assert_eq!(
+        PivotFilterType::from_wire("M7"),
+        Some(PivotFilterType::July)
+    );
+    assert_eq!(PivotFilterType::July.to_wire(), "M7");
+    assert_eq!(
+        PivotFilterType::from_wire("M8"),
+        Some(PivotFilterType::August)
+    );
+    assert_eq!(PivotFilterType::August.to_wire(), "M8");
+    assert_eq!(
+        PivotFilterType::from_wire("M9"),
+        Some(PivotFilterType::September)
+    );
+    assert_eq!(PivotFilterType::September.to_wire(), "M9");
+    assert_eq!(
+        PivotFilterType::from_wire("M10"),
+        Some(PivotFilterType::October)
+    );
+    assert_eq!(PivotFilterType::October.to_wire(), "M10");
+    assert_eq!(
+        PivotFilterType::from_wire("M11"),
+        Some(PivotFilterType::November)
+    );
+    assert_eq!(PivotFilterType::November.to_wire(), "M11");
+    assert_eq!(
+        PivotFilterType::from_wire("M12"),
+        Some(PivotFilterType::December)
+    );
+    assert_eq!(PivotFilterType::December.to_wire(), "M12");
+}
+
+/// `ST_ExternalConnectionType` (sml.xsd) → `spreadsheetml::TextFieldDataType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_text_field_data_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::TextFieldDataType;
+    assert_eq!(
+        TextFieldDataType::from_wire("MDY"),
+        Some(TextFieldDataType::MonthDayYear)
+    );
+    assert_eq!(TextFieldDataType::MonthDayYear.to_wire(), "MDY");
+    assert_eq!(
+        TextFieldDataType::from_wire("DMY"),
+        Some(TextFieldDataType::DayMonthYear)
+    );
+    assert_eq!(TextFieldDataType::DayMonthYear.to_wire(), "DMY");
+    assert_eq!(
+        TextFieldDataType::from_wire("YMD"),
+        Some(TextFieldDataType::YearMonthDay)
+    );
+    assert_eq!(TextFieldDataType::YearMonthDay.to_wire(), "YMD");
+    assert_eq!(
+        TextFieldDataType::from_wire("MYD"),
+        Some(TextFieldDataType::MonthYearDay)
+    );
+    assert_eq!(TextFieldDataType::MonthYearDay.to_wire(), "MYD");
+    assert_eq!(
+        TextFieldDataType::from_wire("DYM"),
+        Some(TextFieldDataType::DayYearMonth)
+    );
+    assert_eq!(TextFieldDataType::DayYearMonth.to_wire(), "DYM");
+    assert_eq!(
+        TextFieldDataType::from_wire("YDM"),
+        Some(TextFieldDataType::YearDayMonth)
+    );
+    assert_eq!(TextFieldDataType::YearDayMonth.to_wire(), "YDM");
+    assert_eq!(
+        TextFieldDataType::from_wire("EMD"),
+        Some(TextFieldDataType::EastAsianYearMonthDay)
+    );
+    assert_eq!(TextFieldDataType::EastAsianYearMonthDay.to_wire(), "EMD");
+}
+
+/// `ST_DvAspect` (sml.xsd) → `spreadsheetml::DataViewAspect`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_data_view_aspect_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::DataViewAspect;
+    assert_eq!(
+        DataViewAspect::from_wire("DVASPECT_CONTENT"),
+        Some(DataViewAspect::Content)
+    );
+    assert_eq!(DataViewAspect::Content.to_wire(), "DVASPECT_CONTENT");
+    assert_eq!(
+        DataViewAspect::from_wire("DVASPECT_ICON"),
+        Some(DataViewAspect::Icon)
+    );
+    assert_eq!(DataViewAspect::Icon.to_wire(), "DVASPECT_ICON");
+}
+
+/// `ST_OleUpdate` (sml.xsd) → `spreadsheetml::OleUpdateType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_ole_update_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::OleUpdateType;
+    assert_eq!(
+        OleUpdateType::from_wire("OLEUPDATE_ALWAYS"),
+        Some(OleUpdateType::Always)
+    );
+    assert_eq!(OleUpdateType::Always.to_wire(), "OLEUPDATE_ALWAYS");
+    assert_eq!(
+        OleUpdateType::from_wire("OLEUPDATE_ONCALL"),
+        Some(OleUpdateType::OnCall)
+    );
+    assert_eq!(OleUpdateType::OnCall.to_wire(), "OLEUPDATE_ONCALL");
+}
+
+/// `ST_Axis` (sml.xsd) → `spreadsheetml::PivotTableAxis`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_pivot_table_axis_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::PivotTableAxis;
+    assert_eq!(
+        PivotTableAxis::from_wire("axisRow"),
+        Some(PivotTableAxis::Row)
+    );
+    assert_eq!(PivotTableAxis::Row.to_wire(), "axisRow");
+    assert_eq!(
+        PivotTableAxis::from_wire("axisCol"),
+        Some(PivotTableAxis::Column)
+    );
+    assert_eq!(PivotTableAxis::Column.to_wire(), "axisCol");
+    assert_eq!(
+        PivotTableAxis::from_wire("axisPage"),
+        Some(PivotTableAxis::Page)
+    );
+    assert_eq!(PivotTableAxis::Page.to_wire(), "axisPage");
+    assert_eq!(
+        PivotTableAxis::from_wire("axisValues"),
+        Some(PivotTableAxis::Values)
+    );
+    assert_eq!(PivotTableAxis::Values.to_wire(), "axisValues");
+}
+
+/// `ST_ItemType` (sml.xsd) → `spreadsheetml::PivotItemType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_pivot_item_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::PivotItemType;
+    assert_eq!(
+        PivotItemType::from_wire("countA"),
+        Some(PivotItemType::CountNonEmpty)
+    );
+    assert_eq!(PivotItemType::CountNonEmpty.to_wire(), "countA");
+    assert_eq!(
+        PivotItemType::from_wire("stdDev"),
+        Some(PivotItemType::StandardDeviation)
+    );
+    assert_eq!(PivotItemType::StandardDeviation.to_wire(), "stdDev");
+    assert_eq!(
+        PivotItemType::from_wire("stdDevP"),
+        Some(PivotItemType::PopulationStandardDeviation)
+    );
+    assert_eq!(
+        PivotItemType::PopulationStandardDeviation.to_wire(),
+        "stdDevP"
+    );
+    assert_eq!(
+        PivotItemType::from_wire("var"),
+        Some(PivotItemType::Variance)
+    );
+    assert_eq!(PivotItemType::Variance.to_wire(), "var");
+    assert_eq!(
+        PivotItemType::from_wire("varP"),
+        Some(PivotItemType::PopulationVariance)
+    );
+    assert_eq!(PivotItemType::PopulationVariance.to_wire(), "varP");
+    assert_eq!(
+        PivotItemType::from_wire("grand"),
+        Some(PivotItemType::GrandTotal)
+    );
+    assert_eq!(PivotItemType::GrandTotal.to_wire(), "grand");
+}
+
+/// `ST_DataConsolidateFunction` (sml.xsd) → `spreadsheetml::DataConsolidateFunction`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_data_consolidate_function_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::DataConsolidateFunction;
+    assert_eq!(
+        DataConsolidateFunction::from_wire("count"),
+        Some(DataConsolidateFunction::CountNonEmpty)
+    );
+    assert_eq!(DataConsolidateFunction::CountNonEmpty.to_wire(), "count");
+    assert_eq!(
+        DataConsolidateFunction::from_wire("countNums"),
+        Some(DataConsolidateFunction::CountNumbers)
+    );
+    assert_eq!(DataConsolidateFunction::CountNumbers.to_wire(), "countNums");
+    assert_eq!(
+        DataConsolidateFunction::from_wire("stdDev"),
+        Some(DataConsolidateFunction::SampleStandardDeviation)
+    );
+    assert_eq!(
+        DataConsolidateFunction::SampleStandardDeviation.to_wire(),
+        "stdDev"
+    );
+    assert_eq!(
+        DataConsolidateFunction::from_wire("stdDevp"),
+        Some(DataConsolidateFunction::PopulationStandardDeviation)
+    );
+    assert_eq!(
+        DataConsolidateFunction::PopulationStandardDeviation.to_wire(),
+        "stdDevp"
+    );
+    assert_eq!(
+        DataConsolidateFunction::from_wire("var"),
+        Some(DataConsolidateFunction::SampleVariance)
+    );
+    assert_eq!(DataConsolidateFunction::SampleVariance.to_wire(), "var");
+    assert_eq!(
+        DataConsolidateFunction::from_wire("varp"),
+        Some(DataConsolidateFunction::PopulationVariance)
+    );
+    assert_eq!(
+        DataConsolidateFunction::PopulationVariance.to_wire(),
+        "varp"
+    );
+}
+
+/// `ST_TotalsRowFunction` (sml.xsd) → `spreadsheetml::TotalsRowFunction`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_totals_row_function_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::TotalsRowFunction;
+    assert_eq!(
+        TotalsRowFunction::from_wire("count"),
+        Some(TotalsRowFunction::CountNonEmpty)
+    );
+    assert_eq!(TotalsRowFunction::CountNonEmpty.to_wire(), "count");
+    assert_eq!(
+        TotalsRowFunction::from_wire("countNums"),
+        Some(TotalsRowFunction::CountNumbers)
+    );
+    assert_eq!(TotalsRowFunction::CountNumbers.to_wire(), "countNums");
+    assert_eq!(
+        TotalsRowFunction::from_wire("stdDev"),
+        Some(TotalsRowFunction::EstimatedStandardDeviation)
+    );
+    assert_eq!(
+        TotalsRowFunction::EstimatedStandardDeviation.to_wire(),
+        "stdDev"
+    );
+    assert_eq!(
+        TotalsRowFunction::from_wire("var"),
+        Some(TotalsRowFunction::EstimatedVariance)
+    );
+    assert_eq!(TotalsRowFunction::EstimatedVariance.to_wire(), "var");
+    assert_eq!(
+        TotalsRowFunction::from_wire("custom"),
+        Some(TotalsRowFunction::CustomFormula)
+    );
+    assert_eq!(TotalsRowFunction::CustomFormula.to_wire(), "custom");
+}
+
+/// `ST_Comments` (sml.xsd) → `spreadsheetml::CommentDisplay`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_comment_display_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::CommentDisplay;
+    assert_eq!(
+        CommentDisplay::from_wire("commNone"),
+        Some(CommentDisplay::NoComments)
+    );
+    assert_eq!(CommentDisplay::NoComments.to_wire(), "commNone");
+    assert_eq!(
+        CommentDisplay::from_wire("commIndicator"),
+        Some(CommentDisplay::IndicatorOnly)
+    );
+    assert_eq!(CommentDisplay::IndicatorOnly.to_wire(), "commIndicator");
+    assert_eq!(
+        CommentDisplay::from_wire("commIndAndComment"),
+        Some(CommentDisplay::IndicatorAndComment)
+    );
+    assert_eq!(
+        CommentDisplay::IndicatorAndComment.to_wire(),
+        "commIndAndComment"
+    );
+}
+
+/// `ST_PatternType` (sml.xsd) → `spreadsheetml::PatternType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_pattern_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::PatternType;
+    assert_eq!(
+        PatternType::from_wire("gray125"),
+        Some(PatternType::Gray12Point5Percent)
+    );
+    assert_eq!(PatternType::Gray12Point5Percent.to_wire(), "gray125");
+    assert_eq!(
+        PatternType::from_wire("gray0625"),
+        Some(PatternType::Gray6Point25Percent)
+    );
+    assert_eq!(PatternType::Gray6Point25Percent.to_wire(), "gray0625");
+}
+
+/// `ST_CfvoType` (sml.xsd) → `spreadsheetml::ConditionalFormatValueObjectType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_conditional_format_value_object_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::ConditionalFormatValueObjectType;
+    assert_eq!(
+        ConditionalFormatValueObjectType::from_wire("num"),
+        Some(ConditionalFormatValueObjectType::Number)
+    );
+    assert_eq!(ConditionalFormatValueObjectType::Number.to_wire(), "num");
+}
+
+/// `ST_PrintError` (sml.xsd) → `spreadsheetml::PrintError`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_print_error_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::PrintError;
+    assert_eq!(PrintError::from_wire("NA"), Some(PrintError::NotAvailable));
+    assert_eq!(PrintError::NotAvailable.to_wire(), "NA");
+}
+
+/// `ST_DataValidationImeMode` (sml.xsd) → `spreadsheetml::DataValidationImeMode`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_data_validation_ime_mode_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::DataValidationImeMode;
+    assert_eq!(
+        DataValidationImeMode::from_wire("fullKatakana"),
+        Some(DataValidationImeMode::FullWidthKatakana)
+    );
+    assert_eq!(
+        DataValidationImeMode::FullWidthKatakana.to_wire(),
+        "fullKatakana"
+    );
+    assert_eq!(
+        DataValidationImeMode::from_wire("halfKatakana"),
+        Some(DataValidationImeMode::HalfWidthKatakana)
+    );
+    assert_eq!(
+        DataValidationImeMode::HalfWidthKatakana.to_wire(),
+        "halfKatakana"
+    );
+    assert_eq!(
+        DataValidationImeMode::from_wire("fullAlpha"),
+        Some(DataValidationImeMode::FullWidthAlphanumeric)
+    );
+    assert_eq!(
+        DataValidationImeMode::FullWidthAlphanumeric.to_wire(),
+        "fullAlpha"
+    );
+    assert_eq!(
+        DataValidationImeMode::from_wire("halfAlpha"),
+        Some(DataValidationImeMode::HalfWidthAlphanumeric)
+    );
+    assert_eq!(
+        DataValidationImeMode::HalfWidthAlphanumeric.to_wire(),
+        "halfAlpha"
+    );
+    assert_eq!(
+        DataValidationImeMode::from_wire("fullHangul"),
+        Some(DataValidationImeMode::FullWidthHangul)
+    );
+    assert_eq!(
+        DataValidationImeMode::FullWidthHangul.to_wire(),
+        "fullHangul"
+    );
+    assert_eq!(
+        DataValidationImeMode::from_wire("halfHangul"),
+        Some(DataValidationImeMode::HalfWidthHangul)
+    );
+    assert_eq!(
+        DataValidationImeMode::HalfWidthHangul.to_wire(),
+        "halfHangul"
+    );
+}
+
+/// `ST_DataValidationType` (sml.xsd) → `spreadsheetml::DataValidationType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_data_validation_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::DataValidationType;
+    assert_eq!(
+        DataValidationType::from_wire("whole"),
+        Some(DataValidationType::WholeNumber)
+    );
+    assert_eq!(DataValidationType::WholeNumber.to_wire(), "whole");
+}
+
+/// `ST_ShowDataAs` (sml.xsd) → `spreadsheetml::ShowDataAs`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_show_data_as_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::ShowDataAs;
+    assert_eq!(
+        ShowDataAs::from_wire("percentDiff"),
+        Some(ShowDataAs::PercentageDifference)
+    );
+    assert_eq!(ShowDataAs::PercentageDifference.to_wire(), "percentDiff");
+    assert_eq!(
+        ShowDataAs::from_wire("runTotal"),
+        Some(ShowDataAs::RunningTotal)
+    );
+    assert_eq!(ShowDataAs::RunningTotal.to_wire(), "runTotal");
+}
+
+/// `ST_Scope` (sml.xsd) → `spreadsheetml::ConditionalFormattingScope`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_conditional_formatting_scope_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::ConditionalFormattingScope;
+    assert_eq!(
+        ConditionalFormattingScope::from_wire("data"),
+        Some(ConditionalFormattingScope::DataFields)
+    );
+    assert_eq!(ConditionalFormattingScope::DataFields.to_wire(), "data");
+    assert_eq!(
+        ConditionalFormattingScope::from_wire("field"),
+        Some(ConditionalFormattingScope::FieldIntersections)
+    );
+    assert_eq!(
+        ConditionalFormattingScope::FieldIntersections.to_wire(),
+        "field"
+    );
+}
+
+/// `ST_FileType` (sml.xsd) → `spreadsheetml::FileType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_file_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::FileType;
+    assert_eq!(FileType::from_wire("mac"), Some(FileType::Macintosh));
+    assert_eq!(FileType::Macintosh.to_wire(), "mac");
+    assert_eq!(FileType::from_wire("win"), Some(FileType::Windows));
+    assert_eq!(FileType::Windows.to_wire(), "win");
+    assert_eq!(FileType::from_wire("lin"), Some(FileType::Linux));
+    assert_eq!(FileType::Linux.to_wire(), "lin");
+}
+
+/// `ST_HtmlFmt` (sml.xsd) → `spreadsheetml::HtmlFormattingHandling`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_html_formatting_handling_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::HtmlFormattingHandling;
+    assert_eq!(
+        HtmlFormattingHandling::from_wire("rtf"),
+        Some(HtmlFormattingHandling::RichText)
+    );
+    assert_eq!(HtmlFormattingHandling::RichText.to_wire(), "rtf");
+}
+
+/// `ST_ParameterType` (sml.xsd) → `spreadsheetml::ParameterType`: every value whose Rust name is sourced
+/// from the ECMA-376 prose rather than mechanically derived from its token.
+#[test]
+fn spreadsheetml_parameter_type_overridden_tokens_round_trip() {
+    use mjx_ooxml_types::spreadsheetml::ParameterType;
+    assert_eq!(
+        ParameterType::from_wire("prompt"),
+        Some(ParameterType::PromptOnRefresh)
+    );
+    assert_eq!(ParameterType::PromptOnRefresh.to_wire(), "prompt");
+}
+
+/// Every token of every enumeration in `sml.xsd` — all 559 enumeration values, in schema
+/// order. `sml.xsd` carries a 560th `xsd:enumeration`, the lone `255` inside the anonymous
+/// inline member of `ST_TextRotation`'s union; that one is a number, not a named variant.
+#[test]
+fn every_spreadsheetml_token_round_trips() {
+    use mjx_ooxml_types::spreadsheetml::*;
+    assert_every_token_round_trips_to_its_own_variant! {
+        FilterOperator => ["equal", "lessThan", "lessThanOrEqual", "notEqual", "greaterThanOrEqual", "greaterThan"],
+        DynamicFilterType => ["null", "aboveAverage", "belowAverage", "tomorrow", "today", "yesterday", "nextWeek", "thisWeek", "lastWeek", "nextMonth", "thisMonth", "lastMonth", "nextQuarter", "thisQuarter", "lastQuarter", "nextYear", "thisYear", "lastYear", "yearToDate", "Q1", "Q2", "Q3", "Q4", "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10", "M11", "M12"],
+        IconSetType => ["3Arrows", "3ArrowsGray", "3Flags", "3TrafficLights1", "3TrafficLights2", "3Signs", "3Symbols", "3Symbols2", "4Arrows", "4ArrowsGray", "4RedToBlack", "4Rating", "4TrafficLights", "5Arrows", "5ArrowsGray", "5Rating", "5Quarters"],
+        SortBy => ["value", "cellColor", "fontColor", "icon"],
+        SortMethod => ["stroke", "pinYin", "none"],
+        DateTimeGrouping => ["year", "month", "day", "hour", "minute", "second"],
+        CommentTextHorizontalAlignment => ["left", "center", "right", "justify", "distributed"],
+        CommentTextVerticalAlignment => ["top", "center", "bottom", "justify", "distributed"],
+        CredentialsMethod => ["integrated", "none", "stored", "prompt"],
+        HtmlFormattingHandling => ["none", "rtf", "all"],
+        ParameterType => ["prompt", "value", "cell"],
+        FileType => ["mac", "win", "dos", "lin", "other"],
+        TextQualifier => ["doubleQuote", "singleQuote", "none"],
+        TextFieldDataType => ["general", "text", "MDY", "DMY", "YMD", "MYD", "DYM", "YDM", "skip", "EMD"],
+        PivotCacheSourceType => ["worksheet", "external", "consolidation", "scenario"],
+        GroupBy => ["range", "seconds", "minutes", "hours", "days", "months", "quarters", "years"],
+        SortType => ["none", "ascending", "descending", "ascendingAlpha", "descendingAlpha", "ascendingNatural", "descendingNatural"],
+        ConditionalFormattingScope => ["selection", "data", "field"],
+        TopNEvaluationType => ["none", "all", "row", "column"],
+        ShowDataAs => ["normal", "difference", "percent", "percentDiff", "runTotal", "percentOfRow", "percentOfCol", "percentOfTotal", "index"],
+        PivotItemType => ["data", "default", "sum", "countA", "avg", "max", "min", "product", "count", "stdDev", "stdDevP", "var", "varP", "grand", "blank"],
+        PivotTableFormatAction => ["blank", "formatting", "drill", "formula"],
+        FieldSortType => ["manual", "ascending", "descending"],
+        PivotFilterType => ["unknown", "count", "percent", "sum", "captionEqual", "captionNotEqual", "captionBeginsWith", "captionNotBeginsWith", "captionEndsWith", "captionNotEndsWith", "captionContains", "captionNotContains", "captionGreaterThan", "captionGreaterThanOrEqual", "captionLessThan", "captionLessThanOrEqual", "captionBetween", "captionNotBetween", "valueEqual", "valueNotEqual", "valueGreaterThan", "valueGreaterThanOrEqual", "valueLessThan", "valueLessThanOrEqual", "valueBetween", "valueNotBetween", "dateEqual", "dateNotEqual", "dateOlderThan", "dateOlderThanOrEqual", "dateNewerThan", "dateNewerThanOrEqual", "dateBetween", "dateNotBetween", "tomorrow", "today", "yesterday", "nextWeek", "thisWeek", "lastWeek", "nextMonth", "thisMonth", "lastMonth", "nextQuarter", "thisQuarter", "lastQuarter", "nextYear", "thisYear", "lastYear", "yearToDate", "Q1", "Q2", "Q3", "Q4", "M1", "M2", "M3", "M4", "M5", "M6", "M7", "M8", "M9", "M10", "M11", "M12"],
+        PivotAreaType => ["none", "normal", "data", "all", "origin", "button", "topEnd", "topRight"],
+        PivotTableAxis => ["axisRow", "axisCol", "axisPage", "axisValues"],
+        GrowShrinkType => ["insertDelete", "insertClear", "overwriteClear"],
+        PhoneticType => ["halfwidthKatakana", "fullwidthKatakana", "Hiragana", "noConversion"],
+        PhoneticAlignment => ["noControl", "left", "center", "distributed"],
+        RowColumnActionType => ["insertRow", "deleteRow", "insertCol", "deleteCol"],
+        RevisionAction => ["add", "delete"],
+        FormulaExpression => ["ref", "refError", "area", "areaError", "computedArea"],
+        CellType => ["b", "n", "e", "s", "str", "inlineStr"],
+        CellFormulaType => ["normal", "array", "dataTable", "shared"],
+        Pane => ["bottomRight", "topRight", "bottomLeft", "topLeft"],
+        SheetViewType => ["normal", "pageBreakPreview", "pageLayout"],
+        DataConsolidateFunction => ["average", "count", "countNums", "max", "min", "product", "stdDev", "stdDevp", "sum", "var", "varp"],
+        DataValidationType => ["none", "whole", "decimal", "list", "date", "time", "textLength", "custom"],
+        DataValidationOperator => ["between", "notBetween", "equal", "notEqual", "lessThan", "lessThanOrEqual", "greaterThan", "greaterThanOrEqual"],
+        DataValidationErrorStyle => ["stop", "warning", "information"],
+        DataValidationImeMode => ["noControl", "off", "on", "disabled", "hiragana", "fullKatakana", "halfKatakana", "fullAlpha", "halfAlpha", "fullHangul", "halfHangul"],
+        ConditionalFormatType => ["expression", "cellIs", "colorScale", "dataBar", "iconSet", "top10", "uniqueValues", "duplicateValues", "containsText", "notContainsText", "beginsWith", "endsWith", "containsBlanks", "notContainsBlanks", "containsErrors", "notContainsErrors", "timePeriod", "aboveAverage"],
+        TimePeriod => ["today", "yesterday", "tomorrow", "last7Days", "thisMonth", "lastMonth", "nextMonth", "thisWeek", "lastWeek", "nextWeek"],
+        ConditionalFormattingOperator => ["lessThan", "lessThanOrEqual", "equal", "notEqual", "greaterThanOrEqual", "greaterThan", "between", "notBetween", "containsText", "notContains", "beginsWith", "endsWith"],
+        ConditionalFormatValueObjectType => ["num", "percent", "max", "min", "formula", "percentile"],
+        PageOrder => ["downThenOver", "overThenDown"],
+        PrintOrientation => ["default", "portrait", "landscape"],
+        CellComments => ["none", "asDisplayed", "atEnd"],
+        PrintError => ["displayed", "blank", "dash", "NA"],
+        DataViewAspect => ["DVASPECT_CONTENT", "DVASPECT_ICON"],
+        OleUpdateType => ["OLEUPDATE_ALWAYS", "OLEUPDATE_ONCALL"],
+        WebSourceType => ["sheet", "printArea", "autoFilter", "range", "chart", "pivotTable", "query", "label"],
+        PaneState => ["split", "frozen", "frozenSplit"],
+        MdxFunctionType => ["m", "v", "s", "c", "r", "p", "k"],
+        MdxSetOrder => ["u", "a", "d", "aa", "ad", "na", "nd"],
+        MdxKeyPerformanceIndicatorProperty => ["v", "g", "s", "t", "w", "m"],
+        BorderStyle => ["none", "thin", "medium", "dashed", "dotted", "thick", "double", "hair", "mediumDashed", "dashDot", "mediumDashDot", "dashDotDot", "mediumDashDotDot", "slantDashDot"],
+        PatternType => ["none", "solid", "mediumGray", "darkGray", "lightGray", "darkHorizontal", "darkVertical", "darkDown", "darkUp", "darkGrid", "darkTrellis", "lightHorizontal", "lightVertical", "lightDown", "lightUp", "lightGrid", "lightTrellis", "gray125", "gray0625"],
+        GradientType => ["linear", "path"],
+        HorizontalAlignment => ["general", "left", "center", "right", "fill", "justify", "centerContinuous", "distributed"],
+        VerticalAlignment => ["top", "center", "bottom", "justify", "distributed"],
+        TableStyleType => ["wholeTable", "headerRow", "totalRow", "firstColumn", "lastColumn", "firstRowStripe", "secondRowStripe", "firstColumnStripe", "secondColumnStripe", "firstHeaderCell", "lastHeaderCell", "firstTotalCell", "lastTotalCell", "firstSubtotalColumn", "secondSubtotalColumn", "thirdSubtotalColumn", "firstSubtotalRow", "secondSubtotalRow", "thirdSubtotalRow", "blankRow", "firstColumnSubheading", "secondColumnSubheading", "thirdColumnSubheading", "firstRowSubheading", "secondRowSubheading", "thirdRowSubheading", "pageFieldLabels", "pageFieldValues"],
+        FontScheme => ["none", "major", "minor"],
+        UnderlineType => ["single", "double", "singleAccounting", "doubleAccounting", "none"],
+        DynamicDataExchangeValueType => ["nil", "b", "n", "e", "str"],
+        TableType => ["worksheet", "xml", "queryTable"],
+        TotalsRowFunction => ["none", "sum", "min", "max", "average", "count", "countNums", "stdDev", "var", "custom"],
+        VolatileDependencyType => ["realTimeData", "olapFunctions"],
+        VolatileDependencyValueType => ["b", "n", "e", "s"],
+        Visibility => ["visible", "hidden", "veryHidden"],
+        CommentDisplay => ["commNone", "commIndicator", "commIndAndComment"],
+        ObjectDisplay => ["all", "placeholders", "none"],
+        SheetState => ["visible", "hidden", "veryHidden"],
+        UpdateLinksBehavior => ["userSet", "never", "always"],
+        SmartTagDisplay => ["all", "none", "noIndicator"],
+        CalculationMode => ["manual", "auto", "autoNoTable"],
+        ReferenceMode => ["A1", "R1C1"],
+        TargetScreenSize => ["544x376", "640x480", "720x512", "800x600", "1024x768", "1152x882", "1152x900", "1280x1024", "1600x1200", "1800x1440", "1920x1200"],
+    };
+}
+
+/// `ST_FontFamily` is declared by **both** `wml.xsd` and `sml.xsd`, and they are not the same kind
+/// of thing: Word's is an enumeration of family *names*, Excel's a numeric family *code* (§18.18.94
+/// — 0 not applicable, 1 Roman … 5 Decorative, 6–14 reserved). Word's was generated and committed
+/// first, and it does not move: the per-schema naming engines keep the two apart, so
+/// `wordprocessingml::FontFamily` still spells every one of its own tokens.
+#[test]
+fn the_two_font_families_are_different_kinds_of_type_in_different_modules() {
+    use mjx_ooxml_types::spreadsheetml::FontFamilyNumber;
+    use mjx_ooxml_types::wordprocessingml::FontFamily;
+
+    // Word's, untouched by the arrival of Excel's.
+    assert_eq!(FontFamily::from_wire("swiss"), Some(FontFamily::Swiss));
+    assert_eq!(FontFamily::Swiss.to_wire(), "swiss");
+    assert_eq!(FontFamily::Decorative.to_wire(), "decorative");
+    // Excel's is a number, so it has no tokens at all — a `String` newtype here would have been a
+    // silent modelling defect.
+    let swiss: FontFamilyNumber = 2;
+    let decorative: FontFamilyNumber = 5;
+    assert_eq!(swiss + decorative, 7);
+}
+
+/// The other symbol `sml.xsd` shares with a sibling schema is `ST_Orientation`, which `dml-chart`
+/// also declares. It reaches no committed name, because `dml-chart` contributes a child-order table
+/// only and none of its simple types has ever been emitted. The name that *is* committed and could
+/// have been disturbed is `presentationml::Orientation`, generated from `pml.xsd`'s `ST_Direction`;
+/// Excel's page orientation is `PrintOrientation`, and neither accepts the other's tokens.
+#[test]
+fn excels_page_orientation_does_not_disturb_the_committed_orientation() {
+    use mjx_ooxml_types::presentationml::Orientation;
+    use mjx_ooxml_types::spreadsheetml::PrintOrientation;
+
+    assert_eq!(
+        Orientation::from_wire("horz"),
+        Some(Orientation::Horizontal)
+    );
+    assert_eq!(Orientation::Horizontal.to_wire(), "horz");
+    assert_eq!(Orientation::from_wire("landscape"), None);
+
+    assert_eq!(
+        PrintOrientation::from_wire("landscape"),
+        Some(PrintOrientation::Landscape)
+    );
+    assert_eq!(PrintOrientation::Landscape.to_wire(), "landscape");
+    assert_eq!(PrintOrientation::from_wire("horz"), None);
+}
+
+/// `sml.xsd`'s numeric types stay numbers. `ST_TextRotation` is the one type in the whole emitted
+/// corpus whose `xsd:union` members are **anonymous inline** simple types rather than a
+/// `memberTypes` list; both restrict `xsd:nonNegativeInteger` (0–180 degrees, plus 255), so the
+/// union is that number. The six style-table identifiers are `xsd:unsignedInt` indices.
+#[test]
+fn spreadsheetml_measures_and_identifiers_are_numbers_not_strings() {
+    use mjx_ooxml_types::spreadsheetml::{
+        BorderId, CellStyleFormatId, DifferentialFormatId, FillId, FontId, NumberFormatId,
+        TextRotation,
+    };
+
+    let upright: TextRotation = 0;
+    let stacked: TextRotation = 255;
+    assert_eq!(stacked - upright, 255);
+
+    let number_format: NumberFormatId = 164;
+    let font: FontId = 1;
+    let fill: FillId = 2;
+    let border: BorderId = 3;
+    let cell_style: CellStyleFormatId = 4;
+    let differential: DifferentialFormatId = 5;
+    assert_eq!(
+        number_format + font + fill + border + cell_style + differential,
+        179
+    );
+}
+
+/// The reference types are strings and stay verbatim: a formula or an `A1:B2` range is preserved
+/// exactly as the document spelled it, never normalized.
+#[test]
+fn spreadsheetml_references_are_preserved_verbatim() {
+    use mjx_ooxml_types::spreadsheetml::{
+        CellRangeReference, CellReference, Formula, ReferenceSequence, SingleCellReference,
+    };
+
+    assert_eq!(CellReference::from_wire("B7").to_wire(), "B7");
+    assert_eq!(CellRangeReference::from_wire("A1:B2").to_wire(), "A1:B2");
+    assert_eq!(SingleCellReference::from_wire("$C$3").to_wire(), "$C$3");
+    assert_eq!(
+        ReferenceSequence::from_wire("A1:B2 D4:E5").to_wire(),
+        "A1:B2 D4:E5"
+    );
+    assert_eq!(Formula::from_wire("SUM(A1:A9)").to_wire(), "SUM(A1:A9)");
 }
