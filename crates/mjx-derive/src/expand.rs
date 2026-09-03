@@ -113,7 +113,7 @@ fn container_to_xml(container: &Container) -> TokenStream {
                     }
                 }
                 let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement::new(
+                ::mjx_ooxml_core::RawElement::rebuilt(
                     self.name,
                     ::core::clone::Clone::clone(&self.attributes),
                     children,
@@ -186,7 +186,7 @@ fn text_to_xml(leaf: &TextLeaf) -> TokenStream {
                     ));
                 }
                 let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement::new(
+                ::mjx_ooxml_core::RawElement::rebuilt(
                     self.name,
                     ::core::clone::Clone::clone(&self.attributes),
                     children,
@@ -205,37 +205,69 @@ fn text_to_xml(leaf: &TextLeaf) -> TokenStream {
 /// prefix and quote character of one it has — survive a round-trip untouched.
 pub(crate) fn xml_attributes_impl(model: &AttributeModel) -> TokenStream {
     let self_ty = &model.self_ty;
-    let (impl_generics, type_generics, where_clause) = model.generics.split_for_impl();
-    let accessors = model
-        .attributes
-        .iter()
-        .map(|spec| accessor_pair(model, spec));
+    let attributes_ty = &model.attributes_ty;
+
+    // Two blocks, not one: reading needs only to see the attributes, writing needs to reach them.
+    // Splitting the bound is what lets a single declaration serve a type that owns its attribute
+    // vector *and* a view that borrows one — the read-only view simply has no setters, because the
+    // bound that would give it any is not satisfied, rather than because a second grammar exists.
+    let mut read_generics = model.generics.clone();
+    read_generics
+        .make_where_clause()
+        .predicates
+        .push(syn::parse_quote!(
+            #attributes_ty: ::core::convert::AsRef<[::mjx_ooxml_core::RawAttribute]>
+        ));
+    let (read_impl, read_ty, read_where) = read_generics.split_for_impl();
+
+    let mut write_generics = model.generics.clone();
+    write_generics
+        .make_where_clause()
+        .predicates
+        .push(syn::parse_quote!(
+            #attributes_ty:
+                ::core::convert::AsMut<::std::vec::Vec<::mjx_ooxml_core::RawAttribute>>
+        ));
+    let (write_impl, write_ty, write_where) = write_generics.split_for_impl();
+
+    let getters = model.attributes.iter().map(|spec| getter(model, spec));
+    let setters = model.attributes.iter().map(|spec| setter(model, spec));
 
     quote! {
-        impl #impl_generics #self_ty #type_generics #where_clause {
-            #(#accessors)*
+        impl #read_impl #self_ty #read_ty #read_where {
+            #(#getters)*
+        }
+
+        impl #write_impl #self_ty #write_ty #write_where {
+            #(#setters)*
         }
     }
 }
 
-/// The getter/setter pair for one declared attribute.
-fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
+/// The literal prefix (or `None`) a declared attribute is matched and written by.
+fn prefix_expr(spec: &AttributeSpec) -> TokenStream {
+    match &spec.prefix {
+        Some(prefix) => quote!(::core::option::Option::Some(#prefix)),
+        None => quote!(::core::option::Option::None),
+    }
+}
+
+/// The getter for one declared attribute.
+///
+/// One call to [`mjx_xml::attribute::read`], which is the workspace's only implementation of "wire
+/// attribute to typed value"; everything generated here is what to make of the `Option` it returns,
+/// which is exactly what the three presences disagree about.
+fn getter(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
     let vis = &model.vis;
     let codec = &spec.codec;
     let getter = &spec.getter;
-    let setter = &spec.setter;
     let local = &spec.local;
     let qualified = spec.qualified.as_str();
-    let prefix = match &spec.prefix {
-        Some(prefix) => quote!(::core::option::Option::Some(#prefix)),
-        None => quote!(::core::option::Option::None),
-    };
+    let prefix = prefix_expr(spec);
 
-    // The three presences differ in exactly two places: what the getter returns when the attribute
-    // is absent, and whether the value is wrapped in an `Option`.
     let (value_ty, present, absent, getter_doc) = match &spec.presence {
         Presence::Required => (
-            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'a>),
+            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'attribute>),
             quote!(::core::result::Result::Ok(value)),
             quote!(::core::result::Result::Err(
                 ::mjx_ooxml_core::AttributeError::Missing { attribute: #qualified }
@@ -252,7 +284,7 @@ fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
             ),
         ),
         Presence::Optional => (
-            quote!(::core::option::Option<<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'a>>),
+            quote!(::core::option::Option<<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'attribute>>),
             quote!(::core::result::Result::Ok(::core::option::Option::Some(value))),
             quote!(::core::result::Result::Ok(::core::option::Option::None)),
             format!(
@@ -265,7 +297,7 @@ fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
             ),
         ),
         Presence::Defaulted(default) => (
-            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'a>),
+            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'attribute>),
             quote!(::core::result::Result::Ok(value)),
             quote!(::core::result::Result::Ok(#default)),
             format!(
@@ -281,15 +313,45 @@ fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
         ),
     };
 
-    let (input_ty, write, setter_doc) = match &spec.presence {
+    quote! {
+        #[doc = #getter_doc]
+        // A declared attribute is a statement about the schema, not about this crate's call sites:
+        // an accessor nothing happens to call is the model being complete, not code being dead.
+        #[allow(dead_code)]
+        #vis fn #getter<'attribute>(
+            &'attribute self,
+            interner: &::mjx_ooxml_core::Interner,
+        ) -> ::core::result::Result<#value_ty, ::mjx_ooxml_core::AttributeError> {
+            let attributes = ::core::convert::AsRef::<[::mjx_ooxml_core::RawAttribute]>::as_ref(
+                &self.attributes,
+            );
+            match ::mjx_xml::attribute::read::<#codec>(
+                attributes, interner, #prefix, #local, #qualified,
+            )? {
+                ::core::option::Option::Some(value) => #present,
+                ::core::option::Option::None => #absent,
+            }
+        }
+    }
+}
+
+/// The setter for one declared attribute.
+///
+/// One call to [`mjx_xml::attribute::write`], the workspace's only implementation of "typed value to
+/// wire attribute". A required attribute's setter takes the value itself and a settable-or-not one
+/// takes an `Option`, where `None` removes the attribute — the single difference between them.
+fn setter(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
+    let vis = &model.vis;
+    let codec = &spec.codec;
+    let setter = &spec.setter;
+    let local = &spec.local;
+    let qualified = spec.qualified.as_str();
+    let prefix = prefix_expr(spec);
+
+    let (input_ty, argument, setter_doc) = match &spec.presence {
         Presence::Required => (
             quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Input<'_>),
-            quote! {
-                let encoded = <#codec as ::mjx_ooxml_core::AttributeCodec>::encode(value);
-                ::mjx_xml::attribute::set(
-                    &mut self.attributes, interner, #prefix, #local, &encoded,
-                );
-            },
+            quote!(::core::option::Option::Some(value)),
             format!(
                 "Writes the required `@{qualified}` attribute, in the one canonical spelling this \
                  kind of value has.\n\n\
@@ -301,21 +363,7 @@ fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
         ),
         Presence::Optional | Presence::Defaulted(_) => (
             quote!(::core::option::Option<<#codec as ::mjx_ooxml_core::AttributeCodec>::Input<'_>>),
-            quote! {
-                match value {
-                    ::core::option::Option::Some(value) => {
-                        let encoded = <#codec as ::mjx_ooxml_core::AttributeCodec>::encode(value);
-                        ::mjx_xml::attribute::set(
-                            &mut self.attributes, interner, #prefix, #local, &encoded,
-                        );
-                    }
-                    ::core::option::Option::None => {
-                        ::mjx_xml::attribute::remove(
-                            &mut self.attributes, interner, #prefix, #local,
-                        );
-                    }
-                }
-            },
+            quote!(value),
             format!(
                 "Writes the `@{qualified}` attribute, in the one canonical spelling this kind of \
                  value has, or removes it entirely when given `None`.\n\n\
@@ -328,31 +376,19 @@ fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
     };
 
     quote! {
-        #[doc = #getter_doc]
-        #vis fn #getter<'a>(
-            &'a self,
-            interner: &::mjx_ooxml_core::Interner,
-        ) -> ::core::result::Result<#value_ty, ::mjx_ooxml_core::AttributeError> {
-            match ::mjx_xml::attribute::find(&self.attributes, interner, #prefix, #local) {
-                ::core::option::Option::Some(attribute) => {
-                    let raw = ::mjx_xml::attribute::decoded_value(attribute, #qualified)?;
-                    let value = <#codec as ::mjx_ooxml_core::AttributeCodec>::decode(raw)
-                        .map_err(|invalid| {
-                            ::mjx_ooxml_core::InvalidAttributeValue::into_error(invalid, #qualified)
-                        })?;
-                    #present
-                }
-                ::core::option::Option::None => #absent,
-            }
-        }
-
         #[doc = #setter_doc]
+        #[allow(dead_code)]
         #vis fn #setter(
             &mut self,
             interner: &mut ::mjx_ooxml_core::Interner,
             value: #input_ty,
         ) {
-            #write
+            let attributes = ::core::convert::AsMut::<
+                ::std::vec::Vec<::mjx_ooxml_core::RawAttribute>,
+            >::as_mut(&mut self.attributes);
+            ::mjx_xml::attribute::write::<#codec>(
+                attributes, interner, #prefix, #local, #argument,
+            );
         }
     }
 }
