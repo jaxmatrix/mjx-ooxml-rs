@@ -457,6 +457,7 @@ dependencies = [
  "mjx-opc",
  "mjx-schema-gate",
  "mjx-xml",
+ "thiserror",
 ]
 
 [[package]]

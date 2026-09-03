@@ -90,7 +90,10 @@ pub fn run() -> Result<()> {
     //     allowlist: the whole schema is emitted, because a serializer can only be prevented from
     //     writing out of sequence if the type it is writing is in the table.
     let mut schemas = Vec::new();
-    for stem in CHILD_ORDER_SCHEMAS {
+    for stem in CHILD_ORDER_SCHEMAS
+        .iter()
+        .chain(CHILD_ORDER_SCHEMA_DEPENDENCIES)
+    {
         let path = transitional_dir.join(format!("{stem}.xsd"));
         let bytes = std::fs::read(&path).with_context(|| format!("reading {}", path.display()))?;
         schemas.push(complex::parse(&format!("{stem}.xsd"), &bytes)?);
@@ -257,7 +260,29 @@ fn generated_module_root() -> String {
 /// markup in. They are parsed together so cross-schema `xsd:group` and `xsd:element` references
 /// (PresentationML's use of DrawingML's fill and effect groups) resolve. A schema joins this list
 /// when a crate starts authoring its markup — WordprocessingML and SpreadsheetML with Phases C/D.
-const CHILD_ORDER_SCHEMAS: &[&str] = &["dml-main", "pml", "dml-chart", "dml-diagram"];
+const CHILD_ORDER_SCHEMAS: &[&str] = &["dml-main", "pml", "dml-chart", "dml-diagram", "wml"];
+
+/// Schemas parsed *only* to resolve a cross-schema `xsd:group`/`xsd:element` reference reached
+/// while flattening one of [`CHILD_ORDER_SCHEMAS`]'s own types — never given a table of their own
+/// here. An unresolved `xsd:group ref` is a hard error (see [`complex::SchemaSet::group`]), and so
+/// is a slot whose element lands in a namespace with no parsed schema at all (see
+/// `child_order::render_table`) — a schema that is merely *referenced*, never walked into, would
+/// silently need no entry here, but nothing upstream can tell the difference in advance, so every
+/// namespace `wml.xsd` reaches is listed:
+/// - `shared-math` — `CT_RunTrackChange` reaches `m:EG_OMathMathElements`, and several types
+///   reference `m:oMath`/`m:oMathPara`/`m:mathPr` by element `ref`.
+/// - `dml-wordprocessingDrawing` — `CT_Drawing` references `wp:anchor`/`wp:inline` by element `ref`.
+/// - `shared-customXmlSchemaProperties` — `CT_SchemaLibrary`'s reference references
+///   `sl:schemaLibrary` by element `ref`.
+///
+/// Adding a schema here does **not** generate its own child-order table or flip its `COVERAGE.md`
+/// status — that stays the decision of the child that starts authoring *its* markup, by adding it
+/// to `CHILD_ORDER_SCHEMAS` instead.
+const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] = &[
+    "shared-math",
+    "dml-wordprocessingDrawing",
+    "shared-customXmlSchemaProperties",
+];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
 ///
@@ -598,12 +623,10 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "not modelled — as for `vml-main`",
         "not modelled — as for `vml-main`",
     ),
-    (
-        "wml",
-        "",
-        "pending, owned by MJXOFF-90 — the Word crate spine is the child that starts placing `w:` \
-         children",
-    ),
+    // `wml`'s child-order note is unused now that CHILD_ORDER_SCHEMAS contains it (its column is
+    // computed directly, the same as `dml-main`'s row below) — kept accurate rather than stale, on
+    // the same convention that row already follows.
+    ("wml", "", "generated — every complex type"),
     ("dml-main", "", "generated — every complex type"),
     (
         "shared-commonSimpleTypes",
