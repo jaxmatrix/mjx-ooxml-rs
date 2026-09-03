@@ -225,25 +225,33 @@ fn tokenize(source: &[u8]) -> Result<ParsedParts, XmlError> {
                 let node = RawNode::Declaration(Box::from(e.as_ref()));
                 place(&mut stack, &mut prologue, &mut root, &mut epilogue, node)?;
             }
-            Event::DocType(e) => {
+            Event::DocType(_) => {
                 // quick-xml hands back the doctype's *content* with the whitespace after
                 // `<!DOCTYPE` already trimmed, so rebuilding `<!DOCTYPE` + content + `>` would eat a
                 // byte. Now that every event's range is known, take the inner bytes out of the
                 // source instead and the wrapper the writer adds is exact.
+                //
+                // That wrapper is a constant, so a doctype whose source spells the keyword any other
+                // way could not be reproduced — and quick-xml accepts `<!DoCTYPE`, which XML 1.0
+                // §2.8 does not. The fuzz campaign found exactly that input (MJXOFF-146): sixteen
+                // bytes in, fifteen out, with the case silently normalised too. The rule that closes
+                // it is the one this reader is built on — **accept only what can be reproduced** —
+                // so a doctype the writer could not re-emit verbatim is refused rather than mangled.
                 let verbatim = source
                     .get(start..end)
                     .and_then(|raw| raw.strip_prefix(&b"<!DOCTYPE"[..]))
-                    .and_then(|raw| raw.strip_suffix(&b">"[..]));
-                let inner: Box<[u8]> = match verbatim {
-                    Some(bytes) => Box::from(bytes),
-                    None => e.into_inner().into_owned().into_boxed_slice(),
-                };
+                    .and_then(|raw| raw.strip_suffix(&b">"[..]))
+                    .ok_or_else(|| {
+                        XmlError::Syntax(
+                            "a document type declaration must be spelled `<!DOCTYPE`".to_owned(),
+                        )
+                    })?;
                 place(
                     &mut stack,
                     &mut prologue,
                     &mut root,
                     &mut epilogue,
-                    RawNode::DocType(inner),
+                    RawNode::DocType(Box::from(verbatim)),
                 )?;
             }
             Event::Eof => break,
@@ -366,11 +374,42 @@ fn resolve_namespace(
     }
 }
 
+/// Bytes that cannot appear in an element or attribute name **and still be written back**.
+///
+/// Every one of them either ends a name or ends the tag around it, so a name containing one cannot
+/// be re-emitted: `<` + name + `>` would not reparse as the element it came from.
+///
+/// This is not the full XML `Name` production, and deliberately so — the Unicode tables buy nothing
+/// here. A name this rejects is one no reconstruction could reproduce; a name it accepts but XML
+/// would not (a leading digit, say) re-serializes exactly and round-trips, so it is preserved rather
+/// than refused. Fidelity is the tie-breaker in both directions.
+const CANNOT_APPEAR_IN_A_NAME: &[u8] = b"<>&\"'=/ \t\r\n";
+
 fn intern_qname(
     interner: &mut Interner,
     raw: &[u8],
     namespace: Option<Symbol>,
 ) -> Result<RawName, XmlError> {
+    // quick-xml scans an element name up to whitespace or `/`, so `<a="x" b="y">` yields the name
+    // `a="x"`. Untouched, that element serializes verbatim and nothing is wrong; *rewritten*, the
+    // writer emits the name between `<` and `>` and produces markup that will not parse. The fuzz
+    // campaign found it through the dirtied-root oracle (MJXOFF-146), which is the only arrangement
+    // in which it shows.
+    if raw.is_empty() {
+        return Err(XmlError::Syntax(
+            "an empty element or attribute name".to_owned(),
+        ));
+    }
+    if let Some(byte) = raw
+        .iter()
+        .find(|byte| CANNOT_APPEAR_IN_A_NAME.contains(byte))
+    {
+        return Err(XmlError::Syntax(format!(
+            "the name {:?} contains {:?}, which no reconstruction of it could reproduce",
+            String::from_utf8_lossy(raw),
+            char::from(*byte),
+        )));
+    }
     let text = std::str::from_utf8(raw)?;
     let (prefix, local) = match text.split_once(':') {
         Some((p, l)) => (Some(interner.intern(p)), interner.intern(l)),
