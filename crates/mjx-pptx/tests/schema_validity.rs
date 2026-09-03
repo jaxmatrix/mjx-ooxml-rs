@@ -27,9 +27,9 @@ use mjx_ooxml_types::presentationml::SlideSizeKind;
 use mjx_pptx::{
     default_placeholder_ole, ActiveXControlSpec, ActiveXPersistence, AxisOrientation, CellFormat,
     CellMargins, Cells, ChartData, ChartKind, ChartLabelScope, DataLabelPosition, DataLabelSpec,
-    DiagramContent, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, Geometry,
-    Hyperlink, LegendPosition, OleObjectData, OleObjectSpec, Presentation, ShapeBounds, SlideSize,
-    Surface, TableStyleFormat, TrendlineKind, TrendlineSpec,
+    DiagramContent, DiagramPartKind, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType,
+    Geometry, Hyperlink, LegendPosition, OleObjectData, OleObjectSpec, Presentation, ShapeBounds,
+    SlideSize, Surface, TableStyleFormat, TrendlineKind, TrendlineSpec,
 };
 use mjx_schema_gate::{
     assert_authored_deck_is_schema_valid, assert_fixture_is_schema_valid, audit_deck_order,
@@ -1468,6 +1468,50 @@ fn the_diagram_parts_are_really_validated_and_not_skipped() {
         ],
         "all four diagram parts must be validated against dml-diagram.xsd"
     );
+}
+
+#[test]
+fn a_diagram_part_dml_diagram_xsd_rejects_is_caught_naming_the_diagram_schema() {
+    // The two tests above prove the diagram arm accepts what this library writes. Neither can
+    // distinguish a live `xmllint` check from an arm that always reports success — the arm named in
+    // MJXOFF-148's own "done when" clause. This one writes markup no writer here would ever
+    // produce (`dgm:pt` with no `modelId`, a required attribute per `dml-diagram.xsd`'s `CT_Pt`) and
+    // asserts the sweep reports it `Failed` against `dml-diagram.xsd`, not silently `Validated` or
+    // skipped.
+    let Some(harness) = harness() else { return };
+    let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
+    let shape = pres
+        .add_diagram(
+            0,
+            &DiagramContent::vertical_list(&["Plan"]),
+            ShapeBounds::from_inches(1.0, 1.0, 4.0, 3.0),
+        )
+        .expect("add diagram");
+
+    const MISSING_REQUIRED_MODEL_ID: &[u8] = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:ptLst><dgm:pt/></dgm:ptLst></dgm:dataModel>"#;
+    pres.set_diagram_part(0, shape, DiagramPartKind::Data, MISSING_REQUIRED_MODEL_ID.to_vec())
+        .expect("replace data part with invalid markup");
+    let saved = pres.save().expect("save");
+
+    let rows = inspect_deck(&harness, "diagram with an invalid data part", &saved, &[]);
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/ppt/diagrams/data1.xml")
+        .expect("the data part is in the sweep");
+    match &row.outcome {
+        PartOutcome::Failed { schema, report } => {
+            assert_eq!(*schema, "dml-diagram.xsd", "wrong schema named: {report}");
+            assert!(
+                report.contains("modelId"),
+                "the report should name the missing required attribute: {report}"
+            );
+        }
+        other => panic!(
+            "a `dgm:pt` with no `modelId` must fail dml-diagram.xsd, not report {}",
+            other.describe()
+        ),
+    }
 }
 
 #[test]
