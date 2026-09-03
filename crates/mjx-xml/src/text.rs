@@ -18,6 +18,8 @@
 
 use std::borrow::Cow;
 
+use mjx_ooxml_core::QuoteStyle;
+
 use crate::XmlError;
 
 /// Escapes XML text content, escaping only `<` and `&` (the minimum XML requires between tags).
@@ -48,15 +50,50 @@ pub fn escape_text(raw: &str) -> Cow<'_, str> {
 /// ```
 #[must_use]
 pub fn escape_attribute(raw: &str) -> Cow<'_, str> {
-    if !raw.bytes().any(|b| matches!(b, b'&' | b'<' | b'"')) {
+    escape_attribute_in(raw, QuoteStyle::Double)
+}
+
+/// Escapes a string for use inside an XML attribute value written with `quote`, escaping `&`, `<`,
+/// and **that quote character only** (`"` \u{2192} `&quot;`, `'` \u{2192} `&apos;`). The other quote
+/// character is left literal, as a parser requires no more.
+///
+/// This is the escaper a *setter* over a retained attribute vector needs: rewriting an attribute in
+/// place keeps the quote character the file used, so the value has to be escaped for that quote
+/// rather than for the one this library would have chosen. [`escape_attribute`] is this function at
+/// [`QuoteStyle::Double`].
+///
+/// Returns a borrowed [`Cow`] when nothing needed escaping.
+///
+/// # Example
+/// ```
+/// use mjx_ooxml_core::QuoteStyle;
+/// use mjx_xml::text::escape_attribute_in;
+///
+/// // Single-quoted: the apostrophe is escaped and the double quote is not.
+/// assert_eq!(escape_attribute_in(r#"it's a "quote""#, QuoteStyle::Single), r#"it&apos;s a "quote""#);
+/// // Double-quoted: exactly the other way round.
+/// assert_eq!(escape_attribute_in(r#"it's a "quote""#, QuoteStyle::Double), "it's a &quot;quote&quot;");
+/// ```
+#[must_use]
+pub fn escape_attribute_in(raw: &str, quote: QuoteStyle) -> Cow<'_, str> {
+    let quote_byte = quote.byte();
+    if !raw
+        .bytes()
+        .any(|b| matches!(b, b'&' | b'<') || b == quote_byte)
+    {
         return Cow::Borrowed(raw);
     }
+    let quote_escape = match quote {
+        QuoteStyle::Double => "&quot;",
+        QuoteStyle::Single => "&apos;",
+    };
+    let quote_char = char::from(quote_byte);
     let mut out = String::with_capacity(raw.len() + 8);
     for ch in raw.chars() {
         match ch {
             '&' => out.push_str("&amp;"),
             '<' => out.push_str("&lt;"),
-            '"' => out.push_str("&quot;"),
+            _ if ch == quote_char => out.push_str(quote_escape),
             other => out.push(other),
         }
     }
@@ -95,6 +132,26 @@ mod tests {
     #[test]
     fn escape_borrows_when_unchanged() {
         assert!(matches!(escape_text("Hello OOXML"), Cow::Borrowed(_)));
+    }
+
+    #[test]
+    fn escape_attribute_in_single_quotes_escapes_the_apostrophe_instead() {
+        // The two quote styles escape different characters, and each leaves the other literal.
+        assert_eq!(
+            escape_attribute_in(r#"a&b'c"d"#, QuoteStyle::Single),
+            r#"a&amp;b&apos;c"d"#
+        );
+        assert_eq!(
+            escape_attribute_in(r#"a&b'c"d"#, QuoteStyle::Double),
+            "a&amp;b'c&quot;d"
+        );
+        // Nothing to escape under either style borrows.
+        for quote in [QuoteStyle::Single, QuoteStyle::Double] {
+            assert!(matches!(
+                escape_attribute_in("rect", quote),
+                Cow::Borrowed(_)
+            ));
+        }
     }
 
     #[test]

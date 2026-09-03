@@ -8,7 +8,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::parse::{Container, TextLeaf, XmlType};
+use crate::parse::{AttributeModel, AttributeSpec, Container, Presence, TextLeaf, XmlType};
 
 /// Generates the `FromXml` impl.
 pub(crate) fn from_xml_impl(model: &XmlType) -> TokenStream {
@@ -193,6 +193,166 @@ fn text_to_xml(leaf: &TextLeaf) -> TokenStream {
                     empty,
                 )
             }
+        }
+    }
+}
+
+/// Generates the typed attribute accessors: one getter and one setter per declared attribute, as
+/// inherent methods over the type's retained `attributes` vector.
+///
+/// Nothing here builds an attribute list. A getter borrows the vector; a setter reaches exactly one
+/// element of it. That is what makes an attribute the model has never heard of — and the position,
+/// prefix and quote character of one it has — survive a round-trip untouched.
+pub(crate) fn xml_attributes_impl(model: &AttributeModel) -> TokenStream {
+    let self_ty = &model.self_ty;
+    let (impl_generics, type_generics, where_clause) = model.generics.split_for_impl();
+    let accessors = model
+        .attributes
+        .iter()
+        .map(|spec| accessor_pair(model, spec));
+
+    quote! {
+        impl #impl_generics #self_ty #type_generics #where_clause {
+            #(#accessors)*
+        }
+    }
+}
+
+/// The getter/setter pair for one declared attribute.
+fn accessor_pair(model: &AttributeModel, spec: &AttributeSpec) -> TokenStream {
+    let vis = &model.vis;
+    let codec = &spec.codec;
+    let getter = &spec.getter;
+    let setter = &spec.setter;
+    let local = &spec.local;
+    let qualified = spec.qualified.as_str();
+    let prefix = match &spec.prefix {
+        Some(prefix) => quote!(::core::option::Option::Some(#prefix)),
+        None => quote!(::core::option::Option::None),
+    };
+
+    // The three presences differ in exactly two places: what the getter returns when the attribute
+    // is absent, and whether the value is wrapped in an `Option`.
+    let (value_ty, present, absent, getter_doc) = match &spec.presence {
+        Presence::Required => (
+            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'a>),
+            quote!(::core::result::Result::Ok(value)),
+            quote!(::core::result::Result::Err(
+                ::mjx_ooxml_core::AttributeError::Missing { attribute: #qualified }
+            )),
+            format!(
+                "Reads the required `@{qualified}` attribute.\n\n\
+                 The value is decoded from the bytes in the file and **not** normalized: an \
+                 attribute nobody assigns to keeps its own spelling, quote character and position.\n\n\
+                 # Errors\n\
+                 [`AttributeError::Missing`](::mjx_ooxml_core::AttributeError::Missing) if the \
+                 attribute is absent — a required attribute has no default, and substituting one \
+                 would assert something the file does not say — or another \
+                 [`AttributeError`](::mjx_ooxml_core::AttributeError) if its value is malformed."
+            ),
+        ),
+        Presence::Optional => (
+            quote!(::core::option::Option<<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'a>>),
+            quote!(::core::result::Result::Ok(::core::option::Option::Some(value))),
+            quote!(::core::result::Result::Ok(::core::option::Option::None)),
+            format!(
+                "Reads the optional `@{qualified}` attribute, or `None` when it is absent.\n\n\
+                 The value is decoded from the bytes in the file and **not** normalized: an \
+                 attribute nobody assigns to keeps its own spelling, quote character and position.\n\n\
+                 # Errors\n\
+                 An [`AttributeError`](::mjx_ooxml_core::AttributeError) if the attribute is present \
+                 but its value is malformed."
+            ),
+        ),
+        Presence::Defaulted(default) => (
+            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Value<'a>),
+            quote!(::core::result::Result::Ok(value)),
+            quote!(::core::result::Result::Ok(#default)),
+            format!(
+                "Reads the `@{qualified}` attribute, falling back to the schema default when it is \
+                 absent.\n\n\
+                 The value is decoded from the bytes in the file and **not** normalized: an \
+                 attribute nobody assigns to keeps its own spelling, quote character and position. \
+                 The default is returned, never written — an absent attribute stays absent.\n\n\
+                 # Errors\n\
+                 An [`AttributeError`](::mjx_ooxml_core::AttributeError) if the attribute is present \
+                 but its value is malformed."
+            ),
+        ),
+    };
+
+    let (input_ty, write, setter_doc) = match &spec.presence {
+        Presence::Required => (
+            quote!(<#codec as ::mjx_ooxml_core::AttributeCodec>::Input<'_>),
+            quote! {
+                let encoded = <#codec as ::mjx_ooxml_core::AttributeCodec>::encode(value);
+                ::mjx_xml::attribute::set(
+                    &mut self.attributes, interner, #prefix, #local, &encoded,
+                );
+            },
+            format!(
+                "Writes the required `@{qualified}` attribute, in the one canonical spelling this \
+                 kind of value has.\n\n\
+                 An attribute already present is rewritten **where it is**, keeping its position \
+                 among its siblings and the quote character the file used; a new one is appended, \
+                 double-quoted. Every other attribute — including any this type does not model — is \
+                 left exactly as it was."
+            ),
+        ),
+        Presence::Optional | Presence::Defaulted(_) => (
+            quote!(::core::option::Option<<#codec as ::mjx_ooxml_core::AttributeCodec>::Input<'_>>),
+            quote! {
+                match value {
+                    ::core::option::Option::Some(value) => {
+                        let encoded = <#codec as ::mjx_ooxml_core::AttributeCodec>::encode(value);
+                        ::mjx_xml::attribute::set(
+                            &mut self.attributes, interner, #prefix, #local, &encoded,
+                        );
+                    }
+                    ::core::option::Option::None => {
+                        ::mjx_xml::attribute::remove(
+                            &mut self.attributes, interner, #prefix, #local,
+                        );
+                    }
+                }
+            },
+            format!(
+                "Writes the `@{qualified}` attribute, in the one canonical spelling this kind of \
+                 value has, or removes it entirely when given `None`.\n\n\
+                 An attribute already present is rewritten **where it is**, keeping its position \
+                 among its siblings and the quote character the file used; a new one is appended, \
+                 double-quoted. Every other attribute — including any this type does not model — is \
+                 left exactly as it was."
+            ),
+        ),
+    };
+
+    quote! {
+        #[doc = #getter_doc]
+        #vis fn #getter<'a>(
+            &'a self,
+            interner: &::mjx_ooxml_core::Interner,
+        ) -> ::core::result::Result<#value_ty, ::mjx_ooxml_core::AttributeError> {
+            match ::mjx_xml::attribute::find(&self.attributes, interner, #prefix, #local) {
+                ::core::option::Option::Some(attribute) => {
+                    let raw = ::mjx_xml::attribute::decoded_value(attribute, #qualified)?;
+                    let value = <#codec as ::mjx_ooxml_core::AttributeCodec>::decode(raw)
+                        .map_err(|invalid| {
+                            ::mjx_ooxml_core::InvalidAttributeValue::into_error(invalid, #qualified)
+                        })?;
+                    #present
+                }
+                ::core::option::Option::None => #absent,
+            }
+        }
+
+        #[doc = #setter_doc]
+        #vis fn #setter(
+            &mut self,
+            interner: &mut ::mjx_ooxml_core::Interner,
+            value: #input_ty,
+        ) {
+            #write
         }
     }
 }

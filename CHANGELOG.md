@@ -49,6 +49,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.71] - 2026-09-03
+
+An attribute grammar for `mjx-derive` — accessors over the retained attribute vector, not a lifting
+form (MJXOFF-140).
+
+`mjx-derive` modeled elements, children and text; **attributes it did not model at all.** Every typed
+type in the workspace reached into its own `Vec<RawAttribute>` and parsed the value by hand.
+DrawingML survived that because Phase A grew it a tier at a time, but `wml.xsd` has 110 simple types
+and `sml.xsd` 96, both far more attribute-dense than `pml`, and hand-parsing each one across two new
+format crates is where the `ST_OnOff` spellings would quietly go wrong.
+
+Nothing shipped changes. No emitted byte moves; this release adds a way to declare what a hand-written
+accessor already does, and the additions are new items beside the existing ones.
+
+### `#[derive(XmlAttributes)]`
+
+A third derive, independent of `FromXml` / `ToXml` and composing with them, with a hand-written pair
+of impls, or with neither. It asks only for the retained `attributes: Vec<RawAttribute>` field and
+generates **one getter and one setter per declared attribute** over that vector:
+
+```rust
+#[derive(FromXml, ToXml, XmlAttributes)]
+#[xml(attribute(local = "val", codec = HexColorRgb, accessor = color, required))]
+#[xml(attribute(local = "rtlCol", codec = OnOff, default = false))]
+#[xml(attribute(local = "cap", codec = Enumeration<LineCap>, accessor = line_cap))]
+#[xml(attribute(local = "embed", prefix = "r", codec = Text, accessor = image_relationship))]
+struct SolidColor { /* .. */ }
+```
+
+`local` and `codec` are required; `prefix` matches and writes a prefixed attribute; `accessor` names
+the Rust method (the default is the wire name in snake case, which the naming convention will usually
+want overriding); `required` makes an absent attribute a typed error and `default` gives it a schema
+default. Writing neither makes it optional — the third case, whose getter returns `Option`.
+
+**The accessor form is the point.** A grammar that lifted attributes into struct fields would make
+the writer *reconstruct* the attribute list, and reconstruction is how unknown attributes, their
+order, their prefixes and their quote characters get lost. Nothing in the generated code builds an
+attribute list: a getter borrows the vector, a setter reaches exactly one element of it.
+
+### Read never normalizes; a write does
+
+A getter takes `&self`, so it cannot change the file: `rtlCol='on'` that nobody assigned to still
+writes `on`, single-quoted, in the position it was read from, and `val='50%'` stays `50%`. The one
+canonical form is written only by a setter — `set_rtl_col(true)` writes `true` — which rewrites the
+attribute **in place**, keeping its position and the quote character the file used, and escaping the
+new value for *that* quote. An attribute that was not there is appended, double-quoted.
+
+A grammar that canonicalized on read would rewrite every file it opened, and would do it invisibly,
+because our reader and our writer would agree with each other.
+
+### The codecs
+
+`mjx_ooxml_core::AttributeCodec` is the wire ⇄ Rust conversion for one *kind* of value — a type-level
+tag, never constructed. `mjx-ooxml-core` ships the XML-generic ones (`Text`, `Enumeration<T>`, which
+covers every generated `ST_*` enumeration because they all spell themselves with `FromStr` +
+`Display`); `mjx-ooxml-types` ships the OOXML-specific ones (`OnOff`, `TrueFalse`, `TrueFalseBlank`,
+`HexColorRgb`), consuming the `support` normalizers rather than re-deriving them. A crate that owns a
+measure type owns its codec, in about fifteen lines — which is how `mjx-dml` will carry `Emu` and
+`Fraction` across the seam.
+
+A malformed value is `AttributeError`, never a panic: these are attacker-controlled files.
+
+### Also
+
+`mjx_xml::attribute` — `find`, `decoded_value`, `set`, `remove`: the four in-place operations a typed
+accessor is made of, usable by hand. `mjx_xml::text::escape_attribute_in` escapes for a given quote
+character (`'` → `&apos;`), which is what lets a setter keep a single-quoted attribute single-quoted
+without being able to emit `attr='it's'`. `FromXmlError` gains an `Attribute` variant.
+
 ## [0.0.70] - 2026-09-03
 
 The gates reach Word and Excel — before a line of `wml` or `sml` model code exists (MJXOFF-110).
