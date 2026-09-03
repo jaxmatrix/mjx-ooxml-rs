@@ -49,6 +49,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.74] - 2026-09-03
+
+A typed model's round trip no longer re-flows the part it came from (MJXOFF-143).
+
+0.0.64 gave every parsed element the byte range it came from, so a serializer copies untouched
+subtrees rather than rebuilding them. It stopped at the typed layer, and that left one limitation in
+`fidelity_and_gaps.md`: **a model is a view**, so a `from_xml` / `to_xml` pass rebuilds every element
+it looked at — including the ones nothing changed — and `*slot = value.to_xml(interner)` throws the
+range of each of them away. Three surfaces read a whole part that way (`edit_vml_drawing`,
+`edit_chart`, and the table-style list), and a dozen more read a single element that way. Editing one
+word of a chart title re-flowed the whole chart.
+
+Both halves of the loss were deliberate design rather than oversight, which is why this needed a
+decision rather than a patch. `RawElement`'s `Clone` drops the range because a range means nothing
+against another document's buffer, and cloning is how a subtree leaves the document that owns one.
+`RawElement::new` records none because a newly authored element has no original.
+
+### The design
+
+**`RawElement::replace_preserving_verbatim_source`**, and `ToXml::write_back` over it. Instead of
+assigning the rebuild over the original, the two are walked together in one pass, and a range is
+moved onto a rebuilt node **only where that node compares equal to the one it replaces**. Two facts
+discharge the burden of proof, and both are structural rather than remembered:
+
+- *The bytes still describe the element.* `RawElement`'s `PartialEq` compares name, self-closing
+  style, attributes in order with their quoting, and, recursively, children — precisely the
+  properties an element's markup determines. So "equal" **is** "these bytes spell this element".
+- *The buffer is the right one.* The range comes from the element being overwritten and lands on its
+  replacement at that same position, so the destination document is by construction the one that
+  measured it. A caller cannot pair an original from one document with a rebuild bound for another,
+  because the original *is* the destination.
+
+The three candidates it was chosen over: a `clone_within_document` on `RawElement` would give ranges
+back only to the markup a model does *not* understand — everything it does model is rebuilt after the
+clone, so a wrapped `v:shape` would still re-flow — and its soundness ("only while the clone stays in
+this document") is a convention no type can check. `FromXml` taking its element by value moves the
+content instead of cloning it, but breaks every implementor and every call site while giving the same
+partial answer, and the read-only surfaces (`with_chart`, `with_vml_drawing`) hold a shared reference
+and could not give ownership at all. A retained element plus a dirty flag reaches everything, but the
+flag must be cleared by every mutator in three crates, and one missed mutator writes the wrong bytes
+— the single failure mode this design exists to make impossible. Here there is no flag to forget:
+cleanliness is *computed*, against the element still sitting in the document.
+
+`mjx-xml`'s writer is unchanged and still checks every range before trusting it — it must fit, open
+with `<` plus the element's qualified name, and close the way `empty` says it closes — so a range
+that reached it wrongly degrades to a re-flow rather than to wrong bytes. `RawElement` does not grow:
+the eight-byte budget test is untouched.
+
+### What changed for callers
+
+- `ToXml` gains a **provided** method, `write_back`, so no implementor changes. Every whole-part and
+  sub-element edit surface in `mjx-pptx` now goes through it — 19 call sites.
+- `mjx_vml::DrawingPart` keeps the `RawDocument` it parsed instead of scattering its pieces, because
+  a standalone part has no document to write back into otherwise. It costs the parsed tree alongside
+  the typed model; a caller that already owns the part's `RawDocument` (through
+  `mjx_opc::Package::part_tree_mut`) should use `Drawing::from_xml` and `write_back` directly and pay
+  nothing.
+- The *Limitations* table in `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` is gone — it had one
+  row and this was it. The row is recorded under "What used to be here", so a reader can tell "gone"
+  from "quietly dropped".
+
+`crates/mjx-vml/tests/drawing.rs`'s `attributes_wrapped_across_lines_reflow_when_the_part_is_re_serialized`
+asserted the re-flow *happened* and instructed its reader to replace it with byte identity the moment
+it stopped. It has stopped. Every new case is written against a fixture whose start tags are wrapped
+across lines — `vmlDrawing1.vml`'s with CRLF — because a part that is already on one line
+reconstructs to its own bytes and would pass with the mechanism deleted.
+
+Tests 1,676 → 1,690 default and 1,690 → 1,705 with `--all-features`.
+
 ## [0.0.73] - 2026-09-03
 
 `mjx-dml`'s composite tiers on the attribute grammar — geometry, tables, text and the colour
