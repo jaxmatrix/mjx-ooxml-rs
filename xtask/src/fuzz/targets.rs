@@ -560,6 +560,10 @@ fn opc_error_label(error: &mjx_opc::OpcError) -> &'static str {
         E::ExternalTarget(_) => "external-target",
         E::TargetResolution(_) => "target-resolution",
         E::ControlPart(_) => "control-part",
+        // Never produced by any untrusted-input path this campaign drives: it is returned only by
+        // `mjx_opc::doc_props::DocumentTimestamp::new` for a caller-supplied out-of-range field, and
+        // no fuzz target here calls it.
+        E::InvalidDocumentTimestamp { .. } => "invalid-document-timestamp",
     }
 }
 

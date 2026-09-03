@@ -36,6 +36,7 @@
 //! ```
 
 mod content_types;
+pub mod doc_props;
 mod error;
 mod media;
 mod name;

@@ -43,6 +43,21 @@ pub enum OpcError {
     /// relationship helpers, so their parsed navigation views can never drift from the raw tree.
     #[error("control part cannot be edited as a generic part tree: {0}")]
     ControlPart(String),
+
+    /// A [`DocumentTimestamp`](crate::doc_props::DocumentTimestamp) field was outside its range —
+    /// e.g. a month of `13` — refused rather than emitting a `dcterms:created` / `dcterms:modified`
+    /// value no conforming consumer accepts.
+    #[error("document timestamp field `{field}` is {value}, outside its range {min}..={max}")]
+    InvalidDocumentTimestamp {
+        /// The field name (`"year"`, `"month"`, `"day"`, `"hour"`, `"minute"`, or `"second"`).
+        field: &'static str,
+        /// The out-of-range value supplied.
+        value: u32,
+        /// The smallest value the field accepts.
+        min: u32,
+        /// The largest value the field accepts.
+        max: u32,
+    },
 }
 
 impl OpcError {
