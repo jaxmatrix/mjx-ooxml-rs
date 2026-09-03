@@ -23,6 +23,21 @@
 //! Ranks are only *ordering* information when the type's own model is a sequence; a type whose model
 //! is `xsd:choice` or `xsd:all` imposes no order at all and is recorded as such rather than given a
 //! false one.
+//!
+//! # `xsd:complexContent` and `xsd:simpleContent`
+//!
+//! A type may declare its content model *by derivation* instead of directly: `xsd:complexContent`
+//! wraps an `xsd:extension` or `xsd:restriction` whose `base` names another complex type. Per
+//! [XSD 1.0 §3.4.6](https://www.w3.org/TR/xmlschema-1/#Complex_Type_Definitions), `extension`
+//! *appends* the derivation's own particle after the resolved base's; `restriction` *replaces* the
+//! base's particle outright with its own (a restriction always restates, alone, whatever subset of
+//! the base's model it keeps — the base's particle contributes nothing to a restriction's ranking).
+//! Both are folded into a plain [`Particle`] before ranking runs, in [`SchemaSet::resolve_derivation`]
+//! — walking and rank assignment never see a [`Particle::Derivation`] node.
+//!
+//! `xsd:simpleContent` extends or restricts a *simple* type (never a complex one): its content is
+//! the base simple type's character data, and XSD permits it to add attributes but never child
+//! elements. It therefore always contributes an empty particle — there is nothing to splice.
 
 use std::collections::BTreeMap;
 
@@ -52,6 +67,28 @@ pub enum Particle {
     Element(ElementParticle),
     /// `xsd:any` — a wildcard, which names nothing and is therefore not placeable.
     Wildcard,
+    /// `xsd:complexContent`'s `xsd:extension` or `xsd:restriction` — a particle derived from a
+    /// named base complex type. Resolved into a concrete [`Particle`] by
+    /// [`SchemaSet::resolve_derivation`] before ranking; never itself walked or ranked.
+    Derivation {
+        /// Whether the base's particle is appended before this type's own (`extension`) or
+        /// discarded in favour of it (`restriction`).
+        kind: DerivationKind,
+        /// The base type, as `(namespace, symbol)`.
+        base: (String, String),
+        /// The particle this type's own `extension`/`restriction` declares, when it declares
+        /// one (`None` for, e.g., an extension that adds only attributes).
+        own: Option<Box<Particle>>,
+    },
+}
+
+/// How a `complexContent` type derives its content model from its base type.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DerivationKind {
+    /// `xsd:extension` — the base's resolved particle is followed by this type's own.
+    Extension,
+    /// `xsd:restriction` — this type's own particle stands alone; the base's is discarded.
+    Restriction,
 }
 
 /// One element occurrence inside a content model.
@@ -218,19 +255,56 @@ fn content_particle(
             "sequence" | "choice" | "all" | "group" | "element" | "any" => {
                 return Ok(Some(particle(child, interner, schema, repeatable)?));
             }
-            // `complexContent` / `simpleContent` do not occur in the schemas this table covers; a
-            // future one must be handled deliberately rather than silently dropped.
-            "complexContent" | "simpleContent" => {
-                bail!(
-                    "{}: {} content is not supported by the child-order generator",
-                    schema.file,
-                    interner.resolve(child.name.local)
-                );
+            "complexContent" => {
+                return Ok(Some(complex_content_derivation(child, interner, schema)?));
             }
+            // simpleContent's content is the base *simple* type's character data — XSD permits
+            // adding attributes but never child elements, so it contributes no particle (see the
+            // module docs).
+            "simpleContent" => return Ok(None),
             _ => {}
         }
     }
     Ok(None)
+}
+
+/// Parses an `xsd:complexContent` element's single `xsd:extension`/`xsd:restriction` child into a
+/// [`Particle::Derivation`]. The derivation's own particle is found by recursing into
+/// [`content_particle`] on that `extension`/`restriction` element — it scans for the same
+/// `sequence`/`choice`/`all`/`group`/`element`/`any` children an `xsd:complexType` does, ignoring
+/// the `xsd:attribute` declarations an extension commonly adds alongside (or instead of) a particle.
+fn complex_content_derivation(
+    complex_content: &RawElement,
+    interner: &Interner,
+    schema: &Schema,
+) -> Result<Particle> {
+    for node in &complex_content.children {
+        let RawNode::Element(child) = node else {
+            continue;
+        };
+        if !is_xsd(child, interner) {
+            continue;
+        }
+        let kind = match interner.resolve(child.name.local) {
+            "extension" => DerivationKind::Extension,
+            "restriction" => DerivationKind::Restriction,
+            _ => continue,
+        };
+        let base_qname = attribute(child, interner, "base").with_context(|| {
+            format!("{}: complexContent extension/restriction with no base", schema.file)
+        })?;
+        let base = schema.resolve_qname(&base_qname)?;
+        let own = content_particle(child, interner, schema, false)?;
+        return Ok(Particle::Derivation {
+            kind,
+            base,
+            own: own.map(Box::new),
+        });
+    }
+    bail!(
+        "{}: complexContent with neither extension nor restriction",
+        schema.file
+    );
 }
 
 /// Converts one particle element into a [`Particle`].
@@ -435,6 +509,10 @@ impl SchemaSet {
                 let group = self.group(namespace, name)?;
                 self.model_of(group, seen)?
             }
+            Particle::Derivation { kind, base, own } => {
+                let resolved = self.resolve_derivation(*kind, base, own.as_deref(), seen)?;
+                self.model_of(&resolved, seen)?
+            }
         })
     }
 
@@ -442,6 +520,78 @@ impl SchemaSet {
         self.schema(namespace)
             .and_then(|s| s.groups.get(name))
             .with_context(|| format!("unresolved xsd:group `{name}` in `{namespace}`"))
+    }
+
+    /// A named complex type's own particle (`None` when it declares no child elements at all —
+    /// an attribute-only or empty type), looked up by `(namespace, symbol)` across the set.
+    fn complex_type(&self, namespace: &str, symbol: &str) -> Result<&Option<Particle>> {
+        let schema = self
+            .schema(namespace)
+            .with_context(|| format!("unresolved complex type base `{symbol}` in `{namespace}`"))?;
+        schema
+            .complex_types
+            .iter()
+            .find(|(name, _)| name == symbol)
+            .map(|(_, particle)| particle)
+            .with_context(|| format!("{}: unresolved complex type base `{symbol}`", schema.file))
+    }
+
+    /// Resolves one `complexContent` derivation into a concrete, `Derivation`-free particle.
+    ///
+    /// `extension` splices the base's own resolved particle *before* this type's own — recursing
+    /// through the base in case it is itself derived, so a multi-level extension chain (e.g.
+    /// `wml.xsd`'s `CT_MoveBookmark` → `CT_Bookmark` → `CT_BookmarkRange` → `CT_MarkupRange` →
+    /// `CT_Markup`) resolves to the full, correctly ordered chain rather than just its immediate
+    /// parent. `restriction` discards the base's particle outright: a restriction always restates,
+    /// alone, whatever subset of the base's model it keeps, so the base contributes nothing to a
+    /// restriction's ranking.
+    fn resolve_derivation(
+        &self,
+        kind: DerivationKind,
+        base: &(String, String),
+        own: Option<&Particle>,
+        seen: &mut Vec<String>,
+    ) -> Result<Particle> {
+        match kind {
+            DerivationKind::Restriction => Ok(match own {
+                Some(particle) => particle.clone(),
+                None => Particle::Sequence(Vec::new()),
+            }),
+            DerivationKind::Extension => {
+                let key = format!("extends#{}#{}", base.0, base.1);
+                if seen.contains(&key) {
+                    bail!("cyclic complexContent base reference at {key}");
+                }
+                seen.push(key);
+                let base_particle = self.complex_type(&base.0, &base.1)?;
+                let resolved_base = match base_particle {
+                    Some(particle) => Some(self.resolve(particle, seen)?),
+                    None => None,
+                };
+                seen.pop();
+                Ok(match (resolved_base, own) {
+                    (None, None) => Particle::Sequence(Vec::new()),
+                    (None, Some(particle)) => particle.clone(),
+                    (Some(resolved), None) => resolved,
+                    (Some(resolved), Some(particle)) => {
+                        Particle::Sequence(vec![resolved, particle.clone()])
+                    }
+                })
+            }
+        }
+    }
+
+    /// Resolves a particle to one with no [`Particle::Derivation`] anywhere at its top level —
+    /// every other variant is returned unchanged (a nested `Derivation` cannot occur: XSD does not
+    /// allow `complexContent`/`simpleContent` inside an `extension`/`restriction`, so
+    /// [`complex_content_derivation`]'s `own` particle is always `Derivation`-free already).
+    fn resolve(&self, particle: &Particle, seen: &mut Vec<String>) -> Result<Particle> {
+        match particle {
+            Particle::Derivation { kind, base, own } => {
+                self.resolve_derivation(*kind, base, own.as_deref(), seen)
+            }
+            other => Ok(other.clone()),
+        }
     }
 
     /// Walks a particle, assigning ranks (see the [module docs](self)).
@@ -495,6 +645,10 @@ impl SchemaSet {
                     highest = highest.max(*cursor);
                 }
                 *cursor = highest;
+            }
+            Particle::Derivation { kind, base, own } => {
+                let resolved = self.resolve_derivation(*kind, base, own.as_deref(), stack)?;
+                self.walk(&resolved, cursor, out, stack)?;
             }
         }
         Ok(())
@@ -706,6 +860,175 @@ mod tests {
         assert_eq!(
             slot.complex_type,
             Some((DML.to_owned(), "CT_GraphicalObject".to_owned()))
+        );
+    }
+
+    /// Finds one flattened type by symbol — the fixtures below declare several, and index-by-
+    /// declaration-order would silently start passing for the wrong type if the fixture were
+    /// reordered.
+    fn find<'a>(flat: &'a [FlatType], symbol: &str) -> &'a FlatType {
+        flat.iter()
+            .find(|f| f.symbol == symbol)
+            .unwrap_or_else(|| panic!("no flattened type named {symbol}"))
+    }
+
+    #[test]
+    fn extension_splices_the_whole_base_chain_before_the_derived_types_own_children() {
+        // Mirrors wml.xsd's shape: a multi-level `complexContent`/`extension` chain (there,
+        // CT_MoveBookmark -> CT_Bookmark -> CT_BookmarkRange -> CT_MarkupRange -> CT_Markup; here,
+        // CT_Derived -> CT_Mid -> CT_Root), where each level's own children must land *after*
+        // everything the level below it contributed — not merely after its immediate parent's.
+        let set = schema_set(&[(
+            "t.xsd",
+            &dml(
+                r#"<xsd:complexType name="CT_Root">
+                     <xsd:sequence>
+                       <xsd:element name="alpha" type="CT_Empty"/>
+                     </xsd:sequence>
+                   </xsd:complexType>
+                   <xsd:complexType name="CT_Mid">
+                     <xsd:complexContent>
+                       <xsd:extension base="CT_Root">
+                         <xsd:sequence>
+                           <xsd:element name="beta" type="CT_Empty"/>
+                         </xsd:sequence>
+                       </xsd:extension>
+                     </xsd:complexContent>
+                   </xsd:complexType>
+                   <xsd:complexType name="CT_Derived">
+                     <xsd:complexContent>
+                       <xsd:extension base="CT_Mid">
+                         <xsd:sequence>
+                           <xsd:element name="gamma" type="CT_Empty"/>
+                         </xsd:sequence>
+                       </xsd:extension>
+                     </xsd:complexContent>
+                   </xsd:complexType>"#,
+            ),
+        )]);
+        let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
+
+        let derived = find(&flat, "CT_Derived");
+        assert_eq!(derived.model, ContentModel::Sequence);
+        let ranks: Vec<_> = derived
+            .slots
+            .iter()
+            .map(|s| (s.local.as_str(), s.rank))
+            .collect();
+        assert_eq!(
+            ranks,
+            vec![("alpha", 0), ("beta", 1), ("gamma", 2)],
+            "the base chain's children must precede the derived type's own, oldest ancestor first"
+        );
+
+        // The intermediate level splices correctly too, independent of its own child.
+        let mid = find(&flat, "CT_Mid");
+        let mid_ranks: Vec<_> = mid.slots.iter().map(|s| (s.local.as_str(), s.rank)).collect();
+        assert_eq!(mid_ranks, vec![("alpha", 0), ("beta", 1)]);
+    }
+
+    #[test]
+    fn restriction_replaces_the_base_particle_instead_of_appending() {
+        let set = schema_set(&[(
+            "t.xsd",
+            &dml(
+                r#"<xsd:complexType name="CT_Base">
+                     <xsd:sequence>
+                       <xsd:element name="alpha" type="CT_Empty"/>
+                       <xsd:element name="beta" type="CT_Empty"/>
+                       <xsd:element name="gamma" type="CT_Empty"/>
+                     </xsd:sequence>
+                   </xsd:complexType>
+                   <xsd:complexType name="CT_Narrowed">
+                     <xsd:complexContent>
+                       <xsd:restriction base="CT_Base">
+                         <xsd:sequence>
+                           <xsd:element name="alpha" type="CT_Empty"/>
+                         </xsd:sequence>
+                       </xsd:restriction>
+                     </xsd:complexContent>
+                   </xsd:complexType>"#,
+            ),
+        )]);
+        let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
+        let narrowed = find(&flat, "CT_Narrowed");
+        let locals: Vec<_> = narrowed.slots.iter().map(|s| s.local.as_str()).collect();
+        assert_eq!(
+            locals,
+            vec!["alpha"],
+            "a restriction must stand alone, never append to the base's own children"
+        );
+    }
+
+    #[test]
+    fn extension_of_an_attribute_only_base_takes_its_own_model() {
+        let set = schema_set(&[(
+            "t.xsd",
+            &dml(
+                r#"<xsd:complexType name="CT_Base">
+                     <xsd:attribute name="id" type="xsd:string"/>
+                   </xsd:complexType>
+                   <xsd:complexType name="CT_Derived">
+                     <xsd:complexContent>
+                       <xsd:extension base="CT_Base">
+                         <xsd:choice>
+                           <xsd:element name="x" type="CT_Empty"/>
+                           <xsd:element name="y" type="CT_Empty"/>
+                         </xsd:choice>
+                       </xsd:extension>
+                     </xsd:complexContent>
+                   </xsd:complexType>"#,
+            ),
+        )]);
+        let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
+        let derived = find(&flat, "CT_Derived");
+        assert_eq!(derived.model, ContentModel::Choice);
+        assert!(derived.slots.iter().all(|s| s.rank == 0));
+    }
+
+    #[test]
+    fn simple_content_contributes_no_particle() {
+        let set = schema_set(&[(
+            "t.xsd",
+            &dml(
+                r#"<xsd:complexType name="CT_Text">
+                     <xsd:simpleContent>
+                       <xsd:extension base="xsd:string">
+                         <xsd:attribute name="space" type="xsd:string"/>
+                       </xsd:extension>
+                     </xsd:simpleContent>
+                   </xsd:complexType>"#,
+            ),
+        )]);
+        let flat = set.flatten_schema(&set.schemas()[0]).expect("flattens");
+        let text = find(&flat, "CT_Text");
+        assert_eq!(text.model, ContentModel::Empty);
+        assert!(text.slots.is_empty());
+    }
+
+    #[test]
+    fn a_cyclic_complex_content_base_reference_fails_loudly() {
+        let set = schema_set(&[(
+            "t.xsd",
+            &dml(
+                r#"<xsd:complexType name="CT_A">
+                     <xsd:complexContent>
+                       <xsd:extension base="CT_B"/>
+                     </xsd:complexContent>
+                   </xsd:complexType>
+                   <xsd:complexType name="CT_B">
+                     <xsd:complexContent>
+                       <xsd:extension base="CT_A"/>
+                     </xsd:complexContent>
+                   </xsd:complexType>"#,
+            ),
+        )]);
+        let error = set
+            .flatten_schema(&set.schemas()[0])
+            .expect_err("a cyclic base chain must not silently resolve");
+        assert!(
+            error.to_string().contains("cyclic"),
+            "unexpected error: {error}"
         );
     }
 }
