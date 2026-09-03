@@ -588,7 +588,7 @@ pub struct Run {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunInnerContent {
     /// `w:rPr` (`CT_RPr`, "Run Properties", §17.3.2.28) — MJXOFF-94's own type; see
-    /// [`super::run_properties`].
+    /// [`RunProperties`](crate::RunProperties).
     RunProperties(super::run_properties::RunProperties),
     /// `w:br` (`CT_Br`, "Break", §17.3.3.1) — this child's own type.
     Break(Break),

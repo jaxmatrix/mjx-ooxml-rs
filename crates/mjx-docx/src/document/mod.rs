@@ -46,10 +46,11 @@ pub use body::{
 };
 pub use parts::{DocumentParts, PartKind};
 pub use run_properties::{
-    Border, CharacterStyle, Color, EastAsianLayout, Emphasis, Fonts, HalfPointMeasureValue,
-    Highlight, Languages, ManualRunWidth, RunProperties, RunPropertyContent, Shading,
-    SignedHalfPointMeasureValue, SignedTwipsMeasureValue, TextEffect, TextScaleValue, Toggle,
-    Underline, VerticalAlignment,
+    Border, CharacterStyle, Color, EastAsianLayout, Emphasis, Fonts, HalfPoint,
+    HalfPointMeasureValue, HexColor, Highlight, Lang, Languages, ManualRunWidth, RunProperties,
+    RunPropertyContent, Scale, Shading, SignedHalfPoint, SignedHalfPointMeasureValue, SignedTwips,
+    SignedTwipsMeasureValue, TextEffect, TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline,
+    VerticalAlignment,
 };
 
 use crate::address::{BlockPath, RunPath};

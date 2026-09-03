@@ -83,7 +83,7 @@ use super::body::{wml_name, Unmodeled};
 /// `ST_HexColor` (`ST_HexColorAuto | s:ST_HexColorRGB`) as an attribute value — the wire string
 /// itself (`"auto"` or six hex digits), preserved exactly.
 #[derive(Debug)]
-struct HexColor;
+pub struct HexColor;
 
 impl AttributeCodec for HexColor {
     type Value<'a> = HexadecimalColor;
@@ -101,7 +101,7 @@ impl AttributeCodec for HexColor {
 /// `ST_UcharHexNumber` (one byte, two hex digits) as an attribute value — `themeTint`/`themeShade`
 /// and their `Fill` counterparts on [`Color`]/[`Underline`]/[`Border`]/[`Shading`].
 #[derive(Debug)]
-struct ThemeHexDigit;
+pub struct ThemeHexDigit;
 
 impl AttributeCodec for ThemeHexDigit {
     type Value<'a> = TwoDigitHexadecimalNumber;
@@ -118,7 +118,7 @@ impl AttributeCodec for ThemeHexDigit {
 
 /// `ST_HpsMeasure` (half-points; `sz`, `szCs`, `kern`) as an attribute value.
 #[derive(Debug)]
-struct HalfPoint;
+pub struct HalfPoint;
 
 impl AttributeCodec for HalfPoint {
     type Value<'a> = HalfPointMeasure;
@@ -135,7 +135,7 @@ impl AttributeCodec for HalfPoint {
 
 /// `ST_SignedHpsMeasure` (signed half-points; `position`) as an attribute value.
 #[derive(Debug)]
-struct SignedHalfPoint;
+pub struct SignedHalfPoint;
 
 impl AttributeCodec for SignedHalfPoint {
     type Value<'a> = SignedHalfPointMeasure;
@@ -152,7 +152,7 @@ impl AttributeCodec for SignedHalfPoint {
 
 /// `ST_SignedTwipsMeasure` (twentieths of a point, signed; `spacing`) as an attribute value.
 #[derive(Debug)]
-struct SignedTwips;
+pub struct SignedTwips;
 
 impl AttributeCodec for SignedTwips {
     type Value<'a> = SignedTwipsMeasure;
@@ -169,7 +169,7 @@ impl AttributeCodec for SignedTwips {
 
 /// `s:ST_TwipsMeasure` (`fitText`'s required width) as an attribute value.
 #[derive(Debug)]
-struct Twips;
+pub struct Twips;
 
 impl AttributeCodec for Twips {
     type Value<'a> = TwipsMeasure;
@@ -187,7 +187,7 @@ impl AttributeCodec for Twips {
 /// `ST_TextScale` (a percentage, `600%`/`0`-style wire spellings both legal; `w`) as an attribute
 /// value.
 #[derive(Debug)]
-struct Scale;
+pub struct Scale;
 
 impl AttributeCodec for Scale {
     type Value<'a> = TextScale;
@@ -204,7 +204,7 @@ impl AttributeCodec for Scale {
 
 /// `s:ST_Lang` (an RFC 4646 language tag; `lang`'s `val`/`eastAsia`/`bidi`) as an attribute value.
 #[derive(Debug)]
-struct Lang;
+pub struct Lang;
 
 impl AttributeCodec for Lang {
     type Value<'a> = LanguageTag;
