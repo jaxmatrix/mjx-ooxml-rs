@@ -7,14 +7,17 @@
 //! campaign is one `Target` literal plus one `fn`:
 //!
 //! ```ignore
+//! // Sketched against a `mjx_docx` that does not exist yet; `xml_seeds` below is the real helper a
+//! // `wml` target would reuse, since a Word body part is XML like any other.
 //! Target {
 //!     name: "wml-body",
-//!     seeds: || part_seeds("word/document.xml"),
+//!     entry_point: "mjx_docx::parse_body",
+//!     seeds: xml_seeds,
 //!     run: |input| {
 //!         let mut outcome = Outcome::default();
 //!         match mjx_docx::parse_body(input) {
-//!             Ok(body) => outcome.note("ok", body.paragraphs.len()),
-//!             Err(error) => outcome.note("err", error.discriminant()),
+//!             Ok(body) => outcome.note("paragraphs", bucket(body.paragraphs.len())),
+//!             Err(error) => outcome.note("error", docx_error_label(&error)),
 //!         }
 //!         outcome
 //!     },
@@ -182,7 +185,11 @@ fn xml_seeds() -> Vec<Vec<u8>> {
     seeds
 }
 
-/// Every XML part of every package fixture, capped so one large theme does not dominate the corpus.
+/// Every XML part of every package fixture that fits under the mutator's input ceiling.
+///
+/// A part larger than the ceiling would be truncated on its first mutation, so seeding it would put a
+/// half-document in the corpus and claim it as real markup. Skipping it is honest; in the committed
+/// corpus it skips nothing, because no fixture part is that large.
 fn fixture_xml_parts() -> Vec<Vec<u8>> {
     let mut parts = Vec::new();
     for name in mjx_fixtures::package_fixtures() {
