@@ -2,8 +2,8 @@
 //! kinds `a:` attributes are written in that no lower crate can name.
 //!
 //! A crate that owns a measure type owns its codec: [`Emu`], [`LineWidth`], [`Angle`], [`Fraction`],
-//! [`FontSize`], [`TextPoint`] and [`IndentLevel`] live in [`crate::geometry`], and the two
-//! guide-or-number unions in [`crate::geometry::custom`], so their spellings live here. Everything *else* a
+//! [`FontSize`], [`TextPoint`], [`IndentLevel`], [`AdjustCoordinate`] and [`AdjustAngle`] all live
+//! in [`crate::geometry`], so their spellings live here. Everything *else* a
 //! DrawingML attribute can be already has one — an enumeration is
 //! [`Enumeration<T>`](mjx_ooxml_core::Enumeration) because all 568 generated variants spell
 //! themselves, a boolean is [`OnOff`](mjx_ooxml_types::support::OnOff), a colour is
