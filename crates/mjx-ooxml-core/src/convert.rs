@@ -19,6 +19,14 @@
 //!   same interner the value was parsed from**. Serializing it against a different interner would
 //!   resolve its `Symbol`s to the wrong strings (or panic).
 //!
+//! # Returning a model to the tree it came from
+//!
+//! A model is a *view*, so `to_xml` rebuilds every element `from_xml` looked at — including the ones
+//! nothing touched. Assigning that rebuild over the original drops the byte range each unchanged
+//! element could still have been copied from, and the part re-flows. [`ToXml::write_back`] does the
+//! assignment while giving those ranges back, and every whole-part and sub-element edit surface in
+//! this workspace goes through it.
+//!
 //! [`Symbol`]: crate::Symbol
 //! [`Interner`]: crate::Interner
 //! [`RawName`]: crate::RawName
@@ -54,6 +62,24 @@ pub trait FromXml: Sized {
 pub trait ToXml {
     /// Serializes `self` into a [`RawElement`], interning any newly introduced strings into `interner`.
     fn to_xml(&self, interner: &mut Interner) -> RawElement;
+
+    /// Writes `self` back over `original` — the element it was parsed from, still in the document
+    /// that owns its source buffer — keeping the verbatim bytes of everything the rebuild
+    /// reproduced unchanged.
+    ///
+    /// **This, not `*original = value.to_xml(interner)`, is how a typed model returns to the tree it
+    /// came from.** A model is a view: a `from_xml` / `to_xml` pass rebuilds every element it looked
+    /// at, and plain assignment throws away the [source range](RawElement::source_span) each of
+    /// those could still have been copied from — so a part edited in one place comes back re-flowed
+    /// everywhere. See
+    /// [`RawElement::replace_preserving_verbatim_source`] for why restoring those ranges is sound.
+    ///
+    /// Use `to_xml` directly only when building an element that has no original — a child being
+    /// appended, or a value parsed from one place and written to another.
+    fn write_back(&self, original: &mut RawElement, interner: &mut Interner) {
+        let rebuilt = self.to_xml(interner);
+        original.replace_preserving_verbatim_source(rebuilt);
+    }
 }
 
 /// An error produced while parsing a typed value with [`FromXml::from_xml`].
