@@ -24,6 +24,21 @@
 //!
 //! The drivers are written once per process into a directory named after the schema tree, so
 //! repeated runs reuse them instead of accumulating.
+//!
+//! # The XML catalog, and why it is the *other* fix
+//!
+//! `opc-coreProperties.xsd` (MJXOFF-149) has the opposite shape of problem: it imports `dc:` and
+//! `dcterms:` (Dublin Core) with real `schemaLocation`s — live `http://dublincore.org/…` URLs, not
+//! bare imports. A bare import gives libxml2 no URI to fetch, so a catalog has nothing to rewrite,
+//! which is exactly why `wml.xsd`'s problem above needed a driver instead. Here the opposite is
+//! true: there **is** a URI, so an [OASIS XML catalog][catalog] — [`CATALOG_PATH`], listing the two
+//! `dublincore.org` URLs against the minimal local `dc.xsd` / `dcterms.xsd` committed beside it —
+//! redirects the fetch before libxml2 ever tries the network. [`Harness::validate`] passes
+//! `--catalogs` and points `XML_CATALOG_FILES` at it (and `--nonet`, so a catalog miss fails fast
+//! locally rather than hanging on a real fetch) for every validation, the same "one code path" reasoning
+//! as the driver above: a schema with nothing for the catalog to rewrite is simply unaffected by it.
+//!
+//! [catalog]: https://www.oasis-open.org/committees/entity/spec-2001-08-06.html
 
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -38,6 +53,9 @@ use crate::categories::{SchemaRef, SchemaSet};
 /// The path of the committed schema for the XML namespace, resolved at compile time of *this*
 /// crate — so it is the same path whichever crate's test binary is running.
 pub const XML_NAMESPACE_SCHEMA: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/schemas/xml.xsd");
+/// The path of the committed XML catalog that redirects `opc-coreProperties.xsd`'s Dublin Core
+/// imports to the local `dc.xsd` / `dcterms.xsd` beside it. See the [module docs](self) for why.
+pub const CATALOG_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/schemas/catalog.xml");
 
 /// The validator and the two schema trees.
 #[derive(Debug)]
@@ -107,6 +125,13 @@ impl Harness {
         let driver = self.driver_path(schema, namespace);
         let output = Command::new(&self.xmllint)
             .arg("--noout")
+            .arg("--nonet")
+            .arg("--catalogs")
+            // Empty, not unset: an unset `SGML_CATALOG_FILES` makes `--catalogs` print "Variable
+            // $SGML_CATALOG_FILES not set" on every call, which is otherwise harmless noise but
+            // would sit in `report` below on a real failure.
+            .env("SGML_CATALOG_FILES", "")
+            .env("XML_CATALOG_FILES", CATALOG_PATH)
             .arg("--schema")
             .arg(&driver)
             .arg(file)
@@ -298,5 +323,36 @@ mod tests {
             "`xml:space` is the one attribute ECMA-376 references; without it `wml.xsd` cannot \
              compile"
         );
+    }
+
+    #[test]
+    fn the_catalog_redirects_both_dublin_core_imports_to_committed_local_schemas() {
+        let catalog =
+            std::fs::read_to_string(CATALOG_PATH).expect("the XML catalog ships with this crate");
+        for (system_id, local) in [
+            (
+                "http://dublincore.org/schemas/xmls/qdc/2003/04/02/dc.xsd",
+                "dc.xsd",
+            ),
+            (
+                "http://dublincore.org/schemas/xmls/qdc/2003/04/02/dcterms.xsd",
+                "dcterms.xsd",
+            ),
+        ] {
+            assert!(
+                catalog.contains(&format!(r#"systemId="{system_id}""#))
+                    && catalog.contains(&format!(r#"uri="{local}""#)),
+                "the catalog must redirect {system_id} to {local}"
+            );
+            let local_path = Path::new(CATALOG_PATH)
+                .parent()
+                .expect("catalog.xml has a parent directory")
+                .join(local);
+            assert!(
+                local_path.is_file(),
+                "the catalog names {local}, which must exist beside it at {}",
+                local_path.display()
+            );
+        }
     }
 }

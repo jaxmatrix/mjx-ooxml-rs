@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  A minimal local stand-in for the DCMI Metadata Terms ("dcterms:") schema `opc-coreProperties.xsd`
+  imports from `http://dublincore.org/schemas/xmls/qdc/2003/04/02/dcterms.xsd`, substituted in via
+  an XML catalog — see `dc.xsd` beside this file and `harness.rs`'s module docs for why.
+
+  Declares only `created` and `modified`, the two elements `opc-coreProperties.xsd` references, and
+  `W3CDTF`, the type ECMA-376 Part 2 §8.3.4.3 requires their `xsi:type` attribute to name. `W3CDTF`
+  is declared as a restriction of `xs:string` — not the full W3C-DTF profile (which spans several
+  granularities from a bare year up to fractional seconds with an explicit offset) — because:
+
+  1. `xsi:type` substitution is only valid when the substituted type is validly derived from the
+     *declared* type of the element it appears on (here, `xs:string`), so `W3CDTF` has to share that
+     ancestry for `xmllint` to accept it at all; and
+  2. this project's own writer (`mjx_opc::doc_props::DocumentTimestamp`) emits exactly one
+     granularity — "complete date plus hours, minutes, seconds, UTC" (`YYYY-MM-DDThh:mm:ssZ`) — the
+     one every committed fixture with a `dcterms:created` also uses (`tests/fixtures/charts.pptx`:
+     `2013-01-27T09:14:16Z`), so narrower is what this project needs and what it can source without
+     guessing at the rest of the profile.
+-->
+<xs:schema targetNamespace="http://purl.org/dc/terms/"
+  xmlns="http://purl.org/dc/terms/" xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  elementFormDefault="qualified">
+  <xs:simpleType name="W3CDTF">
+    <xs:restriction base="xs:string">
+      <xs:pattern value="\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z"/>
+    </xs:restriction>
+  </xs:simpleType>
+  <xs:element name="created" type="xs:string"/>
+  <xs:element name="modified" type="xs:string"/>
+</xs:schema>
