@@ -619,11 +619,13 @@ impl Presentation {
                 let Some(properties) = properties else {
                     return Ok(CellMargins::default());
                 };
+                // A margin the cell states unreadably is a margin the cell does not state: the
+                // renderer substitutes the schema default either way.
                 Ok(CellMargins {
-                    left: properties.left_margin(interner),
-                    right: properties.right_margin(interner),
-                    top: properties.top_margin(interner),
-                    bottom: properties.bottom_margin(interner),
+                    left: properties.left_margin(interner).ok().flatten(),
+                    right: properties.right_margin(interner).ok().flatten(),
+                    top: properties.top_margin(interner).ok().flatten(),
+                    bottom: properties.bottom_margin(interner).ok().flatten(),
                 })
             },
         )
@@ -672,9 +674,15 @@ impl Presentation {
         row: usize,
         column: usize,
     ) -> Result<Option<TextAnchoring>, PptxError> {
-        self.with_cell_properties(surface.into(), shape_idx, row, column, |properties, interner| {
-            Ok(properties.and_then(|properties| properties.anchor(interner)))
-        })
+        self.with_cell_properties(
+            surface.into(),
+            shape_idx,
+            row,
+            column,
+            |properties, interner| {
+                Ok(properties.and_then(|properties| properties.anchor(interner).ok().flatten()))
+            },
+        )
     }
 
     /// Sets where the text sits vertically in the cell at `(row, column)`.
@@ -695,7 +703,7 @@ impl Presentation {
             row,
             column,
             |properties, interner| {
-                properties.set_anchor(interner, anchor);
+                properties.set_anchor(interner, Some(anchor));
                 Ok(())
             },
         )
@@ -719,7 +727,8 @@ impl Presentation {
             row,
             column,
             |properties, interner| {
-                Ok(properties.and_then(|properties| properties.text_direction(interner)))
+                Ok(properties
+                    .and_then(|properties| properties.text_direction(interner).ok().flatten()))
             },
         )
     }
@@ -743,7 +752,7 @@ impl Presentation {
             row,
             column,
             |properties, interner| {
-                properties.set_text_direction(interner, direction);
+                properties.set_text_direction(interner, Some(direction));
                 Ok(())
             },
         )
@@ -1200,13 +1209,13 @@ fn apply_cell_format(
         margins.bottom,
     );
     let (anchor, direction, overflow) = format.framing();
-    if let Some(anchor) = anchor {
+    if anchor.is_some() {
         properties.set_anchor(interner, anchor);
     }
-    if let Some(direction) = direction {
+    if direction.is_some() {
         properties.set_text_direction(interner, direction);
     }
-    if let Some(overflow) = overflow {
+    if overflow.is_some() {
         properties.set_horizontal_overflow(interner, overflow);
     }
     let (material, bevel, light_rig) = format.cell_3d();

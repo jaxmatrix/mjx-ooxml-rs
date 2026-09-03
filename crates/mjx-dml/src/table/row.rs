@@ -3,7 +3,8 @@
 use mjx_derive::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawName, RawNode};
 
-use crate::build::{attr_emu, dml_attr, dml_name, set_attr};
+use crate::build::dml_name;
+use crate::codec::EmuCoordinate;
 use crate::geometry::Emu;
 
 use super::cell::TableCell;
@@ -22,8 +23,9 @@ pub enum TableRowContent {
 /// A row carries one `a:tc` per column of the table's `a:tblGrid`, **including** the cells covered
 /// by a merge, so the row's cell count is the table's column count and a cell's position in the row
 /// is its column index.
-#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml)]
+#[derive(Debug, Clone, PartialEq, Eq, FromXml, ToXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = DML_MAIN)]
+#[xml(attribute(local = "h", codec = EmuCoordinate, accessor = height))]
 pub struct TableRow {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -37,37 +39,16 @@ impl TableRow {
     /// neighbour's height, and a row beside one that states none states none too).
     #[must_use]
     pub fn new(interner: &mut Interner, height: Option<Emu>, cells: Vec<TableCell>) -> Self {
-        let attributes = match height {
-            Some(height) => vec![dml_attr(interner, "h", &height.emu().to_string())],
-            None => Vec::new(),
-        };
         let content: Vec<TableRowContent> = cells.into_iter().map(TableRowContent::Cell).collect();
         let empty = content.is_empty();
-        Self {
+        let mut row = Self {
             name: dml_name(interner, "tr"),
-            attributes,
+            attributes: Vec::new(),
             empty,
             content,
-        }
-    }
-
-    /// The row's height (`@h`, EMU).
-    ///
-    /// This is the height the row *asks* for; PowerPoint grows a row whose content does not fit, so
-    /// a rendered row is never shorter than this but may be taller.
-    #[must_use]
-    pub fn height(&self, interner: &Interner) -> Option<Emu> {
-        attr_emu(&self.attributes, interner, "h")
-    }
-
-    /// Sets the row's height (`@h`), rewriting the attribute in place.
-    pub fn set_height(&mut self, interner: &mut Interner, height: Emu) {
-        set_attr(
-            &mut self.attributes,
-            interner,
-            "h",
-            &height.emu().to_string(),
-        );
+        };
+        row.set_height(interner, height);
+        row
     }
 
     /// The row's cells, in column order (opaque children are skipped).

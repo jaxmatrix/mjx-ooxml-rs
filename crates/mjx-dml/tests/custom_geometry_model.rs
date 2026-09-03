@@ -94,11 +94,11 @@ fn an_adjust_point_reads_its_coordinates_typed() {
     let (pt, doc) = parse_typed::<AdjustPoint>(xml.as_bytes());
     assert_eq!(
         pt.x(&doc.interner),
-        Some(AdjustCoordinate::Emu(Emu::from_emu(914_400)))
+        Ok(AdjustCoordinate::Emu(Emu::from_emu(914_400)))
     );
     assert_eq!(
         pt.y(&doc.interner),
-        Some(AdjustCoordinate::Guide("hc".to_owned()))
+        Ok(AdjustCoordinate::Guide("hc".to_owned()))
     );
 }
 
@@ -109,7 +109,7 @@ fn an_adjust_point_round_trips_byte_for_byte_with_an_unknown_attribute() {
     let (pt, doc) = parse_typed::<AdjustPoint>(xml.as_bytes());
     assert_eq!(
         pt.x(&doc.interner),
-        Some(AdjustCoordinate::Emu(Emu::from_emu(100)))
+        Ok(AdjustCoordinate::Emu(Emu::from_emu(100)))
     );
     assert_round_trips(&pt, doc, xml.as_bytes());
 }
@@ -125,11 +125,11 @@ fn a_built_adjust_point_reads_back_the_coordinates_it_was_given() {
     );
     assert_eq!(
         pt.x(&interner),
-        Some(AdjustCoordinate::Emu(Emu::from_emu(100)))
+        Ok(AdjustCoordinate::Emu(Emu::from_emu(100)))
     );
     assert_eq!(
         pt.y(&interner),
-        Some(AdjustCoordinate::Guide("hc".to_owned()))
+        Ok(AdjustCoordinate::Guide("hc".to_owned()))
     );
 
     // And it serializes to the expected `pt` element with both coordinates as attributes.
@@ -170,11 +170,11 @@ fn a_path_reads_its_flags_and_every_command_typed() {
     assert_eq!(paths.len(), 1);
     let path = &paths[0];
 
-    assert_eq!(path.width(&doc.interner), Some(Emu::from_emu(200)));
-    assert_eq!(path.height(&doc.interner), Some(Emu::from_emu(100)));
-    assert_eq!(path.fill(&doc.interner), Some(PathFillMode::Lighten));
-    assert_eq!(path.stroke(&doc.interner), Some(false));
-    assert_eq!(path.extrusion_ok(&doc.interner), Some(true));
+    assert_eq!(path.width(&doc.interner), Ok(Some(Emu::from_emu(200))));
+    assert_eq!(path.height(&doc.interner), Ok(Some(Emu::from_emu(100))));
+    assert_eq!(path.fill(&doc.interner), Ok(Some(PathFillMode::Lighten)));
+    assert_eq!(path.stroke(&doc.interner), Ok(Some(false)));
+    assert_eq!(path.extrusion_ok(&doc.interner), Ok(Some(true)));
 
     let commands = path.commands(&doc.interner);
     assert_eq!(commands.len(), 6);
@@ -252,11 +252,11 @@ fn a_path_round_trips_with_an_unknown_command_preserved_opaquely() {
 fn a_bare_path_states_no_flags() {
     let xml = format!(r#"<a:path xmlns:a="{A}"><a:close/></a:path>"#);
     let (path, doc) = parse_typed::<Path2D>(xml.as_bytes());
-    assert_eq!(path.width(&doc.interner), None);
-    assert_eq!(path.height(&doc.interner), None);
-    assert_eq!(path.fill(&doc.interner), None);
-    assert_eq!(path.stroke(&doc.interner), None);
-    assert_eq!(path.extrusion_ok(&doc.interner), None);
+    assert_eq!(path.width(&doc.interner), Ok(None));
+    assert_eq!(path.height(&doc.interner), Ok(None));
+    assert_eq!(path.fill(&doc.interner), Ok(None));
+    assert_eq!(path.stroke(&doc.interner), Ok(None));
+    assert_eq!(path.extrusion_ok(&doc.interner), Ok(None));
     assert_eq!(path.commands(&doc.interner), vec![DrawCommand::Close]);
 }
 

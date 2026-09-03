@@ -18,11 +18,52 @@
 //! absent, which means "inherit whatever the level above decided". Hence [`BulletColor::FollowText`]
 //! and friends are real variants rather than `None`.
 
-use mjx_ooxml_core::{Interner, RawElement, RawNode};
+use std::borrow::Cow;
 
-use crate::build::{attr_by_local, attr_str, dml_attr, dml_child, dml_element, prefixed_attr};
+use mjx_ooxml_core::{Enumeration, Interner, Number, RawElement, RawNode, Text};
+
+use crate::build::{dml_child, dml_element};
+use crate::codec::{PercentageWithPercentSign, TextPointSize};
+
+/// `a:buChar` (`CT_TextCharBullet`) — the attribute face of a character bullet.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "char", codec = Text, accessor = character, required))]
+struct BulletCharacterAttributes<A> {
+    attributes: A,
+}
+
+/// `a:buAutoNum` (`CT_TextAutonumberBullet`) — the attribute face of an automatic-number bullet.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "type", codec = Enumeration<AutonumberScheme>, accessor = scheme, required))]
+#[xml(attribute(local = "startAt", codec = Number<u32>, accessor = start_at))]
+struct AutoNumberAttributes<A> {
+    attributes: A,
+}
+
+/// `a:blip` (`CT_Blip`) inside an `a:buBlip` — the attribute face of the picture bullet's image
+/// reference. The prefix is matched literally, as everywhere else a relationship id is read.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "embed", prefix = "r", codec = Text, accessor = image_relationship))]
+struct BulletBlipAttributes<A> {
+    attributes: A,
+}
+
+/// `a:buSzPct` (`CT_TextBulletSizePercent`) — the attribute face of a percentage bullet size.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = PercentageWithPercentSign, accessor = size, required))]
+struct BulletSizePercentAttributes<A> {
+    attributes: A,
+}
+
+/// `a:buSzPts` (`CT_TextBulletSizePoint`) — the attribute face of a point-valued bullet size.
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "val", codec = TextPointSize, accessor = size, required))]
+struct BulletSizePointsAttributes<A> {
+    attributes: A,
+}
+
 use crate::color::{Color, ColorSpec};
-use crate::geometry::{FontSize, Fraction};
+use crate::geometry::{FontSize, Fraction, TextPoint};
 use crate::text::font::TextFont;
 
 pub use mjx_ooxml_types::drawingml::AutonumberScheme;
@@ -193,24 +234,36 @@ pub(crate) fn read_bullet(children: &[RawNode], interner: &Interner) -> Option<B
     Some(match interner.resolve(element.name.local) {
         "buNone" => Bullet::None,
         "buChar" => Bullet::Character(BulletCharacter {
-            character: attr_str(&element.attributes, interner, "char")
-                .unwrap_or_default()
-                .to_owned(),
+            character: BulletCharacterAttributes {
+                attributes: &element.attributes,
+            }
+            .character(interner)
+            .map(Cow::into_owned)
+            .unwrap_or_default(),
         }),
         "buAutoNum" => {
-            let scheme = attr_str(&element.attributes, interner, "type")
-                .and_then(AutonumberScheme::from_wire)?;
-            let start_at = attr_str(&element.attributes, interner, "startAt")
-                .and_then(|s| s.trim().parse::<u32>().ok())
+            let bullet = AutoNumberAttributes {
+                attributes: &element.attributes,
+            };
+            let scheme = bullet.scheme(interner).ok()?;
+            let start_at = bullet
+                .start_at(interner)
+                .ok()
+                .flatten()
                 .unwrap_or(AutoNumberBullet::DEFAULT_START);
             Bullet::AutoNumber(AutoNumberBullet { scheme, start_at })
         }
         "buBlip" => {
             let blip = dml_child(&element.children, interner, "blip")?;
             Bullet::Picture(BulletPicture {
-                image_rel_id: attr_by_local(&blip.attributes, interner, "embed")
-                    .unwrap_or_default()
-                    .to_owned(),
+                image_rel_id: BulletBlipAttributes {
+                    attributes: &blip.attributes,
+                }
+                .image_relationship(interner)
+                .ok()
+                .flatten()
+                .map(Cow::into_owned)
+                .unwrap_or_default(),
             })
         }
         _ => return None,
@@ -231,17 +284,23 @@ pub(crate) fn read_bullet_color(children: &[RawNode], interner: &Interner) -> Op
 /// Reads the `EG_TextBulletSize` group.
 ///
 /// `a:buSzPct@val` is spelled `"111%"` by the schema; the integer form (`111000`) is accepted too,
-/// since it appears in the wild. [`crate::build::parse_percentage`] handles both.
+/// since it appears in the wild. [`PercentageWithPercentSign`] reads either and writes the first.
 pub(crate) fn read_bullet_size(children: &[RawNode], interner: &Interner) -> Option<BulletSize> {
     let element = find_group(children, interner, is_bullet_size_local)?;
     match interner.resolve(element.name.local) {
         "buSzTx" => Some(BulletSize::FollowText),
-        "buSzPct" => attr_str(&element.attributes, interner, "val")
-            .and_then(crate::build::parse_percentage)
-            .map(BulletSize::Percentage),
-        "buSzPts" => attr_str(&element.attributes, interner, "val")
-            .and_then(|s| s.trim().parse::<i32>().ok())
-            .map(|value| BulletSize::Points(FontSize::from_wire(value))),
+        "buSzPct" => BulletSizePercentAttributes {
+            attributes: &element.attributes,
+        }
+        .size(interner)
+        .ok()
+        .map(BulletSize::Percentage),
+        "buSzPts" => BulletSizePointsAttributes {
+            attributes: &element.attributes,
+        }
+        .size(interner)
+        .ok()
+        .map(|points| BulletSize::Points(FontSize::from_wire(points.to_wire()))),
         _ => None,
     }
 }
@@ -285,20 +344,30 @@ pub(crate) fn build_bullet(interner: &mut Interner, bullet: &Bullet) -> RawEleme
     match bullet {
         Bullet::None => dml_element(interner, "buNone", Vec::new(), Vec::new()),
         Bullet::Character(character) => {
-            let attributes = vec![dml_attr(interner, "char", &character.character)];
-            dml_element(interner, "buChar", attributes, Vec::new())
+            let mut attributes = BulletCharacterAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_character(interner, &character.character);
+            dml_element(interner, "buChar", attributes.attributes, Vec::new())
         }
         Bullet::AutoNumber(auto) => {
-            let mut attributes = vec![dml_attr(interner, "type", auto.scheme.to_wire())];
+            let mut attributes = AutoNumberAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_scheme(interner, auto.scheme);
             // The schema's default is 1, so writing it would be noise.
-            if auto.start_at != AutoNumberBullet::DEFAULT_START {
-                attributes.push(dml_attr(interner, "startAt", &auto.start_at.to_string()));
-            }
-            dml_element(interner, "buAutoNum", attributes, Vec::new())
+            attributes.set_start_at(
+                interner,
+                (auto.start_at != AutoNumberBullet::DEFAULT_START).then_some(auto.start_at),
+            );
+            dml_element(interner, "buAutoNum", attributes.attributes, Vec::new())
         }
         Bullet::Picture(picture) => {
-            let embed = prefixed_attr(interner, "r", "embed", &picture.image_rel_id);
-            let blip = dml_element(interner, "blip", vec![embed], Vec::new());
+            let mut attributes = BulletBlipAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_image_relationship(interner, Some(picture.image_rel_id.as_str()));
+            let blip = dml_element(interner, "blip", attributes.attributes, Vec::new());
             dml_element(interner, "buBlip", Vec::new(), vec![RawNode::Element(blip)])
         }
     }
@@ -332,13 +401,18 @@ pub(crate) fn build_bullet_size(interner: &mut Interner, size: BulletSize) -> Ra
     match size {
         BulletSize::FollowText => dml_element(interner, "buSzTx", Vec::new(), Vec::new()),
         BulletSize::Percentage(fraction) => {
-            let percent = (fraction.ratio() * 100.0).round() as i64;
-            let attributes = vec![dml_attr(interner, "val", &format!("{percent}%"))];
-            dml_element(interner, "buSzPct", attributes, Vec::new())
+            let mut attributes = BulletSizePercentAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_size(interner, fraction);
+            dml_element(interner, "buSzPct", attributes.attributes, Vec::new())
         }
         BulletSize::Points(size) => {
-            let attributes = vec![dml_attr(interner, "val", &size.to_wire().to_string())];
-            dml_element(interner, "buSzPts", attributes, Vec::new())
+            let mut attributes = BulletSizePointsAttributes {
+                attributes: Vec::new(),
+            };
+            attributes.set_size(interner, TextPoint::from_wire(size.to_wire()));
+            dml_element(interner, "buSzPts", attributes.attributes, Vec::new())
         }
     }
 }

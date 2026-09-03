@@ -38,6 +38,7 @@
 //! no fixed-point iteration, so a hostile `gdLst` cannot make the evaluator spin or overflow the
 //! stack, and a list of *n* guides costs one pass and one hash insert each.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use super::measures::{Angle, Emu};
@@ -629,11 +630,13 @@ fn divisor(text: &str) -> Option<f64> {
 /// built-in variables of the [`GuideContext`] it was given.
 ///
 /// The names borrow from the guide list, so evaluating a shape's guides allocates one hash map and
-/// nothing per guide.
+/// nothing per guide — a [`Cow`] rather than a `&str` only because a guide name read out of a file
+/// may carry a character reference, which decodes to a fresh string; every other caller binds a
+/// borrowed name and allocates nothing.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ResolvedGuides<'a> {
     context: Option<GuideContext>,
-    values: HashMap<&'a str, f64>,
+    values: HashMap<Cow<'a, str>, f64>,
 }
 
 impl<'a> ResolvedGuides<'a> {
@@ -690,7 +693,7 @@ impl<'a> ResolvedGuides<'a> {
                     guide: name.to_owned(),
                     source: Box::new(source),
                 })?;
-            self.values.insert(name, value);
+            self.values.insert(Cow::Borrowed(name), value);
         }
         Ok(())
     }
@@ -711,8 +714,8 @@ impl<'a> ResolvedGuides<'a> {
 
     /// Binds `name` to `value` directly, as an already-computed guide — how a preset shape's current
     /// adjustment values are seeded before its `gdLst` is evaluated.
-    pub fn define(&mut self, name: &'a str, value: f64) {
-        self.values.insert(name, value);
+    pub fn define(&mut self, name: impl Into<Cow<'a, str>>, value: f64) {
+        self.values.insert(name.into(), value);
     }
 
     /// The value of a guide, or of a built-in variable, or `None` if the name is neither.
@@ -766,8 +769,10 @@ impl<'a> ResolvedGuides<'a> {
     }
 
     /// Every evaluated guide, as `(name, value)`, in no particular order.
-    pub fn iter(&self) -> impl Iterator<Item = (&'a str, f64)> + '_ {
-        self.values.iter().map(|(name, value)| (*name, *value))
+    pub fn iter(&self) -> impl Iterator<Item = (&str, f64)> + '_ {
+        self.values
+            .iter()
+            .map(|(name, value)| (name.as_ref(), *value))
     }
 }
 

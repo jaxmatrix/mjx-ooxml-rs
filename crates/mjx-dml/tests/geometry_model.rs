@@ -55,7 +55,7 @@ fn parses_typed_structure() {
         geom.preset(&doc.interner),
         Some(PresetShapeType::RoundedRectangle)
     );
-    assert_eq!(geom.preset_token(&doc.interner), Some("roundRect"));
+    assert_eq!(geom.preset_token(&doc.interner).as_deref(), Ok("roundRect"));
 
     // The only typed child is the avLst.
     assert_eq!(geom.content().len(), 1);
@@ -67,10 +67,10 @@ fn parses_typed_structure() {
     let list = geom.adjust_values().expect("has an avLst");
     let guides: Vec<_> = list.guides().collect();
     assert_eq!(guides.len(), 2);
-    assert_eq!(guides[0].name(&doc.interner), Some("adj"));
-    assert_eq!(guides[0].formula(&doc.interner), Some("val 25000"));
-    assert_eq!(guides[1].name(&doc.interner), Some("adj2"));
-    assert_eq!(guides[1].formula(&doc.interner), Some("val 12500"));
+    assert_eq!(guides[0].name(&doc.interner).as_deref(), Ok("adj"));
+    assert_eq!(guides[0].formula(&doc.interner).as_deref(), Ok("val 25000"));
+    assert_eq!(guides[1].name(&doc.interner).as_deref(), Ok("adj2"));
+    assert_eq!(guides[1].formula(&doc.interner).as_deref(), Ok("val 12500"));
 }
 
 #[test]
@@ -114,10 +114,10 @@ fn matches_children_under_strict_namespace_uri() {
         r#"<a:prstGeom xmlns:a="{A_STRICT}" prst="roundRect"><a:avLst><a:gd name="adj" fmla="val 16667"/></a:avLst></a:prstGeom>"#
     );
     let (geom, doc): (PresetGeometry, _) = parse_typed(fragment.as_bytes());
-    assert_eq!(geom.preset_token(&doc.interner), Some("roundRect"));
+    assert_eq!(geom.preset_token(&doc.interner).as_deref(), Ok("roundRect"));
     let guides: Vec<_> = geom.adjust_values().unwrap().guides().collect();
     assert_eq!(guides.len(), 1);
-    assert_eq!(guides[0].formula(&doc.interner), Some("val 16667"));
+    assert_eq!(guides[0].formula(&doc.interner).as_deref(), Ok("val 16667"));
     assert_round_trips(&geom, doc, fragment.as_bytes());
 }
 
@@ -148,7 +148,7 @@ fn unknown_prst_token_round_trips_and_is_readable() {
     let fragment = format!(r#"<a:prstGeom xmlns:a="{A}" prst="notAShape"/>"#);
     let (geom, doc): (PresetGeometry, _) = parse_typed(fragment.as_bytes());
     assert_eq!(geom.preset(&doc.interner), None);
-    assert_eq!(geom.preset_token(&doc.interner), Some("notAShape"));
+    assert_eq!(geom.preset_token(&doc.interner).as_deref(), Ok("notAShape"));
     assert_round_trips(&geom, doc, fragment.as_bytes());
 }
 
@@ -182,8 +182,8 @@ fn built_prstgeom_reparses_to_the_same_values() {
     );
     let guides: Vec<_> = reparsed.adjust_values().unwrap().guides().collect();
     assert_eq!(guides.len(), 1);
-    assert_eq!(guides[0].name(&doc.interner), Some("adj"));
-    assert_eq!(guides[0].formula(&doc.interner), Some("val 20000"));
+    assert_eq!(guides[0].name(&doc.interner).as_deref(), Ok("adj"));
+    assert_eq!(guides[0].formula(&doc.interner).as_deref(), Ok("val 20000"));
 }
 
 #[test]
@@ -200,8 +200,8 @@ fn builds_self_closing_prstgeom_without_adjust_values() {
 fn guide_new_builds_a_self_closing_gd() {
     let mut interner = Interner::new();
     let guide = GeometryGuide::new(&mut interner, "adj1", "val 50000");
-    assert_eq!(guide.name(&interner), Some("adj1"));
-    assert_eq!(guide.formula(&interner), Some("val 50000"));
+    assert_eq!(guide.name(&interner).as_deref(), Ok("adj1"));
+    assert_eq!(guide.formula(&interner).as_deref(), Ok("val 50000"));
     assert_eq!(
         serialize_built(interner, &guide),
         r#"<a:gd name="adj1" fmla="val 50000"/>"#
