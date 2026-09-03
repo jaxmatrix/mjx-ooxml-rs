@@ -117,3 +117,47 @@ fn a_part_in_a_category_two_namespace_is_skipped_rather_than_refused() {
     assert!(!row.outcome.is_failure());
     assert_authored_parts_are_categorised("an allowlisted namespace", &package);
 }
+
+#[test]
+fn markup_compatibility_that_cannot_be_resolved_fails_rather_than_being_skipped() {
+    // The failure branch of the MCE path, which would otherwise ship unexercised. `mc:MustUnderstand`
+    // naming a namespace a consumer does not understand is a producer saying "do not guess"; the
+    // gate cannot reduce such a part to base markup, and the one thing it must not do is treat that
+    // as a skip — a skip here is indistinguishable from a clean pass, which is the whole defect.
+    let Some(harness) = harness() else { return };
+    let mut package = Package::empty();
+    package
+        .insert_part(
+            &PartName::new("/ppt/presentation.xml").expect("a valid part name"),
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml",
+            br#"<p:presentation xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" xmlns:future="urn:example:a-vocabulary-from-the-future" mc:MustUnderstand="future"/>"#.to_vec(),
+        )
+        .expect("insert the part");
+    let saved = package.save().expect("save");
+
+    let rows = inspect_deck(&harness, "unresolvable markup compatibility", &saved, &[]);
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/ppt/presentation.xml")
+        .expect("the part is in the sweep");
+    assert!(
+        matches!(row.outcome, PartOutcome::UnresolvableMarkupCompatibility(_)),
+        "it reported: {}",
+        row.outcome.describe()
+    );
+    assert!(
+        row.outcome.is_failure(),
+        "an unresolvable part must fail the suite, not be skipped"
+    );
+    assert!(
+        row.outcome
+            .describe()
+            .contains("urn:example:a-vocabulary-from-the-future"),
+        "the failure must name what could not be understood: {}",
+        row.outcome.describe()
+    );
+    println!(
+        "unresolvable markup compatibility: {}",
+        row.outcome.describe()
+    );
+}
