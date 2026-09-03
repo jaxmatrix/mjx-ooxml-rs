@@ -64,7 +64,8 @@ impl ColorList {
     /// `CT_Colors`), carrying `colors` in order.
     #[must_use]
     pub fn new(interner: &mut Interner, local: &str, colors: Vec<Color>) -> Self {
-        let content: Vec<ColorListContent> = colors.into_iter().map(ColorListContent::Color).collect();
+        let content: Vec<ColorListContent> =
+            colors.into_iter().map(ColorListContent::Color).collect();
         let empty = content.is_empty();
         Self {
             name: dgm_name(interner, local),
@@ -280,8 +281,11 @@ impl ColorTransform {
     /// The colour transform whose `styleLbl/@name` is `label_name`, or `None`.
     #[must_use]
     pub fn style_label(&self, interner: &Interner, label_name: &str) -> Option<&StyleLabelColors> {
-        self.style_labels()
-            .find(|label| label.label_name(interner).is_ok_and(|name| name.as_ref() == label_name))
+        self.style_labels().find(|label| {
+            label
+                .label_name(interner)
+                .is_ok_and(|name| name.as_ref() == label_name)
+        })
     }
     /// The colour transform's ordered content, verbatim.
     #[must_use]

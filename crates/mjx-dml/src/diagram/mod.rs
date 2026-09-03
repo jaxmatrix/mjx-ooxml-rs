@@ -60,8 +60,9 @@ pub use layout::{
     Algorithm, AlgorithmContent, AlgorithmParameter, Choose, ChooseContent, Constraint,
     ConstraintList, ConstraintListContent, ForEachIterator, LayoutBranchContent, LayoutCondition,
     LayoutDefinition, LayoutDefinitionContent, LayoutNode, LayoutNodeContent, LayoutOtherwise,
-    LayoutShape, LayoutShapeAdjustment, LayoutShapeAdjustmentList, LayoutShapeAdjustmentListContent,
-    LayoutShapeContent, NumericRule, PresentationOf, RuleList, RuleListContent, SampleData,
+    LayoutShape, LayoutShapeAdjustment, LayoutShapeAdjustmentList,
+    LayoutShapeAdjustmentListContent, LayoutShapeContent, NumericRule, PresentationOf, RuleList,
+    RuleListContent, SampleData,
 };
 pub use style::{StyleDefinition, StyleDefinitionContent, StyleLabel};
 

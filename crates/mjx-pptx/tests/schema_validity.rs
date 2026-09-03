@@ -1490,8 +1490,13 @@ fn a_diagram_part_dml_diagram_xsd_rejects_is_caught_naming_the_diagram_schema() 
 
     const MISSING_REQUIRED_MODEL_ID: &[u8] = br#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <dgm:dataModel xmlns:dgm="http://schemas.openxmlformats.org/drawingml/2006/diagram"><dgm:ptLst><dgm:pt/></dgm:ptLst></dgm:dataModel>"#;
-    pres.set_diagram_part(0, shape, DiagramPartKind::Data, MISSING_REQUIRED_MODEL_ID.to_vec())
-        .expect("replace data part with invalid markup");
+    pres.set_diagram_part(
+        0,
+        shape,
+        DiagramPartKind::Data,
+        MISSING_REQUIRED_MODEL_ID.to_vec(),
+    )
+    .expect("replace data part with invalid markup");
     let saved = pres.save().expect("save");
 
     let rows = inspect_deck(&harness, "diagram with an invalid data part", &saved, &[]);

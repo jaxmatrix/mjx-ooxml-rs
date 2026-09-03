@@ -24,8 +24,7 @@ use super::support::dgm_name;
 use crate::build::fidelity_element_impls;
 
 use diagram::{
-    AlgorithmType, BoolOperator, ConstraintRelationship, ConstraintType, ElementType,
-    ParameterId,
+    AlgorithmType, BoolOperator, ConstraintRelationship, ConstraintType, ElementType, ParameterId,
 };
 
 // ---------------------------------------------------------------------------------------------
@@ -355,7 +354,8 @@ impl ConstraintList {
 
     /// Appends `constraint` at the end of the list.
     pub fn push(&mut self, constraint: Constraint) {
-        self.content.push(ConstraintListContent::Constraint(constraint));
+        self.content
+            .push(ConstraintListContent::Constraint(constraint));
         self.empty = false;
     }
 }

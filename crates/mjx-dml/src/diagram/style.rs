@@ -140,8 +140,11 @@ impl StyleDefinition {
     /// The style label whose `@name` is `label_name`, or `None`.
     #[must_use]
     pub fn style_label(&self, interner: &Interner, label_name: &str) -> Option<&StyleLabel> {
-        self.style_labels()
-            .find(|label| label.label_name(interner).is_ok_and(|name| name.as_ref() == label_name))
+        self.style_labels().find(|label| {
+            label
+                .label_name(interner)
+                .is_ok_and(|name| name.as_ref() == label_name)
+        })
     }
     /// The style's ordered content, verbatim.
     #[must_use]

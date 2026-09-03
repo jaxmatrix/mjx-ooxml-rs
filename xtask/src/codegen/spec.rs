@@ -1772,8 +1772,16 @@ const DIAGRAM_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_ParameterId", "endSty", "EndStyle"),
     ("ST_ParameterId", "fallback", "FallbackScale"),
     ("ST_ParameterId", "hierAlign", "HierarchyAlignment"),
-    ("ST_ParameterId", "lnSpAfChP", "LineSpacingAfterChildrenParagraph"),
-    ("ST_ParameterId", "lnSpAfParP", "LineSpacingAfterParentParagraph"),
+    (
+        "ST_ParameterId",
+        "lnSpAfChP",
+        "LineSpacingAfterChildrenParagraph",
+    ),
+    (
+        "ST_ParameterId",
+        "lnSpAfParP",
+        "LineSpacingAfterParentParagraph",
+    ),
     ("ST_ParameterId", "lnSpCh", "LineSpacingChildren"),
     ("ST_ParameterId", "lnSpPar", "LineSpacingParent"),
     (
@@ -1786,7 +1794,11 @@ const DIAGRAM_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
         "parTxRTLAlign",
         "ParentTextRightToLeftAlignment",
     ),
-    ("ST_ParameterId", "pyraAcctBkgdNode", "PyramidAccentBackgroundNode"),
+    (
+        "ST_ParameterId",
+        "pyraAcctBkgdNode",
+        "PyramidAccentBackgroundNode",
+    ),
     ("ST_ParameterId", "pyraAcctPos", "PyramidAccentPosition"),
     ("ST_ParameterId", "pyraAcctTxMar", "PyramidAccentTextMargin"),
     ("ST_ParameterId", "pyraAcctTxNode", "PyramidAccentTextNode"),
