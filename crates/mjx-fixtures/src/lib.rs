@@ -22,9 +22,15 @@ pub const PACKAGE_EXTENSIONS: &[&str] = &["pptx", "docx", "xlsx"];
 
 /// Fixtures that are deliberately not OOXML packages, each with the reason it is here.
 ///
-/// Empty today. An entry is a claim that a file belongs in `tests/fixtures/` while belonging to no
-/// package corpus, and it has to be written down for the sweep to accept it.
-pub const NON_PACKAGE_FIXTURES: &[(&str, &str)] = &[];
+/// An entry is a claim that a file belongs in `tests/fixtures/` while belonging to no package
+/// corpus, and it has to be written down for the sweep to accept it.
+pub const NON_PACKAGE_FIXTURES: &[(&str, &str)] = &[(
+    "declared_size_lie.zip",
+    "A hostile container from the fuzz campaign (MJXOFF-146): a valid ZIP whose third entry declares \
+     an uncompressed size of 4 GiB for four bytes of payload. It is not a package and must not join \
+     the byte-identity corpora — its whole purpose is to be opened and refused. \
+     `crates/mjx-opc/tests/untrusted_input.rs` reads it.",
+)];
 
 /// The workspace root, from this crate's manifest directory.
 #[must_use]
@@ -103,6 +109,65 @@ pub fn package_fixtures_with_extension(extension: &str) -> Vec<String> {
         .into_iter()
         .filter(|name| name.ends_with(&suffix))
         .collect()
+}
+
+/// The adversarial XML corpus: inputs that are hostile to a byte-preserving reader.
+///
+/// **One list, two consumers.** `crates/mjx-xml/tests/subtree_cow.rs` asserts by hand that every
+/// one of these either fails to parse or round-trips byte-for-byte, and the fuzz campaign
+/// (`cargo run -p xtask -- fuzz`) seeds its mutator from the same slice. A second hand-written list
+/// would drift from this one the first time either grew, and the corpus a gate is measured against
+/// must be the corpus the gate reads.
+///
+/// Each entry is here because it stresses something a decomposed tree cannot record: markup inside
+/// CDATA, comments and processing instructions; a name that is a prefix of a sibling's; whitespace
+/// inside a tag and inside an end tag; character references spelled three ways; a byte-order mark;
+/// a doctype; unbound and bound prefixes; and bytes that are not XML at all.
+#[must_use]
+pub const fn adversarial_xml() -> &'static [&'static [u8]] {
+    &[
+        b"",
+        b"<",
+        b"<a",
+        b"<a>",
+        b"</a>",
+        b"<a><b></a>",
+        b"not xml at all",
+        b"<a b=>",
+        b"<a b='c>",
+        b"<\xff\xfe/>",
+        b"<a><![CDATA[</a><b/>]]></a>",
+        b"<a><!-- </a><b/> --></a>",
+        b"<a><?pi </a> ?></a>",
+        b"<a/><!-- trailing -->",
+        b"<a></a><b/>",
+        b"<abbr><a/></abbr>",
+        b"<a  \t\r\n b = 'c'  />",
+        b"<a></a >",
+        b"<a>&#38;&amp;&#x26;</a>",
+        b"\xEF\xBB\xBF<a  x='1' />",
+        b"<a><a><a><a><a/></a></a></a></a>",
+        b"<!DOCTYPE a><a/>",
+        b"<a xmlns='urn:x'><b:c xmlns:b='urn:b'/></a>",
+        b"<a xmlns:b='urn:b'><b:c/></a>",
+    ]
+}
+
+/// The subset of [`adversarial_xml`] that is re-run with the document dirtied at its root.
+///
+/// Dirtying the root forces the serializer to mix a reconstructed start tag with verbatim children,
+/// which is where a byte range that does not describe its element shows. These five are the cases
+/// where that mixture is meaningful: markup hidden inside CDATA and comments, a name that prefixes a
+/// sibling's, a prefixed child, and nesting.
+#[must_use]
+pub const fn adversarial_xml_dirtied_at_the_root() -> &'static [&'static [u8]] {
+    &[
+        b"<a><![CDATA[</a><b/>]]></a>",
+        b"<a><!-- </a><b/> --></a>",
+        b"<abbr><a/></abbr>",
+        b"<a xmlns:b='urn:b'><b:c d='1'/></a>",
+        b"<a><a><a/></a></a>",
+    ]
 }
 
 /// Asserts that every file in the fixtures directory is either an OOXML package or a declared
