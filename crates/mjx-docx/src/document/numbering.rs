@@ -832,9 +832,10 @@ impl NumberingLevel {
         })
     }
 
-    /// Sets `w:lvlJc`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank,
-    /// under the `lvlJc` wire name regardless of what a caller-built [`ParagraphAlignment`] was
-    /// itself constructed as (`w:jc`) — see [`ParagraphAlignment::new_named`].
+    /// Sets `w:lvlJc`: `None` removes it; `Some(value)` builds a fresh [`ParagraphAlignment`] under
+    /// the `lvlJc` wire name (not `jc` — a paragraph's own justification and a level's own use the
+    /// same `CT_Jc` shape under two different element names) and replaces or inserts it at its
+    /// schema rank.
     pub fn set_alignment(&mut self, interner: &mut Interner, value: Option<Justification>) {
         let is_target =
             |item: &NumberingLevelContent| matches!(item, NumberingLevelContent::Alignment(_));
