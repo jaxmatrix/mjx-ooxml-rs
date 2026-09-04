@@ -2377,6 +2377,41 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "CT_TblStylePr",
         "One conditional-formatting override inside a table style (`w:style/w:tblStylePr`)",
     ),
+    (
+        "NUMBERING",
+        "wml",
+        "CT_Numbering",
+        "The numbering definitions part's own root (`w:numbering`): picture bullets, abstract \
+         numbering definitions, then numbering instances",
+    ),
+    (
+        "ABSTRACT_NUMBERING",
+        "wml",
+        "CT_AbstractNum",
+        "One abstract numbering definition (`w:abstractNum`): its identity, its style links, then \
+         up to nine numbering levels",
+    ),
+    (
+        "NUMBERING_INSTANCE",
+        "wml",
+        "CT_Num",
+        "One concrete numbering definition instance (`w:num`): the abstract definition it uses, \
+         then any per-level overrides",
+    ),
+    (
+        "NUMBERING_LEVEL_OVERRIDE",
+        "wml",
+        "CT_NumLvl",
+        "One numbering instance's override of a single level (`w:num/w:lvlOverride`): a start \
+         override, or a whole replacement level",
+    ),
+    (
+        "NUMBERING_LEVEL",
+        "wml",
+        "CT_Lvl",
+        "One numbering level's own formatting (`w:abstractNum/w:lvl`, and the replacement level a \
+         `w:lvlOverride` may carry)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.

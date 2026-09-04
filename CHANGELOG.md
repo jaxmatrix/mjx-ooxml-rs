@@ -49,6 +49,57 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.87] - 2026-09-04
+
+Word numbering definitions (MJXOFF-104, Phase C position 8): `word/numbering.xml` in full —
+abstract numbering definitions (`w:abstractNum`, up to nine `w:lvl` each), numbering instances
+(`w:num`), per-instance level overrides (`w:lvlOverride`), picture bullets (`w:numPicBullet`), and
+the two-hop resolution from a paragraph's `w:numPr` to the level it actually uses.
+
+**Two-hop resolution, indexed by real key, never by position.** `w:numPr/w:numId` names a `w:num`;
+that instance's own `w:abstractNumId` names a `w:abstractNum`; the abstract definition holds the
+levels. `NumberingIndex` (built once from a `&Numbering` snapshot, the same design
+`StyleIndex`/MJXOFF-101 already uses) indexes both hops by `numId`/`abstractNumId`, never by
+document-order position — `numId` values need not be contiguous or ascending, and two instances may
+share one abstract definition. `tests/fixtures/numbering_definitions.docx`, authored for this child
+(no fixture in the corpus carried `word/numbering.xml` at all), seeds exactly that trap: `numId` 2
+and 5 share one abstract definition, deliberately out of order against `numId` 9, and only `numId` 2
+carries a `w:lvlOverride/w:startOverride`. Mutation-proved: neutralising the override handling turns
+`numId` 5's own (un-overridden) resolved start wrong too, confirmed red and restored by re-editing.
+
+**`numId = 0` is "no numbering", not a lookup failure; a genuinely dangling `numId` is a typed
+error.** Proved against the real, already-committed `tests/fixtures/paragraph_properties.docx`
+(MJXOFF-96), which carries a real `w:numPr` (`numId` 5) while relating to no `word/numbering.xml` at
+all — not only against a synthetic case.
+
+**`w:numStyleLink` resolves through `StyleIndex` — the seam between two OPC parts.**
+`Document::resolve_numbering` follows the redirect (a numbering-type style's own `w:pPr/w:numPr`
+substitutes for the numStyleLink-carrying definition's own, typically empty, level list), one part
+parse at a time since each OPC part carries its own `Interner` and two cannot be held open on the
+same `Package` at once; bounded (`MAX_NUM_STYLE_LINK_DEPTH`), the same design
+`MAX_BASED_ON_CHAIN_DEPTH` already uses for `w:basedOn`.
+
+**Displayed list numbers are not computed** — deliberately. Turning a resolved level into "1.2.3"
+or a bullet glyph requires counting every preceding paragraph in the same list, `w:lvlRestart`,
+restart on entering a higher level, and continuation across sections; a counter correct only for a
+flat single-level list would be actively misleading. `numbering.rs`'s own module doc states the
+boundary explicitly, in the style the PowerPoint effective-properties page already uses for its own
+deliberate absences. Rendering a list's text remains MJXOFF-106's.
+
+**Two ticket corrections, verified directly against `wml.xsd`:** `CT_NumRestart` and
+`CT_TrackChangeNumbering` are both unreachable from `CT_Numbering` — the former is
+footnote/endnote restart (`EG_FtnEdnNumProps`, MJXOFF-124's scope), the latter is `CT_NumPr`'s own
+tracked-change wrapper (already opaque, MJXOFF-96) and `CT_FldChar`'s. Neither belongs to this
+child.
+
+`CT_Lvl`'s own `w:pPr`/`w:rPr` are `CT_PPrGeneral`/`CT_RPr` — confirmed against the schema, not
+assumed — so `NumberingLevel` reuses `StyleParagraphProperties` (MJXOFF-101) and `RunProperties`
+(MJXOFF-94) directly rather than restating either. Picture bullets preserve whichever payload a
+real file carries (`w:pict` legacy VML, the common case, or `w:drawing`) as opaque, pending
+MJXOFF-113/MJXOFF-131's own typed models. `Document::{numbering, edit_numbering,
+attach_paragraph_to_list, detach_paragraph_from_list}` mirror the `styles.xml` authoring surface,
+including creating `word/numbering.xml` — relationship and content type — on first use.
+
 ## [0.0.86] - 2026-09-04
 
 Word style definitions (MJXOFF-101, Phase C position 7): `word/styles.xml` in full —

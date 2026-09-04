@@ -31,14 +31,19 @@ mod page;
 
 pub use address::{BlockPath, RunPath};
 pub use document::{
-    Background, BlockContent, Body, Border, Break, CharacterStyle, Color, ConditionalFormatting,
-    ConditionalFormattingBits, DecimalNumberValue, DefaultParagraphProperties,
-    DefaultParagraphPropertyContent, DefaultRunProperties, DefaultRunPropertyContent, Document,
-    DocumentDefaults, DocumentDefaultsContent, DocumentParts, EastAsianLayout, Emphasis, Fonts,
-    FrameProperties, HalfPoint, HalfPointMeasureValue, HexColor, Highlight, Hyperlink, Indentation,
-    Lang, Languages, LatentStyleContent, LatentStyleException, LatentStyles, LineSpacing,
-    LinkedStyleResolution, LongHex, MainDocument, MainDocumentContent, ManualRunWidth,
-    NumberingProperties, NumberingPropertyContent, Paragraph, ParagraphAlignment,
+    AbstractNumbering, AbstractNumberingContent, Background, BlockContent, Body, Border, Break,
+    CharacterStyle, Color, ConditionalFormatting, ConditionalFormattingBits, DecimalNumberValue,
+    DefaultParagraphProperties, DefaultParagraphPropertyContent, DefaultRunProperties,
+    DefaultRunPropertyContent, Document, DocumentDefaults, DocumentDefaultsContent, DocumentParts,
+    EastAsianLayout, Emphasis, Fonts, FrameProperties, HalfPoint, HalfPointMeasureValue, HexColor,
+    HexIdentifier, Highlight, Hyperlink, Indentation, Lang, Languages, LatentStyleContent,
+    LatentStyleException, LatentStyles, LevelLegacyFormatting, LevelNumberFormat, LevelSuffix,
+    LevelTextSegment, LevelTextTemplate, LineSpacing, LinkedStyleResolution, LongHex, MainDocument,
+    MainDocumentContent, ManualRunWidth, MultiLevelKind, Numbering, NumberingContent,
+    NumberingIndex, NumberingInstance, NumberingInstanceContent, NumberingLevel,
+    NumberingLevelContent, NumberingLevelOverride, NumberingLevelOverrideContent, NumberingLookup,
+    NumberingPictureBullet, NumberingPictureBulletContent, NumberingProperties,
+    NumberingPropertyContent, NumberingResolution, Paragraph, ParagraphAlignment,
     ParagraphBorderContent, ParagraphBorders, ParagraphContent, ParagraphMarkRunProperties,
     ParagraphMarkRunPropertyContent, ParagraphProperties, ParagraphPropertyContent, ParagraphStyle,
     ParagraphTextFlowDirection, PartKind, PermissionRangeEnd, PermissionRangeStart, PhoneticGuide,
@@ -52,6 +57,7 @@ pub use document::{
     TableStyleOverrideContent, Text, TextBoxTightWrapSetting, TextEffect, TextScaleValue,
     ThemeHexDigit, Toggle, Twips, Underline, Unmodeled, VerticalAlignment,
     VerticalCharacterAlignment, WhitespacePreservation, MAX_BASED_ON_CHAIN_DEPTH,
+    MAX_NUM_STYLE_LINK_DEPTH,
 };
 pub use error::DocxError;
 pub use page::{PageOrientation, PageSize};

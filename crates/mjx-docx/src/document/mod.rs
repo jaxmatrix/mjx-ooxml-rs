@@ -37,6 +37,7 @@ use mjx_opc::{Package, TargetMode};
 use crate::error::DocxError;
 
 mod body;
+mod numbering;
 mod paragraph_properties;
 mod parts;
 mod property_macros;
@@ -50,6 +51,14 @@ pub use body::{
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
     RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
     WhitespacePreservation,
+};
+pub use numbering::{
+    AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
+    LevelNumberFormat, LevelSuffix, LevelTextSegment, LevelTextTemplate, MultiLevelKind, Numbering,
+    NumberingContent, NumberingIndex, NumberingInstance, NumberingInstanceContent, NumberingLevel,
+    NumberingLevelContent, NumberingLevelOverride, NumberingLevelOverrideContent, NumberingLookup,
+    NumberingPictureBullet, NumberingPictureBulletContent, NumberingResolution,
+    MAX_NUM_STYLE_LINK_DEPTH,
 };
 pub use paragraph_properties::{
     ConditionalFormatting, ConditionalFormattingBits, DecimalNumberValue, FrameProperties,
@@ -360,6 +369,249 @@ impl Document {
         )?;
         self.parts.styles = Some(styles_part.clone());
         Ok(styles_part)
+    }
+
+    /// Reads this document's `word/numbering.xml`, handing `read` the parsed [`Numbering`] together
+    /// with the [`mjx_ooxml_core::Interner`] it was parsed with — mirrors
+    /// [`Document::style_sheet`]'s own shape exactly.
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no
+    /// `word/numbering.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/numbering.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:numbering`.
+    pub fn numbering<R>(
+        &mut self,
+        read: impl FnOnce(&Numbering, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(numbering_part) = self.parts.numbering.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&numbering_part)?;
+        let numbering = Numbering::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&numbering, &doc.interner)))
+    }
+
+    /// Edits this document's numbering definitions, creating `word/numbering.xml` — with its
+    /// content-type registration and its `numbering` relationship from the main document part —
+    /// first if the document does not relate to one yet. Mirrors
+    /// [`Document::edit_style_sheet`]'s own shape exactly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/numbering.xml` is related but cannot be read, or if creating a
+    /// missing `word/numbering.xml` fails (a malformed existing `[Content_Types].xml`/`.rels`, or a
+    /// part-name collision).
+    pub fn edit_numbering<R>(
+        &mut self,
+        edit: impl FnOnce(&mut Numbering, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let numbering_part = match &self.parts.numbering {
+            Some(part) => part.clone(),
+            None => self.create_numbering_part()?,
+        };
+        let doc = self.package.part_tree_mut(&numbering_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut numbering = if root.name.local == interner.intern("numbering") {
+            Numbering::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/numbering.xml root is not w:numbering",
+            ));
+        };
+        let result = edit(&mut numbering, interner);
+        numbering.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/numbering.xml`, registers its content type, and relates it from the
+    /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
+    fn create_numbering_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let numbering_part = self.document_part.resolve("numbering.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "numbering.xml".to_owned(),
+            }
+        })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:numbering xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &numbering_part,
+            crate::constants::CONTENT_TYPE_NUMBERING,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_NUMBERING.to_owned(),
+                target: "numbering.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.numbering = Some(numbering_part.clone());
+        Ok(numbering_part)
+    }
+
+    /// Resolves `numbering_id`/`level` through both indirection hops — see `numbering.rs`'s own
+    /// module doc — including a `w:numStyleLink` redirect through `word/styles.xml` when the
+    /// resolved abstract definition carries one. `read` receives the [`NumberingLookup`] together
+    /// with the [`mjx_ooxml_core::Interner`] its borrowed data (when any) was parsed with.
+    ///
+    /// `numbering_id = 0` always resolves to [`NumberingLookup::None`] — checked before this method
+    /// looks at whether `word/numbering.xml` is even related, since `0` is "no numbering" regardless
+    /// (see the module's own doc comment). Any other `numbering_id`, when the document relates to no
+    /// `word/numbering.xml` at all, is [`DocxError::UnknownNumberingId`] — the same error a `numId`
+    /// unresolvable *within* an existing part reports, since from a caller's perspective both mean
+    /// exactly the same thing: the referenced list definition cannot be found.
+    ///
+    /// Each redirect hop parses `word/numbering.xml` and, if needed, `word/styles.xml` in turn —
+    /// never two parts' fidelity trees at once (each [`mjx_opc::Package::part_tree`] borrow ends
+    /// before the next begins; [`mjx_ooxml_core::Interner`]s are per-part and are not merged across
+    /// this boundary) — bounded by [`MAX_NUM_STYLE_LINK_DEPTH`] hops.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::UnknownNumberingId`], [`DocxError::UnknownAbstractNumberingId`],
+    /// [`DocxError::MissingAbstractNumberingReference`] (see [`NumberingIndex::resolve`] for all
+    /// three), [`DocxError::NumberingStyleLinkTargetMissing`],
+    /// [`DocxError::NumberingStyleLinkWrongKind`], [`DocxError::NumberingStyleLinkHasNoNumbering`] or
+    /// [`DocxError::NumberingStyleLinkTooDeep`] for a `w:numStyleLink` redirect that cannot be
+    /// followed, or another [`DocxError`] if a related part cannot be read.
+    pub fn resolve_numbering<R>(
+        &mut self,
+        numbering_id: i64,
+        level: i64,
+        read: impl FnOnce(&NumberingLookup<'_>, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        if numbering_id == 0 {
+            let doc = self.package.part_tree(&self.document_part)?;
+            return Ok(read(&NumberingLookup::None, &doc.interner));
+        }
+
+        let mut current_id = numbering_id;
+        let mut hops = 0usize;
+        loop {
+            if hops > MAX_NUM_STYLE_LINK_DEPTH {
+                return Err(DocxError::NumberingStyleLinkTooDeep {
+                    numbering_id,
+                    limit: MAX_NUM_STYLE_LINK_DEPTH,
+                });
+            }
+            let Some(numbering_part) = self.parts.numbering.clone() else {
+                return Err(DocxError::UnknownNumberingId(current_id));
+            };
+            let doc = self.package.part_tree(&numbering_part)?;
+            let numbering = Numbering::from_xml(&doc.root, &doc.interner)?;
+            let index = NumberingIndex::build(&numbering, &doc.interner)?;
+            let lookup = index.resolve(current_id, level, &doc.interner)?;
+
+            let redirect_style_id = match &lookup {
+                NumberingLookup::None => None,
+                NumberingLookup::Resolved(resolution) => resolution
+                    .abstract_definition()
+                    .numbering_style_link()
+                    .map(|link| link.value(&doc.interner))
+                    .transpose()
+                    .map_err(FromXmlError::from)?
+                    .map(std::borrow::Cow::into_owned),
+            };
+            let Some(style_id) = redirect_style_id else {
+                return Ok(read(&lookup, &doc.interner));
+            };
+
+            let Some(styles_part) = self.parts.styles.clone() else {
+                return Err(DocxError::NumberingStyleLinkTargetMissing { style_id });
+            };
+            let doc = self.package.part_tree(&styles_part)?;
+            let sheet = StyleSheet::from_xml(&doc.root, &doc.interner)?;
+            let style_index = StyleIndex::build(&sheet, &doc.interner)?;
+            let style = style_index.style_by_id(&style_id).ok_or_else(|| {
+                DocxError::NumberingStyleLinkTargetMissing {
+                    style_id: style_id.clone(),
+                }
+            })?;
+            let kind = style.kind(&doc.interner).map_err(FromXmlError::from)?;
+            if kind != Some(mjx_ooxml_types::wordprocessingml::StyleType::Numbering) {
+                return Err(DocxError::NumberingStyleLinkWrongKind {
+                    style_id,
+                    found: kind,
+                });
+            }
+            let next_id = style
+                .paragraph_properties()
+                .and_then(StyleParagraphProperties::numbering)
+                .map(|reference| reference.numbering_id(&doc.interner))
+                .transpose()
+                .map_err(FromXmlError::from)?
+                .flatten()
+                .ok_or_else(|| DocxError::NumberingStyleLinkHasNoNumbering {
+                    style_id: style_id.clone(),
+                })?;
+            current_id = next_id;
+            hops += 1;
+        }
+    }
+
+    /// Attaches the paragraph at `paragraph` to the numbering instance `numbering_id` at level
+    /// `level` (`w:numPr/w:numId` and `w:numPr/w:ilvl`), replacing any numbering reference it already
+    /// carried.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph.
+    pub fn attach_paragraph_to_list(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        numbering_id: i64,
+        level: i64,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let properties = paragraph.properties_or_insert(interner);
+        let mut numbering = NumberingProperties::new(interner);
+        numbering.set_level(interner, Some(level));
+        numbering.set_numbering_id(interner, Some(numbering_id));
+        properties.set_numbering(Some(numbering));
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Removes the paragraph at `paragraph`'s own `w:numPr`, if it carries one (a no-op otherwise).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph.
+    pub fn detach_paragraph_from_list(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        if let Some(properties) = paragraph.properties_mut() {
+            properties.set_numbering(None);
+        }
+        main.write_back(root, interner);
+        Ok(())
     }
 
     /// The next free relationship id (`rId{N}`) in `part`'s `.rels`, one past the current maximum —
