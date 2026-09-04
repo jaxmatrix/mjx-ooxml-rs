@@ -52,6 +52,57 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.97] - 2026-09-04
+
+Office MathML in Word: `mjx-omml` ends the Phase 0 scaffold deferral (MJXOFF-134, Phase C position
+18) — `crates/mjx-omml/src/{support,leaf,arg,objects,math,properties}.rs` (all new), 2,638 lines from
+13. `crates/mjx-docx/src/document/{body,mod,revisions}.rs` (Word-side integration).
+
+**All 72 `shared-math.xsd` complex types are modelled.** `Math` (`m:oMath`), `MathParagraph`
+(`m:oMathPara`), `Argument` (`CT_OMathArg`, the recursive core every object's operand slot bottoms
+out at), `Run` (`m:r`), `Text` (`m:t`), and every math object — accent, bar, box, border box,
+delimiter, equation array, fraction, function-apply, group character, lower/upper limit, matrix
+(with its row/column/column-properties family), n-ary operator, phantom, radical, and the four
+script forms — with its own paired `*Pr` properties type. Twenty leaf `CT_*` value types (`CT_OnOff`,
+`CT_Shp`, `CT_Integer255`, …) collapse into one shared read/write mechanism rather than twenty
+near-identical Rust types, and six single-`ctrlPr`-child `*Pr` types collapse into
+`ControlOnlyProperties` — the same "one shape, many meanings" reuse `mjx-docx` already established
+for `CT_OnOff`/`CT_String`. Consumes MJXOFF-144's generated `mjx-ooxml-types::officemath` simple
+types throughout.
+
+**The layering tension `CT_CtrlPr` poses — a `wml`-typed `w:rPr`/`w:ins`/`w:del` nested inside a
+`shared-math` type, which the schema itself only resolves by importing `wml.xsd` — is resolved by
+preserving `ControlProperties`'s children wholesale and raw**, the same mechanism `mjx-dml`'s
+`WordprocessingGroup`/`WordprocessingCanvas` already use for their own WordprocessingML-typed member
+content. `mjx-docx` (which depends on `mjx-omml`) adds typed accessors over a `ControlProperties`'s
+raw children where it needs them: `MathControlInsert`/`MathControlDelete` (`CT_MathCtrlIns`/
+`CT_MathCtrlDel`) and `math_control_properties`, the reachable call site MJXOFF-126 declined those
+two types for want of.
+
+**Word-side integration:** `ParagraphContent` grows `Math`/`MathParagraph` variants (`m:oMath`/
+`m:oMathPara`, folded in from `EG_RunLevelElts`'s own `EG_MathContent` — a sibling of `w:r`, not
+nested inside one), wired into all four `Vec<ParagraphContent>` hosts. `Paragraph` grows
+`append_math`/`append_math_paragraph`/`equations`/`equations_mut`; `Document` grows `append_math`
+(closure-based, mirroring `edit_numbering`) and `set_equation_run_text` (an edit several nesting
+levels deep, through the same `ToXml::write_back` span-preserving path every other mutation in this
+crate uses).
+
+**A real bug the crate's own integration tests caught:** `shared-math.xsd` is
+`attributeFormDefault="qualified"` (the only other modeled schema besides `wml.xsd` with this shape),
+so every `val`/`alnAt` attribute is wire-qualified `m:val`/`m:alnAt`, never bare — fixed in
+`crate::support`'s `VAL_ATTRIBUTE_PREFIX`. A freshly authored equation spliced into a blank
+document's `word/document.xml` (which binds only `w:`/`r:`) also produced markup using the
+undeclared `m:` prefix — `Document::append_math` now declares it on the newly inserted subtree's own
+root, the same pattern `document/drawing.rs`'s `Drawing::new` already established for `wp:`/`a:`/
+`pic:`.
+
+**Codegen:** `shared-math` moves from `CHILD_ORDER_SCHEMA_DEPENDENCIES` to `CHILD_ORDER_SCHEMAS` (its
+own generated child-order table) and gains 43 `CHILD_ORDER_EXPORTS` rows. No new entry was needed in
+the schema gate's `schema_for_namespace`: `m:` never roots a part of its own — `wml.xsd` already
+imports `shared-math.xsd`, so `word/document.xml`'s own validation against `wml.xsd` already covers
+nested `m:` content transitively, proved by a mutation (`m:f` missing its required `m:num`) that
+turns the sweep red naming the part.
+
 ## [0.0.96] - 2026-09-04
 
 DrawingML in Word: `w:drawing`, `w:pict`, `w:object` and `w:control` (MJXOFF-131, Phase C position
