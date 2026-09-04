@@ -100,6 +100,7 @@ mod revisions;
 mod run_properties;
 mod sections;
 mod settings;
+mod structured_content;
 mod styles;
 mod table_properties;
 mod table_regions;
@@ -206,6 +207,25 @@ pub use settings::{
     Kinsoku, ProofSettings, ReadingModeInkLockDown, SaveThroughXsltSetting, SeparatorReference,
     SettingsContent, SmartTagTypeEntry, StylePaneFilter, StyleSortSetting, TrackChangesView,
     TwipsMeasureValue, ViewSetting, WriteProtectionSetting, WritingStyleSetting, ZoomSetting,
+};
+pub use structured_content::{
+    resolve_xpath, AltChunk, AltChunkContent, AltChunkProperties, AltChunkPropertyContent, Attr,
+    BdoContentRun, BuildingBlock, BuildingBlockBehavior, BuildingBlockBehaviors,
+    BuildingBlockBehaviorsContent, BuildingBlockCategory, BuildingBlockCategoryContent,
+    BuildingBlockCategoryGallery, BuildingBlockContent, BuildingBlockName, BuildingBlockProperties,
+    BuildingBlockPropertyContent, BuildingBlockReference, BuildingBlockReferenceContent,
+    BuildingBlockType, BuildingBlockTypes, BuildingBlockTypesContent, ContentControlBlock,
+    ContentControlBlockContent, ContentControlCalendarType, ContentControlCell,
+    ContentControlCellContent, ContentControlComboBox, ContentControlContentBlock,
+    ContentControlContentCell, ContentControlContentRow, ContentControlContentRun,
+    ContentControlDate, ContentControlDateContent, ContentControlDateMappingType,
+    ContentControlDropDownList, ContentControlEndProperties, ContentControlEndPropertyContent,
+    ContentControlKind, ContentControlListContent, ContentControlListItem,
+    ContentControlProperties, ContentControlPropertyContent, ContentControlRow,
+    ContentControlRowContent, ContentControlRun, ContentControlRunContent, ContentControlText,
+    CustomXmlBlock, CustomXmlCell, CustomXmlProperties, CustomXmlPropertyContent, CustomXmlRow,
+    CustomXmlRun, DataBinding, DirContentRun, DocParts, DocPartsContent, GuidValue, Lock,
+    Placeholder, SmartTagProperties, SmartTagPropertyContent, SmartTagRun,
 };
 pub use styles::{
     DefaultParagraphProperties, DefaultParagraphPropertyContent, DefaultRunProperties,
@@ -4117,6 +4137,239 @@ impl Document {
         }))
     }
 
+    // =============================================================================================
+    // MJXOFF-138 — the glossary document, content controls' data binding, and external content
+    // (`w:altChunk`).
+    // =============================================================================================
+
+    /// The glossary document part's own content (`w:glossaryDocument`), handing `read` the parsed
+    /// [`GlossaryDocument`] together with the [`Interner`](mjx_ooxml_core::Interner) it was parsed
+    /// with — mirrors [`Document::style_sheet`]'s own shape (read-only, `read` never called if the
+    /// part is absent).
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no glossary document
+    /// part at all (`sample.docx` and every fixture this crate opens today are in this case; a
+    /// glossary document is optional per §11.3.8).
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if the glossary document part is related but cannot be read, is not
+    /// well-formed, or its root is not `w:glossaryDocument`.
+    pub fn glossary_document<R>(
+        &mut self,
+        read: impl FnOnce(&GlossaryDocument, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(part) = self.parts.glossary_document.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&part)?;
+        if !is_wml_element(&doc.root, &doc.interner, "glossaryDocument") {
+            return Err(DocxError::MalformedDocument(
+                "glossary document part root is not w:glossaryDocument",
+            ));
+        }
+        let glossary = GlossaryDocument::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&glossary, &doc.interner)))
+    }
+
+    /// Every Custom XML Data Storage part (`customXml/itemN.xml`, ECMA-376 Part 1 §15.2.4) related
+    /// to the main document part, in relationship order. ECMA-376 permits any number, including
+    /// zero — every fixture this crate opens today carries none.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::ExternalTarget`] if a relationship is external (never legal for this
+    /// part kind), or [`DocxError::TargetResolution`] if a target does not resolve.
+    pub fn custom_xml_parts(&self) -> Result<Vec<mjx_opc::PartName>, DocxError> {
+        let Some(rels) = self.package.relationships_for(Some(&self.document_part)) else {
+            return Ok(Vec::new());
+        };
+        parts::many(
+            &self.document_part,
+            rels,
+            crate::constants::REL_CUSTOM_XML_DATA,
+        )
+    }
+
+    /// The `ds:itemID` (§15.2.6) of `part`'s own Custom XML Data Storage Properties part, or `None`
+    /// if `part` carries no such relationship (non-conformant per §15.2.4's own "is permitted to
+    /// have implicit relationships to… Custom XML Data Storage Properties," but read rather than
+    /// rejected) or the properties part's own `ds:datastoreItem` states no `ds:itemID`.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if the relationship's target does not resolve, or the properties part
+    /// cannot be read.
+    fn custom_xml_item_id(
+        &mut self,
+        part: &mjx_opc::PartName,
+    ) -> Result<Option<String>, DocxError> {
+        let Some(rels) = self.package.relationships_for(Some(part)) else {
+            return Ok(None);
+        };
+        let Some(props_part) = parts::single(part, rels, crate::constants::REL_CUSTOM_XML_PROPS)?
+        else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&props_part)?;
+        let Some(attribute) =
+            mjx_xml::attribute::find(&doc.root.attributes, &doc.interner, Some("ds"), "itemID")
+        else {
+            return Ok(None);
+        };
+        // A malformed `ds:itemID` (bad UTF-8 or an unresolvable entity) is read as "no id" rather
+        // than a hard error — this crate never rejects an untrusted file's own malformed attribute
+        // on read, matching every other `AttributeCodec`'s own contract in this workspace.
+        Ok(mjx_xml::attribute::decoded_value(attribute, "ds:itemID")
+            .ok()
+            .map(std::borrow::Cow::into_owned))
+    }
+
+    /// Resolves a content control's `w:dataBinding` to the Custom XML Data Storage part and node it
+    /// names: every part [`Document::custom_xml_parts`] finds is checked, by its own properties
+    /// part's `ds:itemID`, against `store_item_id`; once found, `xpath` (the documented subset
+    /// [`resolve_xpath`]'s own doc comment names) is resolved against that part's own root, and
+    /// `read` gets the resolved node together with the [`Interner`](mjx_ooxml_core::Interner) it was
+    /// parsed with (the Custom XML Data Storage part's own — **not** the interner `store_item_id`/
+    /// `xpath` themselves were decoded with, since those live in a different part's tree; decode
+    /// both from a [`DataBinding`] with that part's own interner before calling this method).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::DataBindingPartNotFound`] if no related Custom XML Data Storage part's
+    /// properties carry a matching `ds:itemID` — never a panic, matching this crate's untrusted-input
+    /// contract; [`DocxError::DataBindingXPathNotFound`] if the part is found but `xpath` does not
+    /// resolve against it; or another [`DocxError`] if a part cannot be read.
+    pub fn resolve_data_binding<R>(
+        &mut self,
+        store_item_id: &str,
+        xpath: &str,
+        read: impl FnOnce(&mjx_ooxml_core::RawElement, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let candidates = self.custom_xml_parts()?;
+        let mut matched = None;
+        for candidate in candidates {
+            if self.custom_xml_item_id(&candidate)?.as_deref() == Some(store_item_id) {
+                matched = Some(candidate);
+                break;
+            }
+        }
+        let Some(part) = matched else {
+            return Err(DocxError::DataBindingPartNotFound {
+                store_item_id: store_item_id.to_owned(),
+            });
+        };
+        let doc = self.package.part_tree(&part)?;
+        let Some(node) = structured_content::resolve_xpath(&doc.root, &doc.interner, None, xpath)
+        else {
+            return Err(DocxError::DataBindingXPathNotFound {
+                store_item_id: store_item_id.to_owned(),
+                xpath: xpath.to_owned(),
+            });
+        };
+        Ok(read(node, &doc.interner))
+    }
+
+    /// Every `w:altChunk`'s own relationship id, resolved to the external-content part it names, in
+    /// relationship order — every one of `wml.xsd`'s own `aFChunk` relationships this document part
+    /// carries, whether or not a `w:altChunk` in the body currently references it (an orphaned
+    /// relationship is a packaging concern [`Document::validate`] surfaces, not this accessor's).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::ExternalTarget`] if a relationship is external, or
+    /// [`DocxError::TargetResolution`] if a target does not resolve.
+    pub fn alt_chunk_parts(&self) -> Result<Vec<(String, mjx_opc::PartName)>, DocxError> {
+        let Some(rels) = self.package.relationships_for(Some(&self.document_part)) else {
+            return Ok(Vec::new());
+        };
+        rels.by_type(crate::constants::REL_ALT_CHUNK)
+            .map(|rel| {
+                if rel.mode == TargetMode::External {
+                    return Err(DocxError::ExternalTarget {
+                        target: rel.target.clone(),
+                    });
+                }
+                let part = self.document_part.resolve(&rel.target).map_err(|_| {
+                    DocxError::AltChunkRelationshipNotFound {
+                        relationship_id: rel.id.clone(),
+                    }
+                })?;
+                Ok((rel.id.clone(), part))
+            })
+            .collect()
+    }
+
+    /// A `w:altChunk`'s own imported payload, resolved by its `relationship_id` (`w:altChunk/@r:id`):
+    /// the part's raw bytes exactly as the package carries them (never decoded, never converted —
+    /// this crate does not interpret altChunk payloads) and its registered content type.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::AltChunkRelationshipNotFound`] if `relationship_id` does not resolve to
+    /// an internal `aFChunk` relationship — a missing relationship, one of the wrong type, or an
+    /// external target, exactly the "shall be considered non-conformant" case ECMA-376 Part 1
+    /// §17.17.2.1 names — reported rather than panicked on.
+    pub fn alt_chunk_payload(&self, relationship_id: &str) -> Result<(&[u8], &str), DocxError> {
+        let part = self
+            .alt_chunk_parts()?
+            .into_iter()
+            .find(|(id, _)| id == relationship_id)
+            .map(|(_, part)| part)
+            .ok_or_else(|| DocxError::AltChunkRelationshipNotFound {
+                relationship_id: relationship_id.to_owned(),
+            })?;
+        let bytes = self.package.part_bytes(&part).ok_or_else(|| {
+            DocxError::AltChunkRelationshipNotFound {
+                relationship_id: relationship_id.to_owned(),
+            }
+        })?;
+        let content_type = self.package.content_type_of(&part).unwrap_or_default();
+        Ok((bytes, content_type))
+    }
+
+    /// Imports `bytes` (of `content_type`) as a new external-content part, relates it to the main
+    /// document part with the `aFChunk` relationship type, and appends a fresh `w:altChunk` naming it
+    /// as the body's new last top-level item — **before** `w:sectPr` when the body has one, matching
+    /// [`Document::append_paragraph`]'s own placement rule (`EG_BlockLevelElts`'s `altChunk` member
+    /// sits at the same rank as every other block-level child). The payload is stored exactly as
+    /// given — this crate never inspects or converts it (see [`crate::AltChunk`]'s own doc comment).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the package edit fails.
+    pub fn add_alt_chunk(
+        &mut self,
+        content_type: &str,
+        bytes: Vec<u8>,
+    ) -> Result<String, DocxError> {
+        let extension = match content_type {
+            crate::constants::CONTENT_TYPE_ALT_CHUNK_HTML => "htm",
+            crate::constants::CONTENT_TYPE_ALT_CHUNK_RTF => "rtf",
+            crate::constants::CONTENT_TYPE_ALT_CHUNK_DOCX => "docx",
+            _ => "bin",
+        };
+        let rid = self.next_rid_for(&self.document_part.clone());
+        let target = format!("afchunk{rid}.{extension}");
+        let part = self
+            .document_part
+            .resolve(&target)
+            .map_err(|err| parts::target_error(err, &target))?;
+        self.package.insert_part(&part, content_type, bytes)?;
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid.clone(),
+                rel_type: crate::constants::REL_ALT_CHUNK.to_owned(),
+                target,
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let chunk = structured_content::AltChunk::new(interner, &rid);
+        body.append_alt_chunk(chunk);
+        main.write_back(root, interner);
+        Ok(rid)
+    }
+
     /// Validates the document, then serializes it back to container bytes (only edited parts
     /// re-serialize).
     ///
@@ -4212,6 +4465,58 @@ impl MainDocument {
     pub fn body_mut(&mut self) -> Option<&mut Body> {
         self.content.iter_mut().find_map(|item| match item {
             MainDocumentContent::Body(body) => Some(body),
+            _ => None,
+        })
+    }
+}
+
+/// `CT_GlossaryDocument` — the `w:glossaryDocument` root's own content (MJXOFF-138): the same
+/// optional page background [`MainDocument`] extends from `CT_DocumentBase`, then the optional
+/// [`DocParts`] — the glossary's own list of building blocks, each holding its content as an
+/// ordinary [`Body`] (see [`BuildingBlock::body`]'s own doc comment). This is `w:glossaryDocument`'s
+/// whole content model; there is no glossary-specific block-content type anywhere in this crate.
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
+#[xml(namespace = WML)]
+pub struct GlossaryDocument {
+    name: RawName,
+    attributes: Vec<RawAttribute>,
+    empty: bool,
+    #[xml(
+        children,
+        child(local = "background", variant = Background, ty = Background),
+        child(local = "docParts", variant = DocParts, ty = DocParts)
+    )]
+    content: Vec<GlossaryDocumentContent>,
+}
+
+/// One ordered child of a [`GlossaryDocument`]: a typed [`Background`] or [`DocParts`], or an opaque
+/// node.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GlossaryDocumentContent {
+    /// `w:background` (`CT_Background`).
+    Background(Background),
+    /// `w:docParts` (`CT_DocParts`).
+    DocParts(DocParts),
+    /// Any other child — whitespace or an unknown element — preserved verbatim.
+    Raw(RawNode),
+}
+
+impl GlossaryDocument {
+    /// The glossary document's own building blocks (`w:docParts`), or `None` if it declares none
+    /// (legal: `CT_GlossaryDocument`'s `docParts` is `minOccurs="0"`).
+    #[must_use]
+    pub fn doc_parts(&self) -> Option<&DocParts> {
+        self.content.iter().find_map(|item| match item {
+            GlossaryDocumentContent::DocParts(doc_parts) => Some(doc_parts),
+            _ => None,
+        })
+    }
+
+    /// The glossary document's own page background (`w:background`), or `None` if it declares none.
+    #[must_use]
+    pub fn background(&self) -> Option<&Background> {
+        self.content.iter().find_map(|item| match item {
+            GlossaryDocumentContent::Background(background) => Some(background),
             _ => None,
         })
     }

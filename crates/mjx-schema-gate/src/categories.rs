@@ -117,6 +117,18 @@ pub const OPC_CORE_PROPERTIES_NS: &str =
 pub const INKML_NS: &str = "http://www.w3.org/2003/InkML";
 /// `ax:` — the Microsoft ActiveX control markup an `activeX*.xml` part carries.
 pub const ACTIVEX_NS: &str = "http://schemas.microsoft.com/office/2006/activeX";
+/// `ds:` — the Custom XML Data Storage Properties namespace (`shared-customXmlDataProperties.xsd`,
+/// ECMA-376 Part 1 §15.2.6), the root of every `customXml/itemPropsN.xml` part (MJXOFF-138).
+pub const CUSTOM_XML_DATA_PROPS_NS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/customXml";
+/// A representative Custom XML Data Storage part namespace (`customXml/itemN.xml`, ECMA-376 Part 1
+/// §15.2.4), used by `mjx-docx`'s own `structured_content.docx` fixture (MJXOFF-138). Custom XML is
+/// arbitrary by definition — §15.2.4's own "Root Namespace" entry reads "any XML allowed" — so this
+/// entry cannot mean "every custom-XML namespace is foreign"; it means exactly what the fixture
+/// carries, the same one-concrete-namespace shape [`INKML_NS`]/[`ACTIVEX_NS`] already have. A
+/// document whose own custom XML uses a *different* namespace needs its own entry here, same as any
+/// other new category-2 namespace this gate has never seen.
+pub const CUSTOM_XML_DATA_EXAMPLE_NS: &str = "http://schemas.example.com/customer";
 
 /// Every namespace in category 1, with the schema it is validated against.
 ///
@@ -316,6 +328,26 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
         reason: "a Microsoft vocabulary describing a COM control's persisted state. \
                  `add_activex_control` writes the caller's class id and state through; the payload \
                  is opaque to this project",
+    },
+    PreservedForeignMarkup {
+        key: ForeignMarkupKey::Namespace(CUSTOM_XML_DATA_PROPS_NS),
+        label: "Custom XML Data Storage Properties",
+        reason: "ECMA-376 Part 1 §15.2.6 defines this part (`customXml/itemPropsN.xml`), but its own \
+                 schema (`shared-customXmlDataProperties.xsd`) is a small satellite tree this project \
+                 does not generate a typed model for — `Document::resolve_data_binding` (MJXOFF-138) \
+                 reads only its `ds:itemID` attribute directly, the same lightweight plumbing-only \
+                 read `mjx-schema-gate` itself performs for MCE, not a claim that the part's content \
+                 is validated",
+    },
+    PreservedForeignMarkup {
+        key: ForeignMarkupKey::Namespace(CUSTOM_XML_DATA_EXAMPLE_NS),
+        label: "Custom XML Data Storage (a representative namespace)",
+        reason: "ECMA-376 Part 1 §15.2.4: a Custom XML Data Storage part's own root namespace is \
+                 \"any XML allowed\" — arbitrary by definition, chosen by whatever template or \
+                 document-assembly system authored the part. This project never validates one \
+                 against a schema of its own; `mjx-docx`'s `structured_content.docx` fixture \
+                 (MJXOFF-138) is the one committed example, and this is its own concrete namespace \
+                 rather than a blanket rule for every possible one",
     },
     // `docProps/core.xml` (`OPC_CORE_PROPERTIES_NS`) and `docProps/app.xml`
     // (`shared-documentPropertiesExtended`) *were* here until MJXOFF-149: "document properties are

@@ -185,3 +185,68 @@ pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocum
 /// [`REL_THEME`]'s own doc comment gives, since `mjx-docx` cannot depend on `mjx-pptx`).
 pub const REL_IMAGE: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+
+// =================================================================================================
+// MJXOFF-138 — custom XML data storage (§15.2.4/§15.2.6) and external content import (`w:altChunk`,
+// §17.17.2.1). Confirmed directly against ECMA-376 Part 1's own worked examples for both — the same
+// `purl.oclc.org` → `schemas.openxmlformats.org` Transitional substitution this module's own doc
+// comment states for every other constant here.
+// =================================================================================================
+
+/// The relationship type from a document part (or a SpreadsheetML/PresentationML part — this part
+/// kind is shared across all three formats, §15.2.4) to a Custom XML Data Storage part
+/// (`customXml/itemN.xml`). Part 1's own worked example (§15.2.4) quotes
+/// `Type="http://…/customXmlData"` verbatim.
+pub const REL_CUSTOM_XML_DATA: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlData";
+
+/// The content type of a Custom XML Data Storage part — plain `application/xml`, per §15.2.4's own
+/// "Content Type" table entry: the part "can contain arbitrary XML," so its own root can be (and
+/// usually is) in a namespace this crate has never seen, which is exactly why `mjx-schema-gate`
+/// classifies it as preserved foreign markup rather than attempting to validate it (see
+/// `mjx_schema_gate::categories`'s own module doc).
+pub const CONTENT_TYPE_CUSTOM_XML_DATA: &str = "application/xml";
+
+/// The relationship type from a Custom XML Data Storage part to its own Custom XML Data Storage
+/// Properties part (`customXml/itemPropsN.xml`, §15.2.6). Part 1's own worked example quotes
+/// `Type="http://…/customXmlProps"` verbatim.
+pub const REL_CUSTOM_XML_PROPS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps";
+
+/// The content type of a Custom XML Data Storage Properties part (§15.2.6's own "Content Type"
+/// table entry, quoted verbatim).
+pub const CONTENT_TYPE_CUSTOM_XML_PROPS: &str =
+    "application/vnd.openxmlformats-officedocument.customXmlProperties+xml";
+
+/// The Custom XML Data Storage Properties part's own root namespace (§15.2.6: "Root Namespace"),
+/// carrying its one element, `ds:datastoreItem` (`CT_DatastoreItem`, `ds:itemID` — a GUID —
+/// [`crate::Document::resolve_data_binding`]'s own match key against a `w:dataBinding/@storeItemID`).
+pub const CUSTOM_XML_DATA_PROPS_NS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/customXml";
+
+/// The relationship type from the main document part to an external-content part a `w:altChunk`
+/// imports (§17.17.2.1). Part 1's own worked example quotes `Type="http://…/aFChunk"` verbatim — the
+/// relationship type is `aFChunk`, not `altChunk`; **confirmed directly against the spec text**, not
+/// assumed from the element name.
+pub const REL_ALT_CHUNK: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/aFChunk";
+
+/// A content type real Word output commonly gives an `w:altChunk` target when it is an HTML
+/// fragment. **Not spec-enumerated** — §17.17.2.1 states only that the target's own content type
+/// governs whether an application can import it, never naming one; this is a convenience constant
+/// for a caller building a fresh HTML import (`Document::add_alt_chunk`), the same
+/// "commonly used, not spec-confirmed" caveat [`CONTENT_TYPE_MAIL_MERGE_RECIPIENT_DATA`]'s own doc
+/// comment carries. This crate never inspects or converts an `altChunk` payload, whatever its
+/// content type — see [`crate::AltChunk`]'s own doc comment.
+pub const CONTENT_TYPE_ALT_CHUNK_HTML: &str = "text/html";
+
+/// [`CONTENT_TYPE_ALT_CHUNK_HTML`]'s own RTF counterpart.
+pub const CONTENT_TYPE_ALT_CHUNK_RTF: &str = "text/rtf";
+
+/// [`CONTENT_TYPE_ALT_CHUNK_HTML`]'s own counterpart for importing a whole `.docx` as a single,
+/// un-unpacked part.
+pub const CONTENT_TYPE_ALT_CHUNK_DOCX: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+// The relationship type from the main document part to the glossary document part is
+// `REL_GLOSSARY_DOCUMENT`, already declared above — no third `REL_*` constant needed for it.

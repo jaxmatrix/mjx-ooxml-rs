@@ -8,19 +8,20 @@
 //!
 //! - [`BlockContent`] — `EG_ContentBlockContent` (plus `w:sectPr`, the one child `CT_Body` adds after
 //!   it, and `w:tcPr`, the one child a table cell adds *before* it — see [`BlockContent::Properties`]):
-//!   what [`Body`], a header/footer (`headers.rs`, MJXOFF-113) and, now, a table cell
+//!   what [`Body`], a header/footer (`headers.rs`, MJXOFF-113) and a table cell
 //!   (`tables.rs::Cell`, MJXOFF-116) all hold. [`Paragraph`] and [`BlockContent::Table`] are typed;
-//!   `w:customXml` and `w:sdt` stay [`Unmodeled`] (nobody has claimed them yet).
+//!   `w:customXml` and `w:sdt` are MJXOFF-138's own [`super::structured_content::CustomXmlBlock`]/
+//!   [`super::structured_content::ContentControlBlock`] — each wraps this exact same enum for its own
+//!   content, which is what lets a content control (or a custom-XML region) nest to arbitrary depth
+//!   and lets `Body`'s own paragraph/table API reach through it unchanged.
 //! - [`ParagraphContent`] — `EG_PContent`: what [`Paragraph`] and, recursively, [`Hyperlink`] hold.
 //!   [`Run`] is the one typed member with real reach; [`Hyperlink`] is typed too, but only enough to
 //!   recurse back into this same enum — its own attributes (`r:id`, `anchor`, `tooltip`, …) are
-//!   MJXOFF-121's semantics, not this child's. `w:customXml`, `w:smartTag`, `w:sdt`, `w:dir`,
-//!   `w:bdo` and `w:fldSimple` stay [`Unmodeled`]: each of them *also* wraps `EG_PContent` per the
-//!   schema, so a run three of them deep is schema-legal, but nothing today asks this crate to reach
-//!   one — the ticket's own reachability requirement names `w:hyperlink` specifically, and giving
-//!   every wrapper the same treatment "for symmetry" would be five recursive types this child was
-//!   not asked to test. A later child that needs one flips it from `Unmodeled` to a typed struct
-//!   the same way [`Hyperlink`] already is, without touching this enum's shape.
+//!   MJXOFF-121's semantics, not this child's. `w:customXml`, `w:smartTag`, `w:sdt`, `w:dir` and
+//!   `w:bdo` are MJXOFF-138's own types (see [`super::structured_content`]'s own module doc) — each,
+//!   like [`Hyperlink`], wraps this same enum for its own content, so a run three of them deep reads
+//!   and round-trips exactly as it did before, just through a typed wrapper rather than
+//!   [`Unmodeled`]. `w:fldSimple` is MJXOFF-121's own [`super::fields::SimpleField`].
 //! - [`RunInnerContent`] — `EG_RunInnerContent`, `CT_R`'s own content: **all 33 members**, every one
 //!   with a variant (see the module-level list below). Nine are fully typed ([`Break`], [`Text`]
 //!   reused for four of them, [`RelationshipReference`], [`Symbol`], [`PositionalTab`],
@@ -86,15 +87,16 @@ pub struct Body {
     empty: bool,
     #[xml(
         children,
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlBlock),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlBlock),
         child(local = "p", variant = Paragraph, ty = Paragraph),
         child(local = "tbl", variant = Table, ty = super::tables::Table),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = PermissionRangeEnd),
         child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
-        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
+        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties),
+        child(local = "altChunk", variant = AltChunk, ty = super::structured_content::AltChunk)
     )]
     content: Vec<BlockContent>,
 }
@@ -104,10 +106,12 @@ pub struct Body {
 /// prepends before it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockContent {
-    /// `w:customXml` (`CT_CustomXmlBlock`) — unowned; opaque.
-    CustomXml(Unmodeled),
-    /// `w:sdt` (`CT_SdtBlock`) — unowned; opaque.
-    StructuredDocumentTag(Unmodeled),
+    /// `w:customXml` (`CT_CustomXmlBlock`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::CustomXmlBlock`].
+    CustomXml(super::structured_content::CustomXmlBlock),
+    /// `w:sdt` (`CT_SdtBlock`) — a block-level content control, MJXOFF-138's own type; see
+    /// [`super::structured_content::ContentControlBlock`].
+    StructuredDocumentTag(super::structured_content::ContentControlBlock),
     /// `w:p` (`CT_P`) — this child's own type.
     Paragraph(Paragraph),
     /// `w:tbl` (`CT_Tbl`) — MJXOFF-116's own type; a table's own `EG_BlockLevelElts` cells reuse
@@ -132,6 +136,14 @@ pub enum BlockContent {
     /// (only `CT_Tc` does) — mapped here for the same exhaustive-match reason
     /// [`BlockContent::SectionProperties`] is.
     Properties(super::tables::CellProperties),
+    /// `w:altChunk` (`CT_AltChunk`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::AltChunk`]. `EG_BlockLevelElts`'s own member (not
+    /// `EG_ContentBlockContent`'s), so — unlike [`BlockContent::CustomXml`]/
+    /// [`BlockContent::StructuredDocumentTag`] — this is legal only where `Body`, `HdrFtr` or a
+    /// table cell holds this enum directly, never inside a content control's or custom-XML wrapper's
+    /// own content (mapped there too, for the same exhaustive-match reason
+    /// [`BlockContent::SectionProperties`] is, but never schema-legal there).
+    AltChunk(super::structured_content::AltChunk),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -320,11 +332,15 @@ pub(crate) fn block_remove_table(
 }
 
 impl Body {
-    /// This body's whole ordered top-level content — `ranges.rs` (MJXOFF-124) walks this (recursing
-    /// into every table cell) to build a [`super::ranges::RangeIndex`] or compute
-    /// [`super::ranges::covered_text`] over the whole document, the same `pub(crate)` escape hatch
-    /// [`super::tables::Cell::content`] already gives.
-    pub(crate) fn content(&self) -> &[BlockContent] {
+    /// This body's whole ordered top-level content — the same shape [`super::tables::Table::content`]/
+    /// [`super::tables::Row::content`]/[`super::tables::Cell::content`] already expose publicly
+    /// (MJXOFF-116), and what a caller finding a top-level [`BlockContent::StructuredDocumentTag`]
+    /// or [`BlockContent::CustomXml`] (MJXOFF-138) reads directly, the way `ranges.rs`
+    /// (MJXOFF-124) already reads it internally (recursing into every table cell) to build a
+    /// [`super::ranges::RangeIndex`] or compute [`super::ranges::covered_text`] over the whole
+    /// document.
+    #[must_use]
+    pub fn content(&self) -> &[BlockContent] {
         &self.content
     }
 
@@ -419,6 +435,16 @@ impl Body {
         block_append_table(&mut self.content, table, at)
     }
 
+    /// Appends `chunk` (`w:altChunk`) as this body's new last top-level item — **before** `w:sectPr`
+    /// when one is present, matching [`Body::append_paragraph`]'s own placement rule
+    /// (`EG_BlockLevelElts`'s `altChunk` member sits at the same rank as every other block-level
+    /// child) — [`crate::Document::add_alt_chunk`]'s own worker.
+    pub(crate) fn append_alt_chunk(&mut self, chunk: super::structured_content::AltChunk) {
+        let at = self.trailing_section_properties_slot();
+        self.content.insert(at, BlockContent::AltChunk(chunk));
+        self.empty = false;
+    }
+
     /// Removes and returns the top-level table at `index`, or `None` if there is no such table.
     pub fn remove_table(&mut self, index: usize) -> Option<super::tables::Table> {
         block_remove_table(&mut self.content, index)
@@ -502,11 +528,11 @@ pub struct Paragraph {
     #[xml(
         children,
         child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
-        child(local = "dir", variant = BidirectionalEmbedding, ty = Unmodeled),
-        child(local = "bdo", variant = BidirectionalOverride, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlRun),
+        child(local = "smartTag", variant = SmartTag, ty = super::structured_content::SmartTagRun),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlRun),
+        child(local = "dir", variant = BidirectionalEmbedding, ty = super::structured_content::DirContentRun),
+        child(local = "bdo", variant = BidirectionalOverride, ty = super::structured_content::BdoContentRun),
         child(local = "r", variant = Run, ty = Run),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
@@ -588,11 +614,11 @@ pub struct Hyperlink {
     #[xml(
         children,
         child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
-        child(local = "dir", variant = BidirectionalEmbedding, ty = Unmodeled),
-        child(local = "bdo", variant = BidirectionalOverride, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlRun),
+        child(local = "smartTag", variant = SmartTag, ty = super::structured_content::SmartTagRun),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlRun),
+        child(local = "dir", variant = BidirectionalEmbedding, ty = super::structured_content::DirContentRun),
+        child(local = "bdo", variant = BidirectionalOverride, ty = super::structured_content::BdoContentRun),
         child(local = "r", variant = Run, ty = Run),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
@@ -677,18 +703,21 @@ pub enum ParagraphContent {
     /// gives it real content; reach it through [`Paragraph::properties`], never by conflating it with
     /// a run's own `w:rPr`.
     Properties(super::paragraph_properties::ParagraphProperties),
-    /// `w:customXml` (`CT_CustomXmlRun`) — unowned; opaque.
-    CustomXml(Unmodeled),
-    /// `w:smartTag` (`CT_SmartTagRun`) — unowned; opaque.
-    SmartTag(Unmodeled),
-    /// `w:sdt` (`CT_SdtRun`) — unowned; opaque.
-    StructuredDocumentTag(Unmodeled),
+    /// `w:customXml` (`CT_CustomXmlRun`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::CustomXmlRun`].
+    CustomXml(super::structured_content::CustomXmlRun),
+    /// `w:smartTag` (`CT_SmartTagRun`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::SmartTagRun`].
+    SmartTag(super::structured_content::SmartTagRun),
+    /// `w:sdt` (`CT_SdtRun`) — a run-level content control, MJXOFF-138's own type; see
+    /// [`super::structured_content::ContentControlRun`].
+    StructuredDocumentTag(super::structured_content::ContentControlRun),
     /// `w:dir` (`CT_DirContentRun`, "Bidirectional Embedding Level", ECMA-376 Part 1 §17.3.2.8) —
-    /// unowned; opaque.
-    BidirectionalEmbedding(Unmodeled),
-    /// `w:bdo` (`CT_BdoContentRun`, "Bidirectional Override", ECMA-376 Part 1 §17.3.2.3) — unowned;
-    /// opaque.
-    BidirectionalOverride(Unmodeled),
+    /// MJXOFF-138's own type; see [`super::structured_content::DirContentRun`].
+    BidirectionalEmbedding(super::structured_content::DirContentRun),
+    /// `w:bdo` (`CT_BdoContentRun`, "Bidirectional Override", ECMA-376 Part 1 §17.3.2.3) —
+    /// MJXOFF-138's own type; see [`super::structured_content::BdoContentRun`].
+    BidirectionalOverride(super::structured_content::BdoContentRun),
     /// `w:r` (`CT_R`) — this child's own type.
     Run(Run),
     /// `w:proofErr` (`CT_ProofErr`), folded in from `EG_RunLevelElts`.
@@ -776,12 +805,14 @@ pub enum ParagraphContent {
 }
 
 /// The visible text `content` renders: every [`Run`] it holds, descending into every
-/// [`ParagraphContent::Hyperlink`] and [`ParagraphContent::SimpleField`] (a field's own cached
-/// result *is* its displayed content — see `fields.rs`'s own doc comment for why instruction text,
-/// carried in `w:instrText`/`RunInnerContent::FieldCode`, is never included here, exactly as
-/// [`Run::text`] already excludes it). `pub(crate)` — [`Paragraph::text`] and
-/// `fields.rs`'s [`super::fields::SimpleField::cached_result_text`] both call this rather than each
-/// walking the tree its own way.
+/// [`ParagraphContent::Hyperlink`], [`ParagraphContent::SimpleField`] (a field's own cached result
+/// *is* its displayed content — see `fields.rs`'s own doc comment for why instruction text, carried
+/// in `w:instrText`/`RunInnerContent::FieldCode`, is never included here, exactly as [`Run::text`]
+/// already excludes it), and every run-level content control or custom-XML/smart-tag/bidirectional
+/// wrapper (MJXOFF-138) — a content control genuinely is part of a paragraph's own rendered text, the
+/// same reasoning that already applies to a hyperlink's wrapped runs. `pub(crate)` —
+/// [`Paragraph::text`] and `fields.rs`'s [`super::fields::SimpleField::cached_result_text`] both call
+/// this rather than each walking the tree its own way.
 pub(crate) fn paragraph_content_text(content: &[ParagraphContent], out: &mut String) {
     for item in content {
         match item {
@@ -792,37 +823,73 @@ pub(crate) fn paragraph_content_text(content: &[ParagraphContent], out: &mut Str
             ParagraphContent::SimpleField(field) => {
                 paragraph_content_text(field.content(), out);
             }
+            ParagraphContent::CustomXml(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
+            ParagraphContent::SmartTag(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
+            ParagraphContent::StructuredDocumentTag(control) => {
+                if let Some(content) = control.content_run() {
+                    paragraph_content_text(content.content(), out);
+                }
+            }
+            ParagraphContent::BidirectionalEmbedding(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
+            ParagraphContent::BidirectionalOverride(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
             _ => {}
         }
     }
 }
 
 /// One [`ParagraphContent`] item that is, or can lead to, a run: what
-/// [`Paragraph::run_count`]/[`Paragraph::run`] address.
+/// [`Paragraph::run_count`]/[`Paragraph::run`] address. A [`Hyperlink`] or a run-level content
+/// control/custom-XML/smart-tag/bidirectional wrapper (MJXOFF-138) is a **run container** — it
+/// occupies exactly one top-level slot, and [`RunPath`] descends one level into its own content the
+/// same way it already descends into a [`Hyperlink`]'s.
 enum RunSlot<'a> {
     Run(&'a Run),
     Hyperlink(&'a Hyperlink),
+    Wrapper(&'a [ParagraphContent]),
 }
 
-/// The [`ParagraphContent`] items that occupy a run-addressing slot — a [`Run`] itself, or a
-/// [`Hyperlink`] a [`RunPath`] can descend into — in document order. Everything else
-/// (`w:pPr`, `w:proofErr`, an unmodeled wrapper, …) is skipped: it has no run to be, so it does not
-/// consume a slot.
+/// The [`ParagraphContent`] items that occupy a run-addressing slot — a [`Run`] itself, a
+/// [`Hyperlink`], or a run-level content control/custom-XML/smart-tag/bidirectional wrapper a
+/// [`RunPath`] can descend into — in document order. Everything else (`w:pPr`, `w:proofErr`, …) is
+/// skipped: it has no run to be, so it does not consume a slot.
 fn run_slots(content: &[ParagraphContent]) -> impl Iterator<Item = RunSlot<'_>> {
     content.iter().filter_map(|item| match item {
         ParagraphContent::Run(run) => Some(RunSlot::Run(run)),
         ParagraphContent::Hyperlink(hyperlink) => Some(RunSlot::Hyperlink(hyperlink)),
+        ParagraphContent::CustomXml(wrapper) => Some(RunSlot::Wrapper(wrapper.content())),
+        ParagraphContent::SmartTag(wrapper) => Some(RunSlot::Wrapper(wrapper.content())),
+        ParagraphContent::StructuredDocumentTag(control) => Some(RunSlot::Wrapper(
+            control
+                .content_run()
+                .map(super::structured_content::ContentControlContentRun::content)
+                .unwrap_or(&[]),
+        )),
+        ParagraphContent::BidirectionalEmbedding(wrapper) => {
+            Some(RunSlot::Wrapper(wrapper.content()))
+        }
+        ParagraphContent::BidirectionalOverride(wrapper) => {
+            Some(RunSlot::Wrapper(wrapper.content()))
+        }
         _ => None,
     })
 }
 
-/// Resolves a [`RunPath`]'s indices against `content`, descending into a [`Hyperlink`] for every
-/// index but the last, which must land on an actual [`Run`].
+/// Resolves a [`RunPath`]'s indices against `content`, descending into a [`Hyperlink`] or a
+/// run-level wrapper for every index but the last, which must land on an actual [`Run`].
 fn resolve_run<'a>(content: &'a [ParagraphContent], indices: &[usize]) -> Option<&'a Run> {
     let (&first, rest) = indices.split_first()?;
     match (run_slots(content).nth(first)?, rest.is_empty()) {
         (RunSlot::Run(run), true) => Some(run),
         (RunSlot::Hyperlink(hyperlink), false) => resolve_run(&hyperlink.content, rest),
+        (RunSlot::Wrapper(inner), false) => resolve_run(inner, rest),
         _ => None,
     }
 }
@@ -836,11 +903,30 @@ fn resolve_run_mut<'a>(
     let slot = content.iter_mut().filter_map(|item| match item {
         ParagraphContent::Run(run) => Some(RunSlotMut::Run(run)),
         ParagraphContent::Hyperlink(hyperlink) => Some(RunSlotMut::Hyperlink(hyperlink)),
+        ParagraphContent::CustomXml(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
+        ParagraphContent::SmartTag(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
+        ParagraphContent::StructuredDocumentTag(control) => Some(RunSlotMut::Wrapper(
+            control
+                .content_run_mut()
+                .map(|content| content.content_mut().as_mut_slice())
+                .unwrap_or(&mut []),
+        )),
+        ParagraphContent::BidirectionalEmbedding(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
+        ParagraphContent::BidirectionalOverride(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
         _ => None,
     });
     match (slot.into_iter().nth(first)?, rest.is_empty()) {
         (RunSlotMut::Run(run), true) => Some(run),
         (RunSlotMut::Hyperlink(hyperlink), false) => resolve_run_mut(&mut hyperlink.content, rest),
+        (RunSlotMut::Wrapper(inner), false) => resolve_run_mut(inner, rest),
         _ => None,
     }
 }
@@ -848,10 +934,13 @@ fn resolve_run_mut<'a>(
 enum RunSlotMut<'a> {
     Run(&'a mut Run),
     Hyperlink(&'a mut Hyperlink),
+    Wrapper(&'a mut [ParagraphContent]),
 }
 
-/// The `content` index of the `index`th run-or-hyperlink slot at the top level (not descending),
-/// or `None` if there is no such slot.
+/// The `content` index of the `index`th run-addressing slot (see [`RunSlot`]) at the top level (not
+/// descending), or `None` if there is no such slot — the same slot definition [`run_slots`] counts,
+/// so [`Paragraph::run_count`]/`insert_run`/`hyperlink_at` agree with [`Paragraph::run`] about which
+/// physical item a given top-level index names.
 fn nth_slot_index(content: &[ParagraphContent], index: usize) -> Option<usize> {
     content
         .iter()
@@ -859,7 +948,13 @@ fn nth_slot_index(content: &[ParagraphContent], index: usize) -> Option<usize> {
         .filter(|(_, item)| {
             matches!(
                 item,
-                ParagraphContent::Run(_) | ParagraphContent::Hyperlink(_)
+                ParagraphContent::Run(_)
+                    | ParagraphContent::Hyperlink(_)
+                    | ParagraphContent::CustomXml(_)
+                    | ParagraphContent::SmartTag(_)
+                    | ParagraphContent::StructuredDocumentTag(_)
+                    | ParagraphContent::BidirectionalEmbedding(_)
+                    | ParagraphContent::BidirectionalOverride(_)
             )
         })
         .nth(index)
@@ -955,10 +1050,13 @@ impl Paragraph {
         text
     }
 
-    /// This paragraph's own content, immutably. `pub(crate)`: `fields.rs` (MJXOFF-121) walks this
-    /// the same way [`Run::content`] lets it walk a run's own inner content — see that method's own
-    /// doc comment.
-    pub(crate) fn content(&self) -> &[ParagraphContent] {
+    /// This paragraph's own content, immutably — the same shape [`super::tables::Cell::content`]
+    /// already exposes publicly, and what a caller finding a top-level
+    /// [`ParagraphContent::StructuredDocumentTag`] or [`ParagraphContent::CustomXml`] (MJXOFF-138)
+    /// reads directly. `fields.rs` (MJXOFF-121) also walks this the same way `Run::content` lets
+    /// it walk a run's own inner content — see that method's own doc comment.
+    #[must_use]
+    pub fn content(&self) -> &[ParagraphContent] {
         &self.content
     }
 

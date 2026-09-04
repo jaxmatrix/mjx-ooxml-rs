@@ -334,15 +334,16 @@ pub struct TextBoxContent {
     empty: bool,
     #[xml(
         children,
-        child(ns = WML, local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(ns = WML, local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
+        child(ns = WML, local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlBlock),
+        child(ns = WML, local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlBlock),
         child(ns = WML, local = "p", variant = Paragraph, ty = super::body::Paragraph),
         child(ns = WML, local = "tbl", variant = Table, ty = super::tables::Table),
         child(ns = WML, local = "proofErr", variant = ProofingError, ty = super::body::ProofingError),
         child(ns = WML, local = "permStart", variant = PermissionRangeStart, ty = super::body::PermissionRangeStart),
         child(ns = WML, local = "permEnd", variant = PermissionRangeEnd, ty = super::body::PermissionRangeEnd),
         child(ns = WML, local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
-        child(ns = WML, local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
+        child(ns = WML, local = "tcPr", variant = Properties, ty = super::tables::CellProperties),
+        child(ns = WML, local = "altChunk", variant = AltChunk, ty = super::structured_content::AltChunk)
     )]
     content: Vec<BlockContent>,
 }

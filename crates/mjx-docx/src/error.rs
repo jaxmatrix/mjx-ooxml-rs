@@ -276,4 +276,43 @@ pub enum DocxError {
     /// would itself be a corruption).
     #[error("{0:?} is not a well-formed ST_DateTime (xsd:dateTime)")]
     MalformedDateTime(String),
+
+    /// [`crate::Document::resolve_data_binding`] (MJXOFF-138): no Custom XML Data Storage part
+    /// related to the main document part carries a Custom XML Data Storage Properties part
+    /// (§15.2.6) whose `ds:datastoreItem/@ds:itemID` matches `store_item_id` — the file's own
+    /// `w:dataBinding` names a part the package does not carry (or the properties part relationship
+    /// is itself missing/malformed). Reported rather than panicked on: a broken binding is exactly
+    /// the untrusted-input case this crate's fidelity rules require surfacing, not crashing on.
+    #[error("no Custom XML Data Storage part has itemID {store_item_id:?}")]
+    DataBindingPartNotFound {
+        /// The `w:dataBinding/@storeItemID` that did not resolve.
+        store_item_id: String,
+    },
+
+    /// [`crate::Document::resolve_data_binding`]: the Custom XML Data Storage part named by
+    /// `store_item_id` was found, but `xpath` did not resolve against it — either it uses something
+    /// outside the documented subset [`crate::resolve_xpath`]'s own doc comment names, or it is a
+    /// well-formed step sequence that simply does not match the part's own tree (an out-of-range
+    /// index, a step naming an element the tree does not carry at that position).
+    #[error(
+        "xpath {xpath:?} does not resolve against Custom XML Data Storage part {store_item_id:?}"
+    )]
+    DataBindingXPathNotFound {
+        /// The `w:dataBinding/@storeItemID` that did resolve.
+        store_item_id: String,
+        /// The `w:dataBinding/@xpath` that did not.
+        xpath: String,
+    },
+
+    /// [`crate::Document::alt_chunk_payload`] (MJXOFF-138): a `w:altChunk` names a relationship id
+    /// this document part's own `.rels` does not carry (or names one of the wrong type, or an
+    /// external target — ECMA-376 Part 1 §17.17.2.1 states a document carrying either "shall be
+    /// considered non-conformant"). Reported rather than panicked on.
+    #[error(
+        "altChunk relationship {relationship_id:?} does not resolve to an internal aFChunk part"
+    )]
+    AltChunkRelationshipNotFound {
+        /// The `w:altChunk/@r:id` that did not resolve.
+        relationship_id: String,
+    },
 }

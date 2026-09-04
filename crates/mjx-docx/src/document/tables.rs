@@ -125,6 +125,92 @@ fn typed_insert_index<T>(content: &[T], nth: usize, is_target: impl Fn(&T) -> bo
 }
 
 // ---------------------------------------------------------------------------------------------
+// Row/cell addressing that sees through a wrapper (MJXOFF-138) — every row reachable from a
+// [`Table`]'s own content, recursing into a `w:sdt`/`w:customXml` row-level wrapper's own content
+// (the same `EG_ContentRowContent` group), and the same shape one level down for [`Row::cells`] and
+// a cell-level wrapper. Boxed because the return type recurses into itself; a table's own row/cell
+// count is small enough that the extra indirection is not a cost worth avoiding.
+// ---------------------------------------------------------------------------------------------
+
+/// Every row reachable from `content`, in document order — see [`Table`]'s own doc comment for why
+/// this recurses into a row-level wrapper.
+fn table_rows(content: &[TableContent]) -> Box<dyn Iterator<Item = &Row> + '_> {
+    Box::new(
+        content
+            .iter()
+            .flat_map(|item| -> Box<dyn Iterator<Item = &Row>> {
+                match item {
+                    TableContent::Row(row) => Box::new(std::iter::once(row)),
+                    TableContent::CustomXml(wrapper) => table_rows(wrapper.content()),
+                    TableContent::StructuredDocumentTag(control) => control
+                        .content_row()
+                        .map(|content| table_rows(content.content()))
+                        .unwrap_or_else(|| Box::new(std::iter::empty())),
+                    _ => Box::new(std::iter::empty()),
+                }
+            }),
+    )
+}
+
+/// [`table_rows`], mutably.
+fn table_rows_mut(content: &mut [TableContent]) -> Box<dyn Iterator<Item = &mut Row> + '_> {
+    Box::new(
+        content
+            .iter_mut()
+            .flat_map(|item| -> Box<dyn Iterator<Item = &mut Row>> {
+                match item {
+                    TableContent::Row(row) => Box::new(std::iter::once(row)),
+                    TableContent::CustomXml(wrapper) => table_rows_mut(wrapper.content_mut()),
+                    TableContent::StructuredDocumentTag(control) => control
+                        .content_row_mut()
+                        .map(|content| table_rows_mut(content.content_mut()))
+                        .unwrap_or_else(|| Box::new(std::iter::empty())),
+                    _ => Box::new(std::iter::empty()),
+                }
+            }),
+    )
+}
+
+/// Every cell reachable from `content`, in document order — see [`Row`]'s own doc comment for why
+/// this recurses into a cell-level wrapper.
+fn row_cells(content: &[RowContent]) -> Box<dyn Iterator<Item = &Cell> + '_> {
+    Box::new(
+        content
+            .iter()
+            .flat_map(|item| -> Box<dyn Iterator<Item = &Cell>> {
+                match item {
+                    RowContent::Cell(cell) => Box::new(std::iter::once(cell)),
+                    RowContent::CustomXml(wrapper) => row_cells(wrapper.content()),
+                    RowContent::StructuredDocumentTag(control) => control
+                        .content_cell()
+                        .map(|content| row_cells(content.content()))
+                        .unwrap_or_else(|| Box::new(std::iter::empty())),
+                    _ => Box::new(std::iter::empty()),
+                }
+            }),
+    )
+}
+
+/// [`row_cells`], mutably.
+fn row_cells_mut(content: &mut [RowContent]) -> Box<dyn Iterator<Item = &mut Cell> + '_> {
+    Box::new(
+        content
+            .iter_mut()
+            .flat_map(|item| -> Box<dyn Iterator<Item = &mut Cell>> {
+                match item {
+                    RowContent::Cell(cell) => Box::new(std::iter::once(cell)),
+                    RowContent::CustomXml(wrapper) => row_cells_mut(wrapper.content_mut()),
+                    RowContent::StructuredDocumentTag(control) => control
+                        .content_cell_mut()
+                        .map(|content| row_cells_mut(content.content_mut()))
+                        .unwrap_or_else(|| Box::new(std::iter::empty())),
+                    _ => Box::new(std::iter::empty()),
+                }
+            }),
+    )
+}
+
+// ---------------------------------------------------------------------------------------------
 // w:tblGrid (CT_TblGrid / CT_TblGridBase) and w:gridCol (CT_TblGridCol)
 // ---------------------------------------------------------------------------------------------
 
@@ -782,14 +868,15 @@ pub struct Cell {
     #[xml(
         children,
         child(local = "tcPr", variant = Properties, ty = CellProperties),
-        child(local = "customXml", variant = CustomXml, ty = super::body::Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = super::body::Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlBlock),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlBlock),
         child(local = "p", variant = Paragraph, ty = Paragraph),
         child(local = "tbl", variant = Table, ty = Table),
         child(local = "proofErr", variant = ProofingError, ty = super::body::ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = super::body::PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = super::body::PermissionRangeEnd),
-        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties)
+        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
+        child(local = "altChunk", variant = AltChunk, ty = super::structured_content::AltChunk)
     )]
     content: Vec<BlockContent>,
 }
@@ -1017,9 +1104,9 @@ impl Cell {
     }
 }
 
-/// One ordered child of a [`Row`]: `CT_Row`'s own `w:tblPrEx`/`w:trPr` prefix, a typed [`Cell`], or
-/// an opaque node (a row-level `w:customXml`/`w:sdt` wrapper, or `EG_RunLevelElts` folded into the
-/// row's own choice group).
+/// One ordered child of a [`Row`]: `CT_Row`'s own `w:tblPrEx`/`w:trPr` prefix, then
+/// `EG_ContentCellContent*` — a typed [`Cell`], a cell-level content control or custom-XML wrapper
+/// (MJXOFF-138), or an opaque node (`EG_RunLevelElts` folded into the row's own choice group).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowContent {
     /// `w:tblPrEx` (`CT_TblPrEx`) — this row's own override of the table's properties; see this
@@ -1029,6 +1116,14 @@ pub enum RowContent {
     Properties(RowProperties),
     /// `w:tc` (`CT_Tc`).
     Cell(Cell),
+    /// `w:customXml` (`CT_CustomXmlCell`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::CustomXmlCell`]. [`Row::cells`] recurses into its content so a
+    /// custom-XML wrapper around one or more `w:tc` does not break `(row, column)` addressing.
+    CustomXml(super::structured_content::CustomXmlCell),
+    /// `w:sdt` (`CT_SdtCell`) — a cell-level content control, MJXOFF-138's own type; see
+    /// [`super::structured_content::ContentControlCell`]. [`Row::cells`] recurses into its content
+    /// the same way it does for [`RowContent::CustomXml`].
+    StructuredDocumentTag(super::structured_content::ContentControlCell),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
@@ -1046,7 +1141,9 @@ pub struct Row {
         children,
         child(local = "tblPrEx", variant = Exception, ty = TableExceptionProperties),
         child(local = "trPr", variant = Properties, ty = RowProperties),
-        child(local = "tc", variant = Cell, ty = Cell)
+        child(local = "tc", variant = Cell, ty = Cell),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlCell),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlCell)
     )]
     content: Vec<RowContent>,
 }
@@ -1182,20 +1279,16 @@ impl Row {
         }
     }
 
-    /// The row's cells, in physical order (opaque children skipped).
+    /// The row's cells, in physical order — recursing into a cell-level content control or
+    /// custom-XML wrapper's own content (MJXOFF-138) so a wrapper around one or more `w:tc` does not
+    /// break `(row, column)` addressing.
     pub fn cells(&self) -> impl Iterator<Item = &Cell> {
-        self.content.iter().filter_map(|item| match item {
-            RowContent::Cell(cell) => Some(cell),
-            _ => None,
-        })
+        row_cells(&self.content)
     }
 
-    /// The row's cells, mutably, in physical order.
+    /// The row's cells, mutably, in physical order — the same recursion [`Row::cells`] performs.
     pub fn cells_mut(&mut self) -> impl Iterator<Item = &mut Cell> {
-        self.content.iter_mut().filter_map(|item| match item {
-            RowContent::Cell(cell) => Some(cell),
-            _ => None,
-        })
+        row_cells_mut(&mut self.content)
     }
 
     /// How many `w:tc` this row physically holds — **not** the column count when any cell spans
@@ -1252,10 +1345,9 @@ impl Row {
 // ---------------------------------------------------------------------------------------------
 
 /// One ordered child of a [`Table`]: its own `w:tblPr` ([`super::table_properties::TableProperties`],
-/// MJXOFF-119), its grid, a row, or an opaque node — `EG_RangeMarkupElements` (bookmarks and
-/// revision ranges ahead of `w:tblPr`), a row-level `w:customXml`/`w:sdt` wrapper (`CT_SdtRow` —
-/// MJXOFF-138), and `EG_RunLevelElts` folded into `EG_ContentRowContent`'s own choice all fall to
-/// [`TableContent::Raw`].
+/// MJXOFF-119), its grid, a row, a row-level content control or custom-XML wrapper (MJXOFF-138), or
+/// an opaque node — `EG_RangeMarkupElements` (bookmarks and revision ranges ahead of `w:tblPr`) and
+/// `EG_RunLevelElts` folded into `EG_ContentRowContent`'s own choice fall to [`TableContent::Raw`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TableContent {
     /// `w:tblPr` (`CT_TblPr`) — required by the schema. Typed as `CT_TblPrBase`'s own
@@ -1266,6 +1358,15 @@ pub enum TableContent {
     Grid(Grid),
     /// `w:tr` (`CT_Row`).
     Row(Row),
+    /// `w:customXml` (`CT_CustomXmlRow`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::CustomXmlRow`]. [`Table::rows`] recurses into its content so a
+    /// custom-XML wrapper around one or more `w:tr` does not break `(row, column)` addressing.
+    CustomXml(super::structured_content::CustomXmlRow),
+    /// `w:sdt` (`CT_SdtRow`) — a row-level content control (a repeating-section control wrapping one
+    /// or more rows is exactly this), MJXOFF-138's own type; see
+    /// [`super::structured_content::ContentControlRow`]. [`Table::rows`] recurses into its content
+    /// the same way it does for [`TableContent::CustomXml`].
+    StructuredDocumentTag(super::structured_content::ContentControlRow),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
@@ -1277,6 +1378,15 @@ pub enum TableContent {
 /// The column count is the **grid's** (`w:tblGrid` — [`Table::column_count`]), exactly as
 /// `mjx-pptx`'s own `Table::column_count` reads its `a:tblGrid`. A row whose cells' spans do not sum
 /// to that count is malformed — [`Table::grid_discrepancies`] reports it; nothing here corrects it.
+///
+/// # A wrapped row still addresses correctly
+///
+/// [`Table::rows`]/[`row`](Table::row)/[`row_count`](Table::row_count) — and everything built on
+/// them ([`Table::cell`], [`Table::grid_discrepancies`], the vertical-merge walk) — recurse into a
+/// `w:sdt`/`w:customXml` row-level wrapper's own content (MJXOFF-138), so a repeating-section content
+/// control wrapping one or more `w:tr` does not shift any other row's `(row, column)` address.
+/// [`Table::insert_row`]/[`Table::remove_row`] do **not** extend that recursion into their own
+/// physical placement — see those methods' own doc comments for the documented boundary.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
 #[xml(namespace = WML)]
 pub struct Table {
@@ -1287,7 +1397,9 @@ pub struct Table {
         children,
         child(local = "tblPr", variant = Properties, ty = TableProperties),
         child(local = "tblGrid", variant = Grid, ty = Grid),
-        child(local = "tr", variant = Row, ty = Row)
+        child(local = "tr", variant = Row, ty = Row),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlRow),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlRow)
     )]
     content: Vec<TableContent>,
 }
@@ -1360,20 +1472,15 @@ impl Table {
         })
     }
 
-    /// The table's rows, in order (opaque children skipped).
+    /// The table's rows, in order — recursing into a row-level content control or custom-XML
+    /// wrapper's own content (see this struct's own doc comment).
     pub fn rows(&self) -> impl Iterator<Item = &Row> {
-        self.content.iter().filter_map(|item| match item {
-            TableContent::Row(row) => Some(row),
-            _ => None,
-        })
+        table_rows(&self.content)
     }
 
-    /// The table's rows, mutably, in order.
+    /// The table's rows, mutably, in order — the same recursion [`Table::rows`] performs.
     pub fn rows_mut(&mut self) -> impl Iterator<Item = &mut Row> {
-        self.content.iter_mut().filter_map(|item| match item {
-            TableContent::Row(row) => Some(row),
-            _ => None,
-        })
+        table_rows_mut(&mut self.content)
     }
 
     /// The number of rows.
@@ -1618,6 +1725,15 @@ impl Table {
     ///
     /// `at` must be `<= row_count` — the caller checks that.
     ///
+    /// **Physical placement is the table's own top level only** (MJXOFF-138's own documented
+    /// boundary): `at` is resolved against every row [`Table::rows`] reaches, including one nested
+    /// inside a `w:sdt`/`w:customXml` row-level wrapper, when computing *which* vertical merges the
+    /// new row crosses — but the new `w:tr` itself is always inserted as a direct child of `w:tbl`,
+    /// never inside an existing wrapper. Executing a content control's own repeating-section
+    /// behaviour (inserting a **new** row *inside* its wrapper) is out of this crate's scope; a
+    /// caller that wants that reaches the wrapper's own content directly
+    /// (`ContentControlRow::content_row_mut`).
+    ///
     /// # Errors
     /// Only if a cell `make_cell` builds fails to parse, which a well-formed builder never does.
     pub fn insert_row(
@@ -1661,6 +1777,10 @@ impl Table {
     /// a region of exactly one row).
     ///
     /// `at` must be `< row_count`, and the caller refuses removing the table's last row.
+    ///
+    /// **Removes only a row that is the table's own direct child** — the same top-level-only
+    /// boundary [`Table::insert_row`] documents; a row nested inside a wrapper is reachable through
+    /// [`Table::rows`] for reading but is not this method's to remove.
     pub fn remove_row(&mut self, interner: &mut Interner, at: usize) {
         let promotions = self.vertical_anchors_at_row(interner, at);
         for (start_column, remaining_run) in promotions {
