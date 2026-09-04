@@ -672,7 +672,7 @@ pub enum ParagraphContent {
     /// one through this crate's own writers.
     FieldData(Text),
     /// `w:bookmarkStart` (`CT_Bookmark`), folded in from `EG_RangeMarkupElements` — MJXOFF-124's own
-    /// type; see [`super::ranges`] for the id-paired range-resolution mechanism this and its three
+    /// type; see `ranges` for the id-paired range-resolution mechanism this and its three
     /// siblings below feed.
     BookmarkStart(super::ranges::Bookmark),
     /// `w:bookmarkEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
@@ -685,7 +685,7 @@ pub enum ParagraphContent {
     /// remaining members (`moveFromRangeStart`/`moveToRangeStart`, the four `customXml*RangeStart`/
     /// `customXml*RangeEnd` pairs) — preserved verbatim. Those six are MJXOFF-126's own semantics
     /// (the tracked-change "move"/"custom XML change" family this ticket's own scope excludes); see
-    /// [`super::ranges`]'s own doc comment for why the range-resolution mechanism below is still
+    /// `ranges`'s own doc comment for why the range-resolution mechanism below is still
     /// theirs to reuse once they get typed variants of their own.
     Raw(RawNode),
 }

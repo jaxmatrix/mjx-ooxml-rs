@@ -2558,7 +2558,7 @@ impl Document {
 
     /// Removes the comment with `id`: every `w:commentRangeStart`/`w:commentRangeEnd`/
     /// `w:commentReference` naming it anywhere in the body (recursing into every table cell — see
-    /// [`ranges::remove_matching`]'s own doc comment for the one documented gap, markers nested inside
+    /// `ranges::remove_matching`'s own doc comment for the one documented gap, markers nested inside
     /// a `w:hyperlink`), and the [`Comment`] entry itself from `word/comments.xml` — deleting that
     /// part and its relationship when it was the last comment, so [`mjx_opc::Package::validate`] never
     /// reports an orphan.
@@ -2837,7 +2837,7 @@ impl Document {
 
     /// Removes the footnote with `id`: every `w:footnoteReference` naming it anywhere in the body
     /// (recursing into every table cell), and the [`FootnoteEndnote`] entry itself from
-    /// `word/footnotes.xml`. **Never** deletes the part itself, even when no user footnote remains —
+    /// `word/footnotes.xml`. **Never** removes the part itself, even when no user footnote remains —
     /// the two reserved separator entries still must be there (`annotations.rs`'s own doc comment);
     /// unlike [`Document::remove_comment`], "the last one" for footnotes only ever means the last
     /// *user* footnote, and the part they share with the reserved entries stays.
@@ -3164,7 +3164,7 @@ impl Document {
     }
 
     /// Removes every `w:bookmarkStart`/`w:bookmarkEnd` naming `id` anywhere in the body (recursing
-    /// into every table cell — see [`ranges::remove_matching`]'s own doc comment for the one
+    /// into every table cell — see `ranges::remove_matching`'s own doc comment for the one
     /// documented gap). Not an error if `id` names no bookmark at all.
     ///
     /// # Errors
