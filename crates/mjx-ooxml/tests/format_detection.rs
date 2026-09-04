@@ -10,7 +10,7 @@
 //! the repository holds no `.pptm` or `.potx` fixture, and detection is not worth proving against a
 //! fixture that was hand-crafted to pass.
 
-use mjx_ooxml::{detect_format, Deck, ErrorCode, Format, FormatFamily};
+use mjx_ooxml::{detect_format, Deck, Document, ErrorCode, Format, FormatFamily};
 use mjx_opc::{Package, PartName};
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -86,20 +86,39 @@ fn macro_enabled_and_template_presentations_are_told_apart() {
 }
 
 #[test]
-fn a_word_document_is_detected_and_refused() {
+fn a_word_document_is_detected_refused_by_deck_and_opened_by_document() {
     let bytes = fixture("sample.docx");
     let format = detect_format(&bytes).expect("a format");
     assert_eq!(format, Format::Document);
     assert_eq!(format.family(), FormatFamily::WordProcessing);
-    assert!(!format.is_editable());
+    // MJXOFF-139: WordprocessingML became editable through `mjx_ooxml::Document`, so this now
+    // agrees with `macro_enabled_and_template_presentations_are_told_apart`'s own PresentationML
+    // assertion rather than the opposite of it.
+    assert!(format.is_editable());
 
     let refused = Deck::open(&bytes).expect_err("a Word document is not a deck");
     assert_eq!(refused.code(), ErrorCode::UnsupportedFormat);
-    // The message must name the format, not report a parse failure.
+    // The message must name the format and point at the door that does open it, not report a parse
+    // failure.
     assert!(
         refused.to_string().contains("Document"),
         "unhelpful refusal: {refused}"
     );
+
+    Document::open(&bytes).expect("a WordprocessingML package opens as a Document");
+}
+
+/// The other direction of the same refusal: `Document::open` refuses PresentationML and
+/// SpreadsheetML by name, pointing a PowerPoint caller back at `Deck::open`.
+#[test]
+fn document_open_refuses_presentation_and_spreadsheet_packages() {
+    let presentation =
+        Document::open(&fixture("sample.pptx")).expect_err("a presentation is not a Word document");
+    assert_eq!(presentation.code(), ErrorCode::UnsupportedFormat);
+
+    let workbook =
+        Document::open(&fixture("sample.xlsx")).expect_err("a workbook is not a Word document");
+    assert_eq!(workbook.code(), ErrorCode::UnsupportedFormat);
 }
 
 #[test]

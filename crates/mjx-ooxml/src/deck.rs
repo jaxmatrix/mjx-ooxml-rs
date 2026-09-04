@@ -130,7 +130,8 @@ impl Deck {
     ///
     /// The format is [detected](crate::detect_format) from the package before anything is parsed as
     /// PresentationML, so a Word or Excel document is refused by name rather than by a parse
-    /// failure, and the package is read exactly once.
+    /// failure — a Word package by name, pointing at [`Document::open`](crate::Document::open) — and
+    /// the package is read exactly once.
     ///
     /// # Errors
     /// - [`ErrorCode::Io`] if the bytes are not a readable ZIP container.
@@ -141,11 +142,16 @@ impl Deck {
     pub fn open(bytes: &[u8]) -> Result<Self, Error> {
         let package = mjx_pptx::Package::open(bytes)?;
         let format = format_of(&package)?;
-        if !format.is_editable() {
+        if format.family() != crate::FormatFamily::Presentation {
+            let hint = if format.family() == crate::FormatFamily::WordProcessing {
+                " — open it with mjx_ooxml::Document::open instead"
+            } else {
+                ""
+            };
             return Err(Error::new(
                 ErrorCode::UnsupportedFormat,
                 format!(
-                    "this build opens PresentationML only; these bytes are {:?} (.{}), which is not editable yet",
+                    "this build opens PresentationML only; these bytes are {:?} (.{}), which is not a presentation{hint}",
                     format,
                     format.conventional_extension()
                 ),
