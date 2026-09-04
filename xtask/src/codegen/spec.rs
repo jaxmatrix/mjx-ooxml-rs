@@ -96,6 +96,16 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     // named `*Kind` because the wire attribute is `type`, which is a Rust keyword in field position.
     ("ST_SlideLayoutType", "SlideLayoutKind"),
     ("ST_SlideSizeType", "SlideSizeKind"),
+    // DrawingML WordprocessingDrawing (`wp:`, MJXOFF-131): `H`/`V` are the schema's own contraction
+    // for "Horizontal"/"Vertical" — `CT_PosH`/`CT_PosV`'s own element names are `positionH`/
+    // `positionV`, and ECMA-376 Part 1 §20.4.2.6/`.7` and `.9`/`.10` spell the concepts out in full
+    // ("Relative Horizontal/Vertical Positioning Alignment", "Position Horizontal/Vertical
+    // Relative Base") — so the mechanical `AlignH`/`AlignV`/`RelFromH`/`RelFromV` the engine would
+    // otherwise emit are expanded here rather than left as bare letter suffixes.
+    ("ST_AlignH", "HorizontalAlignment"),
+    ("ST_AlignV", "VerticalAlignment"),
+    ("ST_RelFromH", "HorizontalRelativeFrom"),
+    ("ST_RelFromV", "VerticalRelativeFrom"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
@@ -2513,6 +2523,91 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "CT_EdnProps",
         "A section's own endnote settings (`w:sectPr/w:endnotePr`) — the same shape as \
          `CT_FtnProps`, with `CT_EdnPos`'s narrower two-value position instead of `CT_FtnPos`'s four",
+    ),
+    // ---- DrawingML WordprocessingDrawing (MJXOFF-131) ---------------------------------------
+    (
+        "WP_INLINE",
+        "dml-wordprocessingDrawing",
+        "CT_Inline",
+        "An inline drawing's own placement: extent, effect extent, non-visual properties, then the \
+         `a:graphic` it wraps",
+    ),
+    (
+        "WP_ANCHOR",
+        "dml-wordprocessingDrawing",
+        "CT_Anchor",
+        "A floating drawing's own placement: simple position, horizontal/vertical position, extent, \
+         effect extent, the wrap mode choice, non-visual properties, then the `a:graphic` it wraps",
+    ),
+    (
+        "WP_WRAP_SQUARE",
+        "dml-wordprocessingDrawing",
+        "CT_WrapSquare",
+        "A square-wrap drawing's own effect extent",
+    ),
+    (
+        "WP_WRAP_TIGHT",
+        "dml-wordprocessingDrawing",
+        "CT_WrapTight",
+        "A tight-wrap drawing's own wrap polygon",
+    ),
+    (
+        "WP_WRAP_THROUGH",
+        "dml-wordprocessingDrawing",
+        "CT_WrapThrough",
+        "A through-wrap drawing's own wrap polygon",
+    ),
+    (
+        "WP_WRAP_TOP_AND_BOTTOM",
+        "dml-wordprocessingDrawing",
+        "CT_WrapTopBottom",
+        "A top-and-bottom-wrap drawing's own effect extent",
+    ),
+    (
+        "WP_WRAP_PATH",
+        "dml-wordprocessingDrawing",
+        "CT_WrapPath",
+        "A wrap polygon's own start point, then two or more line-to points",
+    ),
+    (
+        "WP_GRAPHIC_FRAME",
+        "dml-wordprocessingDrawing",
+        "CT_GraphicFrame",
+        "An inline OLE-style graphic frame's own non-visual properties, transform, then the \
+         `a:graphic` it wraps",
+    ),
+    (
+        "WP_WORDPROCESSING_GROUP",
+        "dml-wordprocessingDrawing",
+        "CT_WordprocessingGroup",
+        "A group of Word shapes' own non-visual properties, transform, then its member shapes",
+    ),
+    (
+        "WP_WORDPROCESSING_CANVAS",
+        "dml-wordprocessingDrawing",
+        "CT_WordprocessingCanvas",
+        "A drawing canvas's own background, whole-canvas formatting, then its member shapes",
+    ),
+    (
+        "WP_CONTENT_PART",
+        "dml-wordprocessingDrawing",
+        "CT_WordprocessingContentPart",
+        "An ink content part's own non-visual properties, then its transform",
+    ),
+    (
+        "WP_CONTENT_PART_NON_VISUAL",
+        "dml-wordprocessingDrawing",
+        "CT_WordprocessingContentPartNonVisual",
+        "An ink content part's own identity and lock list",
+    ),
+    (
+        "WP_TEXTBOX_INFO",
+        "dml-wordprocessingDrawing",
+        "CT_TextboxInfo",
+        "A shape's own text box content, then its extension list — `mjx-docx` places `w:txbxContent` \
+         at this rank; the shape (`CT_WordprocessingShape`) and its text box content \
+         (`CT_TxbxContent`) are WordprocessingML-content-shaped and so live in `mjx-docx`, not here \
+         — see `mjx_dml::wordprocessing_drawing`'s own module doc",
     ),
 ];
 

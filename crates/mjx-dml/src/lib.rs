@@ -24,13 +24,18 @@ pub mod diagram;
 pub mod effect;
 pub mod fill;
 pub mod geometry;
+pub mod graphic;
 pub mod line;
+pub mod nonvisual;
+pub mod picture;
 pub mod resolve;
 pub mod shape3d;
+pub mod shape_properties;
 pub mod style;
 pub mod table;
 pub mod text;
 pub mod theme;
+pub mod wordprocessing_drawing;
 
 pub use color::{Color, ColorKind, ColorSpec, SchemeColor};
 pub use effect::{
@@ -52,10 +57,17 @@ pub use geometry::{
     ResolvedConnectionSite, ResolvedCustomGeometry, ResolvedDrawCommand, ResolvedGuides,
     ResolvedPath, ResolvedPoint, ResolvedRectangle, ShapeGeometry, Size, TextPoint, Transform2D,
 };
+pub use graphic::{Graphic, GraphicData, GraphicDataContent, PICTURE_GRAPHIC_URI};
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
     LineProperties, LineSpec, PenAlignment, PresetLineDash,
 };
+pub use nonvisual::{
+    NonVisualConnectorProperties, NonVisualContentPartProperties, NonVisualDrawingProps,
+    NonVisualDrawingShapeProperties, NonVisualGraphicFrameProperties,
+    NonVisualGroupDrawingShapeProperties, NonVisualPictureProperties,
+};
+pub use picture::{new_picture, Picture, PictureNonVisual};
 pub use resolve::{
     resolve_character_properties, resolve_color, resolve_effects, resolve_fill, resolve_line,
     ResolvedColor, SchemeColors,
@@ -65,6 +77,7 @@ pub use shape3d::{
     PresetCamera, PresetMaterial, Scene3D, Scene3DSpec, Shape3D, Shape3DSpec, SphereCoordinates,
     Vector3D,
 };
+pub use shape_properties::{ShapeGeometryChoice, ShapeProperties};
 pub use style::{ColorMap, StyleMatrixReference};
 pub use table::{
     applicable_parts, Cell3D, CellBorder, FontCollectionIndex, FontReference, OnOffStyle, Table,

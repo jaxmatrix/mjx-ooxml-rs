@@ -70,6 +70,16 @@ pub const DIAGRAM_MODULE_DOC: &str =
      //! built on top of this vocabulary, so a missing type would be an enum invented somewhere\n\
      //! else. Each item records its original `ST_*` symbol and exact wire token(s).\n\n";
 
+/// Module-level doc block for the `wordprocessingdrawing` module (see [`file_header`]).
+pub const WORDPROCESSINGDRAWING_MODULE_DOC: &str =
+    "//! Comprehensively-named DrawingML WordprocessingDrawing (`wp:`) simple types (see the naming\n\
+     //! convention in `PLAN.md`).\n\
+     //!\n\
+     //! The **whole** `ST_*` family of `dml-wordprocessingDrawing.xsd`, not a slice: it is five\n\
+     //! enumerations (`ST_WrapText`, `ST_AlignH`, `ST_RelFromH`, `ST_AlignV`, `ST_RelFromV`), small\n\
+     //! enough that `mjx-dml::wordprocessing_drawing` (MJXOFF-131) uses every one of them. Each item\n\
+     //! records its original `ST_*` symbol and exact wire token(s).\n\n";
+
 /// Which of a schema's simple types a module emits.
 #[derive(Debug, Clone, Copy)]
 pub enum Selection<'a> {

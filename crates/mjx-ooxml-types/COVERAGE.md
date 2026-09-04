@@ -15,7 +15,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | dml-main | `drawingml` | partial (32 of the schema's simple types: `ST_BevelPresetType`, `ST_BlendMode`, `ST_ColorSchemeIndex`, `ST_CompoundLine`, `ST_FontCollectionIndex`, `ST_LightRigDirection`, `ST_LightRigType`, `ST_LineCap`, `ST_LineEndLength`, `ST_LineEndType`, `ST_LineEndWidth`, `ST_OnOffStyleType`, `ST_PathFillMode`, `ST_PenAlignment`, `ST_PresetCameraType`, `ST_PresetLineDashVal`, `ST_PresetMaterialType`, `ST_PresetPatternVal`, `ST_PresetShadowVal`, `ST_RectAlignment`, `ST_SchemeColorVal`, `ST_ShapeType`, `ST_TextAlignType`, `ST_TextAnchoringType`, `ST_TextAutonumberScheme`, `ST_TextCapsType`, `ST_TextFontAlignType`, `ST_TextHorzOverflowType`, `ST_TextStrikeType`, `ST_TextTabAlignType`, `ST_TextUnderlineType`, `ST_TextVerticalType`) |
 | dml-picture | — | not modelled — `pic:pic` carries DrawingML types, which `dml-main` already provides |
 | dml-spreadsheetDrawing | — | pending, owned by MJXOFF-107 — the SpreadsheetML drawing surface |
-| dml-wordprocessingDrawing | — | pending, owned by MJXOFF-131 — the WordprocessingML drawing surface |
+| dml-wordprocessingDrawing | `wordprocessingdrawing` | generated — all 7 simple types |
 | pml | `presentationml` | partial (5 of the schema's simple types: `ST_Direction`, `ST_PlaceholderSize`, `ST_PlaceholderType`, `ST_SlideLayoutType`, `ST_SlideSizeType`) |
 | shared-additionalCharacteristics | — | not modelled — a document-characteristics part this workspace neither reads nor writes |
 | shared-bibliography | — | not modelled — bibliography sources are preserved verbatim, never authored |
@@ -46,9 +46,9 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | dml-diagram | generated — every complex type |
 | dml-lockedCanvas | not modelled — nothing in this workspace authors a locked canvas |
 | dml-main | generated — every complex type |
-| dml-picture | pending — the picture element is written through `mjx-dml`; its row joins when a model places its children |
+| dml-picture | modelled by construction, not by table — `mjx-dml::picture::Picture` (MJXOFF-131) reads and writes `CT_Picture`'s three children (`nvPicPr`, `blipFill`, `spPr`) in that one fixed order every time; the schema gives this type no choice, no optional member and no repeated member to rank, so there is no placement decision a generated table could inform that the hand-written order does not already get right |
 | dml-spreadsheetDrawing | pending, owned by MJXOFF-107 |
-| dml-wordprocessingDrawing | pending, owned by MJXOFF-131 |
+| dml-wordprocessingDrawing | generated — every complex type |
 | pml | generated — every complex type |
 | shared-additionalCharacteristics | not modelled — as for its simple types |
 | shared-bibliography | not modelled — as for its simple types |
