@@ -22,18 +22,17 @@
 //! contrast, genuinely *is* plain `CT_RPr` — [`super::run_properties::RunProperties`] is reused
 //! directly, with no wrapper at all.
 //!
-//! # `w:tblPr`/`w:trPr`/`w:tcPr` stay opaque
+//! # `w:tblPr`/`w:trPr`/`w:tcPr` reuse `table_properties.rs`/`tables.rs` directly
 //!
-//! `CT_Style` and `CT_TblStylePr` both declare `tblPr` (`CT_TblPrBase`), `trPr` (`CT_TrPr`) and
-//! `tcPr` (`CT_TcPr`) children. None of the three is modelled anywhere in this workspace yet — table
-//! properties are no queued child's scope, and inventing a first model of them as a side effect of
-//! this one would be exactly the scope creep "completion over shipping early" warns against in the
-//! other direction (finishing work nobody asked this child to own). They are preserved structurally
-//! as [`super::body::Unmodeled`], the same treatment [`super::paragraph_properties::ParagraphPropertyContent::SectionProperties`]
-//! and `w:pPrChange` already get — reachable, round-tripped exactly, not yet semantically typed.
-//! `w:tblStylePr`'s own conditional-formatting semantics (`w:cnfStyle` matching, banding) are
-//! MJXOFF-119's; only the `CT_TblStylePr` **type** — its `type` attribute and its five children's
-//! structural presence — is modelled here, per this child's own "Not in scope" section.
+//! `CT_Style` and `CT_TblStylePr` both declare `tblPr` (`CT_TblPrBase`), `trPr` (`CT_TrPr`) and `tcPr`
+//! (`CT_TcPr`) children — literally the same complex types [`super::table_properties::TableProperties`]/
+//! [`super::table_properties::RowProperties`]/[`super::tables::CellProperties`] already model for a
+//! live table's own properties (MJXOFF-119, verified against `wml.xsd` directly rather than assumed —
+//! see that module's own doc comment). This module reuses all three, both for [`StyleDefinition`]'s
+//! own base ("whole table") formatting and for each [`TableStyleOverride`]'s own conditional region —
+//! no second, parallel model of table formatting exists here. `w:tblStylePr`'s own conditional-
+//! formatting *resolution* (`w:tblLook` matching, banding, the region precedence) lives in
+//! `table_regions.rs`; this module only reads and writes the structural elements.
 //!
 //! # The style index and `w:basedOn` chain walking
 //!
@@ -1207,9 +1206,10 @@ impl LatentStyles {
 
 // -------------------------------------------------------------------------------------------
 // CT_TblStylePr (w:style/w:tblStylePr) — one conditional-formatting override inside a table style.
-// The type only: which region it applies to (`type`) and the paragraph/run/table properties it
-// carries structurally. Matching those properties against a table's own cells (`w:cnfStyle`,
-// banding) is MJXOFF-119's.
+// `tblPr`/`trPr`/`tcPr` are literally `CT_TblPrBase`/`CT_TrPr`/`CT_TcPr` (verified against
+// `wml.xsd`), the exact types `table_properties.rs`/`tables.rs` already model for a live table's own
+// properties — reused directly here, not restated. Matching these against a table's own cells
+// (`w:cnfStyle`, banding) is `table_regions.rs`'s own job.
 // -------------------------------------------------------------------------------------------
 
 /// One ordered child of [`TableStyleOverride`]: `CT_TblStylePr`'s sequence is `pPr?, rPr?, tblPr?,
@@ -1220,20 +1220,19 @@ pub enum TableStyleOverrideContent {
     ParagraphProperties(StyleParagraphProperties),
     /// `w:rPr` (`CT_RPr`) — [`RunProperties`], reused.
     RunProperties(RunProperties),
-    /// `w:tblPr` (`CT_TblPrBase`) — not modelled anywhere in this workspace yet; kept opaque (see
-    /// the module's own doc comment).
-    TableProperties(Unmodeled),
-    /// `w:trPr` (`CT_TrPr`) — opaque, see [`TableStyleOverrideContent::TableProperties`].
-    TableRowProperties(Unmodeled),
-    /// `w:tcPr` (`CT_TcPr`) — opaque, see [`TableStyleOverrideContent::TableProperties`].
-    TableCellProperties(Unmodeled),
+    /// `w:tblPr` (`CT_TblPrBase`) — [`super::table_properties::TableProperties`], reused directly
+    /// (MJXOFF-119).
+    TableProperties(super::table_properties::TableProperties),
+    /// `w:trPr` (`CT_TrPr`) — [`super::table_properties::RowProperties`], reused directly.
+    TableRowProperties(super::table_properties::RowProperties),
+    /// `w:tcPr` (`CT_TcPr`) — [`super::tables::CellProperties`], reused directly.
+    TableCellProperties(super::tables::CellProperties),
     /// Any other child — an unknown element — preserved verbatim.
     Raw(RawNode),
 }
 
 /// `CT_TblStylePr` (`w:tblStylePr`, "Table Style Conditional Formatting Properties", §17.7.6.6) —
-/// one region's formatting override inside a table style (`w:style[@type='table']`). Modelled
-/// structurally only — see the module's own doc comment for the scope boundary with MJXOFF-119.
+/// one region's formatting override inside a table style (`w:style[@type='table']`).
 #[derive(
     Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
 )]
@@ -1247,9 +1246,9 @@ pub struct TableStyleOverride {
         children,
         child(local = "pPr", variant = ParagraphProperties, ty = StyleParagraphProperties),
         child(local = "rPr", variant = RunProperties, ty = RunProperties),
-        child(local = "tblPr", variant = TableProperties, ty = Unmodeled),
-        child(local = "trPr", variant = TableRowProperties, ty = Unmodeled),
-        child(local = "tcPr", variant = TableCellProperties, ty = Unmodeled)
+        child(local = "tblPr", variant = TableProperties, ty = super::table_properties::TableProperties),
+        child(local = "trPr", variant = TableRowProperties, ty = super::table_properties::RowProperties),
+        child(local = "tcPr", variant = TableCellProperties, ty = super::tables::CellProperties)
     )]
     content: Vec<TableStyleOverrideContent>,
 }
@@ -1335,6 +1334,72 @@ impl TableStyleOverride {
         );
     }
 
+    /// This override's own `w:tblPr`, or `None` if absent.
+    #[must_use]
+    pub fn table_properties(&self) -> Option<&super::table_properties::TableProperties> {
+        self.content.iter().find_map(|item| match item {
+            TableStyleOverrideContent::TableProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// Sets `w:tblPr`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank.
+    pub fn set_table_properties(
+        &mut self,
+        value: Option<super::table_properties::TableProperties>,
+    ) {
+        let is_target = |item: &TableStyleOverrideContent| {
+            matches!(item, TableStyleOverrideContent::TableProperties(_))
+        };
+        self.set(
+            "tblPr",
+            is_target,
+            value.map(TableStyleOverrideContent::TableProperties),
+        );
+    }
+
+    /// This override's own `w:trPr`, or `None` if absent.
+    #[must_use]
+    pub fn row_properties(&self) -> Option<&super::table_properties::RowProperties> {
+        self.content.iter().find_map(|item| match item {
+            TableStyleOverrideContent::TableRowProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// Sets `w:trPr`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank.
+    pub fn set_row_properties(&mut self, value: Option<super::table_properties::RowProperties>) {
+        let is_target = |item: &TableStyleOverrideContent| {
+            matches!(item, TableStyleOverrideContent::TableRowProperties(_))
+        };
+        self.set(
+            "trPr",
+            is_target,
+            value.map(TableStyleOverrideContent::TableRowProperties),
+        );
+    }
+
+    /// This override's own `w:tcPr`, or `None` if absent.
+    #[must_use]
+    pub fn cell_properties(&self) -> Option<&super::tables::CellProperties> {
+        self.content.iter().find_map(|item| match item {
+            TableStyleOverrideContent::TableCellProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// Sets `w:tcPr`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank.
+    pub fn set_cell_properties(&mut self, value: Option<super::tables::CellProperties>) {
+        let is_target = |item: &TableStyleOverrideContent| {
+            matches!(item, TableStyleOverrideContent::TableCellProperties(_))
+        };
+        self.set(
+            "tcPr",
+            is_target,
+            value.map(TableStyleOverrideContent::TableCellProperties),
+        );
+    }
+
     fn set(
         &mut self,
         local: &str,
@@ -1397,12 +1462,13 @@ pub enum StyleDefinitionContent {
     ParagraphProperties(StyleParagraphProperties),
     /// `w:rPr` (`CT_RPr`) — [`RunProperties`], reused directly.
     RunProperties(RunProperties),
-    /// `w:tblPr` (`CT_TblPrBase`) — opaque; see the module's own doc comment.
-    TableProperties(Unmodeled),
-    /// `w:trPr` (`CT_TrPr`) — opaque.
-    TableRowProperties(Unmodeled),
-    /// `w:tcPr` (`CT_TcPr`) — opaque.
-    TableCellProperties(Unmodeled),
+    /// `w:tblPr` (`CT_TblPrBase`) — this table style's own base ("whole table") formatting; reused
+    /// directly (MJXOFF-119).
+    TableProperties(super::table_properties::TableProperties),
+    /// `w:trPr` (`CT_TrPr`) — reused directly.
+    TableRowProperties(super::table_properties::RowProperties),
+    /// `w:tcPr` (`CT_TcPr`) — reused directly.
+    TableCellProperties(super::tables::CellProperties),
     /// `w:tblStylePr` (`CT_TblStylePr`, repeatable) — [`TableStyleOverride`].
     TableStyleOverride(TableStyleOverride),
     /// Any other child — an unknown element — preserved verbatim.
@@ -1446,9 +1512,9 @@ pub struct StyleDefinition {
         child(local = "rsid", variant = Rsid, ty = RevisionSaveId),
         child(local = "pPr", variant = ParagraphProperties, ty = StyleParagraphProperties),
         child(local = "rPr", variant = RunProperties, ty = RunProperties),
-        child(local = "tblPr", variant = TableProperties, ty = Unmodeled),
-        child(local = "trPr", variant = TableRowProperties, ty = Unmodeled),
-        child(local = "tcPr", variant = TableCellProperties, ty = Unmodeled),
+        child(local = "tblPr", variant = TableProperties, ty = super::table_properties::TableProperties),
+        child(local = "trPr", variant = TableRowProperties, ty = super::table_properties::RowProperties),
+        child(local = "tcPr", variant = TableCellProperties, ty = super::tables::CellProperties),
         child(local = "tblStylePr", variant = TableStyleOverride, ty = TableStyleOverride)
     )]
     content: Vec<StyleDefinitionContent>,
@@ -1806,6 +1872,72 @@ impl StyleDefinition {
         }
         self.run_properties_mut()
             .expect("just ensured a RunProperties variant is present")
+    }
+
+    /// This table style's own base ("whole table") `w:tblPr`, or `None` if absent.
+    #[must_use]
+    pub fn table_properties(&self) -> Option<&super::table_properties::TableProperties> {
+        self.content.iter().find_map(|item| match item {
+            StyleDefinitionContent::TableProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// Sets `w:tblPr`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank.
+    pub fn set_table_properties(
+        &mut self,
+        value: Option<super::table_properties::TableProperties>,
+    ) {
+        let is_target = |item: &StyleDefinitionContent| {
+            matches!(item, StyleDefinitionContent::TableProperties(_))
+        };
+        self.set(
+            "tblPr",
+            is_target,
+            value.map(StyleDefinitionContent::TableProperties),
+        );
+    }
+
+    /// This table style's own base `w:trPr`, or `None` if absent.
+    #[must_use]
+    pub fn row_properties(&self) -> Option<&super::table_properties::RowProperties> {
+        self.content.iter().find_map(|item| match item {
+            StyleDefinitionContent::TableRowProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// Sets `w:trPr`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank.
+    pub fn set_row_properties(&mut self, value: Option<super::table_properties::RowProperties>) {
+        let is_target = |item: &StyleDefinitionContent| {
+            matches!(item, StyleDefinitionContent::TableRowProperties(_))
+        };
+        self.set(
+            "trPr",
+            is_target,
+            value.map(StyleDefinitionContent::TableRowProperties),
+        );
+    }
+
+    /// This table style's own base `w:tcPr`, or `None` if absent.
+    #[must_use]
+    pub fn cell_properties(&self) -> Option<&super::tables::CellProperties> {
+        self.content.iter().find_map(|item| match item {
+            StyleDefinitionContent::TableCellProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// Sets `w:tcPr`: `None` removes it; `Some(value)` replaces or inserts it at its schema rank.
+    pub fn set_cell_properties(&mut self, value: Option<super::tables::CellProperties>) {
+        let is_target = |item: &StyleDefinitionContent| {
+            matches!(item, StyleDefinitionContent::TableCellProperties(_))
+        };
+        self.set(
+            "tcPr",
+            is_target,
+            value.map(StyleDefinitionContent::TableCellProperties),
+        );
     }
 
     /// Every `w:tblStylePr` this table style carries, in document order.
