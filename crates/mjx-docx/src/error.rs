@@ -265,4 +265,15 @@ pub enum DocxError {
     /// new collision is.
     #[error("bookmark name {0:?} is already in use")]
     BookmarkNameInUse(String),
+
+    /// MJXOFF-126: a caller-supplied `@date` for a revision marker (`w:ins`/`w:del`/`w:moveFrom`/
+    /// `w:moveTo`, a `*Change` wrapper, `w:cellMerge`, `w:numberingChange`, `w:moveFromRangeStart`/
+    /// `w:moveToRangeStart`) is not a well-formed `ST_DateTime` (`xsd:dateTime`). Refused here, at
+    /// the API boundary — matching `ValueTooLong`'s own precedent — rather than written and only
+    /// failing the schema gate later. **Reading an already-malformed `@date` from an untrusted file
+    /// is never rejected or normalised**; only a caller's own new value is checked (see
+    /// `crate::document::revisions`'s own module doc for why normalising someone's revision history
+    /// would itself be a corruption).
+    #[error("{0:?} is not a well-formed ST_DateTime (xsd:dateTime)")]
+    MalformedDateTime(String),
 }

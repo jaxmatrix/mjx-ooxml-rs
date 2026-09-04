@@ -69,7 +69,7 @@ use mjx_ooxml_types::wordprocessingml::{
     ThemeColor, ThemeFont, TwoDigitHexadecimalNumber, Underline as UnderlineKind,
 };
 
-use super::body::{wml_name, Unmodeled};
+use super::body::wml_name;
 
 // -------------------------------------------------------------------------------------------
 // Custom attribute codecs for the generated wire-string wrapper types this child needs.
@@ -1191,9 +1191,8 @@ pub enum RunPropertyContent {
     /// `w:oMath` (§17.3.2.22, "Office Open XML Math") — `CT_OnOff`, like the other nineteen; **not**
     /// a fortieth special case (see the module's own doc comment).
     Math(Toggle),
-    /// `w:rPrChange` (`CT_RPrChange`) — the tracked-change wrapper around a previous `w:rPr`;
-    /// MJXOFF-126's own scope, kept opaque here.
-    Change(Unmodeled),
+    /// `w:rPrChange` (`CT_RPrChange`) — the tracked-change wrapper around a previous `w:rPr`.
+    Change(super::revisions::RunPropertiesChange),
     /// Any other child — an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -1248,7 +1247,7 @@ pub struct RunProperties {
         child(local = "eastAsianLayout", variant = EastAsianLayout, ty = EastAsianLayout),
         child(local = "specVanish", variant = AlwaysHidden, ty = Toggle),
         child(local = "oMath", variant = Math, ty = Toggle),
-        child(local = "rPrChange", variant = Change, ty = Unmodeled)
+        child(local = "rPrChange", variant = Change, ty = super::revisions::RunPropertiesChange)
     )]
     content: Vec<RunPropertyContent>,
 }
@@ -1304,6 +1303,26 @@ impl RunProperties {
         if let Some(value) = value {
             self.insert(local, value);
         }
+    }
+
+    /// The tracked-change wrapper around this `w:rPr`'s own *previous* formatting (`w:rPrChange`),
+    /// or `None` if it carries none — MJXOFF-126. Reading this is never conflated with the live
+    /// properties this same [`RunProperties`] states; see `crate::document::revisions`'s own
+    /// mutation-path table for why every setter here leaves this untouched.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::RunPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            RunPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`RunProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::RunPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            RunPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
     }
 }
 

@@ -79,6 +79,7 @@ mod paragraph_properties;
 mod parts;
 mod property_macros;
 mod ranges;
+mod revisions;
 mod run_properties;
 mod sections;
 mod styles;
@@ -137,6 +138,15 @@ pub use parts::{DocumentParts, PartKind};
 pub use ranges::{
     covered_text, paragraphs_spanned, Bookmark, BookmarkResolution, MarkerLocation, Markup,
     MarkupRange, RangeIndex, RangeResolution,
+};
+pub use revisions::{
+    CellMergeTrackChange, CellPropertiesChange, CellPropertiesChangeContent, MoveBookmark,
+    ParagraphMarkPropertiesChange, ParagraphMarkPropertiesChangeContent, ParagraphPropertiesChange,
+    ParagraphPropertiesChangeContent, RevisionInfo, RevisionKind, RowPropertiesChange,
+    RowPropertiesChangeContent, RunPropertiesChange, RunPropertiesChangeContent, RunTrackChange,
+    SectionPropertiesChange, SectionPropertiesChangeContent, TableExceptionPropertiesChange,
+    TableExceptionPropertiesChangeContent, TableGridChange, TableGridChangeContent,
+    TablePropertiesChange, TablePropertiesChangeContent, TrackChangeMarker, TrackChangeNumbering,
 };
 pub use run_properties::{
     Border, CharacterStyle, Color, EastAsianLayout, Emphasis, Fonts, HalfPoint,
@@ -2667,6 +2677,166 @@ impl Document {
             }
             _ => None,
         })
+    }
+
+    /// This move range's own resolved extent: whether both `w:moveFromRangeStart`/
+    /// `w:moveFromRangeEnd` naming `id` were found. `None` if neither marker names `id` at all.
+    /// [`Document::move_to_range`] is the `w:moveToRangeStart`/`End` counterpart — the two are
+    /// separate id spaces (see `crate::document::revisions`'s own doc comment on
+    /// [`revisions::classify_move_from_range`]).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the main document part cannot be read.
+    pub fn move_from_range(&mut self, id: i64) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            revisions::classify_move_from_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// [`Document::move_from_range`]'s own `w:moveToRangeStart`/`End` counterpart.
+    ///
+    /// # Errors
+    /// See [`Document::move_from_range`].
+    pub fn move_to_range(&mut self, id: i64) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            revisions::classify_move_to_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// This `w:customXmlInsRangeStart`/`w:customXmlInsRangeEnd` range's own resolved extent, keyed
+    /// by `id`. `None` if neither marker names `id` at all. The four `customXml*Range` kinds
+    /// (`Ins`/`Del`/`MoveFrom`/`MoveTo`, this method and its three siblings below) are four separate
+    /// id spaces, exactly like `move_from_range`/`move_to_range` above.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the main document part cannot be read.
+    pub fn custom_xml_ins_range(&mut self, id: i64) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            revisions::classify_custom_xml_ins_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// [`Document::custom_xml_ins_range`]'s own `customXmlDelRange*` counterpart.
+    ///
+    /// # Errors
+    /// See [`Document::custom_xml_ins_range`].
+    pub fn custom_xml_del_range(&mut self, id: i64) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            revisions::classify_custom_xml_del_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// [`Document::custom_xml_ins_range`]'s own `customXmlMoveFromRange*` counterpart.
+    ///
+    /// # Errors
+    /// See [`Document::custom_xml_ins_range`].
+    pub fn custom_xml_move_from_range(
+        &mut self,
+        id: i64,
+    ) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            revisions::classify_custom_xml_move_from_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// [`Document::custom_xml_ins_range`]'s own `customXmlMoveToRange*` counterpart.
+    ///
+    /// # Errors
+    /// See [`Document::custom_xml_ins_range`].
+    pub fn custom_xml_move_to_range(
+        &mut self,
+        id: i64,
+    ) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            revisions::classify_custom_xml_move_to_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// Every tracked change in the document's own body (MJXOFF-126): every `w:ins`/`w:del`/
+    /// `w:moveFrom`/`w:moveTo` (recursing into nested revisions — an insertion nested inside a
+    /// deletion reports both), every `*Change` property wrapper, every bare tracked marker
+    /// (`w:cellIns`/`w:cellDel`/`w:numPr/w:ins`/the paragraph mark's own `w:ins`/`w:del`/
+    /// `w:moveFrom`/`w:moveTo`) and every tracked cell merge, each with its own author, date and id
+    /// exactly as the file states them. Headers, footers, comments, footnotes and endnotes are
+    /// separate parts this method does not walk — see this crate's own per-part accessors
+    /// (`headers`/`footers`/`comments`/`footnotes`/`endnotes`) for those.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the main document part cannot be read.
+    pub fn revisions(&mut self) -> Result<Vec<RevisionInfo>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let mut out = Vec::new();
+        revisions::collect_revisions(body.content(), &doc.interner, &mut out);
+        Ok(out)
+    }
+
+    /// The document body's own text with every tracked insertion kept and every tracked deletion
+    /// dropped (`w:moveFrom`/`w:moveTo` content excluded from both this and
+    /// [`Document::text_with_revisions_rejected`] — see `crate::document::revisions`'s own doc
+    /// comment on why an in-place move resolution is not part of this read-only computation).
+    /// Paragraphs are joined with `\n`, matching [`Paragraph::text`]'s own convention.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the main document part cannot be read.
+    pub fn text_with_revisions_accepted(&mut self) -> Result<String, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        Ok(revisions::text_with_accepted(body.content()))
+    }
+
+    /// [`Document::text_with_revisions_accepted`]'s own rejected-text counterpart: tracked deletions
+    /// kept, tracked insertions dropped.
+    ///
+    /// # Errors
+    /// See [`Document::text_with_revisions_accepted`].
+    pub fn text_with_revisions_rejected(&mut self) -> Result<String, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        Ok(revisions::text_with_rejected(body.content()))
     }
 
     // ---------------------------------------------------------------------------------------------
