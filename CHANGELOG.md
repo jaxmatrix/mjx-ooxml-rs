@@ -51,6 +51,44 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.93] - 2026-09-04
+
+Word fields, hyperlinks and form fields (MJXOFF-121, Phase C position 14): `crates/mjx-docx/src/document/fields.rs` (new), `hyperlinks.rs` (new).
+
+**Both field wire forms — `w:fldSimple` and the `begin`/`separate`/`end` `w:fldChar` sequence — read
+through one model, [`Field`], with instruction and cached result always distinct accessors.**
+Nesting (a `TOC` field's cached result containing its own `PAGEREF` fields) is paired with a
+recursive-descent stack, not a counter: a mutation that counts markers instead of nesting them turns
+three tests red, including the committed `fields_and_hyperlinks.docx` fixture's own nested-`TOC`
+case. An instruction split across several `w:instrText` runs concatenates for reading and, on write,
+collapses to a single new run positioned at the edited field's own marker — every other field, and
+every other part, stays byte-identical (proved both directions: editing an instruction leaves the
+cached result untouched, and vice versa). A `w:fldChar` sequence that does not balance —
+schema-valid markup ECMA-376 imposes no ordering constraint on — is a typed error
+(`DocxError::UnbalancedField`), never a panic or a silent mispairing; a field with no `separate` (a
+legal, resultless field) reads correctly and is not an error.
+
+**Hyperlinks** (`Hyperlink`, typed for `r:id`/`anchor`/`tgtFrame`/`tooltip`/`docLocation`/`history`;
+`Document::insert_hyperlink`/`remove_hyperlink`/`hyperlink_target`) wrap the runs they link, matching
+WordprocessingML's own structural (not attribute) model. Adding one creates a valid external
+relationship; removing one removes it — unless another hyperlink still names the same relationship —
+and `Package::validate` reports no orphan either way. `w:anchor` (a bookmark name) is read
+unresolved; MJXOFF-124 owns the bookmark index it would resolve against.
+
+**Form fields** — `FormFieldData` (`w:ffData`) and its checkbox/drop-down-list/text-input kinds —
+round-trip names, help/status text, macros and each kind's own options
+(`Document::insert_form_field`/`edit_form_field`/`form_field`). Four `ST_*` members are
+length-bounded strings, not enumerations (`ST_FFName` 65, `ST_FFHelpTextVal` 256,
+`ST_FFStatusTextVal` 140, `ST_MacroName` 33); every setter refuses an over-long value with
+`DocxError::ValueTooLong` at the API boundary rather than writing schema-invalid markup, while
+reading an already-over-long value from an untrusted file is never rejected. `CT_FFCheckBox`,
+`CT_FFDDList` and `CT_FFTextInput` are `xsd:sequence`-shaped (unlike `CT_FFData`'s own unordered
+`xsd:choice`); every setter on the three places a new member at its schema rank via three curated
+`mjx_ooxml_types::child_order` constants added for this child (`FORM_FIELD_CHECK_BOX`,
+`FORM_FIELD_DROP_DOWN_LIST`, `FORM_FIELD_TEXT_INPUT`) — an append-only first draft of
+`FormFieldDropDownList::set_selected_index` wrote `w:result` after every `w:listEntry`, which is
+schema-invalid; the committed fixture's own schema-gate test catches the regression directly.
+
 ## [0.0.92] - 2026-09-04
 
 Word table properties, table styles and conditional formatting (MJXOFF-119, Phase C position 13):
