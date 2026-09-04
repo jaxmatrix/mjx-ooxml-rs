@@ -320,6 +320,22 @@ pub(crate) fn block_remove_table(
 }
 
 impl Body {
+    /// This body's whole ordered top-level content — `ranges.rs` (MJXOFF-124) walks this (recursing
+    /// into every table cell) to build a [`super::ranges::RangeIndex`] or compute
+    /// [`super::ranges::covered_text`] over the whole document, the same `pub(crate)` escape hatch
+    /// [`super::tables::Cell::content`] already gives.
+    pub(crate) fn content(&self) -> &[BlockContent] {
+        &self.content
+    }
+
+    /// [`Body::content`], mutably — `ranges.rs` uses this to remove a range marker or a run-level
+    /// reference wherever in the body it sits, the same `pub(crate)` escape hatch
+    /// [`Paragraph::content_mut`], [`Run::content_mut`] and [`super::tables::Cell::content_mut`]
+    /// already give their own siblings.
+    pub(crate) fn content_mut(&mut self) -> &mut Vec<BlockContent> {
+        &mut self.content
+    }
+
     /// How many paragraphs this body holds, in document order. Only `w:p` counts — matching
     /// `Presentation::shape_count`'s "every kind shares one count" would make "the third item" mean
     /// something different every time a `w:customXml` or a table sits between two paragraphs; a
@@ -503,7 +519,11 @@ pub struct Paragraph {
         // (shared with every other `Vec<ParagraphContent>` holder, see `FieldData`'s own doc
         // comment) compiles; a non-conformant file that nests one directly under `w:p` is still
         // typed rather than falling to `Raw`, which is harmless.
-        child(local = "fldData", variant = FieldData, ty = Text)
+        child(local = "fldData", variant = FieldData, ty = Text),
+        child(local = "bookmarkStart", variant = BookmarkStart, ty = super::ranges::Bookmark),
+        child(local = "bookmarkEnd", variant = BookmarkEnd, ty = super::ranges::MarkupRange),
+        child(local = "commentRangeStart", variant = CommentRangeStart, ty = super::ranges::MarkupRange),
+        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -520,10 +540,12 @@ pub struct Paragraph {
 /// enforces that precedence on write (both attributes round-trip verbatim, whichever a file
 /// carries); a reader resolving *the* target should check `relationship_id` first.
 ///
-/// `anchor` naming a bookmark is not resolved against a bookmark index here — that index is
-/// MJXOFF-124's own (bookmarks are out of this child's scope, per its own ticket) — so
-/// [`Hyperlink::anchor`] hands back the raw bookmark name, unresolved. This is the seam MJXOFF-121's
-/// own ticket asks to leave and say so.
+/// `anchor` naming a bookmark is not resolved against a bookmark index **here** — [`Hyperlink::anchor`]
+/// hands back the raw bookmark name, exactly as this struct's own attributes read it — but the seam is
+/// closed one layer up: [`crate::Document::resolve_bookmark`] (MJXOFF-124's own bookmark index) takes
+/// that raw name and finishes the resolution, and [`crate::Document::hyperlink_target`] returns
+/// [`crate::HyperlinkTarget::Anchor`] carrying exactly the name [`crate::Document::resolve_bookmark`]
+/// expects.
 #[derive(
     Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
 )]
@@ -560,7 +582,11 @@ pub struct Hyperlink {
         child(local = "fldSimple", variant = SimpleField, ty = super::fields::SimpleField),
         child(local = "hyperlink", variant = Hyperlink, ty = Hyperlink),
         child(local = "subDoc", variant = SubDocument, ty = RelationshipReference),
-        child(local = "fldData", variant = FieldData, ty = Text)
+        child(local = "fldData", variant = FieldData, ty = Text),
+        child(local = "bookmarkStart", variant = BookmarkStart, ty = super::ranges::Bookmark),
+        child(local = "bookmarkEnd", variant = BookmarkEnd, ty = super::ranges::MarkupRange),
+        child(local = "commentRangeStart", variant = CommentRangeStart, ty = super::ranges::MarkupRange),
+        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -645,7 +671,22 @@ pub enum ParagraphContent {
     /// [`Hyperlink`] must still map it even though only [`super::fields::SimpleField`] ever produces
     /// one through this crate's own writers.
     FieldData(Text),
-    /// Any other child — whitespace or an unknown element — preserved verbatim.
+    /// `w:bookmarkStart` (`CT_Bookmark`), folded in from `EG_RangeMarkupElements` — MJXOFF-124's own
+    /// type; see [`super::ranges`] for the id-paired range-resolution mechanism this and its three
+    /// siblings below feed.
+    BookmarkStart(super::ranges::Bookmark),
+    /// `w:bookmarkEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
+    BookmarkEnd(super::ranges::MarkupRange),
+    /// `w:commentRangeStart` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
+    CommentRangeStart(super::ranges::MarkupRange),
+    /// `w:commentRangeEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
+    CommentRangeEnd(super::ranges::MarkupRange),
+    /// Any other child — whitespace or an unknown element, or one of `EG_RangeMarkupElements`'s six
+    /// remaining members (`moveFromRangeStart`/`moveToRangeStart`, the four `customXml*RangeStart`/
+    /// `customXml*RangeEnd` pairs) — preserved verbatim. Those six are MJXOFF-126's own semantics
+    /// (the tracked-change "move"/"custom XML change" family this ticket's own scope excludes); see
+    /// [`super::ranges`]'s own doc comment for why the range-resolution mechanism below is still
+    /// theirs to reuse once they get typed variants of their own.
     Raw(RawNode),
 }
 
@@ -1024,9 +1065,9 @@ pub struct Run {
         child(local = "pict", variant = LegacyPicture, ty = Unmodeled),
         child(local = "fldChar", variant = ComplexFieldCharacter, ty = super::fields::FieldCharacter),
         child(local = "ruby", variant = PhoneticGuideRun, ty = PhoneticGuide),
-        child(local = "footnoteReference", variant = FootnoteReference, ty = Unmodeled),
-        child(local = "endnoteReference", variant = EndnoteReference, ty = Unmodeled),
-        child(local = "commentReference", variant = CommentReference, ty = Unmodeled),
+        child(local = "footnoteReference", variant = FootnoteReference, ty = super::annotations::FootnoteEndnoteReference),
+        child(local = "endnoteReference", variant = EndnoteReference, ty = super::annotations::FootnoteEndnoteReference),
+        child(local = "commentReference", variant = CommentReference, ty = super::ranges::Markup),
         child(local = "drawing", variant = Drawing, ty = Unmodeled),
         child(local = "ptab", variant = PositionalTabRun, ty = PositionalTab),
         child(local = "lastRenderedPageBreak", variant = LastRenderedPageBreak, ty = Unmodeled)
@@ -1105,15 +1146,16 @@ pub enum RunInnerContent {
     ComplexFieldCharacter(super::fields::FieldCharacter),
     /// `w:ruby` (`CT_Ruby`, "Phonetic Guide", §17.3.3.25) — this child's own type.
     PhoneticGuideRun(PhoneticGuide),
-    /// `w:footnoteReference` (`CT_FtnEdnRef`, "Footnote Reference", §17.11.14) — MJXOFF-090's Phase C
-    /// plan names footnotes/endnotes their own later child; kept opaque here.
-    FootnoteReference(Unmodeled),
+    /// `w:footnoteReference` (`CT_FtnEdnRef`, "Footnote Reference", §17.11.14) — MJXOFF-124's own
+    /// type; see [`super::annotations::FootnoteEndnoteReference`].
+    FootnoteReference(super::annotations::FootnoteEndnoteReference),
     /// `w:endnoteReference` (`CT_FtnEdnRef`, "Endnote Reference", §17.11.7) — see
-    /// [`FootnoteReference`](Self::FootnoteReference).
-    EndnoteReference(Unmodeled),
-    /// `w:commentReference` (`CT_Markup`, "Comment Content Reference Mark", §17.13.4.5) — comments
-    /// are a later child's ("annotations.rs") subject; kept opaque here.
-    CommentReference(Unmodeled),
+    /// [`FootnoteReference`](Self::FootnoteReference); the same type serves both, exactly as
+    /// [`Text`] serves four different `EG_RunInnerContent` members.
+    EndnoteReference(super::annotations::FootnoteEndnoteReference),
+    /// `w:commentReference` (`CT_Markup`, "Comment Content Reference Mark", §17.13.4.5) — MJXOFF-124's
+    /// own type; see [`super::ranges::Markup`].
+    CommentReference(super::ranges::Markup),
     /// `w:drawing` (`CT_Drawing`, "DrawingML Object", §17.3.3.9) — MJXOFF-131 (C16) owns DrawingML
     /// hosted in Word.
     Drawing(Unmodeled),
@@ -1257,6 +1299,20 @@ impl Run {
             attributes: Vec::new(),
             empty: false,
             content: vec![RunInnerContent::FieldCode(t)],
+        }
+    }
+
+    /// Builds a new run holding exactly one [`RunInnerContent`] item — MJXOFF-124's own counterpart to
+    /// [`Run::with_text`]/[`Run::with_field_code`], used to wrap a freshly built
+    /// `w:footnoteReference`/`w:endnoteReference`/`w:commentReference` (`EG_RunInnerContent` is an
+    /// `xsd:choice`, so a lone marker run is exactly as schema-legal as one holding `w:t`).
+    #[must_use]
+    pub(crate) fn with_inner_content(interner: &mut Interner, item: RunInnerContent) -> Self {
+        Self {
+            name: wml_name(interner, "r"),
+            attributes: Vec::new(),
+            empty: false,
+            content: vec![item],
         }
     }
 }
