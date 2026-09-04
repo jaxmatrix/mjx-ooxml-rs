@@ -185,4 +185,31 @@ pub enum DocxError {
         /// How many sections the document actually has.
         count: usize,
     },
+
+    /// A table `(row, column)` address named a cell outside the table's own dimensions, **or**
+    /// (for [`crate::Document::merged_cell_anchor`]) a `w:vMerge` continuation with no reachable
+    /// anchor — the malformed-grid case ECMA-376 Part 1 §17.4.84 itself allows, exposed here rather
+    /// than confused with an ordinary out-of-range address. Mirrors `mjx_pptx::PptxError::
+    /// TableCellOutOfRange`'s own field names.
+    #[error("table cell ({row}, {column}) is out of range ({rows} rows, {columns} columns)")]
+    TableCellOutOfRange {
+        /// The row asked for.
+        row: usize,
+        /// The column asked for.
+        column: usize,
+        /// How many rows the table actually has.
+        rows: usize,
+        /// How many columns the table's grid actually declares.
+        columns: usize,
+    },
+
+    /// A structural row/column edit was refused because it would leave a table with no rows or no
+    /// columns — mirrors `mjx_pptx::PptxError::InvalidTableSize`.
+    #[error("table would have {rows} rows and {columns} columns, which is invalid")]
+    InvalidTableSize {
+        /// The row count the edit would have left.
+        rows: usize,
+        /// The column count the edit would have left.
+        columns: usize,
+    },
 }
