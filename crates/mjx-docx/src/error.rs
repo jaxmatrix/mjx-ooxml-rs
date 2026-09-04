@@ -67,4 +67,17 @@ pub enum DocxError {
     /// path) landing on a container rather than, in the end, a run.
     #[error("{0}")]
     AddressNotFound(String),
+
+    /// [`crate::Document::blank`] (or [`crate::Document::blank_with_properties`]) was asked for a
+    /// page size this crate's fixed margins cannot fit inside — see [`crate::PageSize`]'s own doc
+    /// comment for why this, not a `ST_TwipsMeasure` numeric range, is the real constraint.
+    #[error("page size {width_twips}x{height_twips} twips is invalid: {reason}")]
+    InvalidPageSize {
+        /// The page width asked for, in twips.
+        width_twips: u32,
+        /// The page height asked for, in twips.
+        height_twips: u32,
+        /// Why the size was refused.
+        reason: &'static str,
+    },
 }
