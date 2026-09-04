@@ -5,8 +5,8 @@
 //!
 //! | `mjx_docx::Document`     | `mjx_ooxml::Document`  | why |
 //! |---------------------------|-------------------------|-----|
-//! | `impl Into<BlockPath>`    | [`BlockPath`](crate::BlockPath) | a generic parameter has no foreign representation |
-//! | `impl Into<RunPath>`      | [`RunPath`](crate::RunPath) | likewise |
+//! | `impl Into<BlockPath>`    | [`BlockPath`] | a generic parameter has no foreign representation |
+//! | `impl Into<RunPath>`      | [`RunPath`] | likewise |
 //! | `usize`                   | `u32`                   | one width on every target, host-independent |
 //! | `impl FnOnce(&T, &Interner) -> R` | a concrete return type | neither PyO3 nor wasm-bindgen can accept a Rust closure argument |
 //! | `Result<_, DocxError>`    | [`Result<_, Error>`](crate::Error) | thirty-five variants collapse to eleven codes |
@@ -66,8 +66,8 @@
 //!
 //! # Addressing
 //!
-//! A [`BlockPath`](crate::BlockPath) says which paragraph (`BlockPath::from(1)` for the second
-//! top-level paragraph); a [`RunPath`](crate::RunPath) says which run within it. Both convert from a
+//! A [`BlockPath`] says which paragraph (`BlockPath::from(1)` for the second
+//! top-level paragraph); a [`RunPath`] says which run within it. Both convert from a
 //! bare index, so `1.into()` is the whole ceremony for the common case — see that module's own doc
 //! comment.
 //!

@@ -3234,6 +3234,631 @@ class Deck:
         """
         ...
 
+# -------------------------------------------------------------------------------------------
+# Word (MJXOFF-139) — the curated Document surface, mirroring Deck's own conventions above.
+# -------------------------------------------------------------------------------------------
+
+@final
+class Justification:
+    """The projection of `mjx_ooxml::Justification`, whose documentation is authoritative."""
+    Start: Justification
+    Center: Justification
+    End: Justification
+    Justified: Justification
+    MediumKashida: Justification
+    Distribute: Justification
+    AlignToListTab: Justification
+    WidestKashida: Justification
+    LowKashida: Justification
+    ThaiDistribute: Justification
+    Left: Justification
+    Right: Justification
+    def __int__(self) -> int: ...
+
+@final
+class MergedCellType:
+    """The projection of `mjx_ooxml::MergedCellType`, whose documentation is authoritative."""
+    Continue: MergedCellType
+    Restart: MergedCellType
+    def __int__(self) -> int: ...
+
+@final
+class PageOrientation:
+    """The projection of `mjx_ooxml::PageOrientation`, whose documentation is authoritative."""
+    Portrait: PageOrientation
+    Landscape: PageOrientation
+    def __int__(self) -> int: ...
+
+@final
+class HeaderFooterType:
+    """The projection of `mjx_ooxml::HeaderFooterType`, whose documentation is authoritative."""
+    Even: HeaderFooterType
+    Default: HeaderFooterType
+    First: HeaderFooterType
+    def __int__(self) -> int: ...
+
+@final
+class FieldForm:
+    """The projection of `mjx_ooxml::FieldForm`, whose documentation is authoritative."""
+    Simple: FieldForm
+    Complex: FieldForm
+    def __int__(self) -> int: ...
+
+@final
+class CellBorderEdge:
+    """The projection of `mjx_ooxml::CellBorderEdge`, whose documentation is authoritative."""
+    Top: CellBorderEdge
+    Start: CellBorderEdge
+    Left: CellBorderEdge
+    Bottom: CellBorderEdge
+    End: CellBorderEdge
+    Right: CellBorderEdge
+    InsideHorizontal: CellBorderEdge
+    InsideVertical: CellBorderEdge
+    def __int__(self) -> int: ...
+
+@final
+class RevisionKind:
+    """The projection of `mjx_ooxml::RevisionKind`, whose documentation is authoritative."""
+    Inserted: RevisionKind
+    Deleted: RevisionKind
+    MovedFromContent: RevisionKind
+    MovedToContent: RevisionKind
+    RunPropertiesChanged: RevisionKind
+    ParagraphPropertiesChanged: RevisionKind
+    ParagraphMarkPropertiesChanged: RevisionKind
+    SectionPropertiesChanged: RevisionKind
+    TablePropertiesChanged: RevisionKind
+    TableExceptionPropertiesChanged: RevisionKind
+    TableGridChanged: RevisionKind
+    CellPropertiesChanged: RevisionKind
+    RowPropertiesChanged: RevisionKind
+    CellMerged: RevisionKind
+    NumberingChanged: RevisionKind
+    MarkerInserted: RevisionKind
+    MarkerDeleted: RevisionKind
+    MarkerMovedFrom: RevisionKind
+    MarkerMovedTo: RevisionKind
+    def __int__(self) -> int: ...
+
+@final
+class BlockPath:
+    """The address of a paragraph within a block container's content."""
+    @staticmethod
+    def top(index: int) -> "BlockPath":
+        """The top-level paragraph at this index."""
+        ...
+    @staticmethod
+    def of(indices: list[int]) -> "BlockPath":
+        """The paragraph at this address: `[1]` top-level, `[1, 0]` for a nested block
+        container.
+        """
+        ...
+    indices: list[int]
+    """The address as a list of indices, outermost first."""
+    depth: int
+    """How deep the address reaches."""
+    is_top_level: bool
+    """Whether this addresses a top-level paragraph."""
+
+@final
+class RunPath:
+    """The address of a run within one paragraph's content."""
+    @staticmethod
+    def top(index: int) -> "RunPath":
+        """The run at this top-level slot."""
+        ...
+    @staticmethod
+    def of(indices: list[int]) -> "RunPath":
+        """The run at this address: `[0]` top-level, `[2, 0]` inside a run container (e.g. a
+        hyperlink).
+        """
+        ...
+    indices: list[int]
+    """The address as a list of indices, outermost first."""
+    depth: int
+    """How deep the address reaches."""
+    is_top_level: bool
+    """Whether this addresses a run directly in the paragraph."""
+
+@final
+class SectionLocation:
+    """Which `w:sectPr` a section-editing method addresses."""
+    @staticmethod
+    def body() -> "SectionLocation":
+        """The body-level `w:sectPr` — the document's last section."""
+        ...
+    @staticmethod
+    def paragraph(path: int | Sequence[int] | BlockPath) -> "SectionLocation":
+        """The `w:sectPr` inside this paragraph's own `w:pPr`."""
+        ...
+
+@final
+class PageSize:
+    """A page's extent, orientation and (optional) paper-size code, in twips (1/1440 inch)."""
+    @staticmethod
+    def a4() -> "PageSize":
+        """ISO 216 A4, portrait: 210 x 297 mm."""
+        ...
+    @staticmethod
+    def us_letter() -> "PageSize":
+        """US Letter, portrait: 8.5 x 11 in."""
+        ...
+    @staticmethod
+    def from_twips(width_twips: int, height_twips: int, orientation: PageOrientation) -> "PageSize":
+        """An arbitrary page extent, in twips, with the given orientation."""
+        ...
+    def landscape(self) -> "PageSize":
+        """The same physical page, rotated: width and height swapped, orientation set to
+        landscape.
+        """
+        ...
+    width_twips: int
+    """The page width, in twips — the larger dimension when landscape."""
+    height_twips: int
+    """The page height, in twips."""
+    orientation: PageOrientation
+    """The page's stated orientation."""
+
+@final
+class PageMargins:
+    """A section's page margins, in twips."""
+    @staticmethod
+    def normal() -> "PageMargins":
+        """Word's "Normal" template margins: 1 inch on every side, half an inch header/footer,
+        no gutter.
+        """
+        ...
+    top: int
+    """The top margin, in twips — signed, so a negative value overlaps the header."""
+    right: int
+    """The right margin, in twips."""
+    bottom: int
+    """The bottom margin, in twips — signed, so a negative value overlaps the footer."""
+    left: int
+    """The left margin, in twips."""
+    header: int
+    """The header's distance from the page's top edge, in twips."""
+    footer: int
+    """The footer's distance from the page's bottom edge, in twips."""
+    gutter: int
+    """Extra binding-side space added to the left margin, in twips."""
+
+@final
+class EffectiveColor:
+    """A resolved colour: `"auto"`, or a concrete `RRGGBB` hex value."""
+    is_auto: bool
+    """Whether the document leaves this colour to the renderer."""
+    hex: str | None
+    """The concrete `RRGGBB` hex value, uppercase, when this is not `auto`."""
+
+@final
+class EffectiveFonts:
+    """A resolved font reference, per script slot."""
+    ascii: str | None
+    """The Latin/ASCII-range typeface."""
+    high_ansi: str | None
+    """The Latin "High ANSI" typeface."""
+    east_asian: str | None
+    """The East Asian typeface."""
+    complex_script: str | None
+    """The complex-script typeface."""
+
+@final
+class EffectiveCharacterProperties:
+    """The curated subset of a run's effective character formatting — see `Document`'s own
+    module doc for which fields, and why not all of them.
+    """
+    bold: bool | None
+    """Bold, resolved (XOR-combined across the style chain)."""
+    italic: bool | None
+    """Italic, resolved."""
+    strikethrough: bool | None
+    """Single strikethrough, resolved."""
+    hidden: bool | None
+    """Hidden text (`w:vanish`), resolved."""
+    all_capitals: bool | None
+    """All capitals, resolved."""
+    small_caps: bool | None
+    """Small capitals, resolved."""
+    font_size_half_points: str | None
+    """The font size, in half-points, as the raw wire string."""
+    color: EffectiveColor | None
+    """The resolved colour, its theme reference already baked to concrete `RRGGBB`."""
+    fonts: EffectiveFonts | None
+    """The resolved font reference, per script slot."""
+
+@final
+class EffectiveParagraphProperties:
+    """The curated subset of a paragraph's effective layout."""
+    keep_with_next: bool | None
+    """`w:keepNext`, resolved."""
+    keep_lines_together: bool | None
+    """`w:keepLines`, resolved."""
+    page_break_before: bool | None
+    """`w:pageBreakBefore`, resolved."""
+    widow_control: bool | None
+    """`w:widowControl`, resolved."""
+    alignment: Justification | None
+    """The paragraph's resolved alignment (`w:jc`)."""
+    outline_level: int | None
+    """The resolved outline level (`w:outlineLvl`), `0`-based; absent for body text."""
+
+@final
+class EffectiveShading:
+    """A resolved cell/table shading: the pattern's own colour and the background it draws
+    over.
+    """
+    pattern_color: EffectiveColor | None
+    """The shading pattern's own colour."""
+    fill: EffectiveColor | None
+    """The background colour the pattern draws over."""
+
+@final
+class EffectiveBorder:
+    """A resolved cell/table border edge: its colour and width."""
+    color: EffectiveColor
+    """The border's resolved colour."""
+    width_eighths_of_a_point: int | None
+    """The border's width, in eighths of a point, if stated."""
+
+@final
+class SectionSummary:
+    """One section: the paragraphs it governs, and its own page geometry."""
+    first_paragraph: int
+    """The first paragraph index this section governs."""
+    last_paragraph: int | None
+    """The last paragraph index this section governs, inclusive — `None` if it governs no
+    paragraph at all.
+    """
+    page_size: PageSize | None
+    """This section's page size, if it states one."""
+    page_margins: PageMargins | None
+    """This section's page margins, if it states one."""
+
+@final
+class CommentSummary:
+    """One comment: its id, author, initials and text."""
+    id: int
+    """The comment's own id."""
+    author: str
+    """The comment's author."""
+    initials: str | None
+    """The comment author's initials, if stated."""
+    text: str
+    """The comment's own text."""
+
+@final
+class NoteSummary:
+    """One user-visible footnote or endnote: its id and text."""
+    id: int
+    """The note's own id."""
+    text: str
+    """The note's own text."""
+
+@final
+class RevisionInfo:
+    """One tracked-change marker: its kind, author, date and id."""
+    kind: RevisionKind
+    """What kind of tracked change this is."""
+    author: str | None
+    """The author, if stated and well-formed."""
+    date: str | None
+    """The date/time stamp, the file's own wire string, unparsed."""
+    id: int | None
+    """The revision's own id, if stated and well-formed."""
+
+@final
+class HyperlinkTarget:
+    """A hyperlink's click target: an external URL, or an in-document bookmark anchor."""
+    @staticmethod
+    def url(url: str) -> "HyperlinkTarget":
+        """An external URL target."""
+        ...
+    @staticmethod
+    def anchor(name: str) -> "HyperlinkTarget":
+        """An in-document bookmark anchor target."""
+        ...
+    is_url: bool
+    """Whether this is an external URL target."""
+    url_value: str | None
+    """The URL, when this is a `url` target."""
+    anchor_value: str | None
+    """The bookmark name, when this is an `anchor` target."""
+
+@final
+class Field:
+    """One field (`w:fldSimple` or a `w:fldChar` sequence): its form, instruction, cached
+    result and any fields nested inside it.
+    """
+    form: FieldForm
+    """Which wire form this field was read from."""
+    instruction: str
+    """The field's instruction, verbatim, excluding any nested field's own instruction."""
+    field_name: str | None
+    """The instruction's own field-type keyword (`"HYPERLINK"`, `"TOC"`, …), if recognizable."""
+    arguments: str
+    """The instruction with the field-type keyword removed, verbatim."""
+    cached_result: str | None
+    """The field's cached result, excluding any nested field's own result — `None` only for a
+    complex field with no `separate` marker.
+    """
+    nested_fields: list["Field"]
+    """Every field nested inside this one's own instruction or result zone, in document
+    order.
+    """
+
+@final
+class GridDiscrepancy:
+    """One way a table's grid and its rows disagree with each other."""
+    kind: str
+    """Which kind of discrepancy this is: `"RowWidthMismatch"`, `"OrphanedVerticalMerge"` or
+    `"EmptyRow"`.
+    """
+    row: int | None
+    """The row involved, for every kind."""
+    column: int | None
+    """The grid column involved, for `OrphanedVerticalMerge` only."""
+    declared_columns: int | None
+    """The grid's declared column count, for `RowWidthMismatch` only."""
+    spanned_columns: int | None
+    """What the row's cells actually sum to, for `RowWidthMismatch` only."""
+
+class Document:
+    """An open Word document."""
+    @staticmethod
+    def blank(size: PageSize) -> "Document":
+        """A new document with nothing in it beyond one empty paragraph and a body-level
+        `w:sectPr`.
+        """
+        ...
+    @staticmethod
+    def open(data: bytes) -> "Document":
+        """Opens a document from the bytes of a `.docx`, `.docm`, `.dotx` or `.dotm`."""
+        ...
+    def format(self) -> Format:
+        """What this document's main part says it is."""
+        ...
+    def save(self) -> bytes:
+        """The document as the bytes of a `.docx`, **validated first**."""
+        ...
+    def save_unchecked(self) -> bytes:
+        """The document as bytes, **without** the validation pass."""
+        ...
+    def validate(self) -> None:
+        """Checks the packaging invariants `save` enforces, without writing anything."""
+        ...
+    def conformance(self) -> str | None:
+        """The document's conformance class (`"strict"`/`"transitional"`), or `None` if
+        absent.
+        """
+        ...
+    def set_conformance(self, value: str | None = None) -> None:
+        """Sets (or, given `None`, removes) `w:document/@conformance`."""
+        ...
+    def paragraph_count(self) -> int:
+        """How many paragraphs the document body holds."""
+        ...
+    def run_count(self, paragraph: int | Sequence[int] | BlockPath) -> int:
+        """How many run-or-hyperlink slots the given paragraph holds at its own top level."""
+        ...
+    def paragraph_text(self, paragraph: int | Sequence[int] | BlockPath) -> str:
+        """The whole text of a paragraph, every run concatenated in document order."""
+        ...
+    def run_text(self, paragraph: int | Sequence[int] | BlockPath, run: int | Sequence[int] | RunPath) -> str:
+        """The text of one run."""
+        ...
+    def set_run_text(self, paragraph: int | Sequence[int] | BlockPath, run: int | Sequence[int] | RunPath, text: str) -> None:
+        """Sets the text of one run."""
+        ...
+    def insert_paragraph(self, at: int | Sequence[int] | BlockPath) -> None:
+        """Inserts a new, empty paragraph at `at`, shifting every paragraph at or after it
+        later.
+        """
+        ...
+    def append_paragraph(self) -> None:
+        """Appends a new, empty paragraph as the body's new last paragraph."""
+        ...
+    def remove_paragraph(self, at: int | Sequence[int] | BlockPath) -> None:
+        """Removes the paragraph at `at`."""
+        ...
+    def insert_run(self, paragraph: int | Sequence[int] | BlockPath, at: int | Sequence[int] | RunPath, text: str) -> None:
+        """Inserts a new run holding `text` at slot `at` within `paragraph`."""
+        ...
+    def append_run(self, paragraph: int | Sequence[int] | BlockPath, text: str) -> None:
+        """Appends a new run holding `text` as the paragraph's new last top-level run."""
+        ...
+    def remove_run(self, paragraph: int | Sequence[int] | BlockPath, run: int | Sequence[int] | RunPath) -> None:
+        """Removes the run at `run` within `paragraph`."""
+        ...
+    def effective_run_properties(self, paragraph: int | Sequence[int] | BlockPath, run: int | Sequence[int] | RunPath) -> EffectiveCharacterProperties:
+        """The effective character formatting of one run."""
+        ...
+    def effective_paragraph_properties(self, paragraph: int | Sequence[int] | BlockPath) -> EffectiveParagraphProperties:
+        """The effective paragraph layout of one paragraph."""
+        ...
+    def effective_cell_fill(self, table: int, row: int, column: int) -> EffectiveShading | None:
+        """The effective fill of one table cell."""
+        ...
+    def effective_cell_border(self, table: int, row: int, column: int, edge: CellBorderEdge) -> EffectiveBorder | None:
+        """The effective border on one edge of one table cell."""
+        ...
+    def effective_cell_run_properties(self, table: int, row: int, column: int, paragraph: int, run: int) -> EffectiveCharacterProperties:
+        """The effective character formatting of a run addressed inside a table cell."""
+        ...
+    def style_ids(self) -> list[str]:
+        """Every `styleId` this document's `word/styles.xml` defines."""
+        ...
+    def style_name(self, style_id: str) -> str | None:
+        """The display name of the style identified by `style_id`, or `None`."""
+        ...
+    def attach_paragraph_to_list(self, paragraph: int | Sequence[int] | BlockPath, numbering_id: int, level: int) -> None:
+        """Attaches a paragraph to numbering instance `numbering_id` at `level`."""
+        ...
+    def detach_paragraph_from_list(self, paragraph: int | Sequence[int] | BlockPath) -> None:
+        """Removes a paragraph's own numbering reference, if it carries one."""
+        ...
+    def section_count(self) -> int:
+        """How many sections the document has."""
+        ...
+    def sections(self) -> list[SectionSummary]:
+        """Every section, in document order, with its own resolved page geometry."""
+        ...
+    def set_section_page_size(self, location: SectionLocation, size: PageSize | None = None) -> None:
+        """Sets (or removes) the page size of the `w:sectPr` at `location`."""
+        ...
+    def set_section_page_margins(self, location: SectionLocation, margins: PageMargins | None = None) -> None:
+        """Sets (or removes) the page margins of the `w:sectPr` at `location`."""
+        ...
+    def remove_section_properties(self, location: SectionLocation) -> None:
+        """Removes the `w:sectPr` at `location`, if it carries one."""
+        ...
+    def even_and_odd_headers(self) -> bool:
+        """Whether this document's sections use different headers/footers for even and odd
+        pages.
+        """
+        ...
+    def header_text(self, section: int, kind: HeaderFooterType) -> str | None:
+        """The text of the header of `kind` that applies to `section`'s pages, or `None`."""
+        ...
+    def footer_text(self, section: int, kind: HeaderFooterType) -> str | None:
+        """As `header_text`, for footers."""
+        ...
+    def set_header_text(self, location: SectionLocation, kind: HeaderFooterType, text: str) -> None:
+        """Creates (or replaces) a header holding one paragraph of `text` for the section at
+        `location`.
+        """
+        ...
+    def set_footer_text(self, location: SectionLocation, kind: HeaderFooterType, text: str) -> None:
+        """As `set_header_text`, for footers."""
+        ...
+    def remove_header(self, location: SectionLocation, kind: HeaderFooterType) -> None:
+        """Removes the section at `location`'s own `kind` header reference, if it states one."""
+        ...
+    def remove_footer(self, location: SectionLocation, kind: HeaderFooterType) -> None:
+        """As `remove_header`, for footers."""
+        ...
+    def table_count(self) -> int:
+        """How many top-level tables the document body holds."""
+        ...
+    def table_dimensions(self, table: int) -> tuple[int, int]:
+        """The shape of a table, as `(rows, columns)`."""
+        ...
+    def cell_span(self, table: int, row: int, column: int) -> tuple[int, int]:
+        """How many rows and columns a cell spans, as `(rows, columns)`."""
+        ...
+    def merged_cell_anchor(self, table: int, row: int, column: int) -> tuple[int, int]:
+        """Which cell actually renders at `(row, column)`, resolving any merge."""
+        ...
+    def table_grid_discrepancies(self, table: int) -> list[GridDiscrepancy]:
+        """Every grid discrepancy a table currently has."""
+        ...
+    def cell_text(self, table: int, row: int, column: int) -> str:
+        """The text of a table cell."""
+        ...
+    def set_cell_text(self, table: int, row: int, column: int, text: str) -> None:
+        """Sets the text of a table cell."""
+        ...
+    def set_cell_span(self, table: int, row: int, column: int, span: int | None = None) -> None:
+        """Sets (or, given `None`/`1`, removes) a cell's `w:gridSpan`."""
+        ...
+    def set_cell_vertical_merge(self, table: int, row: int, column: int, kind: MergedCellType | None = None) -> None:
+        """Sets (or, given `None`, removes) a cell's `w:vMerge`."""
+        ...
+    def append_table(self, rows: int, columns: int) -> int:
+        """Appends a new `rows` x `columns` table, and returns its new index."""
+        ...
+    def remove_table(self, table: int) -> None:
+        """Removes the top-level table at `table`."""
+        ...
+    def insert_row(self, table: int, at: int) -> None:
+        """Inserts a row into `table` so it becomes row `at`."""
+        ...
+    def remove_row(self, table: int, at: int) -> None:
+        """Removes row `at` from `table`."""
+        ...
+    def insert_column(self, table: int, at: int) -> None:
+        """Inserts a column into `table` so it becomes column `at`."""
+        ...
+    def remove_column(self, table: int, at: int) -> None:
+        """Removes column `at` from `table`."""
+        ...
+    def fields(self, paragraph: int | Sequence[int] | BlockPath) -> list[Field]:
+        """Every field a paragraph holds, at its own top level and nested, in document order."""
+        ...
+    def set_field_instruction(self, paragraph: int | Sequence[int] | BlockPath, field: Sequence[int], text: str) -> None:
+        """Sets a field's own instruction."""
+        ...
+    def set_field_cached_result_text(self, paragraph: int | Sequence[int] | BlockPath, field: Sequence[int], text: str) -> None:
+        """Sets a field's own cached result."""
+        ...
+    def hyperlink_target(self, paragraph: int | Sequence[int] | BlockPath, at: int | Sequence[int] | RunPath) -> HyperlinkTarget | None:
+        """The click target of the hyperlink at slot `at` within `paragraph`, or `None`."""
+        ...
+    def insert_hyperlink(self, paragraph: int | Sequence[int] | BlockPath, at: int | Sequence[int] | RunPath, text: str, target: HyperlinkTarget) -> None:
+        """Inserts a new hyperlink wrapping one run of `text` at slot `at` within `paragraph`."""
+        ...
+    def remove_hyperlink(self, paragraph: int | Sequence[int] | BlockPath, at: int | Sequence[int] | RunPath) -> None:
+        """Removes the hyperlink at slot `at` within `paragraph`, together with every run it
+        wraps.
+        """
+        ...
+    def comments(self) -> list[CommentSummary]:
+        """Every comment this document's `word/comments.xml` holds."""
+        ...
+    def add_comment(self, paragraph: int | Sequence[int] | BlockPath, author: str, initials: str | None = None, text: str = "") -> int:
+        """Adds a new comment on the whole paragraph at `paragraph`. Returns the comment's own
+        id.
+        """
+        ...
+    def remove_comment(self, id: int) -> None:
+        """Removes the comment with `id`."""
+        ...
+    def comment_range_text(self, id: int) -> str | None:
+        """The resolved text between a comment's own range markers, or `None`."""
+        ...
+    def footnotes(self) -> list[NoteSummary]:
+        """Every user-visible footnote this document holds."""
+        ...
+    def add_footnote(self, paragraph: int | Sequence[int] | BlockPath, text: str) -> int:
+        """Adds a new user footnote referenced from the end of `paragraph`. Returns its own
+        id.
+        """
+        ...
+    def remove_footnote(self, id: int) -> None:
+        """Removes the user footnote with `id`."""
+        ...
+    def endnotes(self) -> list[NoteSummary]:
+        """As `footnotes`, for endnotes."""
+        ...
+    def add_endnote(self, paragraph: int | Sequence[int] | BlockPath, text: str) -> int:
+        """As `add_footnote`, for endnotes."""
+        ...
+    def remove_endnote(self, id: int) -> None:
+        """As `remove_footnote`, for endnotes."""
+        ...
+    def revisions(self) -> list[RevisionInfo]:
+        """Every tracked-change marker the document body holds."""
+        ...
+    def text_with_revisions_accepted(self) -> str:
+        """The document body's text with tracked insertions kept and tracked deletions
+        dropped.
+        """
+        ...
+    def text_with_revisions_rejected(self) -> str:
+        """As `text_with_revisions_accepted`, the rejected-text counterpart."""
+        ...
+    def add_inline_picture(self, paragraph: int | Sequence[int] | BlockPath, image_bytes: bytes, content_type: str, extension: str, width_emu: int, height_emu: int, name: str) -> int:
+        """Adds an inline picture as a new run at the end of `paragraph`. Returns its
+        `wp:docPr` id.
+        """
+        ...
+    def remove_drawing(self, doc_pr_id: int) -> bool:
+        """Removes the drawing whose `wp:docPr@id` is `doc_pr_id`. Returns whether one was
+        removed.
+        """
+        ...
+
 @final
 class FormatFamily:
     """The three markup languages ECMA-376 defines, and which this build can edit."""
