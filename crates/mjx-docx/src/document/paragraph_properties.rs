@@ -2269,6 +2269,19 @@ impl ParagraphProperties {
          *last* paragraph, never the first paragraph of what follows."
     );
 
+    /// [`ParagraphProperties::section_properties`], mutably, or `None` if this paragraph carries no
+    /// `w:sectPr` — **unlike [`ParagraphProperties::section_properties_or_insert`], never creates
+    /// one.** MJXOFF-113 needs this: removing a `w:headerReference`/`w:footerReference` from a
+    /// section that has no reference of the kind asked for must not fabricate a `w:sectPr` (and so a
+    /// spurious section break) where the document had none — the same "read, don't create" contract
+    /// [`super::body::Body::section_properties_mut`] already gives the body-level case.
+    pub fn section_properties_mut(&mut self) -> Option<&mut super::sections::SectionProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            ParagraphPropertyContent::SectionProperties(section) => Some(section),
+            _ => None,
+        })
+    }
+
     /// [`ParagraphProperties::section_properties`], mutably — creating an empty `w:sectPr` at its
     /// schema rank if this `w:pPr` does not already carry one, and returning it mutably either way.
     /// The one primitive behind "split the document into a new section here": the new `w:sectPr`

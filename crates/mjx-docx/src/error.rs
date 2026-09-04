@@ -32,6 +32,15 @@ pub enum DocxError {
     #[error(transparent)]
     Model(#[from] FromXmlError),
 
+    /// A header or footer part's `mc:AlternateContent` markup could not be resolved (MJXOFF-113's
+    /// own VML-exposure path — see `crate::document::headers`'s own doc comment).
+    #[error(transparent)]
+    Mce(#[from] mjx_mce::ResolveError),
+
+    /// A `w:pict` a header or footer part carries did not parse as legacy VML.
+    #[error(transparent)]
+    Vml(#[from] mjx_vml::VmlError),
+
     /// The package root has no `officeDocument` relationship (not an Office document).
     #[error("package has no officeDocument relationship")]
     MissingOfficeDocument,
@@ -164,5 +173,16 @@ pub enum DocxError {
         numbering_id: i64,
         /// The bound that was exceeded.
         limit: usize,
+    },
+
+    /// [`crate::Document::resolve_header`]/`resolve_footer`/`create_header`/`create_footer`/
+    /// `remove_header`/`remove_footer`: `index` does not name one of the document's `count` sections
+    /// (see [`crate::SectionSpan`]).
+    #[error("section index {index} is out of range (document has {count} sections)")]
+    SectionOutOfRange {
+        /// The out-of-range index asked for.
+        index: usize,
+        /// How many sections the document actually has.
+        count: usize,
     },
 }
