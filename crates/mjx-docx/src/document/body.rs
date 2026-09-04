@@ -8,19 +8,20 @@
 //!
 //! - [`BlockContent`] — `EG_ContentBlockContent` (plus `w:sectPr`, the one child `CT_Body` adds after
 //!   it, and `w:tcPr`, the one child a table cell adds *before* it — see [`BlockContent::Properties`]):
-//!   what [`Body`], a header/footer (`headers.rs`, MJXOFF-113) and, now, a table cell
+//!   what [`Body`], a header/footer (`headers.rs`, MJXOFF-113) and a table cell
 //!   (`tables.rs::Cell`, MJXOFF-116) all hold. [`Paragraph`] and [`BlockContent::Table`] are typed;
-//!   `w:customXml` and `w:sdt` stay [`Unmodeled`] (nobody has claimed them yet).
+//!   `w:customXml` and `w:sdt` are MJXOFF-138's own [`super::structured_content::CustomXmlBlock`]/
+//!   [`super::structured_content::ContentControlBlock`] — each wraps this exact same enum for its own
+//!   content, which is what lets a content control (or a custom-XML region) nest to arbitrary depth
+//!   and lets `Body`'s own paragraph/table API reach through it unchanged.
 //! - [`ParagraphContent`] — `EG_PContent`: what [`Paragraph`] and, recursively, [`Hyperlink`] hold.
 //!   [`Run`] is the one typed member with real reach; [`Hyperlink`] is typed too, but only enough to
 //!   recurse back into this same enum — its own attributes (`r:id`, `anchor`, `tooltip`, …) are
-//!   MJXOFF-121's semantics, not this child's. `w:customXml`, `w:smartTag`, `w:sdt`, `w:dir`,
-//!   `w:bdo` and `w:fldSimple` stay [`Unmodeled`]: each of them *also* wraps `EG_PContent` per the
-//!   schema, so a run three of them deep is schema-legal, but nothing today asks this crate to reach
-//!   one — the ticket's own reachability requirement names `w:hyperlink` specifically, and giving
-//!   every wrapper the same treatment "for symmetry" would be five recursive types this child was
-//!   not asked to test. A later child that needs one flips it from `Unmodeled` to a typed struct
-//!   the same way [`Hyperlink`] already is, without touching this enum's shape.
+//!   MJXOFF-121's semantics, not this child's. `w:customXml`, `w:smartTag`, `w:sdt`, `w:dir` and
+//!   `w:bdo` are MJXOFF-138's own types (see [`super::structured_content`]'s own module doc) — each,
+//!   like [`Hyperlink`], wraps this same enum for its own content, so a run three of them deep reads
+//!   and round-trips exactly as it did before, just through a typed wrapper rather than
+//!   [`Unmodeled`]. `w:fldSimple` is MJXOFF-121's own [`super::fields::SimpleField`].
 //! - [`RunInnerContent`] — `EG_RunInnerContent`, `CT_R`'s own content: **all 33 members**, every one
 //!   with a variant (see the module-level list below). Nine are fully typed ([`Break`], [`Text`]
 //!   reused for four of them, [`RelationshipReference`], [`Symbol`], [`PositionalTab`],
@@ -86,15 +87,16 @@ pub struct Body {
     empty: bool,
     #[xml(
         children,
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlBlock),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlBlock),
         child(local = "p", variant = Paragraph, ty = Paragraph),
         child(local = "tbl", variant = Table, ty = super::tables::Table),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = PermissionRangeEnd),
         child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
-        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
+        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties),
+        child(local = "altChunk", variant = AltChunk, ty = super::structured_content::AltChunk)
     )]
     content: Vec<BlockContent>,
 }
@@ -104,10 +106,12 @@ pub struct Body {
 /// prepends before it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockContent {
-    /// `w:customXml` (`CT_CustomXmlBlock`) — unowned; opaque.
-    CustomXml(Unmodeled),
-    /// `w:sdt` (`CT_SdtBlock`) — unowned; opaque.
-    StructuredDocumentTag(Unmodeled),
+    /// `w:customXml` (`CT_CustomXmlBlock`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::CustomXmlBlock`].
+    CustomXml(super::structured_content::CustomXmlBlock),
+    /// `w:sdt` (`CT_SdtBlock`) — a block-level content control, MJXOFF-138's own type; see
+    /// [`super::structured_content::ContentControlBlock`].
+    StructuredDocumentTag(super::structured_content::ContentControlBlock),
     /// `w:p` (`CT_P`) — this child's own type.
     Paragraph(Paragraph),
     /// `w:tbl` (`CT_Tbl`) — MJXOFF-116's own type; a table's own `EG_BlockLevelElts` cells reuse
@@ -132,6 +136,14 @@ pub enum BlockContent {
     /// (only `CT_Tc` does) — mapped here for the same exhaustive-match reason
     /// [`BlockContent::SectionProperties`] is.
     Properties(super::tables::CellProperties),
+    /// `w:altChunk` (`CT_AltChunk`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::AltChunk`]. `EG_BlockLevelElts`'s own member (not
+    /// `EG_ContentBlockContent`'s), so — unlike [`BlockContent::CustomXml`]/
+    /// [`BlockContent::StructuredDocumentTag`] — this is legal only where `Body`, `HdrFtr` or a
+    /// table cell holds this enum directly, never inside a content control's or custom-XML wrapper's
+    /// own content (mapped there too, for the same exhaustive-match reason
+    /// [`BlockContent::SectionProperties`] is, but never schema-legal there).
+    AltChunk(super::structured_content::AltChunk),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -419,6 +431,16 @@ impl Body {
         block_append_table(&mut self.content, table, at)
     }
 
+    /// Appends `chunk` (`w:altChunk`) as this body's new last top-level item — **before** `w:sectPr`
+    /// when one is present, matching [`Body::append_paragraph`]'s own placement rule
+    /// (`EG_BlockLevelElts`'s `altChunk` member sits at the same rank as every other block-level
+    /// child) — [`crate::Document::add_alt_chunk`]'s own worker.
+    pub(crate) fn append_alt_chunk(&mut self, chunk: super::structured_content::AltChunk) {
+        let at = self.trailing_section_properties_slot();
+        self.content.insert(at, BlockContent::AltChunk(chunk));
+        self.empty = false;
+    }
+
     /// Removes and returns the top-level table at `index`, or `None` if there is no such table.
     pub fn remove_table(&mut self, index: usize) -> Option<super::tables::Table> {
         block_remove_table(&mut self.content, index)
@@ -502,11 +524,11 @@ pub struct Paragraph {
     #[xml(
         children,
         child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
-        child(local = "dir", variant = BidirectionalEmbedding, ty = Unmodeled),
-        child(local = "bdo", variant = BidirectionalOverride, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlRun),
+        child(local = "smartTag", variant = SmartTag, ty = super::structured_content::SmartTagRun),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlRun),
+        child(local = "dir", variant = BidirectionalEmbedding, ty = super::structured_content::DirContentRun),
+        child(local = "bdo", variant = BidirectionalOverride, ty = super::structured_content::BdoContentRun),
         child(local = "r", variant = Run, ty = Run),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
@@ -588,11 +610,11 @@ pub struct Hyperlink {
     #[xml(
         children,
         child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
-        child(local = "dir", variant = BidirectionalEmbedding, ty = Unmodeled),
-        child(local = "bdo", variant = BidirectionalOverride, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlRun),
+        child(local = "smartTag", variant = SmartTag, ty = super::structured_content::SmartTagRun),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlRun),
+        child(local = "dir", variant = BidirectionalEmbedding, ty = super::structured_content::DirContentRun),
+        child(local = "bdo", variant = BidirectionalOverride, ty = super::structured_content::BdoContentRun),
         child(local = "r", variant = Run, ty = Run),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
@@ -677,18 +699,21 @@ pub enum ParagraphContent {
     /// gives it real content; reach it through [`Paragraph::properties`], never by conflating it with
     /// a run's own `w:rPr`.
     Properties(super::paragraph_properties::ParagraphProperties),
-    /// `w:customXml` (`CT_CustomXmlRun`) — unowned; opaque.
-    CustomXml(Unmodeled),
-    /// `w:smartTag` (`CT_SmartTagRun`) — unowned; opaque.
-    SmartTag(Unmodeled),
-    /// `w:sdt` (`CT_SdtRun`) — unowned; opaque.
-    StructuredDocumentTag(Unmodeled),
+    /// `w:customXml` (`CT_CustomXmlRun`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::CustomXmlRun`].
+    CustomXml(super::structured_content::CustomXmlRun),
+    /// `w:smartTag` (`CT_SmartTagRun`) — MJXOFF-138's own type; see
+    /// [`super::structured_content::SmartTagRun`].
+    SmartTag(super::structured_content::SmartTagRun),
+    /// `w:sdt` (`CT_SdtRun`) — a run-level content control, MJXOFF-138's own type; see
+    /// [`super::structured_content::ContentControlRun`].
+    StructuredDocumentTag(super::structured_content::ContentControlRun),
     /// `w:dir` (`CT_DirContentRun`, "Bidirectional Embedding Level", ECMA-376 Part 1 §17.3.2.8) —
-    /// unowned; opaque.
-    BidirectionalEmbedding(Unmodeled),
-    /// `w:bdo` (`CT_BdoContentRun`, "Bidirectional Override", ECMA-376 Part 1 §17.3.2.3) — unowned;
-    /// opaque.
-    BidirectionalOverride(Unmodeled),
+    /// MJXOFF-138's own type; see [`super::structured_content::DirContentRun`].
+    BidirectionalEmbedding(super::structured_content::DirContentRun),
+    /// `w:bdo` (`CT_BdoContentRun`, "Bidirectional Override", ECMA-376 Part 1 §17.3.2.3) —
+    /// MJXOFF-138's own type; see [`super::structured_content::BdoContentRun`].
+    BidirectionalOverride(super::structured_content::BdoContentRun),
     /// `w:r` (`CT_R`) — this child's own type.
     Run(Run),
     /// `w:proofErr` (`CT_ProofErr`), folded in from `EG_RunLevelElts`.

@@ -92,7 +92,7 @@ use mjx_ooxml_types::wordprocessingml::{
 
 use crate::error::DocxError;
 
-use super::body::{wml_name, ParagraphContent, Run, RunInnerContent, Text, Unmodeled};
+use super::body::{wml_name, ParagraphContent, Run, RunInnerContent, Text};
 use super::paragraph_properties::DecimalNumberValue;
 use super::run_properties::{HalfPointMeasureValue, Toggle};
 
@@ -1529,11 +1529,11 @@ pub struct SimpleField {
     #[xml(
         children,
         child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
-        child(local = "customXml", variant = CustomXml, ty = Unmodeled),
-        child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
-        child(local = "dir", variant = BidirectionalEmbedding, ty = Unmodeled),
-        child(local = "bdo", variant = BidirectionalOverride, ty = Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlRun),
+        child(local = "smartTag", variant = SmartTag, ty = super::structured_content::SmartTagRun),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlRun),
+        child(local = "dir", variant = BidirectionalEmbedding, ty = super::structured_content::DirContentRun),
+        child(local = "bdo", variant = BidirectionalOverride, ty = super::structured_content::BdoContentRun),
         child(local = "r", variant = Run, ty = Run),
         child(local = "proofErr", variant = ProofingError, ty = super::body::ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = super::body::PermissionRangeStart),
