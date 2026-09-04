@@ -129,7 +129,7 @@ impl ToXml for PixelsMeasureValue {
 
 /// `ST_TargetScreenSz` (`w:targetScreenSz/@val`) as an attribute value.
 #[derive(Debug)]
-struct TargetScreenSizeCodec;
+pub struct TargetScreenSizeCodec;
 
 impl AttributeCodec for TargetScreenSizeCodec {
     type Value<'a> = TargetScreenSize;

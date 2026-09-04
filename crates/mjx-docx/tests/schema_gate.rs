@@ -88,6 +88,60 @@ fn the_wordprocessingml_parts_are_validated_and_not_skipped() {
     }
 }
 
+// =================================================================================================
+// MJXOFF-136 — word/webSettings.xml and word/recipients.xml, the two of `wml.xsd`'s fourteen global
+// elements no earlier child's fixture ever carried, so no earlier run of this gate ever validated
+// them. `settings_document_configuration.docx` (this child's own fixture) is the first `.docx` in
+// the corpus with either part.
+// =================================================================================================
+
+#[test]
+fn the_web_settings_and_recipients_parts_are_validated_and_not_skipped() {
+    let rows = inspect_fixture("settings_document_configuration.docx");
+    if rows.is_empty() {
+        return;
+    }
+    println!(
+        "{}",
+        outcome_table("settings_document_configuration.docx", &rows)
+    );
+
+    for part in [
+        "/word/document.xml",
+        "/word/styles.xml",
+        "/word/fontTable.xml",
+        "/word/settings.xml",
+        "/word/webSettings.xml",
+        "/word/recipients.xml",
+    ] {
+        let row = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("settings_document_configuration.docx: {part} not in sweep"));
+        assert_eq!(
+            row.namespace.as_deref(),
+            Some(WML_NS),
+            "{part} must be rooted in WordprocessingML"
+        );
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated("wml.xsd")),
+            "{part} must be validated against wml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    }
+
+    // The embedded font's own binary part is not XML — must be skipped as such, never faulted.
+    let font = rows
+        .iter()
+        .find(|row| row.name == "/word/fonts/font1.fntdata")
+        .expect("settings_document_configuration.docx: the embedded font part is in the sweep");
+    assert!(
+        matches!(font.outcome, PartOutcome::SkippedBinary(_)),
+        "the embedded font's binary part must be skipped as non-XML, not faulted; it reported: {}",
+        font.outcome.describe()
+    );
+}
+
 /// `sample.docx` with a `w:tbl` nested directly inside a `w:rPr` — markup `wml.xsd` rejects, because
 /// `CT_RPr`'s content model holds run properties and no block-level content at all.
 fn sample_docx_with_a_table_inside_run_properties() -> Vec<u8> {
