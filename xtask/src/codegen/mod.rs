@@ -206,6 +206,14 @@ const SIMPLE_TYPE_MODULES: &[SimpleTypeModule] = &[
         engine: &spec::DIAGRAM_ENGINE,
         selection: emit::Selection::Everything,
     },
+    SimpleTypeModule {
+        stem: "dml-wordprocessingDrawing",
+        module: "wordprocessingdrawing",
+        visibility: "pub",
+        module_doc: emit::WORDPROCESSINGDRAWING_MODULE_DOC,
+        engine: &spec::ENGINE,
+        selection: emit::Selection::Everything,
+    },
 ];
 
 /// Fails if any naming-override row matched nothing across the modules its engine names.
@@ -260,7 +268,18 @@ fn generated_module_root() -> String {
 /// markup in. They are parsed together so cross-schema `xsd:group` and `xsd:element` references
 /// (PresentationML's use of DrawingML's fill and effect groups) resolve. A schema joins this list
 /// when a crate starts authoring its markup — WordprocessingML and SpreadsheetML with Phases C/D.
-const CHILD_ORDER_SCHEMAS: &[&str] = &["dml-main", "pml", "dml-chart", "dml-diagram", "wml"];
+///
+/// `dml-wordprocessingDrawing` joined with MJXOFF-131 (C16): `mjx-dml::wordprocessing_drawing`
+/// writes `wp:inline`/`wp:anchor`/the wrap modes/`wp:graphicFrame` from a typed model rather than a
+/// fixed template, so every part that carries one is now ordered by construction too.
+const CHILD_ORDER_SCHEMAS: &[&str] = &[
+    "dml-main",
+    "pml",
+    "dml-chart",
+    "dml-diagram",
+    "wml",
+    "dml-wordprocessingDrawing",
+];
 
 /// Schemas parsed *only* to resolve a cross-schema `xsd:group`/`xsd:element` reference reached
 /// while flattening one of [`CHILD_ORDER_SCHEMAS`]'s own types — never given a table of their own
@@ -271,17 +290,22 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &["dml-main", "pml", "dml-chart", "dml-diag
 /// namespace `wml.xsd` reaches is listed:
 /// - `shared-math` — `CT_RunTrackChange` reaches `m:EG_OMathMathElements`, and several types
 ///   reference `m:oMath`/`m:oMathPara`/`m:mathPr` by element `ref`.
-/// - `dml-wordprocessingDrawing` — `CT_Drawing` references `wp:anchor`/`wp:inline` by element `ref`.
 /// - `shared-customXmlSchemaProperties` — `CT_SchemaLibrary`'s reference references
 ///   `sl:schemaLibrary` by element `ref`.
+/// - `dml-picture` — `dml-wordprocessingDrawing`'s own `CT_WordprocessingGroup`/
+///   `CT_WordprocessingCanvas` reference `dpct:pic` by element `ref` (MJXOFF-131).
+///
+/// `dml-wordprocessingDrawing` **left** this list with MJXOFF-131 (C16) — it now has a table of its
+/// own in `CHILD_ORDER_SCHEMAS` instead, which is what a schema graduating out of "referenced only"
+/// looks like.
 ///
 /// Adding a schema here does **not** generate its own child-order table or flip its `COVERAGE.md`
 /// status — that stays the decision of the child that starts authoring *its* markup, by adding it
 /// to `CHILD_ORDER_SCHEMAS` instead.
 const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] = &[
     "shared-math",
-    "dml-wordprocessingDrawing",
     "shared-customXmlSchemaProperties",
+    "dml-picture",
 ];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
@@ -525,18 +549,16 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
     (
         "dml-picture",
         "not modelled — `pic:pic` carries DrawingML types, which `dml-main` already provides",
-        "pending — the picture element is written through `mjx-dml`; its row joins when a model \
-         places its children",
+        "modelled by construction, not by table — `mjx-dml::picture::Picture` (MJXOFF-131) reads and \
+         writes `CT_Picture`'s three children (`nvPicPr`, `blipFill`, `spPr`) in that one fixed \
+         order every time; the schema gives this type no choice, no optional member and no repeated \
+         member to rank, so there is no placement decision a generated table could inform that the \
+         hand-written order does not already get right",
     ),
     (
         "dml-spreadsheetDrawing",
         "pending, owned by MJXOFF-107 — the SpreadsheetML drawing surface",
         "pending, owned by MJXOFF-107",
-    ),
-    (
-        "dml-wordprocessingDrawing",
-        "pending, owned by MJXOFF-131 — the WordprocessingML drawing surface",
-        "pending, owned by MJXOFF-131",
     ),
     ("pml", "", "generated — every complex type"),
     (

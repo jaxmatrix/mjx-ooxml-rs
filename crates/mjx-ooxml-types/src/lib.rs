@@ -36,7 +36,9 @@ pub mod support;
 
 mod generated;
 
-pub use generated::{diagram, namespaces, officemath, shared, spreadsheetml, wordprocessingml};
+pub use generated::{
+    diagram, namespaces, officemath, shared, spreadsheetml, wordprocessingdrawing, wordprocessingml,
+};
 pub use support::{
     on_off, true_false, true_false_blank, HexColorRgb, OnOff, TrueFalse, TrueFalseBlank,
     UnknownWireValue,

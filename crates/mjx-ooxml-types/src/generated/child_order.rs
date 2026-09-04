@@ -9,7 +9,7 @@
 
 use crate::child_order::{in_namespace, ChildOrder, ChildSlot, ContentModel, TypeReference};
 use crate::generated::namespaces::{
-    DML_CHART, DML_DIAGRAM, DML_MAIN, DML_WORDPROCESSING_DRAWING, PML,
+    DML_CHART, DML_DIAGRAM, DML_MAIN, DML_PICTURE, DML_WORDPROCESSING_DRAWING, PML,
     SHARED_CUSTOM_XML_SCHEMA_PROPERTIES, SHARED_MATH, WML,
 };
 
@@ -44291,6 +44291,1193 @@ pub static WML_TYPES: [ChildOrder; 285] = [
     },
 ];
 
+/// Every complex type of `dml-wordprocessingDrawing.xsd`, sorted by XSD symbol.
+pub static DML_WORDPROCESSING_DRAWING_TYPES: [ChildOrder; 20] = [
+    ChildOrder {
+        symbol: "CT_Anchor",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "simplePos",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Point2D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "positionH",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_PosH",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "positionV",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_PosV",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extent",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_PositiveSize2D",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "effectExtent",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_EffectExtent",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wrapNone",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WrapNone",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wrapSquare",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WrapSquare",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wrapThrough",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WrapThrough",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wrapTight",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WrapTight",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wrapTopAndBottom",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WrapTopBottom",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "docPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvGraphicFramePr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualGraphicFrameProperties",
+                }),
+                rank: 7,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "graphic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_GraphicalObject",
+                }),
+                rank: 8,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_EffectExtent",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_GraphicFrame",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvFrPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualGraphicFrameProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "xfrm",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Transform2D",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "graphic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_GraphicalObject",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Inline",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extent",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_PositiveSize2D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "effectExtent",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_EffectExtent",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "docPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvGraphicFramePr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualGraphicFrameProperties",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "graphic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_GraphicalObject",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_LinkedTextboxInformation",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_WORDPROCESSING_DRAWING,
+            local: "extLst",
+            complex_type: Some(TypeReference {
+                namespace: DML_MAIN,
+                symbol: "CT_OfficeArtExtensionList",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_PosH",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "align",
+                complex_type: None,
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "posOffset",
+                complex_type: None,
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_PosV",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "align",
+                complex_type: None,
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "posOffset",
+                complex_type: None,
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_TextboxInfo",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "txbxContent",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_TxbxContent",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_TxbxContent",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Choice,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMath",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMath",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMathPara",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathPara",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "altChunk",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_AltChunk",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "bookmarkEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "bookmarkStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Bookmark",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXml",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_CustomXmlBlock",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlDelRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlDelRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlInsRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlInsRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveFromRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveFromRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveToRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveToRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "del",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "ins",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFrom",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFromRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFromRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MoveBookmark",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveTo",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveToRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveToRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MoveBookmark",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "p",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_P",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "permEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Perm",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "permStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_PermStart",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "proofErr",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_ProofErr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "sdt",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SdtBlock",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "tbl",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Tbl",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WordprocessingCanvas",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "bg",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_BackgroundFormatting",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "whole",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_WholeE2oFormatting",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_PICTURE,
+                local: "pic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_PICTURE,
+                    symbol: "CT_Picture",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "contentPart",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingContentPart",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "graphicFrame",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_GraphicFrame",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wgp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingGroup",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wsp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingShape",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WordprocessingContentPart",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "nvContentPartPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingContentPartNonVisual",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "xfrm",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Transform2D",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WordprocessingContentPartNonVisual",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvContentPartPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualContentPartProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WordprocessingGroup",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvGrpSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualGroupDrawingShapeProps",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "grpSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_GroupShapeProperties",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_PICTURE,
+                local: "pic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_PICTURE,
+                    symbol: "CT_Picture",
+                }),
+                rank: 3,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "contentPart",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingContentPart",
+                }),
+                rank: 3,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "graphicFrame",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_GraphicFrame",
+                }),
+                rank: 3,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "grpSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingGroup",
+                }),
+                rank: 3,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "wsp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_WordprocessingShape",
+                }),
+                rank: 3,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WordprocessingShape",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvCnPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualConnectorProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "cNvSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingShapeProps",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "spPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeProperties",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "style",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeStyle",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "extLst",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_OfficeArtExtensionList",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "linkedTxbx",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_LinkedTextboxInformation",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "txbx",
+                complex_type: Some(TypeReference {
+                    namespace: DML_WORDPROCESSING_DRAWING,
+                    symbol: "CT_TextboxInfo",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "bodyPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_TextBodyProperties",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WrapNone",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_WrapPath",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "start",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Point2D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                local: "lineTo",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Point2D",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_WrapSquare",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_WORDPROCESSING_DRAWING,
+            local: "effectExtent",
+            complex_type: Some(TypeReference {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                symbol: "CT_EffectExtent",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_WrapThrough",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_WORDPROCESSING_DRAWING,
+            local: "wrapPolygon",
+            complex_type: Some(TypeReference {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                symbol: "CT_WrapPath",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_WrapTight",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_WORDPROCESSING_DRAWING,
+            local: "wrapPolygon",
+            complex_type: Some(TypeReference {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                symbol: "CT_WrapPath",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_WrapTopBottom",
+        namespace: DML_WORDPROCESSING_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: DML_WORDPROCESSING_DRAWING,
+            local: "effectExtent",
+            complex_type: Some(TypeReference {
+                namespace: DML_WORDPROCESSING_DRAWING,
+                symbol: "CT_EffectExtent",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+];
+
 /// The child order of the complex type `symbol` declared in `namespace`, or `None` if the
 /// tables do not cover it.
 ///
@@ -44309,6 +45496,8 @@ pub fn find(namespace: &str, symbol: &str) -> Option<&'static ChildOrder> {
         &DML_DIAGRAM_TYPES
     } else if in_namespace(namespace, WML) {
         &WML_TYPES
+    } else if in_namespace(namespace, DML_WORDPROCESSING_DRAWING) {
+        &DML_WORDPROCESSING_DRAWING_TYPES
     } else {
         return None;
     };
@@ -44389,6 +45578,15 @@ pub fn root_element(namespace: &str, local: &str) -> Option<&'static ChildOrder>
             "styles" => "CT_Styles",
             "txbxContent" => "CT_TxbxContent",
             "webSettings" => "CT_WebSettings",
+            _ => return None,
+        }
+    } else if in_namespace(namespace, DML_WORDPROCESSING_DRAWING) {
+        match local {
+            "anchor" => "CT_Anchor",
+            "inline" => "CT_Inline",
+            "wgp" => "CT_WordprocessingGroup",
+            "wpc" => "CT_WordprocessingCanvas",
+            "wsp" => "CT_WordprocessingShape",
             _ => return None,
         }
     } else {
@@ -44690,3 +45888,42 @@ pub static FOOTNOTE_PROPERTIES: &ChildOrder = &WML_TYPES[98];
 
 /// A section's own endnote settings (`w:sectPr/w:endnotePr`) — the same shape as `CT_FtnProps`, with `CT_EdnPos`'s narrower two-value position instead of `CT_FtnPos`'s four (`CT_EdnProps`, `wml.xsd`).
 pub static ENDNOTE_PROPERTIES: &ChildOrder = &WML_TYPES[66];
+
+/// An inline drawing's own placement: extent, effect extent, non-visual properties, then the `a:graphic` it wraps (`CT_Inline`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_INLINE: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[3];
+
+/// A floating drawing's own placement: simple position, horizontal/vertical position, extent, effect extent, the wrap mode choice, non-visual properties, then the `a:graphic` it wraps (`CT_Anchor`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_ANCHOR: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[0];
+
+/// A square-wrap drawing's own effect extent (`CT_WrapSquare`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WRAP_SQUARE: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[16];
+
+/// A tight-wrap drawing's own wrap polygon (`CT_WrapTight`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WRAP_TIGHT: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[18];
+
+/// A through-wrap drawing's own wrap polygon (`CT_WrapThrough`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WRAP_THROUGH: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[17];
+
+/// A top-and-bottom-wrap drawing's own effect extent (`CT_WrapTopBottom`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WRAP_TOP_AND_BOTTOM: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[19];
+
+/// A wrap polygon's own start point, then two or more line-to points (`CT_WrapPath`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WRAP_PATH: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[15];
+
+/// An inline OLE-style graphic frame's own non-visual properties, transform, then the `a:graphic` it wraps (`CT_GraphicFrame`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_GRAPHIC_FRAME: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[2];
+
+/// A group of Word shapes' own non-visual properties, transform, then its member shapes (`CT_WordprocessingGroup`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WORDPROCESSING_GROUP: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[12];
+
+/// A drawing canvas's own background, whole-canvas formatting, then its member shapes (`CT_WordprocessingCanvas`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_WORDPROCESSING_CANVAS: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[9];
+
+/// An ink content part's own non-visual properties, then its transform (`CT_WordprocessingContentPart`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_CONTENT_PART: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[10];
+
+/// An ink content part's own identity and lock list (`CT_WordprocessingContentPartNonVisual`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_CONTENT_PART_NON_VISUAL: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[11];
+
+/// A shape's own text box content, then its extension list — `mjx-docx` places `w:txbxContent` at this rank; the shape (`CT_WordprocessingShape`) and its text box content (`CT_TxbxContent`) are WordprocessingML-content-shaped and so live in `mjx-docx`, not here — see `mjx_dml::wordprocessing_drawing`'s own module doc (`CT_TextboxInfo`, `dml-wordprocessingDrawing.xsd`).
+pub static WP_TEXTBOX_INFO: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[7];
