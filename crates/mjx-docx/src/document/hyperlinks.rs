@@ -19,8 +19,11 @@ pub enum HyperlinkTarget {
     /// An external target: the relationship's own resolved target string (a URL, a `mailto:`
     /// address, …).
     Url(String),
-    /// A bookmark name in the current document (`w:anchor`), unresolved — MJXOFF-124 owns the
-    /// bookmark index this would resolve against; this crate hands back the raw name.
+    /// A bookmark name in the current document (`w:anchor`). Handed back **unresolved** — this type
+    /// only reads the hyperlink's own attributes, and a bookmark can move independently of any
+    /// hyperlink naming it — so this is the raw name, not a location. Resolve it against the
+    /// document's own bookmark index with [`crate::Document::resolve_bookmark`] (MJXOFF-124's own
+    /// seam; see that method's own doc comment for a worked example).
     Anchor(String),
 }
 

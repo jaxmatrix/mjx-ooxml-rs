@@ -1540,7 +1540,11 @@ pub struct SimpleField {
         child(local = "fldSimple", variant = SimpleField, ty = SimpleField),
         child(local = "hyperlink", variant = Hyperlink, ty = super::body::Hyperlink),
         child(local = "subDoc", variant = SubDocument, ty = super::body::RelationshipReference),
-        child(local = "fldData", variant = FieldData, ty = Text)
+        child(local = "fldData", variant = FieldData, ty = Text),
+        child(local = "bookmarkStart", variant = BookmarkStart, ty = super::ranges::Bookmark),
+        child(local = "bookmarkEnd", variant = BookmarkEnd, ty = super::ranges::MarkupRange),
+        child(local = "commentRangeStart", variant = CommentRangeStart, ty = super::ranges::MarkupRange),
+        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange)
     )]
     content: Vec<ParagraphContent>,
 }

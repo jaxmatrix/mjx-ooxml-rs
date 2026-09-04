@@ -38,6 +38,16 @@
 //!   edits (insert/remove row/column) built on WordprocessingML's own *continuation* merge model —
 //!   see that module's own doc comment for how it differs from `mjx-pptx`'s span model. A cell is
 //!   `body.rs`'s block-content generalization's **third** container, after `Body` and `HdrFtr`.
+//! - `fields.rs` / `hyperlinks.rs` — `w:fldSimple`/`w:fldChar` (`CT_SimpleField`/`CT_FldChar`) and
+//!   `w:hyperlink`'s own attributes, MJXOFF-121's own files: [`Field`], [`FieldCharacter`],
+//!   [`FormFieldData`] and hyperlink target resolution.
+//! - `ranges.rs` — the range-marker mechanism `EG_RangeMarkupElements` needs (`CT_Markup`/
+//!   `CT_MarkupRange`/`CT_Bookmark`, and [`ranges::RangeIndex`], the id-paired start/end resolver),
+//!   MJXOFF-124's own file — see that module's own doc comment for why pairing is by id, never a
+//!   stack, and what MJXOFF-126 should call.
+//! - `annotations.rs` — `w:comments`/`w:footnotes`/`w:endnotes` (`CT_Comments`/`CT_Footnotes`/
+//!   `CT_Endnotes`) and the section-level `w:footnotePr`/`w:endnotePr` C9 left opaque, MJXOFF-124's
+//!   own file: [`Comments`], [`Footnotes`], [`Endnotes`] and their own content types.
 //!
 //! (This list previously named `styles.rs`, `numbering.rs`, `effective.rs` and `sections.rs` among
 //! the files "later children are expected to add" — stale by the time MJXOFF-109 landed, all four
@@ -45,9 +55,9 @@
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
-//! C): `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`, `settings.rs`,
-//! `structured_content.rs`. A child that needs a subject not on this list adds the file and a line
-//! here, the same way `presentation/`'s own list grew past A8.
+//! C): `revisions.rs`, `drawing.rs`, `settings.rs`, `structured_content.rs`. A child that needs a
+//! subject not on this list adds the file and a line here, the same way `presentation/`'s own list
+//! grew past A8.
 
 use mjx_ooxml_core::{
     Enumeration, FromXml, FromXmlError, RawAttribute, RawDocument, RawName, RawNode, ToXml,
@@ -58,6 +68,7 @@ use mjx_opc::{Package, TargetMode};
 
 use crate::error::DocxError;
 
+mod annotations;
 mod body;
 mod effective;
 mod fields;
@@ -67,6 +78,7 @@ mod numbering;
 mod paragraph_properties;
 mod parts;
 mod property_macros;
+mod ranges;
 mod run_properties;
 mod sections;
 mod styles;
@@ -74,6 +86,12 @@ mod table_properties;
 mod table_regions;
 mod tables;
 
+pub use annotations::{
+    Comment, Comments, CommentsContent, EndnotePositionElement, EndnoteProperties,
+    EndnotePropertyContent, Endnotes, EndnotesContent, FootnoteEndnote, FootnoteEndnoteReference,
+    FootnotePositionElement, FootnoteProperties, FootnotePropertyContent, Footnotes,
+    FootnotesContent, NumberFormatElement, NumberRestartElement,
+};
 pub use body::{
     Background, BlockContent, Body, Break, Hyperlink, Paragraph, ParagraphContent,
     PermissionRangeEnd, PermissionRangeStart, PhoneticGuide, PhoneticGuideChild,
@@ -116,6 +134,10 @@ pub use paragraph_properties::{
     TextBoxTightWrapSetting, VerticalCharacterAlignment,
 };
 pub use parts::{DocumentParts, PartKind};
+pub use ranges::{
+    covered_text, paragraphs_spanned, Bookmark, BookmarkResolution, MarkerLocation, Markup,
+    MarkupRange, RangeIndex, RangeResolution,
+};
 pub use run_properties::{
     Border, CharacterStyle, Color, EastAsianLayout, Emphasis, Fonts, HalfPoint,
     HalfPointMeasureValue, HexColor, Highlight, Lang, Languages, ManualRunWidth, RunProperties,
@@ -2351,6 +2373,890 @@ impl Document {
         body.paragraph(&path)
             .cloned()
             .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Comments (`word/comments.xml`, MJXOFF-124)
+    // ---------------------------------------------------------------------------------------------
+
+    /// Reads this document's `word/comments.xml`, handing `read` the parsed [`Comments`] together
+    /// with the [`mjx_ooxml_core::Interner`] it was parsed with — mirrors [`Document::style_sheet`]'s
+    /// own shape exactly. `None` — `read` is never called — if this document relates to no
+    /// `word/comments.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/comments.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:comments`.
+    pub fn comments<R>(
+        &mut self,
+        read: impl FnOnce(&Comments, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(comments_part) = self.parts.comments.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&comments_part)?;
+        let comments = Comments::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&comments, &doc.interner)))
+    }
+
+    /// Edits this document's comments, creating `word/comments.xml` — with its content-type
+    /// registration and its `comments` relationship from the main document part — first if it does
+    /// not already have one.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/comments.xml` is related but cannot be read, or if creating a
+    /// missing one fails.
+    pub fn edit_comments<R>(
+        &mut self,
+        edit: impl FnOnce(&mut Comments, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let comments_part = match &self.parts.comments {
+            Some(part) => part.clone(),
+            None => self.create_comments_part()?,
+        };
+        let doc = self.package.part_tree_mut(&comments_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut comments = if root.name.local == interner.intern("comments") {
+            Comments::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/comments.xml root is not w:comments",
+            ));
+        };
+        let result = edit(&mut comments, interner);
+        comments.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/comments.xml`, registers its content type, and relates it from the main
+    /// document part.
+    fn create_comments_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let comments_part = self.document_part.resolve("comments.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "comments.xml".to_owned(),
+            }
+        })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:comments xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &comments_part,
+            crate::constants::CONTENT_TYPE_COMMENTS,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_COMMENTS.to_owned(),
+                target: "comments.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.comments = Some(comments_part.clone());
+        Ok(comments_part)
+    }
+
+    /// Adds a new comment on the **whole** paragraph at `paragraph`: wraps it in
+    /// `w:commentRangeStart`/`w:commentRangeEnd`, appends a run holding `w:commentReference` right
+    /// after the range end, and appends the [`Comment`] itself (`author`, optional `initials`, `text`
+    /// as its own paragraph) to `word/comments.xml` — creating that part, its content type and its
+    /// relationship first if the document has none. Returns the comment's own freshly assigned id
+    /// (one past the highest id already in `word/comments.xml`, reserved or not).
+    ///
+    /// This wraps the **entire** paragraph, never an arbitrary run range within it — the
+    /// range-resolution mechanism this crate *reads* (`ranges.rs`) resolves an arbitrary span exactly
+    /// as this ticket's own trap requires, but this *writer* only ever authors the one shape the
+    /// ticket's own "Done when" needs: "a comment on this paragraph." A caller wanting a narrower
+    /// range builds `w:commentRangeStart`/`w:commentRangeEnd` at a specific slot directly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph, or another
+    /// [`DocxError`] if the package edit fails.
+    pub fn add_comment(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        author: &str,
+        initials: Option<&str>,
+        text: &str,
+    ) -> Result<i64, DocxError> {
+        let paragraph_path = paragraph.into();
+        {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            body.paragraph(&paragraph_path).ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+            })?;
+        }
+
+        let comments_part = match &self.parts.comments {
+            Some(part) => part.clone(),
+            None => self.create_comments_part()?,
+        };
+        let id = {
+            let doc = self.package.part_tree_mut(&comments_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut comments = if root.name.local == interner.intern("comments") {
+                Comments::from_xml(root, interner)?
+            } else {
+                return Err(DocxError::MalformedDocument(
+                    "word/comments.xml root is not w:comments",
+                ));
+            };
+            let id = comments.next_id(interner);
+            let mut comment = Comment::new(interner, id, author);
+            if let Some(initials) = initials {
+                comment.set_raw_initials(interner, Some(initials));
+            }
+            if let Some(p) = comment.paragraph_mut(0) {
+                p.append_run(Run::with_text(interner, text));
+            }
+            comments.push(comment);
+            comments.write_back(root, interner);
+            id
+        };
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let content = paragraph_mut.content_mut();
+        content.insert(
+            0,
+            ParagraphContent::CommentRangeStart(ranges::MarkupRange::new(
+                interner,
+                "commentRangeStart",
+                id,
+            )),
+        );
+        content.push(ParagraphContent::CommentRangeEnd(ranges::MarkupRange::new(
+            interner,
+            "commentRangeEnd",
+            id,
+        )));
+        let reference = ranges::Markup::new(interner, "commentReference", id);
+        content.push(ParagraphContent::Run(Run::with_inner_content(
+            interner,
+            RunInnerContent::CommentReference(reference),
+        )));
+        main.write_back(root, interner);
+        Ok(id)
+    }
+
+    /// Removes the comment with `id`: every `w:commentRangeStart`/`w:commentRangeEnd`/
+    /// `w:commentReference` naming it anywhere in the body (recursing into every table cell — see
+    /// [`ranges::remove_matching`]'s own doc comment for the one documented gap, markers nested inside
+    /// a `w:hyperlink`), and the [`Comment`] entry itself from `word/comments.xml` — deleting that
+    /// part and its relationship when it was the last comment, so [`mjx_opc::Package::validate`] never
+    /// reports an orphan.
+    ///
+    /// Not an error if `id` names no comment at all — a no-op, matching
+    /// [`Document::remove_paragraph`]'s own "already gone" leniency.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if the
+    /// package edit fails.
+    pub fn remove_comment(&mut self, id: i64) -> Result<(), DocxError> {
+        {
+            let doc = self.package.part_tree_mut(&self.document_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut main = MainDocument::from_xml(root, interner)?;
+            let body = main.body_mut().ok_or(DocxError::NoBody)?;
+            ranges::remove_matching(
+                body.content_mut(),
+                &|item: &ParagraphContent| match item {
+                    ParagraphContent::CommentRangeStart(marker) => marker.id(interner) == Ok(id),
+                    ParagraphContent::CommentRangeEnd(marker) => marker.id(interner) == Ok(id),
+                    _ => false,
+                },
+                &|item: &RunInnerContent| match item {
+                    RunInnerContent::CommentReference(marker) => marker.id(interner) == Ok(id),
+                    _ => false,
+                },
+            );
+            main.write_back(root, interner);
+        }
+
+        let Some(comments_part) = self.parts.comments.clone() else {
+            return Ok(());
+        };
+        let now_empty = {
+            let doc = self.package.part_tree_mut(&comments_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut comments = if root.name.local == interner.intern("comments") {
+                Comments::from_xml(root, interner)?
+            } else {
+                return Err(DocxError::MalformedDocument(
+                    "word/comments.xml root is not w:comments",
+                ));
+            };
+            comments.remove(interner, id);
+            let empty = comments.comments().next().is_none();
+            comments.write_back(root, interner);
+            empty
+        };
+        if now_empty {
+            let rel_id = self
+                .package
+                .relationships_for(Some(&self.document_part))
+                .and_then(|rels| rels.by_type(crate::constants::REL_COMMENTS).next())
+                .map(|rel| rel.id.clone());
+            if let Some(rel_id) = rel_id {
+                self.package
+                    .remove_relationship(Some(&self.document_part), &rel_id)?;
+            }
+            self.package.remove_unreferenced_parts()?;
+            self.parts.comments = None;
+        }
+        Ok(())
+    }
+
+    /// This comment's own resolved range: whether both `w:commentRangeStart`/`w:commentRangeEnd`
+    /// naming `id` were found, and — when both were — the text between them and how many paragraphs
+    /// it spans. `None` if neither marker names `id` at all.
+    ///
+    /// This is [`ranges::RangeIndex`]/[`ranges::covered_text`] applied to comment ranges specifically
+    /// — the same mechanism [`Document::resolve_bookmark`] applies to bookmarks, and the one
+    /// MJXOFF-126 reuses for its own move-range markers (see `ranges.rs`'s own doc comment).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if the
+    /// main document part cannot be read.
+    pub fn comment_range(&mut self, id: i64) -> Result<Option<RangeResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            ranges::classify_comment_range,
+        );
+        Ok(index.get(id))
+    }
+
+    /// [`Document::comment_range`]'s own resolved text, or `None` if `id` names no resolved (both
+    /// markers found) comment range.
+    ///
+    /// # Errors
+    /// See [`Document::comment_range`].
+    pub fn comment_range_text(&mut self, id: i64) -> Result<Option<String>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let index = RangeIndex::build(
+            body.content(),
+            &doc.interner,
+            ranges::classify_comment_range,
+        );
+        Ok(match index.get(id) {
+            Some(RangeResolution::Resolved { start, end }) => {
+                Some(covered_text(body.content(), start, end))
+            }
+            _ => None,
+        })
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Footnotes (`word/footnotes.xml`, MJXOFF-124)
+    // ---------------------------------------------------------------------------------------------
+
+    /// Reads this document's `word/footnotes.xml`, handing `read` the parsed [`Footnotes`] together
+    /// with the [`mjx_ooxml_core::Interner`] it was parsed with. `None` if this document relates to
+    /// no `word/footnotes.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/footnotes.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:footnotes`.
+    pub fn footnotes<R>(
+        &mut self,
+        read: impl FnOnce(&Footnotes, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(footnotes_part) = self.parts.footnotes.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&footnotes_part)?;
+        let footnotes = Footnotes::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&footnotes, &doc.interner)))
+    }
+
+    /// Edits this document's footnotes, creating `word/footnotes.xml` — with the two reserved
+    /// separator entries every footnotes part needs (see `annotations.rs`'s own doc comment), its
+    /// content-type registration and its `footnotes` relationship from the main document part — first
+    /// if it does not already have one.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/footnotes.xml` is related but cannot be read, or if creating a
+    /// missing one fails.
+    pub fn edit_footnotes<R>(
+        &mut self,
+        edit: impl FnOnce(&mut Footnotes, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let footnotes_part = match &self.parts.footnotes {
+            Some(part) => part.clone(),
+            None => self.create_footnotes_part()?,
+        };
+        let doc = self.package.part_tree_mut(&footnotes_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut footnotes = if root.name.local == interner.intern("footnotes") {
+            Footnotes::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/footnotes.xml root is not w:footnotes",
+            ));
+        };
+        let result = edit(&mut footnotes, interner);
+        footnotes.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates `word/footnotes.xml` carrying only the two reserved separator entries, registers its
+    /// content type, and relates it from the main document part.
+    fn create_footnotes_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let footnotes_part = self.document_part.resolve("footnotes.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "footnotes.xml".to_owned(),
+            }
+        })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:footnotes xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &footnotes_part,
+            crate::constants::CONTENT_TYPE_FOOTNOTES,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_FOOTNOTES.to_owned(),
+                target: "footnotes.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.footnotes = Some(footnotes_part.clone());
+        // Populate the two reserved entries through the normal part_tree_mut/FromXml path (the typed
+        // model only ever mutates a tree it actually read — see `headers::initial_bytes`'s own doc
+        // comment for why this is a second round trip rather than writing the reserved entries into
+        // the literal bytes above directly).
+        {
+            let doc = self.package.part_tree_mut(&footnotes_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let blank = annotations::Footnotes::blank(interner);
+            blank.write_back(root, interner);
+        }
+        Ok(footnotes_part)
+    }
+
+    /// Adds a new user footnote, appending a `w:footnoteReference` run to the **end** of the paragraph
+    /// at `paragraph` and a new [`FootnoteEndnote`] holding `text` as its own paragraph to
+    /// `word/footnotes.xml` — creating that part first if the document has none. Returns the
+    /// footnote's own freshly assigned id (one past the highest id already in the part, reserved
+    /// entries included — see `annotations.rs`'s own doc comment for why reserved ids are never
+    /// reused either).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph, or another
+    /// [`DocxError`] if the package edit fails.
+    pub fn add_footnote(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        text: &str,
+    ) -> Result<i64, DocxError> {
+        let paragraph_path = paragraph.into();
+        {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            body.paragraph(&paragraph_path).ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+            })?;
+        }
+
+        let footnotes_part = match &self.parts.footnotes {
+            Some(part) => part.clone(),
+            None => self.create_footnotes_part()?,
+        };
+        let id = {
+            let doc = self.package.part_tree_mut(&footnotes_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut footnotes = if root.name.local == interner.intern("footnotes") {
+                Footnotes::from_xml(root, interner)?
+            } else {
+                return Err(DocxError::MalformedDocument(
+                    "word/footnotes.xml root is not w:footnotes",
+                ));
+            };
+            let id = footnotes.next_user_id(interner);
+            let mut entry = FootnoteEndnote::new(interner, "footnote", id);
+            if let Some(p) = entry.paragraph_mut(0) {
+                p.append_run(Run::with_text(interner, text));
+            }
+            footnotes.push(entry);
+            footnotes.write_back(root, interner);
+            id
+        };
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let reference = FootnoteEndnoteReference::new(interner, "footnoteReference", id);
+        paragraph_mut.append_run(Run::with_inner_content(
+            interner,
+            RunInnerContent::FootnoteReference(reference),
+        ));
+        main.write_back(root, interner);
+        Ok(id)
+    }
+
+    /// Removes the footnote with `id`: every `w:footnoteReference` naming it anywhere in the body
+    /// (recursing into every table cell), and the [`FootnoteEndnote`] entry itself from
+    /// `word/footnotes.xml`. **Never** deletes the part itself, even when no user footnote remains —
+    /// the two reserved separator entries still must be there (`annotations.rs`'s own doc comment);
+    /// unlike [`Document::remove_comment`], "the last one" for footnotes only ever means the last
+    /// *user* footnote, and the part they share with the reserved entries stays.
+    ///
+    /// Not an error if `id` names no footnote at all, or names a reserved entry (refused silently
+    /// rather than corrupting the part Word itself would repair — a caller has no business removing
+    /// `separator`/`continuationSeparator`/`continuationNotice`).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if the
+    /// package edit fails.
+    pub fn remove_footnote(&mut self, id: i64) -> Result<(), DocxError> {
+        let Some(footnotes_part) = self.parts.footnotes.clone() else {
+            return Ok(());
+        };
+        let is_user = {
+            let doc = self.package.part_tree(&footnotes_part)?;
+            let footnotes = Footnotes::from_xml(&doc.root, &doc.interner)?;
+            footnotes
+                .footnote(&doc.interner, id)
+                .is_some_and(|footnote| footnote.is_user_visible(&doc.interner))
+        };
+        if !is_user {
+            return Ok(());
+        }
+
+        {
+            let doc = self.package.part_tree_mut(&self.document_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut main = MainDocument::from_xml(root, interner)?;
+            let body = main.body_mut().ok_or(DocxError::NoBody)?;
+            ranges::remove_matching(
+                body.content_mut(),
+                &|_: &ParagraphContent| false,
+                &|item: &RunInnerContent| match item {
+                    RunInnerContent::FootnoteReference(marker) => marker.id(interner) == Ok(id),
+                    _ => false,
+                },
+            );
+            main.write_back(root, interner);
+        }
+
+        let doc = self.package.part_tree_mut(&footnotes_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut footnotes = if root.name.local == interner.intern("footnotes") {
+            Footnotes::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/footnotes.xml root is not w:footnotes",
+            ));
+        };
+        footnotes.remove(interner, id);
+        footnotes.write_back(root, interner);
+        Ok(())
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Endnotes (`word/endnotes.xml`, MJXOFF-124) — the same shape as footnotes, above.
+    // ---------------------------------------------------------------------------------------------
+
+    /// As [`Document::footnotes`], for endnotes.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/endnotes.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:endnotes`.
+    pub fn endnotes<R>(
+        &mut self,
+        read: impl FnOnce(&Endnotes, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(endnotes_part) = self.parts.endnotes.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&endnotes_part)?;
+        let endnotes = Endnotes::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&endnotes, &doc.interner)))
+    }
+
+    /// As [`Document::edit_footnotes`], for endnotes.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/endnotes.xml` is related but cannot be read, or if creating a
+    /// missing one fails.
+    pub fn edit_endnotes<R>(
+        &mut self,
+        edit: impl FnOnce(&mut Endnotes, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let endnotes_part = match &self.parts.endnotes {
+            Some(part) => part.clone(),
+            None => self.create_endnotes_part()?,
+        };
+        let doc = self.package.part_tree_mut(&endnotes_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut endnotes = if root.name.local == interner.intern("endnotes") {
+            Endnotes::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/endnotes.xml root is not w:endnotes",
+            ));
+        };
+        let result = edit(&mut endnotes, interner);
+        endnotes.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// As [`Document::create_footnotes_part`], for endnotes.
+    fn create_endnotes_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let endnotes_part = self.document_part.resolve("endnotes.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "endnotes.xml".to_owned(),
+            }
+        })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:endnotes xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &endnotes_part,
+            crate::constants::CONTENT_TYPE_ENDNOTES,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_ENDNOTES.to_owned(),
+                target: "endnotes.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.endnotes = Some(endnotes_part.clone());
+        {
+            let doc = self.package.part_tree_mut(&endnotes_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let blank = annotations::Endnotes::blank(interner);
+            blank.write_back(root, interner);
+        }
+        Ok(endnotes_part)
+    }
+
+    /// As [`Document::add_footnote`], for endnotes.
+    ///
+    /// # Errors
+    /// See [`Document::add_footnote`].
+    pub fn add_endnote(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        text: &str,
+    ) -> Result<i64, DocxError> {
+        let paragraph_path = paragraph.into();
+        {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            body.paragraph(&paragraph_path).ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+            })?;
+        }
+
+        let endnotes_part = match &self.parts.endnotes {
+            Some(part) => part.clone(),
+            None => self.create_endnotes_part()?,
+        };
+        let id = {
+            let doc = self.package.part_tree_mut(&endnotes_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut endnotes = if root.name.local == interner.intern("endnotes") {
+                Endnotes::from_xml(root, interner)?
+            } else {
+                return Err(DocxError::MalformedDocument(
+                    "word/endnotes.xml root is not w:endnotes",
+                ));
+            };
+            let id = endnotes.next_user_id(interner);
+            let mut entry = FootnoteEndnote::new(interner, "endnote", id);
+            if let Some(p) = entry.paragraph_mut(0) {
+                p.append_run(Run::with_text(interner, text));
+            }
+            endnotes.push(entry);
+            endnotes.write_back(root, interner);
+            id
+        };
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let reference = FootnoteEndnoteReference::new(interner, "endnoteReference", id);
+        paragraph_mut.append_run(Run::with_inner_content(
+            interner,
+            RunInnerContent::EndnoteReference(reference),
+        ));
+        main.write_back(root, interner);
+        Ok(id)
+    }
+
+    /// As [`Document::remove_footnote`], for endnotes.
+    ///
+    /// # Errors
+    /// See [`Document::remove_footnote`].
+    pub fn remove_endnote(&mut self, id: i64) -> Result<(), DocxError> {
+        let Some(endnotes_part) = self.parts.endnotes.clone() else {
+            return Ok(());
+        };
+        let is_user = {
+            let doc = self.package.part_tree(&endnotes_part)?;
+            let endnotes = Endnotes::from_xml(&doc.root, &doc.interner)?;
+            endnotes
+                .endnote(&doc.interner, id)
+                .is_some_and(|endnote| endnote.is_user_visible(&doc.interner))
+        };
+        if !is_user {
+            return Ok(());
+        }
+
+        {
+            let doc = self.package.part_tree_mut(&self.document_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut main = MainDocument::from_xml(root, interner)?;
+            let body = main.body_mut().ok_or(DocxError::NoBody)?;
+            ranges::remove_matching(
+                body.content_mut(),
+                &|_: &ParagraphContent| false,
+                &|item: &RunInnerContent| match item {
+                    RunInnerContent::EndnoteReference(marker) => marker.id(interner) == Ok(id),
+                    _ => false,
+                },
+            );
+            main.write_back(root, interner);
+        }
+
+        let doc = self.package.part_tree_mut(&endnotes_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut endnotes = if root.name.local == interner.intern("endnotes") {
+            Endnotes::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/endnotes.xml root is not w:endnotes",
+            ));
+        };
+        endnotes.remove(interner, id);
+        endnotes.write_back(root, interner);
+        Ok(())
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Bookmarks (`w:bookmarkStart`/`w:bookmarkEnd`, MJXOFF-124) — the range mechanism applied to a
+    // marker pair with no second part behind it, and the resolution target for MJXOFF-121's own
+    // `Hyperlink::anchor` (see `hyperlinks.rs`'s own doc comment).
+    // ---------------------------------------------------------------------------------------------
+
+    /// Adds a bookmark named `name` around the **whole** paragraph at `paragraph` — see
+    /// [`Document::add_comment`]'s own doc comment for why this writer only ever authors that one
+    /// shape. Returns the bookmark's own freshly assigned id (one past the highest bookmark id
+    /// already in the body).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph, or
+    /// [`DocxError::BookmarkNameInUse`] if another bookmark anywhere in the body already carries
+    /// `name` — refused here (an already-over-long/duplicate value read from an untrusted file is
+    /// still read, never rejected; only a caller's own *new* value is, the same fidelity-versus-
+    /// validity split `fields.rs`'s own module doc documents for its four length-bounded strings) so
+    /// that [`Document::resolve_bookmark`] never has to guess which of two same-named bookmarks a
+    /// `w:hyperlink w:anchor` meant.
+    pub fn add_bookmark(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        name: &str,
+    ) -> Result<i64, DocxError> {
+        let paragraph_path = paragraph.into();
+        let id = {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            body.paragraph(&paragraph_path).ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+            })?;
+            let already_used = ranges::flatten_paragraphs(body.content())
+                .into_iter()
+                .any(|p| {
+                    p.content().iter().any(|item| match item {
+                        ParagraphContent::BookmarkStart(bookmark) => {
+                            bookmark.name(&doc.interner).as_deref() == Some(name)
+                        }
+                        _ => false,
+                    })
+                });
+            if already_used {
+                return Err(DocxError::BookmarkNameInUse(name.to_owned()));
+            }
+            let index = RangeIndex::build(body.content(), &doc.interner, ranges::classify_bookmark);
+            index.max_id().map_or(1, |max| max + 1)
+        };
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let content = paragraph_mut.content_mut();
+        content.insert(
+            0,
+            ParagraphContent::BookmarkStart(Bookmark::new(interner, id, name)),
+        );
+        content.push(ParagraphContent::BookmarkEnd(MarkupRange::new(
+            interner,
+            "bookmarkEnd",
+            id,
+        )));
+        main.write_back(root, interner);
+        Ok(id)
+    }
+
+    /// Removes every `w:bookmarkStart`/`w:bookmarkEnd` naming `id` anywhere in the body (recursing
+    /// into every table cell — see [`ranges::remove_matching`]'s own doc comment for the one
+    /// documented gap). Not an error if `id` names no bookmark at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if the
+    /// package edit fails.
+    pub fn remove_bookmark(&mut self, id: i64) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        ranges::remove_matching(
+            body.content_mut(),
+            &|item: &ParagraphContent| match item {
+                ParagraphContent::BookmarkStart(bookmark) => bookmark.id(interner) == Ok(id),
+                ParagraphContent::BookmarkEnd(marker) => marker.id(interner) == Ok(id),
+                _ => false,
+            },
+            &|_: &RunInnerContent| false,
+        );
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Resolves a bookmark by `name` against the body's own bookmark index: `None` if no
+    /// `w:bookmarkStart` anywhere in the body carries this name, [`BookmarkResolution::UnmatchedStart`]
+    /// if one does but no `w:bookmarkEnd` shares its id (ECMA-376 Part 1 §17.13.6.2 calls this
+    /// non-conformant; real files have it anyway), or [`BookmarkResolution::Resolved`] with the
+    /// bookmark's own id and the text it covers.
+    ///
+    /// **This is the seam MJXOFF-121's own `Hyperlink::anchor` was left unresolved for** — that type's
+    /// own doc comment says so directly: *"`anchor` naming a bookmark is not resolved against a
+    /// bookmark index here — that index is MJXOFF-124's own."* A caller who reads
+    /// [`crate::HyperlinkTarget::Anchor`] hands the raw name it carries straight to this method to
+    /// finish the resolution:
+    ///
+    /// ```
+    /// # fn main() -> Result<(), mjx_docx::DocxError> {
+    /// use mjx_docx::{BookmarkResolution, Document, HyperlinkTarget, PageSize};
+    ///
+    /// // `Document::blank` already starts with one (empty) paragraph, at index 0.
+    /// let mut document = Document::blank(PageSize::a4())?;
+    /// document.add_bookmark(0, "Target")?;
+    /// document.append_paragraph()?;
+    /// document.insert_hyperlink(1, 0, "jump", &HyperlinkTarget::Anchor("Target".to_owned()))?;
+    ///
+    /// let HyperlinkTarget::Anchor(name) = document.hyperlink_target(1, 0)?.unwrap() else {
+    ///     panic!("this hyperlink names an anchor")
+    /// };
+    /// match document.resolve_bookmark(&name)?.unwrap() {
+    ///     BookmarkResolution::Resolved { id, text } => {
+    ///         assert_eq!(text, "");
+    ///         let _ = id;
+    ///     }
+    ///     BookmarkResolution::UnmatchedStart { .. } => panic!("this bookmark is well-formed"),
+    /// }
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if the
+    /// main document part cannot be read.
+    pub fn resolve_bookmark(
+        &mut self,
+        name: &str,
+    ) -> Result<Option<BookmarkResolution>, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let target_id = ranges::flatten_paragraphs(body.content())
+            .into_iter()
+            .find_map(|p| {
+                p.content().iter().find_map(|item| match item {
+                    ParagraphContent::BookmarkStart(bookmark)
+                        if bookmark.name(&doc.interner).as_deref() == Some(name) =>
+                    {
+                        bookmark.id(&doc.interner).ok()
+                    }
+                    _ => None,
+                })
+            });
+        let Some(id) = target_id else {
+            return Ok(None);
+        };
+        let index = RangeIndex::build(body.content(), &doc.interner, ranges::classify_bookmark);
+        Ok(Some(match index.get(id) {
+            Some(RangeResolution::Resolved { start, end }) => BookmarkResolution::Resolved {
+                id,
+                text: covered_text(body.content(), start, end),
+            },
+            _ => BookmarkResolution::UnmatchedStart { id },
+        }))
     }
 
     /// Validates the document, then serializes it back to container bytes (only edited parts

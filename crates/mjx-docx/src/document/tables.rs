@@ -907,6 +907,14 @@ impl Cell {
         &self.content
     }
 
+    /// [`Cell::content`], mutably — `ranges.rs` (MJXOFF-124) uses this to remove a range marker or a
+    /// run-level reference from a cell's own content when its range crosses a table-cell boundary, the
+    /// same `pub(crate)` escape hatch [`Paragraph::content_mut`](super::body::Paragraph::content_mut)
+    /// and [`Run::content_mut`](super::body::Run::content_mut) already give their own siblings.
+    pub(crate) fn content_mut(&mut self) -> &mut Vec<BlockContent> {
+        &mut self.content
+    }
+
     /// Replaces the cell's whole ordered content wholesale — paragraphs, nested tables and `w:tcPr`
     /// together. This is how a cell **promoted** to a vertical-merge anchor takes over the old
     /// anchor's content in one move ([`Table::remove_row`]): the promoted cell's own previously
