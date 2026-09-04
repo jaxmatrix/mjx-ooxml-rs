@@ -120,8 +120,8 @@
 use std::collections::HashMap;
 
 use mjx_ooxml_core::{
-    AttributeError, Enumeration, FromXml, FromXmlError, Interner, Number, RawAttribute,
-    RawElement, RawName, RawNode, Text as TextCodec, ToXml,
+    AttributeError, Enumeration, FromXml, FromXmlError, Interner, Number, RawAttribute, RawElement,
+    RawName, RawNode, Text as TextCodec, ToXml,
 };
 use mjx_ooxml_types::child_order::{
     ABSTRACT_NUMBERING, NUMBERING, NUMBERING_INSTANCE, NUMBERING_LEVEL, NUMBERING_LEVEL_OVERRIDE,
@@ -836,14 +836,17 @@ impl NumberingLevel {
     /// under the `lvlJc` wire name regardless of what a caller-built [`ParagraphAlignment`] was
     /// itself constructed as (`w:jc`) — see [`ParagraphAlignment::new_named`].
     pub fn set_alignment(&mut self, interner: &mut Interner, value: Option<Justification>) {
-        let is_target = |item: &NumberingLevelContent| {
-            matches!(item, NumberingLevelContent::Alignment(_))
-        };
+        let is_target =
+            |item: &NumberingLevelContent| matches!(item, NumberingLevelContent::Alignment(_));
         match value {
             None => self.remove(is_target),
             Some(value) => {
                 let element = ParagraphAlignment::new_named(interner, "lvlJc", value);
-                self.set("lvlJc", is_target, Some(NumberingLevelContent::Alignment(element)));
+                self.set(
+                    "lvlJc",
+                    is_target,
+                    Some(NumberingLevelContent::Alignment(element)),
+                );
             }
         }
     }
@@ -1272,7 +1275,11 @@ impl AbstractNumbering {
     ///
     /// # Errors
     /// Returns [`AttributeError`] if a level's own `ilvl` attribute is present but malformed.
-    pub fn level(&self, ilvl: i64, interner: &Interner) -> Result<Option<&NumberingLevel>, AttributeError> {
+    pub fn level(
+        &self,
+        ilvl: i64,
+        interner: &Interner,
+    ) -> Result<Option<&NumberingLevel>, AttributeError> {
         for item in self.levels() {
             if item.index(interner)? == ilvl {
                 return Ok(Some(item));
@@ -1549,13 +1556,17 @@ impl<'a> NumberingIndex<'a> {
     /// The abstract definition whose `abstractNumId` is exactly `id`, or `None`.
     #[must_use]
     pub fn abstract_numbering_by_id(&self, id: i64) -> Option<&'a AbstractNumbering> {
-        self.abstract_by_id.get(&id).map(|&index| self.abstract_entries[index])
+        self.abstract_by_id
+            .get(&id)
+            .map(|&index| self.abstract_entries[index])
     }
 
     /// The instance whose `numId` is exactly `id`, or `None`.
     #[must_use]
     pub fn numbering_instance_by_id(&self, id: i64) -> Option<&'a NumberingInstance> {
-        self.num_by_id.get(&id).map(|&index| self.num_entries[index])
+        self.num_by_id
+            .get(&id)
+            .map(|&index| self.num_entries[index])
     }
 
     /// Resolves `numbering_id`/`level` through both hops, applying the `w:lvlOverride` layer — see
@@ -1594,17 +1605,22 @@ impl<'a> NumberingIndex<'a> {
             .level_override(level, interner)
             .map_err(FromXmlError::from)?;
         let replacement_level = overriding.and_then(NumberingLevelOverride::replacement_level);
-        let effective_level =
-            replacement_level.or(abstract_definition.level(level, interner).map_err(FromXmlError::from)?);
+        let effective_level = replacement_level.or(abstract_definition
+            .level(level, interner)
+            .map_err(FromXmlError::from)?);
 
         let start_override = match overriding {
-            Some(overriding) => overriding.start_override(interner).map_err(FromXmlError::from)?,
+            Some(overriding) => overriding
+                .start_override(interner)
+                .map_err(FromXmlError::from)?,
             None => None,
         };
         let effective_start = match start_override {
             Some(value) => Some(value),
             None => match effective_level {
-                Some(effective_level) => effective_level.start(interner).map_err(FromXmlError::from)?,
+                Some(effective_level) => effective_level
+                    .start(interner)
+                    .map_err(FromXmlError::from)?,
                 None => None,
             },
         };

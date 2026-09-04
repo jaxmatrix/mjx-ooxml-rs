@@ -52,6 +52,14 @@ pub use body::{
     RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
     WhitespacePreservation,
 };
+pub use numbering::{
+    AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
+    LevelNumberFormat, LevelSuffix, LevelTextSegment, LevelTextTemplate, MultiLevelKind, Numbering,
+    NumberingContent, NumberingIndex, NumberingInstance, NumberingInstanceContent, NumberingLevel,
+    NumberingLevelContent, NumberingLevelOverride, NumberingLevelOverrideContent, NumberingLookup,
+    NumberingPictureBullet, NumberingPictureBulletContent, NumberingResolution,
+    MAX_NUM_STYLE_LINK_DEPTH,
+};
 pub use paragraph_properties::{
     ConditionalFormatting, ConditionalFormattingBits, DecimalNumberValue, FrameProperties,
     Indentation, LineSpacing, NumberingProperties, NumberingPropertyContent, ParagraphAlignment,
@@ -59,14 +67,6 @@ pub use paragraph_properties::{
     ParagraphMarkRunPropertyContent, ParagraphProperties, ParagraphPropertyContent, ParagraphStyle,
     ParagraphTextFlowDirection, Spacing, TabStop, TabStopContent, TabStops,
     TextBoxTightWrapSetting, VerticalCharacterAlignment,
-};
-pub use numbering::{
-    AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
-    LevelNumberFormat, LevelSuffix, LevelTextSegment, LevelTextTemplate, MultiLevelKind, Numbering,
-    NumberingContent, NumberingIndex, NumberingInstance, NumberingInstanceContent,
-    NumberingLevel, NumberingLevelContent, NumberingLevelOverride,
-    NumberingLevelOverrideContent, NumberingLookup, NumberingPictureBullet,
-    NumberingPictureBulletContent, NumberingResolution, MAX_NUM_STYLE_LINK_DEPTH,
 };
 pub use parts::{DocumentParts, PartKind};
 pub use run_properties::{
@@ -427,12 +427,11 @@ impl Document {
     /// Creates an empty `word/numbering.xml`, registers its content type, and relates it from the
     /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
     fn create_numbering_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
-        let numbering_part =
-            self.document_part
-                .resolve("numbering.xml")
-                .map_err(|_| DocxError::TargetResolution {
-                    target: "numbering.xml".to_owned(),
-                })?;
+        let numbering_part = self.document_part.resolve("numbering.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "numbering.xml".to_owned(),
+            }
+        })?;
         const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         let bytes = format!(
             concat!(
@@ -534,14 +533,17 @@ impl Document {
             let doc = self.package.part_tree(&styles_part)?;
             let sheet = StyleSheet::from_xml(&doc.root, &doc.interner)?;
             let style_index = StyleIndex::build(&sheet, &doc.interner)?;
-            let style = style_index
-                .style_by_id(&style_id)
-                .ok_or_else(|| DocxError::NumberingStyleLinkTargetMissing {
+            let style = style_index.style_by_id(&style_id).ok_or_else(|| {
+                DocxError::NumberingStyleLinkTargetMissing {
                     style_id: style_id.clone(),
-                })?;
+                }
+            })?;
             let kind = style.kind(&doc.interner).map_err(FromXmlError::from)?;
             if kind != Some(mjx_ooxml_types::wordprocessingml::StyleType::Numbering) {
-                return Err(DocxError::NumberingStyleLinkWrongKind { style_id, found: kind });
+                return Err(DocxError::NumberingStyleLinkWrongKind {
+                    style_id,
+                    found: kind,
+                });
             }
             let next_id = style
                 .paragraph_properties()
