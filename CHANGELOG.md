@@ -37,6 +37,7 @@ reconstructed afterwards.
 | `mjx_pptx::Presentation::activex_binary_bytes` | `activex_state_bytes` | Reads exactly what `set_activex_state` writes; the pair named one artefact two ways. |
 | `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
 | `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
+| `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -48,6 +49,73 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.89] - 2026-09-04
+
+Word sections (MJXOFF-109, Phase C position 10): `w:sectPr`, page setup, columns, section breaks,
+line numbering, header/footer references and `w:printerSettings` — `crates/mjx-docx/src/document/sections.rs`.
+
+**A section's properties live at the END of the range they govern, not the start.** A `w:sectPr`
+inside a paragraph's `w:pPr` ends a section *at* that paragraph; the body-level one is always the
+document's last section. `SectionProperties::sections` (via the new `sections_in`) walks a body's
+paragraphs and returns `SectionSpan`s accordingly. **A single-section fixture cannot catch a reader
+that only ever looks at the body-level `w:sectPr`** — `tests/fixtures/three_section_document.docx`
+is authored specifically to: section 1 (paragraphs 0–1, landscape A4), section 2 (paragraphs 2–3,
+portrait A4, two equal-width columns), section 3 (paragraph 4, the body-level `w:sectPr`, portrait
+A4, one column). Mutation-proved: neutralising the paragraph-level scan in `sections_in` turns five
+tests red, including the mutation-gate test itself (`paragraph_to_section_assignment_is_correct_on_the_three_section_fixture`,
+`left: 0, right: 1`); restored by re-editing.
+
+**All 19 of `EG_SectPrContents` and `EG_HdrFtrReferences`** are modelled on `SectionProperties`:
+`w:type`, `w:pgSz`/`w:pgMar` (bridged to the shared `PageSize`/`PageMargins` value types — see
+below), `w:paperSrc`, `w:pgBorders` (reusing MJXOFF-94's `Border` model for `w:top`/`w:left`/
+`w:bottom`/`w:right` via a `xsd:extension` — `Border::extension_attributes[_mut]`, a small
+crate-visible escape hatch, rather than a fourth copy of `CT_Border`'s nine attributes),
+`w:lnNumType`, `w:pgNumType`, `w:cols`, `w:formProt`/`w:noEndnote`/`w:titlePg`/`w:bidi`/`w:rtlGutter`
+(reusing `Toggle`), `w:vAlign`, `w:textDirection` (reusing `ParagraphTextFlowDirection` directly —
+`CT_TextDirection` is the identical type under the identical local name at both `w:pPr` and
+`w:sectPr`), `w:docGrid`, `w:printerSettings` (reusing `RelationshipReference`), `w:headerReference`/
+`w:footerReference` (the flag and the field are modelled here; *which* header/footer applies is
+MJXOFF-113's), and `w:sectPrChange`/`w:footnotePr`/`w:endnotePr` (structure only, kept opaque —
+MJXOFF-126/MJXOFF-124 own their semantics).
+
+**`w:equalWidth="true"` wins over an explicit `w:col` list, confirmed against ECMA-376 Part 1
+§17.6.4's own prose** ("If `equalWidth` is true, then the columns are defined using the data stored
+as attributes of the `cols` element … If `equalWidth` is false, then the columns are defined using
+the presence and data on each child `col` element", with a worked example describing the `w:col`
+children as "ignored" once `equalWidth="1"`). `Columns` does not resolve this itself (no page-margin
+knowledge to compute a width from) — it exposes `is_equal_width` and the explicit `columns()` list
+independently, with the ruling written down once in `sections.rs`'s own module doc.
+
+**`w:pgMar/w:header`/`w:footer` are measured from the page edge, not the text body** — confirmed
+directly against ECMA-376 Part 1 §17.6.11 ("`header` … Specifies the distance … from the top edge of
+the page to the top edge of the header"; "`footer` … from the bottom edge of the page to the bottom
+edge of the footer"), restated on `PageMargins`'s own field docs.
+
+**`PageOrientation` de-duplicated** (see Breaking changes): the public API now exposes exactly one
+orientation type, the generated `mjx_ooxml_types::wordprocessingml::PageOrientation`, re-exported
+from `mjx_docx::page`.
+
+**`blank.rs`'s hand-written minimal `w:sectPr` is replaced by the real modelled writer.** The outer
+skeleton (`<w:document>`/`<w:body>`/`<w:p/>`) is still a hand-written template — matching
+`mjx_pptx::blank`'s own established convention for a part built from nothing — but the `w:sectPr`
+fragment itself now comes from `SectionProperties::new` + its own setters, serialized on its own and
+spliced in as bytes, never hand-formatted. Fixing this surfaced a real, previously-latent gap: a
+`Document::blank`-authored document never declared `xmlns:r`, so any `r:`-prefixed attribute this
+child's own new functionality can now write (`w:printerSettings@r:id`, `w:pgBorders`' corner
+relationships, `w:headerReference`/`footerReference@r:id`) would have produced namespace-unbound,
+invalid XML. `blank.rs` now declares `xmlns:r` alongside `xmlns:w` on the root, matching every real
+Word/LibreOffice-authored document (`tests/fixtures/sample.docx` included).
+
+**`w:printerSettings` never rewrites the binary part it references.** Proved on
+`tests/fixtures/printer_settings_reference.docx` (authored — no fixture in the corpus carried a
+Printer Settings part): editing an unrelated field of the *same* `w:sectPr` that carries
+`w:printerSettings` leaves the referenced part's bytes and the relationship's id/target byte-identical.
+
+**Splitting a document into a new section places the new `w:sectPr` inside the terminating
+paragraph's own `w:pPr`, never appended to the body** — `Document::edit_section_properties` (get-or-
+insert, unifying "change an existing section" and "create a new one") and
+`Document::remove_section_properties`, both addressed by the new `SectionLocation` enum.
 
 ## [0.0.88] - 2026-09-04
 
