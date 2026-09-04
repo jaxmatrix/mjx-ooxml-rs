@@ -17,16 +17,50 @@
 //! [`PageMargins::NORMAL`]) must leave a positive printable area inside it. Both are refused with
 //! [`crate::DocxError::InvalidPageSize`] before any markup is written, exactly as
 //! `mjx_pptx::blank::validate` refuses a slide size `p:sldSz` cannot express.
+//!
+//! # `PageOrientation` is the generated type — not a second one
+//!
+//! MJXOFF-98 originally hand-wrote a two-variant `PageOrientation` enum here, duplicating
+//! `mjx_ooxml_types::wordprocessingml::PageOrientation` (`ST_PageOrientation`) variant for variant.
+//! That was a genuine "consume, do not re-create" defect (caught in MJXOFF-109's own pre-dispatch
+//! review): the generated type already exists, already carries `Portrait`/`Landscape` with its own
+//! `from_wire`/`to_wire`, and is what `w:pgSz@orient`'s codec (`Enumeration<PageOrientation>`,
+//! `crates/mjx-docx/src/document/sections.rs`) reads and writes. This module now re-exports the
+//! generated enum (see [`PageOrientation`]) instead of shadowing it. The one piece of real behaviour
+//! the old duplicate carried — "omit the attribute entirely for `Portrait`, since that is the schema
+//! default every fixture and every real Office file already omits it for" — was not schema-level
+//! knowledge the generated enum should carry (a generated `ST_*` wrapper never encodes "and omit me
+//! when the value is X"), so it now lives in [`orientation_wire_value`], a small helper, rather than
+//! in a second enum.
 
 use crate::error::DocxError;
 
-/// A page's extent and orientation (`w:pgSz`), in twips.
+/// `ST_PageOrientation` (`wml.xsd`) — `w:pgSz@orient`'s two wire values. Re-exported from
+/// `mjx_ooxml_types::wordprocessingml` rather than restated here — see this module's own doc comment.
+pub use mjx_ooxml_types::wordprocessingml::PageOrientation;
+
+/// The wire token for `w:pgSz@orient`, or `None` for [`PageOrientation::Portrait`] — the schema
+/// default every committed fixture and every real Office file omits the attribute for, restated as a
+/// helper (not a method on the generated enum, which this crate does not own) so
+/// `SectionProperties`'s writer and this module's own [`PageSize`] documentation agree on the one
+/// place this rule is stated.
+#[must_use]
+pub(crate) fn orientation_wire_value(value: PageOrientation) -> Option<&'static str> {
+    match value {
+        PageOrientation::Portrait => None,
+        PageOrientation::Landscape => Some("landscape"),
+    }
+}
+
+/// A page's extent, orientation and (optional, legacy) paper-size code (`w:pgSz`), in twips.
 ///
-/// Only size and orientation are caller-supplied here — margins are fixed at `PageMargins::NORMAL`
-/// (this module's own private constant), Word's own "Normal" template default, regardless of page
-/// size. The full `w:sectPr` model (headers/footers, columns, line numbering, …) is MJXOFF-109's;
-/// this is the minimum [`crate::Document::blank`] needs, kept small on purpose so that child can
-/// replace it rather than extend it.
+/// The **caller-facing value** for a page size, shared between [`crate::Document::blank`] (which
+/// only ever needs an extent and an orientation to write a fresh `word/document.xml`) and
+/// [`crate::SectionProperties::page_size`]/`set_page_size` (which read and write this same type
+/// against a real `w:pgSz` element, preserving whatever else that element carries — see that
+/// method's own doc comment). Mirrors `mjx_pptx::SlideSize`'s own shape and role exactly: a
+/// plain value struct, not a wire element — no `Interner` is needed to build one, which is what lets
+/// [`PageSize::a4`]/[`PageSize::us_letter`] stay `const fn`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PageSize {
     /// `w:pgSz@w`, in twips (1/1440 inch). The *page* width — for [`PageOrientation::Landscape`]
@@ -36,30 +70,9 @@ pub struct PageSize {
     /// `w:pgSz@h`, in twips.
     pub height_twips: u32,
     /// `w:pgSz@orient`. [`PageOrientation::Portrait`] is written by omitting the attribute (its
-    /// schema default), matching every committed fixture and real Office output.
+    /// schema default), matching every committed fixture and real Office output — see
+    /// `orientation_wire_value` (crate-private; this module's own doc comment explains the rule).
     pub orientation: PageOrientation,
-}
-
-/// `ST_PageOrientation` (`wml.xsd`) — `w:pgSz@orient`'s two wire values.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PageOrientation {
-    /// Wire value `portrait` — also the schema default, so [`PageSize`] omits the attribute rather
-    /// than writing it out.
-    Portrait,
-    /// Wire value `landscape`.
-    Landscape,
-}
-
-impl PageOrientation {
-    /// The wire token, or `None` for [`Portrait`](Self::Portrait) — see [`PageSize`]'s own doc
-    /// comment for why the schema default is omitted rather than spelled out.
-    #[must_use]
-    pub fn to_wire(self) -> Option<&'static str> {
-        match self {
-            Self::Portrait => None,
-            Self::Landscape => Some("landscape"),
-        }
-    }
 }
 
 impl PageSize {
@@ -157,27 +170,43 @@ impl PageSize {
 
 /// `w:pgMar`'s seven attributes (`CT_PageMar`), all `use="required"` in `wml.xsd` — the one place in
 /// a blank document's `word/document.xml` the schema genuinely requires something, which is why
-/// [`crate::blank`]'s mutation gate proves this struct's fields, not `w:pgSz`'s (`CT_PageSz`'s `w`
-/// and `h` are both `use="optional"`, contrary to what this ticket's brief originally claimed —
-/// see this crate's `CHANGELOG.md` entry for MJXOFF-98).
+/// `crate::blank`'s mutation gate proves this struct's fields, not `w:pgSz`'s (`CT_PageSz`'s `w`
+/// and `h` are both `use="optional"`, contrary to what MJXOFF-98's ticket originally claimed — see
+/// this crate's `CHANGELOG.md` entry for MJXOFF-98).
 ///
-/// Not caller-configurable in [`crate::Document::blank`] — only page size and orientation are, per
-/// this child's own scope. [`NORMAL`](Self::NORMAL) is Word's own "Normal" template default, used
-/// regardless of page size or orientation.
+/// The **caller-facing value** for a section's page margins — mirrors [`PageSize`]'s own role and
+/// shape exactly, shared between `crate::blank` (which only ever writes [`PageMargins::NORMAL`]) and
+/// [`crate::SectionProperties::page_margins`]/`set_page_margins` (which read and write this same
+/// type against a real `w:pgMar` element). `header`/`footer` are measured **from the
+/// page edge**, not from the body text margin — confirmed directly against ECMA-376 Part 1 §17.6.11
+/// ("`header` ... Specifies the distance ... from the top edge of the page to the top edge of the
+/// header"; "`footer` ... Specifies the distance ... from the bottom edge of the page to the bottom
+/// edge of the footer") — a common misreading this module's own field docs restate.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PageMargins {
-    pub(crate) top: i32,
-    pub(crate) right: u32,
-    pub(crate) bottom: i32,
-    pub(crate) left: u32,
-    pub(crate) header: u32,
-    pub(crate) footer: u32,
-    pub(crate) gutter: u32,
+pub struct PageMargins {
+    /// `w:pgMar@top`, in twips. Signed (`ST_SignedTwipsMeasure`): a negative value lets the main
+    /// document story overlap the header, measured from the page's top edge.
+    pub top: i32,
+    /// `w:pgMar@right`, in twips, from the page's right edge.
+    pub right: u32,
+    /// `w:pgMar@bottom`, in twips. Signed, the same way `top` is, for overlapping the footer.
+    pub bottom: i32,
+    /// `w:pgMar@left`, in twips, from the page's left edge.
+    pub left: u32,
+    /// `w:pgMar@header`, in twips, **from the top edge of the page** to the top edge of the header
+    /// — not from the body text margin. See this type's own doc comment.
+    pub header: u32,
+    /// `w:pgMar@footer`, in twips, **from the bottom edge of the page** to the bottom edge of the
+    /// footer — not from the body text margin. See this type's own doc comment.
+    pub footer: u32,
+    /// `w:pgMar@gutter`, in twips — extra space added to `left` (or, with `w:rtlGutter`/mirrored
+    /// margins, the binding-side margin) for a document being bound.
+    pub gutter: u32,
 }
 
 impl PageMargins {
     /// Word's "Normal" template margins: 1 inch on every side, ½ inch header/footer, no gutter.
-    pub(crate) const NORMAL: Self = Self {
+    pub const NORMAL: Self = Self {
         top: 1440,
         right: 1440,
         bottom: 1440,
@@ -196,8 +225,11 @@ mod tests {
     fn a4_and_us_letter_are_portrait_by_default() {
         assert_eq!(PageSize::a4().orientation, PageOrientation::Portrait);
         assert_eq!(PageSize::us_letter().orientation, PageOrientation::Portrait);
-        assert!(PageOrientation::Portrait.to_wire().is_none());
-        assert_eq!(PageOrientation::Landscape.to_wire(), Some("landscape"));
+        assert!(orientation_wire_value(PageOrientation::Portrait).is_none());
+        assert_eq!(
+            orientation_wire_value(PageOrientation::Landscape),
+            Some("landscape")
+        );
     }
 
     #[test]

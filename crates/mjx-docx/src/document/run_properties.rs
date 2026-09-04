@@ -561,6 +561,21 @@ impl Border {
         self.name = wml_name(interner, local);
         self
     }
+
+    /// Crate-visible escape hatch onto this border's own raw attribute list, for a schema extension
+    /// that adds attributes on top of `CT_Border`'s own nine without redeclaring them — `CT_PageBorder`
+    /// (`xsd:extension base="CT_Border"` + `r:id`) and its own further extensions
+    /// `CT_TopPageBorder`/`CT_BottomPageBorder` (MJXOFF-109's `sections.rs`, the one caller). A typed
+    /// accessor written against this still goes through [`mjx_xml::attribute::read`]/`write` like every
+    /// other accessor in this crate; only the storage is borrowed rather than re-declared.
+    pub(crate) fn extension_attributes(&self) -> &[RawAttribute] {
+        &self.attributes
+    }
+
+    /// [`Border::extension_attributes`], mutably.
+    pub(crate) fn extension_attributes_mut(&mut self) -> &mut Vec<RawAttribute> {
+        &mut self.attributes
+    }
 }
 
 impl FromXml for Border {
