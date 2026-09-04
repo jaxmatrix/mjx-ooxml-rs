@@ -69,10 +69,12 @@ use crate::address::BlockPath;
 use crate::error::DocxError;
 
 use super::body::{
-    block_insert_paragraph, block_paragraph, block_paragraph_mut, block_paragraphs,
-    block_remove_paragraph, wml_name, BlockContent, Paragraph,
+    block_append_table, block_insert_paragraph, block_paragraph, block_paragraph_mut,
+    block_paragraphs, block_remove_paragraph, block_remove_table, block_table, block_table_mut,
+    block_tables, wml_name, BlockContent, Paragraph,
 };
 use super::sections::{HeaderFooterReference, SectionSpan};
+use super::tables::Table;
 
 /// `CT_HdrFtr` — a header or footer part's own root content: block-level content only
 /// (`EG_BlockLevelElts`) — see this module's own doc comment for why this reuses
@@ -101,11 +103,12 @@ pub struct HdrFtr {
         child(local = "customXml", variant = CustomXml, ty = super::body::Unmodeled),
         child(local = "sdt", variant = StructuredDocumentTag, ty = super::body::Unmodeled),
         child(local = "p", variant = Paragraph, ty = Paragraph),
-        child(local = "tbl", variant = Table, ty = super::body::Unmodeled),
+        child(local = "tbl", variant = Table, ty = Table),
         child(local = "proofErr", variant = ProofingError, ty = super::body::ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = super::body::PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = super::body::PermissionRangeEnd),
-        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties)
+        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
+        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
     )]
     content: Vec<BlockContent>,
 }
@@ -174,6 +177,41 @@ impl HdrFtr {
     /// Removes and returns the paragraph at `path`, or `None` if the address is out of range.
     pub fn remove_paragraph(&mut self, path: impl Into<BlockPath>) -> Option<Paragraph> {
         block_remove_paragraph(&mut self.content, &path.into())
+    }
+
+    /// How many tables this header or footer holds at its own top level, in document order.
+    #[must_use]
+    pub fn table_count(&self) -> usize {
+        self.tables().count()
+    }
+
+    /// Every top-level table in document order.
+    pub fn tables(&self) -> impl Iterator<Item = &Table> {
+        block_tables(&self.content)
+    }
+
+    /// The top-level table at `index`, or `None` if there is no such table.
+    #[must_use]
+    pub fn table(&self, index: usize) -> Option<&Table> {
+        block_table(&self.content, index)
+    }
+
+    /// [`HdrFtr::table`], mutably.
+    pub fn table_mut(&mut self, index: usize) -> Option<&mut Table> {
+        block_table_mut(&mut self.content, index)
+    }
+
+    /// Appends `table` as this header or footer's new last top-level table, and returns its new
+    /// index — unlike [`super::body::Body::append_table`], always at the very end of `content`:
+    /// `CT_HdrFtr` carries no trailing `w:sectPr` to stay ahead of.
+    pub fn append_table(&mut self, table: Table) -> usize {
+        let at = self.content.len();
+        block_append_table(&mut self.content, table, at)
+    }
+
+    /// Removes and returns the top-level table at `index`, or `None` if there is no such table.
+    pub fn remove_table(&mut self, index: usize) -> Option<Table> {
+        block_remove_table(&mut self.content, index)
     }
 }
 
