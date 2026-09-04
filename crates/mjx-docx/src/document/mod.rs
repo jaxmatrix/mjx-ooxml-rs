@@ -1470,7 +1470,7 @@ impl Document {
     /// Appends a new equation (`m:oMath`) as the paragraph's new last top-level item — `build` gets
     /// the document's own live [`Interner`](mjx_ooxml_core::Interner) to assemble it with
     /// `mjx-omml`'s own builders (`mjx_omml::Fraction::new`, `mjx_omml::Argument::new`, …), the same
-    /// closure shape [`Document::edit_numbering`]/[`Document::edit_section`] already use for content
+    /// closure shape [`Document::edit_numbering`]/[`Document::edit_section_properties`] already use for content
     /// this crate's own convenience methods have no `&str`-only shorthand for.
     ///
     /// # Errors
