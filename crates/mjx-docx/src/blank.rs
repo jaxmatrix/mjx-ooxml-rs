@@ -41,7 +41,7 @@
 //! formatting), and this child's own ticket says as much: modelling `styles.xml` for real is
 //! MJXOFF-101's, not this child's, and MJXOFF-101 **replaces** rather than extends whatever writer
 //! this child might have shipped. Writing a throwaway `docDefaults`-only `styles.xml` here — legal
-//! under the ticket's own wording — would be work MJXOFF-101 deletes on day one, which is exactly
+//! under the ticket's own wording — would be work MJXOFF-101 throws away on day one, which is exactly
 //! the technical debt "completion over shipping early" warns against creating on purpose. So this
 //! module writes **none** of `styles.xml`, `fontTable.xml`, `settings.xml`, `theme/theme1.xml`, or
 //! any header/footer/numbering/glossary part — every one is deliberately absent, and every one
