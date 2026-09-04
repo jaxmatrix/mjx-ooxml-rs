@@ -580,3 +580,37 @@ fn a_comment_range_wrapped_inside_an_insertion_is_not_found_by_ordinary_scanning
     assert!(xml.contains(r#"<w:commentRangeEnd w:id="900"/>"#));
     assert!(xml.contains(r#"<w:ins w:id="20" w:author="A" w:date="2024-06-01T00:00:00Z">"#));
 }
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-121's own mutation path: a field whose markers sit inside a revision container is not
+// found by field scanning, and is left completely untouched.
+// -------------------------------------------------------------------------------------------
+
+/// A whole `begin`/`separate`/`end` field sequence wrapped inside a `w:ins` (someone inserted a new
+/// field, not yet accepted) is not found by `Document::fields`, matching this module's own "one
+/// rule" — `fields.rs::parse_top` walks top-level paragraph content only. The field's own markup is
+/// untouched either way.
+#[test]
+fn a_field_wrapped_entirely_inside_an_insertion_is_not_found_by_field_scanning_but_is_preserved() {
+    let raw = concat!(
+        r#"<w:p><w:ins w:id="30" w:author="A" w:date="2024-06-02T00:00:00Z">"#,
+        r#"<w:r><w:fldChar w:fldCharType="begin"/></w:r>"#,
+        r#"<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>"#,
+        r#"<w:r><w:fldChar w:fldCharType="separate"/></w:r>"#,
+        r#"<w:r><w:t>1</w:t></w:r>"#,
+        r#"<w:r><w:fldChar w:fldCharType="end"/></w:r>"#,
+        r#"</w:ins></w:p>"#,
+    );
+    let mut document = spliced_document(raw);
+
+    let fields = document.fields(0).expect("fields(0)");
+    assert!(
+        fields.is_empty(),
+        "a field wrapped entirely inside a w:ins must not be found by ordinary field scanning"
+    );
+
+    let xml = document_xml(&mut document);
+    assert!(xml.contains(r#"<w:fldChar w:fldCharType="begin"/>"#));
+    assert!(xml.contains(r#"<w:instrText xml:space="preserve"> PAGE </w:instrText>"#));
+    assert!(xml.contains(r#"<w:ins w:id="30" w:author="A" w:date="2024-06-02T00:00:00Z">"#));
+}
