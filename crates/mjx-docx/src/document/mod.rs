@@ -42,7 +42,8 @@ pub use body::{
     PermissionRangeEnd, PermissionRangeStart, PhoneticGuide, PhoneticGuideChild,
     PhoneticGuideContent, PhoneticGuideContentItem, PhoneticGuideProperties,
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
-    RelationshipReference, Run, RunInnerContent, Symbol, Text, Unmodeled,
+    RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
+    WhitespacePreservation,
 };
 pub use parts::{DocumentParts, PartKind};
 pub use run_properties::{
