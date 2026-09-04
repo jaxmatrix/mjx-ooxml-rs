@@ -375,7 +375,7 @@ impl TextBoxContent {
     }
 
     /// Every paragraph in this text box, in document order (top-level only — the same limit
-    /// [`super::body::block_paragraphs`] documents for a table cell).
+    /// `super::body::block_paragraphs` documents for a table cell).
     pub fn paragraphs(&self) -> impl Iterator<Item = &super::body::Paragraph> {
         super::body::block_paragraphs(&self.content)
     }

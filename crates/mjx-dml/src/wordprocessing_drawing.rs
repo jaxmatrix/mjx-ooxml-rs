@@ -19,8 +19,8 @@
 //! | `CT_PosV` | [`VerticalPosition`] | |
 //! | `CT_WrapNone` | [`WrapNone`] | |
 //! | `CT_WrapSquare` | [`WrapSquare`] | |
-//! | `CT_WrapTight` | [`WrapTight`] | |
-//! | `CT_WrapThrough` | [`WrapThrough`] | |
+//! | `CT_WrapTight` | [`WrapOutline`] (`Wrap::Tight`) | |
+//! | `CT_WrapThrough` | [`WrapOutline`] (`Wrap::Through`) | |
 //! | `CT_WrapTopBottom` | [`WrapTopAndBottom`] | |
 //! | `CT_WrapPath` | [`WrapPath`] | |
 //! | `CT_GraphicFrame` | [`WordDrawingFrame`] | an inline OLE-style frame; distinct from PowerPoint's own `p:graphicFrame` type |
@@ -211,7 +211,7 @@ fn size2d_element(interner: &mut Interner, local: &str, size: Size) -> RawElemen
 
 /// `wp:effectExtent` (`CT_EffectExtent`) — the extra space a drawing's own effects (a shadow, a
 /// glow) need beyond its plain extent, on each of the four sides. An attribute-only element (the
-/// schema gives it no children at all), so — like [`super::TrackChangeMarker`] in `mjx-docx` — this
+/// schema gives it no children at all), so — like `mjx-docx`'s own `TrackChangeMarker` — this
 /// is `name`/`attributes`/`extra`/`empty` plus typed attribute accessors, not the `#[xml(children)]`
 /// derive (which requires a content field this type has none of).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
