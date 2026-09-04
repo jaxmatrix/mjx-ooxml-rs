@@ -1067,6 +1067,43 @@ sealed_enums! {
         Polynomial,
         Power,
     }
+    // --- Word (MJXOFF-139) --------------------------------------------------------------------
+    /// The projection of [`mjx_ooxml::Justification`], whose documentation is authoritative.
+    Justification {
+        Start,
+        Center,
+        End,
+        Justified,
+        MediumKashida,
+        Distribute,
+        AlignToListTab,
+        WidestKashida,
+        LowKashida,
+        ThaiDistribute,
+        Left,
+        Right,
+    }
+    /// The projection of [`mjx_ooxml::MergedCellType`], whose documentation is authoritative.
+    MergedCellType {
+        Continue,
+        Restart,
+    }
+    /// The projection of [`mjx_ooxml::PageOrientation`], whose documentation is authoritative.
+    PageOrientation {
+        Portrait,
+        Landscape,
+    }
+    /// The projection of [`mjx_ooxml::HeaderFooterType`], whose documentation is authoritative.
+    HeaderFooterType {
+        Even,
+        Default,
+        First,
+    }
+    /// The projection of [`mjx_ooxml::FieldForm`], whose documentation is authoritative.
+    FieldForm {
+        Simple,
+        Complex,
+    }
 }
 
 open_enums! {
@@ -1166,5 +1203,39 @@ open_enums! {
         NorthEastCell,
         SouthWestCell,
         SouthEastCell,
+    }
+    // --- Word (MJXOFF-139) --------------------------------------------------------------------
+    /// The projection of [`mjx_ooxml::CellBorderEdge`], whose documentation is authoritative.
+    CellBorderEdge {
+        Top,
+        Start,
+        Left,
+        Bottom,
+        End,
+        Right,
+        InsideHorizontal,
+        InsideVertical,
+    }
+    /// The projection of [`mjx_ooxml::RevisionKind`], whose documentation is authoritative.
+    RevisionKind {
+        Inserted,
+        Deleted,
+        MovedFromContent,
+        MovedToContent,
+        RunPropertiesChanged,
+        ParagraphPropertiesChanged,
+        ParagraphMarkPropertiesChanged,
+        SectionPropertiesChanged,
+        TablePropertiesChanged,
+        TableExceptionPropertiesChanged,
+        TableGridChanged,
+        CellPropertiesChanged,
+        RowPropertiesChanged,
+        CellMerged,
+        NumberingChanged,
+        MarkerInserted,
+        MarkerDeleted,
+        MarkerMovedFrom,
+        MarkerMovedTo,
     }
 }
