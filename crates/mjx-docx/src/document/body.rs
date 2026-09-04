@@ -121,6 +121,123 @@ pub enum BlockContent {
     Raw(RawNode),
 }
 
+// -------------------------------------------------------------------------------------------
+// Shared paragraph-vec addressing (MJXOFF-113's own generalization of MJXOFF-92's addressing).
+//
+// `EG_BlockLevelElts` is not only `CT_Body`'s content: `CT_HdrFtr` (`headers.rs`, MJXOFF-113) is the
+// *same* repeatable-choice group of paragraphs, tables and range markup, minus the trailing
+// `w:sectPr` only `CT_Body` appends. Before this child, every `BlockPath`-addressed operation below
+// was an inherent `Body` method reaching directly into `self.content`; a header-only copy of the same
+// eleven lines per method would have been exactly the "header-only duplicate of the paragraph API"
+// this workspace's own process rules call out as the failure this generalization exists to prevent.
+// These free functions take the `Vec<BlockContent>` itself rather than `&Body`, so both `Body`
+// (below) and `HdrFtr` (`headers.rs`) share one implementation; `Body`'s own trailing-`w:sectPr`
+// bookkeeping is the one place the two containers' shapes differ, so it stays a closure the caller
+// supplies rather than something these functions know about.
+// -------------------------------------------------------------------------------------------
+
+/// Every paragraph in `content`, in document order.
+pub(crate) fn block_paragraphs(content: &[BlockContent]) -> impl Iterator<Item = &Paragraph> {
+    content.iter().filter_map(|item| match item {
+        BlockContent::Paragraph(paragraph) => Some(paragraph),
+        _ => None,
+    })
+}
+
+/// The paragraph at `path` within `content`, or `None` if the address is out of range.
+///
+/// Only a top-level [`BlockPath`] resolves anything today — no fixture can construct a nested one
+/// until `w:tbl` is modeled (see [`BlockPath`]'s own doc comment).
+pub(crate) fn block_paragraph<'a>(
+    content: &'a [BlockContent],
+    path: &BlockPath,
+) -> Option<&'a Paragraph> {
+    let [index] = path.indices() else {
+        return None;
+    };
+    block_paragraphs(content).nth(*index)
+}
+
+/// [`block_paragraph`], mutably.
+pub(crate) fn block_paragraph_mut<'a>(
+    content: &'a mut [BlockContent],
+    path: &BlockPath,
+) -> Option<&'a mut Paragraph> {
+    let [index] = path.indices() else {
+        return None;
+    };
+    content
+        .iter_mut()
+        .filter_map(|item| match item {
+            BlockContent::Paragraph(paragraph) => Some(paragraph),
+            _ => None,
+        })
+        .nth(*index)
+}
+
+/// The `content` index of the `index`th paragraph, or `None` if there is no such paragraph.
+fn block_nth_paragraph_slot(content: &[BlockContent], index: usize) -> Option<usize> {
+    content
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| matches!(item, BlockContent::Paragraph(_)))
+        .nth(index)
+        .map(|(at, _)| at)
+}
+
+/// The `content` index at which the `index`th paragraph belongs — an existing paragraph's own slot,
+/// or `end_slot()` (evaluated only when no such paragraph exists yet) when `index` is one past the
+/// last. `end_slot` is `Body`'s "before the trailing `w:sectPr`, if any" rule or `HdrFtr`'s plain
+/// "the end of `content`" — the one place the two containers' insertion position differs.
+fn block_nth_paragraph_slot_or(
+    content: &[BlockContent],
+    index: usize,
+    end_slot: impl FnOnce() -> usize,
+) -> usize {
+    block_nth_paragraph_slot(content, index).unwrap_or_else(end_slot)
+}
+
+/// Inserts `paragraph` so it becomes the paragraph at `path` in `content`, shifting every paragraph
+/// at or after that position one place later. `path` must address an existing paragraph slot or the
+/// one past the last (i.e. `0..=`[`block_paragraphs`]`(content).count()`); anything else is rejected.
+/// `end_slot` is [`block_nth_paragraph_slot_or`]'s own parameter.
+///
+/// Returns `false`, leaving `content` untouched, if `path` is out of range.
+#[must_use]
+pub(crate) fn block_insert_paragraph(
+    content: &mut Vec<BlockContent>,
+    path: &BlockPath,
+    paragraph: Paragraph,
+    end_slot: impl FnOnce() -> usize,
+) -> bool {
+    let [index] = path.indices() else {
+        return false;
+    };
+    let count = block_paragraphs(content).count();
+    if *index > count {
+        return false;
+    }
+    let at = block_nth_paragraph_slot_or(content, *index, end_slot);
+    content.insert(at, BlockContent::Paragraph(paragraph));
+    true
+}
+
+/// Removes and returns the paragraph at `path` from `content`, or `None` if the address is out of
+/// range.
+pub(crate) fn block_remove_paragraph(
+    content: &mut Vec<BlockContent>,
+    path: &BlockPath,
+) -> Option<Paragraph> {
+    let [index] = path.indices() else {
+        return None;
+    };
+    let at = block_nth_paragraph_slot(content, *index)?;
+    match content.remove(at) {
+        BlockContent::Paragraph(paragraph) => Some(paragraph),
+        _ => unreachable!("block_nth_paragraph_slot only returns indices of Paragraph items"),
+    }
+}
+
 impl Body {
     /// How many paragraphs this body holds, in document order. Only `w:p` counts — matching
     /// `Presentation::shape_count`'s "every kind shares one count" would make "the third item" mean
@@ -133,10 +250,7 @@ impl Body {
 
     /// Every paragraph in document order.
     pub fn paragraphs(&self) -> impl Iterator<Item = &Paragraph> {
-        self.content.iter().filter_map(|item| match item {
-            BlockContent::Paragraph(paragraph) => Some(paragraph),
-            _ => None,
-        })
+        block_paragraphs(&self.content)
     }
 
     /// The paragraph at `path`, or `None` if the address is out of range.
@@ -145,26 +259,12 @@ impl Body {
     /// one until `w:tbl` is modeled (see [`BlockPath`]'s own doc comment).
     #[must_use]
     pub fn paragraph(&self, path: impl Into<BlockPath>) -> Option<&Paragraph> {
-        let path = path.into();
-        let [index] = path.indices() else {
-            return None;
-        };
-        self.paragraphs().nth(*index)
+        block_paragraph(&self.content, &path.into())
     }
 
     /// The paragraph at `path`, mutably.
     pub fn paragraph_mut(&mut self, path: impl Into<BlockPath>) -> Option<&mut Paragraph> {
-        let path = path.into();
-        let [index] = path.indices() else {
-            return None;
-        };
-        self.content
-            .iter_mut()
-            .filter_map(|item| match item {
-                BlockContent::Paragraph(paragraph) => Some(paragraph),
-                _ => None,
-            })
-            .nth(*index)
+        block_paragraph_mut(&mut self.content, &path.into())
     }
 
     /// Inserts `paragraph` so it becomes the paragraph at `path`, shifting every paragraph at or
@@ -176,65 +276,30 @@ impl Body {
     #[must_use]
     pub fn insert_paragraph(&mut self, path: impl Into<BlockPath>, paragraph: Paragraph) -> bool {
         let path = path.into();
-        let [index] = path.indices() else {
-            return false;
-        };
-        let count = self.paragraph_count();
-        if *index > count {
-            return false;
-        }
-        let at = self.nth_paragraph_slot_or_end(*index);
-        self.content.insert(at, BlockContent::Paragraph(paragraph));
-        true
+        let end = self.trailing_section_properties_slot();
+        block_insert_paragraph(&mut self.content, &path, paragraph, || end)
     }
 
     /// Appends `paragraph` as this body's new last paragraph — **before** `w:sectPr` when one is
     /// present, since `CT_Body`'s `xsd:sequence` puts every block-level child ahead of it.
     pub fn append_paragraph(&mut self, paragraph: Paragraph) {
-        let at = self
-            .content
-            .iter()
-            .position(|item| matches!(item, BlockContent::SectionProperties(_)))
-            .unwrap_or(self.content.len());
+        let at = self.trailing_section_properties_slot();
         self.content.insert(at, BlockContent::Paragraph(paragraph));
     }
 
     /// Removes and returns the paragraph at `path`, or `None` if the address is out of range.
     pub fn remove_paragraph(&mut self, path: impl Into<BlockPath>) -> Option<Paragraph> {
-        let path = path.into();
-        let [index] = path.indices() else {
-            return None;
-        };
-        let at = self.nth_paragraph_slot(*index)?;
-        match self.content.remove(at) {
-            BlockContent::Paragraph(paragraph) => Some(paragraph),
-            _ => unreachable!("nth_paragraph_slot only returns indices of Paragraph items"),
-        }
+        block_remove_paragraph(&mut self.content, &path.into())
     }
 
-    /// The `content` index of the `index`th paragraph, or `None` if there is no such paragraph.
-    fn nth_paragraph_slot(&self, index: usize) -> Option<usize> {
+    /// The `content` index of this body's own `w:sectPr`, or one past the end of `content` if it
+    /// carries none — where a new trailing paragraph belongs either way, since `CT_Body`'s
+    /// `xsd:sequence` puts every block-level child ahead of `w:sectPr`.
+    fn trailing_section_properties_slot(&self) -> usize {
         self.content
             .iter()
-            .enumerate()
-            .filter(|(_, item)| matches!(item, BlockContent::Paragraph(_)))
-            .nth(index)
-            .map(|(at, _)| at)
-    }
-
-    /// The `content` index at which the `index`th paragraph belongs — an existing paragraph's own
-    /// slot, or one past the last paragraph (which may not be the end of `content`, when a
-    /// `w:sectPr` or other trailing content follows) when `index == paragraph_count()`.
-    fn nth_paragraph_slot_or_end(&self, index: usize) -> usize {
-        self.nth_paragraph_slot(index).unwrap_or_else(|| {
-            // One past the last paragraph: the slot right after the last Paragraph item, or the
-            // start of `content` if there are none yet.
-            self.content
-                .iter()
-                .enumerate()
-                .rfind(|(_, item)| matches!(item, BlockContent::Paragraph(_)))
-                .map_or(0, |(at, _)| at + 1)
-        })
+            .position(|item| matches!(item, BlockContent::SectionProperties(_)))
+            .unwrap_or(self.content.len())
     }
 
     /// The section this body ends with (`w:sectPr`) — the document's last section — or `None` if it

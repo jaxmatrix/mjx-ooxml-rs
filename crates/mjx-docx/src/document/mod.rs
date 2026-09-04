@@ -19,11 +19,28 @@
 //! - `paragraph_properties.rs` — `w:pPr` (`CT_PPr`) and `CT_PPrBase`'s 33 members, MJXOFF-96's own
 //!   file: [`ParagraphProperties`], reached off [`Paragraph::properties`], and
 //!   [`ParagraphMarkRunProperties`] (`w:pPr/w:rPr`, the pilcrow's own formatting — never a run's).
+//! - `styles.rs` — `word/styles.xml` (`CT_Styles`), MJXOFF-101's own file: [`StyleSheet`],
+//!   `w:basedOn` chain resolution, `w:latentStyles`.
+//! - `numbering.rs` — `word/numbering.xml` (`CT_Numbering`), MJXOFF-104's own file: the two-hop
+//!   `w:numPr` → `w:num` → `w:abstractNum`/`w:lvl` resolution ([`NumberingIndex`]).
+//! - `effective.rs` — the effective-properties ladder (`docDefaults` → table style → numbering →
+//!   paragraph style → character style → direct), MJXOFF-106's own file — see
+//!   [the guide](crate::effective_properties) for the full account.
+//! - `sections.rs` — `w:sectPr` (`CT_SectPr`) and section addressing, MJXOFF-109's own file:
+//!   [`SectionProperties`], [`SectionSpan`], and [`HeaderFooterReference`] (`EG_HdrFtrReferences`'
+//!   structural half — *which* one applies is `headers.rs`'s).
+//! - `headers.rs` — `w:hdr`/`w:ftr` (`CT_HdrFtr`) and the legacy VML they carry, MJXOFF-113's own
+//!   file: [`HdrFtr`] (reusing MJXOFF-92's block-content addressing, generalized here — see that
+//!   module's own doc comment), and variant resolution (`Document::resolve_header`/`resolve_footer`)
+//!   against the ECMA-376 Part 1 prose this module's own doc comment quotes.
+//!
+//! (This list previously named `styles.rs`, `numbering.rs`, `effective.rs` and `sections.rs` among
+//! the files "later children are expected to add" — stale by the time MJXOFF-109 landed, all four
+//! already existed. Fixed here rather than carried forward again.)
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
-//! C): `styles.rs`, `numbering.rs`, `effective.rs`, `sections.rs`, `headers.rs`, `tables.rs`,
-//! `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`, `settings.rs`,
+//! C): `tables.rs`, `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`, `settings.rs`,
 //! `structured_content.rs`. A child that needs a subject not on this list adds the file and a line
 //! here, the same way `presentation/`'s own list grew past A8.
 
@@ -38,6 +55,7 @@ use crate::error::DocxError;
 
 mod body;
 mod effective;
+mod headers;
 mod numbering;
 mod paragraph_properties;
 mod parts;
@@ -61,6 +79,7 @@ pub use effective::{
     EffectiveParagraphBorders, EffectiveParagraphProperties, EffectiveShading, EffectiveTabStop,
     EffectiveUnderline,
 };
+pub use headers::{HdrFtr, HeaderFooterType};
 pub use numbering::{
     AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
     LevelNumberFormat, LevelSuffix, LevelTextSegment, LevelTextTemplate, MultiLevelKind, Numbering,
@@ -719,6 +738,383 @@ impl Document {
         Ok(())
     }
 
+    // -------------------------------------------------------------------------------------------
+    // Headers and footers (MJXOFF-113) — variant resolution, reading/editing their own content, and
+    // creating/removing them on demand.
+    // -------------------------------------------------------------------------------------------
+
+    /// Whether this document's sections use different headers/footers for even and odd pages
+    /// (`w:settings/w:evenAndOddHeaders`), read directly from `word/settings.xml` — MJXOFF-136 models
+    /// that part as a whole; this crate reads only the one flag [`Document::resolve_header`]/
+    /// `resolve_footer` need, exactly as this child's own ticket asks. `false` (the schema default)
+    /// if the document relates to no `word/settings.xml`, or if that part carries no
+    /// `w:evenAndOddHeaders` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/settings.xml` is related but cannot be read.
+    pub fn even_and_odd_headers(&mut self) -> Result<bool, DocxError> {
+        let Some(settings_part) = self.parts.settings.clone() else {
+            return Ok(false);
+        };
+        let doc = self.package.part_tree(&settings_part)?;
+        let found = doc.root.children.iter().find_map(|node| match node {
+            RawNode::Element(element)
+                if is_wml_element(element, &doc.interner, "evenAndOddHeaders") =>
+            {
+                Some(element)
+            }
+            _ => None,
+        });
+        let Some(element) = found else {
+            return Ok(false);
+        };
+        let toggle = Toggle::from_xml(element, &doc.interner)?;
+        Ok(toggle.value(&doc.interner).map_err(FromXmlError::from)?)
+    }
+
+    /// Resolves which header part actually applies to `section_index`'s pages of variant `kind` —
+    /// see `crate::document::headers`'s own doc comment for the ECMA-376 Part 1 rules this
+    /// implements (`w:titlePg`, `w:evenAndOddHeaders`, and inheritance from the previous section).
+    /// `None` when no section from `section_index` back to the document's first states a reference of
+    /// the resolved variant (real Word would create a blank one; this crate does not fabricate one on
+    /// a read — see [`Document::create_header`]).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::SectionOutOfRange`] if `section_index` names no section,
+    /// [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if a related
+    /// part cannot be read or a reference this walk reads is malformed.
+    pub fn resolve_header(
+        &mut self,
+        section_index: usize,
+        kind: HeaderFooterType,
+    ) -> Result<Option<mjx_opc::PartName>, DocxError> {
+        self.resolve_header_footer(section_index, kind, true)
+    }
+
+    /// As [`Document::resolve_header`], for footers (§17.10.2, identical rules).
+    ///
+    /// # Errors
+    /// See [`Document::resolve_header`].
+    pub fn resolve_footer(
+        &mut self,
+        section_index: usize,
+        kind: HeaderFooterType,
+    ) -> Result<Option<mjx_opc::PartName>, DocxError> {
+        self.resolve_header_footer(section_index, kind, false)
+    }
+
+    fn resolve_header_footer(
+        &mut self,
+        section_index: usize,
+        kind: HeaderFooterType,
+        is_header: bool,
+    ) -> Result<Option<mjx_opc::PartName>, DocxError> {
+        let even_and_odd_headers = self.even_and_odd_headers()?;
+        let rel_id = self.sections(|spans, interner| {
+            headers::resolve_reference(
+                spans,
+                section_index,
+                kind,
+                even_and_odd_headers,
+                interner,
+                is_header,
+            )
+        })??;
+        match rel_id {
+            Some(rel_id) => self.part_for_document_rel(&rel_id).map(Some),
+            None => Ok(None),
+        }
+    }
+
+    /// Resolves relationship `id` in the main document part's own `.rels` to a part name.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::ExternalTarget`] if the relationship targets outside the package, or
+    /// [`DocxError::TargetResolution`] if `id` names no relationship or its target does not resolve.
+    fn part_for_document_rel(&self, id: &str) -> Result<mjx_opc::PartName, DocxError> {
+        let rel = self
+            .package
+            .relationships_for(Some(&self.document_part))
+            .and_then(|rels| rels.by_id(id))
+            .ok_or_else(|| DocxError::TargetResolution {
+                target: id.to_owned(),
+            })?;
+        if rel.mode == TargetMode::External {
+            return Err(DocxError::ExternalTarget {
+                target: rel.target.clone(),
+            });
+        }
+        self.document_part
+            .resolve(&rel.target)
+            .map_err(|_| DocxError::TargetResolution {
+                target: rel.target.clone(),
+            })
+    }
+
+    /// Reads a header or footer part's content, handing `read` the parsed [`HdrFtr`] together with
+    /// the [`mjx_ooxml_core::Interner`] it was parsed with — mirrors [`Document::style_sheet`]'s own
+    /// shape. `part` is one of [`DocumentParts::headers`]/`footers`, or a part
+    /// [`Document::resolve_header`]/`resolve_footer`/`create_header`/`create_footer` named.
+    ///
+    /// This is how MJXOFF-92's paragraph/run model, MJXOFF-94/96's properties and MJXOFF-106's
+    /// effective-property ladder reach inside a header or footer: none of the three reaches into
+    /// `Body`/`HdrFtr` themselves, only into the [`Paragraph`]/[`Run`] a caller already holds — so
+    /// `read`'s closure uses [`HdrFtr::paragraph`]/[`Paragraph::run`]/[`Paragraph::properties`]/…
+    /// exactly as it would against a [`Document::sections`]-obtained paragraph.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `part` cannot be read, is not well-formed, or its root is not
+    /// `w:hdr`/`w:ftr`.
+    pub fn header_footer<R>(
+        &mut self,
+        part: &mjx_opc::PartName,
+        read: impl FnOnce(&HdrFtr, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree(part)?;
+        check_header_footer_root(&doc.root, &doc.interner)?;
+        let content = HdrFtr::from_xml(&doc.root, &doc.interner)?;
+        Ok(read(&content, &doc.interner))
+    }
+
+    /// Edits a header or footer part's content in place — mirrors [`Document::edit_style_sheet`]'s
+    /// own shape. Unlike style sheets and numbering definitions, this never creates the part itself:
+    /// use [`Document::create_header`]/[`Document::create_footer`] first.
+    ///
+    /// # Errors
+    /// As [`Document::header_footer`].
+    pub fn edit_header_footer<R>(
+        &mut self,
+        part: &mjx_opc::PartName,
+        edit: impl FnOnce(&mut HdrFtr, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree_mut(part)?;
+        let RawDocument { interner, root, .. } = doc;
+        check_header_footer_root(root, interner)?;
+        let mut content = HdrFtr::from_xml(root, interner)?;
+        let result = edit(&mut content, interner);
+        content.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// The VML content of every `w:pict` a header or footer part carries — see
+    /// `crate::document::headers::vml_drawings_in`'s own doc comment for how `mc:AlternateContent` is
+    /// resolved (non-mutatingly, via `mjx-mce`) and why `w:pict` itself is read directly rather than
+    /// through [`super::RunInnerContent`]. Reading does not dirty the part.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `part` cannot be read, [`DocxError::Mce`] if its `mc:AlternateContent`
+    /// markup is malformed, or [`DocxError::Vml`] if a `w:pict` this walk finds does not parse as VML.
+    pub fn header_footer_vml_drawings(
+        &mut self,
+        part: &mjx_opc::PartName,
+    ) -> Result<Vec<mjx_vml::Drawing>, DocxError> {
+        let doc = self.package.part_tree(part)?;
+        headers::vml_drawings_in(doc)
+    }
+
+    /// Creates a new header part of `kind` for the section at `location`, wiring
+    /// `w:headerReference` into that section's `w:sectPr` at its schema rank — creating an empty
+    /// `w:sectPr` first if the section carries none, exactly as [`Document::edit_section_properties`]
+    /// does. The new part holds one empty paragraph; edit it with [`Document::edit_header_footer`].
+    ///
+    /// If the section already names a header of this `kind`, the old reference is replaced by the
+    /// new one; the old part and its own relationship are left in the package (call
+    /// [`Document::remove_header`] first if they should not survive) — this method never removes
+    /// content a caller has not asked it to remove.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if [`SectionLocation::Paragraph`] does not address a paragraph,
+    /// or another [`DocxError`] if the package edit fails.
+    pub fn create_header(
+        &mut self,
+        location: SectionLocation,
+        kind: HeaderFooterType,
+    ) -> Result<mjx_opc::PartName, DocxError> {
+        self.create_header_footer(location, kind, true)
+    }
+
+    /// As [`Document::create_header`], for footers.
+    ///
+    /// # Errors
+    /// See [`Document::create_header`].
+    pub fn create_footer(
+        &mut self,
+        location: SectionLocation,
+        kind: HeaderFooterType,
+    ) -> Result<mjx_opc::PartName, DocxError> {
+        self.create_header_footer(location, kind, false)
+    }
+
+    fn create_header_footer(
+        &mut self,
+        location: SectionLocation,
+        kind: HeaderFooterType,
+        is_header: bool,
+    ) -> Result<mjx_opc::PartName, DocxError> {
+        let (part_kind, local, stem) = if is_header {
+            (PartKind::Header, "hdr", "header")
+        } else {
+            (PartKind::Footer, "ftr", "footer")
+        };
+        let (part, target) = self.next_header_footer_part(stem)?;
+        self.package.insert_part(
+            &part,
+            part_kind.content_type(),
+            headers::initial_bytes(local),
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid.clone(),
+                rel_type: part_kind.relationship_type().to_owned(),
+                target,
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        if is_header {
+            self.parts.headers.push(part.clone());
+        } else {
+            self.parts.footers.push(part.clone());
+        }
+
+        let element_local = if is_header {
+            "headerReference"
+        } else {
+            "footerReference"
+        };
+        self.edit_section_properties(
+            location,
+            |properties, interner| -> Result<(), FromXmlError> {
+                if is_header {
+                    properties.remove_header_reference(kind, interner)?;
+                } else {
+                    properties.remove_footer_reference(kind, interner)?;
+                }
+                let reference = HeaderFooterReference::new(interner, element_local, &rid, kind);
+                if is_header {
+                    properties.push_header_reference(reference);
+                } else {
+                    properties.push_footer_reference(reference);
+                }
+                Ok(())
+            },
+        )??;
+
+        Ok(part)
+    }
+
+    /// The `word/{stem}N.xml` part name one past the highest `N` already in the package (so a package
+    /// with `header1.xml` and `header3.xml` gets `header4.xml`, never colliding with either), and its
+    /// relationship target relative to the main document part.
+    fn next_header_footer_part(
+        &self,
+        stem: &str,
+    ) -> Result<(mjx_opc::PartName, String), DocxError> {
+        let mut max_n = 0u32;
+        for part in self.package.part_names() {
+            let file_name = part.as_str().rsplit('/').next().unwrap_or("");
+            if let Some(digits) = file_name
+                .strip_prefix(stem)
+                .and_then(|rest| rest.strip_suffix(".xml"))
+            {
+                if let Ok(n) = digits.parse::<u32>() {
+                    max_n = max_n.max(n);
+                }
+            }
+        }
+        let target = format!("{stem}{}.xml", max_n + 1);
+        let part =
+            self.document_part
+                .resolve(&target)
+                .map_err(|_| DocxError::TargetResolution {
+                    target: target.clone(),
+                })?;
+        Ok((part, target))
+    }
+
+    /// Removes the section at `location`'s own `kind` header reference, if it states one (a no-op
+    /// otherwise), and — unless another `w:headerReference` anywhere in the document still names the
+    /// same part — sweeps the now-unreferenced part and its relationship
+    /// ([`mjx_opc::Package::remove_unreferenced_parts`]).
+    ///
+    /// Unlike [`Document::create_header`], this never creates a `w:sectPr` the section did not
+    /// already have: removing a reference from a section with none (or from one that carries a
+    /// `w:sectPr` naming no reference of this `kind`) is simply nothing to do.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if [`SectionLocation::Paragraph`] does not address a paragraph,
+    /// or another [`DocxError`] if the package edit fails.
+    pub fn remove_header(
+        &mut self,
+        location: SectionLocation,
+        kind: HeaderFooterType,
+    ) -> Result<(), DocxError> {
+        self.remove_header_footer(location, kind, true)
+    }
+
+    /// As [`Document::remove_header`], for footers.
+    ///
+    /// # Errors
+    /// See [`Document::remove_header`].
+    pub fn remove_footer(
+        &mut self,
+        location: SectionLocation,
+        kind: HeaderFooterType,
+    ) -> Result<(), DocxError> {
+        self.remove_header_footer(location, kind, false)
+    }
+
+    fn remove_header_footer(
+        &mut self,
+        location: SectionLocation,
+        kind: HeaderFooterType,
+        is_header: bool,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let properties = match &location {
+            SectionLocation::Body => body.section_properties_mut(),
+            SectionLocation::Paragraph(path) => {
+                let paragraph = body
+                    .paragraph_mut(path)
+                    .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))?;
+                paragraph
+                    .properties_mut()
+                    .and_then(paragraph_properties::ParagraphProperties::section_properties_mut)
+            }
+        };
+        let removed = match properties {
+            Some(properties) if is_header => properties
+                .remove_header_reference(kind, interner)
+                .map_err(FromXmlError::from)?,
+            Some(properties) => properties
+                .remove_footer_reference(kind, interner)
+                .map_err(FromXmlError::from)?,
+            None => None,
+        };
+        main.write_back(root, interner);
+        let Some(reference) = removed else {
+            return Ok(());
+        };
+        let rel_id = reference
+            .relationship_id(interner)
+            .map_err(FromXmlError::from)?
+            .into_owned();
+        self.package
+            .remove_relationship(Some(&self.document_part), &rel_id)
+            .map_err(DocxError::from)?;
+        self.package
+            .remove_unreferenced_parts()
+            .map_err(DocxError::from)?;
+        self.parts = parts::DocumentParts::resolve(&self.package, &self.document_part)?;
+        Ok(())
+    }
+
     /// The next free relationship id (`rId{N}`) in `part`'s `.rels`, one past the current maximum —
     /// `rId1` when the part has no relationships yet.
     fn next_rid_for(&self, part: &mjx_opc::PartName) -> String {
@@ -1090,6 +1486,36 @@ impl MainDocument {
             MainDocumentContent::Body(body) => Some(body),
             _ => None,
         })
+    }
+}
+
+/// Whether `element` is `local` in the WordprocessingML namespace (Transitional or Strict) — the
+/// same permissive namespace check [`Document::from_package`] already applies to the document root,
+/// reused here for `w:evenAndOddHeaders` ([`Document::even_and_odd_headers`]) and a header/footer
+/// part's own root ([`check_header_footer_root`]).
+fn is_wml_element(
+    element: &mjx_ooxml_core::RawElement,
+    interner: &mjx_ooxml_core::Interner,
+    local: &str,
+) -> bool {
+    let element_local = interner.resolve(element.name.local);
+    let namespace = element.name.namespace.map(|s| interner.resolve(s));
+    element_local == local && (namespace == Some(WML.transitional) || namespace == WML.strict)
+}
+
+/// Rejects a part whose root is not `w:hdr`/`w:ftr` — the same "cannot hand a part to the wrong
+/// model" defensiveness [`Document::style_sheet`]/[`Document::edit_numbering`] already apply to
+/// theirs.
+fn check_header_footer_root(
+    root: &mjx_ooxml_core::RawElement,
+    interner: &mjx_ooxml_core::Interner,
+) -> Result<(), DocxError> {
+    if is_wml_element(root, interner, "hdr") || is_wml_element(root, interner, "ftr") {
+        Ok(())
+    } else {
+        Err(DocxError::MalformedDocument(
+            "part root is not w:hdr or w:ftr",
+        ))
     }
 }
 
