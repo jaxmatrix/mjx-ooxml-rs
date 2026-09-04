@@ -74,6 +74,7 @@ use mjx_ooxml_core::{
     Enumeration, FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode,
     Text as TextCodec, ToXml,
 };
+use mjx_ooxml_types::namespaces::WML;
 use mjx_ooxml_types::shared::{CalendarType, Guid, UnsignedDecimalNumber};
 use mjx_ooxml_types::support::OnOff;
 use mjx_ooxml_types::wordprocessingml::{
@@ -742,7 +743,116 @@ pub struct ContentControlProperties {
     content: Vec<ContentControlPropertyContent>,
 }
 
+/// `CT_SdtPr`'s own generated child-order table — looked up by symbol rather than through a curated
+/// named constant (`mjx_ooxml_types::child_order::CELL_PROPERTIES`'s own shape): the generated
+/// tables carry an entry for every complex type regardless of whether a curated alias exists, and
+/// [`mjx_ooxml_types::child_order::find`] is the documented, `O(schemas)`, by-symbol lookup this
+/// module's own doc comment names for exactly this case. Cheap enough to call from every setter
+/// below rather than caching — the same "no hashing, no allocation, nothing built per call" cost the
+/// tables' own module doc states for a lookup already holding its `&'static ChildOrder`.
+fn content_control_properties_table() -> &'static mjx_ooxml_types::child_order::ChildOrder {
+    mjx_ooxml_types::child_order::find(WML.transitional, "CT_SdtPr")
+        .expect("CT_SdtPr is in the generated wml child-order table")
+}
+
 impl ContentControlProperties {
+    /// The schema rank of an existing content item — every unrecognized child is unranked (`None`),
+    /// so it never influences where a new typed member is placed, matching `CellProperties::rank`'s
+    /// own reasoning (`tables.rs`).
+    fn rank(item: &ContentControlPropertyContent) -> Option<u16> {
+        let table = content_control_properties_table();
+        let local = match item {
+            ContentControlPropertyContent::RunProperties(_) => "rPr",
+            ContentControlPropertyContent::Alias(_) => "alias",
+            ContentControlPropertyContent::Tag(_) => "tag",
+            ContentControlPropertyContent::Id(_) => "id",
+            ContentControlPropertyContent::Lock(_) => "lock",
+            ContentControlPropertyContent::Placeholder(_) => "placeholder",
+            ContentControlPropertyContent::Temporary(_) => "temporary",
+            ContentControlPropertyContent::ShowingPlaceholderText(_) => "showingPlcHdr",
+            ContentControlPropertyContent::DataBinding(_) => "dataBinding",
+            ContentControlPropertyContent::Label(_) => "label",
+            ContentControlPropertyContent::TabIndex(_) => "tabIndex",
+            ContentControlPropertyContent::Equation(_) => "equation",
+            ContentControlPropertyContent::ComboBox(_) => "comboBox",
+            ContentControlPropertyContent::Date(_) => "date",
+            ContentControlPropertyContent::BuildingBlockGallery(_) => "docPartObj",
+            ContentControlPropertyContent::BuildingBlockList(_) => "docPartList",
+            ContentControlPropertyContent::DropDownList(_) => "dropDownList",
+            ContentControlPropertyContent::Picture(_) => "picture",
+            ContentControlPropertyContent::RichText(_) => "richText",
+            ContentControlPropertyContent::Text(_) => "text",
+            ContentControlPropertyContent::Citation(_) => "citation",
+            ContentControlPropertyContent::Group(_) => "group",
+            ContentControlPropertyContent::Bibliography(_) => "bibliography",
+            ContentControlPropertyContent::Raw(_) => return None,
+        };
+        table.rank_of(None, local)
+    }
+
+    fn remove(&mut self, is_target: impl Fn(&ContentControlPropertyContent) -> bool) {
+        if let Some(index) = self.content.iter().position(is_target) {
+            self.content.remove(index);
+        }
+    }
+
+    fn insert(&mut self, local: &str, item: ContentControlPropertyContent) {
+        let table = content_control_properties_table();
+        let at = table.insert_index_of_names(self.content.iter().map(Self::rank), local);
+        self.content.insert(at, item);
+        self.empty = false;
+    }
+
+    fn set(
+        &mut self,
+        local: &str,
+        is_target: impl Fn(&ContentControlPropertyContent) -> bool,
+        value: Option<ContentControlPropertyContent>,
+    ) {
+        self.remove(is_target);
+        if let Some(value) = value {
+            self.insert(local, value);
+        }
+    }
+
+    /// Sets (or, given `None`, removes) this control's own lock (`w:lock`).
+    pub fn set_lock(&mut self, interner: &mut Interner, kind: Option<LockingType>) {
+        let is_target = |item: &ContentControlPropertyContent| {
+            matches!(item, ContentControlPropertyContent::Lock(_))
+        };
+        let value = kind.map(|kind| ContentControlPropertyContent::Lock(Lock::new(interner, kind)));
+        self.set("lock", is_target, value);
+    }
+
+    /// Sets (or, given `None`, removes) this control's own placeholder (`w:placeholder`), naming the
+    /// building block `doc_part_name`.
+    pub fn set_placeholder(&mut self, interner: &mut Interner, doc_part_name: Option<&str>) {
+        let is_target = |item: &ContentControlPropertyContent| {
+            matches!(item, ContentControlPropertyContent::Placeholder(_))
+        };
+        let value = doc_part_name.map(|name| {
+            ContentControlPropertyContent::Placeholder(Placeholder::new(interner, name))
+        });
+        self.set("placeholder", is_target, value);
+    }
+
+    /// Sets (or, given `None`, removes) this control's own XML data binding (`w:dataBinding`),
+    /// naming the Custom XML Data Storage part (`store_item_id`) and node (`xpath`) it binds to —
+    /// [`crate::Document::resolve_data_binding`] is what resolves the reference this writes.
+    pub fn set_data_binding(&mut self, interner: &mut Interner, binding: Option<(&str, &str)>) {
+        let is_target = |item: &ContentControlPropertyContent| {
+            matches!(item, ContentControlPropertyContent::DataBinding(_))
+        };
+        let value = binding.map(|(store_item_id, xpath)| {
+            ContentControlPropertyContent::DataBinding(DataBinding::new(
+                interner,
+                store_item_id,
+                xpath,
+            ))
+        });
+        self.set("dataBinding", is_target, value);
+    }
+
     /// This control's own run properties (`w:rPr`), or `None`.
     #[must_use]
     pub fn run_properties(&self) -> Option<&RunProperties> {
@@ -1676,29 +1786,6 @@ impl ContentControlCell {
 macro_rules! custom_xml_attributes {
     ($ty:ty) => {
         impl $ty {
-            /// Builds a new, empty wrapper naming the custom element `element` (optionally in
-            /// namespace `uri`), with no `customXmlPr` and no content.
-            #[must_use]
-            pub(crate) fn new(
-                interner: &mut Interner,
-                local: &str,
-                uri: Option<&str>,
-                element: &str,
-            ) -> Self {
-                let mut value = Self {
-                    name: wml_name(interner, local),
-                    attributes: Vec::new(),
-                    empty: true,
-                    properties: None,
-                    content: Vec::new(),
-                };
-                if let Some(uri) = uri {
-                    value.set_uri(interner, Some(uri));
-                }
-                value.set_element(interner, element);
-                value
-            }
-
             /// This wrapper's own properties (`w:customXmlPr`) — its placeholder text and attribute
             /// overrides — or `None` if it carries none.
             #[must_use]
@@ -2810,5 +2897,129 @@ impl BuildingBlockProperties {
                 _ => None,
             })
             .and_then(|value| value.value(interner))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `Lock::new` writes the requested lock kind, readable straight back through the derived
+    /// `kind` accessor — the constructor a future writer builds a fresh `w:lock` with.
+    #[test]
+    fn lock_new_writes_the_requested_kind() {
+        let mut interner = Interner::new();
+        let lock = Lock::new(&mut interner, LockingType::TagCannotBeDeleted);
+        assert_eq!(
+            lock.kind(&interner),
+            Ok(Some(LockingType::TagCannotBeDeleted))
+        );
+    }
+
+    /// `DataBinding::new` writes `storeItemID`/`xpath`, leaving `prefixMappings` absent —
+    /// [`Document::resolve_data_binding`]'s own two required fields, readable straight back.
+    #[test]
+    fn data_binding_new_writes_store_item_id_and_xpath() {
+        let mut interner = Interner::new();
+        let binding = DataBinding::new(&mut interner, "{GUID}", "/ns0:root[1]");
+        assert_eq!(binding.store_item_id(&interner).as_deref(), Ok("{GUID}"));
+        assert_eq!(binding.xpath(&interner).as_deref(), Ok("/ns0:root[1]"));
+        assert_eq!(binding.prefix_mappings(&interner), Ok(None));
+    }
+
+    /// `Placeholder::new` writes `w:docPart` naming the building block, readable straight back
+    /// through [`Placeholder::doc_part_name`].
+    #[test]
+    fn placeholder_new_names_the_building_block() {
+        let mut interner = Interner::new();
+        let placeholder = Placeholder::new(&mut interner, "Cover Page 1");
+        assert_eq!(
+            placeholder.doc_part_name(&interner).as_deref(),
+            Some("Cover Page 1")
+        );
+    }
+
+    /// `CustomXmlBlock::from_xml` reads `w:element`/`w:uri` and its own block-level content — the
+    /// production path every `w:customXml` wrapper in this crate goes through.
+    #[test]
+    fn custom_xml_block_reads_its_own_element_uri_and_content() {
+        const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let xml = format!(
+            r#"<w:customXml xmlns:w="{W}" w:uri="http://schemas.example.com/customer" w:element="root"><w:p/></w:customXml>"#
+        );
+        let doc = mjx_xml::fidelity::parse(xml.as_bytes()).expect("fragment parses");
+        let block =
+            CustomXmlBlock::from_xml(&doc.root, &doc.interner).expect("CustomXmlBlock::from_xml");
+        assert_eq!(block.element(&doc.interner).as_deref(), Ok("root"));
+        assert_eq!(
+            block
+                .uri(&doc.interner)
+                .expect("uri is readable")
+                .as_deref(),
+            Some("http://schemas.example.com/customer")
+        );
+        assert!(block.properties().is_none());
+        assert_eq!(block.content().len(), 1);
+        assert!(matches!(block.content()[0], BlockContent::Paragraph(_)));
+    }
+
+    /// `set_lock`/`set_placeholder`/`set_data_binding` insert at `CT_SdtPr`'s own schema rank (lock
+    /// before placeholder before dataBinding, per the sequence) regardless of call order, and `None`
+    /// removes each again — the setter surface [`Lock::new`]/[`Placeholder::new`]/[`DataBinding::new`]
+    /// exist for.
+    #[test]
+    fn content_control_properties_setters_insert_at_the_correct_schema_rank() {
+        let mut interner = Interner::new();
+        let mut properties = ContentControlProperties {
+            name: wml_name(&mut interner, "sdtPr"),
+            attributes: Vec::new(),
+            empty: true,
+            content: Vec::new(),
+        };
+
+        // Deliberately set out of schema order: dataBinding, then placeholder, then lock.
+        properties.set_data_binding(&mut interner, Some(("{GUID}", "/ns0:root[1]")));
+        properties.set_placeholder(&mut interner, Some("Cover Page 1"));
+        properties.set_lock(&mut interner, Some(LockingType::TagCannotBeDeleted));
+
+        let order: Vec<&'static str> = properties
+            .content
+            .iter()
+            .map(|item| match item {
+                ContentControlPropertyContent::Lock(_) => "lock",
+                ContentControlPropertyContent::Placeholder(_) => "placeholder",
+                ContentControlPropertyContent::DataBinding(_) => "dataBinding",
+                _ => "other",
+            })
+            .collect();
+        assert_eq!(
+            order,
+            vec!["lock", "placeholder", "dataBinding"],
+            "the three must land in CT_SdtPr's own schema order regardless of call order"
+        );
+
+        assert_eq!(
+            properties.lock().unwrap().kind(&interner),
+            Ok(Some(LockingType::TagCannotBeDeleted))
+        );
+        assert_eq!(
+            properties
+                .placeholder()
+                .unwrap()
+                .doc_part_name(&interner)
+                .as_deref(),
+            Some("Cover Page 1")
+        );
+        assert_eq!(
+            properties
+                .data_binding()
+                .unwrap()
+                .store_item_id(&interner)
+                .as_deref(),
+            Ok("{GUID}")
+        );
+
+        properties.set_lock(&mut interner, None);
+        assert!(properties.lock().is_none());
     }
 }
