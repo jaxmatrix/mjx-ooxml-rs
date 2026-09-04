@@ -330,72 +330,67 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
 }
 
 #[test]
-fn changing_one_anchors_position_leaves_every_other_drawing_and_every_other_part_untouched() {
-    let (_, original_bytes, _) = five_drawing_document();
+fn removing_one_drawing_leaves_every_other_drawing_and_every_other_part_untouched() {
+    let (mut document, original_bytes, original_saved) = five_drawing_document();
     let original_xml = String::from_utf8(original_bytes).expect("utf8");
-
-    // Mutate only the second drawing's own horizontal offset.
-    let needle =
-        r#"<wp:positionH relativeFrom="column"><wp:posOffset>100000</wp:posOffset></wp:positionH>"#;
+    let original_paragraphs = paragraphs();
     assert!(
-        original_xml.contains(needle),
+        original_xml.contains(r#"<wp:docPr id="2" name="Picture 2"/>"#),
         "fixture markup changed under this test"
     );
-    let mutated_xml = original_xml.replacen(
-        needle,
-        r#"<wp:positionH relativeFrom="column"><wp:posOffset>500000</wp:posOffset></wp:positionH>"#,
-        1,
-    );
-    assert_ne!(original_xml, mutated_xml);
 
-    // Every OTHER paragraph's own markup must be byte-identical before and after.
-    let original_paragraphs = paragraphs();
+    // Remove the second drawing (docPr id=2, the anchored picture) through the real editing path —
+    // Document::remove_drawing, which goes through part_tree_mut/MainDocument::write_back, the same
+    // fidelity machinery every other mutation in this crate uses. This is the "span-preserving path"
+    // this gate proves: break it (make removal touch the whole tree rather than one run) and this
+    // test goes red.
+    let removed = document.remove_drawing(2).expect("remove_drawing");
+    assert!(
+        removed,
+        "the anchored picture (docPr id=2) was not found for removal"
+    );
+    let saved = document.save().expect("save after removal");
+
+    let package = Package::open(&saved).expect("reopen after removal");
+    let document_xml_bytes = package
+        .part_bytes(&PartName::new("/word/document.xml").unwrap())
+        .expect("document.xml");
+    let mutated_xml = std::str::from_utf8(document_xml_bytes).expect("utf8");
+
+    // Every OTHER paragraph's own markup — the inline picture, the anchored shape, the VML text
+    // box, the OLE object — is byte-identical to what the fixture originally authored.
     for (index, paragraph) in original_paragraphs.iter().enumerate() {
         if index == 1 {
             continue;
         }
         assert!(
             mutated_xml.contains(paragraph.as_str()),
-            "paragraph {index} changed when only paragraph 1's anchor should have"
+            "paragraph {index} changed when only paragraph 1's drawing should have been removed"
         );
     }
+    assert!(
+        !mutated_xml.contains("Picture 2"),
+        "the removed drawing's own docPr is still present:\n{mutated_xml}"
+    );
 
-    // Rebuild a package from the mutated document.xml and confirm every OTHER part (media, rels,
-    // content types) is untouched.
-    let blank = Document::blank(PageSize::a4()).expect("blank");
-    let saved = blank.save().expect("save");
-    let mut original_package = Package::open(&saved).expect("reopen");
-    let document_part = PartName::new("/word/document.xml").expect("a valid part name");
-    add_fixture_parts(&mut original_package, &document_part);
-    original_package
-        .replace_part_bytes(&document_part, original_xml.clone().into_bytes())
-        .expect("replace with original");
-    let original_saved = original_package.save_unchecked().expect("save original");
+    // Its own media part and relationship are gone — no orphan under Package::validate.
+    package.validate().expect("package is valid after removal");
+    assert!(package
+        .part_bytes(&PartName::new("/word/media/image2.png").unwrap())
+        .is_none());
 
-    let blank2 = Document::blank(PageSize::a4()).expect("blank");
-    let saved2 = blank2.save().expect("save");
-    let mut mutated_package = Package::open(&saved2).expect("reopen");
-    add_fixture_parts(&mut mutated_package, &document_part);
-    mutated_package
-        .replace_part_bytes(&document_part, mutated_xml.into_bytes())
-        .expect("replace with mutated");
-    let mutated_saved = mutated_package.save_unchecked().expect("save mutated");
-
-    let original_reopened = Package::open(&original_saved).expect("reopen original");
-    let mutated_reopened = Package::open(&mutated_saved).expect("reopen mutated");
+    // Every OTHER media/embedding part is untouched, byte-for-byte, against the original package.
+    let original_package = Package::open(&original_saved).expect("reopen original");
     for part in [
         "/word/media/image1.png",
-        "/word/media/image2.png",
         "/word/media/image3.png",
         "/word/embeddings/oleObject1.bin",
-        "/word/_rels/document.xml.rels",
-        "/[Content_Types].xml",
     ] {
         let name = PartName::new(part).expect("a valid part name");
         assert_eq!(
-            original_reopened.part_bytes(&name),
-            mutated_reopened.part_bytes(&name),
-            "{part} changed when only the second drawing's anchor should have"
+            original_package.part_bytes(&name),
+            package.part_bytes(&name),
+            "{part} changed when only the second drawing should have been removed"
         );
     }
 }
