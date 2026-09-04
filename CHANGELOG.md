@@ -50,6 +50,37 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.91] - 2026-09-04
+
+Word tables (MJXOFF-116, Phase C position 12): the grid, rows, cells, spans and structural edits —
+`crates/mjx-docx/src/document/tables.rs`.
+
+**`CT_Tbl`/`CT_Row`/`CT_Tc` are typed, and `w:tbl` stops being opaque.** `BlockContent::Table` (MJXOFF-92's
+own enum, shared by `Body`, `HdrFtr` and now a table cell) carries the new `Table` model instead of
+`Unmodeled`, so a table nests inside a cell for free — the same enum, no depth counter of its own,
+bounded by the parse-time nesting limit `mjx-xml` already enforces. `BlockContent` also grows
+`Properties(CellProperties)` for `w:tcPr`, mapped (never constructed) by `Body` and `HdrFtr` for the
+same exhaustive-match reason `SectionProperties` already is.
+
+**Word's vertical merge is a continuation model, not a span model**, and the grid resolution and
+structural edits are built on that distinction (ECMA-376 Part 1 §17.4.84, Annex L.1.5.9): `w:gridSpan`
+states a horizontal span in one place with no covered cell created, but `w:vMerge` states a vertical
+merge by repeating a bare marker on every covered row's own `w:tc` — so a row's physical cell count is
+not its column count, and `(row, column)` addressing (`Table::cell`/`cell_span`/`merge_anchor`) walks
+each row accumulating `gridSpan` rather than indexing directly. `Document::cell_span`/
+`merged_cell_anchor` mirror `mjx_pptx::Presentation`'s own names, `(row, column)` argument order and
+return shape. `insert_row`/`remove_row` rewrite `w:vMerge` markers (a removed anchor row promotes the
+cell below it, which takes over the whole removed cell's content); `insert_column`/`remove_column` grow
+or shrink a straddled `w:gridSpan` — none of the four needs a `rowSpan` number to keep in step, because
+Word's own model never has one. `Table::grid_discrepancies` is the active surface for a malformed grid
+(a short row, an orphaned `w:vMerge` continuation, an empty row) real files can carry — exposed, never
+panicked on.
+
+Fixture: `tests/fixtures/ragged_table.docx`, a hand-authored, deliberately ragged 4×4 table (no
+committed Word fixture carried a `w:tbl` before this) — a `w:gridSpan="2"` in a different place in
+three of its four rows and a three-row `w:vMerge`, so cell index and grid column genuinely disagree
+in three of four rows.
+
 ## [0.0.90] - 2026-09-04
 
 Word headers and footers (MJXOFF-113, Phase C position 11): `CT_HdrFtr`, variant resolution, and the
