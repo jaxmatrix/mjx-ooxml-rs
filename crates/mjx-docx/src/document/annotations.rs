@@ -33,7 +33,7 @@
 //! only `w:type` does. [`FootnoteEndnote::is_user_visible`] reads `w:type`, never `w:id`, and
 //! [`Footnotes::user_footnotes`]/[`Endnotes::user_endnotes`] filter on it — excluding the reserved
 //! entries from the user-visible list is a `w:type` check, not an id range check. On authoring a fresh
-//! part ([`Footnotes::blank`]/[`Endnotes::blank`]), this crate follows the common real-world
+//! part ([`Footnotes::seed_reserved_entries`]/[`Endnotes::seed_reserved_entries`]), this crate follows the common real-world
 //! convention (`-1` separator, `0` continuation separator) since it is what a reader most likely to
 //! expect a hand-authored file to look like, but a `w:type` check is what makes that choice
 //! non-load-bearing.
@@ -312,31 +312,37 @@ const RESERVED_SEPARATOR_ID: i64 = -1;
 const RESERVED_CONTINUATION_SEPARATOR_ID: i64 = 0;
 
 impl Footnotes {
-    /// Builds a brand-new `word/footnotes.xml` root carrying **only** the two reserved entries (`-1`
-    /// separator, `0` continuationSeparator) every footnotes part needs — Word repairs a file that
-    /// lacks them (this module's own doc comment). No user footnote yet; [`Document::add_footnote`]
-    /// appends those.
-    #[must_use]
-    pub(crate) fn blank(interner: &mut Interner) -> Self {
-        Self {
-            name: wml_name(interner, "footnotes"),
-            attributes: Vec::new(),
-            empty: false,
-            content: vec![
-                FootnotesContent::Footnote(FootnoteEndnote::reserved(
-                    interner,
-                    "footnote",
-                    RESERVED_SEPARATOR_ID,
-                    FootnoteEndnoteType::Separator,
-                )),
-                FootnotesContent::Footnote(FootnoteEndnote::reserved(
-                    interner,
-                    "footnote",
-                    RESERVED_CONTINUATION_SEPARATOR_ID,
-                    FootnoteEndnoteType::ContinuationSeparator,
-                )),
-            ],
-        }
+    /// Pushes the two reserved entries (`-1` separator, `0` continuationSeparator) every footnotes
+    /// part needs onto `self` — Word repairs a file that lacks them (this module's own doc
+    /// comment). No user footnote yet; [`Document::add_footnote`] appends those.
+    ///
+    /// Deliberately **not** a constructor (there is no `Footnotes::blank() -> Self` any more).
+    /// [`create_footnotes_part`](super::Document::create_footnotes_part) parses its literal
+    /// template bytes (`headers::initial_bytes`'s own sibling, which already declares `xmlns:w`)
+    /// with [`FromXml::from_xml`](mjx_ooxml_core::FromXml::from_xml) into a real `Footnotes` value
+    /// *first*, then calls this on it — a constructor building `Self` from nothing would need
+    /// `attributes: Vec::new()`, discarding the `xmlns:w` the parse just preserved. Once
+    /// `write_back` reinstates that empty `attributes` on the root, `w:footnote`'s own `w:` prefix
+    /// has nothing declaring it: reopening the document then reads every child with no namespace,
+    /// and the part appears empty. Found writing MJXOFF-139's own walkthrough, reproduced directly
+    /// against this crate's own public API (`Document::add_footnote` → `save` → `Document::open`),
+    /// independent of the facade.
+    pub(crate) fn seed_reserved_entries(&mut self, interner: &mut Interner) {
+        self.content
+            .push(FootnotesContent::Footnote(FootnoteEndnote::reserved(
+                interner,
+                "footnote",
+                RESERVED_SEPARATOR_ID,
+                FootnoteEndnoteType::Separator,
+            )));
+        self.content
+            .push(FootnotesContent::Footnote(FootnoteEndnote::reserved(
+                interner,
+                "footnote",
+                RESERVED_CONTINUATION_SEPARATOR_ID,
+                FootnoteEndnoteType::ContinuationSeparator,
+            )));
+        self.empty = false;
     }
 
     /// Every entry in the part, reserved separator entries included, in document order. Prefer
@@ -397,28 +403,23 @@ impl Footnotes {
 }
 
 impl Endnotes {
-    /// As [`Footnotes::blank`], for endnotes.
-    #[must_use]
-    pub(crate) fn blank(interner: &mut Interner) -> Self {
-        Self {
-            name: wml_name(interner, "endnotes"),
-            attributes: Vec::new(),
-            empty: false,
-            content: vec![
-                EndnotesContent::Endnote(FootnoteEndnote::reserved(
-                    interner,
-                    "endnote",
-                    RESERVED_SEPARATOR_ID,
-                    FootnoteEndnoteType::Separator,
-                )),
-                EndnotesContent::Endnote(FootnoteEndnote::reserved(
-                    interner,
-                    "endnote",
-                    RESERVED_CONTINUATION_SEPARATOR_ID,
-                    FootnoteEndnoteType::ContinuationSeparator,
-                )),
-            ],
-        }
+    /// As [`Footnotes::seed_reserved_entries`], for endnotes.
+    pub(crate) fn seed_reserved_entries(&mut self, interner: &mut Interner) {
+        self.content
+            .push(EndnotesContent::Endnote(FootnoteEndnote::reserved(
+                interner,
+                "endnote",
+                RESERVED_SEPARATOR_ID,
+                FootnoteEndnoteType::Separator,
+            )));
+        self.content
+            .push(EndnotesContent::Endnote(FootnoteEndnote::reserved(
+                interner,
+                "endnote",
+                RESERVED_CONTINUATION_SEPARATOR_ID,
+                FootnoteEndnoteType::ContinuationSeparator,
+            )));
+        self.empty = false;
     }
 
     /// As [`Footnotes::footnotes`], for endnotes.

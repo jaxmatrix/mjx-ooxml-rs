@@ -340,3 +340,95 @@ fn a_hyperlink_anchor_resolves_through_the_bookmark_index() {
         .expect("Target exists");
     assert!(matches!(resolution, BookmarkResolution::Resolved { .. }));
 }
+
+// -------------------------------------------------------------------------------------------
+// Regression (found by MJXOFF-139's own walkthrough): a footnote/endnote added through
+// `add_footnote`/`add_endnote` on a document with no existing footnotes/endnotes part must
+// survive `save` → `Document::open`, reserved entries included. `create_footnotes_part` used to
+// populate those reserved entries by writing back a fresh `Footnotes::blank()` — built with
+// `attributes: Vec::new()` — over a root that had just been parsed from the literal template
+// (`<w:footnotes xmlns:w="...">`), discarding the `xmlns:w` that parse preserved. The saved bytes
+// then had every `w:footnote` child under an `xmlns:w`-less `w:footnotes` root: schema-valid
+// prefix use with no declaration in scope, so re-parsing it correctly finds no `w:` elements at
+// all and every one of `Document::footnotes`'s three entries (two reserved, one user) vanishes.
+// `Footnotes::seed_reserved_entries`/`Endnotes::seed_reserved_entries` fix this by mutating the
+// already-`FromXml`-parsed value in place, keeping whatever attributes the real root carried.
+// -------------------------------------------------------------------------------------------
+
+#[test]
+fn a_footnote_added_to_a_document_with_no_footnotes_part_survives_save_and_reopen() {
+    let mut document = Document::blank(PageSize::a4()).expect("blank");
+    let id = document
+        .add_footnote(0, "a footnote")
+        .expect("add_footnote creates word/footnotes.xml");
+
+    let bytes = document.save().expect("save");
+
+    // The saved bytes must actually declare the namespace every `w:footnote` child uses — the
+    // exact defect: a raw-byte check, not only a re-parsed one, so a fix that merely made the
+    // *reader* more lenient (rather than fixing the *writer*) would not satisfy this.
+    let raw_package = mjx_opc::Package::open(&bytes).expect("reopen as a raw package");
+    let footnotes_part = mjx_opc::PartName::new("/word/footnotes.xml").expect("part name");
+    let raw_bytes = raw_package
+        .part_bytes(&footnotes_part)
+        .expect("word/footnotes.xml is present");
+    let raw_xml = String::from_utf8_lossy(raw_bytes);
+    assert!(
+        raw_xml.contains("xmlns:w="),
+        "word/footnotes.xml's root does not declare xmlns:w: {raw_xml}"
+    );
+
+    let mut reopened = Document::open(&bytes).expect("reopen");
+    reopened
+        .footnotes(|footnotes, interner| {
+            assert_eq!(
+                footnotes.footnotes().count(),
+                3,
+                "the two reserved entries plus the one user footnote"
+            );
+            assert_eq!(
+                footnotes.user_footnotes(interner).count(),
+                1,
+                "only the user footnote is user-visible"
+            );
+            let note = footnotes
+                .footnote(interner, id)
+                .expect("the added footnote resolves by its own id");
+            assert_eq!(note.text(), "a footnote");
+        })
+        .expect("footnotes")
+        .expect("word/footnotes.xml exists after reopen");
+}
+
+#[test]
+fn an_endnote_added_to_a_document_with_no_endnotes_part_survives_save_and_reopen() {
+    let mut document = Document::blank(PageSize::a4()).expect("blank");
+    let id = document
+        .add_endnote(0, "an endnote")
+        .expect("add_endnote creates word/endnotes.xml");
+
+    let bytes = document.save().expect("save");
+    let raw_package = mjx_opc::Package::open(&bytes).expect("reopen as a raw package");
+    let endnotes_part = mjx_opc::PartName::new("/word/endnotes.xml").expect("part name");
+    let raw_bytes = raw_package
+        .part_bytes(&endnotes_part)
+        .expect("word/endnotes.xml is present");
+    let raw_xml = String::from_utf8_lossy(raw_bytes);
+    assert!(
+        raw_xml.contains("xmlns:w="),
+        "word/endnotes.xml's root does not declare xmlns:w: {raw_xml}"
+    );
+
+    let mut reopened = Document::open(&bytes).expect("reopen");
+    reopened
+        .endnotes(|endnotes, interner| {
+            assert_eq!(endnotes.endnotes().count(), 3);
+            assert_eq!(endnotes.user_endnotes(interner).count(), 1);
+            let note = endnotes
+                .endnote(interner, id)
+                .expect("the added endnote resolves by its own id");
+            assert_eq!(note.text(), "an endnote");
+        })
+        .expect("endnotes")
+        .expect("word/endnotes.xml exists after reopen");
+}
