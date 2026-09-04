@@ -80,4 +80,26 @@ pub enum DocxError {
         /// Why the size was refused.
         reason: &'static str,
     },
+
+    /// A style sheet has no style with this `styleId` — returned by [`crate::StyleIndex`] when the
+    /// *starting* point of a lookup or a `w:basedOn` walk does not resolve (an *ancestor* the walk
+    /// cannot resolve is not an error — see [`crate::StyleIndex::based_on_chain`]'s own doc
+    /// comment).
+    #[error("no style with styleId {0:?}")]
+    UnknownStyleId(String),
+
+    /// A `w:basedOn` chain starting at `style_id` did not terminate within `limit` steps — almost
+    /// certainly a cycle (`w:basedOn` pointing back at an ancestor, directly or indirectly) rather
+    /// than a legitimately deep hierarchy. See [`crate::MAX_BASED_ON_CHAIN_DEPTH`]'s own doc comment
+    /// for why a bounded depth, not a visited-set, is how this is detected.
+    #[error(
+        "w:basedOn chain starting at styleId {style_id:?} did not terminate within {limit} steps \
+         (likely a cycle)"
+    )]
+    BasedOnChainTooDeep {
+        /// The style the chain walk started from.
+        style_id: String,
+        /// The bound that was exceeded.
+        limit: usize,
+    },
 }
