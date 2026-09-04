@@ -2325,6 +2325,21 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
          its own attributes",
     ),
     (
+        "SECTION_PROPERTIES",
+        "wml",
+        "CT_SectPr",
+        "A section's own header/footer references, page, column and layout properties, and its \
+         change-tracking wrapper (`w:sectPr`) — `CT_SectPrBase`'s children with `EG_HdrFtrReferences` \
+         ahead of them and `sectPrChange` after",
+    ),
+    (
+        "PAGE_BORDERS",
+        "wml",
+        "CT_PageBorders",
+        "The four borders drawn around every page in a section (`w:pgBorders`): top, left, bottom, \
+         right",
+    ),
+    (
         "PARAGRAPH_PROPERTIES_GENERAL",
         "wml",
         "CT_PPrGeneral",
