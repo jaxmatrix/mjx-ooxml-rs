@@ -44608,7 +44608,7 @@ pub static RUN_PROPERTIES: &ChildOrder = &WML_TYPES[178];
 pub static SECTION_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[211];
 
 /// `CT_PPrBase`'s children plus the tracked-change wrapper, with neither a run's own properties nor a section's — what `w:docDefaults`, a style definition, a numbering level and a table style override all carry as their own `w:pPr` (`CT_PPrGeneral`, `wml.xsd`).
-pub static GENERAL_PARAGRAPH_PROPERTIES: &ChildOrder = &WML_TYPES[157];
+pub static PARAGRAPH_PROPERTIES_GENERAL: &ChildOrder = &WML_TYPES[157];
 
 /// A document's own default run and paragraph properties (`w:docDefaults`), the bottom rung of the style-resolution ladder (`CT_DocDefaults`, `wml.xsd`).
 pub static DOCUMENT_DEFAULTS: &ChildOrder = &WML_TYPES[43];

@@ -2325,7 +2325,7 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
          its own attributes",
     ),
     (
-        "GENERAL_PARAGRAPH_PROPERTIES",
+        "PARAGRAPH_PROPERTIES_GENERAL",
         "wml",
         "CT_PPrGeneral",
         "`CT_PPrBase`'s children plus the tracked-change wrapper, with neither a run's own \
