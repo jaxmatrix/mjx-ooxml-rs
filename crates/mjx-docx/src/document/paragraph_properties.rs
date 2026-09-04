@@ -85,7 +85,7 @@ use mjx_ooxml_types::wordprocessingml::{
     VerticalTextAlignment,
 };
 
-use super::body::{wml_name, Unmodeled};
+use super::body::wml_name;
 use super::run_properties::{
     Border, CharacterStyle, Color, EastAsianLayout, Emphasis, Fonts, HalfPointMeasureValue,
     Highlight, Languages, ManualRunWidth, Shading, SignedHalfPointMeasureValue, SignedTwips,
@@ -1107,10 +1107,10 @@ pub enum NumberingPropertyContent {
     /// `w:numId` (`CT_DecimalNumber`) — the numbering definition instance this paragraph uses. What
     /// it resolves to is MJXOFF-109's numbering definitions.
     Definition(DecimalNumberValue),
-    /// `w:numberingChange` (`CT_TrackChangeNumbering`) — MJXOFF-126's tracked-change semantics.
-    NumberingChange(Unmodeled),
+    /// `w:numberingChange` (`CT_TrackChangeNumbering`) — MJXOFF-126.
+    NumberingChange(super::revisions::TrackChangeNumbering),
     /// `w:ins` (`CT_TrackChange`) — marks the whole `w:numPr` as tracked-inserted; MJXOFF-126.
-    Inserted(Unmodeled),
+    Inserted(super::revisions::TrackChangeMarker),
     /// Any other child — preserved verbatim.
     Raw(RawNode),
 }
@@ -1129,8 +1129,8 @@ pub struct NumberingProperties {
         children,
         child(local = "ilvl", variant = Level, ty = DecimalNumberValue),
         child(local = "numId", variant = Definition, ty = DecimalNumberValue),
-        child(local = "numberingChange", variant = NumberingChange, ty = Unmodeled),
-        child(local = "ins", variant = Inserted, ty = Unmodeled)
+        child(local = "numberingChange", variant = NumberingChange, ty = super::revisions::TrackChangeNumbering),
+        child(local = "ins", variant = Inserted, ty = super::revisions::TrackChangeMarker)
     )]
     content: Vec<NumberingPropertyContent>,
 }
@@ -1199,6 +1199,24 @@ impl NumberingProperties {
         "numId",
         "`w:numId` — the numbering definition instance this paragraph uses."
     );
+
+    /// The tracked-change numbering wrapper (`w:numberingChange`), or `None` if absent — MJXOFF-126.
+    #[must_use]
+    pub fn numbering_change(&self) -> Option<&super::revisions::TrackChangeNumbering> {
+        self.content.iter().find_map(|item| match item {
+            NumberingPropertyContent::NumberingChange(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// The tracked-insertion marker for this whole `w:numPr` (`w:ins`), or `None` if absent.
+    #[must_use]
+    pub fn inserted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            NumberingPropertyContent::Inserted(marker) => Some(marker),
+            _ => None,
+        })
+    }
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1213,13 +1231,13 @@ impl NumberingProperties {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParagraphMarkRunPropertyContent {
     /// `w:ins` (`CT_TrackChange`) — MJXOFF-126.
-    Inserted(Unmodeled),
+    Inserted(super::revisions::TrackChangeMarker),
     /// `w:del` (`CT_TrackChange`) — MJXOFF-126.
-    Deleted(Unmodeled),
+    Deleted(super::revisions::TrackChangeMarker),
     /// `w:moveFrom` (`CT_TrackChange`) — MJXOFF-126.
-    MovedFrom(Unmodeled),
+    MovedFrom(super::revisions::TrackChangeMarker),
     /// `w:moveTo` (`CT_TrackChange`) — MJXOFF-126.
-    MovedTo(Unmodeled),
+    MovedTo(super::revisions::TrackChangeMarker),
     /// `w:rStyle` (§17.3.2.29) — the paragraph mark's referenced character style.
     CharacterStyle(CharacterStyle),
     /// `w:rFonts` (§17.3.2.26).
@@ -1301,8 +1319,8 @@ pub enum ParagraphMarkRunPropertyContent {
     AlwaysHidden(Toggle),
     /// `w:oMath` (§17.3.2.22) — `CT_OnOff`, like the other nineteen toggles.
     Math(Toggle),
-    /// `w:rPrChange` (`CT_ParaRPrChange`) — MJXOFF-126's own scope, kept opaque here.
-    Change(Unmodeled),
+    /// `w:rPrChange` (`CT_ParaRPrChange`) — MJXOFF-126.
+    Change(super::revisions::ParagraphMarkPropertiesChange),
     /// Any other child — an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -1327,10 +1345,10 @@ pub struct ParagraphMarkRunProperties {
     empty: bool,
     #[xml(
         children,
-        child(local = "ins", variant = Inserted, ty = Unmodeled),
-        child(local = "del", variant = Deleted, ty = Unmodeled),
-        child(local = "moveFrom", variant = MovedFrom, ty = Unmodeled),
-        child(local = "moveTo", variant = MovedTo, ty = Unmodeled),
+        child(local = "ins", variant = Inserted, ty = super::revisions::TrackChangeMarker),
+        child(local = "del", variant = Deleted, ty = super::revisions::TrackChangeMarker),
+        child(local = "moveFrom", variant = MovedFrom, ty = super::revisions::TrackChangeMarker),
+        child(local = "moveTo", variant = MovedTo, ty = super::revisions::TrackChangeMarker),
         child(local = "rStyle", variant = CharacterStyle, ty = CharacterStyle),
         child(local = "rFonts", variant = Fonts, ty = Fonts),
         child(local = "b", variant = Bold, ty = Toggle),
@@ -1370,7 +1388,7 @@ pub struct ParagraphMarkRunProperties {
         child(local = "eastAsianLayout", variant = EastAsianLayout, ty = EastAsianLayout),
         child(local = "specVanish", variant = AlwaysHidden, ty = Toggle),
         child(local = "oMath", variant = Math, ty = Toggle),
-        child(local = "rPrChange", variant = Change, ty = Unmodeled)
+        child(local = "rPrChange", variant = Change, ty = super::revisions::ParagraphMarkPropertiesChange)
     )]
     content: Vec<ParagraphMarkRunPropertyContent>,
 }
@@ -1720,6 +1738,53 @@ impl ParagraphMarkRunProperties {
         "eastAsianLayout",
         "`w:eastAsianLayout` — the paragraph mark's East Asian typography settings."
     );
+
+    /// The paragraph mark's own tracked-insertion marker (`w:ins`), or `None` if absent —
+    /// MJXOFF-126.
+    #[must_use]
+    pub fn inserted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            ParagraphMarkRunPropertyContent::Inserted(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// The paragraph mark's own tracked-deletion marker (`w:del`), or `None` if absent.
+    #[must_use]
+    pub fn deleted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            ParagraphMarkRunPropertyContent::Deleted(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// The paragraph mark's own `w:moveFrom` marker, or `None` if absent.
+    #[must_use]
+    pub fn moved_from(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            ParagraphMarkRunPropertyContent::MovedFrom(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// The paragraph mark's own `w:moveTo` marker, or `None` if absent.
+    #[must_use]
+    pub fn moved_to(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            ParagraphMarkRunPropertyContent::MovedTo(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// The tracked-change wrapper around this paragraph mark's own *previous* run properties
+    /// (`w:rPrChange`), or `None` if absent.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::ParagraphMarkPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            ParagraphMarkRunPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1816,9 +1881,8 @@ pub enum ParagraphPropertyContent {
     /// that section's own last paragraph** — see `sections.rs`'s own module doc for why reading this
     /// as "the following content's properties" gets every multi-section document wrong.
     SectionProperties(super::sections::SectionProperties),
-    /// `w:pPrChange` (`CT_PPrChange`) — the tracked-change wrapper around a previous `w:pPr`;
-    /// MJXOFF-126's own scope, kept opaque here.
-    Change(Unmodeled),
+    /// `w:pPrChange` (`CT_PPrChange`) — the tracked-change wrapper around a previous `w:pPr`.
+    Change(super::revisions::ParagraphPropertiesChange),
     /// Any other child — an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -1871,7 +1935,7 @@ pub struct ParagraphProperties {
         child(local = "cnfStyle", variant = ConditionalFormatting, ty = ConditionalFormatting),
         child(local = "rPr", variant = ParagraphMarkProperties, ty = ParagraphMarkRunProperties),
         child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
-        child(local = "pPrChange", variant = Change, ty = Unmodeled)
+        child(local = "pPrChange", variant = Change, ty = super::revisions::ParagraphPropertiesChange)
     )]
     content: Vec<ParagraphPropertyContent>,
 }
@@ -2312,10 +2376,18 @@ impl ParagraphProperties {
     }
 
     /// The tracked-change wrapper around a previous `w:pPr` (`w:pPrChange`), or `None` if this
-    /// `w:pPr` carries none. Its semantics are MJXOFF-126's.
+    /// `w:pPr` carries none.
     #[must_use]
-    pub fn change(&self) -> Option<&Unmodeled> {
+    pub fn change(&self) -> Option<&super::revisions::ParagraphPropertiesChange> {
         self.content.iter().find_map(|item| match item {
+            ParagraphPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`ParagraphProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::ParagraphPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
             ParagraphPropertyContent::Change(change) => Some(change),
             _ => None,
         })

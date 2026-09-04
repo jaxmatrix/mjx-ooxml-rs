@@ -1385,6 +1385,10 @@ pub enum TablePropertyContent {
     Caption(TableStringValue),
     /// `w:tblDescription`.
     Description(TableStringValue),
+    /// `w:tblPrChange` (`CT_TblPrChange`) — the tracked-change wrapper around a previous `w:tblPr`.
+    /// `CT_TblPrBase`'s own sequence has no member of this name — it is `CT_TblPr`'s own trailing
+    /// extension — so it is always placed last (see `TableProperties::rank`'s own doc comment).
+    Change(super::revisions::TablePropertiesChange),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
@@ -1417,7 +1421,8 @@ pub struct TableProperties {
         child(local = "tblCellMar", variant = CellMargins, ty = TableCellMargins),
         child(local = "tblLook", variant = Look, ty = TableLook),
         child(local = "tblCaption", variant = Caption, ty = TableStringValue),
-        child(local = "tblDescription", variant = Description, ty = TableStringValue)
+        child(local = "tblDescription", variant = Description, ty = TableStringValue),
+        child(local = "tblPrChange", variant = Change, ty = super::revisions::TablePropertiesChange)
     )]
     content: Vec<TablePropertyContent>,
 }
@@ -1459,7 +1464,14 @@ impl TableProperties {
             TablePropertyContent::Look(_) => "tblLook",
             TablePropertyContent::Caption(_) => "tblCaption",
             TablePropertyContent::Description(_) => "tblDescription",
-            TablePropertyContent::Raw(_) => return None,
+            // `w:tblPrChange` is `CT_TblPr`'s own trailing extension over `CT_TblPrBase`
+            // (`TABLE_PROPERTIES_BASE` has no such member — confirmed directly against `wml.xsd`,
+            // where `tblPrChange` is the sole, always-last child `CT_TblPr` adds), so it is treated
+            // exactly like `Raw`: unranked, which `insert`'s own `ChildOrder::insert_index_of_names`
+            // (see that method's own doc comment) resolves by skipping it during the ranking scan
+            // and appending a *new* item at the physical end when `local` itself does not resolve —
+            // together, this always keeps `w:tblPrChange` last, which is the only legal position.
+            TablePropertyContent::Change(_) | TablePropertyContent::Raw(_) => return None,
         };
         TABLE_PROPERTIES_BASE.rank_of(None, local)
     }
@@ -1487,6 +1499,26 @@ impl TableProperties {
         if let Some(value) = value {
             self.insert(local, value);
         }
+    }
+
+    /// The tracked-change wrapper around a previous `w:tblPr` (`w:tblPrChange`), or `None` if this
+    /// `w:tblPr` carries none. Real only on a live `w:tbl/w:tblPr`; schema-illegal (but harmlessly
+    /// typed, never authored by this crate there) on `w:tblStylePr/w:tblPr` — see
+    /// [`TablePropertyContent::Change`]'s own doc comment.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::TablePropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            TablePropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`TableProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::TablePropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            TablePropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
     }
 
     /// The table style this table references (`w:tblStyle/@val`), or `None`.
@@ -1746,6 +1778,10 @@ pub enum TableExceptionPropertyContent {
     CellMargins(TableCellMargins),
     /// `w:tblLook`.
     Look(TableLook),
+    /// `w:tblPrExChange` (`CT_TblPrExChange`) — the tracked-change wrapper around a previous
+    /// `w:tblPrEx`. Always last (see `TableProperties::rank`'s own doc comment — the identical
+    /// "trailing extension member" reasoning applies here).
+    Change(super::revisions::TableExceptionPropertiesChange),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
@@ -1770,7 +1806,8 @@ pub struct TableExceptionProperties {
         child(local = "shd", variant = Shading, ty = Shading),
         child(local = "tblLayout", variant = Layout, ty = TableLayout),
         child(local = "tblCellMar", variant = CellMargins, ty = TableCellMargins),
-        child(local = "tblLook", variant = Look, ty = TableLook)
+        child(local = "tblLook", variant = Look, ty = TableLook),
+        child(local = "tblPrExChange", variant = Change, ty = super::revisions::TableExceptionPropertiesChange)
     )]
     content: Vec<TableExceptionPropertyContent>,
 }
@@ -1805,7 +1842,11 @@ impl TableExceptionProperties {
             TableExceptionPropertyContent::Layout(_) => "tblLayout",
             TableExceptionPropertyContent::CellMargins(_) => "tblCellMar",
             TableExceptionPropertyContent::Look(_) => "tblLook",
-            TableExceptionPropertyContent::Raw(_) => return None,
+            // `w:tblPrExChange` is `CT_TblPrEx`'s own trailing extension over `CT_TblPrExBase` —
+            // see `TableProperties::rank`'s own doc comment for the identical reasoning.
+            TableExceptionPropertyContent::Change(_) | TableExceptionPropertyContent::Raw(_) => {
+                return None
+            }
         };
         TABLE_EXCEPTION_PROPERTIES_BASE.rank_of(None, local)
     }
@@ -1913,6 +1954,24 @@ impl TableExceptionProperties {
         "tblLook",
         "`w:tblLook`."
     );
+
+    /// The tracked-change wrapper around a previous `w:tblPrEx` (`w:tblPrExChange`), or `None` if
+    /// this `w:tblPrEx` carries none.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::TableExceptionPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            TableExceptionPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`TableExceptionProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::TableExceptionPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            TableExceptionPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
 }
 
 // -------------------------------------------------------------------------------------------
@@ -1949,6 +2008,14 @@ pub enum RowPropertyContent {
     Justification(TableAlignment),
     /// `w:hidden`.
     Hidden(Toggle),
+    /// `w:ins` (`CT_TrackChange`) — marks the whole row as tracked-inserted. `CT_TrPr`'s own
+    /// trailing extension over `CT_TrPrBase`, always ordered before [`RowPropertyContent::Deleted`]/
+    /// [`RowPropertyContent::Change`] (see `RowProperties::insert_trailing`'s own doc comment).
+    Inserted(super::revisions::TrackChangeMarker),
+    /// `w:del` (`CT_TrackChange`) — marks the whole row as tracked-deleted.
+    Deleted(super::revisions::TrackChangeMarker),
+    /// `w:trPrChange` (`CT_TrPrChange`) — the tracked-change wrapper around a previous `w:trPr`.
+    Change(super::revisions::RowPropertiesChange),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
@@ -1975,7 +2042,10 @@ pub struct RowProperties {
         child(local = "tblHeader", variant = TableHeader, ty = Toggle),
         child(local = "tblCellSpacing", variant = CellSpacing, ty = TableWidth),
         child(local = "jc", variant = Justification, ty = TableAlignment),
-        child(local = "hidden", variant = Hidden, ty = Toggle)
+        child(local = "hidden", variant = Hidden, ty = Toggle),
+        child(local = "ins", variant = Inserted, ty = super::revisions::TrackChangeMarker),
+        child(local = "del", variant = Deleted, ty = super::revisions::TrackChangeMarker),
+        child(local = "trPrChange", variant = Change, ty = super::revisions::RowPropertiesChange)
     )]
     content: Vec<RowPropertyContent>,
 }
@@ -2012,9 +2082,29 @@ impl RowProperties {
             RowPropertyContent::CellSpacing(_) => "tblCellSpacing",
             RowPropertyContent::Justification(_) => "jc",
             RowPropertyContent::Hidden(_) => "hidden",
-            RowPropertyContent::Raw(_) => return None,
+            // `ins`/`del`/`trPrChange` are `CT_TrPr`'s own trailing extension over `CT_TrPrBase`
+            // (`TABLE_ROW_PROPERTIES_BASE` has no member of any of these three names) — unranked
+            // here for the same reason `TableProperties::rank` treats `w:tblPrChange` as unranked,
+            // but placing *these three* correctly relative to each other additionally needs
+            // [`RowProperties::insert_trailing`], since there are three of them with their own fixed
+            // relative order, not one.
+            RowPropertyContent::Inserted(_)
+            | RowPropertyContent::Deleted(_)
+            | RowPropertyContent::Change(_)
+            | RowPropertyContent::Raw(_) => return None,
         };
         TABLE_ROW_PROPERTIES_BASE.rank_of(None, local)
+    }
+
+    /// The fixed relative order of `CT_TrPr`'s three trailing extension members — `ins, del,
+    /// trPrChange`, confirmed directly against `wml.xsd`. `None` for every base member and `Raw`.
+    fn trailing_rank(item: &RowPropertyContent) -> Option<u8> {
+        match item {
+            RowPropertyContent::Inserted(_) => Some(0),
+            RowPropertyContent::Deleted(_) => Some(1),
+            RowPropertyContent::Change(_) => Some(2),
+            _ => None,
+        }
     }
 
     fn remove(&mut self, is_target: impl Fn(&RowPropertyContent) -> bool) {
@@ -2030,6 +2120,29 @@ impl RowProperties {
         self.empty = false;
     }
 
+    /// Inserts one of the three trailing extension members (`ins`/`del`/`trPrChange`) at its own
+    /// fixed relative position among whichever of the other two are already present — unlike
+    /// [`RowProperties::insert`], which (correctly, for every *base* member) always appends an
+    /// unranked new item at the absolute end, which would put e.g. a freshly-set `w:ins` *after* an
+    /// already-present `w:trPrChange`, violating `CT_TrPr`'s own fixed order. Finds the first
+    /// existing trailing member whose own [`RowProperties::trailing_rank`] is `>=` the new item's —
+    /// inserting immediately before it — or appends at the very end when none is found (also
+    /// correct: nothing may legally follow these three).
+    fn insert_trailing(&mut self, item: RowPropertyContent) {
+        let priority = Self::trailing_rank(&item).unwrap_or_else(|| {
+            unreachable!("insert_trailing is only called with a trailing variant")
+        });
+        let at = self
+            .content
+            .iter()
+            .position(|existing| {
+                Self::trailing_rank(existing).is_some_and(|other| other >= priority)
+            })
+            .unwrap_or(self.content.len());
+        self.content.insert(at, item);
+        self.empty = false;
+    }
+
     fn set(
         &mut self,
         local: &str,
@@ -2040,6 +2153,69 @@ impl RowProperties {
         if let Some(value) = value {
             self.insert(local, value);
         }
+    }
+
+    fn set_trailing(
+        &mut self,
+        is_target: impl Fn(&RowPropertyContent) -> bool,
+        value: Option<RowPropertyContent>,
+    ) {
+        self.remove(is_target);
+        if let Some(value) = value {
+            self.insert_trailing(value);
+        }
+    }
+
+    /// The row's own tracked-insertion marker (`w:ins`), or `None` if absent.
+    #[must_use]
+    pub fn inserted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            RowPropertyContent::Inserted(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// The row's own tracked-deletion marker (`w:del`), or `None` if absent.
+    #[must_use]
+    pub fn deleted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            RowPropertyContent::Deleted(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// The tracked-change wrapper around a previous `w:trPr` (`w:trPrChange`), or `None` if this
+    /// `w:trPr` carries none.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::RowPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            RowPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`RowProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::RowPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            RowPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// Sets (or clears) this row's own tracked-insertion marker.
+    pub fn set_inserted(&mut self, marker: Option<super::revisions::TrackChangeMarker>) {
+        self.set_trailing(
+            |item| matches!(item, RowPropertyContent::Inserted(_)),
+            marker.map(RowPropertyContent::Inserted),
+        );
+    }
+
+    /// Sets (or clears) this row's own tracked-deletion marker.
+    pub fn set_deleted(&mut self, marker: Option<super::revisions::TrackChangeMarker>) {
+        self.set_trailing(
+            |item| matches!(item, RowPropertyContent::Deleted(_)),
+            marker.map(RowPropertyContent::Deleted),
+        );
     }
 
     value_property!(

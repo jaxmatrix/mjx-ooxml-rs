@@ -118,7 +118,7 @@ pub struct FieldCharacter {
         children,
         child(local = "fldData", variant = FieldData, ty = Text),
         child(local = "ffData", variant = FormFieldData, ty = FormFieldData),
-        child(local = "numberingChange", variant = NumberingChange, ty = Unmodeled)
+        child(local = "numberingChange", variant = NumberingChange, ty = super::revisions::TrackChangeNumbering)
     )]
     content: Vec<FieldCharacterContent>,
 }
@@ -131,9 +131,10 @@ pub enum FieldCharacterContent {
     /// `w:ffData` (`CT_FFData`) — this child's own type; present only on the `begin` marker of a
     /// form field.
     FormFieldData(FormFieldData),
-    /// `w:numberingChange` (`CT_TrackChangeNumbering`) — tracked-change numbering; MJXOFF-126 owns
-    /// revision semantics, kept opaque here.
-    NumberingChange(Unmodeled),
+    /// `w:numberingChange` (`CT_TrackChangeNumbering`) — MJXOFF-126's own type; typed here since the
+    /// pinned pre-dispatch note's claim that this schema type is unreachable was wrong (see
+    /// `crate::document::revisions`'s own module doc for the correction).
+    NumberingChange(super::revisions::TrackChangeNumbering),
     /// Any other child — preserved verbatim.
     Raw(RawNode),
 }
@@ -1544,7 +1545,23 @@ pub struct SimpleField {
         child(local = "bookmarkStart", variant = BookmarkStart, ty = super::ranges::Bookmark),
         child(local = "bookmarkEnd", variant = BookmarkEnd, ty = super::ranges::MarkupRange),
         child(local = "commentRangeStart", variant = CommentRangeStart, ty = super::ranges::MarkupRange),
-        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange)
+        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "moveFromRangeStart", variant = MoveFromRangeStart, ty = super::revisions::MoveBookmark),
+        child(local = "moveFromRangeEnd", variant = MoveFromRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "moveToRangeStart", variant = MoveToRangeStart, ty = super::revisions::MoveBookmark),
+        child(local = "moveToRangeEnd", variant = MoveToRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "customXmlInsRangeStart", variant = CustomXmlInsRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlInsRangeEnd", variant = CustomXmlInsRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlDelRangeStart", variant = CustomXmlDelRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlDelRangeEnd", variant = CustomXmlDelRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlMoveFromRangeStart", variant = CustomXmlMoveFromRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlMoveFromRangeEnd", variant = CustomXmlMoveFromRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlMoveToRangeStart", variant = CustomXmlMoveToRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlMoveToRangeEnd", variant = CustomXmlMoveToRangeEnd, ty = super::ranges::Markup),
+        child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
+        child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
+        child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
     )]
     content: Vec<ParagraphContent>,
 }

@@ -523,7 +523,23 @@ pub struct Paragraph {
         child(local = "bookmarkStart", variant = BookmarkStart, ty = super::ranges::Bookmark),
         child(local = "bookmarkEnd", variant = BookmarkEnd, ty = super::ranges::MarkupRange),
         child(local = "commentRangeStart", variant = CommentRangeStart, ty = super::ranges::MarkupRange),
-        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange)
+        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "moveFromRangeStart", variant = MoveFromRangeStart, ty = super::revisions::MoveBookmark),
+        child(local = "moveFromRangeEnd", variant = MoveFromRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "moveToRangeStart", variant = MoveToRangeStart, ty = super::revisions::MoveBookmark),
+        child(local = "moveToRangeEnd", variant = MoveToRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "customXmlInsRangeStart", variant = CustomXmlInsRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlInsRangeEnd", variant = CustomXmlInsRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlDelRangeStart", variant = CustomXmlDelRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlDelRangeEnd", variant = CustomXmlDelRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlMoveFromRangeStart", variant = CustomXmlMoveFromRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlMoveFromRangeEnd", variant = CustomXmlMoveFromRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlMoveToRangeStart", variant = CustomXmlMoveToRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlMoveToRangeEnd", variant = CustomXmlMoveToRangeEnd, ty = super::ranges::Markup),
+        child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
+        child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
+        child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -586,7 +602,23 @@ pub struct Hyperlink {
         child(local = "bookmarkStart", variant = BookmarkStart, ty = super::ranges::Bookmark),
         child(local = "bookmarkEnd", variant = BookmarkEnd, ty = super::ranges::MarkupRange),
         child(local = "commentRangeStart", variant = CommentRangeStart, ty = super::ranges::MarkupRange),
-        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange)
+        child(local = "commentRangeEnd", variant = CommentRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "moveFromRangeStart", variant = MoveFromRangeStart, ty = super::revisions::MoveBookmark),
+        child(local = "moveFromRangeEnd", variant = MoveFromRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "moveToRangeStart", variant = MoveToRangeStart, ty = super::revisions::MoveBookmark),
+        child(local = "moveToRangeEnd", variant = MoveToRangeEnd, ty = super::ranges::MarkupRange),
+        child(local = "customXmlInsRangeStart", variant = CustomXmlInsRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlInsRangeEnd", variant = CustomXmlInsRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlDelRangeStart", variant = CustomXmlDelRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlDelRangeEnd", variant = CustomXmlDelRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlMoveFromRangeStart", variant = CustomXmlMoveFromRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlMoveFromRangeEnd", variant = CustomXmlMoveFromRangeEnd, ty = super::ranges::Markup),
+        child(local = "customXmlMoveToRangeStart", variant = CustomXmlMoveToRangeStart, ty = super::revisions::TrackChangeMarker),
+        child(local = "customXmlMoveToRangeEnd", variant = CustomXmlMoveToRangeEnd, ty = super::ranges::Markup),
+        child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
+        child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
+        child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -621,6 +653,14 @@ impl Hyperlink {
     pub(crate) fn append_run(&mut self, run: Run) {
         self.content.push(ParagraphContent::Run(run));
         self.empty = false;
+    }
+
+    /// This hyperlink's own content, in document order — `crate::document::revisions`'s own text
+    /// and revision-collection walks descend through this, exactly as [`Paragraph::content`] does at
+    /// the top level.
+    #[must_use]
+    pub(crate) fn content(&self) -> &[ParagraphContent] {
+        &self.content
     }
 }
 
@@ -681,12 +721,46 @@ pub enum ParagraphContent {
     CommentRangeStart(super::ranges::MarkupRange),
     /// `w:commentRangeEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
     CommentRangeEnd(super::ranges::MarkupRange),
-    /// Any other child — whitespace or an unknown element, or one of `EG_RangeMarkupElements`'s six
-    /// remaining members (`moveFromRangeStart`/`moveToRangeStart`, the four `customXml*RangeStart`/
-    /// `customXml*RangeEnd` pairs) — preserved verbatim. Those six are MJXOFF-126's own semantics
-    /// (the tracked-change "move"/"custom XML change" family this ticket's own scope excludes); see
-    /// `ranges`'s own doc comment for why the range-resolution mechanism below is still
-    /// theirs to reuse once they get typed variants of their own.
+    /// `w:moveFromRangeStart` (`CT_MoveBookmark`), folded in from `EG_RangeMarkupElements` —
+    /// MJXOFF-126's own type; paired with [`ParagraphContent::MoveFromRangeEnd`] by
+    /// `revisions::classify_move_from_range` through MJXOFF-124's own
+    /// [`super::ranges::RangeIndex`].
+    MoveFromRangeStart(super::revisions::MoveBookmark),
+    /// `w:moveFromRangeEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
+    MoveFromRangeEnd(super::ranges::MarkupRange),
+    /// `w:moveToRangeStart` (`CT_MoveBookmark`), folded in from `EG_RangeMarkupElements` —
+    /// paired with [`ParagraphContent::MoveToRangeEnd`] by
+    /// `revisions::classify_move_to_range`.
+    MoveToRangeStart(super::revisions::MoveBookmark),
+    /// `w:moveToRangeEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
+    MoveToRangeEnd(super::ranges::MarkupRange),
+    /// `w:customXmlInsRangeStart` (`CT_TrackChange`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlInsRangeStart(super::revisions::TrackChangeMarker),
+    /// `w:customXmlInsRangeEnd` (`CT_Markup`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlInsRangeEnd(super::ranges::Markup),
+    /// `w:customXmlDelRangeStart` (`CT_TrackChange`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlDelRangeStart(super::revisions::TrackChangeMarker),
+    /// `w:customXmlDelRangeEnd` (`CT_Markup`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlDelRangeEnd(super::ranges::Markup),
+    /// `w:customXmlMoveFromRangeStart` (`CT_TrackChange`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlMoveFromRangeStart(super::revisions::TrackChangeMarker),
+    /// `w:customXmlMoveFromRangeEnd` (`CT_Markup`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlMoveFromRangeEnd(super::ranges::Markup),
+    /// `w:customXmlMoveToRangeStart` (`CT_TrackChange`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlMoveToRangeStart(super::revisions::TrackChangeMarker),
+    /// `w:customXmlMoveToRangeEnd` (`CT_Markup`), folded in from `EG_RangeMarkupElements`.
+    CustomXmlMoveToRangeEnd(super::ranges::Markup),
+    /// `w:ins` (`CT_RunTrackChange`), folded in from `EG_RunLevelElts` — a run-level container of
+    /// tracked-inserted content. See `revisions`'s own top-level doc comment for the one rule every
+    /// mutation path in this crate follows around this and its three siblings below.
+    Ins(super::revisions::RunTrackChange),
+    /// `w:del` (`CT_RunTrackChange`), folded in from `EG_RunLevelElts`.
+    Del(super::revisions::RunTrackChange),
+    /// `w:moveFrom` (`CT_RunTrackChange`), folded in from `EG_RunLevelElts`.
+    MoveFrom(super::revisions::RunTrackChange),
+    /// `w:moveTo` (`CT_RunTrackChange`), folded in from `EG_RunLevelElts`.
+    MoveTo(super::revisions::RunTrackChange),
+    /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
 

@@ -129,7 +129,7 @@ use mjx_ooxml_types::wordprocessingml::{
     DecimalNumber, EightDigitHexadecimalNumber, StyleType, TableStyleOverrideType,
 };
 
-use super::body::{wml_name, Unmodeled};
+use super::body::wml_name;
 use super::paragraph_properties::{
     ConditionalFormatting, DecimalNumberValue, FrameProperties, Indentation, NumberingProperties,
     ParagraphAlignment, ParagraphBorders, ParagraphStyle, ParagraphTextFlowDirection, Spacing,
@@ -400,8 +400,12 @@ pub enum StyleParagraphPropertyContent {
     AssociatedHtmlDivId(DecimalNumberValue),
     /// `w:cnfStyle`.
     ConditionalFormatting(ConditionalFormatting),
-    /// `w:pPrChange` (`CT_PPrChange`) — MJXOFF-126's own scope, kept opaque here.
-    Change(Unmodeled),
+    /// `w:pPrChange` (`CT_PPrChange`) — the tracked-change wrapper around a previous `w:pPr`. Real
+    /// on a live paragraph's own `w:pPr`; schema-illegal (but harmlessly typed rather than dropped
+    /// to `Raw` — see `crate::document::body::Hyperlink`'s own doc comment for the identical,
+    /// established reason) on a style/doc-default/numbering-level `w:pPr`, none of which this crate
+    /// ever authors one on.
+    Change(super::revisions::ParagraphPropertiesChange),
     /// Any other child — an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -453,7 +457,7 @@ pub struct StyleParagraphProperties {
         child(local = "outlineLvl", variant = OutlineLevel, ty = DecimalNumberValue),
         child(local = "divId", variant = AssociatedHtmlDivId, ty = DecimalNumberValue),
         child(local = "cnfStyle", variant = ConditionalFormatting, ty = ConditionalFormatting),
-        child(local = "pPrChange", variant = Change, ty = Unmodeled)
+        child(local = "pPrChange", variant = Change, ty = super::revisions::ParagraphPropertiesChange)
     )]
     content: Vec<StyleParagraphPropertyContent>,
 }
@@ -788,6 +792,26 @@ impl StyleParagraphProperties {
         "divId",
         "`w:divId` — this style's associated HTML `div` id."
     );
+
+    /// The tracked-change wrapper around a previous `w:pPr` (`w:pPrChange`), or `None` if this
+    /// `w:pPr` carries none — real when this is a live paragraph's own properties; schema-illegal
+    /// (see [`StyleParagraphPropertyContent::Change`]'s own doc comment) on a style/doc-default/
+    /// numbering-level `w:pPr`.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::ParagraphPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            StyleParagraphPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`StyleParagraphProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::ParagraphPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            StyleParagraphPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
 }
 
 // -------------------------------------------------------------------------------------------
