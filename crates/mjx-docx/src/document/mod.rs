@@ -43,6 +43,7 @@ mod paragraph_properties;
 mod parts;
 mod property_macros;
 mod run_properties;
+mod sections;
 mod styles;
 
 pub use body::{
@@ -83,6 +84,12 @@ pub use run_properties::{
     RunPropertyContent, Scale, Shading, SignedHalfPoint, SignedHalfPointMeasureValue, SignedTwips,
     SignedTwipsMeasureValue, TextEffect, TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline,
     VerticalAlignment,
+};
+pub use sections::{
+    BottomPageBorder, Column, Columns, ColumnsContent, DocumentGrid, HeaderFooterReference,
+    LineNumbering, PageBorder, PageBorderSet, PageBorderSetContent, PageNumbering,
+    PageVerticalAlignment, PaperSource, SectionLocation, SectionProperties, SectionPropertyContent,
+    SectionSpan, SectionType, TopPageBorder,
 };
 pub use styles::{
     DefaultParagraphProperties, DefaultParagraphPropertyContent, DefaultRunProperties,
@@ -617,6 +624,96 @@ impl Document {
         })?;
         if let Some(properties) = paragraph.properties_mut() {
             properties.set_numbering(None);
+        }
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Every section this document has, in document order — see [`SectionSpan`]'s own doc comment
+    /// for why a section's properties live at the *end* of the range it governs, not the start.
+    /// `read` receives the spans together with the [`mjx_ooxml_core::Interner`] every
+    /// [`SectionProperties`] accessor among them needs, mirroring [`Document::style_sheet`]'s own
+    /// shape exactly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the main document part cannot be read.
+    pub fn sections<R>(
+        &mut self,
+        read: impl FnOnce(&[SectionSpan], &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let spans = sections::sections_in(body);
+        Ok(read(&spans, &doc.interner))
+    }
+
+    /// Edits the `w:sectPr` at `location`, creating an empty one first if it does not already exist
+    /// — the one primitive behind both "change an existing section's properties" (call on a
+    /// [`SectionLocation`] that already carries a `w:sectPr`) and "split the document into a new
+    /// section" (call on a paragraph that carries none yet: the new `w:sectPr` lands inside *that*
+    /// paragraph's own `w:pPr`, ending a section there, exactly where MJXOFF-109's own ticket
+    /// requires it — never appended to the body).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if [`SectionLocation::Paragraph`] does not address a
+    /// paragraph.
+    pub fn edit_section_properties<R>(
+        &mut self,
+        location: SectionLocation,
+        edit: impl FnOnce(&mut SectionProperties, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let result = match location {
+            SectionLocation::Body => {
+                let properties = body.section_properties_or_insert(interner);
+                edit(properties, interner)
+            }
+            SectionLocation::Paragraph(path) => {
+                let paragraph = body
+                    .paragraph_mut(&path)
+                    .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))?;
+                let properties = paragraph
+                    .properties_or_insert(interner)
+                    .section_properties_or_insert(interner);
+                edit(properties, interner)
+            }
+        };
+        main.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Removes the `w:sectPr` at `location`, if it carries one (a no-op otherwise) — "removing a
+    /// section": a paragraph's own section break disappears and its former range joins whatever
+    /// section follows it (see [`SectionSpan`]'s own doc comment).
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if [`SectionLocation::Paragraph`] does not address a
+    /// paragraph.
+    pub fn remove_section_properties(
+        &mut self,
+        location: SectionLocation,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        match location {
+            SectionLocation::Body => body.set_section_properties(None),
+            SectionLocation::Paragraph(path) => {
+                let paragraph = body
+                    .paragraph_mut(&path)
+                    .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))?;
+                if let Some(properties) = paragraph.properties_mut() {
+                    properties.set_section_properties(None);
+                }
+            }
         }
         main.write_back(root, interner);
         Ok(())

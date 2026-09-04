@@ -80,6 +80,23 @@ pub const REL_ENDNOTES: &str =
 pub const REL_MAIL_MERGE_RECIPIENT_DATA: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeRecipientData";
 
+/// The relationship type from a document part to a Printer Settings part (`w:printerSettings@r:id`,
+/// §17.6.14 "printerSettings (Reference to Printer Settings Data)"). Confirmed directly against
+/// Part 1's own worked example for that clause, which quotes the Transitional form of this URI
+/// verbatim (`Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/\
+/// printerSettings"` once substituted for the Strict `purl.oclc.org` form every other constant in
+/// this module already substitutes — see this module's own doc comment for why).
+pub const REL_PRINTER_SETTINGS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings";
+
+/// The content type of a Printer Settings part — a binary part
+/// ([`SectionProperties::printer_settings`](crate::SectionProperties)'s target), never XML, so it is
+/// registered by extension (`Default Extension="bin"`) rather than by an `Override` on a specific
+/// part name in real Office output; kept here anyway as the one string a caller authoring a fresh
+/// Printer Settings part (or a test fixture — see `crates/mjx-docx/tests/sections.rs`) needs.
+pub const CONTENT_TYPE_PRINTER_SETTINGS: &str =
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.printerSettings";
+
 /// The relationship type from a document, header or footer part to a theme part. Shared with
 /// `mjx-pptx`'s `REL_THEME` (same URI, same OPC concept — DrawingML, not WordprocessingML — so it is
 /// declared again here rather than reached across a sideways crate edge).

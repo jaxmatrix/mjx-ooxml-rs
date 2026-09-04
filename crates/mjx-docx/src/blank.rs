@@ -86,10 +86,12 @@
 //! child `minOccurs="0"`. [`Document::blank_with_properties`] is the same constructor for a caller
 //! who wants to set title, creator, created/modified or the application name.
 
+use mjx_ooxml_core::{Interner, RawDocument, ToXml};
 use mjx_opc::doc_props::{self, CoreProperties, ExtendedProperties};
 use mjx_opc::{Package, PartName, Relationship, TargetMode};
 
 use crate::constants;
+use crate::document::SectionProperties;
 use crate::error::DocxError;
 use crate::page::{PageMargins, PageSize};
 
@@ -98,6 +100,16 @@ pub(crate) const DOCUMENT_PART: &str = "/word/document.xml";
 
 /// The `w:` namespace every element this module writes is qualified with.
 const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+
+/// The relationships namespace `r:`-prefixed attributes need declared somewhere in their ancestor
+/// chain — `w:printerSettings@r:id` ([`SectionProperties::set_printer_settings`]) chief among the
+/// ones a document built from nothing can now carry (MJXOFF-109). Declared on the root here,
+/// mirroring `mjx_pptx::blank`'s own `PML_NAMESPACES` constant, which declares the identical URI for
+/// the identical reason (`r:embed`, `r:id`, … on a deck built from nothing). Every `.docx` this
+/// crate has ever read (`tests/fixtures/sample.docx` included) already carries this declaration on
+/// its own root; a document [`crate::Document::blank`] builds is now no different.
+const RELATIONSHIPS_NAMESPACE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
 /// The XML declaration every part this module writes begins with, matching what Office emits and
 /// what `mjx_pptx::blank`'s own templates use.
@@ -191,43 +203,41 @@ fn add_rel(
 
 /// The bytes of `word/document.xml`: an empty `w:body` holding one empty `w:p` and a `w:sectPr`
 /// naming `size` — see the [module docs](self) for why each piece is here.
+///
+/// The `w:sectPr` fragment itself comes from the real, fully modelled writer
+/// (`crate::document::SectionProperties`, MJXOFF-109) — built with its own constructor and setters
+/// and serialized on its own (no source bytes behind it, so it always reflows from the model), then
+/// spliced as literal bytes into the surrounding hand-written skeleton. This is the same "minimal
+/// literal template, then a real typed value" split `Document::create_style_sheet_part` already uses
+/// for a part built from nothing: the *skeleton* (the `xmlns:w` declaration every child below relies
+/// on to resolve) is still hand-written, matching `mjx_pptx::blank`'s own convention for every part
+/// it authors, but the section itself is no longer a hand-formatted string duplicating what
+/// `SectionProperties` already knows how to write.
 fn document_bytes(size: PageSize) -> Vec<u8> {
-    let margins = PageMargins::NORMAL;
-    let orient = match size.orientation.to_wire() {
-        Some(value) => format!(r#" w:orient="{value}""#),
-        None => String::new(),
-    };
-    // `wml.xsd` is `attributeFormDefault="qualified"`, so every locally-declared attribute is
-    // written with the `w:` prefix (`w:w`, `w:h`, `w:top`, …) — confirmed directly against
-    // `tests/fixtures/sample.docx`'s own `<w:pgSz w:w="11906" w:h="16838"/>`. This is the same
-    // defect class MJXOFF-152 fixed for `mjx-docx`'s typed attribute accessors; here it is a
-    // hand-written template rather than a codec, but the rule is identical.
+    let mut interner = Interner::new();
+    let mut section = SectionProperties::new(&mut interner);
+    section.set_page_size(&mut interner, Some(size));
+    section.set_page_margins(&mut interner, Some(PageMargins::NORMAL));
+    let element = section.to_xml(&mut interner);
+    let fragment = RawDocument::new(interner, false, Vec::new(), element, Vec::new());
+    let section_bytes = mjx_xml::fidelity::serialize_to_vec(&fragment);
+    let section_xml =
+        String::from_utf8(section_bytes).expect("this crate's own writer only ever emits UTF-8");
+
     format!(
         concat!(
             "{declaration}",
-            r#"<w:document xmlns:w="{ns}">"#,
+            r#"<w:document xmlns:w="{ns}" xmlns:r="{rns}">"#,
             "<w:body>",
             "<w:p/>",
-            "<w:sectPr>",
-            r#"<w:pgSz w:w="{width}" w:h="{height}"{orient}/>"#,
-            r#"<w:pgMar w:top="{top}" w:right="{right}" w:bottom="{bottom}" w:left="{left}" "#,
-            r#"w:header="{header}" w:footer="{footer}" w:gutter="{gutter}"/>"#,
-            "</w:sectPr>",
+            "{section}",
             "</w:body>",
             "</w:document>",
         ),
         declaration = XML_DECLARATION,
         ns = WML_NAMESPACE,
-        width = size.width_twips,
-        height = size.height_twips,
-        orient = orient,
-        top = margins.top,
-        right = margins.right,
-        bottom = margins.bottom,
-        left = margins.left,
-        header = margins.header,
-        footer = margins.footer,
-        gutter = margins.gutter,
+        rns = RELATIONSHIPS_NAMESPACE,
+        section = section_xml,
     )
     .into_bytes()
 }
