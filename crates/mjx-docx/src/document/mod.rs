@@ -68,6 +68,8 @@ mod property_macros;
 mod run_properties;
 mod sections;
 mod styles;
+mod table_properties;
+mod table_regions;
 mod tables;
 
 pub use body::{
@@ -123,6 +125,17 @@ pub use styles::{
     StyleDefinition, StyleDefinitionContent, StyleIndex, StyleParagraphProperties,
     StyleParagraphPropertyContent, StyleSheet, StyleSheetContent, StyleString, TableStyleOverride,
     TableStyleOverrideContent, MAX_BASED_ON_CHAIN_DEPTH,
+};
+pub use table_properties::{
+    CellBorderContent, CellBorders, CellHeaderReferences, CellMargins, CellTextDirection,
+    CellVerticalAlignment, FloatingTableOverlap, FloatingTablePosition, HeaderReferenceContent,
+    MarginContent, RowHeight, RowProperties, RowPropertyContent, TableAlignment,
+    TableBorderContent, TableBorders, TableCellMargins, TableExceptionProperties,
+    TableExceptionPropertyContent, TableLayout, TableLook, TableProperties, TablePropertyContent,
+    TableStringValue, TableWidth, TableWidthMeasure,
+};
+pub use table_regions::{
+    applicable_regions, CellBorderEdge, ConditionalFormatRegion, TableLookFlags,
 };
 pub use tables::{
     Cell, CellProperties, CellPropertiesContent, Grid, GridColumn, GridContent, GridDiscrepancy,
@@ -1670,6 +1683,31 @@ impl Document {
                     columns,
                 })?;
         let result = edit(cell, interner);
+        main.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Reaches the table at `table` itself and hands it, with the part's interner, to `edit` — the
+    /// general escape hatch for setting the table's own `w:tblPr` (style reference, `w:tblLook`,
+    /// band sizes, …) or a row's `w:tblPrEx`/`w:trPr`, none of which any narrower method above
+    /// exposes. Only `word/document.xml` is dirtied.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `table` does not address a table.
+    pub fn edit_table<R>(
+        &mut self,
+        table: usize,
+        edit: impl FnOnce(&mut Table, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let result = edit(table_ref, interner);
         main.write_back(root, interner);
         Ok(result)
     }
