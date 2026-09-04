@@ -38,6 +38,7 @@ reconstructed afterwards.
 | `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
 | `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
 | `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
+| `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -49,6 +50,43 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.92] - 2026-09-04
+
+Word table properties, table styles and conditional formatting (MJXOFF-119, Phase C position 13):
+`crates/mjx-docx/src/document/table_properties.rs` (new), `table_regions.rs` (new), and the
+`CT_TblPrBase`/`CT_TrPrBase`/`CT_TcPrBase` rungs `tables.rs`/`styles.rs` left opaque.
+
+**Every remaining member of `CT_TblPrBase`, `CT_TblPrExBase`, `CT_TrPrBase` and `CT_TcPrBase` is
+typed.** `Table`'s own `w:tblPr` carries a real `TableProperties` (was `Unmodeled`); `Row` gains
+`w:tblPrEx` (`TableExceptionProperties`, the row-level override the table's own properties for that
+row alone) and `w:trPr` (`RowProperties`); `CellProperties` grows from three typed members
+(`gridSpan`/`hMerge`/`vMerge`, MJXOFF-116) to all fourteen. `w:style[@type='table']`'s own base
+`w:tblPr`/`w:trPr`/`w:tcPr` and each `w:tblStylePr`'s own (MJXOFF-101's `TableStyleOverride`) reuse
+these same three types directly — verified against `wml.xsd` that they are the identical complex
+types, not merely similarly-shaped ones, so there is one table-formatting model, not two.
+
+**Table-style conditional-formatting resolution** (`table_regions.rs`): which of a table style's
+twelve regions (`ConditionalFormatRegion`, a reuse of the generated `TableStyleOverrideType`) cover a
+cell is computed once per `(row, column)` from `w:tblLook`'s six flags and the band sizes
+(`applicable_regions`), in the **application order ECMA-376 Part 1 §17.7.6.6 states verbatim** — whole
+table, banded columns, banded rows, first/last row, first/last column, corners — so **column edges
+beat row edges** and **row banding beats column banding**, both easy to get backwards and each pinned
+by its own test (`tests/table_formatting.rs`). `w:tblLook`/`w:cnfStyle`'s legacy `val` bitmask is
+preserved for round-trip and never consulted for region membership — Part 1's own prose for both
+elements documents only the named `ST_OnOff` attributes.
+
+**The table style joins the toggle-property XOR as a fourth term**, not a plain override rung:
+`combine_toggle`/`recombine_toggles` (MJXOFF-106) gain a `table` operand alongside numbering,
+paragraph-style and character-style, so a bold table style layered over a bold paragraph style
+resolves to *not* bold (`true XOR true`), matching ECMA-376 Part 1 §17.7.3's own "true for an odd
+number of levels" rule generalized to a fourth level.
+
+`Document::effective_cell_fill`/`effective_cell_border`/`effective_cell_run_properties` are the three
+new readers, named and shaped after `mjx_pptx::Presentation`'s own `effective_cell_*` trio (table
+index in place of a slide surface plus shape path, since a `.docx` has no layout/master analogue).
+`crates/mjx-docx/docs/effective_properties.md` documents the extended ladder and the region
+precedence, with a compiled doctest.
 
 ## [0.0.91] - 2026-09-04
 
