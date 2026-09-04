@@ -477,3 +477,100 @@ fn a_drawing_inside_w_ins_survives_an_edit_to_a_different_paragraph_byte_for_byt
         "unrelated text — appended"
     );
 }
+
+// -------------------------------------------------------------------------------------------------
+// An ActiveX control (w:control inside w:object) — the third of the "Done when" list's own three
+// legacy siblings (VML text box, OLE object, ActiveX control) — reads through Control/EmbeddedObject
+// and survives an edit to a different paragraph byte-for-byte, the same proof as the other two.
+// -------------------------------------------------------------------------------------------------
+
+fn document_with_an_activex_control() -> (Document, String) {
+    let document = Document::blank(PageSize::a4()).expect("blank");
+    let saved = document.save().expect("save the blank document");
+    let mut package = Package::open(&saved).expect("reopen");
+    let document_part = PartName::new("/word/document.xml").expect("a valid part name");
+    package
+        .add_relationship(
+            Some(&document_part),
+            Relationship {
+                id: "rId2".to_owned(),
+                rel_type:
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/control"
+                        .to_owned(),
+                target: "activeX/activeX1.xml".to_owned(),
+                mode: TargetMode::Internal,
+            },
+        )
+        .expect("add control relationship");
+    package
+        .insert_part(
+            &PartName::new("/word/activeX/activeX1.xml").unwrap(),
+            "application/vnd.ms-office.activeX+xml",
+            b"<ax:ocx xmlns:ax=\"urn:schemas-microsoft-com:office:activex\"/>".to_vec(),
+        )
+        .expect("insert activex part");
+
+    let control_paragraph = r#"<w:p><w:r><w:object w:dxaOrig="1000" w:dyaOrig="500">
+<w:control w:name="CommandButton1" w:shapeid="_x0000_s1027" r:id="rId2"/>
+</w:object></w:r></w:p>"#
+        .to_owned();
+    let other_paragraph = r#"<w:p><w:r><w:t>unrelated text</w:t></w:r></w:p>"#;
+    let namespaces = r#"xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships""#;
+    let xml = format!(
+        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document {namespaces}><w:body>{control_paragraph}{other_paragraph}{}</w:body></w:document>"#,
+        section_properties_xml()
+    );
+    package
+        .replace_part_bytes(&document_part, xml.into_bytes())
+        .expect("replace word/document.xml");
+    let saved = package.save_unchecked().expect("save the fixture");
+    (
+        Document::open(&saved).expect("reopen the fixture"),
+        control_paragraph,
+    )
+}
+
+#[test]
+fn an_activex_control_reads_typed_and_survives_an_edit_to_a_different_paragraph_byte_for_byte() {
+    let (mut document, control_paragraph_xml) = document_with_an_activex_control();
+
+    document
+        .paragraph_run_content(0, |content, interner| {
+            let RunInnerContent::EmbeddedObject(object) = &content[0] else {
+                panic!("paragraph 0's run does not hold a w:object: {content:?}")
+            };
+            let control = object.control().expect("w:control");
+            assert_eq!(
+                control.control_name(interner).as_deref(),
+                Some("CommandButton1")
+            );
+            assert_eq!(
+                control.relationship_id(interner).ok().flatten().as_deref(),
+                Some("rId2")
+            );
+        })
+        .expect("paragraph 0");
+
+    document.append_run(1, " — appended").expect("append_run");
+    let saved = document.save().expect("save after the unrelated edit");
+
+    let package = Package::open(&saved).expect("reopen");
+    let document_xml = package
+        .part_bytes(&PartName::new("/word/document.xml").unwrap())
+        .expect("word/document.xml");
+    let document_xml = std::str::from_utf8(document_xml).expect("utf8");
+    assert!(
+        document_xml.contains(&control_paragraph_xml),
+        "the ActiveX control paragraph changed when only paragraph 1 was edited:\n{document_xml}"
+    );
+
+    // Its own persisted-state part is untouched and still resolvable — the binary is never
+    // re-encoded.
+    assert_eq!(
+        package
+            .part_bytes(&PartName::new("/word/activeX/activeX1.xml").unwrap())
+            .map(|bytes| bytes.to_vec()),
+        Some(b"<ax:ocx xmlns:ax=\"urn:schemas-microsoft-com:office:activex\"/>".to_vec())
+    );
+}
