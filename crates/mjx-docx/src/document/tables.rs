@@ -73,8 +73,8 @@
 //! bound — to prove the *reading* path, not the bound itself (which is `mjx-xml`'s own suite's job).
 
 use mjx_ooxml_core::{
-    Enumeration, FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode,
-    Text as TextCodec, ToXml,
+    AttributeError, Enumeration, FromXml, FromXmlError, Interner, RawAttribute, RawElement,
+    RawName, RawNode, Text as TextCodec, ToXml,
 };
 use mjx_ooxml_types::child_order::CELL_PROPERTIES;
 use mjx_ooxml_types::wordprocessingml::DecimalNumber;
@@ -84,7 +84,13 @@ use super::body::{
     block_insert_paragraph, block_paragraph, block_paragraph_mut, block_paragraphs,
     block_remove_paragraph, wml_name, BlockContent, Paragraph,
 };
-use super::paragraph_properties::DecimalNumberValue;
+use super::paragraph_properties::{ConditionalFormatting, DecimalNumberValue};
+use super::property_macros::{toggle_property, value_property};
+use super::run_properties::{Shading, Toggle};
+use super::table_properties::{
+    table_width_property, CellBorders, CellHeaderReferences, CellMargins, CellTextDirection,
+    CellVerticalAlignment, RowProperties, TableExceptionProperties, TableProperties, TableWidth,
+};
 
 // ---------------------------------------------------------------------------------------------
 // Small ordering helpers — mirrors `mjx-dml`'s own `table::{nth_typed_index, typed_insert_index}`
@@ -323,13 +329,17 @@ impl ToXml for MergeMarker {
 // w:tcPr (CT_TcPr) — a cell's properties, gridSpan/hMerge/vMerge typed, everything else raw
 // ---------------------------------------------------------------------------------------------
 
-/// One ordered child of [`CellProperties`]: the three structural members this ticket owns, or an
-/// opaque node — `cnfStyle`, `tcW`, `tcBorders`, `shd`, `noWrap`, `tcMar`, `textDirection`,
-/// `tcFitText`, `vAlign`, `hideMark`, `headers`, `cellIns`/`cellDel`/`cellMerge`, `tcPrChange` all
-/// stay [`CellPropertiesContent::Raw`] — MJXOFF-119's (formatting) and MJXOFF-126's (change
-/// tracking) own scope, per this ticket's "Not in scope" section, never this module's.
+/// One ordered child of [`CellProperties`]: `CT_TcPrBase`'s fourteen members, or an opaque node —
+/// `cellIns`/`cellDel`/`cellMerge` (`EG_CellMarkupElements`, `CT_TcPrInner`'s own extension) and
+/// `tcPrChange` (`CT_TcPr`'s own) stay [`CellPropertiesContent::Raw`], MJXOFF-126's own scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CellPropertiesContent {
+    /// `w:cnfStyle` — reused directly from
+    /// [`super::paragraph_properties::ConditionalFormatting`] (MJXOFF-106's own type for
+    /// `w:pPr/w:cnfStyle`); the wire shape is `CT_Cnf` in both places.
+    ConditionalFormatting(ConditionalFormatting),
+    /// `w:tcW` — this cell's own preferred width.
+    Width(TableWidth),
     /// `w:gridSpan` (`CT_DecimalNumber`) — how many grid columns this cell covers.
     GridSpan(DecimalNumberValue),
     /// `w:hMerge` (`CT_HMerge`) — preserved; never consulted by this module's own merge resolution
@@ -338,13 +348,30 @@ pub enum CellPropertiesContent {
     /// `w:vMerge` (`CT_VMerge`) — the vertical-merge continuation marker this module's `(row,
     /// column)` resolution and structural edits are built on.
     VerticalMerge(MergeMarker),
+    /// `w:tcBorders`.
+    Borders(CellBorders),
+    /// `w:shd`.
+    Shading(Shading),
+    /// `w:noWrap`.
+    NoWrap(Toggle),
+    /// `w:tcMar` — this cell's own margins, overriding the table's `w:tblCellMar`.
+    Margins(CellMargins),
+    /// `w:textDirection`.
+    TextDirection(CellTextDirection),
+    /// `w:tcFitText`.
+    FitText(Toggle),
+    /// `w:vAlign`.
+    VerticalAlignment(CellVerticalAlignment),
+    /// `w:hideMark`.
+    HideMark(Toggle),
+    /// `w:headers`.
+    Headers(CellHeaderReferences),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
 
-/// `w:tcPr` (`CT_TcPr`) — a table cell's properties. A fidelity wrapper in the same shape as
-/// `run_properties.rs`'s `RunProperties`: three members typed (the ones this ticket's own grid
-/// model needs to read and rewrite), everything else opaque and round-tripped exactly as read.
+/// `w:tcPr` (`CT_TcPr`) — a table cell's properties: `CT_TcPrBase`'s fourteen members typed, plus
+/// `EG_CellMarkupElements` and `w:tcPrChange` opaque (MJXOFF-126's scope).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
 #[xml(namespace = WML)]
 pub struct CellProperties {
@@ -353,9 +380,20 @@ pub struct CellProperties {
     empty: bool,
     #[xml(
         children,
+        child(local = "cnfStyle", variant = ConditionalFormatting, ty = ConditionalFormatting),
+        child(local = "tcW", variant = Width, ty = TableWidth),
         child(local = "gridSpan", variant = GridSpan, ty = DecimalNumberValue),
         child(local = "hMerge", variant = HorizontalMerge, ty = MergeMarker),
-        child(local = "vMerge", variant = VerticalMerge, ty = MergeMarker)
+        child(local = "vMerge", variant = VerticalMerge, ty = MergeMarker),
+        child(local = "tcBorders", variant = Borders, ty = CellBorders),
+        child(local = "shd", variant = Shading, ty = Shading),
+        child(local = "noWrap", variant = NoWrap, ty = Toggle),
+        child(local = "tcMar", variant = Margins, ty = CellMargins),
+        child(local = "textDirection", variant = TextDirection, ty = CellTextDirection),
+        child(local = "tcFitText", variant = FitText, ty = Toggle),
+        child(local = "vAlign", variant = VerticalAlignment, ty = CellVerticalAlignment),
+        child(local = "hideMark", variant = HideMark, ty = Toggle),
+        child(local = "headers", variant = Headers, ty = CellHeaderReferences)
     )]
     content: Vec<CellPropertiesContent>,
 }
@@ -372,8 +410,8 @@ impl CellProperties {
         }
     }
 
-    /// Whether this `w:tcPr` states none of the three typed members and preserves no other child
-    /// either — the "may as well not be here" state [`Cell::prune_properties_if_empty`] removes.
+    /// Whether this `w:tcPr` states none of its typed members and preserves no other child either —
+    /// the "may as well not be here" state [`Cell::prune_properties_if_empty`] removes.
     #[must_use]
     pub(crate) fn is_fully_empty(&self) -> bool {
         self.content.is_empty()
@@ -384,9 +422,24 @@ impl CellProperties {
     /// reasoning (`run_properties.rs`).
     fn rank(item: &CellPropertiesContent) -> Option<u16> {
         match item {
+            CellPropertiesContent::ConditionalFormatting(_) => {
+                CELL_PROPERTIES.rank_of(None, "cnfStyle")
+            }
+            CellPropertiesContent::Width(_) => CELL_PROPERTIES.rank_of(None, "tcW"),
             CellPropertiesContent::GridSpan(_) => CELL_PROPERTIES.rank_of(None, "gridSpan"),
             CellPropertiesContent::HorizontalMerge(_) => CELL_PROPERTIES.rank_of(None, "hMerge"),
             CellPropertiesContent::VerticalMerge(_) => CELL_PROPERTIES.rank_of(None, "vMerge"),
+            CellPropertiesContent::Borders(_) => CELL_PROPERTIES.rank_of(None, "tcBorders"),
+            CellPropertiesContent::Shading(_) => CELL_PROPERTIES.rank_of(None, "shd"),
+            CellPropertiesContent::NoWrap(_) => CELL_PROPERTIES.rank_of(None, "noWrap"),
+            CellPropertiesContent::Margins(_) => CELL_PROPERTIES.rank_of(None, "tcMar"),
+            CellPropertiesContent::TextDirection(_) => {
+                CELL_PROPERTIES.rank_of(None, "textDirection")
+            }
+            CellPropertiesContent::FitText(_) => CELL_PROPERTIES.rank_of(None, "tcFitText"),
+            CellPropertiesContent::VerticalAlignment(_) => CELL_PROPERTIES.rank_of(None, "vAlign"),
+            CellPropertiesContent::HideMark(_) => CELL_PROPERTIES.rank_of(None, "hideMark"),
+            CellPropertiesContent::Headers(_) => CELL_PROPERTIES.rank_of(None, "headers"),
             CellPropertiesContent::Raw(_) => None,
         }
     }
@@ -518,6 +571,102 @@ impl CellProperties {
             }
         }
     }
+
+    value_property!(
+        CellPropertiesContent,
+        conditional_formatting,
+        set_conditional_formatting,
+        ConditionalFormatting,
+        ConditionalFormatting,
+        "cnfStyle",
+        "`w:cnfStyle` — this cell's own conditional-formatting region flags."
+    );
+    table_width_property!(
+        CellPropertiesContent,
+        width,
+        set_width,
+        Width,
+        "tcW",
+        "`w:tcW` — this cell's own preferred width."
+    );
+    value_property!(
+        CellPropertiesContent,
+        borders,
+        set_borders,
+        Borders,
+        CellBorders,
+        "tcBorders",
+        "`w:tcBorders`."
+    );
+    value_property!(
+        CellPropertiesContent,
+        shading,
+        set_shading,
+        Shading,
+        Shading,
+        "shd",
+        "`w:shd` — this cell's own background shading."
+    );
+    toggle_property!(
+        CellPropertiesContent,
+        no_wrap,
+        set_no_wrap,
+        NoWrap,
+        "noWrap",
+        "`w:noWrap`."
+    );
+    value_property!(
+        CellPropertiesContent,
+        margins,
+        set_margins,
+        Margins,
+        CellMargins,
+        "tcMar",
+        "`w:tcMar` — this cell's own margins, overriding the table's `w:tblCellMar`."
+    );
+    value_property!(
+        CellPropertiesContent,
+        text_direction,
+        set_text_direction,
+        TextDirection,
+        CellTextDirection,
+        "textDirection",
+        "`w:textDirection`."
+    );
+    toggle_property!(
+        CellPropertiesContent,
+        fit_text,
+        set_fit_text,
+        FitText,
+        "tcFitText",
+        "`w:tcFitText`."
+    );
+    value_property!(
+        CellPropertiesContent,
+        vertical_alignment,
+        set_vertical_alignment,
+        VerticalAlignment,
+        CellVerticalAlignment,
+        "vAlign",
+        "`w:vAlign`."
+    );
+    toggle_property!(
+        CellPropertiesContent,
+        hide_mark,
+        set_hide_mark,
+        HideMark,
+        "hideMark",
+        "`w:hideMark`."
+    );
+    value_property!(
+        CellPropertiesContent,
+        headers,
+        set_headers,
+        Headers,
+        CellHeaderReferences,
+        "headers",
+        "`w:headers` — the header cells this data cell names for accessibility."
+    );
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -770,26 +919,37 @@ impl Cell {
     }
 }
 
-/// One ordered child of a [`Row`]: a typed [`Cell`], or an opaque node (`w:tblPrEx`, `w:trPr` —
-/// MJXOFF-119's own scope — a row-level `w:customXml`/`w:sdt` wrapper, or `EG_RunLevelElts` folded
-/// into the row's own choice group).
+/// One ordered child of a [`Row`]: `CT_Row`'s own `w:tblPrEx`/`w:trPr` prefix, a typed [`Cell`], or
+/// an opaque node (a row-level `w:customXml`/`w:sdt` wrapper, or `EG_RunLevelElts` folded into the
+/// row's own choice group).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RowContent {
+    /// `w:tblPrEx` (`CT_TblPrEx`) — this row's own override of the table's properties; see this
+    /// module's own doc comment.
+    Exception(TableExceptionProperties),
+    /// `w:trPr` (`CT_TrPr`) — this row's own properties.
+    Properties(RowProperties),
     /// `w:tc` (`CT_Tc`).
     Cell(Cell),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
 
-/// `w:tr` (`CT_Row`) — one table row: its cells, in physical (not necessarily column) order — see
-/// this module's own doc comment for why a row's cell count is not the grid's column count.
+/// `w:tr` (`CT_Row`) — one table row: an optional property-exception set, its own properties, then
+/// its cells in physical (not necessarily column) order — see this module's own doc comment for why
+/// a row's cell count is not the grid's column count.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
 #[xml(namespace = WML)]
 pub struct Row {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "tc", variant = Cell, ty = Cell))]
+    #[xml(
+        children,
+        child(local = "tblPrEx", variant = Exception, ty = TableExceptionProperties),
+        child(local = "trPr", variant = Properties, ty = RowProperties),
+        child(local = "tc", variant = Cell, ty = Cell)
+    )]
     content: Vec<RowContent>,
 }
 
@@ -803,6 +963,124 @@ impl Row {
             attributes: Vec::new(),
             empty: content.is_empty(),
             content,
+        }
+    }
+
+    /// The row's own `w:tblPrEx`, or `None` if it declares none.
+    #[must_use]
+    pub fn exception_properties(&self) -> Option<&TableExceptionProperties> {
+        self.content.iter().find_map(|item| match item {
+            RowContent::Exception(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// [`Row::exception_properties`], mutably.
+    pub fn exception_properties_mut(&mut self) -> Option<&mut TableExceptionProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            RowContent::Exception(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// Sets (replaces) or removes `w:tblPrEx` — always at content index `0`, `CT_Row`'s own sequence
+    /// position for it (ahead of `w:trPr` and every cell).
+    pub fn set_exception_properties(&mut self, properties: Option<TableExceptionProperties>) {
+        let at = self
+            .content
+            .iter()
+            .position(|item| matches!(item, RowContent::Exception(_)));
+        match (at, properties) {
+            (Some(at), Some(properties)) => self.content[at] = RowContent::Exception(properties),
+            (Some(at), None) => {
+                self.content.remove(at);
+            }
+            (None, Some(properties)) => self.content.insert(0, RowContent::Exception(properties)),
+            (None, None) => {}
+        }
+    }
+
+    /// [`Row::exception_properties_mut`], creating an empty `w:tblPrEx` first if the row had none.
+    pub fn exception_properties_or_insert(
+        &mut self,
+        interner: &mut Interner,
+    ) -> &mut TableExceptionProperties {
+        if self.exception_properties().is_none() {
+            self.set_exception_properties(Some(TableExceptionProperties::new(interner)));
+        }
+        match self.exception_properties_mut() {
+            Some(properties) => properties,
+            None => unreachable!("just inserted above"),
+        }
+    }
+
+    /// Removes `w:tblPrEx` if it is present but states nothing at all.
+    pub fn prune_exception_properties_if_empty(&mut self) {
+        if self
+            .exception_properties()
+            .is_some_and(TableExceptionProperties::is_fully_empty)
+        {
+            self.set_exception_properties(None);
+        }
+    }
+
+    /// The row's own `w:trPr`, or `None` if it declares none.
+    #[must_use]
+    pub fn properties(&self) -> Option<&RowProperties> {
+        self.content.iter().find_map(|item| match item {
+            RowContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// [`Row::properties`], mutably.
+    pub fn properties_mut(&mut self) -> Option<&mut RowProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            RowContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// Sets (replaces) or removes `w:trPr` — always immediately after `w:tblPrEx` (if any) and ahead
+    /// of every cell, `CT_Row`'s own sequence position for it.
+    pub fn set_properties(&mut self, properties: Option<RowProperties>) {
+        let at = self
+            .content
+            .iter()
+            .position(|item| matches!(item, RowContent::Properties(_)));
+        match (at, properties) {
+            (Some(at), Some(properties)) => self.content[at] = RowContent::Properties(properties),
+            (Some(at), None) => {
+                self.content.remove(at);
+            }
+            (None, Some(properties)) => {
+                let insert_at = self
+                    .content
+                    .iter()
+                    .position(|item| matches!(item, RowContent::Exception(_)))
+                    .map_or(0, |index| index + 1);
+                self.content
+                    .insert(insert_at, RowContent::Properties(properties));
+            }
+            (None, None) => {}
+        }
+    }
+
+    /// [`Row::properties_mut`], creating an empty `w:trPr` first if the row had none.
+    pub fn properties_or_insert(&mut self, interner: &mut Interner) -> &mut RowProperties {
+        if self.properties().is_none() {
+            self.set_properties(Some(RowProperties::new(interner)));
+        }
+        match self.properties_mut() {
+            Some(properties) => properties,
+            None => unreachable!("just inserted above"),
+        }
+    }
+
+    /// Removes `w:trPr` if it is present but states nothing at all.
+    pub fn prune_properties_if_empty(&mut self) {
+        if self.properties().is_some_and(RowProperties::is_fully_empty) {
+            self.set_properties(None);
         }
     }
 
@@ -875,14 +1153,17 @@ impl Row {
 // w:tbl (CT_Tbl) — the table itself
 // ---------------------------------------------------------------------------------------------
 
-/// One ordered child of a [`Table`]: its grid or a row, or an opaque node — `w:tblPr` (MJXOFF-119's
-/// own scope), `EG_RangeMarkupElements` (bookmarks and revision ranges ahead of `w:tblPr`), a
-/// row-level `w:customXml`/`w:sdt` wrapper (`CT_SdtRow` — MJXOFF-138), and `EG_RunLevelElts` folded
-/// into `EG_ContentRowContent`'s own choice all fall to [`TableContent::Raw`].
+/// One ordered child of a [`Table`]: its own `w:tblPr` ([`super::table_properties::TableProperties`],
+/// MJXOFF-119), its grid, a row, or an opaque node — `EG_RangeMarkupElements` (bookmarks and
+/// revision ranges ahead of `w:tblPr`), a row-level `w:customXml`/`w:sdt` wrapper (`CT_SdtRow` —
+/// MJXOFF-138), and `EG_RunLevelElts` folded into `EG_ContentRowContent`'s own choice all fall to
+/// [`TableContent::Raw`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TableContent {
-    /// `w:tblPr` (`CT_TblPr`) — required by the schema, opaque here; MJXOFF-119 types it.
-    Properties(super::body::Unmodeled),
+    /// `w:tblPr` (`CT_TblPr`) — required by the schema. Typed as `CT_TblPrBase`'s own
+    /// [`TableProperties`]; `w:tblPrChange` (the one member `CT_TblPr` adds on top) stays opaque
+    /// inside it (MJXOFF-126's own scope).
+    Properties(TableProperties),
     /// `w:tblGrid` (`CT_TblGrid`).
     Grid(Grid),
     /// `w:tr` (`CT_Row`).
@@ -906,7 +1187,7 @@ pub struct Table {
     empty: bool,
     #[xml(
         children,
-        child(local = "tblPr", variant = Properties, ty = super::body::Unmodeled),
+        child(local = "tblPr", variant = Properties, ty = TableProperties),
         child(local = "tblGrid", variant = Grid, ty = Grid),
         child(local = "tr", variant = Row, ty = Row)
     )]
@@ -924,7 +1205,7 @@ impl Table {
     /// between the model (which builds whatever it is asked to) and the facade (which validates).
     #[must_use]
     pub fn new(interner: &mut Interner, rows: usize, columns: usize) -> Self {
-        let properties = super::body::Unmodeled::new(interner, "tblPr");
+        let properties = TableProperties::new(interner);
         let grid = Grid::new(interner, columns);
         let table_rows = (0..rows)
             .map(|_| {
@@ -948,8 +1229,16 @@ impl Table {
     /// The table's `w:tblPr`, or `None` if it declares none (schema-required, but never rejected
     /// on read).
     #[must_use]
-    pub fn properties(&self) -> Option<&super::body::Unmodeled> {
+    pub fn properties(&self) -> Option<&TableProperties> {
         self.content.iter().find_map(|item| match item {
+            TableContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// [`Table::properties`], mutably.
+    pub fn properties_mut(&mut self) -> Option<&mut TableProperties> {
+        self.content.iter_mut().find_map(|item| match item {
             TableContent::Properties(properties) => Some(properties),
             _ => None,
         })
