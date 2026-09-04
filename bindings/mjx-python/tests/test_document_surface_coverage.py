@@ -115,6 +115,10 @@ def test_accepted_and_rejected_revision_text_agree_with_nothing_to_diverge_on(
 
 
 def test_effective_properties_and_table_border_edges_are_reachable(document: Document) -> None:
+    # `Document.blank` writes one *empty* paragraph — no run — matching the Rust sibling
+    # (`document_public_paths.rs`), which appends a run before reading effective run properties
+    # for the same reason.
+    document.append_run(0, "text")
     run_props = document.effective_run_properties(0, 0)
     assert run_props.bold is None, "a blank document sets no bold"
     paragraph_props = document.effective_paragraph_properties(0)
@@ -123,6 +127,8 @@ def test_effective_properties_and_table_border_edges_are_reachable(document: Doc
     table = document.append_table(1, 1)
     assert document.effective_cell_fill(table, 0, 0) is None
     assert document.effective_cell_border(table, 0, 0, CellBorderEdge.Top) is None
+    # Likewise, a freshly appended table cell starts with one empty paragraph and no run.
+    document.set_cell_text(table, 0, 0, "cell text")
     cell_run_props = document.effective_cell_run_properties(table, 0, 0, 0, 0)
     assert cell_run_props.bold is None
 
