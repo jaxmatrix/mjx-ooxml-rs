@@ -272,6 +272,12 @@ fn generated_module_root() -> String {
 /// `dml-wordprocessingDrawing` joined with MJXOFF-131 (C16): `mjx-dml::wordprocessing_drawing`
 /// writes `wp:inline`/`wp:anchor`/the wrap modes/`wp:graphicFrame` from a typed model rather than a
 /// fixed template, so every part that carries one is now ordered by construction too.
+///
+/// `shared-math` joined with MJXOFF-134 (C17): `mjx-omml` models all 72 `shared-math.xsd` complex
+/// types and writes `m:oMath`/`m:oMathPara`/every math object from a typed model, so a part carrying
+/// an equation is now ordered by construction too. It **left**
+/// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to get a table of its own here — exactly the move that
+/// list's own doc comment describes for `dml-wordprocessingDrawing`.
 const CHILD_ORDER_SCHEMAS: &[&str] = &[
     "dml-main",
     "pml",
@@ -279,6 +285,7 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
     "dml-diagram",
     "wml",
     "dml-wordprocessingDrawing",
+    "shared-math",
 ];
 
 /// Schemas parsed *only* to resolve a cross-schema `xsd:group`/`xsd:element` reference reached
@@ -288,25 +295,20 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
 /// `child_order::render_table`) — a schema that is merely *referenced*, never walked into, would
 /// silently need no entry here, but nothing upstream can tell the difference in advance, so every
 /// namespace `wml.xsd` reaches is listed:
-/// - `shared-math` — `CT_RunTrackChange` reaches `m:EG_OMathMathElements`, and several types
-///   reference `m:oMath`/`m:oMathPara`/`m:mathPr` by element `ref`.
 /// - `shared-customXmlSchemaProperties` — `CT_SchemaLibrary`'s reference references
 ///   `sl:schemaLibrary` by element `ref`.
 /// - `dml-picture` — `dml-wordprocessingDrawing`'s own `CT_WordprocessingGroup`/
 ///   `CT_WordprocessingCanvas` reference `dpct:pic` by element `ref` (MJXOFF-131).
 ///
-/// `dml-wordprocessingDrawing` **left** this list with MJXOFF-131 (C16) — it now has a table of its
-/// own in `CHILD_ORDER_SCHEMAS` instead, which is what a schema graduating out of "referenced only"
-/// looks like.
+/// `dml-wordprocessingDrawing` **left** this list with MJXOFF-131 (C16), and `shared-math` left it
+/// with MJXOFF-134 (C17) — both now have a table of their own in `CHILD_ORDER_SCHEMAS` instead,
+/// which is what a schema graduating out of "referenced only" looks like.
 ///
 /// Adding a schema here does **not** generate its own child-order table or flip its `COVERAGE.md`
 /// status — that stays the decision of the child that starts authoring *its* markup, by adding it
 /// to `CHILD_ORDER_SCHEMAS` instead.
-const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] = &[
-    "shared-math",
-    "shared-customXmlSchemaProperties",
-    "dml-picture",
-];
+const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] =
+    &["shared-customXmlSchemaProperties", "dml-picture"];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
 ///

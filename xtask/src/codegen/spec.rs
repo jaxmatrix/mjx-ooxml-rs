@@ -2609,6 +2609,190 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
          (`CT_TxbxContent`) are WordprocessingML-content-shaped and so live in `mjx-docx`, not here \
          — see `mjx_dml::wordprocessing_drawing`'s own module doc",
     ),
+    // ---- Office Math / shared-math (MJXOFF-134) ----------------------------------------------
+    // Every `shared-math` complex type whose children form a real sequence worth auditing order
+    // for. The nineteen leaf `val`-attribute types (`CT_Integer255`, `CT_OnOff`, `CT_Shp`, …),
+    // `CT_ManualBreak` (attribute-only) and the seven single-optional-child wrappers (`CT_MC`, and
+    // the six `mjx-omml::ControlOnlyProperties` shapes — `CT_FuncPr`/`CT_LimLowPr`/`CT_LimUppPr`/
+    // `CT_SPrePr`/`CT_SSubPr`/`CT_SSupPr`) have no ordering question to ask (zero or one child), the
+    // same reason `dml-wordprocessingDrawing`'s own single-child leaves are absent above.
+    (
+        "MATH", "shared-math", "CT_OMath",
+        "One equation: a repeating choice of math objects and runs (`m:oMath`)",
+    ),
+    (
+        "MATH_PARAGRAPH", "shared-math", "CT_OMathPara",
+        "A paragraph of display equations: its own properties, then one or more `m:oMath` (`m:oMathPara`)",
+    ),
+    (
+        "MATH_PARAGRAPH_PROPERTIES", "shared-math", "CT_OMathParaPr",
+        "A math paragraph's own justification",
+    ),
+    (
+        "MATH_ARGUMENT", "shared-math", "CT_OMathArg",
+        "One math argument slot: an optional size override, its own math content, then a trailing \
+         control-properties pass-through — the recursive core every object bottoms out at",
+    ),
+    (
+        "MATH_ARGUMENT_PROPERTIES", "shared-math", "CT_OMathArgPr",
+        "An argument's own size override",
+    ),
+    (
+        "MATH_RUN", "shared-math", "CT_R",
+        "One run of math content: its own properties, then a repeating choice of text and run inner \
+         content (`m:r`)",
+    ),
+    (
+        "MATH_RUN_PROPERTIES", "shared-math", "CT_RPR",
+        "A run's own literal/normal-text/script-style choice, manual break and alignment flag \
+         (`m:rPr`) — distinct from `w:rPr`",
+    ),
+    (
+        "MATH_PROPERTIES", "shared-math", "CT_MathPr",
+        "The document-level math settings: default font, break rule, display defaults, margins/\
+         spacing, default justification, n-ary/integral limit placement (`m:mathPr`)",
+    ),
+    (
+        "ACCENT", "shared-math", "CT_Acc",
+        "An accent's own properties, then its base (`m:acc`)",
+    ),
+    (
+        "ACCENT_PROPERTIES", "shared-math", "CT_AccPr",
+        "An accent's own combining character, then control properties",
+    ),
+    (
+        "BAR", "shared-math", "CT_Bar",
+        "A bar's own properties, then its base (`m:bar`)",
+    ),
+    (
+        "BAR_PROPERTIES", "shared-math", "CT_BarPr",
+        "A bar's own position, then control properties",
+    ),
+    (
+        "MATH_BOX", "shared-math", "CT_Box",
+        "A box's own properties, then its base (`m:box`)",
+    ),
+    (
+        "MATH_BOX_PROPERTIES", "shared-math", "CT_BoxPr",
+        "A box's own emulation/break/diff/alignment flags, then control properties",
+    ),
+    (
+        "BORDER_BOX", "shared-math", "CT_BorderBox",
+        "A border box's own properties, then its base (`m:borderBox`)",
+    ),
+    (
+        "BORDER_BOX_PROPERTIES", "shared-math", "CT_BorderBoxPr",
+        "A border box's own edge-visibility and strike flags, then control properties",
+    ),
+    (
+        "DELIMITER", "shared-math", "CT_D",
+        "A delimiter's own properties, then one or more enclosed arguments (`m:d`)",
+    ),
+    (
+        "DELIMITER_PROPERTIES", "shared-math", "CT_DPr",
+        "A delimiter's own bracket/separator characters, growth and shape, then control properties",
+    ),
+    (
+        "EQUATION_ARRAY", "shared-math", "CT_EqArr",
+        "An equation array's own properties, then one or more rows (`m:eqArr`)",
+    ),
+    (
+        "EQUATION_ARRAY_PROPERTIES", "shared-math", "CT_EqArrPr",
+        "An equation array's own base alignment and spacing, then control properties",
+    ),
+    (
+        "FRACTION", "shared-math", "CT_F",
+        "A fraction's own properties, then its numerator and denominator (`m:f`)",
+    ),
+    (
+        "FRACTION_PROPERTIES", "shared-math", "CT_FPr",
+        "A fraction's own bar style, then control properties",
+    ),
+    (
+        "FUNCTION_APPLY", "shared-math", "CT_Func",
+        "A function-apply's own properties, its own name, then the applied argument (`m:func`)",
+    ),
+    (
+        "GROUP_CHARACTER", "shared-math", "CT_GroupChr",
+        "A group character's own properties, then its base (`m:groupChr`)",
+    ),
+    (
+        "GROUP_CHARACTER_PROPERTIES", "shared-math", "CT_GroupChrPr",
+        "A group character's own glyph, position and justification, then control properties",
+    ),
+    (
+        "LOWER_LIMIT", "shared-math", "CT_LimLow",
+        "A lower-limit's own properties, its base, then the limit (`m:limLow`)",
+    ),
+    (
+        "UPPER_LIMIT", "shared-math", "CT_LimUpp",
+        "An upper-limit's own properties, its base, then the limit (`m:limUpp`)",
+    ),
+    (
+        "MATRIX", "shared-math", "CT_M",
+        "A matrix's own properties, then one or more rows (`m:m`)",
+    ),
+    (
+        "MATRIX_ROW", "shared-math", "CT_MR",
+        "One matrix row: one or more cells (`m:mr`)",
+    ),
+    (
+        "MATRIX_PROPERTIES", "shared-math", "CT_MPr",
+        "A matrix's own baseline, placeholder, spacing and column properties, then control properties",
+    ),
+    (
+        "MATRIX_COLUMNS", "shared-math", "CT_MCS",
+        "A matrix's own per-column properties: one or more entries (`m:mcs`)",
+    ),
+    (
+        "MATRIX_COLUMN_PROPERTIES", "shared-math", "CT_MCPr",
+        "One matrix-column-properties entry's own span count, then justification",
+    ),
+    (
+        "NARY_OPERATOR", "shared-math", "CT_Nary",
+        "An n-ary operator's own properties, its lower and upper limit, then its operand (`m:nary`)",
+    ),
+    (
+        "NARY_OPERATOR_PROPERTIES", "shared-math", "CT_NaryPr",
+        "An n-ary operator's own glyph, limit location and growth/hide flags, then control properties",
+    ),
+    (
+        "PHANTOM", "shared-math", "CT_Phant",
+        "A phantom's own properties, then its base (`m:phant`)",
+    ),
+    (
+        "PHANTOM_PROPERTIES", "shared-math", "CT_PhantPr",
+        "A phantom's own visibility and zero-metric flags, then control properties",
+    ),
+    (
+        "RADICAL", "shared-math", "CT_Rad",
+        "A radical's own properties, its degree, then its radicand (`m:rad`)",
+    ),
+    (
+        "RADICAL_PROPERTIES", "shared-math", "CT_RadPr",
+        "A radical's own degree-hide flag, then control properties",
+    ),
+    (
+        "PRE_SCRIPT", "shared-math", "CT_SPre",
+        "A pre-sub-superscript's own properties, its subscript, superscript, then its base (`m:sPre`)",
+    ),
+    (
+        "SUBSCRIPT", "shared-math", "CT_SSub",
+        "A subscript's own properties, its base, then the subscript (`m:sSub`)",
+    ),
+    (
+        "SUBSCRIPT_SUPERSCRIPT", "shared-math", "CT_SSubSup",
+        "A combined subscript-superscript's own properties, its base, subscript, then superscript \
+         (`m:sSubSup`)",
+    ),
+    (
+        "SUBSCRIPT_SUPERSCRIPT_PROPERTIES", "shared-math", "CT_SSubSupPr",
+        "A combined subscript-superscript's own alignment flag, then control properties",
+    ),
+    (
+        "SUPERSCRIPT", "shared-math", "CT_SSup",
+        "A superscript's own properties, its base, then the superscript (`m:sSup`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.

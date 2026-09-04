@@ -45478,6 +45478,3672 @@ pub static DML_WORDPROCESSING_DRAWING_TYPES: [ChildOrder; 20] = [
     },
 ];
 
+/// Every complex type of `shared-math.xsd`, sorted by XSD symbol.
+pub static SHARED_MATH_TYPES: [ChildOrder; 72] = [
+    ChildOrder {
+        symbol: "CT_Acc",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "accPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_AccPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_AccPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "chr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Char",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Bar",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "barPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BarPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_BarPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "pos",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TopBot",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_BorderBox",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "borderBoxPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BorderBoxPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_BorderBoxPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "hideTop",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "hideBot",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "hideLeft",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "hideRight",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "strikeH",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "strikeV",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "strikeBLTR",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "strikeTLBR",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 7,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 8,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Box",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "boxPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BoxPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_BoxPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "opEmu",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "noBreak",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "diff",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "brk",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_ManualBreak",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "aln",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_BreakBin",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_BreakBinSub",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Char",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_CtrlPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: WML,
+                local: "del",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MathCtrlDel",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "ins",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MathCtrlIns",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "rPr",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_D",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "dPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_DPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_DPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "begChr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Char",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sepChr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Char",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "endChr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Char",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "grow",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "shp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Shp",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_EqArr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "eqArrPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_EqArrPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_EqArrPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "baseJc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_YAlign",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "maxDist",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "objDist",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rSpRule",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SpacingRule",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_UnSignedInteger",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_F",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "fPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_FPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "num",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "den",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_FPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "type",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_FType",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_FType",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Func",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "funcPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_FuncPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "fName",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_FuncPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "ctrlPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_CtrlPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_GroupChr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "groupChrPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_GroupChrPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_GroupChrPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "chr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Char",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "pos",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TopBot",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "vertJc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TopBot",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Integer2",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Integer255",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_LimLoc",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_LimLow",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limLowPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimLowPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "lim",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_LimLowPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "ctrlPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_CtrlPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_LimUpp",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limUppPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimUppPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "lim",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_LimUppPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "ctrlPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_CtrlPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_M",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "mPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_MPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "mr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_MR",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_MC",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "mcPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_MCPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_MCPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "count",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Integer255",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "mcJc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_XAlign",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_MCS",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "mc",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_MC",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_MPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "baseJc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_YAlign",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "plcHide",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rSpRule",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SpacingRule",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "cGpRule",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SpacingRule",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_UnSignedInteger",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "cSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_UnSignedInteger",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "cGp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_UnSignedInteger",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "mcs",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_MCS",
+                }),
+                rank: 7,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 8,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_MR",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "e",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_OMathArg",
+            }),
+            rank: 0,
+            repeatable: true,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_ManualBreak",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_MathPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "mathFont",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_String",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "brkBin",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BreakBin",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "brkBinSub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BreakBinSub",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "smallFrac",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "dispDef",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "lMargin",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rMargin",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 6,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "defJc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathJc",
+                }),
+                rank: 7,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "preSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 8,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "postSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 9,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "interSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 10,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "intraSp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 11,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "wrapIndent",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_TwipsMeasure",
+                }),
+                rank: 12,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "wrapRight",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 12,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "intLim",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimLoc",
+                }),
+                rank: 13,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "naryLim",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimLoc",
+                }),
+                rank: 14,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Nary",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "naryPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_NaryPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_NaryPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "chr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Char",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limLoc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimLoc",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "grow",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "subHide",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "supHide",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_OMath",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "acc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Acc",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "bar",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Bar",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "borderBox",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BorderBox",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "box",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Box",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "d",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "eqArr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_EqArr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "f",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_F",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "func",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Func",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "groupChr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_GroupChr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limLow",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimLow",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limUpp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimUpp",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "m",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_M",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "nary",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Nary",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMath",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMath",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMathPara",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathPara",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "phant",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Phant",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "r",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_R",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rad",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Rad",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sPre",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SPre",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSub",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSubSup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSubSup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "bookmarkEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "bookmarkStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Bookmark",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXml",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_CustomXmlRun",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlDelRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlDelRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlInsRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlInsRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveFromRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveFromRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveToRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveToRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "del",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "fldSimple",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SimpleField",
+                }),
+                rank: 0,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "hyperlink",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Hyperlink",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "ins",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFrom",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFromRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFromRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MoveBookmark",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveTo",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveToRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveToRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MoveBookmark",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "permEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Perm",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "permStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_PermStart",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "proofErr",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_ProofErr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "sdt",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SdtRun",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "smartTag",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SmartTagRun",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_OMathArg",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "argPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArgPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "acc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Acc",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "bar",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Bar",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "borderBox",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_BorderBox",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "box",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Box",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "d",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_D",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "eqArr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_EqArr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "f",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_F",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "func",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Func",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "groupChr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_GroupChr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limLow",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimLow",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "limUpp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_LimUpp",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "m",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_M",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "nary",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Nary",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMath",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMath",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMathPara",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathPara",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "phant",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Phant",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "r",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_R",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rad",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Rad",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sPre",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SPre",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSub",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSubSup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSubSup",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSup",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "bookmarkEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "bookmarkStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Bookmark",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXml",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_CustomXmlRun",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlDelRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlDelRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlInsRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlInsRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveFromRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveFromRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveToRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "customXmlMoveToRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_TrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "del",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "fldSimple",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SimpleField",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "hyperlink",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Hyperlink",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "ins",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFrom",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFromRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveFromRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MoveBookmark",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveTo",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RunTrackChange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveToRangeEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MarkupRange",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "moveToRangeStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_MoveBookmark",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "permEnd",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Perm",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "permStart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_PermStart",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "proofErr",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_ProofErr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "sdt",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SdtRun",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "smartTag",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_SmartTagRun",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_OMathArgPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "argSz",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_Integer2",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_OMathJc",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_OMathPara",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMathParaPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathParaPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "oMath",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMath",
+                }),
+                rank: 1,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_OMathParaPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "jc",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_OMathJc",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_OnOff",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Phant",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "phantPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_PhantPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_PhantPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "show",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "zeroWid",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "zeroAsc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "zeroDesc",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "transp",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 5,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_R",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "rPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_RPR",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "rPr",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_RPr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "t",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Text",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "annotationRef",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "br",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Br",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "commentReference",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Markup",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "contentPart",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Rel",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "continuationSeparator",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "cr",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "dayLong",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "dayShort",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "delInstrText",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Text",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "delText",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Text",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "drawing",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Drawing",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "endnoteRef",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "endnoteReference",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_FtnEdnRef",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "fldChar",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_FldChar",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "footnoteRef",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "footnoteReference",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_FtnEdnRef",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "instrText",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Text",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "lastRenderedPageBreak",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "monthLong",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "monthShort",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "noBreakHyphen",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "object",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Object",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "pgNum",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "pict",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Picture",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "ptab",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_PTab",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "ruby",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Ruby",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "separator",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "softHyphen",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "sym",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Sym",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "t",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Text",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "tab",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "yearLong",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: WML,
+                local: "yearShort",
+                complex_type: Some(TypeReference {
+                    namespace: WML,
+                    symbol: "CT_Empty",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_RPR",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "lit",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "nor",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "scr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Script",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sty",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_Style",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "brk",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_ManualBreak",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "aln",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 4,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Rad",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "radPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_RadPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "deg",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_RadPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "degHide",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_SPre",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sPrePr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SPrePr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_SPrePr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "ctrlPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_CtrlPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_SSub",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSubPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSubPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_SSubPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "ctrlPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_CtrlPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_SSubSup",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSubSupPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSubSupPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sub",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_SSubSupPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "alnScr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OnOff",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "ctrlPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_CtrlPr",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_SSup",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sSupPr",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_SSupPr",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "e",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: SHARED_MATH,
+                local: "sup",
+                complex_type: Some(TypeReference {
+                    namespace: SHARED_MATH,
+                    symbol: "CT_OMathArg",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_SSupPr",
+        namespace: SHARED_MATH,
+        model: ContentModel::Sequence,
+        slots: &[ChildSlot {
+            namespace: SHARED_MATH,
+            local: "ctrlPr",
+            complex_type: Some(TypeReference {
+                namespace: SHARED_MATH,
+                symbol: "CT_CtrlPr",
+            }),
+            rank: 0,
+            repeatable: false,
+            ambiguous: false,
+        }],
+    },
+    ChildOrder {
+        symbol: "CT_Script",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Shp",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_SpacingRule",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_String",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Style",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Text",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_TopBot",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_TwipsMeasure",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_UnSignedInteger",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_XAlign",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_YAlign",
+        namespace: SHARED_MATH,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+];
+
 /// The child order of the complex type `symbol` declared in `namespace`, or `None` if the
 /// tables do not cover it.
 ///
@@ -45498,6 +49164,8 @@ pub fn find(namespace: &str, symbol: &str) -> Option<&'static ChildOrder> {
         &WML_TYPES
     } else if in_namespace(namespace, DML_WORDPROCESSING_DRAWING) {
         &DML_WORDPROCESSING_DRAWING_TYPES
+    } else if in_namespace(namespace, SHARED_MATH) {
+        &SHARED_MATH_TYPES
     } else {
         return None;
     };
@@ -45587,6 +49255,13 @@ pub fn root_element(namespace: &str, local: &str) -> Option<&'static ChildOrder>
             "wgp" => "CT_WordprocessingGroup",
             "wpc" => "CT_WordprocessingCanvas",
             "wsp" => "CT_WordprocessingShape",
+            _ => return None,
+        }
+    } else if in_namespace(namespace, SHARED_MATH) {
+        match local {
+            "mathPr" => "CT_MathPr",
+            "oMath" => "CT_OMath",
+            "oMathPara" => "CT_OMathPara",
             _ => return None,
         }
     } else {
@@ -45927,3 +49602,132 @@ pub static WP_CONTENT_PART_NON_VISUAL: &ChildOrder = &DML_WORDPROCESSING_DRAWING
 
 /// A shape's own text box content, then its extension list — `mjx-docx` places `w:txbxContent` at this rank; the shape (`CT_WordprocessingShape`) and its text box content (`CT_TxbxContent`) are WordprocessingML-content-shaped and so live in `mjx-docx`, not here — see `mjx_dml::wordprocessing_drawing`'s own module doc (`CT_TextboxInfo`, `dml-wordprocessingDrawing.xsd`).
 pub static WP_TEXTBOX_INFO: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[7];
+
+/// One equation: a repeating choice of math objects and runs (`m:oMath`) (`CT_OMath`, `shared-math.xsd`).
+pub static MATH: &ChildOrder = &SHARED_MATH_TYPES[40];
+
+/// A paragraph of display equations: its own properties, then one or more `m:oMath` (`m:oMathPara`) (`CT_OMathPara`, `shared-math.xsd`).
+pub static MATH_PARAGRAPH: &ChildOrder = &SHARED_MATH_TYPES[44];
+
+/// A math paragraph's own justification (`CT_OMathParaPr`, `shared-math.xsd`).
+pub static MATH_PARAGRAPH_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[45];
+
+/// One math argument slot: an optional size override, its own math content, then a trailing control-properties pass-through — the recursive core every object bottoms out at (`CT_OMathArg`, `shared-math.xsd`).
+pub static MATH_ARGUMENT: &ChildOrder = &SHARED_MATH_TYPES[41];
+
+/// An argument's own size override (`CT_OMathArgPr`, `shared-math.xsd`).
+pub static MATH_ARGUMENT_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[42];
+
+/// One run of math content: its own properties, then a repeating choice of text and run inner content (`m:r`) (`CT_R`, `shared-math.xsd`).
+pub static MATH_RUN: &ChildOrder = &SHARED_MATH_TYPES[49];
+
+/// A run's own literal/normal-text/script-style choice, manual break and alignment flag (`m:rPr`) — distinct from `w:rPr` (`CT_RPR`, `shared-math.xsd`).
+pub static MATH_RUN_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[50];
+
+/// The document-level math settings: default font, break rule, display defaults, margins/spacing, default justification, n-ary/integral limit placement (`m:mathPr`) (`CT_MathPr`, `shared-math.xsd`).
+pub static MATH_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[37];
+
+/// An accent's own properties, then its base (`m:acc`) (`CT_Acc`, `shared-math.xsd`).
+pub static ACCENT: &ChildOrder = &SHARED_MATH_TYPES[0];
+
+/// An accent's own combining character, then control properties (`CT_AccPr`, `shared-math.xsd`).
+pub static ACCENT_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[1];
+
+/// A bar's own properties, then its base (`m:bar`) (`CT_Bar`, `shared-math.xsd`).
+pub static BAR: &ChildOrder = &SHARED_MATH_TYPES[2];
+
+/// A bar's own position, then control properties (`CT_BarPr`, `shared-math.xsd`).
+pub static BAR_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[3];
+
+/// A box's own properties, then its base (`m:box`) (`CT_Box`, `shared-math.xsd`).
+pub static MATH_BOX: &ChildOrder = &SHARED_MATH_TYPES[6];
+
+/// A box's own emulation/break/diff/alignment flags, then control properties (`CT_BoxPr`, `shared-math.xsd`).
+pub static MATH_BOX_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[7];
+
+/// A border box's own properties, then its base (`m:borderBox`) (`CT_BorderBox`, `shared-math.xsd`).
+pub static BORDER_BOX: &ChildOrder = &SHARED_MATH_TYPES[4];
+
+/// A border box's own edge-visibility and strike flags, then control properties (`CT_BorderBoxPr`, `shared-math.xsd`).
+pub static BORDER_BOX_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[5];
+
+/// A delimiter's own properties, then one or more enclosed arguments (`m:d`) (`CT_D`, `shared-math.xsd`).
+pub static DELIMITER: &ChildOrder = &SHARED_MATH_TYPES[12];
+
+/// A delimiter's own bracket/separator characters, growth and shape, then control properties (`CT_DPr`, `shared-math.xsd`).
+pub static DELIMITER_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[13];
+
+/// An equation array's own properties, then one or more rows (`m:eqArr`) (`CT_EqArr`, `shared-math.xsd`).
+pub static EQUATION_ARRAY: &ChildOrder = &SHARED_MATH_TYPES[14];
+
+/// An equation array's own base alignment and spacing, then control properties (`CT_EqArrPr`, `shared-math.xsd`).
+pub static EQUATION_ARRAY_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[15];
+
+/// A fraction's own properties, then its numerator and denominator (`m:f`) (`CT_F`, `shared-math.xsd`).
+pub static FRACTION: &ChildOrder = &SHARED_MATH_TYPES[16];
+
+/// A fraction's own bar style, then control properties (`CT_FPr`, `shared-math.xsd`).
+pub static FRACTION_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[17];
+
+/// A function-apply's own properties, its own name, then the applied argument (`m:func`) (`CT_Func`, `shared-math.xsd`).
+pub static FUNCTION_APPLY: &ChildOrder = &SHARED_MATH_TYPES[19];
+
+/// A group character's own properties, then its base (`m:groupChr`) (`CT_GroupChr`, `shared-math.xsd`).
+pub static GROUP_CHARACTER: &ChildOrder = &SHARED_MATH_TYPES[21];
+
+/// A group character's own glyph, position and justification, then control properties (`CT_GroupChrPr`, `shared-math.xsd`).
+pub static GROUP_CHARACTER_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[22];
+
+/// A lower-limit's own properties, its base, then the limit (`m:limLow`) (`CT_LimLow`, `shared-math.xsd`).
+pub static LOWER_LIMIT: &ChildOrder = &SHARED_MATH_TYPES[26];
+
+/// An upper-limit's own properties, its base, then the limit (`m:limUpp`) (`CT_LimUpp`, `shared-math.xsd`).
+pub static UPPER_LIMIT: &ChildOrder = &SHARED_MATH_TYPES[28];
+
+/// A matrix's own properties, then one or more rows (`m:m`) (`CT_M`, `shared-math.xsd`).
+pub static MATRIX: &ChildOrder = &SHARED_MATH_TYPES[30];
+
+/// One matrix row: one or more cells (`m:mr`) (`CT_MR`, `shared-math.xsd`).
+pub static MATRIX_ROW: &ChildOrder = &SHARED_MATH_TYPES[35];
+
+/// A matrix's own baseline, placeholder, spacing and column properties, then control properties (`CT_MPr`, `shared-math.xsd`).
+pub static MATRIX_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[34];
+
+/// A matrix's own per-column properties: one or more entries (`m:mcs`) (`CT_MCS`, `shared-math.xsd`).
+pub static MATRIX_COLUMNS: &ChildOrder = &SHARED_MATH_TYPES[33];
+
+/// One matrix-column-properties entry's own span count, then justification (`CT_MCPr`, `shared-math.xsd`).
+pub static MATRIX_COLUMN_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[32];
+
+/// An n-ary operator's own properties, its lower and upper limit, then its operand (`m:nary`) (`CT_Nary`, `shared-math.xsd`).
+pub static NARY_OPERATOR: &ChildOrder = &SHARED_MATH_TYPES[38];
+
+/// An n-ary operator's own glyph, limit location and growth/hide flags, then control properties (`CT_NaryPr`, `shared-math.xsd`).
+pub static NARY_OPERATOR_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[39];
+
+/// A phantom's own properties, then its base (`m:phant`) (`CT_Phant`, `shared-math.xsd`).
+pub static PHANTOM: &ChildOrder = &SHARED_MATH_TYPES[47];
+
+/// A phantom's own visibility and zero-metric flags, then control properties (`CT_PhantPr`, `shared-math.xsd`).
+pub static PHANTOM_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[48];
+
+/// A radical's own properties, its degree, then its radicand (`m:rad`) (`CT_Rad`, `shared-math.xsd`).
+pub static RADICAL: &ChildOrder = &SHARED_MATH_TYPES[51];
+
+/// A radical's own degree-hide flag, then control properties (`CT_RadPr`, `shared-math.xsd`).
+pub static RADICAL_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[52];
+
+/// A pre-sub-superscript's own properties, its subscript, superscript, then its base (`m:sPre`) (`CT_SPre`, `shared-math.xsd`).
+pub static PRE_SCRIPT: &ChildOrder = &SHARED_MATH_TYPES[53];
+
+/// A subscript's own properties, its base, then the subscript (`m:sSub`) (`CT_SSub`, `shared-math.xsd`).
+pub static SUBSCRIPT: &ChildOrder = &SHARED_MATH_TYPES[55];
+
+/// A combined subscript-superscript's own properties, its base, subscript, then superscript (`m:sSubSup`) (`CT_SSubSup`, `shared-math.xsd`).
+pub static SUBSCRIPT_SUPERSCRIPT: &ChildOrder = &SHARED_MATH_TYPES[57];
+
+/// A combined subscript-superscript's own alignment flag, then control properties (`CT_SSubSupPr`, `shared-math.xsd`).
+pub static SUBSCRIPT_SUPERSCRIPT_PROPERTIES: &ChildOrder = &SHARED_MATH_TYPES[58];
+
+/// A superscript's own properties, its base, then the superscript (`m:sSup`) (`CT_SSup`, `shared-math.xsd`).
+pub static SUPERSCRIPT: &ChildOrder = &SHARED_MATH_TYPES[59];
