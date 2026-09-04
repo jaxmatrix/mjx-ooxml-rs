@@ -156,15 +156,16 @@ pub struct Comment {
     empty: bool,
     #[xml(
         children,
-        child(local = "customXml", variant = CustomXml, ty = super::body::Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = super::body::Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlBlock),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlBlock),
         child(local = "p", variant = Paragraph, ty = Paragraph),
         child(local = "tbl", variant = Table, ty = super::tables::Table),
         child(local = "proofErr", variant = ProofingError, ty = super::body::ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = super::body::PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = super::body::PermissionRangeEnd),
         child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
-        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
+        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties),
+        child(local = "altChunk", variant = AltChunk, ty = super::structured_content::AltChunk)
     )]
     content: Vec<BlockContent>,
 }
@@ -485,15 +486,16 @@ pub struct FootnoteEndnote {
     empty: bool,
     #[xml(
         children,
-        child(local = "customXml", variant = CustomXml, ty = super::body::Unmodeled),
-        child(local = "sdt", variant = StructuredDocumentTag, ty = super::body::Unmodeled),
+        child(local = "customXml", variant = CustomXml, ty = super::structured_content::CustomXmlBlock),
+        child(local = "sdt", variant = StructuredDocumentTag, ty = super::structured_content::ContentControlBlock),
         child(local = "p", variant = Paragraph, ty = Paragraph),
         child(local = "tbl", variant = Table, ty = super::tables::Table),
         child(local = "proofErr", variant = ProofingError, ty = super::body::ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = super::body::PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = super::body::PermissionRangeEnd),
         child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
-        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
+        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties),
+        child(local = "altChunk", variant = AltChunk, ty = super::structured_content::AltChunk)
     )]
     content: Vec<BlockContent>,
 }

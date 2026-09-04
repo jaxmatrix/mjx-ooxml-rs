@@ -120,6 +120,29 @@ pub use document::{
     TargetScreenSizeSetting, TrackChangesView, TwipsMeasureValue, ViewSetting, WebSettings,
     WebSettingsContent, WriteProtectionSetting, WritingStyleSetting, ZoomSetting,
 };
+// MJXOFF-138: content controls, custom XML, smart tags, `w:dir`/`w:bdo`, `w:altChunk` and the
+// glossary document's building blocks — a separate `pub use`, matching MJXOFF-136's own precedent
+// above, so this child's cluster stays a single reviewable diff hunk.
+pub use document::{
+    resolve_xpath, AltChunk, AltChunkContent, AltChunkProperties, AltChunkPropertyContent, Attr,
+    BdoContentRun, BuildingBlock, BuildingBlockBehavior, BuildingBlockBehaviors,
+    BuildingBlockBehaviorsContent, BuildingBlockCategory, BuildingBlockCategoryContent,
+    BuildingBlockCategoryGallery, BuildingBlockContent, BuildingBlockName, BuildingBlockProperties,
+    BuildingBlockPropertyContent, BuildingBlockReference, BuildingBlockReferenceContent,
+    BuildingBlockType, BuildingBlockTypes, BuildingBlockTypesContent, ContentControlBlock,
+    ContentControlBlockContent, ContentControlCalendarType, ContentControlCell,
+    ContentControlCellContent, ContentControlComboBox, ContentControlContentBlock,
+    ContentControlContentCell, ContentControlContentRow, ContentControlContentRun,
+    ContentControlDate, ContentControlDateContent, ContentControlDateMappingType,
+    ContentControlDropDownList, ContentControlEndProperties, ContentControlEndPropertyContent,
+    ContentControlKind, ContentControlListContent, ContentControlListItem,
+    ContentControlProperties, ContentControlPropertyContent, ContentControlRow,
+    ContentControlRowContent, ContentControlRun, ContentControlRunContent, ContentControlText,
+    CustomXmlBlock, CustomXmlCell, CustomXmlProperties, CustomXmlPropertyContent, CustomXmlRow,
+    CustomXmlRun, DataBinding, DirContentRun, DocParts, DocPartsContent, GlossaryDocument,
+    GlossaryDocumentContent, GuidValue, Lock, Placeholder, SmartTagProperties,
+    SmartTagPropertyContent, SmartTagRun,
+};
 pub use error::DocxError;
 pub use page::{PageMargins, PageOrientation, PageSize};
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package

@@ -185,7 +185,7 @@ impl DocumentParts {
 /// part, so "first" and "only" coincide for a conformant document; a non-conformant duplicate is not
 /// rejected here (this crate does not yet validate WordprocessingML-specific invariants — see
 /// [`crate::Document::validate`]).
-fn single(
+pub(crate) fn single(
     source: &PartName,
     rels: &Relationships,
     rel_type: &str,
@@ -198,7 +198,7 @@ fn single(
 
 /// Every relationship of `rel_type` from `source`'s own `.rels`, resolved to part names, in
 /// relationship order.
-fn many(
+pub(crate) fn many(
     source: &PartName,
     rels: &Relationships,
     rel_type: &str,
@@ -209,7 +209,7 @@ fn many(
 }
 
 /// Resolves one relationship's target to a part name, rejecting an external one.
-fn resolve_one(source: &PartName, rel: &Relationship) -> Result<PartName, DocxError> {
+pub(crate) fn resolve_one(source: &PartName, rel: &Relationship) -> Result<PartName, DocxError> {
     if rel.mode == TargetMode::External {
         return Err(DocxError::ExternalTarget {
             target: rel.target.clone(),
@@ -227,7 +227,7 @@ pub(crate) fn resolve_from_root(target: &str) -> Result<PartName, DocxError> {
 }
 
 /// Restates an OPC target-resolution failure as the WordprocessingML error naming the same target.
-fn target_error(err: mjx_opc::OpcError, target: &str) -> DocxError {
+pub(crate) fn target_error(err: mjx_opc::OpcError, target: &str) -> DocxError {
     match err {
         mjx_opc::OpcError::ExternalTarget(_) => DocxError::ExternalTarget {
             target: target.to_owned(),
