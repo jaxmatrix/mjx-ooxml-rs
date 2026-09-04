@@ -332,11 +332,15 @@ pub(crate) fn block_remove_table(
 }
 
 impl Body {
-    /// This body's whole ordered top-level content — `ranges.rs` (MJXOFF-124) walks this (recursing
-    /// into every table cell) to build a [`super::ranges::RangeIndex`] or compute
-    /// [`super::ranges::covered_text`] over the whole document, the same `pub(crate)` escape hatch
-    /// [`super::tables::Cell::content`] already gives.
-    pub(crate) fn content(&self) -> &[BlockContent] {
+    /// This body's whole ordered top-level content — the same shape [`super::tables::Table::content`]/
+    /// [`super::tables::Row::content`]/[`super::tables::Cell::content`] already expose publicly
+    /// (MJXOFF-116), and what a caller finding a top-level [`BlockContent::StructuredDocumentTag`]
+    /// or [`BlockContent::CustomXml`] (MJXOFF-138) reads directly, the way `ranges.rs`
+    /// (MJXOFF-124) already reads it internally (recursing into every table cell) to build a
+    /// [`super::ranges::RangeIndex`] or compute [`super::ranges::covered_text`] over the whole
+    /// document.
+    #[must_use]
+    pub fn content(&self) -> &[BlockContent] {
         &self.content
     }
 
@@ -1046,10 +1050,13 @@ impl Paragraph {
         text
     }
 
-    /// This paragraph's own content, immutably. `pub(crate)`: `fields.rs` (MJXOFF-121) walks this
-    /// the same way [`Run::content`] lets it walk a run's own inner content — see that method's own
-    /// doc comment.
-    pub(crate) fn content(&self) -> &[ParagraphContent] {
+    /// This paragraph's own content, immutably — the same shape [`super::tables::Cell::content`]
+    /// already exposes publicly, and what a caller finding a top-level
+    /// [`ParagraphContent::StructuredDocumentTag`] or [`ParagraphContent::CustomXml`] (MJXOFF-138)
+    /// reads directly. `fields.rs` (MJXOFF-121) also walks this the same way [`Run::content`] lets
+    /// it walk a run's own inner content — see that method's own doc comment.
+    #[must_use]
+    pub fn content(&self) -> &[ParagraphContent] {
         &self.content
     }
 
