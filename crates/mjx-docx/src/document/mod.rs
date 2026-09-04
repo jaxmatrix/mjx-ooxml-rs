@@ -48,6 +48,21 @@
 //! - `annotations.rs` — `w:comments`/`w:footnotes`/`w:endnotes` (`CT_Comments`/`CT_Footnotes`/
 //!   `CT_Endnotes`) and the section-level `w:footnotePr`/`w:endnotePr` C9 left opaque, MJXOFF-124's
 //!   own file: [`Comments`], [`Footnotes`], [`Endnotes`] and their own content types.
+//! - `drawing.rs` — `w:drawing`/`w:object`/`w:control` and the WordprocessingML-specific drawing
+//!   types `mjx-dml` cannot host (`CT_TxbxContent` reaches upward into this crate's own paragraph
+//!   model), MJXOFF-131's own file.
+//! - `revisions.rs` — the tracked-change wrappers `CT_*Change` and the revision-marker mechanism
+//!   (`w:ins`/`w:del`/`w:moveFrom`/`w:moveTo`), MJXOFF-126's own file — see that module's own doc
+//!   comment for the mutation-path table naming exactly what a tracked edit is and is not.
+//! - `settings.rs` — `word/settings.xml` (`CT_Settings`) and its ~50-type cluster, MJXOFF-136's own
+//!   file: [`DocumentSettings`] and everything `w:settings` carries except mail merge.
+//! - `web_settings.rs` — `word/webSettings.xml` (`CT_WebSettings`), MJXOFF-136's own file:
+//!   [`WebSettings`], legacy framesets and `w:div`s.
+//! - `font_table.rs` — `word/fontTable.xml` (`CT_FontsList`), MJXOFF-136's own file: [`FontTable`],
+//!   embedded-font relationships and their obfuscation keys (opaque, never re-encoded).
+//! - `mail_merge.rs` — `w:settings/w:mailMerge` and `word/recipients.xml` (`CT_MailMerge`/
+//!   `CT_Recipients`), MJXOFF-136's own file: [`MailMergeSettings`], the ODSO (Office Data Source
+//!   Object) cluster, and [`Recipients`].
 //!
 //! (This list previously named `styles.rs`, `numbering.rs`, `effective.rs` and `sections.rs` among
 //! the files "later children are expected to add" — stale by the time MJXOFF-109 landed, all four
@@ -55,9 +70,8 @@
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
-//! C): `revisions.rs`, `drawing.rs`, `settings.rs`, `structured_content.rs`. A child that needs a
-//! subject not on this list adds the file and a line here, the same way `presentation/`'s own list
-//! grew past A8.
+//! C): `structured_content.rs`. A child that needs a subject not on this list adds the file and a
+//! line here, the same way `presentation/`'s own list grew past A8.
 
 use mjx_ooxml_core::{
     Enumeration, FromXml, FromXmlError, RawAttribute, RawDocument, RawName, RawNode, ToXml,
@@ -73,8 +87,10 @@ mod body;
 mod drawing;
 mod effective;
 mod fields;
+mod font_table;
 mod headers;
 mod hyperlinks;
+mod mail_merge;
 mod numbering;
 mod paragraph_properties;
 mod parts;
@@ -83,10 +99,12 @@ mod ranges;
 mod revisions;
 mod run_properties;
 mod sections;
+mod settings;
 mod styles;
 mod table_properties;
 mod table_regions;
 mod tables;
+mod web_settings;
 
 pub use annotations::{
     Comment, Comments, CommentsContent, EndnotePositionElement, EndnoteProperties,
@@ -121,8 +139,18 @@ pub use fields::{
     FormFieldTextTypeElement, MacroNameElement, SimpleField, StringElement,
     UnsignedDecimalNumberValue,
 };
+pub use font_table::{
+    Charset, Font, FontContent, FontFamily, FontRel, FontSignature, FontTable, FontTableContent,
+    Panose, Pitch,
+};
 pub use headers::{HdrFtr, HeaderFooterType};
 pub use hyperlinks::HyperlinkTarget;
+pub use mail_merge::{
+    Base64BinaryValue, LanguageValue, MailMergeContent, MailMergeDataTypeValue,
+    MailMergeDestinationValue, MailMergeDocumentTypeValue, MailMergeFieldMappingTypeValue,
+    MailMergeSettings, MailMergeSourceTypeValue, Odso, OdsoContent, OdsoFieldMapEntry,
+    OdsoFieldMapEntryContent, RecipientData, RecipientDataContent, Recipients, RecipientsContent,
+};
 pub use numbering::{
     AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
     LevelNumberFormat, LevelSuffix, LevelTextSegment, LevelTextTemplate, MultiLevelKind, Numbering,
@@ -176,6 +204,18 @@ pub use styles::{
     StyleParagraphPropertyContent, StyleSheet, StyleSheetContent, StyleString, TableStyleOverride,
     TableStyleOverrideContent, MAX_BASED_ON_CHAIN_DEPTH,
 };
+pub use settings::{
+    AutoCaptionEntry, AutoCaptionsContent, AutoCaptionsSetting, CaptionLabel, CaptionsContent,
+    CaptionsSetting, CharacterSpacingSetting, ColorSchemeMapping,
+    Compatibility, CompatibilityContent, CompatibilitySetting, DecimalOrPercentValue,
+    DocumentProtection, DocumentRevisionSaveIds, DocumentRevisionSaveIdsContent, DocumentSettings,
+    DocumentTypeSetting, DocumentVariable, DocumentVariables, DocumentVariablesContent,
+    EndnoteDocumentDefaults, EndnoteDocumentDefaultsContent, FootnoteDocumentDefaults,
+    FootnoteDocumentDefaultsContent, Kinsoku, ProofSettings, ReadingModeInkLockDown,
+    SaveThroughXsltSetting, SeparatorReference, SettingsContent, SmartTagTypeEntry,
+    StylePaneFilter, StyleSortSetting, TrackChangesView, TwipsMeasureValue, ViewSetting,
+    WriteProtectionSetting, WritingStyleSetting, ZoomSetting,
+};
 pub use table_properties::{
     CellBorderContent, CellBorders, CellHeaderReferences, CellMargins, CellTextDirection,
     CellVerticalAlignment, FloatingTableOverlap, FloatingTablePosition, HeaderReferenceContent,
@@ -190,6 +230,12 @@ pub use table_regions::{
 pub use tables::{
     Cell, CellProperties, CellPropertiesContent, Grid, GridColumn, GridContent, GridDiscrepancy,
     MergeMarker, MergedCellType, Row, RowContent, Table, TableContent,
+};
+pub use web_settings::{
+    Div, DivBorders, DivBordersContent, DivContent, Divs, DivsContent, Frame, FrameContent,
+    FrameLayoutSetting, FrameScrollbarSetting, Frameset, FramesetContent, FramesetSplitbar,
+    FramesetSplitbarContent, OptimizeForBrowserSetting, PixelsMeasureValue,
+    SignedTwipsMeasureElement, TargetScreenSizeSetting, WebSettings, WebSettingsContent,
 };
 
 use crate::address::{BlockPath, RunPath};
@@ -568,6 +614,364 @@ impl Document {
         Ok(numbering_part)
     }
 
+    // -------------------------------------------------------------------------------------------
+    // word/settings.xml, word/webSettings.xml, word/fontTable.xml, word/recipients.xml
+    // (MJXOFF-136) — four of `wml.xsd`'s fourteen global elements, each mirroring
+    // [`Document::style_sheet`]/[`Document::edit_style_sheet`]'s own shape exactly.
+    // -------------------------------------------------------------------------------------------
+
+    /// Reads this document's `word/settings.xml`, handing `read` the parsed [`DocumentSettings`]
+    /// together with the [`mjx_ooxml_core::Interner`] it was parsed with.
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no
+    /// `word/settings.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/settings.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:settings`.
+    pub fn document_settings<R>(
+        &mut self,
+        read: impl FnOnce(&DocumentSettings, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(settings_part) = self.parts.settings.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&settings_part)?;
+        let settings = DocumentSettings::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&settings, &doc.interner)))
+    }
+
+    /// Edits this document's `word/settings.xml`, creating it — with its content-type registration
+    /// and its `settings` relationship from the main document part — first if the document does not
+    /// relate to one yet. Mirrors [`Document::edit_style_sheet`]'s own shape exactly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/settings.xml` is related but cannot be read, or if creating a
+    /// missing one fails (a malformed existing `[Content_Types].xml`/`.rels`, or a part-name
+    /// collision).
+    pub fn edit_document_settings<R>(
+        &mut self,
+        edit: impl FnOnce(&mut DocumentSettings, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let settings_part = match &self.parts.settings {
+            Some(part) => part.clone(),
+            None => self.create_document_settings_part()?,
+        };
+        let doc = self.package.part_tree_mut(&settings_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut settings = if root.name.local == interner.intern("settings") {
+            DocumentSettings::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/settings.xml root is not w:settings",
+            ));
+        };
+        let result = edit(&mut settings, interner);
+        settings.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/settings.xml`, registers its content type, and relates it from the
+    /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
+    fn create_document_settings_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let settings_part = self.document_part.resolve("settings.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "settings.xml".to_owned(),
+            }
+        })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:settings xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &settings_part,
+            crate::constants::CONTENT_TYPE_SETTINGS,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_SETTINGS.to_owned(),
+                target: "settings.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.settings = Some(settings_part.clone());
+        Ok(settings_part)
+    }
+
+    /// Reads this document's `word/webSettings.xml`, handing `read` the parsed [`WebSettings`]
+    /// together with the [`mjx_ooxml_core::Interner`] it was parsed with.
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no
+    /// `word/webSettings.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/webSettings.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:webSettings`.
+    pub fn web_settings<R>(
+        &mut self,
+        read: impl FnOnce(&WebSettings, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(web_settings_part) = self.parts.web_settings.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&web_settings_part)?;
+        let settings = WebSettings::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&settings, &doc.interner)))
+    }
+
+    /// Edits this document's `word/webSettings.xml`, creating it first if the document does not
+    /// relate to one yet. Mirrors [`Document::edit_style_sheet`]'s own shape exactly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/webSettings.xml` is related but cannot be read, or if
+    /// creating a missing one fails.
+    pub fn edit_web_settings<R>(
+        &mut self,
+        edit: impl FnOnce(&mut WebSettings, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let web_settings_part = match &self.parts.web_settings {
+            Some(part) => part.clone(),
+            None => self.create_web_settings_part()?,
+        };
+        let doc = self.package.part_tree_mut(&web_settings_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut settings = if root.name.local == interner.intern("webSettings") {
+            WebSettings::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/webSettings.xml root is not w:webSettings",
+            ));
+        };
+        let result = edit(&mut settings, interner);
+        settings.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/webSettings.xml`, registers its content type, and relates it from the
+    /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
+    fn create_web_settings_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let web_settings_part =
+            self.document_part
+                .resolve("webSettings.xml")
+                .map_err(|_| DocxError::TargetResolution {
+                    target: "webSettings.xml".to_owned(),
+                })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:webSettings xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &web_settings_part,
+            crate::constants::CONTENT_TYPE_WEB_SETTINGS,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_WEB_SETTINGS.to_owned(),
+                target: "webSettings.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.web_settings = Some(web_settings_part.clone());
+        Ok(web_settings_part)
+    }
+
+    /// Reads this document's `word/fontTable.xml`, handing `read` the parsed [`FontTable`] together
+    /// with the [`mjx_ooxml_core::Interner`] it was parsed with.
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no
+    /// `word/fontTable.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/fontTable.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:fonts`.
+    pub fn font_table<R>(
+        &mut self,
+        read: impl FnOnce(&FontTable, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(font_table_part) = self.parts.font_table.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&font_table_part)?;
+        let table = FontTable::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&table, &doc.interner)))
+    }
+
+    /// Edits this document's `word/fontTable.xml`, creating it first if the document does not
+    /// relate to one yet. Mirrors [`Document::edit_style_sheet`]'s own shape exactly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/fontTable.xml` is related but cannot be read, or if creating
+    /// a missing one fails.
+    pub fn edit_font_table<R>(
+        &mut self,
+        edit: impl FnOnce(&mut FontTable, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let font_table_part = match &self.parts.font_table {
+            Some(part) => part.clone(),
+            None => self.create_font_table_part()?,
+        };
+        let doc = self.package.part_tree_mut(&font_table_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut table = if root.name.local == interner.intern("fonts") {
+            FontTable::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/fontTable.xml root is not w:fonts",
+            ));
+        };
+        let result = edit(&mut table, interner);
+        table.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/fontTable.xml`, registers its content type, and relates it from the
+    /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
+    fn create_font_table_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let font_table_part =
+            self.document_part
+                .resolve("fontTable.xml")
+                .map_err(|_| DocxError::TargetResolution {
+                    target: "fontTable.xml".to_owned(),
+                })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        const REL_NAMESPACE: &str =
+            "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:fonts xmlns:w="{ns}" xmlns:r="{rns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+            rns = REL_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &font_table_part,
+            crate::constants::CONTENT_TYPE_FONT_TABLE,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_FONT_TABLE.to_owned(),
+                target: "fontTable.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.font_table = Some(font_table_part.clone());
+        Ok(font_table_part)
+    }
+
+    /// Reads this document's `word/recipients.xml`, handing `read` the parsed [`Recipients`]
+    /// together with the [`mjx_ooxml_core::Interner`] it was parsed with.
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no
+    /// `word/recipients.xml` at all.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/recipients.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:recipients`.
+    pub fn recipients<R>(
+        &mut self,
+        read: impl FnOnce(&Recipients, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
+        let Some(recipients_part) = self.parts.recipients.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&recipients_part)?;
+        let recipients = Recipients::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&recipients, &doc.interner)))
+    }
+
+    /// Edits this document's `word/recipients.xml`, creating it first if the document does not
+    /// relate to one yet. Mirrors [`Document::edit_style_sheet`]'s own shape exactly.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/recipients.xml` is related but cannot be read, or if creating
+    /// a missing one fails.
+    pub fn edit_recipients<R>(
+        &mut self,
+        edit: impl FnOnce(&mut Recipients, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let recipients_part = match &self.parts.recipients {
+            Some(part) => part.clone(),
+            None => self.create_recipients_part()?,
+        };
+        let doc = self.package.part_tree_mut(&recipients_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut recipients = if root.name.local == interner.intern("recipients") {
+            Recipients::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/recipients.xml root is not w:recipients",
+            ));
+        };
+        let result = edit(&mut recipients, interner);
+        recipients.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/recipients.xml`, registers its content type, and relates it from the
+    /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
+    fn create_recipients_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let recipients_part =
+            self.document_part
+                .resolve("recipients.xml")
+                .map_err(|_| DocxError::TargetResolution {
+                    target: "recipients.xml".to_owned(),
+                })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:recipients xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package.insert_part(
+            &recipients_part,
+            crate::constants::CONTENT_TYPE_MAIL_MERGE_RECIPIENT_DATA,
+            bytes,
+        )?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_MAIL_MERGE_RECIPIENT_DATA.to_owned(),
+                target: "recipients.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.recipients = Some(recipients_part.clone());
+        Ok(recipients_part)
+    }
+
     /// Resolves `numbering_id`/`level` through both indirection hops — see `numbering.rs`'s own
     /// module doc — including a `w:numStyleLink` redirect through `word/styles.xml` when the
     /// resolved abstract definition carries one. `read` receives the [`NumberingLookup`] together
@@ -817,32 +1221,24 @@ impl Document {
     // -------------------------------------------------------------------------------------------
 
     /// Whether this document's sections use different headers/footers for even and odd pages
-    /// (`w:settings/w:evenAndOddHeaders`), read directly from `word/settings.xml` — MJXOFF-136 models
-    /// that part as a whole; this crate reads only the one flag [`Document::resolve_header`]/
-    /// `resolve_footer` need, exactly as this child's own ticket asks. `false` (the schema default)
-    /// if the document relates to no `word/settings.xml`, or if that part carries no
-    /// `w:evenAndOddHeaders` at all.
+    /// (`w:settings/w:evenAndOddHeaders`, §17.10.1 — MJXOFF-113's original module doc cited this
+    /// section for the flag's own semantics, and that reasoning survives the move even though the
+    /// ad-hoc read that used to live here does not). `false` (the schema default) if the document
+    /// relates to no `word/settings.xml`, or if that part carries no `w:evenAndOddHeaders` at all.
+    ///
+    /// Reached through [`DocumentSettings::even_and_odd_headers`] (MJXOFF-136's own model) rather
+    /// than a hand-rolled scan of `word/settings.xml`'s raw tree, which is what this method used to
+    /// be before that part had a model at all.
     ///
     /// # Errors
     /// Returns [`DocxError`] if `word/settings.xml` is related but cannot be read.
     pub fn even_and_odd_headers(&mut self) -> Result<bool, DocxError> {
-        let Some(settings_part) = self.parts.settings.clone() else {
-            return Ok(false);
-        };
-        let doc = self.package.part_tree(&settings_part)?;
-        let found = doc.root.children.iter().find_map(|node| match node {
-            RawNode::Element(element)
-                if is_wml_element(element, &doc.interner, "evenAndOddHeaders") =>
-            {
-                Some(element)
-            }
-            _ => None,
-        });
-        let Some(element) = found else {
-            return Ok(false);
-        };
-        let toggle = Toggle::from_xml(element, &doc.interner)?;
-        Ok(toggle.value(&doc.interner).map_err(FromXmlError::from)?)
+        let read =
+            self.document_settings(|settings, interner| settings.even_and_odd_headers(interner))?;
+        match read {
+            None => Ok(false),
+            Some(flag) => Ok(flag.map_err(FromXmlError::from)?.unwrap_or(false)),
+        }
     }
 
     /// Resolves which header part actually applies to `section_index`'s pages of variant `kind` —

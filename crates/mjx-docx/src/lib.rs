@@ -97,6 +97,30 @@ pub use document::{
     VerticalCharacterAlignment, WhitespacePreservation, WordprocessingShape,
     WordprocessingShapeContent, MAX_BASED_ON_CHAIN_DEPTH, MAX_NUM_STYLE_LINK_DEPTH,
 };
+// MJXOFF-136: `word/settings.xml`, `word/webSettings.xml`, `word/fontTable.xml` and
+// `word/recipients.xml` — a separate `pub use` rather than folded into the block above, so the
+// four-part cluster this child added stays a single reviewable diff hunk.
+pub use document::{
+    AutoCaptionEntry, AutoCaptionsContent, AutoCaptionsSetting, Base64BinaryValue, CaptionLabel,
+    CaptionsContent, CaptionsSetting, CharacterSpacingSetting,
+    Charset, ColorSchemeMapping, Compatibility, CompatibilityContent, CompatibilitySetting,
+    DecimalOrPercentValue, Div, DivBorders, DivBordersContent, DivContent, Divs, DivsContent,
+    DocumentProtection, DocumentRevisionSaveIds, DocumentRevisionSaveIdsContent,
+    DocumentSettings, DocumentTypeSetting, DocumentVariable, DocumentVariables,
+    DocumentVariablesContent, EndnoteDocumentDefaults, EndnoteDocumentDefaultsContent, Font,
+    FontContent, FontFamily, FontRel, FontSignature, FontTable, FontTableContent,
+    FootnoteDocumentDefaults, FootnoteDocumentDefaultsContent, Frame, FrameContent,
+    FrameLayoutSetting, FrameScrollbarSetting, Frameset, FramesetContent, FramesetSplitbar,
+    FramesetSplitbarContent, Kinsoku, LanguageValue, MailMergeContent, MailMergeDataTypeValue,
+    MailMergeDestinationValue, MailMergeDocumentTypeValue, MailMergeFieldMappingTypeValue,
+    MailMergeSettings, MailMergeSourceTypeValue, Odso, OdsoContent, OdsoFieldMapEntry,
+    OdsoFieldMapEntryContent, OptimizeForBrowserSetting, Panose, Pitch, PixelsMeasureValue,
+    ProofSettings, ReadingModeInkLockDown, RecipientData, RecipientDataContent, Recipients,
+    RecipientsContent, SaveThroughXsltSetting, SeparatorReference, SettingsContent,
+    SignedTwipsMeasureElement, SmartTagTypeEntry, StylePaneFilter, StyleSortSetting,
+    TargetScreenSizeSetting, TrackChangesView, TwipsMeasureValue, ViewSetting, WebSettings,
+    WebSettingsContent, WriteProtectionSetting, WritingStyleSetting, ZoomSetting,
+};
 pub use error::DocxError;
 pub use page::{PageMargins, PageOrientation, PageSize};
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package
