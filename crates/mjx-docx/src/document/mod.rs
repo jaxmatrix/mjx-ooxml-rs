@@ -145,8 +145,10 @@ pub use ranges::{
     MarkupRange, RangeIndex, RangeResolution,
 };
 pub use revisions::{
-    CellMergeTrackChange, CellPropertiesChange, CellPropertiesChangeContent, MoveBookmark,
-    ParagraphMarkPropertiesChange, ParagraphMarkPropertiesChangeContent, ParagraphPropertiesChange,
+    math_control_properties, CellMergeTrackChange, CellPropertiesChange,
+    CellPropertiesChangeContent, MathControlDelete, MathControlDeleteContent, MathControlInsert,
+    MathControlInsertContent, MathControlProperties, MoveBookmark, ParagraphMarkPropertiesChange,
+    ParagraphMarkPropertiesChangeContent, ParagraphPropertiesChange,
     ParagraphPropertiesChangeContent, RevisionInfo, RevisionKind, RowPropertiesChange,
     RowPropertiesChangeContent, RunPropertiesChange, RunPropertiesChangeContent, RunTrackChange,
     SectionPropertiesChange, SectionPropertiesChangeContent, TableExceptionPropertiesChange,
@@ -1313,6 +1315,47 @@ impl Document {
         Ok(())
     }
 
+    /// Sets the text of one `m:t` nested inside the `equation_index`-th top-level equation
+    /// ([`Paragraph::equations`]) of the paragraph at `paragraph` — `path` is the sequence of
+    /// `m:`-namespaced local element names from the equation's own root down to (and including) the
+    /// target `m:t` (e.g. `&["f", "num", "r", "t"]` for a fraction's numerator's first run's text).
+    ///
+    /// Reaches [`mjx_omml::Math::children_mut`] and — like [`Document::set_run_text`] — goes through
+    /// [`ToXml::write_back`], so only the byte range containing the edited node actually re-serializes;
+    /// every sibling, at every nesting level, keeps its original bytes.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if the paragraph, the equation index, or `path` does not
+    /// resolve to an element.
+    pub fn set_equation_run_text(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        equation_index: usize,
+        path: &[&str],
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let equation = paragraph
+            .equations_mut()
+            .nth(equation_index)
+            .ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no equation at index {equation_index}"))
+            })?;
+        set_nested_math_text(equation, interner, path, text).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no element at math path {path:?}"))
+        })?;
+        main.write_back(root, interner);
+        Ok(())
+    }
+
     /// Inserts a new, empty paragraph so it becomes the paragraph at `at`, shifting every paragraph
     /// at or after that position one place later. `at` must address an existing paragraph or the one
     /// past the last (`0..=paragraph_count()`).
@@ -1420,6 +1463,39 @@ impl Document {
             DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
         })?;
         paragraph.append_run(run);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Appends a new equation (`m:oMath`) as the paragraph's new last top-level item — `build` gets
+    /// the document's own live [`Interner`](mjx_ooxml_core::Interner) to assemble it with
+    /// `mjx-omml`'s own builders (`mjx_omml::Fraction::new`, `mjx_omml::Argument::new`, …), the same
+    /// closure shape [`Document::edit_numbering`]/[`Document::edit_section_properties`] already use for content
+    /// this crate's own convenience methods have no `&str`-only shorthand for.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph.
+    pub fn append_math(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        build: impl FnOnce(&mut mjx_ooxml_core::Interner) -> mjx_omml::Math,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let mut equation = build(interner);
+        // A blank `word/document.xml` binds only `w`/`r` (`blank.rs`'s own template): this splice
+        // introduces `m:`, which the surrounding part does not necessarily declare, so — exactly as
+        // `drawing.rs`'s own `Drawing::new` does for `wp:`/`a:`/`pic:` — the newly inserted subtree's
+        // own root carries the declaration itself.
+        equation.declare_namespace(interner);
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        paragraph.append_math(equation);
         main.write_back(root, interner);
         Ok(())
     }
@@ -3747,6 +3823,45 @@ impl MainDocument {
             _ => None,
         })
     }
+}
+
+/// The first element of `children` whose local name (any namespace — an equation's own descendants
+/// are all `m:`-namespaced, so matching on local name alone is sufficient here) is `local`, mutably —
+/// [`Document::set_equation_run_text`]'s own descent step.
+fn descend_math_mut<'a>(
+    children: &'a mut [mjx_ooxml_core::RawNode],
+    interner: &mjx_ooxml_core::Interner,
+    local: &str,
+) -> Option<&'a mut mjx_ooxml_core::RawElement> {
+    children.iter_mut().find_map(|node| match node {
+        mjx_ooxml_core::RawNode::Element(element)
+            if interner.resolve(element.name.local) == local =>
+        {
+            Some(element)
+        }
+        _ => None,
+    })
+}
+
+/// Descends `path` from `equation`'s own children and replaces the final element's content with
+/// `text` — [`Document::set_equation_run_text`]'s own worker, kept free of `Document` so it borrows
+/// only what it needs.
+fn set_nested_math_text(
+    equation: &mut mjx_omml::Math,
+    interner: &mjx_ooxml_core::Interner,
+    path: &[&str],
+    text: &str,
+) -> Option<()> {
+    let (&first, rest) = path.split_first()?;
+    let mut current = descend_math_mut(equation.children_mut(), interner, first)?;
+    for local in rest {
+        current = descend_math_mut(&mut current.children, interner, local)?;
+    }
+    current.children = vec![mjx_ooxml_core::RawNode::Text(
+        text.as_bytes().to_vec().into_boxed_slice(),
+    )];
+    current.empty = false;
+    Some(())
 }
 
 /// Whether `element` is `local` in the WordprocessingML namespace (Transitional or Strict) — the

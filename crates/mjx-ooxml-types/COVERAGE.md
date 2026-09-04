@@ -58,7 +58,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | shared-documentPropertiesCustom | not modelled — as for its simple types |
 | shared-documentPropertiesExtended | not modelled — `CT_Properties` is an `xs:all` group; ECMA-376 places no order constraint on its children, so there is no `xsd:sequence` for this generator to place them by |
 | shared-documentPropertiesVariantTypes | not modelled — as for its simple types |
-| shared-math | pending, owned by MJXOFF-134 — the `mjx-omml` model is the child that starts placing `m:` children |
+| shared-math | generated — every complex type |
 | shared-relationshipReference | not modelled — relationship references are attributes, not a content model |
 | sml | pending, owned by MJXOFF-132 — the Excel crate spine is the child that starts placing `x:` children |
 | vml-main | not modelled — VML parts are preserved byte for byte, never re-sequenced |

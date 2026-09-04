@@ -539,7 +539,9 @@ pub struct Paragraph {
         child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
         child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
         child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
-        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange),
+        child(local = "oMath", variant = Math, ty = mjx_omml::Math, ns = SHARED_MATH),
+        child(local = "oMathPara", variant = MathParagraph, ty = mjx_omml::MathParagraph, ns = SHARED_MATH)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -618,7 +620,9 @@ pub struct Hyperlink {
         child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
         child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
         child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
-        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange),
+        child(local = "oMath", variant = Math, ty = mjx_omml::Math, ns = SHARED_MATH),
+        child(local = "oMathPara", variant = MathParagraph, ty = mjx_omml::MathParagraph, ns = SHARED_MATH)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -760,6 +764,13 @@ pub enum ParagraphContent {
     MoveFrom(super::revisions::RunTrackChange),
     /// `w:moveTo` (`CT_RunTrackChange`), folded in from `EG_RunLevelElts`.
     MoveTo(super::revisions::RunTrackChange),
+    /// `m:oMath` (`mjx_omml::Math`), folded in from `EG_RunLevelElts`'s own `EG_MathContent` —
+    /// MJXOFF-134's own type. An inline equation, a sibling of `w:r` rather than nested inside one
+    /// (`EG_MathContent` sits at run-*level*, not inside `CT_R`).
+    Math(mjx_omml::Math),
+    /// `m:oMathPara` (`mjx_omml::MathParagraph`), folded in from `EG_RunLevelElts`'s own
+    /// `EG_MathContent` — a paragraph of one or more display equations.
+    MathParagraph(mjx_omml::MathParagraph),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -1005,6 +1016,47 @@ impl Paragraph {
     /// Appends `run` as this paragraph's new last top-level run.
     pub fn append_run(&mut self, run: Run) {
         self.content.push(ParagraphContent::Run(run));
+    }
+
+    /// Appends `equation` (`m:oMath`) as this paragraph's new last top-level item — `EG_MathContent`
+    /// sits at run level, a sibling of `w:r` rather than nested inside one, so this is a top-level
+    /// append exactly like [`Paragraph::append_run`], not an addition to any existing run.
+    pub fn append_math(&mut self, equation: mjx_omml::Math) {
+        self.content.push(ParagraphContent::Math(equation));
+    }
+
+    /// Appends `paragraph` (`m:oMathPara`, one or more display equations sharing one justification)
+    /// as this paragraph's new last top-level item.
+    pub fn append_math_paragraph(&mut self, paragraph: mjx_omml::MathParagraph) {
+        self.content
+            .push(ParagraphContent::MathParagraph(paragraph));
+    }
+
+    /// Every top-level `m:oMath` this paragraph carries directly (not the ones nested inside an
+    /// `m:oMathPara`'s own [`Paragraph::math_paragraphs`] — reach those through
+    /// [`mjx_omml::MathParagraph::equations`]), in document order.
+    pub fn equations(&self) -> impl Iterator<Item = &mjx_omml::Math> {
+        self.content.iter().filter_map(|item| match item {
+            ParagraphContent::Math(math) => Some(math),
+            _ => None,
+        })
+    }
+
+    /// Every top-level `m:oMathPara` this paragraph carries, in document order.
+    pub fn math_paragraphs(&self) -> impl Iterator<Item = &mjx_omml::MathParagraph> {
+        self.content.iter().filter_map(|item| match item {
+            ParagraphContent::MathParagraph(paragraph) => Some(paragraph),
+            _ => None,
+        })
+    }
+
+    /// [`Paragraph::equations`], mutably — reaches an equation's own [`mjx_omml::Math::children_mut`]
+    /// for an in-place nested edit.
+    pub fn equations_mut(&mut self) -> impl Iterator<Item = &mut mjx_omml::Math> {
+        self.content.iter_mut().filter_map(|item| match item {
+            ParagraphContent::Math(math) => Some(math),
+            _ => None,
+        })
     }
 
     /// Removes and returns the run at `path`, or `None` if the address is out of range or does not,

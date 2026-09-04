@@ -1561,7 +1561,9 @@ pub struct SimpleField {
         child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
         child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
         child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
-        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange),
+        child(local = "oMath", variant = Math, ty = mjx_omml::Math, ns = SHARED_MATH),
+        child(local = "oMathPara", variant = MathParagraph, ty = mjx_omml::MathParagraph, ns = SHARED_MATH)
     )]
     content: Vec<ParagraphContent>,
 }
