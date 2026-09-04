@@ -1339,7 +1339,7 @@ pub struct ContentControlContentBlock {
 
 impl ContentControlContentBlock {
     /// This element's whole ordered content — the same shape
-    /// [`super::body::Body::content`]/[`super::body::HdrFtr::content`]/[`super::tables::Cell::content`]
+    /// [`super::body::Body::content`]/`HdrFtr::content`/[`super::tables::Cell::content`]
     /// already hand a caller, so every free function in `body.rs` that walks a `&[BlockContent]`
     /// (`block_paragraphs`, `block_tables`, …) works over this unchanged.
     #[must_use]
@@ -1404,7 +1404,7 @@ pub struct ContentControlContentRun {
 
 impl ContentControlContentRun {
     /// This element's whole ordered content — the same shape
-    /// [`super::body::Paragraph::content`]/[`super::body::Hyperlink::content`] already hand a caller.
+    /// [`super::body::Paragraph::content`]/`super::body::Hyperlink::content` already hand a caller.
     #[must_use]
     pub fn content(&self) -> &[ParagraphContent] {
         &self.content
@@ -2233,8 +2233,8 @@ fn parse_xpath_segment(segment: &str) -> Option<XPathStep<'_>> {
     })
 }
 
-/// Resolves `xpath` (the documented subset [`parse_xpath_steps`] accepts) against `root`, using
-/// `prefix_mappings` (parsed via [`parse_prefix_mappings`]) to turn each step's prefix into the
+/// Resolves `xpath` (the documented subset `parse_xpath_steps` accepts) against `root`, using
+/// `prefix_mappings` (parsed via `parse_prefix_mappings`) to turn each step's prefix into the
 /// namespace URI its element must carry — `None` for anything outside the subset, a namespace prefix
 /// `prefix_mappings` does not map, or a step that does not resolve against the tree (an out-of-range
 /// index, a wrong local name or namespace, too few or too many steps): never a panic, matching this
@@ -2304,7 +2304,7 @@ pub enum AltChunkContent {
 /// `CT_AltChunk` (`w:altChunk`, "Anchor for Imported External Content", §17.17.2.1) — a block-level
 /// anchor naming, through `r:id`, an external-content part this crate never converts: its bytes and
 /// content type are read and written exactly as the file carries them. See
-/// [`crate::Document::alt_chunks`]/[`crate::Document::alt_chunk_payload`] for resolving the
+/// [`crate::Document::alt_chunk_parts`]/[`crate::Document::alt_chunk_payload`] for resolving the
 /// relationship to the part it targets.
 #[derive(
     Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
