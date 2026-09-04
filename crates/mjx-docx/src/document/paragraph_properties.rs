@@ -978,6 +978,38 @@ macro_rules! value_property {
     };
 }
 
+/// Declares one `CT_PBdr`-slot property: a borrowing getter and a setter that **renames** the
+/// [`Border`] it is given to this slot's own wire local before storing it.
+///
+/// `CT_PBdr` reuses [`Border`] (`CT_Border`) under six different wire names (`top`, `left`,
+/// `bottom`, `right`, `between`, `bar`), unlike every other reuse of a `run_properties.rs` leaf type
+/// in this module, which is a single wire name shared verbatim between a run's own element and a
+/// paragraph's (e.g. `w:shd` names the same local in both `CT_ParaRPr` and `CT_PPrBase`). A
+/// plain [`value_property!`] setter would store whatever name the caller's `Border` already carried
+/// — `Border::new` always builds `w:bdr` — silently emitting the wrong element. This is the fix: the
+/// setter itself renames, so a caller cannot get this wrong by using [`Border::new`] normally.
+macro_rules! border_property {
+    ($enum_ty:ident, $getter:ident, $setter:ident, $variant:ident, $local:literal, $doc:literal) => {
+        #[doc = $doc]
+        #[must_use]
+        pub fn $getter(&self) -> Option<&Border> {
+            self.content.iter().find_map(|item| match item {
+                $enum_ty::$variant(value) => Some(value),
+                _ => None,
+            })
+        }
+
+        #[doc = concat!("Sets `w:", $local, "`: `None` removes the border; `Some(value)` replaces \
+            or inserts it at its schema rank, renamed to `w:", $local, "` regardless of the name \
+            `value` already carried.")]
+        pub fn $setter(&mut self, interner: &mut Interner, value: Option<Border>) {
+            let is_target = |item: &$enum_ty| matches!(item, $enum_ty::$variant(_));
+            let value = value.map(|border| border.renamed(interner, $local));
+            self.set($local, is_target, value.map($enum_ty::$variant));
+        }
+    };
+}
+
 /// Declares one `CT_DecimalNumber`-shaped property: a fallible flattened getter and a whole-value
 /// setter that builds [`DecimalNumberValue`] under its own wire name.
 macro_rules! decimal_number_property {
@@ -1135,57 +1167,51 @@ impl ParagraphBorders {
         }
     }
 
-    value_property!(
+    border_property!(
         ParagraphBorderContent,
         top,
         set_top,
         Top,
-        Border,
         "top",
         "`w:top` — the border above this paragraph."
     );
-    value_property!(
+    border_property!(
         ParagraphBorderContent,
         left,
         set_left,
         Left,
-        Border,
         "left",
         "`w:left` — the border to this paragraph's left."
     );
-    value_property!(
+    border_property!(
         ParagraphBorderContent,
         bottom,
         set_bottom,
         Bottom,
-        Border,
         "bottom",
         "`w:bottom` — the border below this paragraph."
     );
-    value_property!(
+    border_property!(
         ParagraphBorderContent,
         right,
         set_right,
         Right,
-        Border,
         "right",
         "`w:right` — the border to this paragraph's right."
     );
-    value_property!(
+    border_property!(
         ParagraphBorderContent,
         between,
         set_between,
         Between,
-        Border,
         "between",
         "`w:between` — the border between this paragraph and an identically-formatted neighbour."
     );
-    value_property!(
+    border_property!(
         ParagraphBorderContent,
         bar,
         set_bar,
         Bar,
-        Border,
         "bar",
         "`w:bar` — the border drawn between facing pages for this paragraph."
     );
@@ -2378,6 +2404,7 @@ impl ParagraphProperties {
 mod tests {
     use super::*;
     use mjx_ooxml_core::RawDocument;
+    use mjx_ooxml_types::wordprocessingml::BorderStyle;
     use mjx_xml::fidelity;
 
     const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
@@ -2594,6 +2621,90 @@ mod tests {
                 .first_out_of_order(&rebuilt, &interner, "w:pPr"),
             None,
             "PARAGRAPH_PROPERTIES.insert_index_of_names must place pStyle before jc"
+        );
+    }
+
+    /// The gap the orchestrator found: round-tripping a fixture never calls `ParagraphBorders::rank`
+    /// at all (an untouched `w:pBdr` keeps whatever order the file already had), so a corrupted rank
+    /// label went undetected by every fixture-level test. Only *authoring* more than one border
+    /// reaches `insert`, and this is the first test that authors more than one. All six borders are
+    /// set through the public setters in the reverse of their schema order; the emitted element's own
+    /// children must still come out `top, left, bottom, right, between, bar` — from
+    /// `PARAGRAPH_BORDERS`, never from call order.
+    ///
+    /// Writing this test caught a second, more serious defect before it ever reached the orchestrator:
+    /// `Border::new` always builds a `w:bdr`-named element (correct for `run_properties.rs`'s own
+    /// single use), so a plain [`value_property!`] setter storing it verbatim under `set_top` would
+    /// have emitted `<w:bdr>` where `<w:top>` was needed — wrong markup, not just wrong order. Fixed
+    /// with `border_property!`/[`Border::renamed`], which renames on set; this test's assertion on
+    /// each emitted element's own local name (not just their order) is what a `value_property!`-based
+    /// setter would fail.
+    ///
+    /// Would this pass if the work were not done? No — see the mutation proof in this child's own
+    /// report (`ParagraphBorderContent::Bottom(_) => "bottom"` changed to `=> "top"`, the
+    /// orchestrator's own probe, confirmed red naming `bottom`, restored by re-editing).
+    #[test]
+    fn authoring_all_six_borders_in_reverse_order_still_emits_schema_order() {
+        let mut interner = Interner::new();
+        let mut borders = ParagraphBorders::new(&mut interner);
+
+        // Deliberately the reverse of top, left, bottom, right, between, bar.
+        let bar = Border::new(&mut interner, BorderStyle::Single);
+        borders.set_bar(&mut interner, Some(bar));
+        let between = Border::new(&mut interner, BorderStyle::Single);
+        borders.set_between(&mut interner, Some(between));
+        let right = Border::new(&mut interner, BorderStyle::Single);
+        borders.set_right(&mut interner, Some(right));
+        let bottom = Border::new(&mut interner, BorderStyle::Single);
+        borders.set_bottom(&mut interner, Some(bottom));
+        let left = Border::new(&mut interner, BorderStyle::Single);
+        borders.set_left(&mut interner, Some(left));
+        let top = Border::new(&mut interner, BorderStyle::Single);
+        borders.set_top(&mut interner, Some(top));
+
+        let element = borders.to_xml(&mut interner);
+        let emitted_order: Vec<&str> = element
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(el) => Some(interner.resolve(el.name.local)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            emitted_order,
+            vec!["top", "left", "bottom", "right", "between", "bar"],
+            "PARAGRAPH_BORDERS must decide the order, not the reverse call order used above"
+        );
+    }
+
+    /// The same shape, for `w:numPr`: its only two authorable children (`w:ilvl`, `w:numId`) are set
+    /// in the reverse of their schema order, and the emitted element must still read `ilvl` before
+    /// `numId`. `w:numberingChange`/`w:ins` have no public setter (MJXOFF-126 owns their semantics),
+    /// so `NumberingProperties::insert` is never called with those variants — see this child's report
+    /// for why that is a legitimate, stated gap rather than an untested one.
+    #[test]
+    fn authoring_numid_before_ilvl_still_emits_schema_order() {
+        let mut interner = Interner::new();
+        let mut numbering = NumberingProperties::new(&mut interner);
+
+        // Deliberately the reverse of ilvl, numId.
+        numbering.set_numbering_id(&mut interner, Some(5));
+        numbering.set_level(&mut interner, Some(1));
+
+        let element = numbering.to_xml(&mut interner);
+        let emitted_order: Vec<&str> = element
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(el) => Some(interner.resolve(el.name.local)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            emitted_order,
+            vec!["ilvl", "numId"],
+            "NUMBERING_PROPERTIES must decide the order, not the reverse call order used above"
         );
     }
 }

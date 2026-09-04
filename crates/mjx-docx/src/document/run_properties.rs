@@ -548,6 +548,19 @@ impl Border {
         value.set_style(interner, style);
         value
     }
+
+    /// Renames this border to `local` (e.g. `"top"`, `"between"`), keeping every attribute.
+    ///
+    /// `CT_Border` is one wire shape under six different names in `CT_PBdr` alone (`top`, `left`,
+    /// `bottom`, `right`, `between`, `bar` — MJXOFF-96), on top of this module's own `w:bdr`. A
+    /// [`Border`] built by [`Border::new`] (or read from one position and reassigned to another)
+    /// still carries its old name; this is how a caller — or a generic setter macro — corrects it
+    /// before storing, rather than each of the six positions needing its own constructor.
+    #[must_use]
+    pub(crate) fn renamed(mut self, interner: &mut Interner, local: &str) -> Self {
+        self.name = wml_name(interner, local);
+        self
+    }
 }
 
 impl FromXml for Border {
