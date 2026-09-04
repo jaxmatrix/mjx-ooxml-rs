@@ -72,6 +72,25 @@ impl Math {
     pub fn elements(&self, interner: &Interner) -> Vec<MathElement> {
         MathElement::from_children(&self.children, interner)
     }
+
+    /// A mutable view onto this equation's own raw children — the escape hatch for an edit reaching
+    /// several levels into the recursive structure [`Math::elements`] projects, for which this crate
+    /// exposes no dedicated typed setter (one would be needed per nesting shape, and this crate's own
+    /// fidelity model already makes every level's raw form directly reachable). A caller walks
+    /// [`mjx_ooxml_core::RawNode`]/[`mjx_ooxml_core::RawElement`] to the node it wants — matching each
+    /// hop's own `(namespace, local)`, exactly as this crate's own accessors do internally — and
+    /// mutates it in place; every other node, at every level, is untouched.
+    pub fn children_mut(&mut self) -> &mut Vec<RawNode> {
+        &mut self.children
+    }
+
+    /// Declares this equation's own `xmlns:m` binding on itself — see
+    /// `crate::support::namespace_declaration`'s own doc comment for when a caller needs this (any
+    /// time this equation is spliced into a part as a freshly built subtree).
+    pub fn declare_namespace(&mut self, interner: &mut Interner) {
+        self.attributes
+            .insert(0, crate::support::namespace_declaration(interner));
+    }
 }
 
 /// `m:oMathPara` (`CT_OMathPara`, §22.1.2.78 "Office Math Paragraph") — a paragraph of one or more
@@ -111,5 +130,11 @@ impl MathParagraph {
         m_children(&self.children, interner, "oMath")
             .filter_map(|el| Math::from_xml(el, interner).ok())
             .collect()
+    }
+
+    /// Declares this math paragraph's own `xmlns:m` binding on itself — see [`Math::declare_namespace`].
+    pub fn declare_namespace(&mut self, interner: &mut Interner) {
+        self.attributes
+            .insert(0, crate::support::namespace_declaration(interner));
     }
 }
