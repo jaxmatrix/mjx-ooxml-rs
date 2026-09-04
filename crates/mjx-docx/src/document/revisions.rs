@@ -1427,6 +1427,16 @@ fn push_run_change(
 /// position; "accepted" here means "the insert/delete half of tracking is resolved", not "collapse a
 /// move to one of its two locations" — see this module's own doc comment on why an in-place move
 /// resolution is part of the declined mutating accept/reject, not this read-only computation).
+///
+/// **Nesting resolves outermost-first and short-circuits**: a `w:ins`/`w:del` *nested inside*
+/// another one is only visited when the outer one's own fate (kept for `w:ins`, dropped for
+/// `w:del`) already keeps that span — so accepting a `w:del` that itself wraps a nested `w:ins`
+/// drops the nested insertion too (the more recent edit, the deletion, covers everything nested
+/// inside it), and rejecting that same `w:del` restores the text as it stood *before* the deletion —
+/// its own `w:delText`, not an insertion nested inside it that postdates the point being restored
+/// to. `crates/mjx-docx/tests/revisions.rs`'s own `accepted_and_rejected_text_diverge_at_the_nested_span`
+/// is the fixture proving this against the ticket's own "insertion nested inside a deletion" trap.
+///
 /// `pub(crate)`: [`crate::Document::text_with_revisions_accepted`] is the public entry point.
 pub(crate) fn text_with_accepted(content: &[super::body::BlockContent]) -> String {
     let mut out = String::new();
@@ -1434,7 +1444,9 @@ pub(crate) fn text_with_accepted(content: &[super::body::BlockContent]) -> Strin
     out
 }
 
-/// [`text_with_accepted`]'s own rejected-text counterpart: `w:del` content kept, `w:ins` excluded.
+/// [`text_with_accepted`]'s own rejected-text counterpart: `w:del` content kept (read from its own
+/// `w:delText`, not `w:t` — see [`deleted_run_text`]), `w:ins` excluded, with the identical
+/// outermost-first nesting rule.
 pub(crate) fn text_with_rejected(content: &[super::body::BlockContent]) -> String {
     let mut out = String::new();
     resolve_blocks(content, &mut out, false);
@@ -1447,27 +1459,44 @@ fn resolve_blocks(content: &[super::body::BlockContent], out: &mut String, accep
             if index > 0 && !out.is_empty() {
                 out.push('\n');
             }
-            resolve_paragraph_content(paragraph.content(), out, accept);
+            resolve_paragraph_content(paragraph.content(), out, accept, false);
         }
     }
 }
 
-fn resolve_paragraph_content(content: &[ParagraphContent], out: &mut String, accept: bool) {
+/// `deleted_zone`: whether the immediately enclosing revision container (if any) is a `w:del`/
+/// `w:moveFrom` — per ECMA-376 Part 1 §17.3.3.7/§17.13.5.15, a run *inside* either one carries its
+/// text as `w:delText`, never `w:t` (schema-enforced, not merely conventional), so
+/// [`super::body::Run::text`] — which deliberately reads only `w:t` (see that method's own doc
+/// comment) — reads as empty for exactly the runs this computation most needs text from. This flag
+/// is what tells [`ParagraphContent::Run`] which of the two to read.
+fn resolve_paragraph_content(
+    content: &[ParagraphContent],
+    out: &mut String,
+    accept: bool,
+    deleted_zone: bool,
+) {
     for item in content {
         match item {
-            ParagraphContent::Run(run) => out.push_str(&run.text()),
+            ParagraphContent::Run(run) => {
+                if deleted_zone {
+                    out.push_str(&deleted_run_text(run));
+                } else {
+                    out.push_str(&run.text());
+                }
+            }
             ParagraphContent::Hyperlink(hyperlink) => {
-                resolve_paragraph_content(hyperlink.content(), out, accept);
+                resolve_paragraph_content(hyperlink.content(), out, accept, deleted_zone);
             }
             ParagraphContent::SimpleField(field) => out.push_str(&field.cached_result_text()),
             ParagraphContent::Ins(change) => {
                 if accept {
-                    resolve_paragraph_content(change.content(), out, accept);
+                    resolve_paragraph_content(change.content(), out, accept, false);
                 }
             }
             ParagraphContent::Del(change) => {
                 if !accept {
-                    resolve_paragraph_content(change.content(), out, accept);
+                    resolve_paragraph_content(change.content(), out, accept, true);
                 }
             }
             // A move's content is never duplicated by this computation — see `text_with_accepted`'s
@@ -1478,13 +1507,26 @@ fn resolve_paragraph_content(content: &[ParagraphContent], out: &mut String, acc
     }
 }
 
+/// A run's own deleted text: every [`super::body::RunInnerContent::DeletedText`] (`w:delText`) it
+/// holds, concatenated in document order — [`super::body::Run::text`]'s own counterpart for the one
+/// content kind that method deliberately excludes.
+fn deleted_run_text(run: &super::body::Run) -> String {
+    let mut out = String::new();
+    for item in run.content() {
+        if let super::body::RunInnerContent::DeletedText(text) = item {
+            out.push_str(text.text());
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use mjx_ooxml_core::RawDocument;
     use mjx_xml::fidelity;
 
-    use super::super::body::{BlockContent, Paragraph, Run};
+    use super::super::body::{BlockContent, Paragraph, Run, RunInnerContent, Text};
 
     const W: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
@@ -1729,10 +1771,13 @@ mod tests {
             "inserted ",
         )));
         let mut del = RunTrackChange::new(&mut interner, "del", 2, "Author");
-        del.content_mut().push(ParagraphContent::Run(Run::with_text(
-            &mut interner,
-            "deleted ",
-        )));
+        let mut deleted_text = Text::with_local(&mut interner, "delText");
+        deleted_text.set_text(&mut interner, "deleted ");
+        del.content_mut()
+            .push(ParagraphContent::Run(Run::with_inner_content(
+                &mut interner,
+                RunInnerContent::DeletedText(deleted_text),
+            )));
 
         let items = vec![
             run_content(&mut interner, "before "),
