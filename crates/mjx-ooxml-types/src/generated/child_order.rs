@@ -49564,6 +49564,24 @@ pub static FOOTNOTE_PROPERTIES: &ChildOrder = &WML_TYPES[98];
 /// A section's own endnote settings (`w:sectPr/w:endnotePr`) — the same shape as `CT_FtnProps`, with `CT_EdnPos`'s narrower two-value position instead of `CT_FtnPos`'s four (`CT_EdnProps`, `wml.xsd`).
 pub static ENDNOTE_PROPERTIES: &ChildOrder = &WML_TYPES[66];
 
+/// The document settings part's own root (`word/settings.xml`, `w:settings`) — 98 independently optional children, in schema order (`CT_Settings`, `wml.xsd`).
+pub static SETTINGS: &ChildOrder = &WML_TYPES[214];
+
+/// The compatibility-option flags a document carries forward from the application that last saved it (`w:compat`), then any number of named `w:compatSetting` entries (`CT_Compat`, `wml.xsd`).
+pub static COMPAT: &ChildOrder = &WML_TYPES[28];
+
+/// The web settings part's own root (`word/webSettings.xml`, `w:webSettings`): a legacy frameset or `w:div` tree, then the save-as-web flags (`CT_WebSettings`, `wml.xsd`).
+pub static WEB_SETTINGS: &ChildOrder = &WML_TYPES[281];
+
+/// A document's own mail-merge configuration (`w:settings/w:mailMerge`): document type and data source, then the merge/print/view options and the ODSO data-source description (`CT_MailMerge`, `wml.xsd`).
+pub static MAIL_MERGE: &ChildOrder = &WML_TYPES[125];
+
+/// An Office Data Source Object description (`w:mailMerge/w:odso`): the connection, the source table, then field-mapping and per-recipient data (`CT_Odso`, `wml.xsd`).
+pub static ODSO: &ChildOrder = &WML_TYPES[147];
+
+/// One font table entry (`word/fontTable.xml`'s own `w:font`): alternate name, PANOSE classification, character set, family, pitch and signature, then the four embedded-font relationships (regular/bold/italic/bold-italic) (`CT_Font`, `wml.xsd`).
+pub static FONT: &ChildOrder = &WML_TYPES[80];
+
 /// An inline drawing's own placement: extent, effect extent, non-visual properties, then the `a:graphic` it wraps (`CT_Inline`, `dml-wordprocessingDrawing.xsd`).
 pub static WP_INLINE: &ChildOrder = &DML_WORDPROCESSING_DRAWING_TYPES[3];
 
