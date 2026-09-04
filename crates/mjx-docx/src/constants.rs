@@ -103,6 +103,14 @@ pub const CONTENT_TYPE_PRINTER_SETTINGS: &str =
 pub const REL_THEME: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
 
+/// The relationship type from a document, header or footer part to a `w:hyperlink`'s external
+/// target — always `TargetMode="External"`. Confirmed against ECMA-376 Part 1 §17.16.22
+/// ("hyperlink (Hyperlink)"), whose own worked example quotes this Transitional URI verbatim.
+/// Shared with `mjx-pptx`'s `REL_HYPERLINK` (same URI, same OPC concept) — declared again here for
+/// the same reason [`REL_THEME`] is.
+pub const REL_HYPERLINK: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
 /// The content type of the main document part (§11.3.10).
 pub const CONTENT_TYPE_DOCUMENT: &str =
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml";

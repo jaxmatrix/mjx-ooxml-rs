@@ -212,4 +212,49 @@ pub enum DocxError {
         /// The column count the edit would have left.
         columns: usize,
     },
+
+    /// A `w:fldChar` `begin`/`separate`/`end` marker sequence within one paragraph does not
+    /// balance — an unmatched `separate`, an unmatched `end`, or a `begin` with no matching `end`
+    /// before the paragraph's own content is exhausted. Schema-valid markup — `ST_FldCharType`
+    /// imposes no ordering or balance constraint of its own (MJXOFF-121) — that real `.docx` files
+    /// do contain; reported here rather than silently mispaired or panicked on.
+    #[error("unbalanced field marker sequence: {0}")]
+    UnbalancedField(String),
+
+    /// [`crate::Document::fields`]/`set_field_instruction`/`set_field_cached_result_text`
+    /// (MJXOFF-121): `path` does not address a field within the given paragraph.
+    #[error("no field at {0}")]
+    FieldNotFound(String),
+
+    /// [`crate::Document::set_field_cached_result_text`] (MJXOFF-121) was asked to edit a complex
+    /// field's cached result, but that field carries no `w:fldChar` `separate` marker — there is no
+    /// cached-result zone to edit (a field with no `separate` is legal markup, not malformed; see
+    /// `crate::Field::cached_result`'s own doc comment).
+    #[error("field has no w:fldChar separate marker, so it carries no cached result to edit")]
+    FieldHasNoCachedResult,
+
+    /// [`crate::Document::set_field_instruction`]/`set_field_cached_result_text` (MJXOFF-121) was
+    /// asked to edit a zone that itself contains a nested field — collapsing it to plain text would
+    /// silently destroy the nested field's own markup, so the edit is refused instead.
+    #[error("field's {zone} contains a nested field; editing it as plain text would destroy it")]
+    FieldHasNestedContent {
+        /// Which zone refused the edit — `"instruction"` or `"cached result"`.
+        zone: &'static str,
+    },
+
+    /// A caller-supplied value exceeds the schema's own length bound for this attribute
+    /// (MJXOFF-121: `ST_FFName` maxLength 65, `ST_FFHelpTextVal` 256, `ST_FFStatusTextVal` 140,
+    /// `ST_MacroName` 33) — refused here, at the API boundary, rather than written and only failing
+    /// the schema gate later. Reading an already-over-long value from an untrusted file is never
+    /// rejected; only a caller's own new value is.
+    #[error("{field} is {len} characters, which exceeds the schema's {max}-character limit")]
+    ValueTooLong {
+        /// Which value was refused (`"form field name"`, `"help text"`, `"status text"`, `"macro
+        /// name"`).
+        field: &'static str,
+        /// The schema's own `maxLength` bound.
+        max: usize,
+        /// The length (in Unicode scalar values) of the value that was refused.
+        len: usize,
+    },
 }
