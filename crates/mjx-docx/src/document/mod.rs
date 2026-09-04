@@ -60,7 +60,9 @@ use crate::error::DocxError;
 
 mod body;
 mod effective;
+mod fields;
 mod headers;
+mod hyperlinks;
 mod numbering;
 mod paragraph_properties;
 mod parts;
@@ -87,7 +89,16 @@ pub use effective::{
     EffectiveParagraphBorders, EffectiveParagraphProperties, EffectiveShading, EffectiveTabStop,
     EffectiveUnderline,
 };
+pub use fields::{
+    Field, FieldCharacter, FieldCharacterContent, FieldForm, FieldPath, FormFieldCheckBox,
+    FormFieldCheckBoxContent, FormFieldData, FormFieldDataContent, FormFieldDropDownList,
+    FormFieldDropDownListContent, FormFieldHelpTextElement, FormFieldNameElement,
+    FormFieldStatusTextElement, FormFieldTextInput, FormFieldTextInputContent,
+    FormFieldTextTypeElement, MacroNameElement, SimpleField, StringElement,
+    UnsignedDecimalNumberValue,
+};
 pub use headers::{HdrFtr, HeaderFooterType};
+pub use hyperlinks::HyperlinkTarget;
 pub use numbering::{
     AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
     LevelNumberFormat, LevelSuffix, LevelTextSegment, LevelTextTemplate, MultiLevelKind, Numbering,
@@ -1875,6 +1886,443 @@ impl Document {
             return Err(DocxError::InvalidTableSize { rows, columns: 0 });
         }
         table_ref.remove_column(interner, at);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Fields (MJXOFF-121) — see `fields.rs`'s own doc comment for the read model and the
+    // marker-pairing/nesting design. `FieldPath` addresses a field the way `BlockPath`/`RunPath`
+    // address a paragraph/run: a top-level index, then indices descending through
+    // `Field::nested_fields`.
+    // -----------------------------------------------------------------------------------------
+
+    /// Every field the paragraph at `paragraph` holds, at its own top level and (recursively)
+    /// nested inside one of those, in document order.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph, or
+    /// [`DocxError::UnbalancedField`] if a `w:fldChar` marker sequence in that paragraph's own
+    /// content does not balance.
+    pub fn fields(&mut self, paragraph: impl Into<BlockPath>) -> Result<Vec<Field>, DocxError> {
+        let paragraph_path = paragraph.into();
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let paragraph_ref = body.paragraph(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        paragraph_ref.fields(&doc.interner)
+    }
+
+    /// Sets the field at `field` (within the paragraph at `paragraph`)'s own instruction, leaving
+    /// its cached result — and every other field, and every other part — byte-identical. See
+    /// `fields.rs`'s own doc comment for exactly what this collapses and what it never touches.
+    ///
+    /// # Errors
+    /// [`DocxError::NoBody`]/[`DocxError::AddressNotFound`] as [`Document::fields`];
+    /// [`DocxError::UnbalancedField`] if the paragraph's own markers do not balance;
+    /// [`DocxError::FieldNotFound`] if `field` does not address a field within that paragraph's
+    /// fields; [`DocxError::FieldHasNestedContent`] if the instruction zone itself holds a nested
+    /// field (collapsing it would destroy that field's own markup).
+    pub fn set_field_instruction(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        field: impl Into<FieldPath>,
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let field_path = field.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        fields::set_instruction(
+            paragraph.content_mut(),
+            field_path.indices(),
+            text,
+            interner,
+        )?;
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Sets the field at `field`'s own cached result, leaving its instruction — and every other
+    /// field, and every other part — byte-identical.
+    ///
+    /// # Errors
+    /// As [`Document::set_field_instruction`], plus [`DocxError::FieldHasNoCachedResult`] if the
+    /// field's complex `w:fldChar` form carries no `separate` marker (a field with no `separate` has
+    /// no cached-result zone to edit — see [`Field::cached_result`]'s own doc comment).
+    pub fn set_field_cached_result_text(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        field: impl Into<FieldPath>,
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let field_path = field.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        fields::set_cached_result_text(
+            paragraph.content_mut(),
+            field_path.indices(),
+            text,
+            interner,
+        )?;
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Hyperlinks (MJXOFF-121) — `w:hyperlink` wraps the runs it links; see `hyperlinks.rs`'s own
+    // doc comment. Scoped to the main document body's own top-level run-or-hyperlink slots — a
+    // caller reaching a header/footer through `edit_header_footer` still reads/writes `Hyperlink`'s
+    // own typed attributes directly (MJXOFF-92's addressing already recurses into one); only this
+    // convenience pair, which also manages the relationship, is body-only.
+    // -----------------------------------------------------------------------------------------
+
+    /// The click target of the hyperlink at top-level run-or-hyperlink slot `at` within the
+    /// paragraph at `paragraph`, resolved against the main document part's own relationships —
+    /// `r:id` wins over `anchor` when both are present (§17.16.22). `None` if `at` does not land on
+    /// a hyperlink, or the hyperlink resolves to neither a relationship nor an anchor.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph.
+    pub fn hyperlink_target(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        at: impl Into<RunPath>,
+    ) -> Result<Option<HyperlinkTarget>, DocxError> {
+        let paragraph_path = paragraph.into();
+        let at = at.into();
+        let (rel_id, anchor) = {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            let paragraph_ref = body.paragraph(&paragraph_path).ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+            })?;
+            let Some(hyperlink) = paragraph_ref.hyperlink_at(&at) else {
+                return Ok(None);
+            };
+            let rel_id = hyperlink
+                .relationship_id(&doc.interner)
+                .ok()
+                .flatten()
+                .map(|cow| cow.into_owned());
+            let anchor = hyperlink
+                .anchor(&doc.interner)
+                .ok()
+                .flatten()
+                .map(|cow| cow.into_owned());
+            (rel_id, anchor)
+        };
+        let rels = self.package.relationships_for(Some(&self.document_part));
+        Ok(hyperlinks::resolve_target(
+            rel_id.as_deref(),
+            anchor.as_deref(),
+            rels,
+        ))
+    }
+
+    /// Inserts a new hyperlink wrapping one run of `text` at top-level run-or-hyperlink slot `at`
+    /// within the paragraph at `paragraph`, shifting every slot at or after that position one place
+    /// later — adding the external relationship [`HyperlinkTarget::Url`] needs first (an
+    /// [`HyperlinkTarget::Anchor`] names no relationship: it targets a bookmark in this same
+    /// document). `at` must address an existing slot or the one past the last (`0..=run_count()`),
+    /// checked *before* any relationship is added, so a bad call leaves the package untouched.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if either address is out of range, or another
+    /// [`DocxError`] if adding the relationship fails.
+    pub fn insert_hyperlink(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        at: impl Into<RunPath>,
+        text: &str,
+        target: &HyperlinkTarget,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let at = at.into();
+        let [index] = at.indices() else {
+            return Err(DocxError::AddressNotFound(format!(
+                "hyperlink address {at} is not top-level"
+            )));
+        };
+        let paragraph_ref = self.resolve_paragraph(paragraph_path.clone())?;
+        if *index > paragraph_ref.run_count() {
+            return Err(DocxError::AddressNotFound(format!("no run slot at {at}")));
+        }
+
+        let rel_id = if let HyperlinkTarget::Url(url) = target {
+            let rid = self.next_rid_for(&self.document_part.clone());
+            self.package.add_relationship(
+                Some(&self.document_part),
+                mjx_opc::Relationship {
+                    id: rid.clone(),
+                    rel_type: crate::constants::REL_HYPERLINK.to_owned(),
+                    target: url.clone(),
+                    mode: mjx_opc::TargetMode::External,
+                },
+            )?;
+            Some(rid)
+        } else {
+            None
+        };
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let mut hyperlink = Hyperlink::new(interner);
+        if let Some(rid) = &rel_id {
+            hyperlink.set_relationship_id(interner, Some(rid.as_str()));
+        }
+        if let HyperlinkTarget::Anchor(name) = target {
+            hyperlink.set_anchor(interner, Some(name.as_str()));
+        }
+        hyperlink.append_run(Run::with_text(interner, text));
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let inserted = paragraph_mut.insert_hyperlink(&at, hyperlink);
+        debug_assert!(inserted, "the slot was validated as in-range above");
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Removes the hyperlink at top-level run-or-hyperlink slot `at` within the paragraph at
+    /// `paragraph` — together with every run it wraps (a caller who wants to keep the wrapped text
+    /// un-linked reads it first, e.g. with [`Document::paragraph_text`], and reinserts plain runs
+    /// with [`Document::insert_run`]) — and the relationship it named, unless some other
+    /// `w:hyperlink` anywhere in the main document part still names the same relationship.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if either address does not resolve to a hyperlink, or another
+    /// [`DocxError`] if the package edit fails.
+    pub fn remove_hyperlink(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        at: impl Into<RunPath>,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let at = at.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let removed = paragraph_mut
+            .remove_hyperlink(&at)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no hyperlink at {at}")))?;
+        let rel_id = removed
+            .relationship_id(interner)
+            .ok()
+            .flatten()
+            .map(|id| id.into_owned());
+        main.write_back(root, interner);
+
+        let Some(rel_id) = rel_id else {
+            return Ok(());
+        };
+        let still_used = {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let mut ids = Vec::new();
+            hyperlinks::collect_hyperlink_rel_ids(&doc.root, &doc.interner, &mut ids);
+            ids.contains(&rel_id.as_str())
+        };
+        if !still_used {
+            self.package
+                .remove_relationship(Some(&self.document_part), &rel_id)?;
+        }
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Form fields (MJXOFF-121) — `w:ffData`, carried on the `begin` `w:fldChar` of a complex field.
+    // Addressed by the run holding that `w:fldChar` (the same `RunPath` `Document::run_text` uses),
+    // never by `FieldPath`: a form field is a property of one specific marker run, not a field in
+    // its own right the way a `TOC`/`PAGEREF` is.
+    // -----------------------------------------------------------------------------------------
+
+    /// Reads the `w:ffData` the `w:fldChar` at run `field_run` (within the paragraph at
+    /// `paragraph`) carries, handing it — `None` if that run holds no `w:fldChar`, or its
+    /// `w:fldChar` carries no `w:ffData` (every marker except a form field's own `begin`) — to
+    /// `read` together with the part's own [`mjx_ooxml_core::Interner`], mirroring
+    /// [`Document::style_sheet`]'s own shape exactly: every [`FormFieldData`] accessor needs the
+    /// same interner the value was parsed with, so the two are never handed back separately.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if either address does not resolve to a run.
+    pub fn form_field<R>(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        field_run: impl Into<RunPath>,
+        read: impl FnOnce(Option<&FormFieldData>, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let paragraph_path = paragraph.into();
+        let field_run = field_run.into();
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let paragraph_ref = body.paragraph(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let run = paragraph_ref
+            .run(&field_run)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no run at {field_run}")))?;
+        let data = run.content().iter().find_map(|item| match item {
+            RunInnerContent::ComplexFieldCharacter(field_char) => field_char.form_field_data(),
+            _ => None,
+        });
+        Ok(read(data, &doc.interner))
+    }
+
+    /// Reaches the `w:ffData` of the `w:fldChar` at run `field_run` (within the paragraph at
+    /// `paragraph`) — creating an empty one first if that marker carries none yet — and hands it,
+    /// with the part's interner, to `edit`. The general escape hatch for authoring or changing a
+    /// form field's own name, help/status text, macros, enabled/calc-on-exit flags and
+    /// checkbox/drop-down/text-input definition; [`Document::insert_form_field`] is the shortcut for
+    /// building a whole new form field from nothing.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body,
+    /// [`DocxError::AddressNotFound`] if either address does not resolve to a run, or
+    /// [`DocxError::AddressNotFound`] if that run holds no `w:fldChar` at all.
+    pub fn edit_form_field<R>(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        field_run: impl Into<RunPath>,
+        edit: impl FnOnce(&mut FormFieldData, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let paragraph_path = paragraph.into();
+        let field_run = field_run.into();
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let run = paragraph
+            .run_mut(&field_run)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no run at {field_run}")))?;
+        let field_char = run
+            .content_mut()
+            .iter_mut()
+            .find_map(|item| match item {
+                RunInnerContent::ComplexFieldCharacter(field_char) => Some(field_char),
+                _ => None,
+            })
+            .ok_or_else(|| {
+                DocxError::AddressNotFound(format!("run at {field_run} carries no w:fldChar"))
+            })?;
+        if field_char.form_field_data().is_none() {
+            field_char.set_form_field_data(Some(FormFieldData::new(interner)));
+        }
+        let data = match field_char.form_field_data_mut() {
+            Some(data) => data,
+            None => unreachable!("just inserted above"),
+        };
+        let result = edit(data, interner);
+        main.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Inserts a whole new form field — a fresh `begin`/`separate`/`end` `w:fldChar` triple, with
+    /// `instruction` as the `begin` run's own `w:instrText` and `display_text` as the cached-result
+    /// run between `separate` and `end` — as five consecutive runs starting at top-level
+    /// run-or-hyperlink slot `at` within the paragraph at `paragraph`. The `begin` marker's own
+    /// `w:ffData` starts empty; populate it afterward with [`Document::edit_form_field`] on this
+    /// same `(paragraph, at)` address — every `FormFieldData`/`FormFieldCheckBox`/… value must be
+    /// built with *this* document's own [`mjx_ooxml_core::Interner`], which only a method that hands
+    /// the caller that interner (as `edit_form_field`'s closure does) can guarantee; a `data`
+    /// parameter built by the caller from a throwaway interner of its own would embed symbols that
+    /// resolve to the wrong strings once written back with this document's interner instead.
+    ///
+    /// Real Word writes ` FORMCHECKBOX `, ` FORMDROPDOWN ` or ` FORMTEXT ` as `instruction` for the
+    /// three form-field kinds respectively; this crate does not parse or supply field-code text (see
+    /// `fields.rs`'s own doc comment), so the caller states it.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if either address is out of range.
+    pub fn insert_form_field(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        at: impl Into<RunPath>,
+        instruction: &str,
+        display_text: &str,
+    ) -> Result<(), DocxError> {
+        let paragraph_path = paragraph.into();
+        let at = at.into();
+        let [index] = at.indices() else {
+            return Err(DocxError::AddressNotFound(format!(
+                "form field address {at} is not top-level"
+            )));
+        };
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let paragraph = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        let count = paragraph.run_count();
+        if *index > count {
+            return Err(DocxError::AddressNotFound(format!("no run slot at {at}")));
+        }
+
+        let begin = fields::marker_run(
+            interner,
+            mjx_ooxml_types::wordprocessingml::FieldCharacterType::Begin,
+        );
+        let five = vec![
+            begin,
+            Run::with_field_code(interner, instruction),
+            fields::marker_run(
+                interner,
+                mjx_ooxml_types::wordprocessingml::FieldCharacterType::Separate,
+            ),
+            Run::with_text(interner, display_text),
+            fields::marker_run(
+                interner,
+                mjx_ooxml_types::wordprocessingml::FieldCharacterType::End,
+            ),
+        ];
+
+        let content = paragraph.content_mut();
+        let at_slot = content
+            .iter()
+            .enumerate()
+            .filter(|(_, item)| {
+                matches!(
+                    item,
+                    ParagraphContent::Run(_) | ParagraphContent::Hyperlink(_)
+                )
+            })
+            .nth(*index)
+            .map(|(slot, _)| slot)
+            .unwrap_or(content.len());
+        for (offset, run) in five.into_iter().enumerate() {
+            content.insert(at_slot + offset, ParagraphContent::Run(run));
+        }
         main.write_back(root, interner);
         Ok(())
     }
