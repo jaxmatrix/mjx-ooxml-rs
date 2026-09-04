@@ -47,6 +47,27 @@
 #     is itself matched case-insensitively).
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
+#   * **The two bindings' own projection of `RevisionKind`** (MJXOFF-139) — `Deleted` and
+#     `MarkerDeleted`, in `bindings/mjx-python/src/enums.rs`, `bindings/mjx-wasm/src/enums.rs` and
+#     the committed `.pyi` stub. `RevisionKind` is `mjx_docx`'s own tracked-change vocabulary (the
+#     bullet two above this one), reprojected member-for-member by `sealed_enums!`/`open_enums!` —
+#     the same identifiers, not a new naming decision, so the reasoning that already permits `Deleted`
+#     under `crates/mjx-docx/` applies unchanged to the classes that mirror it. **File scoping alone
+#     was tried first and rejected**: a probe planting `ChartLabelTierProbe { Deleted }` elsewhere in
+#     `bindings/mjx-python/src/enums.rs` (a file that also carries `mjx-chart`'s own enumerations)
+#     passed the gate when the exemption blanked every `Deleted`/`MarkerDeleted` token in that file
+#     regardless of which enum declared it — the same "excuses what it might" failure MJXOFF-138's own
+#     namespace allow-list names. So the exemption is scoped **twice**: by **line range**, computed
+#     fresh on every run from each file's own `RevisionKind { … }` (or, for the stub,
+#     `class RevisionKind:` … the next blank line) block boundaries below — not hand-copied numbers
+#     that could drift out of sync with the source — and by the **exact line shape**
+#     `sealed_enums!`/`open_enums!`/the stub generator produce for these two variants specifically
+#     (`        Deleted,`, `    Deleted: RevisionKind`, and their `MarkerDeleted` counterparts), never
+#     a bare substring match. Two probes proved both halves matter: `ChartLabelTierProbe { Deleted }`
+#     planted elsewhere in the same file (outside the line range) still fails the gate, and a
+#     `DeletedSomethingElse` variant planted *inside* `RevisionKind`'s own block (in range, but not one
+#     of the two exact permitted lines) still fails it too — MJXOFF-139's own commit message pastes
+#     both.
 #
 # FORBIDDEN: anything identifier-shaped — `delete_x`, `x_delete`, `deleted`, `deleteX`, `Deleted`,
 # `delete(`. That is the whole rule.
@@ -77,6 +98,26 @@ fi
 # case-insensitively, so `Deleted` and `deleteChartDataLabels` are caught as well as `deleted`.
 pattern='(delete[a-zA-Z0-9_]|[a-zA-Z0-9_]delete|(^|[^a-zA-Z0-9_])delete[[:space:]]*\()'
 
+# The line range of `RevisionKind`'s own block in one file, as "start,end" for a `sed` address —
+# computed fresh from the file every run, not hand-copied line numbers that could silently stop
+# matching the source they describe. `start_pattern` finds the block's own opening line;
+# `end_pattern` is the first line at or after it that closes the block.
+revision_kind_range() {
+  local file="$1" start_pattern="$2" end_pattern="$3"
+  local start end
+  start=$(grep -nE "$start_pattern" "$file" | head -1 | cut -d: -f1)
+  if [ -z "$start" ]; then
+    echo "0,0" # no such block in this file — the substitution below then matches nothing
+    return
+  fi
+  end=$(tail -n "+$start" "$file" | grep -nE "$end_pattern" | head -1 | cut -d: -f1)
+  echo "$start,$((start + end - 1))"
+}
+
+py_enums_range=$(revision_kind_range bindings/mjx-python/src/enums.rs '^    RevisionKind \{$' '^    \}$')
+wasm_enums_range=$(revision_kind_range bindings/mjx-wasm/src/enums.rs '^    RevisionKind \{$' '^    \}$')
+pyi_stub_range=$(revision_kind_range bindings/mjx-python/python/mjx_ooxml/__init__.pyi '^class RevisionKind:$' '^$')
+
 # Two passes with the same pattern: the first finds candidate lines, then every permitted spelling is
 # blanked out and the pattern is re-applied, so a line carrying both a permitted token and a real
 # offender is still reported. (Blanking beats dropping the line.)
@@ -96,6 +137,31 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
         -e '/^crates\/(mjx-docx|mjx-omml)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
+  | awk -F: -v py_range="$py_enums_range" -v wasm_range="$wasm_enums_range" -v pyi_range="$pyi_stub_range" '
+      # Portable (POSIX awk, no GNU \< \> word-boundary extension) — matches the *exact* line shape
+      # `sealed_enums!`/`open_enums!` (Rust) or the stub generator (`.pyi`) produce for a bare variant,
+      # never a substring, so this cannot blank `Deleted` inside some other identifier that happens to
+      # contain it.
+      function in_range(line, range,   parts, n) {
+        n = split(range, parts, ",")
+        return n == 2 && line + 0 >= parts[1] + 0 && line + 0 <= parts[2] + 0
+      }
+      {
+        file = $1; line = $2; rest = $0
+        sub(/^[^:]*:[^:]*:/, "", rest)
+        scoped = 0
+        if (file == "bindings/mjx-python/src/enums.rs" && in_range(line, py_range)) scoped = 1
+        if (file == "bindings/mjx-wasm/src/enums.rs" && in_range(line, wasm_range)) scoped = 1
+        if (file == "bindings/mjx-python/python/mjx_ooxml/__init__.pyi" && in_range(line, pyi_range)) scoped = 1
+        if (scoped) {
+          if (rest ~ /^[ \t]*Deleted,[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*MarkerDeleted,[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*Deleted: RevisionKind[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*MarkerDeleted: RevisionKind[ \t]*$/) rest = "<wml-revision>"
+        }
+        print file ":" line ":" rest
+      }
+    ' \
   | grep -Ei "$pattern" \
   || true)
 
