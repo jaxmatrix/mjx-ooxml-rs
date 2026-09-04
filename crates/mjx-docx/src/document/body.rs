@@ -1053,7 +1053,7 @@ impl Paragraph {
     /// This paragraph's own content, immutably — the same shape [`super::tables::Cell::content`]
     /// already exposes publicly, and what a caller finding a top-level
     /// [`ParagraphContent::StructuredDocumentTag`] or [`ParagraphContent::CustomXml`] (MJXOFF-138)
-    /// reads directly. `fields.rs` (MJXOFF-121) also walks this the same way [`Run::content`] lets
+    /// reads directly. `fields.rs` (MJXOFF-121) also walks this the same way `Run::content` lets
     /// it walk a run's own inner content — see that method's own doc comment.
     #[must_use]
     pub fn content(&self) -> &[ParagraphContent] {
