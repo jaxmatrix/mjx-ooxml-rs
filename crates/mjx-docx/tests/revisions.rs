@@ -53,6 +53,7 @@
 
 use mjx_docx::{Document, PageSize};
 use mjx_opc::{Package, PartName};
+use mjx_schema_gate::assert_authored_deck_is_schema_valid;
 
 /// Splices `raw_body_xml` immediately after `<w:body>` in a fresh blank A4 document's own
 /// `word/document.xml`, and reopens it — the same technique `tests/annotations.rs`'s own
@@ -473,4 +474,31 @@ fn property_setter_preserves_an_existing_rprchange() {
     let out = String::from_utf8(out).expect("utf-8");
     assert!(out.contains(r#"<w:rPrChange w:id="710" w:author="Formatter" w:date="2024-01-04T01:00:00Z"><w:rPr><w:i/></w:rPr></w:rPrChange>"#));
     assert!(out.contains("<w:i/>") && out.contains("<w:b/>"));
+}
+
+// -------------------------------------------------------------------------------------------
+// The schema gate: every authored variant in the adversarial fixture is schema-valid.
+// -------------------------------------------------------------------------------------------
+
+/// The C1 schema gate ("Done when": "The schema gate is green on every authored variant") — every
+/// revision type this fixture exercises (`w:ins`/`w:del` including the nested case, `w:moveFrom`/
+/// `w:moveTo` with their own range markers, `w:commentRangeStart`/`End`, `w:pPrChange`, `w:rPrChange`,
+/// `w:cellMerge`) walked against `wml.xsd` (Part 4 Transitional) and checked for correct child
+/// order. Skips silently without a local `References/` tree — see
+/// [`mjx_schema_gate::assert_authored_deck_is_schema_valid`]'s own doc comment — but always checks
+/// child order, which needs no external schema.
+///
+/// This fixture is a **different** one from `document::revisions::tests::
+/// a_malformed_date_round_trips_byte_identical_never_normalised` **on purpose**: `ST_DateTime` is an
+/// unconstrained `xsd:dateTime` restriction, so a malformed `w:date` is itself schema-invalid — that
+/// fixture is deliberately kept out of this schema-gated sweep, and every `w:date`/`w:author`/`w:id`
+/// in *this* one is well-formed.
+#[test]
+fn the_adversarial_fixture_is_schema_valid_and_in_schema_order() {
+    let document = adversarial_fixture();
+    let bytes = document.save().expect("save the adversarial fixture");
+    assert_authored_deck_is_schema_valid(
+        "the MJXOFF-126 adversarial revision-marks fixture",
+        &bytes,
+    );
 }
