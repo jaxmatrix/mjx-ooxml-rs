@@ -7,9 +7,10 @@
 //! one enum:
 //!
 //! - [`BlockContent`] — `EG_ContentBlockContent` (plus `w:sectPr`, the one child `CT_Body` adds after
-//!   it): what [`Body`] and, later, a table cell hold. [`Paragraph`] is the one typed member;
-//!   `w:customXml`, `w:sdt` and `w:tbl` stay [`Unmodeled`] (MJXOFF-116 owns `w:tbl`; nobody has
-//!   claimed the other two yet).
+//!   it, and `w:tcPr`, the one child a table cell adds *before* it — see [`BlockContent::Properties`]):
+//!   what [`Body`], a header/footer (`headers.rs`, MJXOFF-113) and, now, a table cell
+//!   (`tables.rs::Cell`, MJXOFF-116) all hold. [`Paragraph`] and [`BlockContent::Table`] are typed;
+//!   `w:customXml` and `w:sdt` stay [`Unmodeled`] (nobody has claimed them yet).
 //! - [`ParagraphContent`] — `EG_PContent`: what [`Paragraph`] and, recursively, [`Hyperlink`] hold.
 //!   [`Run`] is the one typed member with real reach; [`Hyperlink`] is typed too, but only enough to
 //!   recurse back into this same enum — its own attributes (`r:id`, `anchor`, `tooltip`, …) are
@@ -87,17 +88,19 @@ pub struct Body {
         child(local = "customXml", variant = CustomXml, ty = Unmodeled),
         child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
         child(local = "p", variant = Paragraph, ty = Paragraph),
-        child(local = "tbl", variant = Table, ty = Unmodeled),
+        child(local = "tbl", variant = Table, ty = super::tables::Table),
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = PermissionRangeEnd),
-        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties)
+        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
+        child(local = "tcPr", variant = Properties, ty = super::tables::CellProperties)
     )]
     content: Vec<BlockContent>,
 }
 
-/// One ordered child of a [`Body`] (or, once `w:tbl` is modeled, a table cell): `EG_ContentBlockContent`
-/// plus the `w:sectPr` `CT_Body` appends after it.
+/// One ordered child of a [`Body`], a header/footer, or a table cell: `EG_ContentBlockContent` plus
+/// the `w:sectPr` `CT_Body` appends after it and the `w:tcPr` a table cell (`tables.rs::Cell`)
+/// prepends before it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BlockContent {
     /// `w:customXml` (`CT_CustomXmlBlock`) — unowned; opaque.
@@ -106,8 +109,9 @@ pub enum BlockContent {
     StructuredDocumentTag(Unmodeled),
     /// `w:p` (`CT_P`) — this child's own type.
     Paragraph(Paragraph),
-    /// `w:tbl` (`CT_Tbl`) — MJXOFF-116 (C11) owns the table structure.
-    Table(Unmodeled),
+    /// `w:tbl` (`CT_Tbl`) — MJXOFF-116's own type; a table's own `EG_BlockLevelElts` cells reuse
+    /// this exact enum for their content, which is what lets a table nest inside a table cell.
+    Table(super::tables::Table),
     /// `w:proofErr` (`CT_ProofErr`), folded in from `EG_RunLevelElts`.
     ProofingError(ProofingError),
     /// `w:permStart` (`CT_PermStart`), folded in from `EG_RunLevelElts`.
@@ -115,8 +119,18 @@ pub enum BlockContent {
     /// `w:permEnd` (`CT_Perm`), folded in from `EG_RunLevelElts`.
     PermissionRangeEnd(PermissionRangeEnd),
     /// `w:sectPr` (`CT_SectPr`) — the section this body ends with (MJXOFF-109's own type, see
-    /// `sections.rs`); the document's last section.
+    /// `sections.rs`); the document's last section. **Never constructed by [`Body`]'s own API on a
+    /// header/footer or a table cell** — `CT_HdrFtr` and `CT_Tc` are not `CT_Body`, so neither ever
+    /// carries one — but the derive macro's `#[xml(children, …)]` list generates one exhaustive
+    /// match over *every* variant of this enum for *every* struct that holds a `Vec<BlockContent>`,
+    /// so `HdrFtr` and `Cell` must still map it (see `headers.rs`'s own doc comment, which this one
+    /// follows).
     SectionProperties(super::sections::SectionProperties),
+    /// `w:tcPr` (`CT_TcPr`) — a table cell's own properties (`tables.rs::CellProperties`). **Never
+    /// constructed by [`Body`] or `HdrFtr`'s own API** — `CT_Body` and `CT_HdrFtr` carry no `tcPr`
+    /// (only `CT_Tc` does) — mapped here for the same exhaustive-match reason
+    /// [`BlockContent::SectionProperties`] is.
+    Properties(super::tables::CellProperties),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -238,6 +252,72 @@ pub(crate) fn block_remove_paragraph(
     }
 }
 
+// -------------------------------------------------------------------------------------------
+// Shared table-vec addressing — [`block_paragraphs`] and friends above, for the other typed
+// member of [`BlockContent`]. A table is addressed by its own top-level index, exactly as a
+// paragraph is by `block_paragraph`'s — the two index spaces are independent (a table interleaved
+// between two paragraphs does not shift either paragraph's index, and vice versa), matching how a
+// caller thinks about "the second table" regardless of how many paragraphs sit before it.
+// -------------------------------------------------------------------------------------------
+
+/// Every table in `content`, in document order.
+pub(crate) fn block_tables(
+    content: &[BlockContent],
+) -> impl Iterator<Item = &super::tables::Table> {
+    content.iter().filter_map(|item| match item {
+        BlockContent::Table(table) => Some(table),
+        _ => None,
+    })
+}
+
+/// The table at top-level index `index`, or `None` if there is no such table.
+pub(crate) fn block_table(content: &[BlockContent], index: usize) -> Option<&super::tables::Table> {
+    block_tables(content).nth(index)
+}
+
+/// [`block_table`], mutably.
+pub(crate) fn block_table_mut(
+    content: &mut [BlockContent],
+    index: usize,
+) -> Option<&mut super::tables::Table> {
+    content
+        .iter_mut()
+        .filter_map(|item| match item {
+            BlockContent::Table(table) => Some(table),
+            _ => None,
+        })
+        .nth(index)
+}
+
+/// Appends `table` at `end_slot` — `Body`'s "before the trailing `w:sectPr`, if any" rule or
+/// `HdrFtr`'s plain "the end of `content`" — and returns its new top-level index.
+pub(crate) fn block_append_table(
+    content: &mut Vec<BlockContent>,
+    table: super::tables::Table,
+    end_slot: usize,
+) -> usize {
+    let index = block_tables(content).count();
+    content.insert(end_slot, BlockContent::Table(table));
+    index
+}
+
+/// Removes and returns the table at top-level index `index`, or `None` if there is no such table.
+pub(crate) fn block_remove_table(
+    content: &mut Vec<BlockContent>,
+    index: usize,
+) -> Option<super::tables::Table> {
+    let at = content
+        .iter()
+        .enumerate()
+        .filter(|(_, item)| matches!(item, BlockContent::Table(_)))
+        .nth(index)
+        .map(|(at, _)| at)?;
+    match content.remove(at) {
+        BlockContent::Table(table) => Some(table),
+        _ => unreachable!("the position found above is a Table item"),
+    }
+}
+
 impl Body {
     /// How many paragraphs this body holds, in document order. Only `w:p` counts — matching
     /// `Presentation::shape_count`'s "every kind shares one count" would make "the third item" mean
@@ -290,6 +370,41 @@ impl Body {
     /// Removes and returns the paragraph at `path`, or `None` if the address is out of range.
     pub fn remove_paragraph(&mut self, path: impl Into<BlockPath>) -> Option<Paragraph> {
         block_remove_paragraph(&mut self.content, &path.into())
+    }
+
+    /// How many tables this body holds at its own top level, in document order.
+    #[must_use]
+    pub fn table_count(&self) -> usize {
+        self.tables().count()
+    }
+
+    /// Every top-level table in document order.
+    pub fn tables(&self) -> impl Iterator<Item = &super::tables::Table> {
+        block_tables(&self.content)
+    }
+
+    /// The top-level table at `index`, or `None` if there is no such table.
+    #[must_use]
+    pub fn table(&self, index: usize) -> Option<&super::tables::Table> {
+        block_table(&self.content, index)
+    }
+
+    /// [`Body::table`], mutably.
+    pub fn table_mut(&mut self, index: usize) -> Option<&mut super::tables::Table> {
+        block_table_mut(&mut self.content, index)
+    }
+
+    /// Appends `table` as this body's new last top-level table — **before** `w:sectPr` when one is
+    /// present, exactly as [`Body::append_paragraph`] does — and returns its new index.
+    pub fn append_table(&mut self, table: super::tables::Table) -> usize {
+        let at = self.trailing_section_properties_slot();
+        self.empty = false;
+        block_append_table(&mut self.content, table, at)
+    }
+
+    /// Removes and returns the top-level table at `index`, or `None` if there is no such table.
+    pub fn remove_table(&mut self, index: usize) -> Option<super::tables::Table> {
+        block_remove_table(&mut self.content, index)
     }
 
     /// The `content` index of this body's own `w:sectPr`, or one past the end of `content` if it

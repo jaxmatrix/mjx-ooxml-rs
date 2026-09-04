@@ -44651,3 +44651,6 @@ pub static NUMBERING_LEVEL_OVERRIDE: &ChildOrder = &WML_TYPES[139];
 
 /// One numbering level's own formatting (`w:abstractNum/w:lvl`, and the replacement level a `w:lvlOverride` may carry) (`CT_Lvl`, `wml.xsd`).
 pub static NUMBERING_LEVEL: &ChildOrder = &WML_TYPES[122];
+
+/// A table cell's own properties (`w:tcPr`) — MJXOFF-116 places `gridSpan`/`hMerge`/`vMerge` (the grid-structural members) at their schema rank; everything else stays raw, typed by MJXOFF-119 (`CT_TcPr`, `wml.xsd`).
+pub static CELL_PROPERTIES: &ChildOrder = &WML_TYPES[255];

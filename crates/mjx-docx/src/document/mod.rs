@@ -33,6 +33,11 @@
 //!   file: [`HdrFtr`] (reusing MJXOFF-92's block-content addressing, generalized here — see that
 //!   module's own doc comment), and variant resolution (`Document::resolve_header`/`resolve_footer`)
 //!   against the ECMA-376 Part 1 prose this module's own doc comment quotes.
+//! - `tables.rs` — `w:tbl`/`w:tr`/`w:tc` (`CT_Tbl`/`CT_Row`/`CT_Tc`) and the grid, MJXOFF-116's own
+//!   file: [`Table`], [`Row`], [`Cell`] and the `(row, column)` merge-aware addressing and structural
+//!   edits (insert/remove row/column) built on WordprocessingML's own *continuation* merge model —
+//!   see that module's own doc comment for how it differs from `mjx-pptx`'s span model. A cell is
+//!   `body.rs`'s block-content generalization's **third** container, after `Body` and `HdrFtr`.
 //!
 //! (This list previously named `styles.rs`, `numbering.rs`, `effective.rs` and `sections.rs` among
 //! the files "later children are expected to add" — stale by the time MJXOFF-109 landed, all four
@@ -40,7 +45,7 @@
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
-//! C): `tables.rs`, `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`, `settings.rs`,
+//! C): `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`, `settings.rs`,
 //! `structured_content.rs`. A child that needs a subject not on this list adds the file and a line
 //! here, the same way `presentation/`'s own list grew past A8.
 
@@ -63,6 +68,7 @@ mod property_macros;
 mod run_properties;
 mod sections;
 mod styles;
+mod tables;
 
 pub use body::{
     Background, BlockContent, Body, Break, Hyperlink, Paragraph, ParagraphContent,
@@ -117,6 +123,10 @@ pub use styles::{
     StyleDefinition, StyleDefinitionContent, StyleIndex, StyleParagraphProperties,
     StyleParagraphPropertyContent, StyleSheet, StyleSheetContent, StyleString, TableStyleOverride,
     TableStyleOverrideContent, MAX_BASED_ON_CHAIN_DEPTH,
+};
+pub use tables::{
+    Cell, CellProperties, CellPropertiesContent, Grid, GridColumn, GridContent, GridDiscrepancy,
+    MergeMarker, MergedCellType, Row, RowContent, Table, TableContent,
 };
 
 use crate::address::{BlockPath, RunPath};
@@ -1379,6 +1389,474 @@ impl Document {
         Ok(())
     }
 
+    // -----------------------------------------------------------------------------------------
+    // Tables (MJXOFF-116) — a top-level table is addressed by a plain index (independent of the
+    // paragraph index space: a table interleaved between two paragraphs shifts neither). `(row,
+    // column)` addressing inside a table mirrors `mjx_pptx::Presentation`'s own naming, argument
+    // order and return shape (`crates/mjx-pptx/src/presentation/tables.rs`) — see `tables.rs`'s own
+    // doc comment for how the underlying markup differs.
+    // -----------------------------------------------------------------------------------------
+
+    /// How many top-level tables `w:body` holds, or `0` if the document declares no body.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if the main document part cannot be read.
+    pub fn table_count(&mut self) -> Result<usize, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        Ok(main.body().map_or(0, Body::table_count))
+    }
+
+    /// The shape of the table at top-level index `table`, as `(rows, columns)`. The column count
+    /// comes from the table's `w:tblGrid`, not from counting some row's cells.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `table` does not address a table.
+    pub fn table_dimensions(&mut self, table: usize) -> Result<(usize, usize), DocxError> {
+        self.with_table(table, |table, _interner| {
+            Ok((table.row_count(), table.column_count()))
+        })
+    }
+
+    /// How many rows and columns the cell at `(row, column)` of table `table` spans, as `(rows,
+    /// columns)` — see [`tables::Table::cell_span`] for the full contract.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`]/[`DocxError::AddressNotFound`] as [`table_dimensions`
+    /// ](Self::table_dimensions), or [`DocxError::TableCellOutOfRange`] if `(row, column)` is out of
+    /// range.
+    pub fn cell_span(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<(usize, usize), DocxError> {
+        self.with_table(table, |table, interner| {
+            table
+                .cell_span(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows: table.row_count(),
+                    columns: table.column_count(),
+                })
+        })
+    }
+
+    /// Which cell actually renders at `(row, column)` of table `table` — see
+    /// [`tables::Table::merge_anchor`] for the full contract, including the malformed-grid case.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn merged_cell_anchor(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<(usize, usize), DocxError> {
+        self.with_table(table, |table, interner| {
+            table
+                .merge_anchor(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows: table.row_count(),
+                    columns: table.column_count(),
+                })
+        })
+    }
+
+    /// Every grid discrepancy table `table` currently has — see
+    /// [`tables::Table::grid_discrepancies`].
+    ///
+    /// # Errors
+    /// As [`table_dimensions`](Self::table_dimensions).
+    pub fn table_grid_discrepancies(
+        &mut self,
+        table: usize,
+    ) -> Result<Vec<tables::GridDiscrepancy>, DocxError> {
+        self.with_table(table, |table, interner| {
+            Ok(table.grid_discrepancies(interner))
+        })
+    }
+
+    /// The text of the cell at `(row, column)` of table `table` — its direct paragraphs' text,
+    /// joined by a newline.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn cell_text(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+    ) -> Result<String, DocxError> {
+        self.with_table(table, |table, interner| {
+            table.cell(interner, row, column).map(Cell::text).ok_or(
+                DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows: table.row_count(),
+                    columns: table.column_count(),
+                },
+            )
+        })
+    }
+
+    /// Sets the text of the cell at `(row, column)` of table `table`: replaces its first direct
+    /// paragraph's runs with a single run holding `text` (appending a fresh paragraph first if the
+    /// cell holds none). Only `word/document.xml` is dirtied, and only the edited cell's own byte
+    /// range re-serializes — every other row and cell keeps its original bytes.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn set_cell_text(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        text: &str,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        if cell.paragraph_count() == 0 {
+            cell.append_paragraph(Paragraph::new(interner));
+        }
+        let paragraph = match cell.paragraph_mut(0) {
+            Some(paragraph) => paragraph,
+            None => unreachable!("just ensured at least one paragraph above"),
+        };
+        while paragraph.run_count() > 0 {
+            paragraph.remove_run(paragraph.run_count() - 1);
+        }
+        paragraph.append_run(Run::with_text(interner, text));
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Sets (or, given `None`/`Some(1)`, removes) the `w:gridSpan` of the cell at `(row, column)` of
+    /// table `table` — how many grid columns it covers. `(row, column)` addresses the cell *before*
+    /// the change takes effect; growing or shrinking a span shifts which physical cell later queries
+    /// at `column + 1` resolve to, exactly as authoring a merge does in Word itself.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn set_cell_span(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        span: Option<usize>,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        cell.set_column_span(interner, span);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Sets (or, given `None`, removes) the `w:vMerge` of the cell at `(row, column)` of table
+    /// `table`. `Some(MergedCellType::Restart)` starts (or restarts) a vertical merge;
+    /// `Some(MergedCellType::Continue)` marks the cell as continuing the region above it (the caller
+    /// is responsible for there being a `restart` reachable above, per ECMA-376 Part 1 §17.4.84 —
+    /// see `tables.rs`'s own doc comment); `None` removes the cell from any vertical merge.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn set_cell_vertical_merge(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        kind: Option<tables::MergedCellType>,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        cell.set_vertical_merge(interner, kind);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Reaches the cell at `(row, column)` of table `table` and hands it, with the part's interner,
+    /// to `edit` — the general escape hatch behind every narrower cell-editing method above, and how
+    /// a table is authored **into a table cell**: `edit`'s own body calls
+    /// [`tables::Cell::append_table`] with a fresh [`tables::Table::new`], exactly as
+    /// [`append_table`](Self::append_table) does at the document's own top level. Only
+    /// `word/document.xml` is dirtied.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::TableCellOutOfRange`] if `(row, column)` is out of range.
+    pub fn edit_cell<R>(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        edit: impl FnOnce(&mut tables::Cell, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        let result = edit(cell, interner);
+        main.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Appends a new `rows` x `columns` table as the body's new last top-level table (before
+    /// `w:sectPr`, when the body has one), and returns its new index. Every cell starts with one
+    /// empty paragraph.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::InvalidTableSize`] if either dimension is zero, or
+    /// [`DocxError::NoBody`] if the document declares no body.
+    pub fn append_table(&mut self, rows: usize, columns: usize) -> Result<usize, DocxError> {
+        if rows == 0 || columns == 0 {
+            return Err(DocxError::InvalidTableSize { rows, columns });
+        }
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let table = Table::new(interner, rows, columns);
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let index = body.append_table(table);
+        main.write_back(root, interner);
+        Ok(index)
+    }
+
+    /// Removes the top-level table at `index`.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `index` does not address a table.
+    pub fn remove_table(&mut self, index: usize) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        if body.remove_table(index).is_none() {
+            return Err(DocxError::AddressNotFound(format!(
+                "no table at index {index}"
+            )));
+        }
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Inserts a row into table `table` so it becomes row `at`; `at` equal to the current row count
+    /// appends. A vertical merge the new row falls inside grows to include it — see
+    /// [`tables::Table::insert_row`].
+    ///
+    /// # Errors
+    /// Returns [`DocxError::TableCellOutOfRange`] if `at` is past the end, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn insert_row(&mut self, table: usize, at: usize) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let (rows, columns) = (table_ref.row_count(), table_ref.column_count());
+        if at > rows {
+            return Err(DocxError::TableCellOutOfRange {
+                row: at,
+                column: 0,
+                rows,
+                columns,
+            });
+        }
+        table_ref.insert_row(interner, at, |interner| {
+            Cell::new(interner).to_xml(interner)
+        })?;
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Removes row `at` from table `table`. A vertical merge the row lies inside shrinks; a merge
+    /// anchored in the row promotes the cell below it — see [`tables::Table::remove_row`].
+    ///
+    /// # Errors
+    /// Returns [`DocxError::InvalidTableSize`] if `at` is the table's only row,
+    /// [`DocxError::TableCellOutOfRange`] if `at` is out of range, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn remove_row(&mut self, table: usize, at: usize) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let (rows, columns) = (table_ref.row_count(), table_ref.column_count());
+        if at >= rows {
+            return Err(DocxError::TableCellOutOfRange {
+                row: at,
+                column: 0,
+                rows,
+                columns,
+            });
+        }
+        if rows == 1 {
+            return Err(DocxError::InvalidTableSize { rows: 0, columns });
+        }
+        table_ref.remove_row(interner, at);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Inserts a column into table `table` so it becomes column `at`; `at` equal to the current
+    /// column count appends. A horizontal merge the new column falls inside grows to include it —
+    /// see [`tables::Table::insert_column`].
+    ///
+    /// # Errors
+    /// Returns [`DocxError::TableCellOutOfRange`] if `at` is past the end, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn insert_column(&mut self, table: usize, at: usize) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let (rows, columns) = (table_ref.row_count(), table_ref.column_count());
+        if at > columns {
+            return Err(DocxError::TableCellOutOfRange {
+                row: 0,
+                column: at,
+                rows,
+                columns,
+            });
+        }
+        table_ref.insert_column(interner, at, |interner| {
+            Cell::new(interner).to_xml(interner)
+        })?;
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Removes column `at` from table `table`: its `w:gridCol` and one cell from every row. A
+    /// horizontal merge the column lies inside shrinks; a merge anchored in the column promotes the
+    /// cell to its right — see [`tables::Table::remove_column`].
+    ///
+    /// # Errors
+    /// Returns [`DocxError::InvalidTableSize`] if `at` is the table's only column,
+    /// [`DocxError::TableCellOutOfRange`] if `at` is out of range, plus the errors of
+    /// [`table_dimensions`](Self::table_dimensions).
+    pub fn remove_column(&mut self, table: usize, at: usize) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let (rows, columns) = (table_ref.row_count(), table_ref.column_count());
+        if at >= columns {
+            return Err(DocxError::TableCellOutOfRange {
+                row: 0,
+                column: at,
+                rows,
+                columns,
+            });
+        }
+        if columns == 1 {
+            return Err(DocxError::InvalidTableSize { rows, columns: 0 });
+        }
+        table_ref.remove_column(interner, at);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Reads the top-level table at `index` and hands it, with the part's interner, to `read`.
+    /// Does not dirty the part.
+    fn with_table<R>(
+        &mut self,
+        index: usize,
+        read: impl FnOnce(&Table, &mjx_ooxml_core::Interner) -> Result<R, DocxError>,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let table = body
+            .table(index)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {index}")))?;
+        read(table, &doc.interner)
+    }
+
     /// Reads the paragraph at `path`, without dirtying the part.
     fn resolve_paragraph(&mut self, path: BlockPath) -> Result<Paragraph, DocxError> {
         let doc = self.package.part_tree(&self.document_part)?;
@@ -1553,6 +2031,85 @@ mod tests {
             })
             .nth(1)
             .and_then(RawElement::source_span)
+    }
+
+    /// The retained [`RawElement::source_span`] of the `index`-th `<w:tr>` under the first `<w:tbl>`
+    /// under `<w:body>` of `ragged_table.docx` (MJXOFF-116's own fixture — see
+    /// `crates/mjx-docx/tests/tables.rs`'s own module doc comment for its geometry) — `None` if that
+    /// row has been reflowed rather than copied verbatim. Same-crate access, exactly as
+    /// [`sibling_paragraph_span`] above.
+    fn table_row_span(document: &mut Document, index: usize) -> Option<std::ops::Range<u32>> {
+        let doc = document
+            .package
+            .part_tree(&document.document_part)
+            .expect("read word/document.xml");
+        let body = doc.root.children.iter().find_map(|node| match node {
+            RawNode::Element(element) if doc.interner.resolve(element.name.local) == "body" => {
+                Some(element)
+            }
+            _ => None,
+        })?;
+        let table = body.children.iter().find_map(|node| match node {
+            RawNode::Element(element) if doc.interner.resolve(element.name.local) == "tbl" => {
+                Some(element)
+            }
+            _ => None,
+        })?;
+        table
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(element) if doc.interner.resolve(element.name.local) == "tr" => {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .nth(index)
+            .and_then(RawElement::source_span)
+    }
+
+    /// Row-level copy-on-write, proved the same way [`editing_one_run_retains_the_untouched_sibling_
+    /// paragraphs_source_span`] proves it for a paragraph: editing one cell's text
+    /// ([`Document::set_cell_text`]) must leave every other row's retained
+    /// [`RawElement::source_span`] untouched — not merely byte-equal (which a complete reflow could
+    /// still coincidentally reproduce), but the *same, retained* span, proving the untouched rows'
+    /// bytes were copied verbatim rather than rebuilt from the model.
+    ///
+    /// Confirmed by hand: neutralising the run-replacement in [`Document::set_cell_text`] (so the
+    /// method touches nothing) turns this red at its own `assert_ne!` —
+    /// `left: Some(614..815), right: Some(614..815)` — because a no-op edit cannot be distinguished
+    /// from span retention; restored by re-editing, not `git checkout --`.
+    #[test]
+    fn editing_one_cells_text_retains_every_other_rows_source_span() {
+        let mut document =
+            Document::open(&fixture("ragged_table.docx")).expect("open ragged_table.docx");
+
+        let before: Vec<Option<std::ops::Range<u32>>> = (0..4)
+            .map(|row| table_row_span(&mut document, row))
+            .collect();
+        assert!(
+            before.iter().all(Option::is_some),
+            "every freshly parsed, never-touched row always has a span"
+        );
+
+        document
+            .set_cell_text(0, 1, 0, "edited")
+            .expect("edit row 1's own first cell");
+
+        let after: Vec<Option<std::ops::Range<u32>>> = (0..4)
+            .map(|row| table_row_span(&mut document, row))
+            .collect();
+        assert_ne!(
+            before[1], after[1],
+            "the edited row's own span must change — otherwise this test could not distinguish \
+             span retention from a coincidence"
+        );
+        for row in [0, 2, 3] {
+            assert_eq!(
+                before[row], after[row],
+                "editing row 1's cell must not disturb row {row}'s retained source span"
+            );
+        }
     }
 
     /// Edit isolation, proved at the mechanism `sample.docx`'s whole-part byte identity cannot
