@@ -14,10 +14,13 @@
 //!
 //! # Detection works before editing does
 //!
-//! Word and Excel are recognized here and refused by [`Deck::open`](crate::Deck::open) with
-//! [`ErrorCode::UnsupportedFormat`](crate::ErrorCode::UnsupportedFormat). That ordering is
-//! deliberate: a caller who hands a `.docx` to a PowerPoint library deserves to be told it is a Word
-//! document, not that some part failed to parse.
+//! Every family is recognized here before [`Deck::open`](crate::Deck::open) or
+//! [`Document::open`](crate::Document::open) parses a single element: each refuses a package from
+//! the *other* editable family (and Excel, not yet editable at all) with
+//! [`ErrorCode::UnsupportedFormat`](crate::ErrorCode::UnsupportedFormat) rather than failing on some
+//! Word-shaped or Excel-shaped element it does not recognize. That ordering is deliberate: a caller
+//! who hands a `.docx` to `Deck::open` deserves to be told it is a Word document — and pointed at
+//! `Document::open` — not that some part failed to parse.
 
 use mjx_pptx::Package;
 
@@ -222,11 +225,15 @@ impl Format {
             .unwrap_or("")
     }
 
-    /// Whether this build can open the format for editing — true exactly for the PresentationML
-    /// family today.
+    /// Whether this build can open the format for editing — true for the PresentationML and
+    /// WordprocessingML families ([`crate::Deck`] and [`crate::Document`] respectively); Excel is
+    /// detected but not yet editable.
     #[must_use]
     pub fn is_editable(self) -> bool {
-        self.family() == FormatFamily::Presentation
+        matches!(
+            self.family(),
+            FormatFamily::Presentation | FormatFamily::WordProcessing
+        )
     }
 }
 
@@ -322,12 +329,16 @@ mod tests {
     }
 
     #[test]
-    fn only_presentationml_is_editable() {
+    fn presentationml_and_wordprocessingml_are_editable_spreadsheetml_is_not() {
         for (format, _, _) in CONTENT_TYPES {
             assert_eq!(
                 format.is_editable(),
-                format.family() == FormatFamily::Presentation
+                matches!(
+                    format.family(),
+                    FormatFamily::Presentation | FormatFamily::WordProcessing
+                )
             );
         }
+        assert!(!Format::Workbook.is_editable());
     }
 }
