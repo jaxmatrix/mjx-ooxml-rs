@@ -14,17 +14,42 @@
 //! # This child's own gate: edit isolation
 //!
 //! [`editing_one_unrelated_run_leaves_every_revision_element_byte_identical`] is the sharpest test
-//! in this file: it edits exactly one run that carries no revision markup of its own, and asserts
-//! every other byte of `word/document.xml` — every `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo`, every
-//! comment/move-range marker, every `w:pPrChange` — is unchanged, not merely that the document still
-//! opens. The malicious mutation this test is built to catch, and the one actually run (by hand, not
-//! left in the tree) to prove the test can fail, is recorded in this file's own module doc for the
-//! PR: temporarily make [`mjx_docx::Document`]'s run addressing count a run *inside* a revision
-//! container as an ordinary addressable slot (mirroring `body.rs`'s own `run_slots`, which
-//! deliberately does not). With that change, editing "run 1" in the fixture below no longer reaches
-//! the plain, unrelated run it used to — it reaches into the `w:ins` nested inside the `w:del`
-//! instead, rewriting tracked-inserted text no caller asked to touch. Both runs (green with the real
-//! code, red with the mutation) are pasted in the PR body.
+//! in this file: it edits paragraph 0's run **1** — the plain trailing `<w:t>after</w:t>`, in the
+//! *same* paragraph as the nested `w:del`/`w:ins`, not a separate far-away one — and asserts every
+//! other byte of `word/document.xml` is unchanged, not merely that the document still opens.
+//!
+//! **The mutation actually run to prove this can fail** (by hand, reverted by re-editing
+//! immediately after — never left in the tree): `body.rs`'s `resolve_run_mut` deliberately counts
+//! only `ParagraphContent::Run`/`Hyperlink` as addressable run slots, skipping `Ins`/`Del` entirely.
+//! Temporarily made it recurse into `Ins`/`Del` and expose the first `Run` found inside as an
+//! ordinary slot instead. With that change, "run 1" in paragraph 0 no longer resolves to the
+//! trailing `after` run — the recursive search finds the `w:del`'s own `delText` run *first*
+//! (`w:del`'s content is `[delText run, nested w:ins]`, and the delText run is a `Run` in its own
+//! right), so `set_run_text(0, 1, …)` reached into it instead:
+//!
+//! ```text
+//! thread 'editing_one_unrelated_run_leaves_every_revision_element_byte_identical' panicked at
+//! crates/mjx-docx/tests/revisions.rs:380:5:
+//! assertion `left == right` failed: the saved document differs from the original by more than the
+//! one edited run's own text
+//!   left:  …<w:del …><w:r><w:delText …>deleted outer </w:delText></w:r><w:ins …>…</w:ins></w:del>
+//!          <w:r><w:t>after — edited</w:t></w:r>…
+//!   right: …<w:del …><w:r><w:delText …>deleted outer </w:delText><w:t>after — edited</w:t></w:r>
+//!          <w:ins …>…</w:ins></w:del><w:r><w:t>after</w:t></w:r>…
+//! test result: FAILED. 0 passed; 1 failed
+//! ```
+//!
+//! The mutated run reached *inside* `w:del`'s own run, appending the new text as a second child
+//! next to `w:delText` — corrupting the tracked deletion — while the real, intended `after` run was
+//! left completely untouched (still reads `after`, not `after — edited`). Reverting the mutation (by
+//! re-editing `resolve_run_mut` back, not `git checkout`) restores the exact green result below and
+//! `git diff --stat crates/mjx-docx/src/document/body.rs` reports no change at all:
+//!
+//! ```text
+//! running 8 tests
+//! test editing_one_unrelated_run_leaves_every_revision_element_byte_identical ... ok
+//! test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+//! ```
 
 use mjx_docx::{Document, PageSize};
 use mjx_opc::{Package, PartName};
@@ -329,17 +354,21 @@ fn editing_one_unrelated_run_leaves_every_revision_element_byte_identical() {
     let mut document = adversarial_fixture();
     let before = document_xml(&mut document);
 
-    // Paragraph 15 (0-based, matching this file's own fixture layout), run 0 — the one plain run in
-    // the whole fixture that carries no revision markup of its own.
+    // Paragraph 0 (0-based), run **1**: under correct addressing this is the plain trailing
+    // `<w:r><w:t>after</w:t></w:r>` — `w:del`'s own nested content (the delText run, and the
+    // insertion nested inside it) does not consume a run-index slot, so "run 1" skips straight past
+    // the whole `w:del` to the next top-level run. This is the same paragraph the revision markup
+    // itself lives in, deliberately — not a separate, far-away paragraph — so this test actually
+    // exercises the addressing collision the "deliberate break" note below describes.
     document
-        .set_run_text(15, 0, "Target paragraph text — edited.")
+        .set_run_text(0, 1, "after — edited")
         .expect("set_run_text on the unrelated, unwrapped run");
 
     let after = document_xml(&mut document);
 
     // The edit actually happened...
-    assert!(after.contains("Target paragraph text \u{2014} edited."));
-    assert!(!before.contains("Target paragraph text \u{2014} edited."));
+    assert!(after.contains("after \u{2014} edited"));
+    assert!(!before.contains("after \u{2014} edited"));
 
     // ...and every revision element — verbatim — is still exactly present, byte for byte. Listing
     // each one individually (rather than one blanket diff) is deliberate: a mutation that corrupts
@@ -372,8 +401,7 @@ fn editing_one_unrelated_run_leaves_every_revision_element_byte_identical() {
 
     // And nothing outside the one edited run's own text differs at all: strip the one changed
     // substring from each side and the remainder must be byte-identical.
-    let before_normalized =
-        before.replace("Target paragraph text.", "Target paragraph text — edited.");
+    let before_normalized = before.replace("<w:t>after</w:t>", "<w:t>after \u{2014} edited</w:t>");
     assert_eq!(
         before_normalized, after,
         "the saved document differs from the original by more than the one edited run's own text"
