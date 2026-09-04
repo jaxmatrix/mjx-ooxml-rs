@@ -44607,6 +44607,12 @@ pub static RUN_PROPERTIES: &ChildOrder = &WML_TYPES[178];
 /// A section's page, column and layout properties, before the change-tracking wrapper adds its own attributes (`CT_SectPrBase`, `wml.xsd`).
 pub static SECTION_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[211];
 
+/// A section's own header/footer references, page, column and layout properties, and its change-tracking wrapper (`w:sectPr`) — `CT_SectPrBase`'s children with `EG_HdrFtrReferences` ahead of them and `sectPrChange` after (`CT_SectPr`, `wml.xsd`).
+pub static SECTION_PROPERTIES: &ChildOrder = &WML_TYPES[210];
+
+/// The four borders drawn around every page in a section (`w:pgBorders`): top, left, bottom, right (`CT_PageBorders`, `wml.xsd`).
+pub static PAGE_BORDERS: &ChildOrder = &WML_TYPES[160];
+
 /// `CT_PPrBase`'s children plus the tracked-change wrapper, with neither a run's own properties nor a section's — what `w:docDefaults`, a style definition, a numbering level and a table style override all carry as their own `w:pPr` (`CT_PPrGeneral`, `wml.xsd`).
 pub static PARAGRAPH_PROPERTIES_GENERAL: &ChildOrder = &WML_TYPES[157];
 
