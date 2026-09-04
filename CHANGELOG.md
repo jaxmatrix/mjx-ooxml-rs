@@ -49,6 +49,56 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.83] - 2026-09-04
+
+Fixes the defect 0.0.82's own changelog reported and left open (MJXOFF-152): `crates/mjx-docx/src/
+document/body.rs`'s `Break`/`PositionalTab`/`Symbol`/`ProofingError`/`PermissionRangeStart`/
+`PermissionRangeEnd` (MJXOFF-92) declared their attributes with no `prefix`, so every accessor
+matched only a bare, unprefixed local name — but `wml.xsd` is `attributeFormDefault="qualified"`,
+and real markup writes `w:font`, `w:alignment`, `w:type`, never bare. Every accessor on these six
+types returned `None` (or `Missing`, for a required attribute) against a file that plainly carries
+the value — confirmed against `run_content.docx`'s own `<w:sym w:font="Wingdings" w:char="F0E0"/>`
+and `<w:ptab w:alignment="right" w:relativeTo="margin" w:leader="dot"/>`, committed since MJXOFF-92
+and never once read correctly. Round-trip fidelity was unaffected throughout — the attribute vector
+is retained and re-emitted verbatim regardless, which is why every byte-identity suite and the
+schema gate stayed green; only the typed reads were broken, and nothing exercised them.
+
+Audited every `#[xml(attribute(…))]` declaration in the file against `wml.xsd` by hand: 17 of 19
+needed `prefix = "w"` added; the other two were already correct (`CT_Text`'s `xml:space`, prefix
+`xml`; `CT_Rel`'s `id`, prefix `r` — a relationship reference into a different namespace's own
+schema, not `wml`'s). **Do not blanket-add `w`** applied literally: those two stayed untouched.
+
+Second, unrelated defect caught by the same audit: `body.rs`'s two local `AttributeCodec` tag types
+(`WhitespacePreservation`, `ShortHex`) were private. That compiles inside the crate — same-module
+visibility hides it — but `Text::preserve_whitespace` and `Symbol::character` name the private type
+in their return type via `AttributeCodec::Value`, which is a hard compile error for any caller
+outside this crate. The same class MJXOFF-94 found and fixed for `run_properties.rs`'s own seven
+tag types the release before this one. Made both `pub` and re-exported.
+
+A workspace-wide audit (MJXOFF-152's own scope, not just `mjx-docx`) confirmed `wml.xsd` and
+`shared-math.xsd` are the *only* two of the schemas this project models that declare
+`attributeFormDefault="qualified"`; `sml.xsd`, `pml.xsd` and `dml-main.xsd` declare no
+`attributeFormDefault` at all (XSD's default is `unqualified`), and `dml-chart.xsd`,
+`dml-diagram.xsd` and `vml-main.xsd` say `unqualified` explicitly. `mjx-dml`'s 318 attribute
+declarations (5 of them correctly `prefix = "r"` for relationship references, the rest correctly
+unprefixed) confirm the unqualified reading in practice; `mjx-chart`, `mjx-vml` and `mjx-pptx`
+declare no typed attribute accessors yet, so there was nothing there to audit. **`shared-math.xsd`
+being qualified is a live warning for MJXOFF-134** (`mjx-omml`, not yet written): its leaf types will
+need the same `prefix = "w"`-style treatment `wml.xsd` needed here, from the first declaration,
+recorded on that ticket.
+
+### Fixed
+
+- **`mjx_docx::{Break, PositionalTab, Symbol, ProofingError, PermissionRangeStart,
+  PermissionRangeEnd}`** — every attribute accessor now reads the value real, `w:`-prefixed markup
+  states, proved against `run_content.docx` (already committed) and a new
+  `tests/fixtures/leaf_attributes.docx` (for the three elements — `w:br` with real values,
+  `w:proofErr`, `w:permStart`/`w:permEnd` — neither existing fixture carries with attribute values
+  set, so neither could discriminate this defect).
+- **`mjx_docx::{WhitespacePreservation, ShortHex}`** — made `pub` and re-exported; both were private,
+  which made `Text::preserve_whitespace` and `Symbol::character` uncallable (a compile error) from
+  outside this crate.
+
 ## [0.0.82] - 2026-09-04
 
 Run properties (MJXOFF-94): `w:rPr` and the character-formatting vocabulary — `EG_RPrBase`'s **39

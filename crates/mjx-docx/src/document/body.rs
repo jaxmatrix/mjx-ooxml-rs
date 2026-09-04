@@ -786,8 +786,15 @@ impl Run {
 /// [`AttributeCodec::decode`] never rejects a spelling that is not one of the two — an attribute
 /// value comes from an untrusted file — and [`AttributeCodec::encode`] writes exactly `preserve` or
 /// `default`, the only two spellings that exist.
+///
+/// `pub` (and re-exported), not merely visible inside this module: the generated accessor
+/// ([`Text::preserve_whitespace`]) names this type in its return type through
+/// [`AttributeCodec::Value`], and a private type there is a hard compile error (`E0446`, "private
+/// type in public interface") for any caller outside this crate — the same defect MJXOFF-94 found
+/// and fixed for `run_properties.rs`'s own seven tag types, confirmed here by
+/// `crates/mjx-docx/tests/leaf_attributes.rs`, a separate compilation unit.
 #[derive(Debug)]
-struct WhitespacePreservation;
+pub struct WhitespacePreservation;
 
 impl AttributeCodec for WhitespacePreservation {
     type Value<'a> = bool;
@@ -877,8 +884,8 @@ impl Text {
 /// `CT_Br` (`w:br`, "Break") — an optional break type and an optional text-wrapping restart value.
 /// No children per the schema; any this crate did not expect are preserved in `extra` regardless.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "type", codec = Enumeration<BreakType>, accessor = kind))]
-#[xml(attribute(local = "clear", codec = Enumeration<BreakTextWrappingRestart>, accessor = clear))]
+#[xml(attribute(local = "type", prefix = "w", codec = Enumeration<BreakType>, accessor = kind))]
+#[xml(attribute(local = "clear", prefix = "w", codec = Enumeration<BreakTextWrappingRestart>, accessor = clear))]
 pub struct Break {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -908,9 +915,9 @@ impl ToXml for Break {
 /// `CT_PTab` (`w:ptab`, "Absolute Position Tab Character") — alignment, base and leader, all
 /// required by the schema.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "alignment", codec = Enumeration<PositionalTabAlignment>, accessor = alignment, required))]
-#[xml(attribute(local = "relativeTo", codec = Enumeration<PositionalTabBase>, accessor = relative_to, required))]
-#[xml(attribute(local = "leader", codec = Enumeration<PositionalTabLeader>, accessor = leader, required))]
+#[xml(attribute(local = "alignment", prefix = "w", codec = Enumeration<PositionalTabAlignment>, accessor = alignment, required))]
+#[xml(attribute(local = "relativeTo", prefix = "w", codec = Enumeration<PositionalTabBase>, accessor = relative_to, required))]
+#[xml(attribute(local = "leader", prefix = "w", codec = Enumeration<PositionalTabLeader>, accessor = leader, required))]
 pub struct PositionalTab {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -943,8 +950,12 @@ impl ToXml for PositionalTab {
 /// `mjx-ooxml-types` generated the wrapper type as a plain wire-string carrier with no validation of
 /// its own; a stricter reading is a schema-gate concern (`ST_ShortHexNumber`'s own `xsd:length`
 /// restriction), not this accessor's.
+///
+/// `pub` (and re-exported) for the same reason [`WhitespacePreservation`] is — [`Symbol::character`]
+/// names this type in its return type, and a private type there does not compile from outside this
+/// crate.
 #[derive(Debug)]
-struct ShortHex;
+pub struct ShortHex;
 
 impl AttributeCodec for ShortHex {
     type Value<'a> = FourDigitHexadecimalNumber;
@@ -963,8 +974,8 @@ impl AttributeCodec for ShortHex {
 
 /// `CT_Sym` (`w:sym`, "Symbol Character") — an optional font name and an optional character code.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "font", codec = TextCodec, accessor = font))]
-#[xml(attribute(local = "char", codec = ShortHex, accessor = character))]
+#[xml(attribute(local = "font", prefix = "w", codec = TextCodec, accessor = font))]
+#[xml(attribute(local = "char", prefix = "w", codec = ShortHex, accessor = character))]
 pub struct Symbol {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -994,7 +1005,7 @@ impl ToXml for Symbol {
 /// `CT_ProofErr` (`w:proofErr`, "Proofing Error Anchor") — the one required attribute naming which
 /// kind of proofing anchor this is.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "type", codec = Enumeration<ProofingErrorType>, accessor = error_type, required))]
+#[xml(attribute(local = "type", prefix = "w", codec = Enumeration<ProofingErrorType>, accessor = error_type, required))]
 pub struct ProofingError {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -1024,8 +1035,8 @@ impl ToXml for ProofingError {
 /// `CT_Perm` (`w:permEnd`, "Range Permission End") — a required id and an optional
 /// "displaced by custom XML" marker.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "id", codec = TextCodec, accessor = id, required))]
-#[xml(attribute(local = "displacedByCustomXml", codec = Enumeration<DisplacedByCustomXml>, accessor = displaced_by_custom_xml))]
+#[xml(attribute(local = "id", prefix = "w", codec = TextCodec, accessor = id, required))]
+#[xml(attribute(local = "displacedByCustomXml", prefix = "w", codec = Enumeration<DisplacedByCustomXml>, accessor = displaced_by_custom_xml))]
 pub struct PermissionRangeEnd {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -1055,12 +1066,12 @@ impl ToXml for PermissionRangeEnd {
 /// `CT_PermStart` (`w:permStart`, "Range Permission Start") — `CT_Perm`'s two attributes
 /// (`xsd:complexContent`/`xsd:extension`) plus four of its own.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "id", codec = TextCodec, accessor = id, required))]
-#[xml(attribute(local = "displacedByCustomXml", codec = Enumeration<DisplacedByCustomXml>, accessor = displaced_by_custom_xml))]
-#[xml(attribute(local = "edGrp", codec = Enumeration<EditingGroup>, accessor = editing_group))]
-#[xml(attribute(local = "ed", codec = TextCodec, accessor = editor))]
-#[xml(attribute(local = "colFirst", codec = Number<DecimalNumber>, accessor = first_column))]
-#[xml(attribute(local = "colLast", codec = Number<DecimalNumber>, accessor = last_column))]
+#[xml(attribute(local = "id", prefix = "w", codec = TextCodec, accessor = id, required))]
+#[xml(attribute(local = "displacedByCustomXml", prefix = "w", codec = Enumeration<DisplacedByCustomXml>, accessor = displaced_by_custom_xml))]
+#[xml(attribute(local = "edGrp", prefix = "w", codec = Enumeration<EditingGroup>, accessor = editing_group))]
+#[xml(attribute(local = "ed", prefix = "w", codec = TextCodec, accessor = editor))]
+#[xml(attribute(local = "colFirst", prefix = "w", codec = Number<DecimalNumber>, accessor = first_column))]
+#[xml(attribute(local = "colLast", prefix = "w", codec = Number<DecimalNumber>, accessor = last_column))]
 pub struct PermissionRangeStart {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -1123,7 +1134,7 @@ impl ToXml for RelationshipReference {
 
 /// `CT_RubyAlign` (`w:rubyAlign`, "Phonetic Guide Text Alignment") — the one required `val`.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "val", codec = Enumeration<PhoneticGuideAlignment>, accessor = value, required))]
+#[xml(attribute(local = "val", prefix = "w", codec = Enumeration<PhoneticGuideAlignment>, accessor = value, required))]
 pub struct PhoneticGuideTextAlignment {
     name: RawName,
     attributes: Vec<RawAttribute>,
