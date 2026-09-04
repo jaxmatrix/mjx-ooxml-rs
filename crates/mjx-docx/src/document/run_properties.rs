@@ -243,8 +243,13 @@ pub struct Toggle {
 impl Toggle {
     /// Builds a new `local` toggle element (e.g. `"b"`) with no `val` — present, defaulting to on
     /// per [`Toggle::value`]'s own doc comment, until [`Toggle::set_value`] states one explicitly.
+    ///
+    /// `pub(crate)`, not private: `paragraph_properties.rs` (MJXOFF-96) builds a `w:pPr/w:rPr`
+    /// (`CT_ParaRPr`) whose `EG_RPrBase` half is the same twenty `CT_OnOff` shapes this run's `w:rPr`
+    /// carries — reusing this constructor is exactly the "reuse rather than restate" MJXOFF-96 is
+    /// told to follow for the leaf types this module already owns.
     #[must_use]
-    fn new(interner: &mut Interner, local: &str) -> Self {
+    pub(crate) fn new(interner: &mut Interner, local: &str) -> Self {
         Self {
             name: wml_name(interner, local),
             attributes: Vec::new(),
@@ -903,8 +908,11 @@ pub struct HalfPointMeasureValue {
 
 impl HalfPointMeasureValue {
     /// Builds a new `local` element (`"sz"`, `"szCs"` or `"kern"`) of `half_points`.
+    ///
+    /// `pub(crate)`: `paragraph_properties.rs` (MJXOFF-96) reuses this for `w:pPr/w:rPr`'s own
+    /// `sz`/`szCs`/`kern`, the same three `CT_HpsMeasure` members `EG_RPrBase` gives a run's `w:rPr`.
     #[must_use]
-    fn new(interner: &mut Interner, local: &str, half_points: HalfPointMeasure) -> Self {
+    pub(crate) fn new(interner: &mut Interner, local: &str, half_points: HalfPointMeasure) -> Self {
         let mut value = Self {
             name: wml_name(interner, local),
             attributes: Vec::new(),

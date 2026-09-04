@@ -27,16 +27,21 @@ mod error;
 
 pub use address::{BlockPath, RunPath};
 pub use document::{
-    Background, BlockContent, Body, Border, Break, CharacterStyle, Color, Document, DocumentParts,
-    EastAsianLayout, Emphasis, Fonts, HalfPoint, HalfPointMeasureValue, HexColor, Highlight,
-    Hyperlink, Lang, Languages, MainDocument, MainDocumentContent, ManualRunWidth, Paragraph,
-    ParagraphContent, PartKind, PermissionRangeEnd, PermissionRangeStart, PhoneticGuide,
+    Background, BlockContent, Body, Border, Break, CharacterStyle, Color, ConditionalFormatting,
+    ConditionalFormattingBits, DecimalNumberValue, Document, DocumentParts, EastAsianLayout,
+    Emphasis, Fonts, FrameProperties, HalfPoint, HalfPointMeasureValue, HexColor, Highlight,
+    Hyperlink, Indentation, Lang, Languages, LineSpacing, MainDocument, MainDocumentContent,
+    ManualRunWidth, NumberingProperties, NumberingPropertyContent, Paragraph, ParagraphAlignment,
+    ParagraphBorderContent, ParagraphBorders, ParagraphContent, ParagraphMarkRunProperties,
+    ParagraphMarkRunPropertyContent, ParagraphProperties, ParagraphPropertyContent, ParagraphStyle,
+    ParagraphTextFlowDirection, PartKind, PermissionRangeEnd, PermissionRangeStart, PhoneticGuide,
     PhoneticGuideChild, PhoneticGuideContent, PhoneticGuideContentItem, PhoneticGuideProperties,
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
     RelationshipReference, Run, RunInnerContent, RunProperties, RunPropertyContent, Scale, Shading,
     ShortHex, SignedHalfPoint, SignedHalfPointMeasureValue, SignedTwips, SignedTwipsMeasureValue,
-    Symbol, Text, TextEffect, TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline, Unmodeled,
-    VerticalAlignment, WhitespacePreservation,
+    Spacing, Symbol, TabStop, TabStopContent, TabStops, Text, TextBoxTightWrapSetting, TextEffect,
+    TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline, Unmodeled, VerticalAlignment,
+    VerticalCharacterAlignment, WhitespacePreservation,
 };
 pub use error::DocxError;
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package

@@ -252,7 +252,7 @@ pub struct Paragraph {
     empty: bool,
     #[xml(
         children,
-        child(local = "pPr", variant = Properties, ty = Unmodeled),
+        child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
         child(local = "customXml", variant = CustomXml, ty = Unmodeled),
         child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
         child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
@@ -285,7 +285,7 @@ pub struct Hyperlink {
     // file nested inside a `w:hyperlink` is typed rather than falling to `Raw`, which is harmless.
     #[xml(
         children,
-        child(local = "pPr", variant = Properties, ty = Unmodeled),
+        child(local = "pPr", variant = Properties, ty = super::paragraph_properties::ParagraphProperties),
         child(local = "customXml", variant = CustomXml, ty = Unmodeled),
         child(local = "smartTag", variant = SmartTag, ty = Unmodeled),
         child(local = "sdt", variant = StructuredDocumentTag, ty = Unmodeled),
@@ -314,8 +314,12 @@ impl Hyperlink {
 /// One ordered child of a [`Paragraph`] or a [`Hyperlink`]: `EG_PContent`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ParagraphContent {
-    /// `w:pPr` — [`Paragraph`] only. Its real content is MJXOFF-96.
-    Properties(Unmodeled),
+    /// `w:pPr` (`CT_PPr`) — a paragraph's own properties: [`Paragraph`] only (a `w:pPr` a
+    /// non-conformant file nested inside a [`Hyperlink`] is still typed rather than falling to
+    /// `Raw`, for the exhaustive-match reason this enum's own container structs document). MJXOFF-96
+    /// gives it real content; reach it through [`Paragraph::properties`], never by conflating it with
+    /// a run's own `w:rPr`.
+    Properties(super::paragraph_properties::ParagraphProperties),
     /// `w:customXml` (`CT_CustomXmlRun`) — unowned; opaque.
     CustomXml(Unmodeled),
     /// `w:smartTag` (`CT_SmartTagRun`) — unowned; opaque.
@@ -425,6 +429,72 @@ impl Paragraph {
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),
+        }
+    }
+
+    /// This paragraph's own properties (`w:pPr`, MJXOFF-96), or `None` if it carries none.
+    ///
+    /// Closes the reachability gap MJXOFF-152 found: every leaf type it fixed was correct but
+    /// unreachable through `Document`/`Body`/`Paragraph`/`Run`'s own public surface. `w:pPr` is
+    /// reachable from the moment this method exists.
+    #[must_use]
+    pub fn properties(&self) -> Option<&super::paragraph_properties::ParagraphProperties> {
+        self.content.iter().find_map(|item| match item {
+            ParagraphContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// This paragraph's own properties, mutably, or `None` if it carries none — see
+    /// [`Paragraph::properties_or_insert`] to create one.
+    pub fn properties_mut(
+        &mut self,
+    ) -> Option<&mut super::paragraph_properties::ParagraphProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            ParagraphContent::Properties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// This paragraph's own properties, mutably — creating an empty `w:pPr` at its schema rank
+    /// (always the first child of `w:p`, per `CT_P`'s `xsd:sequence`) if this paragraph does not
+    /// already carry one.
+    pub fn properties_or_insert(
+        &mut self,
+        interner: &mut Interner,
+    ) -> &mut super::paragraph_properties::ParagraphProperties {
+        let at = match self
+            .content
+            .iter()
+            .position(|item| matches!(item, ParagraphContent::Properties(_)))
+        {
+            Some(at) => at,
+            None => {
+                // `pPr` is `CT_P`'s unique rank-0 child; every `EG_PContent` member shares rank 1
+                // (confirmed against `mjx_ooxml_types::child_order::PARAGRAPH`), so a rank-0
+                // insertion always belongs at index 0 — computed via the generated table rather than
+                // hard-coded, exactly as `Run::run_properties_or_insert` does for `w:rPr`.
+                let at = mjx_ooxml_types::child_order::PARAGRAPH.insert_index_of_names(
+                    self.content.iter().map(|item| match item {
+                        ParagraphContent::Properties(_) => Some(0),
+                        ParagraphContent::Raw(_) => None,
+                        _ => Some(1),
+                    }),
+                    "pPr",
+                );
+                self.content.insert(
+                    at,
+                    ParagraphContent::Properties(
+                        super::paragraph_properties::ParagraphProperties::new(interner),
+                    ),
+                );
+                self.empty = false;
+                at
+            }
+        };
+        match &mut self.content[at] {
+            ParagraphContent::Properties(properties) => properties,
+            _ => unreachable!("`at` was just found or inserted as a `Properties` item"),
         }
     }
 

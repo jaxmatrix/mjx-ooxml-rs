@@ -16,13 +16,16 @@
 //!   nobody has claimed its own content yet.
 //! - `run_properties.rs` — `w:rPr` (`CT_RPr`) and `EG_RPrBase`'s 39 members, MJXOFF-94's own file:
 //!   [`RunProperties`], reached off [`Run::run_properties`].
+//! - `paragraph_properties.rs` — `w:pPr` (`CT_PPr`) and `CT_PPrBase`'s 33 members, MJXOFF-96's own
+//!   file: [`ParagraphProperties`], reached off [`Paragraph::properties`], and
+//!   [`ParagraphMarkRunProperties`] (`w:pPr/w:rPr`, the pilcrow's own formatting — never a run's).
 //!
 //! Files later children are expected to add, one subject each (the same seam `presentation/` reads
 //! in, chosen from the module list MJXOFF-90's ticket named for MJXOFF-92 through the rest of Phase
-//! C): `paragraph_properties.rs`, `styles.rs`, `numbering.rs`, `effective.rs`, `sections.rs`,
-//! `headers.rs`, `tables.rs`, `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`,
-//! `settings.rs`, `structured_content.rs`. A child that needs a subject not on this list adds the
-//! file and a line here, the same way `presentation/`'s own list grew past A8.
+//! C): `styles.rs`, `numbering.rs`, `effective.rs`, `sections.rs`, `headers.rs`, `tables.rs`,
+//! `fields.rs`, `annotations.rs`, `revisions.rs`, `drawing.rs`, `settings.rs`,
+//! `structured_content.rs`. A child that needs a subject not on this list adds the file and a line
+//! here, the same way `presentation/`'s own list grew past A8.
 
 use mjx_ooxml_core::{
     Enumeration, FromXml, FromXmlError, RawAttribute, RawDocument, RawName, RawNode, ToXml,
@@ -34,6 +37,7 @@ use mjx_opc::{Package, TargetMode};
 use crate::error::DocxError;
 
 mod body;
+mod paragraph_properties;
 mod parts;
 mod run_properties;
 
@@ -44,6 +48,14 @@ pub use body::{
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
     RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
     WhitespacePreservation,
+};
+pub use paragraph_properties::{
+    ConditionalFormatting, ConditionalFormattingBits, DecimalNumberValue, FrameProperties,
+    Indentation, LineSpacing, NumberingProperties, NumberingPropertyContent, ParagraphAlignment,
+    ParagraphBorderContent, ParagraphBorders, ParagraphMarkRunProperties,
+    ParagraphMarkRunPropertyContent, ParagraphProperties, ParagraphPropertyContent, ParagraphStyle,
+    ParagraphTextFlowDirection, Spacing, TabStop, TabStopContent, TabStops,
+    TextBoxTightWrapSetting, VerticalCharacterAlignment,
 };
 pub use parts::{DocumentParts, PartKind};
 pub use run_properties::{
