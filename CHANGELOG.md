@@ -52,6 +52,65 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.99] - 2026-09-05
+
+Content controls, custom XML, smart tags, `w:dir`/`w:bdo`, `w:altChunk` and the glossary document's
+building blocks (MJXOFF-138, Phase C position 20) — `crates/mjx-docx/src/document/structured_content.rs`
+(new). MJXOFF-69–74 named no owner for this cluster either; the other half of the third of `wml.xsd`
+Phase C's own six specifications never allotted.
+
+**`w:sdt` and `w:customXml` are both members of all four content groups** (`EG_ContentBlockContent`,
+`EG_ContentRunContent`, `EG_ContentRowContent`, `EG_ContentCellContent`), so a content control or a
+custom-XML wrapper can appear anywhere a paragraph, a run, a table row or a table cell can.
+[`ContentControlBlock`]/[`ContentControlRun`]/[`ContentControlRow`]/[`ContentControlCell`] and
+[`CustomXmlBlock`]/[`CustomXmlRun`]/[`CustomXmlRow`]/[`CustomXmlCell`] type every placement — and
+each one's own content **reuses** the exact enum ([`BlockContent`], [`ParagraphContent`],
+[`TableContent`], [`RowContent`]) its placement already has a container for, so MJXOFF-92's
+paragraph/run APIs and MJXOFF-116's row/cell addressing reach through a wrapper unchanged.
+[`Table::rows`]/[`Row::cells`] now recurse into a row- or cell-level wrapper, so `(row, column)`
+addressing stays correct when a repeating-section control wraps one or more rows;
+[`Paragraph::text`]/[`Paragraph::run`] now reach through a run-level wrapper the same way they
+already reach through `w:hyperlink`.
+
+**`w:sdtPr`** — [`ContentControlProperties`]: the twelve control kinds ([`ContentControlKind`]:
+rich text, plain text, picture, combo box, drop-down, date, building-block gallery/list, group,
+citation, bibliography, equation), the lock ([`Lock`]), the placeholder ([`Placeholder`]) and the
+XML data binding ([`DataBinding`]) all get typed accessors, plus `set_lock`/`set_placeholder`/
+`set_data_binding` writers that insert at `CT_SdtPr`'s own schema rank regardless of call order.
+`w14:`/`w15:` extensions (checkbox, repeating section) round-trip through the unknown-element bucket
+— dropping them would turn a working form into inert text.
+
+**A content control's data binding is a two-part reference** —
+[`Document::resolve_data_binding`] enumerates every related Custom XML Data Storage part
+(`customXml/itemN.xml`), matches `storeItemID` against each one's own properties part
+(`customXml/itemPropsN.xml`'s `ds:itemID`), and resolves `xpath` (the absolute, `[n]`-indexed
+element path Word itself emits) against the matching part's own tree — [`resolve_xpath`]. A binding
+naming a part the package does not carry reports [`DocxError::DataBindingPartNotFound`], never a
+panic.
+
+**`w:altChunk`** — [`AltChunk`]/[`AltChunkProperties`]: an embedded HTML/RTF/`.docx` part this crate
+imports the relationship for and never converts. [`Document::add_alt_chunk`]/
+[`Document::alt_chunk_payload`]/[`Document::alt_chunk_parts`] round-trip the payload, the relationship
+and the content type byte-identically.
+
+**The glossary document** — [`Document::glossary_document`] reads `word/glossary/document.xml`'s own
+[`DocParts`]/[`BuildingBlock`] list; a building block's own content is an ordinary [`Body`]
+([`BuildingBlock::body`]) — the exact same block-content API the main document body uses, no
+glossary-specific duplicate.
+
+**The adversarial fixture** `structured_content.docx` nests a run-level control inside a paragraph
+inside a cell-level control inside a table inside a block-level control, with a `w:customXml`
+row wrapper and a repeating-section row-level control wrapping two `w:tr` interleaved alongside it —
+proved, with a mutation to each of the two recursion sites (row-level `w:customXml`, run-level
+`w:sdt`) confirmed red and reverted by hand.
+
+`mjx-schema-gate`: two new `PreservedForeignMarkup` entries — Custom XML Data Storage Properties'
+own fixed namespace, and this fixture's own representative Custom XML Data Storage namespace —
+classifying both as foreign markup rather than validating them, pinned by a test.
+
+`Body::content`/`Paragraph::content` are now `pub`, matching the precedent
+`Table::content`/`Row::content`/`Cell::content` already set (MJXOFF-116).
+
 ## [0.0.98] - 2026-09-05
 
 `word/settings.xml`, `word/webSettings.xml`, `word/fontTable.xml` and `word/recipients.xml`
