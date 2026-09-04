@@ -50,6 +50,61 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.90] - 2026-09-04
+
+Word headers and footers (MJXOFF-113, Phase C position 11): `CT_HdrFtr`, variant resolution, and the
+legacy VML they carry — `crates/mjx-docx/src/document/headers.rs`.
+
+**Header/footer parts reuse MJXOFF-92's block-content addressing rather than duplicating it.**
+`body.rs`'s paragraph-vec logic (`paragraph`/`paragraph_mut`/`insert_paragraph`/`append_paragraph`/
+`remove_paragraph`) is now five free functions (`block_paragraph[_mut]`, `block_insert_paragraph`,
+`block_remove_paragraph`, …) operating on `&[BlockContent]`/`&mut Vec<BlockContent>`; `Body` delegates
+to them, and the new `HdrFtr` (`CT_HdrFtr`, reusing `BlockContent` itself — `w:sectPr` is mapped in its
+own `#[xml(children, …)]` list purely so the derive macro's exhaustive match compiles, never
+constructed) uses the same functions. A header's paragraphs and runs are ordinary
+`Paragraph`/`Run` — MJXOFF-94's run properties, MJXOFF-96's paragraph properties and MJXOFF-106's
+effective-property ladder already work inside a header with no further wiring.
+
+**Variant resolution — `Document::resolve_header`/`resolve_footer` — implements ECMA-376 Part 1
+§17.10.1/.5/.2/.6, not a lookup.** A first/even query whose governing flag (`w:titlePg`/
+`w:evenAndOddHeaders`) is off downgrades to the default (odd) query *before* the previous-section
+inheritance walk runs — confirmed against the prose directly: *"If \[`titlePg`\] is set to false and a
+first page header/footer is specified, then it shall be ignored and only the odd page header/footer
+shall be displayed"* (§17.10.6), identically for `evenAndOddHeaders` (§17.10.1) and the even variant.
+Inheritance is per-variant, from the nearest preceding section that states that specific type
+(§17.10.5/.2, identical prose in both): *"If no headerReference for the \[…\] page header is specified
+\[…\] the \[…\] page header shall be inherited from the previous section or, if this is the first
+section in the document, a new blank header shall be created."* `w:evenAndOddHeaders` is read directly
+from `word/settings.xml` (`Document::even_and_odd_headers`) — MJXOFF-136 models the part; this reads
+only the one flag.
+
+**`SectionProperties::remove_header_reference`/`remove_footer_reference` and
+`ParagraphProperties::section_properties_mut` are new** — MJXOFF-109 built the field and its structural
+push/read but not its removal, since resolution (and therefore "replace" and "remove") was this
+child's own scope. `section_properties_mut` (the paragraph-level counterpart of `Body`'s own
+`section_properties_mut`) exists so removing a reference never fabricates a `w:sectPr` a section did
+not already carry.
+
+**`mjx-vml` is a plain dependency of `mjx-docx` now, ungated** — unlike `mjx-pptx`'s `vml` feature
+flag, which exists only to spare PresentationML callers a dependency they may never touch; Word headers
+are the primary place VML watermarks and text boxes still appear in the wild.
+`Document::header_footer_vml_drawings` resolves a header or footer's `mc:AlternateContent` via
+`mjx-mce` (non-mutating) and reads every surviving `w:pict` through `mjx_vml::Drawing` — the first
+consumer of MJXOFF-58's model outside PowerPoint.
+
+**Two committed fixtures, both authored through this crate's own public API**
+(`Document::blank`/`create_header`/`create_footer`/`edit_header_footer` — never a template):
+`header_footer_variants.docx` (two sections; section 1 states all three header and footer variants
+with `w:titlePg` absent, section 2 states none at all) and `header_watermark.docx` (one header holding
+real, hand-authored `mc:AlternateContent`/`w:pict` VML — the one literal XML fragment in the change,
+since this crate has no VML-authoring surface). Mutation-proved: neutralising the `w:titlePg` check,
+the `w:evenAndOddHeaders` check, or the previous-section inheritance walk each turns a distinct set of
+`crates/mjx-docx/tests/headers.rs` tests red; restored by re-editing.
+
+Fixes a stale `document/mod.rs` module doc that still listed `styles.rs`, `numbering.rs`,
+`effective.rs` and `sections.rs` among files "later children are expected to add" — all four already
+existed.
+
 ## [0.0.89] - 2026-09-04
 
 Word sections (MJXOFF-109, Phase C position 10): `w:sectPr`, page setup, columns, section breaks,
