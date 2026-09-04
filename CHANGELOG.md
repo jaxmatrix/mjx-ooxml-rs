@@ -52,6 +52,50 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.96] - 2026-09-04
+
+DrawingML in Word: `w:drawing`, `w:pict`, `w:object` and `w:control` (MJXOFF-131, Phase C position
+17): `crates/mjx-dml/src/wordprocessing_drawing.rs` (new), `graphic.rs` (new), `picture.rs` (new),
+`shape_properties.rs` (new), `nonvisual.rs` (new), `crates/mjx-docx/src/document/drawing.rs` (new).
+
+**The `wp:` schema (`dml-wordprocessingDrawing.xsd`, 287 lines, 20 complexTypes) had no model
+anywhere in `crates/` before this child.** Seventeen of the twenty land in `mjx-dml` —
+`wp:inline`/`wp:anchor`, the five wrap modes and `wp:wrapPolygon`, `wp:graphicFrame`,
+`wp:wgp`/`wp:wpc`, `wp:contentPart` — reusing `mjx-dml`'s existing `SolidFill`/`Transform2D`/
+`PresetGeometry`/`CustomGeometry`/`LineSpec`/`EffectList` pieces through a new `ShapeProperties`
+(`a:CT_ShapeProperties`, the type MJXOFF-107 and this ticket both found missing) and a new
+`Picture`/`Graphic`/`GraphicData` (`pic:pic`, `a:graphic`/`a:graphicData`). The remaining three
+(`CT_WordprocessingShape`, `CT_TextboxInfo`, `CT_TxbxContent`) live in `mjx-docx` instead: their
+content is `w:EG_BlockLevelElts`, WordprocessingML's own vocabulary, so typing them below `mjx-docx`
+would reach `mjx-dml` upward past its own tier. `TextBoxContent` reuses `body.rs`'s own
+`BlockContent`/`block_paragraph*` mechanism as its sixth container (MJXOFF-126's "extend, don't
+copy"), so a text box's paragraphs read through the same model every other container does.
+
+**`Document::add_inline_picture`/`remove_drawing`** add the image-part/relationship/content-type
+plumbing a picture needs (and sweep the media part on removal via `Package::
+remove_unreferenced_parts`, so a removed picture leaves no orphan); **`Document::
+paragraph_run_content`** is the new public reading surface for a paragraph's own `w:drawing`/
+`w:pict`/`w:object`/`w:control` content. `w:pict` needed no new wrapper at all: it reads and writes
+directly as `mjx_vml::Drawing`, the same type MJXOFF-113 already uses for a header's own `w:pict`.
+
+**A cross-schema element-namespace bug found while building the fixture, fixed the same session:**
+`NonVisualDrawingProps`/`ShapeProperties`/`PictureFill`'s constructors defaulted their element to
+DrawingML-main (`a:`), which is correct only when the host schema genuinely is `dml-main.xsd` —
+`cNvPr`/`blipFill`/`spPr` inside `pic:pic` and `docPr` inside `wp:inline`/`wp:anchor` are *local*
+element declarations of their own host schema (`dml-picture.xsd`, `dml-wordprocessingDrawing.xsd`)
+and take that schema's own namespace on the wire (`pic:cNvPr`, `wp:docPr`), never literally `a:`.
+Each type now also has a `with_name`/`new_qualified` constructor taking the host's own qualified
+name, used at every pic:/wp: call site.
+
+**Codegen:** `dml-wordprocessingDrawing` moves from `CHILD_ORDER_SCHEMA_DEPENDENCIES` to
+`CHILD_ORDER_SCHEMAS` (its own generated child-order table) and gains a `SimpleTypeModule` for its
+five `ST_*` enums (`WrapText`, `HorizontalAlignment`, `HorizontalRelativeFrom`, `VerticalAlignment`,
+`VerticalRelativeFrom` — the last four curated overrides on the shared naming table, since the
+schema's own `H`/`V` suffixes are ECMA-376's own contraction for "Horizontal"/"Vertical"). No new
+entry was needed in the schema gate's `schema_for_namespace`: `wp:` never roots a part of its own —
+`wml.xsd` already imports `dml-wordprocessingDrawing.xsd`, so `word/document.xml`'s own validation
+against `wml.xsd` already covers nested `wp:`/`pic:` content transitively.
+
 ## [0.0.95] - 2026-09-04
 
 Word revision marks: tracked changes as a first-class case in every mutation path (MJXOFF-126,

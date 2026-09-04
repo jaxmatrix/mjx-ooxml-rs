@@ -1135,14 +1135,14 @@ pub struct Run {
         child(local = "pgNum", variant = PageNumberBlock, ty = Unmodeled),
         child(local = "cr", variant = CarriageReturn, ty = Unmodeled),
         child(local = "tab", variant = TabCharacter, ty = Unmodeled),
-        child(local = "object", variant = EmbeddedObject, ty = Unmodeled),
-        child(local = "pict", variant = LegacyPicture, ty = Unmodeled),
+        child(local = "object", variant = EmbeddedObject, ty = super::drawing::EmbeddedObject),
+        child(local = "pict", variant = LegacyPicture, ty = mjx_vml::Drawing),
         child(local = "fldChar", variant = ComplexFieldCharacter, ty = super::fields::FieldCharacter),
         child(local = "ruby", variant = PhoneticGuideRun, ty = PhoneticGuide),
         child(local = "footnoteReference", variant = FootnoteReference, ty = super::annotations::FootnoteEndnoteReference),
         child(local = "endnoteReference", variant = EndnoteReference, ty = super::annotations::FootnoteEndnoteReference),
         child(local = "commentReference", variant = CommentReference, ty = super::ranges::Markup),
-        child(local = "drawing", variant = Drawing, ty = Unmodeled),
+        child(local = "drawing", variant = Drawing, ty = super::drawing::Drawing),
         child(local = "ptab", variant = PositionalTabRun, ty = PositionalTab),
         child(local = "lastRenderedPageBreak", variant = LastRenderedPageBreak, ty = Unmodeled)
     )]
@@ -1208,13 +1208,15 @@ pub enum RunInnerContent {
     CarriageReturn(Unmodeled),
     /// `w:tab` (`CT_Empty`, "Tab Character", §17.3.3.32).
     TabCharacter(Unmodeled),
-    /// `w:object` (`CT_Object`, "Embedded Object", §17.3.3.19) — MJXOFF-131 (C16) owns embedded
-    /// object payloads.
-    EmbeddedObject(Unmodeled),
+    /// `w:object` (`CT_Object`, "Embedded Object", §17.3.3.19) — MJXOFF-131 (C16)'s own type; see
+    /// [`super::drawing::EmbeddedObject`].
+    EmbeddedObject(super::drawing::EmbeddedObject),
     /// `w:pict` (`CT_Picture`) — a legacy VML picture. ECMA-376 Part 1 does not caption this element
     /// in its own numbered list (unlike its 32 siblings); named for the VML/legacy picture content
-    /// it wraps rather than sourced from prose that does not exist. MJXOFF-131 (C16) owns it.
-    LegacyPicture(Unmodeled),
+    /// it wraps rather than sourced from prose that does not exist. Read and written directly as
+    /// [`mjx_vml::Drawing`] (MJXOFF-131, C16) — see `document/drawing.rs`'s own module doc for why
+    /// no wrapper type is needed here.
+    LegacyPicture(mjx_vml::Drawing),
     /// `w:fldChar` (`CT_FldChar`, "Complex Field Character", §17.16.18) — MJXOFF-121's own type; see
     /// [`super::fields::FieldCharacter`].
     ComplexFieldCharacter(super::fields::FieldCharacter),
@@ -1230,9 +1232,9 @@ pub enum RunInnerContent {
     /// `w:commentReference` (`CT_Markup`, "Comment Content Reference Mark", §17.13.4.5) — MJXOFF-124's
     /// own type; see [`super::ranges::Markup`].
     CommentReference(super::ranges::Markup),
-    /// `w:drawing` (`CT_Drawing`, "DrawingML Object", §17.3.3.9) — MJXOFF-131 (C16) owns DrawingML
-    /// hosted in Word.
-    Drawing(Unmodeled),
+    /// `w:drawing` (`CT_Drawing`, "DrawingML Object", §17.3.3.9) — MJXOFF-131 (C16)'s own type; see
+    /// [`super::drawing::Drawing`].
+    Drawing(super::drawing::Drawing),
     /// `w:ptab` (`CT_PTab`, "Absolute Position Tab Character", §17.3.3.23) — this child's own type.
     PositionalTabRun(PositionalTab),
     /// `w:lastRenderedPageBreak` (`CT_Empty`, "Position of Last Calculated Page Break", §17.3.3.13).
