@@ -44606,3 +44606,27 @@ pub static RUN_PROPERTIES: &ChildOrder = &WML_TYPES[178];
 
 /// A section's page, column and layout properties, before the change-tracking wrapper adds its own attributes (`CT_SectPrBase`, `wml.xsd`).
 pub static SECTION_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[211];
+
+/// `CT_PPrBase`'s children plus the tracked-change wrapper, with neither a run's own properties nor a section's — what `w:docDefaults`, a style definition, a numbering level and a table style override all carry as their own `w:pPr` (`CT_PPrGeneral`, `wml.xsd`).
+pub static GENERAL_PARAGRAPH_PROPERTIES: &ChildOrder = &WML_TYPES[157];
+
+/// A document's own default run and paragraph properties (`w:docDefaults`), the bottom rung of the style-resolution ladder (`CT_DocDefaults`, `wml.xsd`).
+pub static DOCUMENT_DEFAULTS: &ChildOrder = &WML_TYPES[43];
+
+/// The document default's own run properties (`w:docDefaults/w:rPrDefault`) (`CT_RPrDefault`, `wml.xsd`).
+pub static DEFAULT_RUN_PROPERTIES: &ChildOrder = &WML_TYPES[180];
+
+/// The document default's own paragraph properties (`w:docDefaults/w:pPrDefault`) (`CT_PPrDefault`, `wml.xsd`).
+pub static DEFAULT_PARAGRAPH_PROPERTIES: &ChildOrder = &WML_TYPES[156];
+
+/// The style pane's latent-style defaults and per-style exceptions (`w:latentStyles`) (`CT_LatentStyles`, `wml.xsd`).
+pub static LATENT_STYLES: &ChildOrder = &WML_TYPES[115];
+
+/// One style definition (`w:style`): its identity, its `basedOn`/`next`/`link` references, its flags, and the paragraph, run and table properties it carries (`CT_Style`, `wml.xsd`).
+pub static STYLE_DEFINITION: &ChildOrder = &WML_TYPES[225];
+
+/// The style definitions part's own root (`w:styles`): the document defaults, the latent-style table, then every style definition (`CT_Styles`, `wml.xsd`).
+pub static STYLES: &ChildOrder = &WML_TYPES[228];
+
+/// One conditional-formatting override inside a table style (`w:style/w:tblStylePr`) (`CT_TblStylePr`, `wml.xsd`).
+pub static TABLE_STYLE_OVERRIDE: &ChildOrder = &WML_TYPES[250];
