@@ -257,4 +257,12 @@ pub enum DocxError {
         /// The length (in Unicode scalar values) of the value that was refused.
         len: usize,
     },
+
+    /// [`crate::Document::add_bookmark`] (MJXOFF-124): another `w:bookmarkStart` anywhere in the body
+    /// already carries this `w:name` — refused here so [`crate::Document::resolve_bookmark`] never has
+    /// to guess which of two same-named bookmarks a `w:hyperlink w:anchor` meant. Reading a file that
+    /// already has two bookmarks sharing a name is never rejected (fidelity-first); only authoring a
+    /// new collision is.
+    #[error("bookmark name {0:?} is already in use")]
+    BookmarkNameInUse(String),
 }

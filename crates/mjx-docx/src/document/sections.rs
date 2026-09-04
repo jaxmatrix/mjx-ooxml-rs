@@ -22,7 +22,8 @@
 //!
 //! # `EG_SectPrContents`'s 19 members, all reachable off [`SectionProperties`]
 //!
-//! `footnotePr`, `endnotePr` (MJXOFF-124's own semantics; kept structurally opaque here),
+//! `footnotePr`, `endnotePr` ([`super::annotations::FootnoteProperties`]/`EndnoteProperties`,
+//! MJXOFF-124's own types),
 //! `type` ([`SectionType`]), `pgSz`/`pgMar` (bridged to the shared [`crate::PageSize`]/
 //! [`crate::PageMargins`] value types — see [`SectionProperties::page_size`]/`page_margins`),
 //! `paperSrc` ([`PaperSource`]), `pgBorders` ([`PageBorderSet`]), `lnNumType` ([`LineNumbering`]),
@@ -1112,10 +1113,12 @@ pub enum SectionPropertyContent {
     HeaderReference(HeaderFooterReference),
     /// `w:footerReference` (`CT_HdrFtrRef`).
     FooterReference(HeaderFooterReference),
-    /// `w:footnotePr` (`CT_FtnProps`) — MJXOFF-124's own semantics; structurally opaque here.
-    FootnoteProperties(Unmodeled),
-    /// `w:endnotePr` (`CT_EdnProps`) — MJXOFF-124's own semantics; structurally opaque here.
-    EndnoteProperties(Unmodeled),
+    /// `w:footnotePr` (`CT_FtnProps`) — MJXOFF-124's own type; see
+    /// [`super::annotations::FootnoteProperties`].
+    FootnoteProperties(super::annotations::FootnoteProperties),
+    /// `w:endnotePr` (`CT_EdnProps`) — MJXOFF-124's own type; see
+    /// [`super::annotations::EndnoteProperties`].
+    EndnoteProperties(super::annotations::EndnoteProperties),
     /// `w:type` (`CT_SectType`) — the section-break kind.
     Type(SectionType),
     /// `w:pgSz` (`CT_PageSz`) — structurally opaque ([`Unmodeled`]); reach it through
@@ -1188,8 +1191,8 @@ pub struct SectionProperties {
         children,
         child(local = "headerReference", variant = HeaderReference, ty = HeaderFooterReference),
         child(local = "footerReference", variant = FooterReference, ty = HeaderFooterReference),
-        child(local = "footnotePr", variant = FootnoteProperties, ty = Unmodeled),
-        child(local = "endnotePr", variant = EndnoteProperties, ty = Unmodeled),
+        child(local = "footnotePr", variant = FootnoteProperties, ty = super::annotations::FootnoteProperties),
+        child(local = "endnotePr", variant = EndnoteProperties, ty = super::annotations::EndnoteProperties),
         child(local = "type", variant = Type, ty = SectionType),
         child(local = "pgSz", variant = PageSize, ty = Unmodeled),
         child(local = "pgMar", variant = PageMargins, ty = Unmodeled),
@@ -1815,25 +1818,26 @@ impl SectionProperties {
         })
     }
 
-    /// The footnote properties this section states (`w:footnotePr`), or `None` — MJXOFF-124's own
-    /// semantics; preserved structurally here.
-    #[must_use]
-    pub fn footnote_properties(&self) -> Option<&Unmodeled> {
-        self.content.iter().find_map(|item| match item {
-            SectionPropertyContent::FootnoteProperties(properties) => Some(properties),
-            _ => None,
-        })
-    }
-
-    /// The endnote properties this section states (`w:endnotePr`), or `None` — see
-    /// [`SectionProperties::footnote_properties`].
-    #[must_use]
-    pub fn endnote_properties(&self) -> Option<&Unmodeled> {
-        self.content.iter().find_map(|item| match item {
-            SectionPropertyContent::EndnoteProperties(properties) => Some(properties),
-            _ => None,
-        })
-    }
+    value_property!(
+        SectionPropertyContent,
+        footnote_properties,
+        set_footnote_properties,
+        FootnoteProperties,
+        super::annotations::FootnoteProperties,
+        "footnotePr",
+        "`w:footnotePr` — this section's own footnote position, number format, start number and \
+         restart rule. MJXOFF-124's own type."
+    );
+    value_property!(
+        SectionPropertyContent,
+        endnote_properties,
+        set_endnote_properties,
+        EndnoteProperties,
+        super::annotations::EndnoteProperties,
+        "endnotePr",
+        "`w:endnotePr` — this section's own endnote position, number format, start number and \
+         restart rule. See [`SectionProperties::footnote_properties`]."
+    );
 }
 
 // -------------------------------------------------------------------------------------------

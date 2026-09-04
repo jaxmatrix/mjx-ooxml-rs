@@ -44684,3 +44684,9 @@ pub static FORM_FIELD_DROP_DOWN_LIST: &ChildOrder = &WML_TYPES[71];
 
 /// A text-input form field's own kind, default text, maximum length and display format (`w:textInput`) (`CT_FFTextInput`, `wml.xsd`).
 pub static FORM_FIELD_TEXT_INPUT: &ChildOrder = &WML_TYPES[76];
+
+/// A section's own footnote settings (`w:sectPr/w:footnotePr`): position, number format, then the shared `EG_FtnEdnNumProps` start/restart pair (`CT_FtnProps`, `wml.xsd`).
+pub static FOOTNOTE_PROPERTIES: &ChildOrder = &WML_TYPES[98];
+
+/// A section's own endnote settings (`w:sectPr/w:endnotePr`) — the same shape as `CT_FtnProps`, with `CT_EdnPos`'s narrower two-value position instead of `CT_FtnPos`'s four (`CT_EdnProps`, `wml.xsd`).
+pub static ENDNOTE_PROPERTIES: &ChildOrder = &WML_TYPES[66];
