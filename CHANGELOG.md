@@ -49,6 +49,84 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.86] - 2026-09-04
+
+Word style definitions (MJXOFF-101, Phase C position 7): `word/styles.xml` in full —
+`w:docDefaults`, every `CT_Style` member, `w:basedOn` chain resolution with cycle safety, and
+`w:latentStyles`.
+
+**`CT_Style/w:pPr` is `CT_PPrGeneral`, not `CT_PPr`.** Verified directly against `wml.xsd`, not
+assumed from the ticket's own text (which named `CT_PPrGeneral` as already built — it was not):
+`CT_PPr` (a live paragraph's own `w:pPr`, MJXOFF-96) is `CT_PPrBase` plus `rPr` (`CT_ParaRPr`),
+`sectPr` and `pPrChange`; `CT_PPrGeneral` — what a style definition, `w:pPrDefault` and
+`w:tblStylePr` all actually carry — is `CT_PPrBase` plus `pPrChange` only. A style's own paragraph
+properties may not carry a pilcrow's run properties or a section break, so `StyleParagraphProperties`
+is its own container rather than `ParagraphProperties` reused; every one of its 33 leaf types
+(`Toggle`, `FrameProperties`, `Spacing`, `ParagraphBorders`, …) is still the exact struct
+MJXOFF-96 built, reused directly — only the wiring is new. `CT_Style/w:rPr`, by contrast, genuinely
+is plain `CT_RPr` and reuses `RunProperties` with no wrapper at all. `w:tblPr`/`w:trPr`/`w:tcPr`
+(on both `CT_Style` and `CT_TblStylePr`) stay opaque, the same treatment `w:pPrChange` already
+gets — no shipped crate models table properties yet, and inventing a first model of them here would
+be scope this child was not given.
+
+**Cycle safety is a bounded depth, not a visited-set — and hitting the bound is a typed error,
+never a silently truncated chain.** `StyleIndex::based_on_chain` walks `w:basedOn` from a style
+upward, accumulating each ancestor into the `Vec` it must return anyway; that accumulation *is*
+the bound (`MAX_BASED_ON_CHAIN_DEPTH = 64`) — a chain that has not terminated by then returns
+`Err(DocxError::BasedOnChainTooDeep)`, never a partial `Ok` chain a later caller could resolve
+properties against without anything going red. Proved by mutation: turning the bound check into a
+silent `break` (an `Ok` chain of 64 repeated entries instead of an error) turns both cycle tests red.
+`sample.docx`'s `Normal` style does **not** self-reference — checked directly against the fixture's
+own bytes by two independent methods, refuting an earlier dispatch brief's claim — so the corpus has
+no cycle to test against; `tests/fixtures/style_based_on_cycle.docx` (a self-reference and a mutual
+pair) is the only cycle evidence in the suite, and `based_on_chain` is separately exercised against
+`sample.docx`'s own real, non-cyclic chains to prove the depth cap never false-positives.
+
+**The three-deep `basedOn` trap, closed with a discriminating fixture:** `Base → Middle → Leaf`,
+where `Middle` overrides `Base`'s font size and `Leaf` overrides nothing, so `Leaf`'s correct
+effective font size can only come from walking to `Middle` — reading only the leaf, only the base,
+or only direct properties each gives a different wrong answer. Mutation-proved: neutralising the
+chain walk (stop after the first push) turns this test red.
+
+`w:styleId` matching is case-sensitive; `w:name` matching is case-insensitive (full Unicode case
+fold), matching Word's own "apply style by name" UI — `sample.docx` already shows two producers
+disagreeing on capitalisation (`PreformattedText` vs. `"Preformatted Text"`). `w:link` resolves in
+both directions through `LinkedStyleResolution`, reporting a missing or wrong-kind target as a
+value, never a panic.
+
+`w:count` on `w:latentStyles` is preserved, never silently recomputed — `LatentStyles::sync_count`
+is the explicit, opt-in way to keep it consistent with the exception list after an edit.
+`tests/fixtures/style_latent_styles.docx` is the only committed coverage: `sample.docx` carries no
+`w:latentStyles` at all (checked directly).
+
+`Document::edit_style_sheet` creates `word/styles.xml` — content-type registration and the
+`styles` relationship from the main document part — on first use for a document that has none (a
+[`Document::blank`] document, among others), then runs the same parse/mutate/write-back shape
+every other typed edit in this crate uses; `Document::style_sheet` is its read-only, closure-based
+counterpart.
+
+### Added
+
+- **`mjx_docx::{StyleSheet, StyleDefinition, DocumentDefaults, DefaultRunProperties,
+  DefaultParagraphProperties, LatentStyles, LatentStyleException, StyleParagraphProperties,
+  TableStyleOverride, StyleString, RevisionSaveId}`** and their content enums — the full
+  `word/styles.xml` model (`CT_Styles`, `CT_Style`, `CT_DocDefaults`, `CT_RPrDefault`,
+  `CT_PPrDefault`, `CT_LatentStyles`, `CT_LsdException`, `CT_PPrGeneral`, `CT_TblStylePr`).
+- **`mjx_docx::{StyleIndex, LinkedStyleResolution, MAX_BASED_ON_CHAIN_DEPTH}`** — the style index
+  (built once from a `&StyleSheet` snapshot, reused for every lookup), `w:basedOn` chain walking,
+  and `w:link` resolution.
+- **`mjx_docx::Document::{style_sheet, edit_style_sheet}`** — reading and authoring
+  `word/styles.xml`, creating it (with its relationship and content type) on first use.
+- **`mjx_docx::DocxError::{UnknownStyleId, BasedOnChainTooDeep}`**.
+- New fixtures: `tests/fixtures/style_based_on_chain.docx`, `style_based_on_cycle.docx`,
+  `style_latent_styles.docx` — authored for this child; `sample.docx` supplies neither a
+  three-deep override chain, a `basedOn` cycle, nor `w:latentStyles`.
+- **`mjx_ooxml_types::child_order::{PARAGRAPH_PROPERTIES_GENERAL, DOCUMENT_DEFAULTS,
+  DEFAULT_RUN_PROPERTIES, DEFAULT_PARAGRAPH_PROPERTIES, LATENT_STYLES, STYLE_DEFINITION, STYLES,
+  TABLE_STYLE_OVERRIDE}`** — generated child-order tables for `CT_PPrGeneral`, `CT_DocDefaults`,
+  `CT_RPrDefault`, `CT_PPrDefault`, `CT_LatentStyles`, `CT_Style`, `CT_Styles` and `CT_TblStylePr`
+  (`xtask/src/codegen/spec.rs::CHILD_ORDER_EXPORTS`).
+
 ## [0.0.85] - 2026-09-04
 
 Word document authoring from nothing (MJXOFF-98, Phase C position 6): `Document::blank` and
