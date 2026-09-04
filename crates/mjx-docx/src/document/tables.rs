@@ -744,6 +744,14 @@ impl Cell {
         })
     }
 
+    /// Appends `table` as a new top-level child of this cell's own content, after everything
+    /// already there — this is how a table nests inside a cell: [`Table::new`] builds one exactly
+    /// as [`super::Document::append_table`] does at the document's own top level, and this method is
+    /// the difference between the two call sites.
+    pub fn append_table(&mut self, table: Table) {
+        self.content.push(BlockContent::Table(table));
+    }
+
     /// The cell's whole ordered content, including its `w:tcPr` when it has one.
     #[must_use]
     pub fn content(&self) -> &[BlockContent] {

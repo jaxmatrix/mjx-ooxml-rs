@@ -1553,6 +1553,127 @@ impl Document {
         Ok(())
     }
 
+    /// Sets (or, given `None`/`Some(1)`, removes) the `w:gridSpan` of the cell at `(row, column)` of
+    /// table `table` — how many grid columns it covers. `(row, column)` addresses the cell *before*
+    /// the change takes effect; growing or shrinking a span shifts which physical cell later queries
+    /// at `column + 1` resolve to, exactly as authoring a merge does in Word itself.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn set_cell_span(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        span: Option<usize>,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        cell.set_column_span(interner, span);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Sets (or, given `None`, removes) the `w:vMerge` of the cell at `(row, column)` of table
+    /// `table`. `Some(MergedCellType::Restart)` starts (or restarts) a vertical merge;
+    /// `Some(MergedCellType::Continue)` marks the cell as continuing the region above it (the caller
+    /// is responsible for there being a `restart` reachable above, per ECMA-376 Part 1 §17.4.84 —
+    /// see `tables.rs`'s own doc comment); `None` removes the cell from any vertical merge.
+    ///
+    /// # Errors
+    /// As [`cell_span`](Self::cell_span).
+    pub fn set_cell_vertical_merge(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        kind: Option<tables::MergedCellType>,
+    ) -> Result<(), DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        cell.set_vertical_merge(interner, kind);
+        main.write_back(root, interner);
+        Ok(())
+    }
+
+    /// Reaches the cell at `(row, column)` of table `table` and hands it, with the part's interner,
+    /// to `edit` — the general escape hatch behind every narrower cell-editing method above, and how
+    /// a table is authored **into a table cell**: `edit`'s own body calls
+    /// [`tables::Cell::append_table`] with a fresh [`tables::Table::new`], exactly as
+    /// [`append_table`](Self::append_table) does at the document's own top level. Only
+    /// `word/document.xml` is dirtied.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::TableCellOutOfRange`] if `(row, column)` is out of range.
+    pub fn edit_cell<R>(
+        &mut self,
+        table: usize,
+        row: usize,
+        column: usize,
+        edit: impl FnOnce(&mut tables::Cell, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let (rows, columns) = body
+            .table(table)
+            .map(|table| (table.row_count(), table.column_count()))
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let table_ref = body
+            .table_mut(table)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no table at index {table}")))?;
+        let cell =
+            table_ref
+                .cell_mut(interner, row, column)
+                .ok_or(DocxError::TableCellOutOfRange {
+                    row,
+                    column,
+                    rows,
+                    columns,
+                })?;
+        let result = edit(cell, interner);
+        main.write_back(root, interner);
+        Ok(result)
+    }
+
     /// Appends a new `rows` x `columns` table as the body's new last top-level table (before
     /// `w:sectPr`, when the body has one), and returns its new index. Every cell starts with one
     /// empty paragraph.
@@ -1910,6 +2031,85 @@ mod tests {
             })
             .nth(1)
             .and_then(RawElement::source_span)
+    }
+
+    /// The retained [`RawElement::source_span`] of the `index`-th `<w:tr>` under the first `<w:tbl>`
+    /// under `<w:body>` of `ragged_table.docx` (MJXOFF-116's own fixture — see
+    /// `crates/mjx-docx/tests/tables.rs`'s own module doc comment for its geometry) — `None` if that
+    /// row has been reflowed rather than copied verbatim. Same-crate access, exactly as
+    /// [`sibling_paragraph_span`] above.
+    fn table_row_span(document: &mut Document, index: usize) -> Option<std::ops::Range<u32>> {
+        let doc = document
+            .package
+            .part_tree(&document.document_part)
+            .expect("read word/document.xml");
+        let body = doc.root.children.iter().find_map(|node| match node {
+            RawNode::Element(element) if doc.interner.resolve(element.name.local) == "body" => {
+                Some(element)
+            }
+            _ => None,
+        })?;
+        let table = body.children.iter().find_map(|node| match node {
+            RawNode::Element(element) if doc.interner.resolve(element.name.local) == "tbl" => {
+                Some(element)
+            }
+            _ => None,
+        })?;
+        table
+            .children
+            .iter()
+            .filter_map(|node| match node {
+                RawNode::Element(element) if doc.interner.resolve(element.name.local) == "tr" => {
+                    Some(element)
+                }
+                _ => None,
+            })
+            .nth(index)
+            .and_then(RawElement::source_span)
+    }
+
+    /// Row-level copy-on-write, proved the same way [`editing_one_run_retains_the_untouched_sibling_
+    /// paragraphs_source_span`] proves it for a paragraph: editing one cell's text
+    /// ([`Document::set_cell_text`]) must leave every other row's retained
+    /// [`RawElement::source_span`] untouched — not merely byte-equal (which a complete reflow could
+    /// still coincidentally reproduce), but the *same, retained* span, proving the untouched rows'
+    /// bytes were copied verbatim rather than rebuilt from the model.
+    ///
+    /// Confirmed by hand: neutralising the run-replacement in [`Document::set_cell_text`] (so the
+    /// method touches nothing) turns this red at its own `assert_ne!` —
+    /// `left: Some(614..815), right: Some(614..815)` — because a no-op edit cannot be distinguished
+    /// from span retention; restored by re-editing, not `git checkout --`.
+    #[test]
+    fn editing_one_cells_text_retains_every_other_rows_source_span() {
+        let mut document =
+            Document::open(&fixture("ragged_table.docx")).expect("open ragged_table.docx");
+
+        let before: Vec<Option<std::ops::Range<u32>>> = (0..4)
+            .map(|row| table_row_span(&mut document, row))
+            .collect();
+        assert!(
+            before.iter().all(Option::is_some),
+            "every freshly parsed, never-touched row always has a span"
+        );
+
+        document
+            .set_cell_text(0, 1, 0, "edited")
+            .expect("edit row 1's own first cell");
+
+        let after: Vec<Option<std::ops::Range<u32>>> = (0..4)
+            .map(|row| table_row_span(&mut document, row))
+            .collect();
+        assert_ne!(
+            before[1], after[1],
+            "the edited row's own span must change — otherwise this test could not distinguish \
+             span retention from a coincidence"
+        );
+        for row in [0, 2, 3] {
+            assert_eq!(
+                before[row], after[row],
+                "editing row 1's cell must not disturb row {row}'s retained source span"
+            );
+        }
     }
 
     /// Edit isolation, proved at the mechanism `sample.docx`'s whole-part byte identity cannot
