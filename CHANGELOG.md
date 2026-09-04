@@ -49,6 +49,54 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.82] - 2026-09-04
+
+Run properties (MJXOFF-94): `w:rPr` and the character-formatting vocabulary — `EG_RPrBase`'s **39
+members** (the ticket said 38 plus `oMath`; the schema gives the group exactly 39, and `oMath` is
+`CT_OnOff`-shaped like nineteen of its siblings, not a fortieth special case). `EG_RPrBase` is the
+most-referenced group in `wml.xsd`: `CT_RPr`, `CT_ParaRPr`, `CT_RPrOriginal`, `CT_ParaRPrOriginal`,
+`CT_Style` and `CT_RPrDefault` all build on it, so MJXOFF-96, MJXOFF-101, MJXOFF-104, MJXOFF-119 and
+MJXOFF-126 all needed this landed first.
+
+### Added
+
+- **`mjx_docx::RunProperties`** (`CT_RPr`), reached off `Run::run_properties`/`run_properties_mut`/
+  `run_properties_or_insert` — the last placing a freshly authored `w:rPr` at its schema rank via the
+  generated `wml` child-order table.
+- **`mjx_docx::Toggle`** — the twenty `CT_OnOff`-shaped members (`b`, `bCs`, `caps`, `cs`, `dstrike`,
+  `emboss`, `i`, `iCs`, `imprint`, `noProof`, `oMath`, `outline`, `rtl`, `shadow`, `smallCaps`,
+  `snapToGrid`, `specVanish`, `strike`, `vanish`, `webHidden`) share one type, reused exactly as
+  `mjx_docx::Text` is reused across four `EG_RunInnerContent` members. `val` is declared with the
+  attribute grammar's `default = true` — ECMA-376 Part 1's own prose for every one of these elements
+  ("if this element is present without a val attribute, its default value is true") — so
+  `RunProperties`'s twenty per-property accessors (`bold`, `italic`, …) return `Option<bool>`: `None`
+  for the element absent, `Some(true)`/`Some(false)` for present-and-on/present-and-off, never
+  collapsed to a bare `bool`.
+- **The other eighteen complex types**: `CharacterStyle`, `Fonts`, `Color`, `Underline`, `TextEffect`,
+  `Border`, `Shading`, `VerticalAlignment`, `ManualRunWidth`, `Emphasis`, `Languages`,
+  `EastAsianLayout`, `Highlight`, and three measure-value wrappers (`HalfPointMeasureValue`, reused
+  across `sz`/`szCs`/`kern`; `SignedHalfPointMeasureValue` for `position`;
+  `SignedTwipsMeasureValue` for `spacing`) and `TextScaleValue` for `w`. Colour (`Color`,
+  `Underline`'s and `Border`'s and `Shading`'s own colour attributes) is Word's own four-attribute
+  model (`val`, `themeColor`, `themeTint`, `themeShade`) — not DrawingML's `a:schemeClr` with child
+  transforms.
+- **`tests/fixtures/run_properties.docx`** — the three `w:rPr` emptiness states `sample.docx` and
+  `run_content.docx` don't between them cover (self-closed, absent, and a separate end tag with no
+  children), and a run carrying all 39 properties at once, including `w:b w:val="0"` (explicit off,
+  distinct from absent), `w:rFonts` with only a hint and no font name, and `w:u` with `color` and
+  `themeColor` alongside `val`.
+
+### Fixed
+
+- Caught while writing this child's own tests: `wml.xsd` is `attributeFormDefault="qualified"`, so
+  every WordprocessingML attribute is written `w:val`, not `val` — but nothing in this new
+  vocabulary's attribute declarations named a `prefix`, so every single one matched only the
+  unprefixed spelling and silently fell through to its schema default. `crates/mjx-docx/src/document/
+  body.rs`'s pre-existing `Break`/`PositionalTab`/`Symbol`/`ProofingError`/`PermissionRangeStart`/
+  `PermissionRangeEnd` (MJXOFF-92) carry the same latent defect on their own attributes, untested for
+  the same reason: their round-trip tests pass the whole attribute vector through verbatim and never
+  call the typed accessors. Not fixed here — out of this child's scope — and reported on the ticket.
+
 ## [0.0.81] - 2026-09-04
 
 The WordprocessingML block content model (MJXOFF-92): `mjx-docx` could open a `.docx` and name its
