@@ -39,6 +39,7 @@ reconstructed afterwards.
 | `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
 | `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
+| `mjx_docx::{RunPropertyContent, ParagraphMarkRunPropertyContent, ParagraphPropertyContent, StyleParagraphPropertyContent, SectionPropertyContent, NumberingPropertyContent}::Change`/`Inserted`/`Deleted`/`MovedFrom`/`MovedTo`, `FieldCharacterContent::NumberingChange` | inner type `Unmodeled` → the real revision type (`RunPropertiesChange`, `ParagraphMarkPropertiesChange`, `ParagraphPropertiesChange`, `TrackChangeMarker`, `SectionPropertiesChange`, `TrackChangeNumbering`) | MJXOFF-126. `ParagraphProperties::change()` already had a public accessor returning `Option<&Unmodeled>` — this one is a real, consumer-visible signature change, not only a formal one; every other listed variant had no accessor before this child, matching the row above. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -50,6 +51,46 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.95] - 2026-09-04
+
+Word revision marks: tracked changes as a first-class case in every mutation path (MJXOFF-126,
+Phase C position 16): `crates/mjx-docx/src/document/revisions.rs` (new).
+
+**`w:ins`/`w:del`/`w:moveFrom`/`w:moveTo` are typed as run-level containers, recursively** — an
+insertion nested inside a deletion is one `ParagraphContent::Ins` inside another `Del`'s own
+content, exactly the shape a real tracked-change history produces. `crates/mjx-docx/src/document/
+revisions.rs` adds `RunTrackChange` (`CT_RunTrackChange`), `TrackChangeMarker` (bare `CT_TrackChange`
+— `w:cellIns`/`w:cellDel`, the paragraph mark's own `w:ins`/`w:del`/`w:moveFrom`/`w:moveTo`, the four
+`customXml*RangeStart` elements), `MoveBookmark` (`CT_MoveBookmark`), `CellMergeTrackChange`,
+`TrackChangeNumbering`, and eight `*Change` property wrappers (`RunPropertiesChange`,
+`ParagraphPropertiesChange`, `ParagraphMarkPropertiesChange`, `SectionPropertiesChange`,
+`TablePropertiesChange`, `TableExceptionPropertiesChange`, `TableGridChange`, `CellPropertiesChange`,
+`RowPropertiesChange`), each reusing the live property type MJXOFF-94/96/109/119 already built for
+its own "previous properties" payload rather than a parallel type.
+
+**One rule, structurally enforced, for every mutation path in this crate:** `w:ins`/`w:del`/
+`w:moveFrom`/`w:moveTo` are opaque containers to ordinary run/paragraph addressing, field scanning
+and range resolution — content nested inside one is preserved exactly but never reached by the
+editing surface, and every property setter already only ever replaces or inserts the one content
+variant it owns, so a `*Change` sibling is never disturbed. `revisions.rs`'s own module doc carries
+the full mutation-path table (MJXOFF-92/109/116/119/121/124, each with a stated and tested
+behaviour). `Document::revisions`/`text_with_revisions_accepted`/`text_with_revisions_rejected` are
+new read-only entry points (enumeration and computed accept/reject text — the ticket's own required
+"Reading" bullet); mutating accept/reject operations are declined, with the reasoning recorded in
+the same module doc.
+
+**A malformed `w:date` is preserved verbatim, never normalised, and refused on authoring** — the
+same fidelity-vs-validity split `fields.rs` (MJXOFF-121) established for over-long strings, now
+applied to `ST_DateTime`, via a new `DocxError::MalformedDateTime`.
+
+**Two corrections to this ticket's own pre-dispatch note**, both verified directly against
+`wml.xsd`: `CT_TrackChangeNumbering` is *not* unreachable — it has two real use sites (`w:numPr`'s
+own `numberingChange` and `w:fldChar`'s own), both already wired as `Unmodeled` placeholders by
+MJXOFF-96/121 awaiting this child — and is modelled here. `CT_TrackChangeRange` genuinely *is*
+unreachable (declared, never referenced anywhere in `wml.xsd`) and is not modelled.
+`CT_MathCtrlIns`/`CT_MathCtrlDel` are reached only through `shared-math.xsd`, which no math content
+in a Word run is typed against yet, so neither has a reachable call site in this crate either.
 
 ## [0.0.94] - 2026-09-04
 

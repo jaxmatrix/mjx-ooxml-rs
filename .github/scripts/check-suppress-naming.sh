@@ -35,6 +35,16 @@
 #     schemas carry tracked changes. Allowing it workspace-wide would let the chart concept return
 #     as `enum ChartLabelTier { Deleted }` inside `mjx-chart` itself, which is the one place this
 #     gate exists to police; scoping it by path closes that while leaving Word's variant legal.
+#   * **Every other delete-family identifier MJXOFF-126 (revision marks) adds under those same two
+#     crates** — `CellDeleted`/`cell_deleted` (`w:cellDel`, "a tracked-deleted table cell"),
+#     `MarkerDeleted` (the enumeration a bare tracked-deletion marker reports),
+#     `deleted`/`set_deleted` (a paragraph mark's or row's own `w:del`), `deleted_zone`/
+#     `deleted_run_text` (reading `w:delText` rather than `w:t` while resolving a `w:del`'s own
+#     content). None of these is the chart's "switched off" concept either — `mjx-docx` and
+#     `mjx-omml` carry no such concept to confuse it with — so rather than enumerate every future
+#     compound one exact token at a time, the whole `delete` family is permitted, case-insensitively,
+#     under those two paths (a case-insensitive substitution, `gI`, since the FORBIDDEN pattern above
+#     is itself matched case-insensitively).
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #
@@ -80,13 +90,12 @@ pattern='(delete[a-zA-Z0-9_]|[a-zA-Z0-9_]delete|(^|[^a-zA-Z0-9_])delete[[:space:
 offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
   | grep -v '^crates/mjx-ooxml-types/src/generated/' \
   | sed -E '/^[^:]+:[0-9]+:[[:space:]]*(\/\/\/|\/\/!)/ s/\b([Dd]elet(ed|ion)|[Dd]elete)\b/<prose>/g' \
-  | sed -e 's/autoTitleDeleted/<wire-token>/g' \
+  | sed -E -e 's/autoTitleDeleted/<wire-token>/g' \
         -e 's/delInstrText/<wire-token>/g' \
         -e 's/delText/<wire-token>/g' \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
-        -e '/^crates\/mjx-docx\//s/\bDeleted\b/<wml-revision>/g' \
-        -e '/^crates\/mjx-omml\//s/\bDeleted\b/<wml-revision>/g' \
+        -e '/^crates\/(mjx-docx|mjx-omml)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
   | grep -Ei "$pattern" \
   || true)
 

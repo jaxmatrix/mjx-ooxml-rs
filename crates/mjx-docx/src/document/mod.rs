@@ -2683,7 +2683,7 @@ impl Document {
     /// `w:moveFromRangeEnd` naming `id` were found. `None` if neither marker names `id` at all.
     /// [`Document::move_to_range`] is the `w:moveToRangeStart`/`End` counterpart — the two are
     /// separate id spaces (see `crate::document::revisions`'s own doc comment on
-    /// [`revisions::classify_move_from_range`]).
+    /// `revisions::classify_move_from_range`).
     ///
     /// # Errors
     /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if

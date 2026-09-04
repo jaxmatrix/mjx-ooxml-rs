@@ -723,14 +723,14 @@ pub enum ParagraphContent {
     CommentRangeEnd(super::ranges::MarkupRange),
     /// `w:moveFromRangeStart` (`CT_MoveBookmark`), folded in from `EG_RangeMarkupElements` —
     /// MJXOFF-126's own type; paired with [`ParagraphContent::MoveFromRangeEnd`] by
-    /// [`super::revisions::classify_move_from_range`] through MJXOFF-124's own
+    /// `revisions::classify_move_from_range` through MJXOFF-124's own
     /// [`super::ranges::RangeIndex`].
     MoveFromRangeStart(super::revisions::MoveBookmark),
     /// `w:moveFromRangeEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
     MoveFromRangeEnd(super::ranges::MarkupRange),
     /// `w:moveToRangeStart` (`CT_MoveBookmark`), folded in from `EG_RangeMarkupElements` —
     /// paired with [`ParagraphContent::MoveToRangeEnd`] by
-    /// [`super::revisions::classify_move_to_range`].
+    /// `revisions::classify_move_to_range`.
     MoveToRangeStart(super::revisions::MoveBookmark),
     /// `w:moveToRangeEnd` (`CT_MarkupRange`), folded in from `EG_RangeMarkupElements`.
     MoveToRangeEnd(super::ranges::MarkupRange),
