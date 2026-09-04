@@ -6,9 +6,28 @@
 //! `is_wp`/`wp_child` family — the same shape, for the `m:` namespace instead of `a:`/`wp:`.
 
 use mjx_ooxml_core::{
-    AttributeCodec, AttributeError, Interner, RawAttribute, RawElement, RawName, RawNode,
+    AttributeCodec, AttributeError, Interner, QuoteStyle, RawAttribute, RawElement, RawName,
+    RawNode,
 };
 use mjx_ooxml_types::namespaces::SHARED_MATH;
+
+/// An `xmlns:m="…"` declaration binding the Office Math namespace — for a caller splicing a freshly
+/// built `m:oMath`/`m:oMathPara` into a part that may not already bind it (a blank
+/// `word/document.xml` binds only `w`/`r`; `blank.rs`'s own template). Harmless to add redundantly on
+/// an equation nested somewhere that already binds `m:` — an extra `xmlns:m` on a descendant simply
+/// rebinds the same URI to the same prefix, ordinary and valid XML, the same reasoning
+/// `mjx_docx::document::drawing::namespace_declaration`'s own doc comment gives for `wp:`/`a:`/`pic:`.
+pub(crate) fn namespace_declaration(interner: &mut Interner) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: Some(interner.intern("xmlns")),
+            local: interner.intern("m"),
+            namespace: None,
+        },
+        value: SHARED_MATH.transitional.as_bytes().into(),
+        quote: QuoteStyle::Double,
+    }
+}
 
 /// Builds an `m:local` qualified name in the Office Math namespace.
 pub(crate) fn m_name(interner: &mut Interner, local: &str) -> RawName {
