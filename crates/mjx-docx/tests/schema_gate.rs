@@ -330,6 +330,39 @@ fn text_added_through_the_body_api_reads_back_and_stays_schema_valid() {
     );
 }
 
+#[test]
+fn a_comment_a_footnote_and_a_bookmark_added_to_a_document_with_none_stay_schema_valid() {
+    // MJXOFF-124's own "Done when": adding a comment/footnote/bookmark to a document that had none of
+    // any of the three must produce a valid package **and** schema-valid markup — not merely a
+    // package `Package::validate` accepts. `word/comments.xml`/`word/footnotes.xml` are new parts
+    // this call creates from nothing (content type, relationship, the two reserved separator entries
+    // for the footnotes part), and `assert_authored_deck_is_schema_valid` walks every part in the
+    // saved package, not just `word/document.xml`.
+    let mut document = Document::blank(PageSize::a4()).expect("blank");
+    document
+        .add_comment(0, "Reviewer", Some("R"), "please check this")
+        .expect("add_comment");
+    document
+        .add_footnote(0, "a footnote body")
+        .expect("add_footnote");
+    document.add_bookmark(0, "Section1").expect("add_bookmark");
+
+    let saved = document.save().expect("save");
+    assert_authored_deck_is_schema_valid(
+        "blank document with a comment, a footnote and a bookmark added",
+        &saved,
+    );
+
+    // And the reopened document still reads back everything just written.
+    let mut reopened = Document::open(&saved).expect("reopen");
+    assert!(reopened.parts().comments.is_some());
+    assert!(reopened.parts().footnotes.is_some());
+    assert!(reopened
+        .resolve_bookmark("Section1")
+        .expect("resolve_bookmark")
+        .is_some());
+}
+
 /// `Document::blank`'s `word/document.xml`, with one of `w:pgMar`'s seven attributes stripped out —
 /// syntactically valid XML, invalid WordprocessingML (`CT_PageMar` declares every one of the seven
 /// `use="required"`).

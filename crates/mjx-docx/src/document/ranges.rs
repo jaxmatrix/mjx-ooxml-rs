@@ -32,7 +32,7 @@
 //! clients — this child leaves all six of those `ParagraphContent::Raw` (their *semantics* are
 //! MJXOFF-126's, not structure this child needs to guess the shape of), but once MJXOFF-126 gives them
 //! their own variants, a classifier matching those variants is all `RangeIndex::build` needs: the
-//! id-based pairing, the whole-document-order paragraph flattening ([`flatten_paragraphs`], which
+//! id-based pairing, the whole-document-order paragraph flattening (`flatten_paragraphs`, which
 //! already recurses into every table cell), and [`covered_text`] all come for free. `classify_bookmark`
 //! and `classify_comment_range` below are two working examples of exactly the closure shape to write.
 //!
@@ -234,7 +234,7 @@ pub(crate) enum MarkerRole {
 }
 
 /// Where one marker sits: the 0-based index of its paragraph in **document order**, recursing into
-/// every nested table cell ([`flatten_paragraphs`] — not [`crate::BlockPath`], whose own indices are
+/// every nested table cell (`flatten_paragraphs` — not [`crate::BlockPath`], whose own indices are
 /// local to one container and cannot name a position that crosses a table boundary, exactly the
 /// "bookmark starts inside a cell and ends outside the table" fixture this ticket's own trap
 /// describes), and the index of the marker's own slot within that paragraph's own content.
@@ -290,7 +290,7 @@ fn collect_paragraphs<'a>(content: &'a [BlockContent], out: &mut Vec<&'a Paragra
 }
 
 /// A full index of one marker kind's start/end pairs across a whole container, built with **one**
-/// linear scan over [`flatten_paragraphs`]'s own output. Resolving ranges one id at a time by
+/// linear scan over `flatten_paragraphs`'s own output. Resolving ranges one id at a time by
 /// rescanning the whole tree per id would be `O(n·m)` for `m` ranges in an `n`-item document; building
 /// this index once and looking a resolved id up in the resulting map is `O(n)` to build and `O(1)` per
 /// lookup after that.
@@ -439,7 +439,7 @@ pub fn paragraphs_spanned(start: MarkerLocation, end: MarkerLocation) -> usize {
 
 /// Removes, in place, every `ParagraphContent` item `matches_paragraph_item` accepts and every
 /// `RunInnerContent` item `matches_run_item` accepts, from every paragraph reachable from `content`
-/// (recursing into every table cell, mirroring [`flatten_paragraphs`]'s own reach — **not** into a
+/// (recursing into every table cell, mirroring `flatten_paragraphs`'s own reach — **not** into a
 /// `w:hyperlink`'s own nested content, the same documented scope [`RangeIndex`] leaves open for a
 /// later child; see this module's own doc comment). Returns `(paragraph-level items removed,
 /// run-level items removed)` — [`crate::Document::remove_comment`]/`remove_bookmark`/`remove_footnote`
