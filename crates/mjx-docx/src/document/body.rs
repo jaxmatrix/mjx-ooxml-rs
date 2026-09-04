@@ -539,7 +539,9 @@ pub struct Paragraph {
         child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
         child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
         child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
-        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange),
+        child(local = "oMath", variant = Math, ty = mjx_omml::Math, ns = SHARED_MATH),
+        child(local = "oMathPara", variant = MathParagraph, ty = mjx_omml::MathParagraph, ns = SHARED_MATH)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -618,7 +620,9 @@ pub struct Hyperlink {
         child(local = "ins", variant = Ins, ty = super::revisions::RunTrackChange),
         child(local = "del", variant = Del, ty = super::revisions::RunTrackChange),
         child(local = "moveFrom", variant = MoveFrom, ty = super::revisions::RunTrackChange),
-        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange)
+        child(local = "moveTo", variant = MoveTo, ty = super::revisions::RunTrackChange),
+        child(local = "oMath", variant = Math, ty = mjx_omml::Math, ns = SHARED_MATH),
+        child(local = "oMathPara", variant = MathParagraph, ty = mjx_omml::MathParagraph, ns = SHARED_MATH)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -760,6 +764,13 @@ pub enum ParagraphContent {
     MoveFrom(super::revisions::RunTrackChange),
     /// `w:moveTo` (`CT_RunTrackChange`), folded in from `EG_RunLevelElts`.
     MoveTo(super::revisions::RunTrackChange),
+    /// `m:oMath` (`mjx_omml::Math`), folded in from `EG_RunLevelElts`'s own `EG_MathContent` —
+    /// MJXOFF-134's own type. An inline equation, a sibling of `w:r` rather than nested inside one
+    /// (`EG_MathContent` sits at run-*level*, not inside `CT_R`).
+    Math(mjx_omml::Math),
+    /// `m:oMathPara` (`mjx_omml::MathParagraph`), folded in from `EG_RunLevelElts`'s own
+    /// `EG_MathContent` — a paragraph of one or more display equations.
+    MathParagraph(mjx_omml::MathParagraph),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
