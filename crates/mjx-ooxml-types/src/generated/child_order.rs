@@ -44630,3 +44630,18 @@ pub static STYLES: &ChildOrder = &WML_TYPES[228];
 
 /// One conditional-formatting override inside a table style (`w:style/w:tblStylePr`) (`CT_TblStylePr`, `wml.xsd`).
 pub static TABLE_STYLE_OVERRIDE: &ChildOrder = &WML_TYPES[250];
+
+/// The numbering definitions part's own root (`w:numbering`): picture bullets, abstract numbering definitions, then numbering instances (`CT_Numbering`, `wml.xsd`).
+pub static NUMBERING: &ChildOrder = &WML_TYPES[143];
+
+/// One abstract numbering definition (`w:abstractNum`): its identity, its style links, then up to nine numbering levels (`CT_AbstractNum`, `wml.xsd`).
+pub static ABSTRACT_NUMBERING: &ChildOrder = &WML_TYPES[0];
+
+/// One concrete numbering definition instance (`w:num`): the abstract definition it uses, then any per-level overrides (`CT_Num`, `wml.xsd`).
+pub static NUMBERING_INSTANCE: &ChildOrder = &WML_TYPES[137];
+
+/// One numbering instance's override of a single level (`w:num/w:lvlOverride`): a start override, or a whole replacement level (`CT_NumLvl`, `wml.xsd`).
+pub static NUMBERING_LEVEL_OVERRIDE: &ChildOrder = &WML_TYPES[139];
+
+/// One numbering level's own formatting (`w:abstractNum/w:lvl`, and the replacement level a `w:lvlOverride` may carry) (`CT_Lvl`, `wml.xsd`).
+pub static NUMBERING_LEVEL: &ChildOrder = &WML_TYPES[122];

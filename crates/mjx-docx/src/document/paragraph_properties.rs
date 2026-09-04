@@ -244,8 +244,19 @@ impl ParagraphAlignment {
     /// Builds a new `w:jc` of `value`.
     #[must_use]
     pub fn new(interner: &mut Interner, value: Justification) -> Self {
+        Self::new_named(interner, "jc", value)
+    }
+
+    /// Builds a new `local` element (`"jc"` or `"lvlJc"`) of `value` — the same `CT_Jc` shape a
+    /// paragraph's own `w:jc` and a numbering level's own `w:lvlJc` (`numbering.rs`, MJXOFF-104)
+    /// share, under two different element names.
+    ///
+    /// `pub(crate)`: widened the same way [`super::run_properties::Toggle::new`] and
+    /// [`super::run_properties::HalfPointMeasureValue::new`] already were for cross-module reuse.
+    #[must_use]
+    pub(crate) fn new_named(interner: &mut Interner, local: &str, value: Justification) -> Self {
         let mut item = Self {
-            name: wml_name(interner, "jc"),
+            name: wml_name(interner, local),
             attributes: Vec::new(),
             extra: Vec::new(),
             empty: true,
