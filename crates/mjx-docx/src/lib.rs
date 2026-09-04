@@ -34,9 +34,9 @@ pub use document::{
     PhoneticGuideChild, PhoneticGuideContent, PhoneticGuideContentItem, PhoneticGuideProperties,
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
     RelationshipReference, Run, RunInnerContent, RunProperties, RunPropertyContent, Scale, Shading,
-    SignedHalfPoint, SignedHalfPointMeasureValue, SignedTwips, SignedTwipsMeasureValue, Symbol,
-    Text, TextEffect, TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline, Unmodeled,
-    VerticalAlignment,
+    ShortHex, SignedHalfPoint, SignedHalfPointMeasureValue, SignedTwips, SignedTwipsMeasureValue,
+    Symbol, Text, TextEffect, TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline, Unmodeled,
+    VerticalAlignment, WhitespacePreservation,
 };
 pub use error::DocxError;
 // The OPC vocabulary a caller of this crate's own signatures must be able to name: the package
