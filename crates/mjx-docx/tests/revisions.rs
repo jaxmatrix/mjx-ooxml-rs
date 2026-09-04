@@ -502,3 +502,81 @@ fn the_adversarial_fixture_is_schema_valid_and_in_schema_order() {
         &bytes,
     );
 }
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-116's own mutation path: row insertion never invents or inherits a tracked cell merge.
+// -------------------------------------------------------------------------------------------
+
+/// A newly inserted row always starts from `Cell::new` (an empty, freshly built `w:tcPr` — see
+/// `crate::document::revisions`'s own mutation-path table), so it can never accidentally inherit a
+/// neighbouring row's `w:cellMerge`/`w:vMerge`; and inserting one leaves every existing row's own
+/// revision markup — including the tracked cell merge on row 0 — byte-identical.
+#[test]
+fn inserting_a_row_never_invents_or_disturbs_a_tracked_cell_merge() {
+    let mut document = adversarial_fixture();
+    let before = document_xml(&mut document);
+    assert!(before.contains(r#"<w:cellMerge w:id="800""#));
+
+    // Insert a fresh row *before* the fixture's own two rows — not row 1 (between them), which
+    // would land inside the existing vertical merge span and legitimately grow it (see
+    // `Document::insert_row`'s own doc comment); position 0 is genuinely unrelated to that merge.
+    document.insert_row(0, 0).expect("insert_row");
+
+    let after = document_xml(&mut document);
+    // The tracked cell merge on the original row 0 is untouched, verbatim.
+    assert!(after.contains(
+        r#"<w:tcPr><w:tcW w:w="2000" w:type="dxa"/><w:vMerge w:val="restart"/><w:cellMerge w:id="800" w:author="Merger" w:date="2024-01-05T00:00:00Z" w:vMerge="cont" w:vMergeOrig="rest"/></w:tcPr>"#
+    ));
+    // Exactly the same number of `w:cellMerge`/`w:vMerge` elements exist after the insertion as
+    // before it — the new row (two fresh, empty cells) added zero of either, proving it neither
+    // invented one nor copied a neighbour's.
+    assert_eq!(
+        before.matches("w:cellMerge").count(),
+        after.matches("w:cellMerge").count(),
+        "row insertion must not add or remove any w:cellMerge"
+    );
+    assert_eq!(
+        before.matches("w:vMerge").count(),
+        after.matches("w:vMerge").count(),
+        "row insertion must not add or remove any w:vMerge"
+    );
+    // And the table now has a third row.
+    assert_eq!(after.matches("<w:tr>").count(), 3);
+}
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-124's own mutation path: a comment range wrapped inside a revision container is not
+// found, scanned, or touched by the ordinary comment-range resolution path.
+// -------------------------------------------------------------------------------------------
+
+/// A `w:commentRangeStart`/`End` pair sitting *inside* a `w:ins` — legal markup a real file can
+/// carry (someone inserted new content that itself already had a comment attached before it was
+/// reviewed) — is not resolved by [`Document::comment_range`], matching this module's own "one
+/// rule": ordinary scanning is top-level-paragraph-content-only, and revision containers are opaque
+/// to it. The comment markers themselves are still preserved byte-for-byte — this is a documented
+/// reach limitation, not data loss.
+#[test]
+fn a_comment_range_wrapped_inside_an_insertion_is_not_found_by_ordinary_scanning_but_is_preserved()
+{
+    let raw = concat!(
+        r#"<w:p><w:ins w:id="20" w:author="A" w:date="2024-06-01T00:00:00Z">"#,
+        r#"<w:commentRangeStart w:id="900"/>"#,
+        r#"<w:r><w:t>inserted and commented</w:t></w:r>"#,
+        r#"<w:commentRangeEnd w:id="900"/>"#,
+        r#"<w:r><w:commentReference w:id="900"/></w:r>"#,
+        r#"</w:ins></w:p>"#,
+    );
+    let mut document = spliced_document(raw);
+
+    // Not found — the range scan never descends into the w:ins.
+    assert_eq!(
+        document.comment_range(900).expect("comment_range(900)"),
+        None
+    );
+
+    // But nothing was touched: the markers round-trip exactly as written.
+    let xml = document_xml(&mut document);
+    assert!(xml.contains(r#"<w:commentRangeStart w:id="900"/>"#));
+    assert!(xml.contains(r#"<w:commentRangeEnd w:id="900"/>"#));
+    assert!(xml.contains(r#"<w:ins w:id="20" w:author="A" w:date="2024-06-01T00:00:00Z">"#));
+}
