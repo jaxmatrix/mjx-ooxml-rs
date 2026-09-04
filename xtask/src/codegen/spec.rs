@@ -2500,6 +2500,20 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "A text-input form field's own kind, default text, maximum length and display format \
          (`w:textInput`)",
     ),
+    (
+        "FOOTNOTE_PROPERTIES",
+        "wml",
+        "CT_FtnProps",
+        "A section's own footnote settings (`w:sectPr/w:footnotePr`): position, number format, then \
+         the shared `EG_FtnEdnNumProps` start/restart pair",
+    ),
+    (
+        "ENDNOTE_PROPERTIES",
+        "wml",
+        "CT_EdnProps",
+        "A section's own endnote settings (`w:sectPr/w:endnotePr`) — the same shape as \
+         `CT_FtnProps`, with `CT_EdnPos`'s narrower two-value position instead of `CT_FtnPos`'s four",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
