@@ -14,7 +14,7 @@
 //! `word/numbering.xml` at all.
 
 use mjx_docx::{
-    AbstractNumbering, DocxError, Document, LevelTextSegment, LevelTextTemplate, MainDocument,
+    AbstractNumbering, Document, DocxError, LevelTextSegment, LevelTextTemplate, MainDocument,
     NumberingIndex, NumberingInstance, NumberingLevel, NumberingLevelOverride, NumberingLookup,
     NumberingProperties, Package, PageSize, PartName, StyleDefinition, StyleString,
     MAX_NUM_STYLE_LINK_DEPTH,
@@ -41,14 +41,17 @@ fn the_two_hop_resolution_reads_the_correct_level_through_a_shared_abstract_defi
         .numbering(|numbering, interner| {
             let index = NumberingIndex::build(numbering, interner).expect("build index");
 
-            let NumberingLookup::Resolved(resolution) =
-                index.resolve(5, 0, interner).expect("resolve numId 5, ilvl 0")
+            let NumberingLookup::Resolved(resolution) = index
+                .resolve(5, 0, interner)
+                .expect("resolve numId 5, ilvl 0")
             else {
                 panic!("numId 5 is not 0 and must resolve");
             };
             assert_eq!(resolution.instance().numbering_id(interner), Ok(5));
             assert_eq!(
-                resolution.abstract_definition().abstract_numbering_id(interner),
+                resolution
+                    .abstract_definition()
+                    .abstract_numbering_id(interner),
                 Ok(0)
             );
             let level = resolution.level().expect("abstractNum 0 defines ilvl 0");
@@ -60,8 +63,9 @@ fn the_two_hop_resolution_reads_the_correct_level_through_a_shared_abstract_defi
                 Some("%1.")
             );
 
-            let NumberingLookup::Resolved(resolution) =
-                index.resolve(5, 1, interner).expect("resolve numId 5, ilvl 1")
+            let NumberingLookup::Resolved(resolution) = index
+                .resolve(5, 1, interner)
+                .expect("resolve numId 5, ilvl 1")
             else {
                 panic!("numId 5 is not 0 and must resolve");
             };
@@ -75,7 +79,10 @@ fn the_two_hop_resolution_reads_the_correct_level_through_a_shared_abstract_defi
             );
         })
         .expect("read word/numbering.xml");
-    assert!(found.is_some(), "the fixture must relate to word/numbering.xml");
+    assert!(
+        found.is_some(),
+        "the fixture must relate to word/numbering.xml"
+    );
 }
 
 /// The Done-when's own trap, proved and mutation-checked. `numId` 2 and `numId` 5 share
@@ -91,8 +98,9 @@ fn a_start_override_changes_only_the_overriding_instance_not_its_sibling() {
         .numbering(|numbering, interner| {
             let index = NumberingIndex::build(numbering, interner).expect("build index");
 
-            let NumberingLookup::Resolved(overridden) =
-                index.resolve(2, 0, interner).expect("resolve numId 2, ilvl 0")
+            let NumberingLookup::Resolved(overridden) = index
+                .resolve(2, 0, interner)
+                .expect("resolve numId 2, ilvl 0")
             else {
                 panic!("numId 2 is not 0 and must resolve");
             };
@@ -102,8 +110,9 @@ fn a_start_override_changes_only_the_overriding_instance_not_its_sibling() {
                 "numId 2's own w:lvlOverride/w:startOverride must win"
             );
 
-            let NumberingLookup::Resolved(sibling) =
-                index.resolve(5, 0, interner).expect("resolve numId 5, ilvl 0")
+            let NumberingLookup::Resolved(sibling) = index
+                .resolve(5, 0, interner)
+                .expect("resolve numId 5, ilvl 0")
             else {
                 panic!("numId 5 is not 0 and must resolve");
             };
@@ -117,8 +126,12 @@ fn a_start_override_changes_only_the_overriding_instance_not_its_sibling() {
             // Both share the exact same abstract definition and, absent the override, the exact
             // same level object.
             assert_eq!(
-                overridden.abstract_definition().abstract_numbering_id(interner),
-                sibling.abstract_definition().abstract_numbering_id(interner)
+                overridden
+                    .abstract_definition()
+                    .abstract_numbering_id(interner),
+                sibling
+                    .abstract_definition()
+                    .abstract_numbering_id(interner)
             );
         })
         .expect("read word/numbering.xml");
@@ -215,21 +228,21 @@ fn paragraph_properties_docx_dangling_numid_is_a_typed_error_never_a_panic() {
 
     let mut document = Document::open(&bytes).expect("open");
     assert!(
-        document
-            .parts()
-            .numbering
-            .is_none(),
+        document.parts().numbering.is_none(),
         "paragraph_properties.docx must relate to no word/numbering.xml — the defect this test \
          exists to prove is real"
     );
-    assert!(
-        document.numbering(|_, _| ()).expect("no numbering.xml is not itself an error").is_none()
-    );
+    assert!(document
+        .numbering(|_, _| ())
+        .expect("no numbering.xml is not itself an error")
+        .is_none());
 
     let error = document
         .resolve_numbering(numbering_id, level, |_lookup, _interner| ())
-        .expect_err("a numId naming no w:num (because there is no numbering.xml at all) is a \
-                     typed error");
+        .expect_err(
+            "a numId naming no w:num (because there is no numbering.xml at all) is a \
+                     typed error",
+        );
     assert!(matches!(error, DocxError::UnknownNumberingId(5)));
 }
 
@@ -247,7 +260,9 @@ fn num_style_link_resolves_through_the_style_index_to_the_real_levels() {
     let outcome = document
         .resolve_numbering(9, 0, |lookup, interner| match lookup {
             NumberingLookup::Resolved(resolution) => {
-                let level = resolution.level().expect("redirected to numId 5's own level 0");
+                let level = resolution
+                    .level()
+                    .expect("redirected to numId 5's own level 0");
                 (
                     resolution.instance().numbering_id(interner),
                     level
@@ -326,8 +341,10 @@ fn a_num_style_link_naming_no_style_is_a_typed_error() {
 
     let error = document
         .resolve_numbering(1, 0, |_lookup, _| ())
-        .expect_err("NoSuchStyle is not defined anywhere, including in a document with no \
-                     word/styles.xml at all");
+        .expect_err(
+            "NoSuchStyle is not defined anywhere, including in a document with no \
+                     word/styles.xml at all",
+        );
     assert!(matches!(
         error,
         DocxError::NumberingStyleLinkTargetMissing { style_id } if style_id == "NoSuchStyle"
@@ -400,8 +417,12 @@ fn numbering_xml_round_trips_byte_identically_through_a_no_op_edit() {
     let original_pkg = Package::open(&original).expect("open original");
     let saved_pkg = Package::open(&saved).expect("open saved");
     let part = PartName::new("/word/numbering.xml").expect("valid part name");
-    let original_numbering = original_pkg.part_bytes(&part).expect("original has numbering.xml");
-    let saved_numbering = saved_pkg.part_bytes(&part).expect("saved has numbering.xml");
+    let original_numbering = original_pkg
+        .part_bytes(&part)
+        .expect("original has numbering.xml");
+    let saved_numbering = saved_pkg
+        .part_bytes(&part)
+        .expect("saved has numbering.xml");
     assert_eq!(
         original_numbering, saved_numbering,
         "word/numbering.xml must round-trip byte-identically when nothing dirtied it"
@@ -426,7 +447,11 @@ fn editing_numbering_leaves_every_other_part_untouched() {
 
     let original_pkg = Package::open(&original).expect("open original");
     let saved_pkg = Package::open(&saved).expect("open saved");
-    for part in ["/word/document.xml", "/word/styles.xml", "/docProps/core.xml"] {
+    for part in [
+        "/word/document.xml",
+        "/word/styles.xml",
+        "/docProps/core.xml",
+    ] {
         let part_name = PartName::new(part).expect("valid part name");
         assert_eq!(
             original_pkg.part_bytes(&part_name),
@@ -440,8 +465,9 @@ fn editing_numbering_leaves_every_other_part_untouched() {
     let found = reopened
         .numbering(|numbering, interner| {
             let index = NumberingIndex::build(numbering, interner).expect("build index");
-            let NumberingLookup::Resolved(resolution) =
-                index.resolve(100, 0, interner).expect("resolve the new instance")
+            let NumberingLookup::Resolved(resolution) = index
+                .resolve(100, 0, interner)
+                .expect("resolve the new instance")
             else {
                 panic!("numId 100 is not 0 and must resolve");
             };
@@ -456,7 +482,10 @@ fn editing_numbering_leaves_every_other_part_untouched() {
 #[test]
 fn adding_numbering_to_a_document_with_none_produces_a_valid_part_type_and_relationship() {
     let mut document = Document::blank(PageSize::a4()).expect("blank");
-    assert!(document.parts().numbering.is_none(), "a blank document starts with none");
+    assert!(
+        document.parts().numbering.is_none(),
+        "a blank document starts with none"
+    );
 
     document
         .edit_numbering(|numbering, interner| {
@@ -475,7 +504,9 @@ fn adding_numbering_to_a_document_with_none_produces_a_valid_part_type_and_relat
         .expect("author a fresh numbering definition");
     assert!(document.parts().numbering.is_some());
 
-    document.attach_paragraph_to_list(0, 1, 0).expect("attach the blank paragraph");
+    document
+        .attach_paragraph_to_list(0, 1, 0)
+        .expect("attach the blank paragraph");
 
     let saved = document.save().expect("save");
     assert_authored_deck_is_schema_valid("blank document with an authored numbering.xml", &saved);
@@ -495,7 +526,9 @@ fn adding_numbering_to_a_document_with_none_produces_a_valid_part_type_and_relat
         .relationships_for(Some(&document_part))
         .expect("word/document.xml has relationships");
     assert!(
-        rels.by_type(mjx_docx::constants::REL_NUMBERING).next().is_some(),
+        rels.by_type(mjx_docx::constants::REL_NUMBERING)
+            .next()
+            .is_some(),
         "word/document.xml must relate to word/numbering.xml via the numbering relationship type"
     );
 }
@@ -531,7 +564,9 @@ fn attach_and_detach_paragraph_from_list_round_trip() {
     let body = main.body().expect("body");
     let paragraph = body.paragraph(0).expect("paragraph 0");
     assert!(
-        paragraph.properties().is_none_or(|p| p.numbering().is_none()),
+        paragraph
+            .properties()
+            .is_none_or(|p| p.numbering().is_none()),
         "detach must remove w:numPr entirely"
     );
 }
