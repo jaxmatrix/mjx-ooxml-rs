@@ -2427,6 +2427,14 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "One numbering level's own formatting (`w:abstractNum/w:lvl`, and the replacement level a \
          `w:lvlOverride` may carry)",
     ),
+    (
+        "CELL_PROPERTIES",
+        "wml",
+        "CT_TcPr",
+        "A table cell's own properties (`w:tcPr`) — MJXOFF-116 places `gridSpan`/`hMerge`/`vMerge` \
+         (the grid-structural members) at their schema rank; everything else stays raw, typed by \
+         MJXOFF-119",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
