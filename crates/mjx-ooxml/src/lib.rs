@@ -108,6 +108,16 @@
 //! *states* versus what a renderer *shows*, and the inheritance ladders the `effective_*` readers
 //! walk to get from one to the other.
 //!
+//! For Word, [`mjx_docx::guide`] carries the same shape — [Building a document](mjx_docx::guide::building_a_document)
+//! is the whole story once, end to end, written against `mjx_docx::Document`; every call translates
+//! to [`Document`] (this crate's own facade type, curated rather than a full re-export — see the
+//! [`document`] module's own doc comment for exactly what is curated and why) the same way the
+//! PowerPoint guide translates to [`Deck`]. `examples/build_a_document.rs` in this crate is the same
+//! walkthrough — open, blank, save, paragraphs and runs, a numbered list, a hyperlink, a table, a
+//! header, a comment, a footnote — written through the facade, naming no lower crate.
+//! [`mjx_docx::effective_properties`] is Word's own deep reference on the ladders
+//! [`Document::effective_run_properties`]/[`Document::effective_paragraph_properties`] walk.
+//!
 //! # Status
 //!
 //! Pre-release (`v0.0.x`). PowerPoint and Word are implemented and tested; Excel is detected but not
