@@ -47,27 +47,46 @@
 //! [`StyleIndex::build`] again — the index borrows from the snapshot it was built against and cannot
 //! observe a later edit, by construction (its lifetime is tied to that borrow).
 //!
-//! **Cycle safety: a bounded depth, not a visited-set.** [`StyleIndex::based_on_chain`] walks
-//! `w:basedOn` from a style upward, accumulating each ancestor into the `Vec` it must return anyway;
-//! that accumulation *is* the bound — a chain that has not terminated by
-//! [`MAX_BASED_ON_CHAIN_DEPTH`] steps returns [`crate::DocxError::BasedOnChainTooDeep`] instead of
-//! recursing further. This is the lower-allocation choice the ticket asks for: a `HashSet<&str>`
-//! visited-set would need a *second* data structure on top of the chain the caller already wants
-//! back, for chains whose real depth is 2–4 in every fixture measured (`sample.docx`'s own deepest
-//! chain, `List → BodyText → Normal`, is depth 2). The one thing a depth cap cannot do that a
-//! visited-set can is name *which* style closes the cycle — reporting "chain starting at `X` did not
-//! terminate within N steps" without identifying the repeat is judged an acceptable trade for zero
-//! extra allocation on every real chain in the corpus, especially since `N` is generous enough
-//! (`64`) that no legitimate style hierarchy could ever approach it.
+//! **Cycle safety: a bounded depth, not a visited-set — and hitting the bound is a typed error,
+//! never a silently truncated chain.** [`StyleIndex::based_on_chain`] walks `w:basedOn` from a
+//! style upward, accumulating each ancestor into the `Vec` it must return anyway; that
+//! accumulation *is* the bound — a chain that has not terminated by [`MAX_BASED_ON_CHAIN_DEPTH`]
+//! steps returns `Err(`[`crate::DocxError::BasedOnChainTooDeep`]`)` **instead of** ever returning
+//! `Ok` with a partial chain. This distinction is load-bearing, not cosmetic: a caller (MJXOFF-106's
+//! effective-properties ladder, eventually) that received a truncated `Ok` chain instead of an
+//! `Err` would resolve properties against it and produce a plausible-looking *wrong* answer with
+//! nothing red anywhere — silently worse than an outright hang. Proved by mutation, not merely
+//! asserted: turning the bound check into a bare `break` (so it returns a 64-element `Ok` chain
+//! instead of erroring) is exactly the change
+//! `a_self_referencing_based_on_chain_returns_the_typed_error_within_bounded_steps` and
+//! `a_mutually_referencing_based_on_chain_returns_the_typed_error_within_bounded_steps` are written
+//! to catch — both assert the specific `Err` variant and its `style_id`, not merely that the call
+//! returned promptly, and both go red under that mutation (see this child's own PR for the pasted
+//! failure).
+//!
+//! This is also the lower-allocation choice the ticket asks for: a `HashSet<&str>` visited-set
+//! would need a *second* data structure on top of the chain the caller already wants back, for
+//! chains whose real depth is 2–4 in every fixture measured (`sample.docx`'s own deepest chain,
+//! `List → BodyText → Normal`, is depth 2). The one thing a depth cap cannot do that a visited-set
+//! can is name *which* style closes the cycle — reporting "chain starting at `X` did not terminate
+//! within N steps" without identifying the repeat is judged an acceptable trade for zero extra
+//! allocation on every real chain in the corpus, especially since `N` is generous enough (`64`)
+//! that no legitimate style hierarchy could ever approach it.
 //!
 //! **`sample.docx`'s `Normal` style does *not* self-reference** — checked directly against the
-//! fixture's own bytes, not assumed: `word/styles.xml`'s `<w:style w:styleId="Normal">` carries no
-//! `w:basedOn` element at all. (A dispatch brief for this child claimed otherwise; see this child's
-//! own PR/ticket comment for the correction.) The corpus therefore has no cycle to test against, so
-//! [`tests/fixtures/style_based_on_cycle.docx`](https://github.com) — authored for this child,
-//! self-referencing `"Cyclic"` — is what proves cycle safety on a real (if synthetic) package;
-//! [`based_on_chain`](StyleIndex::based_on_chain) is *also* exercised against `sample.docx`'s real,
-//! non-cyclic chains to prove the depth cap never fires on legitimate input.
+//! fixture's own bytes, twice, by two independent methods (a byte-window scan and a real XML
+//! parse), both agreeing: `word/styles.xml`'s `<w:style w:styleId="Normal">` carries no `w:basedOn`
+//! element at all. (An earlier dispatch brief for this child claimed a self-cycle here — the first
+//! check's byte-window scan had overrun a short `Normal` entry into the following `Heading`
+//! style's own `w:basedOn`/`w:next` and misattributed both; see this child's own PR/ticket comment
+//! for the full correction.) The corpus therefore has no cycle to test against, so
+//! `tests/fixtures/style_based_on_cycle.docx` — authored for this child, carrying both a
+//! self-referencing style (`"SelfCycle"`) and a mutually-referencing pair (`"MutualA"`/
+//! `"MutualB"`) — is the *only* cycle evidence in this suite, and both shapes are asserted to
+//! return `Err(DocxError::BasedOnChainTooDeep{ style_id, limit })` specifically, not merely "did
+//! not hang". [`based_on_chain`](StyleIndex::based_on_chain) is *also* exercised against
+//! `sample.docx`'s own real, non-cyclic chains (`"Normal"` itself, and the deepest one, `List →
+//! BodyText → Normal`) to prove the depth cap never false-positives on legitimate input.
 //!
 //! # Case sensitivity
 //!
