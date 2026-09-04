@@ -2324,6 +2324,59 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "A section's page, column and layout properties, before the change-tracking wrapper adds \
          its own attributes",
     ),
+    (
+        "GENERAL_PARAGRAPH_PROPERTIES",
+        "wml",
+        "CT_PPrGeneral",
+        "`CT_PPrBase`'s children plus the tracked-change wrapper, with neither a run's own \
+         properties nor a section's — what `w:docDefaults`, a style definition, a numbering level \
+         and a table style override all carry as their own `w:pPr`",
+    ),
+    (
+        "DOCUMENT_DEFAULTS",
+        "wml",
+        "CT_DocDefaults",
+        "A document's own default run and paragraph properties (`w:docDefaults`), the bottom rung \
+         of the style-resolution ladder",
+    ),
+    (
+        "DEFAULT_RUN_PROPERTIES",
+        "wml",
+        "CT_RPrDefault",
+        "The document default's own run properties (`w:docDefaults/w:rPrDefault`)",
+    ),
+    (
+        "DEFAULT_PARAGRAPH_PROPERTIES",
+        "wml",
+        "CT_PPrDefault",
+        "The document default's own paragraph properties (`w:docDefaults/w:pPrDefault`)",
+    ),
+    (
+        "LATENT_STYLES",
+        "wml",
+        "CT_LatentStyles",
+        "The style pane's latent-style defaults and per-style exceptions (`w:latentStyles`)",
+    ),
+    (
+        "STYLE_DEFINITION",
+        "wml",
+        "CT_Style",
+        "One style definition (`w:style`): its identity, its `basedOn`/`next`/`link` references, \
+         its flags, and the paragraph, run and table properties it carries",
+    ),
+    (
+        "STYLES",
+        "wml",
+        "CT_Styles",
+        "The style definitions part's own root (`w:styles`): the document defaults, the latent-style \
+         table, then every style definition",
+    ),
+    (
+        "TABLE_STYLE_OVERRIDE",
+        "wml",
+        "CT_TblStylePr",
+        "One conditional-formatting override inside a table style (`w:style/w:tblStylePr`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
