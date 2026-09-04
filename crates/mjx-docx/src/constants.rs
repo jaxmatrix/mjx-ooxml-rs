@@ -178,3 +178,10 @@ pub const CONTENT_TYPE_MAIL_MERGE_RECIPIENT_DATA: &str =
 /// The content type of a theme part. Shared with `mjx-pptx`'s `CONTENT_TYPE_THEME` — see
 /// [`REL_THEME`] for why it is declared again rather than reached across a sideways crate edge.
 pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
+
+/// The relationship type from a document part to an image (media) part (§13.3.1, Table 13-2, the OPC
+/// "image" relationship — used identically across every format this workspace models; shared with
+/// `mjx-pptx`'s own `REL_IMAGE`, declared again here for the same sideways-edge reason
+/// [`REL_THEME`]'s own doc comment gives, since `mjx-docx` cannot depend on `mjx-pptx`).
+pub const REL_IMAGE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";

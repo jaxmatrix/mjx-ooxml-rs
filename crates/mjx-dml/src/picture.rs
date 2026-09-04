@@ -13,7 +13,6 @@ use mjx_ooxml_core::{
 };
 use mjx_ooxml_types::namespaces::DML_PICTURE;
 
-use crate::build::dml_child;
 use crate::fill::PictureFill;
 use crate::nonvisual::{NonVisualDrawingProps, NonVisualPictureProperties};
 use crate::shape_properties::ShapeProperties;
@@ -25,6 +24,32 @@ fn pic_name(interner: &mut Interner, local: &str) -> RawName {
         local: interner.intern(local),
         namespace: Some(interner.intern(DML_PICTURE.transitional)),
     }
+}
+
+/// Whether `name` is in the `pic:` namespace, matching both its Strict and Transitional URIs.
+fn is_pic(name: &RawName, interner: &Interner) -> bool {
+    let namespace = name.namespace.map(|symbol| interner.resolve(symbol));
+    namespace == Some(DML_PICTURE.transitional) || namespace == DML_PICTURE.strict
+}
+
+/// The first `pic:`-namespaced element in `children` named `local` — `nvPicPr`/`blipFill`/`spPr`
+/// (and, one level down, `cNvPr`/`cNvPicPr`) are all local element declarations inside
+/// `dml-picture.xsd` itself, so they take `pic:`'s own namespace even though `a:CT_ShapeProperties`/
+/// `a:CT_BlipFillProperties`/`a:CT_NonVisualDrawingProps` are DrawingML-main *types* — the same
+/// distinction `mjx_dml::wordprocessing_drawing`'s own module doc draws for `wp:docPr`.
+fn pic_child<'a>(
+    children: &'a [RawNode],
+    interner: &Interner,
+    local: &str,
+) -> Option<&'a RawElement> {
+    children.iter().find_map(|node| match node {
+        RawNode::Element(child)
+            if is_pic(&child.name, interner) && interner.resolve(child.name.local) == local =>
+        {
+            Some(child)
+        }
+        _ => None,
+    })
 }
 
 /// `pic:nvPicPr` (`CT_PictureNonVisual`) — a picture's non-visual identity: `cNvPr` (its id/name/
@@ -39,9 +64,11 @@ impl PictureNonVisual {
     /// Builds `<pic:nvPicPr><pic:cNvPr id="{id}" name="{name}"/><pic:cNvPicPr/></pic:nvPicPr>`.
     #[must_use]
     pub fn new(interner: &mut Interner, id: u32, name: &str) -> Self {
+        let cnv_pr_name = pic_name(interner, "cNvPr");
+        let cnv_pic_pr_name = pic_name(interner, "cNvPicPr");
         Self {
-            drawing_props: NonVisualDrawingProps::new(interner, "cNvPr", id, name),
-            picture_props: NonVisualPictureProperties::new(interner),
+            drawing_props: NonVisualDrawingProps::with_name(interner, cnv_pr_name, id, name),
+            picture_props: NonVisualPictureProperties::with_name(interner, cnv_pic_pr_name),
         }
     }
 
@@ -66,11 +93,11 @@ impl PictureNonVisual {
 impl FromXml for PictureNonVisual {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
         let cnv_pr =
-            dml_child(&element.children, interner, "cNvPr").ok_or(AttributeError::Missing {
+            pic_child(&element.children, interner, "cNvPr").ok_or(AttributeError::Missing {
                 attribute: "pic:cNvPr",
             })?;
         let cnv_pic_pr =
-            dml_child(&element.children, interner, "cNvPicPr").ok_or(AttributeError::Missing {
+            pic_child(&element.children, interner, "cNvPicPr").ok_or(AttributeError::Missing {
                 attribute: "pic:cNvPicPr",
             })?;
         Ok(Self {
@@ -162,15 +189,15 @@ impl Picture {
 impl FromXml for Picture {
     fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
         let nv_pic_pr =
-            dml_child(&element.children, interner, "nvPicPr").ok_or(AttributeError::Missing {
+            pic_child(&element.children, interner, "nvPicPr").ok_or(AttributeError::Missing {
                 attribute: "pic:nvPicPr",
             })?;
         let blip_fill =
-            dml_child(&element.children, interner, "blipFill").ok_or(AttributeError::Missing {
+            pic_child(&element.children, interner, "blipFill").ok_or(AttributeError::Missing {
                 attribute: "pic:blipFill",
             })?;
         let sp_pr =
-            dml_child(&element.children, interner, "spPr").ok_or(AttributeError::Missing {
+            pic_child(&element.children, interner, "spPr").ok_or(AttributeError::Missing {
                 attribute: "pic:spPr",
             })?;
         Ok(Self {
@@ -199,8 +226,15 @@ impl ToXml for Picture {
 #[must_use]
 pub fn new_picture(interner: &mut Interner, id: u32, name: &str, rel_id: &str) -> Picture {
     let non_visual = PictureNonVisual::new(interner, id, name);
-    let fill = PictureFill::new(interner, rel_id, crate::fill::PictureFillMode::Stretch);
-    let mut shape_properties = ShapeProperties::new(interner, "spPr");
+    let blip_fill_name = pic_name(interner, "blipFill");
+    let fill = PictureFill::with_name(
+        interner,
+        blip_fill_name,
+        rel_id,
+        crate::fill::PictureFillMode::Stretch,
+    );
+    let sp_pr_name = pic_name(interner, "spPr");
+    let mut shape_properties = ShapeProperties::with_name(interner, sp_pr_name);
     shape_properties.set_transform(
         interner,
         crate::geometry::Transform2D {

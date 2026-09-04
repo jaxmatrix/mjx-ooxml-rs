@@ -80,6 +80,21 @@ fn wp_name(interner: &mut Interner, local: &str) -> RawName {
     }
 }
 
+/// Builds `<wp:docPr id="{id}" name="{name}"/>` — the identity every `wp:inline`/`wp:anchor`/
+/// `wp:graphicFrame` carries. Reuses [`crate::NonVisualDrawingProps`] (the type is DrawingML-main's
+/// `a:CT_NonVisualDrawingProps`) with the `wp:`-namespaced element name `dml-wordprocessingDrawing.xsd`
+/// actually gives `docPr` — a plain `NonVisualDrawingProps::new` would build `a:docPr`, which no
+/// schema in this workspace declares.
+#[must_use]
+pub fn new_doc_properties(
+    interner: &mut Interner,
+    id: u32,
+    name: &str,
+) -> crate::NonVisualDrawingProps {
+    let element_name = wp_name(interner, "docPr");
+    crate::NonVisualDrawingProps::with_name(interner, element_name, id, name)
+}
+
 /// Whether `name` is in the `wp:` namespace, matching both its Strict and Transitional URIs.
 fn is_wp(name: &RawName, interner: &Interner) -> bool {
     let namespace = name.namespace.map(|symbol| interner.resolve(symbol));
@@ -143,6 +158,45 @@ fn point2d_element(interner: &mut Interner, local: &str, position: Position) -> 
     };
     attributes.set_x(interner, position.x);
     attributes.set_y(interner, position.y);
+    RawElement::new(
+        wp_name(interner, local),
+        attributes.attributes,
+        Vec::new(),
+        true,
+    )
+}
+
+// =================================================================================================
+// a:CT_PositiveSize2D (wp:extent) — cx/cy, not CT_Point2D's x/y. A distinct attribute shape even
+// though both are "two EMU numbers on the element itself" — conflating them would write `x`/`y` for
+// an extent, which no schema declares.
+// =================================================================================================
+
+#[derive(mjx_derive::XmlAttributes)]
+#[xml(attribute(local = "cx", codec = EmuCoordinate, accessor = cx, required))]
+#[xml(attribute(local = "cy", codec = EmuCoordinate, accessor = cy, required))]
+struct Size2DAttributes<A> {
+    attributes: A,
+}
+
+/// Reads an `a:CT_PositiveSize2D`-shaped element (`wp:extent`). Never fails: an absent or malformed
+/// `cx`/`cy` reads as `0` EMU, the same leniency [`read_point2d`] applies.
+fn read_size2d(element: &RawElement, interner: &Interner) -> Size {
+    let attributes = Size2DAttributes {
+        attributes: &element.attributes,
+    };
+    Size {
+        width: attributes.cx(interner).ok().unwrap_or(Emu::from_emu(0)),
+        height: attributes.cy(interner).ok().unwrap_or(Emu::from_emu(0)),
+    }
+}
+
+fn size2d_element(interner: &mut Interner, local: &str, size: Size) -> RawElement {
+    let mut attributes = Size2DAttributes {
+        attributes: Vec::new(),
+    };
+    attributes.set_cx(interner, size.width);
+    attributes.set_cy(interner, size.height);
     RawElement::new(
         wp_name(interner, local),
         attributes.attributes,
@@ -225,14 +279,7 @@ impl Inline {
         graphic: Graphic,
     ) -> Self {
         let mut children = vec![
-            RawNode::Element(point2d_element(
-                interner,
-                "extent",
-                Position {
-                    x: extent.width,
-                    y: extent.height,
-                },
-            )),
+            RawNode::Element(size2d_element(interner, "extent", extent)),
             RawNode::Element(doc_properties.to_xml(interner)),
         ];
         children.push(RawNode::Element(graphic.to_xml(interner)));
@@ -248,13 +295,7 @@ impl Inline {
     /// schema requires it).
     #[must_use]
     pub fn extent(&self, interner: &Interner) -> Option<Size> {
-        wp_child(&self.children, interner, "extent").map(|el| {
-            let position = read_point2d(el, interner);
-            Size {
-                width: position.x,
-                height: position.y,
-            }
-        })
+        wp_child(&self.children, interner, "extent").map(|el| read_size2d(el, interner))
     }
 
     /// The extra space this drawing's own effects need (`wp:effectExtent`), or `None` if it declares
@@ -842,13 +883,7 @@ impl Anchor {
     /// schema requires it).
     #[must_use]
     pub fn extent(&self, interner: &Interner) -> Option<Size> {
-        wp_child(&self.children, interner, "extent").map(|el| {
-            let position = read_point2d(el, interner);
-            Size {
-                width: position.x,
-                height: position.y,
-            }
-        })
+        wp_child(&self.children, interner, "extent").map(|el| read_size2d(el, interner))
     }
 
     /// The extra space this drawing's own effects need (`wp:effectExtent`), or `None` if it declares
@@ -913,14 +948,7 @@ impl Anchor {
             RawNode::Element(point2d_element(interner, "simplePos", simple_pos)),
             RawNode::Element(position_h_element(interner, &position_horizontal)),
             RawNode::Element(position_v_element(interner, &position_vertical)),
-            RawNode::Element(point2d_element(
-                interner,
-                "extent",
-                Position {
-                    x: extent.width,
-                    y: extent.height,
-                },
-            )),
+            RawNode::Element(size2d_element(interner, "extent", extent)),
             RawNode::Element(wrap.to_xml(interner)),
             RawNode::Element(doc_properties.to_xml(interner)),
         ];

@@ -39,12 +39,24 @@ pub struct NonVisualDrawingProps {
 }
 
 impl NonVisualDrawingProps {
-    /// Builds `<{local} id="{id}" name="{drawing_name}"/>` — `local` is `"cNvPr"` or `"docPr"`,
-    /// whichever the caller's own schema position calls it.
+    /// Builds `<a:{local} id="{id}" name="{drawing_name}"/>` — for the genuinely `a:`-namespaced
+    /// (DrawingML-main) uses of this type. **Most host schemas do not want this constructor**: the
+    /// *type* `a:CT_NonVisualDrawingProps` is DrawingML-main's, but the *element* that carries it
+    /// (`pic:cNvPr`, `wp:docPr`, `wp:cNvPr`, …) is declared inside its own host schema's target
+    /// namespace, not `a:` — use [`Self::with_name`] with that host's own qualified name builder
+    /// instead (`crate::picture`'s own `pic_name`, `crate::wordprocessing_drawing::new_doc_properties`).
     #[must_use]
     pub fn new(interner: &mut Interner, local: &str, id: u32, drawing_name: &str) -> Self {
+        let name = dml_name(interner, local);
+        Self::with_name(interner, name, id, drawing_name)
+    }
+
+    /// [`Self::new`], with the element's fully qualified name given explicitly rather than assumed
+    /// to be `a:`-namespaced — the constructor every cross-schema host of this type actually wants.
+    #[must_use]
+    pub fn with_name(interner: &mut Interner, name: RawName, id: u32, drawing_name: &str) -> Self {
         let mut value = Self {
-            name: dml_name(interner, local),
+            name,
             attributes: Vec::new(),
             children: Vec::new(),
             empty: true,
@@ -104,11 +116,22 @@ macro_rules! locking_wrapper {
         }
 
         impl $ty {
-            #[doc = concat!("Builds a self-closing `<a:", $local, "/>` with no lock list.")]
+            #[doc = concat!("Builds a self-closing `<a:", $local, "/>` with no lock list. **Most \
+                host schemas do not want this** — see [`Self::with_name`].")]
             #[must_use]
             pub fn new(interner: &mut Interner) -> Self {
+                let name = dml_name(interner, $local);
+                Self::with_name(interner, name)
+            }
+
+            #[doc = concat!("[`Self::new`], with the element's fully qualified name given \
+                explicitly — the type is DrawingML-main's, but (as for \
+                `NonVisualDrawingProps::with_name`) the *element* takes its host schema's own \
+                namespace, which is `a:` only when the host genuinely is `dml-main.xsd` itself.")]
+            #[must_use]
+            pub fn with_name(_interner: &mut Interner, name: RawName) -> Self {
                 Self {
-                    name: dml_name(interner, $local),
+                    name,
                     attributes: Vec::new(),
                     children: Vec::new(),
                     empty: true,
@@ -133,11 +156,20 @@ macro_rules! locking_wrapper {
         }
 
         impl $ty {
-            #[doc = concat!("Builds a self-closing `<a:", $local, "/>` with no lock list and `@", $attr_local, "` unstated (wire default `", $default, "`).")]
+            #[doc = concat!("Builds a self-closing `<a:", $local, "/>` with no lock list and `@", $attr_local, "` unstated (wire default `", $default, "`). **Most host \
+                schemas do not want this** — see [`Self::with_name`].")]
             #[must_use]
             pub fn new(interner: &mut Interner) -> Self {
+                let name = dml_name(interner, $local);
+                Self::with_name(interner, name)
+            }
+
+            #[doc = concat!("[`Self::new`], with the element's fully qualified name given \
+                explicitly — see `NonVisualDrawingProps::with_name`'s own doc comment for why.")]
+            #[must_use]
+            pub fn with_name(_interner: &mut Interner, name: RawName) -> Self {
                 Self {
-                    name: dml_name(interner, $local),
+                    name,
                     attributes: Vec::new(),
                     children: Vec::new(),
                     empty: true,

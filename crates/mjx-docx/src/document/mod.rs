@@ -2381,6 +2381,36 @@ impl Document {
     }
 
     /// Reads the paragraph at `path`, without dirtying the part.
+    /// The run-level content of every run in the paragraph at `paragraph`, in document order — the
+    /// public reading surface for `w:drawing`/`w:pict`/`w:object`/`w:control` content (MJXOFF-131):
+    /// a caller pattern-matches the returned [`RunInnerContent`] items for
+    /// [`RunInnerContent::Drawing`]/`LegacyPicture`/`EmbeddedObject` without reaching into this
+    /// crate's own private paragraph/run machinery.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or
+    /// [`DocxError::AddressNotFound`] if `paragraph` does not address a paragraph.
+    pub fn paragraph_run_content<R>(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        read: impl FnOnce(&[RunInnerContent], &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let path = paragraph.into();
+        let doc = self.package.part_tree(&self.document_part)?;
+        let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+        let body = main.body().ok_or(DocxError::NoBody)?;
+        let paragraph = body
+            .paragraph(&path)
+            .ok_or_else(|| DocxError::AddressNotFound(format!("no paragraph at {path}")))?;
+        let mut content = Vec::new();
+        for item in paragraph.content() {
+            if let ParagraphContent::Run(run) = item {
+                content.extend(run.content().iter().cloned());
+            }
+        }
+        Ok(read(&content, &doc.interner))
+    }
+
     fn resolve_paragraph(&mut self, path: BlockPath) -> Result<Paragraph, DocxError> {
         let doc = self.package.part_tree(&self.document_part)?;
         let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
@@ -2942,6 +2972,191 @@ impl Document {
             blank.write_back(root, interner);
         }
         Ok(footnotes_part)
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Pictures (MJXOFF-131, C16) — the image relationship/media-part plumbing an inline picture
+    // needs, plus the wp:inline placement that wraps it.
+    // ---------------------------------------------------------------------------------------------
+
+    /// The docPr id one past the highest already used by an inline/anchored drawing in the body's
+    /// own top-level paragraphs. Top-level only — the same limit `body.rs`'s own
+    /// `block_paragraphs`/`RangeIndex` scans state for the same reason (MJXOFF-126's "one rule": a
+    /// paragraph inside a table cell is still top-level *within that cell*, but a drawing nested
+    /// inside `w:ins`/`w:del` is not reached, which is the correctness property that rule exists
+    /// for, not a gap this scan needs to close).
+    fn next_drawing_id(body: &Body, interner: &mjx_ooxml_core::Interner) -> u32 {
+        let mut max = 0u32;
+        for paragraph in body.content().iter().filter_map(|item| match item {
+            BlockContent::Paragraph(paragraph) => Some(paragraph),
+            _ => None,
+        }) {
+            for run in paragraph.content().iter().filter_map(|item| match item {
+                ParagraphContent::Run(run) => Some(run),
+                _ => None,
+            }) {
+                for item in run.content() {
+                    let RunInnerContent::Drawing(drawing) = item else {
+                        continue;
+                    };
+                    for placement in drawing.content() {
+                        let id = match placement {
+                            drawing::DrawingContent::Inline(inline) => inline
+                                .doc_properties(interner)
+                                .and_then(|p| p.id(interner).ok()),
+                            drawing::DrawingContent::Anchored(anchor) => anchor
+                                .doc_properties(interner)
+                                .and_then(|p| p.id(interner).ok()),
+                            drawing::DrawingContent::Raw(_) => None,
+                        };
+                        if let Some(id) = id {
+                            max = max.max(id);
+                        }
+                    }
+                }
+            }
+        }
+        max + 1
+    }
+
+    /// Adds `image_bytes` as a new `word/media/imageN.{extension}` part, related to the main document
+    /// part under [`crate::constants::REL_IMAGE`], and returns its relationship id. `content_type` is
+    /// the part's own MIME type (e.g. `"image/png"`) — this crate does not sniff image bytes to infer
+    /// one, matching the rest of this crate's "read as written, never inferred" fidelity stance.
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if the package edit fails.
+    fn add_image_part(
+        &mut self,
+        image_bytes: Vec<u8>,
+        content_type: &str,
+        extension: &str,
+    ) -> Result<String, DocxError> {
+        let mut n = 1u32;
+        let media_part = loop {
+            let candidate = self
+                .document_part
+                .resolve(&format!("media/image{n}.{extension}"))
+                .map_err(|_| DocxError::TargetResolution {
+                    target: format!("media/image{n}.{extension}"),
+                })?;
+            if self.package.part_bytes(&candidate).is_none() {
+                break candidate;
+            }
+            n += 1;
+        };
+        self.package
+            .insert_part(&media_part, content_type, image_bytes)?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid.clone(),
+                rel_type: crate::constants::REL_IMAGE.to_owned(),
+                target: format!("media/image{n}.{extension}"),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        Ok(rid)
+    }
+
+    /// Adds an inline picture: a new `word/media/imageN.{extension}` part holding `image_bytes`, its
+    /// relationship, and a `w:drawing/wp:inline` placement wrapping a `pic:pic` that references it —
+    /// appended as a new run at the **end** of the paragraph at `paragraph`. `content_type` is the
+    /// image part's own MIME type; `width_emu`/`height_emu` are the picture's displayed size in EMU
+    /// (`wp:extent`, distinct from any pixel size the image bytes themselves imply — this crate does
+    /// not decode image formats to compute one). Returns the drawing's own `wp:docPr` id, which
+    /// [`Document::remove_drawing`] takes to remove it again.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, [`DocxError::AddressNotFound`]
+    /// if `paragraph` does not address a paragraph, or another [`DocxError`] if the package edit
+    /// fails.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_inline_picture(
+        &mut self,
+        paragraph: impl Into<BlockPath>,
+        image_bytes: Vec<u8>,
+        content_type: &str,
+        extension: &str,
+        width_emu: i64,
+        height_emu: i64,
+        name: &str,
+    ) -> Result<u32, DocxError> {
+        let paragraph_path = paragraph.into();
+        {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            body.paragraph(&paragraph_path).ok_or_else(|| {
+                DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+            })?;
+        }
+
+        let rel_id = self.add_image_part(image_bytes, content_type, extension)?;
+
+        let doc = self.package.part_tree_mut(&self.document_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut main = MainDocument::from_xml(root, interner)?;
+        let body = main.body_mut().ok_or(DocxError::NoBody)?;
+        let doc_pr_id = Self::next_drawing_id(body, interner);
+
+        let picture = mjx_dml::new_picture(interner, doc_pr_id, name, &rel_id);
+        let graphic_data = mjx_dml::GraphicData::for_picture(interner, picture);
+        let graphic = mjx_dml::Graphic::new(interner, graphic_data);
+        let doc_properties =
+            mjx_dml::wordprocessing_drawing::new_doc_properties(interner, doc_pr_id, name);
+        let extent = mjx_dml::geometry::Size::from_emu(width_emu, height_emu);
+        let inline =
+            mjx_dml::wordprocessing_drawing::Inline::new(interner, extent, doc_properties, graphic);
+        let placement = drawing::DrawingContent::Inline(inline);
+        let drawing_element = drawing::Drawing::new(interner, placement);
+        let run = Run::with_inner_content(interner, RunInnerContent::Drawing(drawing_element));
+
+        let paragraph_mut = body.paragraph_mut(&paragraph_path).ok_or_else(|| {
+            DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
+        })?;
+        paragraph_mut.append_run(run);
+        main.write_back(root, interner);
+        Ok(doc_pr_id)
+    }
+
+    /// Removes the drawing whose `wp:docPr@id` is `doc_pr_id` — the run holding it, and, when it is a
+    /// picture, the image part and relationship it alone referenced (via
+    /// [`mjx_opc::Package::remove_unreferenced_parts`], so a picture two drawings share, however
+    /// unusual, is not deleted out from under the other). Returns whether one was found and removed;
+    /// not finding it is a no-op, the same leniency [`Document::remove_footnote`] applies to an
+    /// unknown id.
+    ///
+    /// # Errors
+    /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
+    /// the package edit fails.
+    pub fn remove_drawing(&mut self, doc_pr_id: u32) -> Result<bool, DocxError> {
+        let rel_id = {
+            let doc = self.package.part_tree(&self.document_part)?;
+            let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
+            let body = main.body().ok_or(DocxError::NoBody)?;
+            find_drawing_image_rel_id(body, &doc.interner, doc_pr_id)
+        };
+
+        let removed = {
+            let doc = self.package.part_tree_mut(&self.document_part)?;
+            let RawDocument { interner, root, .. } = doc;
+            let mut main = MainDocument::from_xml(root, interner)?;
+            let body = main.body_mut().ok_or(DocxError::NoBody)?;
+            let removed = remove_drawing_by_id(body, interner, doc_pr_id);
+            main.write_back(root, interner);
+            removed
+        };
+
+        if removed {
+            if let Some(rel_id) = rel_id {
+                self.package
+                    .remove_relationship(Some(&self.document_part), &rel_id)?;
+            }
+            self.package.remove_unreferenced_parts()?;
+        }
+        Ok(removed)
     }
 
     /// Adds a new user footnote, appending a `w:footnoteReference` run to the **end** of the paragraph
@@ -3562,6 +3777,102 @@ fn check_header_footer_root(
             "part root is not w:hdr or w:ftr",
         ))
     }
+}
+
+/// Whether `drawing`'s own placement (`wp:inline`/`wp:anchor`) carries `wp:docPr@id == doc_pr_id`.
+fn drawing_matches_id(
+    drawing: &drawing::Drawing,
+    interner: &mjx_ooxml_core::Interner,
+    doc_pr_id: u32,
+) -> bool {
+    drawing.content().iter().any(|placement| match placement {
+        drawing::DrawingContent::Inline(inline) => {
+            inline
+                .doc_properties(interner)
+                .and_then(|properties| properties.id(interner).ok())
+                == Some(doc_pr_id)
+        }
+        drawing::DrawingContent::Anchored(anchor) => {
+            anchor
+                .doc_properties(interner)
+                .and_then(|properties| properties.id(interner).ok())
+                == Some(doc_pr_id)
+        }
+        drawing::DrawingContent::Raw(_) => false,
+    })
+}
+
+/// The embedded image relationship id of the drawing whose `wp:docPr@id` is `doc_pr_id`, if it is a
+/// picture and one is found among the body's own top-level paragraphs (the same "top-level only"
+/// scope [`Document::next_drawing_id`]'s own doc comment states).
+fn find_drawing_image_rel_id(
+    body: &Body,
+    interner: &mjx_ooxml_core::Interner,
+    doc_pr_id: u32,
+) -> Option<String> {
+    for paragraph in body.content().iter().filter_map(|item| match item {
+        BlockContent::Paragraph(paragraph) => Some(paragraph),
+        _ => None,
+    }) {
+        for run in paragraph.content().iter().filter_map(|item| match item {
+            ParagraphContent::Run(run) => Some(run),
+            _ => None,
+        }) {
+            for item in run.content() {
+                let RunInnerContent::Drawing(drawing) = item else {
+                    continue;
+                };
+                if !drawing_matches_id(drawing, interner, doc_pr_id) {
+                    continue;
+                }
+                let graphic = drawing
+                    .content()
+                    .iter()
+                    .find_map(|placement| match placement {
+                        drawing::DrawingContent::Inline(inline) => inline.graphic(interner),
+                        drawing::DrawingContent::Anchored(anchor) => anchor.graphic(interner),
+                        drawing::DrawingContent::Raw(_) => None,
+                    })?;
+                if let Some(picture) = graphic.data().picture() {
+                    return picture.image_rel_id(interner);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Removes the run-level drawing item(s) whose `wp:docPr@id` is `doc_pr_id` from `body`'s own
+/// top-level paragraphs (the same scope [`find_drawing_image_rel_id`] searches), leaving the run
+/// itself in place even if this empties its content — the same leniency `ranges::remove_matching`
+/// already applies elsewhere in this crate. Returns whether anything was removed.
+fn remove_drawing_by_id(
+    body: &mut Body,
+    interner: &mjx_ooxml_core::Interner,
+    doc_pr_id: u32,
+) -> bool {
+    let mut removed = false;
+    for block in body.content_mut() {
+        let BlockContent::Paragraph(paragraph) = block else {
+            continue;
+        };
+        for item in paragraph.content_mut() {
+            let ParagraphContent::Run(run) = item else {
+                continue;
+            };
+            let before = run.content().len();
+            run.content_mut().retain(|item| match item {
+                RunInnerContent::Drawing(drawing) => {
+                    !drawing_matches_id(drawing, interner, doc_pr_id)
+                }
+                _ => true,
+            });
+            if run.content().len() != before {
+                removed = true;
+            }
+        }
+    }
+    removed
 }
 
 #[cfg(test)]

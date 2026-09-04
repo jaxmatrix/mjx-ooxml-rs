@@ -57,9 +57,13 @@ pub struct GraphicData {
 impl GraphicData {
     /// Builds `<a:graphicData uri="{PICTURE_GRAPHIC_URI}">{picture}</a:graphicData>`.
     #[must_use]
-    pub fn for_picture(picture: Picture) -> Self {
-        Self {
+    pub fn for_picture(interner: &mut Interner, picture: Picture) -> Self {
+        let mut attributes = GraphicDataAttributes {
             attributes: Vec::new(),
+        };
+        attributes.set_uri(interner, PICTURE_GRAPHIC_URI);
+        Self {
+            attributes: attributes.attributes,
             content: GraphicDataContent::Picture(Box::new(picture)),
         }
     }
@@ -118,8 +122,20 @@ impl FromXml for GraphicData {
             attributes: &element.attributes,
         };
         let uri = attributes.uri(interner)?.into_owned();
+        // `pic:pic` is declared inside `dml-picture.xsd` itself, so it is `pic:`-namespaced, not
+        // `a:` (DML-main) — matched by local name alone here, the same way `graphic_child` finds
+        // `a:graphic` regardless of namespace, since the `uri` check just above already establishes
+        // which schema this payload is.
         let content = if uri == PICTURE_GRAPHIC_URI {
-            dml_child(&element.children, interner, "pic")
+            element
+                .children
+                .iter()
+                .find_map(|node| match node {
+                    RawNode::Element(child) if interner.resolve(child.name.local) == "pic" => {
+                        Some(child)
+                    }
+                    _ => None,
+                })
                 .and_then(|pic_element| Picture::from_xml(pic_element, interner).ok())
                 .map(Box::new)
                 .map(GraphicDataContent::Picture)
