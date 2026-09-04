@@ -2435,6 +2435,51 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
          (the grid-structural members) at their schema rank; everything else stays raw, typed by \
          MJXOFF-119",
     ),
+    (
+        "TABLE_PROPERTIES_BASE",
+        "wml",
+        "CT_TblPrBase",
+        "The table-formatting properties shared by a table's own `w:tblPr` and a table style \
+         conditional-formatting override's `w:tblStylePr/w:tblPr`",
+    ),
+    (
+        "TABLE_ROW_PROPERTIES_BASE",
+        "wml",
+        "CT_TrPrBase",
+        "The row-formatting properties shared by a row's own `w:trPr` and a table style conditional-\
+         formatting override's `w:tblStylePr/w:trPr`",
+    ),
+    (
+        "TABLE_EXCEPTION_PROPERTIES_BASE",
+        "wml",
+        "CT_TblPrExBase",
+        "The table properties a single row may override (`w:tblPrEx`) — a subset of `CT_TblPrBase`",
+    ),
+    (
+        "TABLE_BORDERS",
+        "wml",
+        "CT_TblBorders",
+        "The eight borders a table (or a table style) can carry (`w:tblBorders`)",
+    ),
+    (
+        "CELL_BORDERS",
+        "wml",
+        "CT_TcBorders",
+        "The ten borders a table cell (or a table style) can carry (`w:tcBorders`) — `CT_TblBorders`'s \
+         eight plus the two diagonals",
+    ),
+    (
+        "TABLE_CELL_MARGINS",
+        "wml",
+        "CT_TblCellMar",
+        "A table's default cell margins (`w:tblCellMar`)",
+    ),
+    (
+        "CELL_MARGINS",
+        "wml",
+        "CT_TcMar",
+        "One cell's own margins (`w:tcMar`), overriding the table's `w:tblCellMar`",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
