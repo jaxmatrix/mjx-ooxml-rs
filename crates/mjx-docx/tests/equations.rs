@@ -245,10 +245,11 @@ fn document_with_tracked_ctrl_pr() -> Document {
 /// [`MathControlProperties::Insert`], and an unrelated edit elsewhere in the document leaves that
 /// `w:ins`'s own markup — id, author, date, and its nested `w:rPr/w:b` — byte-identical.
 ///
-/// Confirmed by hand: changing the unrelated edit below to instead touch paragraph 0 (the one
-/// carrying the equation) turns the final `assert_eq!` red, because the edit's own reflow of
-/// paragraph 0 necessarily rebuilds the fraction it belongs to — restored by editing paragraph 1
-/// again, not `git checkout --`.
+/// Confirmed by hand: corrupting the fixture's own `w:author="Author"` to `"Someone Else"` (both the
+/// markup constant and the `ctrl_pr_markup` needle, so the "fixture markup changed" guard above does
+/// not fire first) turns the typed-read assertion red — `left: Some("Someone Else"), right:
+/// Some("Author")` — proving `math_control_properties`'s own read path, not just string containment,
+/// is exercised. Restored by editing both strings back, not `git checkout --`.
 #[test]
 fn a_tracked_insertion_inside_a_fractions_ctrl_pr_survives_an_unrelated_edit() {
     let mut document = document_with_tracked_ctrl_pr();
