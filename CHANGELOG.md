@@ -52,6 +52,49 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.98] - 2026-09-05
+
+`word/settings.xml`, `word/webSettings.xml`, `word/fontTable.xml` and `word/recipients.xml`
+(MJXOFF-136, Phase C position 19) — `crates/mjx-docx/src/document/{settings,web_settings,
+font_table,mail_merge}.rs` (all new). MJXOFF-69–74 allotted Word six children and, between them,
+named no owner for a third of `wml.xsd`; this child takes the document-configuration half.
+
+**`CT_Settings` — all 98 children modelled**, none silently dropped: [`DocumentSettings`] and
+[`SettingsContent`]. Every `CT_OnOff` flag, `CT_DecimalNumber` and `CT_TwipsMeasure` leaf gets a
+full, individually named get/set pair; every "own type" child (`w:view`, `w:zoom`,
+`w:documentProtection`, `w:compat`, `w:docVars`, `w:rsids`, `w:mailMerge`, `w:captions`, …) gets a
+full get/set pair over its own richly typed value. `w:compat`'s sixty-two individual flags are the
+one deliberate exception: each is a bare `CT_OnOff` nothing in Phase C names by name, so they round
+-trip exactly through the unknown-element bucket rather than each getting a near-identical bespoke
+method; `w:compatSetting` (the schema's own generic escape hatch) is fully typed.
+`sl:schemaLibrary` (a foreign Smart Tag schema namespace) is the only schema-known child left
+read-only, preserved via the same bucket. `m:mathPr` wires in `mjx-omml`'s `MathProperties`
+(MJXOFF-134's own module doc named this exact seam). `Document::even_and_odd_headers` now reads
+through `DocumentSettings` instead of MJXOFF-113's ad-hoc raw-tree scan.
+
+**`word/webSettings.xml`** — [`WebSettings`]: legacy framesets (`CT_Frameset`, recursively boxed)
+and the `w:div`/`w:divs` tree `w:divId` (`CT_PPrBase`, C4) points into. `w:divsChild` (`CT_Div`'s own
+recursive nesting) is deliberately unmodelled — see that module's own doc comment.
+
+**`word/fontTable.xml`** — [`FontTable`]/[`Font`]: identity, PANOSE classification, character set,
+family, pitch, signature, and the four embedded-font relationships. An embedded font's binary
+payload and its `fontKey` obfuscation key are opaque — never re-encoded, never decoded.
+
+**`word/recipients.xml`** — [`Recipients`]/[`RecipientData`], the Mail Merge Recipient Data part;
+`DocumentParts::recipients` (C1 declared `PartKind::Recipients` but never resolved it).
+`w:settings/w:mailMerge` and its ODSO (Office Data Source Object) cluster — [`MailMergeSettings`],
+[`Odso`] — share the mail-merge vocabulary with this part.
+
+**`w:documentProtection`'s password hash is preserved exactly, never recomputed, never cleared** —
+typed as opaque text (the base64 wire form needs no decoding), proven by an edit to an unrelated
+flag leaving the hash byte-identical.
+
+**The adversarial fixture** `settings_document_configuration.docx` carries `w14:`/`w15:` elements
+interleaved between modelled ones inside `word/settings.xml`, two `w:compatSetting` entries, a
+`w:docVars` block, an embedded font, and both new parts — round-tripped byte-identically through the
+typed model, with the unknown-bucket order proved to survive exactly (a mutation that drops it was
+applied by hand, confirmed red, and reverted).
+
 ## [0.0.97] - 2026-09-04
 
 Office MathML in Word: `mjx-omml` ends the Phase 0 scaffold deferral (MJXOFF-134, Phase C position
