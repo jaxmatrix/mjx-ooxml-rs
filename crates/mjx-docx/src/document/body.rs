@@ -51,6 +51,7 @@ use mjx_ooxml_core::{
     RawAttribute, RawElement, RawName, RawNode, Text as TextCodec, ToXml,
 };
 use mjx_ooxml_types::namespaces::WML;
+use mjx_ooxml_types::support::OnOff;
 use mjx_ooxml_types::wordprocessingml::{
     BreakTextWrappingRestart, BreakType, DecimalNumber, DisplacedByCustomXml, EditingGroup,
     FourDigitHexadecimalNumber, PhoneticGuideAlignment, PositionalTabAlignment, PositionalTabBase,
@@ -494,18 +495,47 @@ pub struct Paragraph {
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = PermissionRangeEnd),
-        child(local = "fldSimple", variant = SimpleField, ty = Unmodeled),
+        child(local = "fldSimple", variant = SimpleField, ty = super::fields::SimpleField),
         child(local = "hyperlink", variant = Hyperlink, ty = Hyperlink),
-        child(local = "subDoc", variant = SubDocument, ty = RelationshipReference)
+        child(local = "subDoc", variant = SubDocument, ty = RelationshipReference),
+        // `w:fldData` (`CT_Text`) is `CT_SimpleField`'s own leading child, never a legal direct
+        // child of `w:p`/`w:hyperlink` — mapped here only so this struct's exhaustive `ToXml` match
+        // (shared with every other `Vec<ParagraphContent>` holder, see `FieldData`'s own doc
+        // comment) compiles; a non-conformant file that nests one directly under `w:p` is still
+        // typed rather than falling to `Raw`, which is harmless.
+        child(local = "fldData", variant = FieldData, ty = Text)
     )]
     content: Vec<ParagraphContent>,
 }
 
-/// `w:hyperlink` (`CT_Hyperlink`) — typed only enough to recurse back into [`ParagraphContent`], so
-/// the runs it wraps stay reachable. Its own attributes (`r:id`, `anchor`, `tooltip`, `history`, …)
-/// are MJXOFF-121's semantics, not this child's — read them off [`Hyperlink::attributes`] until then.
-#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
+/// `w:hyperlink` (`CT_Hyperlink`) — typed both for reach (it recurses back into
+/// [`ParagraphContent`]) and, since MJXOFF-121, for its own attributes: an external relationship
+/// (`r:id`) or an internal bookmark (`anchor`) plus `tgtFrame`, `tooltip`, `docLocation` and
+/// `history`. `crate::document::hyperlinks` is where a [`crate::Document`] adds/removes one
+/// together with the relationship it names; this struct only reads and writes the element itself.
+///
+/// **`r:id` wins over `anchor` when a file carries both** — ECMA-376 Part 1 §17.16.22 states it
+/// explicitly: *"If a hyperlink target is also specified using the r:id attribute, then this
+/// \[`anchor`\] attribute shall be ignored."* Neither this struct nor `crate::document::hyperlinks`
+/// enforces that precedence on write (both attributes round-trip verbatim, whichever a file
+/// carries); a reader resolving *the* target should check `relationship_id` first.
+///
+/// `anchor` naming a bookmark is not resolved against a bookmark index here — that index is
+/// MJXOFF-124's own (bookmarks are out of this child's scope, per its own ticket) — so
+/// [`Hyperlink::anchor`] hands back the raw bookmark name, unresolved. This is the seam MJXOFF-121's
+/// own ticket asks to leave and say so.
+#[derive(
+    Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
+)]
 #[xml(namespace = WML)]
+#[xml(attribute(local = "id", prefix = "r", codec = TextCodec, accessor = relationship_id))]
+#[xml(attribute(local = "anchor", prefix = "w", codec = TextCodec, accessor = anchor))]
+#[xml(attribute(local = "tgtFrame", prefix = "w", codec = TextCodec, accessor = target_frame))]
+#[xml(attribute(local = "tooltip", prefix = "w", codec = TextCodec, accessor = tooltip))]
+#[xml(attribute(local = "docLocation", prefix = "w", codec = TextCodec, accessor = doc_location))]
+// ECMA-376 Part 1 §17.16.22: "If this attribute is omitted, then its value shall be assumed to be
+// false."
+#[xml(attribute(local = "history", prefix = "w", codec = OnOff, accessor = history, default = false))]
 pub struct Hyperlink {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -527,19 +557,44 @@ pub struct Hyperlink {
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = PermissionRangeEnd),
-        child(local = "fldSimple", variant = SimpleField, ty = Unmodeled),
+        child(local = "fldSimple", variant = SimpleField, ty = super::fields::SimpleField),
         child(local = "hyperlink", variant = Hyperlink, ty = Hyperlink),
-        child(local = "subDoc", variant = SubDocument, ty = RelationshipReference)
+        child(local = "subDoc", variant = SubDocument, ty = RelationshipReference),
+        child(local = "fldData", variant = FieldData, ty = Text)
     )]
     content: Vec<ParagraphContent>,
 }
 
 impl Hyperlink {
+    /// Builds a new, empty hyperlink — no attributes, no content — ready for
+    /// `crate::document::hyperlinks` to set a `r:id`/`anchor` and append runs into before inserting
+    /// it into a [`Paragraph`].
+    #[must_use]
+    pub(crate) fn new(interner: &mut Interner) -> Self {
+        Self {
+            name: wml_name(interner, "hyperlink"),
+            attributes: Vec::new(),
+            empty: true,
+            content: Vec::new(),
+        }
+    }
+
     /// The hyperlink's attributes, verbatim — `r:id`, `anchor`, `tooltip`, `history`, `tgtFrame`,
-    /// `docLocation`, whichever it carries. MJXOFF-121 gives these typed accessors.
+    /// `docLocation`, whichever it carries. Prefer the typed accessors the
+    /// [`mjx_derive::XmlAttributes`] derive above generates (`relationship_id`, `anchor`,
+    /// `target_frame`, `tooltip`, `doc_location`, `history`) — this is the raw escape hatch for
+    /// anything a file carries that this crate does not otherwise name.
     #[must_use]
     pub fn attributes(&self) -> &[RawAttribute] {
         &self.attributes
+    }
+
+    /// Appends `run` as this hyperlink's new last top-level run — `crate::document::hyperlinks`'
+    /// own counterpart to [`Paragraph::append_run`], used when building a freshly inserted
+    /// hyperlink's wrapped text.
+    pub(crate) fn append_run(&mut self, run: Run) {
+        self.content.push(ParagraphContent::Run(run));
+        self.empty = false;
     }
 }
 
@@ -572,14 +627,48 @@ pub enum ParagraphContent {
     PermissionRangeStart(PermissionRangeStart),
     /// `w:permEnd` (`CT_Perm`), folded in from `EG_RunLevelElts`.
     PermissionRangeEnd(PermissionRangeEnd),
-    /// `w:fldSimple` (`CT_SimpleField`) — field payloads are MJXOFF-121 (C13); opaque.
-    SimpleField(Unmodeled),
-    /// `w:hyperlink` (`CT_Hyperlink`) — this child's own type, typed for reach.
+    /// `w:fldSimple` (`CT_SimpleField`) — MJXOFF-121's own type; see
+    /// [`super::fields::SimpleField`].
+    SimpleField(super::fields::SimpleField),
+    /// `w:hyperlink` (`CT_Hyperlink`) — this child's own type, typed for reach and, since
+    /// MJXOFF-121, for its own attributes too.
     Hyperlink(Hyperlink),
     /// `w:subDoc` (`CT_Rel`) — a master-document subdocument reference.
     SubDocument(RelationshipReference),
+    /// `w:fldData` (`CT_Text`) — `CT_SimpleField`'s own optional legacy leading child, carrying a
+    /// pre-computed field result for readers that do not evaluate fields. **Never constructed by
+    /// this crate's own API on a [`Paragraph`] or [`Hyperlink`]** — `CT_P`/`CT_Hyperlink` are not
+    /// `CT_SimpleField`, so neither ever legally carries one — but the derive macro's
+    /// `#[xml(children, …)]` list generates one exhaustive match over *every* variant of this enum
+    /// for *every* struct that holds a `Vec<ParagraphContent>` (see [`BlockContent::SectionProperties`]'s
+    /// own doc comment for the identical reason on the sibling enum), so [`Paragraph`] and
+    /// [`Hyperlink`] must still map it even though only [`super::fields::SimpleField`] ever produces
+    /// one through this crate's own writers.
+    FieldData(Text),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
+}
+
+/// The visible text `content` renders: every [`Run`] it holds, descending into every
+/// [`ParagraphContent::Hyperlink`] and [`ParagraphContent::SimpleField`] (a field's own cached
+/// result *is* its displayed content — see `fields.rs`'s own doc comment for why instruction text,
+/// carried in `w:instrText`/`RunInnerContent::FieldCode`, is never included here, exactly as
+/// [`Run::text`] already excludes it). `pub(crate)` — [`Paragraph::text`] and
+/// `fields.rs`'s [`super::fields::SimpleField::cached_result_text`] both call this rather than each
+/// walking the tree its own way.
+pub(crate) fn paragraph_content_text(content: &[ParagraphContent], out: &mut String) {
+    for item in content {
+        match item {
+            ParagraphContent::Run(run) => out.push_str(&run.text()),
+            ParagraphContent::Hyperlink(hyperlink) => {
+                paragraph_content_text(&hyperlink.content, out);
+            }
+            ParagraphContent::SimpleField(field) => {
+                paragraph_content_text(field.content(), out);
+            }
+            _ => {}
+        }
+    }
 }
 
 /// One [`ParagraphContent`] item that is, or can lead to, a run: what
@@ -731,25 +820,25 @@ impl Paragraph {
     }
 
     /// The paragraph's whole text: every run reachable from it, in document order — descending into
-    /// every `w:hyperlink` it holds — concatenated with no separator (matching how the runs
-    /// themselves concatenate on the page).
+    /// every `w:hyperlink` and `w:fldSimple` it holds — concatenated with no separator (matching how
+    /// the runs themselves concatenate on the page).
     #[must_use]
     pub fn text(&self) -> String {
         let mut text = String::new();
-        Self::collect_text(&self.content, &mut text);
+        paragraph_content_text(&self.content, &mut text);
         text
     }
 
-    fn collect_text(content: &[ParagraphContent], out: &mut String) {
-        for item in content {
-            match item {
-                ParagraphContent::Run(run) => out.push_str(&run.text()),
-                ParagraphContent::Hyperlink(hyperlink) => {
-                    Self::collect_text(&hyperlink.content, out);
-                }
-                _ => {}
-            }
-        }
+    /// This paragraph's own content, immutably. `pub(crate)`: `fields.rs` (MJXOFF-121) walks this
+    /// the same way [`Run::content`] lets it walk a run's own inner content — see that method's own
+    /// doc comment.
+    pub(crate) fn content(&self) -> &[ParagraphContent] {
+        &self.content
+    }
+
+    /// [`Paragraph::content`], mutably.
+    pub(crate) fn content_mut(&mut self) -> &mut Vec<ParagraphContent> {
+        &mut self.content
     }
 
     /// How many run-or-hyperlink slots this paragraph holds at its **top level** — a `w:hyperlink`
@@ -829,6 +918,68 @@ impl Paragraph {
             }
         }
     }
+
+    /// The **top-level** hyperlink at run-or-hyperlink slot `path`, or `None` if `path` is out of
+    /// range, not top-level, or does not land on a hyperlink.
+    #[must_use]
+    pub(crate) fn hyperlink_at(&self, path: impl Into<RunPath>) -> Option<&Hyperlink> {
+        let path = path.into();
+        let [index] = path.indices() else {
+            return None;
+        };
+        let at = nth_slot_index(&self.content, *index)?;
+        match self.content.get(at)? {
+            ParagraphContent::Hyperlink(hyperlink) => Some(hyperlink),
+            _ => None,
+        }
+    }
+
+    /// Inserts `hyperlink` at top-level run-or-hyperlink slot `path`, shifting every slot at or
+    /// after that position one place later — [`Paragraph::insert_run`]'s own counterpart, for
+    /// `crate::document::hyperlinks` (MJXOFF-121). Only a top-level path is accepted, for the same
+    /// reason `insert_run` restricts itself to one.
+    ///
+    /// `path` must address an existing slot or the one past the last (`0..=run_count()`).
+    ///
+    /// Returns `false`, leaving `self` untouched, if `path` is out of range or not top-level.
+    #[must_use]
+    pub(crate) fn insert_hyperlink(
+        &mut self,
+        path: impl Into<RunPath>,
+        hyperlink: Hyperlink,
+    ) -> bool {
+        let path = path.into();
+        let [index] = path.indices() else {
+            return false;
+        };
+        let count = self.run_count();
+        if *index > count {
+            return false;
+        }
+        let at = nth_slot_index(&self.content, *index).unwrap_or(self.content.len());
+        self.content
+            .insert(at, ParagraphContent::Hyperlink(hyperlink));
+        true
+    }
+
+    /// Removes and returns the **top-level** hyperlink at run-or-hyperlink slot `path` — together
+    /// with every run it wraps; a caller that wants to keep the wrapped text un-linked reads
+    /// [`Hyperlink::content`] first and reinserts plain runs. `None` if `path` is out of range, not
+    /// top-level, or does not land on a hyperlink (a bare run, say).
+    pub(crate) fn remove_hyperlink(&mut self, path: impl Into<RunPath>) -> Option<Hyperlink> {
+        let path = path.into();
+        let [index] = path.indices() else {
+            return None;
+        };
+        let at = nth_slot_index(&self.content, *index)?;
+        match self.content.get(at)? {
+            ParagraphContent::Hyperlink(_) => match self.content.remove(at) {
+                ParagraphContent::Hyperlink(hyperlink) => Some(hyperlink),
+                _ => unreachable!("checked above"),
+            },
+            _ => None,
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -871,7 +1022,7 @@ pub struct Run {
         child(local = "tab", variant = TabCharacter, ty = Unmodeled),
         child(local = "object", variant = EmbeddedObject, ty = Unmodeled),
         child(local = "pict", variant = LegacyPicture, ty = Unmodeled),
-        child(local = "fldChar", variant = ComplexFieldCharacter, ty = Unmodeled),
+        child(local = "fldChar", variant = ComplexFieldCharacter, ty = super::fields::FieldCharacter),
         child(local = "ruby", variant = PhoneticGuideRun, ty = PhoneticGuide),
         child(local = "footnoteReference", variant = FootnoteReference, ty = Unmodeled),
         child(local = "endnoteReference", variant = EndnoteReference, ty = Unmodeled),
@@ -949,9 +1100,9 @@ pub enum RunInnerContent {
     /// in its own numbered list (unlike its 32 siblings); named for the VML/legacy picture content
     /// it wraps rather than sourced from prose that does not exist. MJXOFF-131 (C16) owns it.
     LegacyPicture(Unmodeled),
-    /// `w:fldChar` (`CT_FldChar`, "Complex Field Character", §17.16.18) — MJXOFF-121 (C13) owns
-    /// field payloads.
-    ComplexFieldCharacter(Unmodeled),
+    /// `w:fldChar` (`CT_FldChar`, "Complex Field Character", §17.16.18) — MJXOFF-121's own type; see
+    /// [`super::fields::FieldCharacter`].
+    ComplexFieldCharacter(super::fields::FieldCharacter),
     /// `w:ruby` (`CT_Ruby`, "Phonetic Guide", §17.3.3.25) — this child's own type.
     PhoneticGuideRun(PhoneticGuide),
     /// `w:footnoteReference` (`CT_FtnEdnRef`, "Footnote Reference", §17.11.14) — MJXOFF-090's Phase C
@@ -976,6 +1127,21 @@ pub enum RunInnerContent {
 }
 
 impl Run {
+    /// This run's own inner content (`EG_RunInnerContent`, all 33 members plus `w:rPr` itself, see
+    /// [`RunInnerContent`]'s own doc comment), immutably, in document order. `pub(crate)`:
+    /// `fields.rs` (MJXOFF-121) scans this for `w:fldChar`/`w:instrText`/`w:t` items when pairing a
+    /// field's markers, the same way `table_regions.rs` (MJXOFF-119) reaches into a cell's own
+    /// properties through an accessor this module grew for exactly that purpose.
+    pub(crate) fn content(&self) -> &[RunInnerContent] {
+        &self.content
+    }
+
+    /// [`Run::content`], mutably — `fields.rs` uses this to rewrite a field's instruction or cached
+    /// result in place without reshaping [`RunInnerContent`] itself.
+    pub(crate) fn content_mut(&mut self) -> &mut Vec<RunInnerContent> {
+        &mut self.content
+    }
+
     /// This run's properties (`w:rPr`), or `None` if it carries none.
     #[must_use]
     pub fn run_properties(&self) -> Option<&super::run_properties::RunProperties> {
@@ -1078,6 +1244,21 @@ impl Run {
             content: vec![RunInnerContent::Text(t)],
         }
     }
+
+    /// Builds a new run holding one `w:instrText` with `text` — `fields.rs`'s (MJXOFF-121) own
+    /// counterpart to [`Run::with_text`], used when collapsing a complex field's instruction to a
+    /// single run.
+    pub(crate) fn with_field_code(interner: &mut Interner, text: &str) -> Self {
+        let name = wml_name(interner, "r");
+        let mut t = Text::with_local(interner, "instrText");
+        t.set_text(interner, text);
+        Self {
+            name,
+            attributes: Vec::new(),
+            empty: false,
+            content: vec![RunInnerContent::FieldCode(t)],
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1155,8 +1336,19 @@ impl Text {
     /// Builds an empty `w:t`, ready for [`Text::set_text`].
     #[must_use]
     pub fn new(interner: &mut Interner) -> Self {
+        Self::with_local(interner, "t")
+    }
+
+    /// [`Text::new`], for any of the other three `EG_RunInnerContent` members this type serves
+    /// (`"delText"`, `"instrText"`, `"delInstrText"`) — the wire name is whichever `RunInnerContent`
+    /// variant the caller means to build one for, since [`ToXml`] writes exactly the `name` stored
+    /// here regardless of which enum variant wraps the value. `pub(crate)`: `fields.rs` (MJXOFF-121)
+    /// is the first caller that ever constructs a fresh `w:instrText`/`w:delInstrText` rather than
+    /// only reading one an existing file already carried.
+    #[must_use]
+    pub(crate) fn with_local(interner: &mut Interner, local: &str) -> Self {
         Self {
-            name: wml_name(interner, "t"),
+            name: wml_name(interner, local),
             attributes: Vec::new(),
             empty: true,
             text: String::new(),
