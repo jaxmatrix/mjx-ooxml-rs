@@ -1212,6 +1212,31 @@ pub struct SectionProperties {
     content: Vec<SectionPropertyContent>,
 }
 
+/// Finds the first item of `content` for which `select` returns a reference of `kind` (per
+/// `w:type`), removes it and returns it — the shared body of
+/// [`SectionProperties::remove_header_reference`]/`remove_footer_reference`.
+fn remove_reference_of_kind(
+    content: &mut Vec<SectionPropertyContent>,
+    kind: HeaderFooterType,
+    interner: &Interner,
+    select: impl Fn(&SectionPropertyContent) -> Option<&HeaderFooterReference>,
+) -> Result<Option<HeaderFooterReference>, AttributeError> {
+    let mut target = None;
+    for (index, item) in content.iter().enumerate() {
+        if let Some(reference) = select(item) {
+            if reference.kind(interner)? == kind {
+                target = Some(index);
+                break;
+            }
+        }
+    }
+    Ok(target.map(|index| match content.remove(index) {
+        SectionPropertyContent::HeaderReference(reference)
+        | SectionPropertyContent::FooterReference(reference) => reference,
+        _ => unreachable!("select only ever matches a HeaderReference or FooterReference item"),
+    }))
+}
+
 impl SectionProperties {
     /// Builds a new, empty `w:sectPr` — no properties, ready for this type's setters.
     #[must_use]
@@ -1295,6 +1320,24 @@ impl SectionProperties {
         );
     }
 
+    /// Removes this section's own `w:headerReference` of `kind`, if it states one, and returns it —
+    /// MJXOFF-113's own removal primitive: `push_header_reference` alone (C9's) has no way to replace
+    /// or drop a reference a section already carries, which "creating a header on demand" and
+    /// "removing one, and cleaning up the part and relationship it leaves behind" both need.
+    ///
+    /// # Errors
+    /// An [`AttributeError`] if a `w:headerReference@type` this scan reads is present but malformed.
+    pub fn remove_header_reference(
+        &mut self,
+        kind: HeaderFooterType,
+        interner: &Interner,
+    ) -> Result<Option<HeaderFooterReference>, AttributeError> {
+        remove_reference_of_kind(&mut self.content, kind, interner, |item| match item {
+            SectionPropertyContent::HeaderReference(reference) => Some(reference),
+            _ => None,
+        })
+    }
+
     /// The footer reference(s) this section states (`w:footerReference`), in document order.
     pub fn footer_references(&self) -> impl Iterator<Item = &HeaderFooterReference> {
         self.content.iter().filter_map(|item| match item {
@@ -1309,6 +1352,22 @@ impl SectionProperties {
             "footerReference",
             SectionPropertyContent::FooterReference(reference),
         );
+    }
+
+    /// Removes this section's own `w:footerReference` of `kind`, if it states one, and returns it —
+    /// see [`SectionProperties::remove_header_reference`].
+    ///
+    /// # Errors
+    /// An [`AttributeError`] if a `w:footerReference@type` this scan reads is present but malformed.
+    pub fn remove_footer_reference(
+        &mut self,
+        kind: HeaderFooterType,
+        interner: &Interner,
+    ) -> Result<Option<HeaderFooterReference>, AttributeError> {
+        remove_reference_of_kind(&mut self.content, kind, interner, |item| match item {
+            SectionPropertyContent::FooterReference(reference) => Some(reference),
+            _ => None,
+        })
     }
 
     value_property!(

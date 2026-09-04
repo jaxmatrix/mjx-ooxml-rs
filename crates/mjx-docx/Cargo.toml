@@ -20,6 +20,13 @@ mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
 mjx-omml.workspace = true
+# Legacy VML (Transitional-only) — headers and footers routinely carry watermarks and text boxes as
+# `w:pict`. Not feature-gated: unlike `mjx-pptx`'s `vml` flag (which spares PresentationML callers a
+# dependency they may never touch), Word headers are the primary place VML still appears in the
+# wild, so every `mjx-docx` caller pays for the crate the same way every caller already pays for
+# `mjx-mce`. See `crates/mjx-pptx/Cargo.toml`'s own comment above `vml = ["dep:mjx-vml"]` for the
+# reasoning this mirrors (and does not extend).
+mjx-vml.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

@@ -456,6 +456,7 @@ dependencies = [
  "mjx-ooxml-types",
  "mjx-opc",
  "mjx-schema-gate",
+ "mjx-vml",
  "mjx-xml",
  "thiserror",
 ]
