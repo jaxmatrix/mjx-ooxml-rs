@@ -751,7 +751,8 @@ impl ToXml for Spacing {
 ///
 /// `w:startChars`/`w:endChars`/`w:hangingChars`/`w:firstLineChars` **supersede** their twips-based
 /// sibling when both are present — ECMA-376 Part 1's own prose for each ("if the `endChars` attribute
-/// is specified, then [`end`]'s value is ignored") — but this type does not resolve that itself: it
+/// is specified, then [`Indentation::end`]'s value is ignored") — but this type does not resolve
+/// that itself: it
 /// hands back all twelve attributes independently, exactly as the file carries them. See
 /// [`Indentation::leading_edge`]/[`Indentation::trailing_edge`] for the one precedence this type does
 /// resolve (logical versus physical), and the module's own doc comment for why.
