@@ -190,9 +190,16 @@ pub struct DecimalNumberValue {
 }
 
 impl DecimalNumberValue {
-    /// Builds a new `local` element (`"outlineLvl"`, `"divId"`, `"ilvl"` or `"numId"`) of `value`.
+    /// Builds a new `local` element (`"outlineLvl"`, `"divId"`, `"ilvl"`, `"numId"` or
+    /// `"uiPriority"`) of `value`.
+    ///
+    /// `pub(crate)`: `styles.rs` (MJXOFF-101) reuses this for `w:style/w:uiPriority`, the same
+    /// `CT_DecimalNumber` shape this module's own `outlineLvl`/`divId` already use — the same
+    /// widening [`super::run_properties::Toggle::new`] and
+    /// [`super::run_properties::HalfPointMeasureValue::new`] already went through for MJXOFF-96's
+    /// own reuse.
     #[must_use]
-    fn new(interner: &mut Interner, local: &str, value: DecimalNumber) -> Self {
+    pub(crate) fn new(interner: &mut Interner, local: &str, value: DecimalNumber) -> Self {
         let mut item = Self {
             name: wml_name(interner, local),
             attributes: Vec::new(),
@@ -921,156 +928,15 @@ impl TabStops {
 // `ParagraphPropertyContent` and `ParagraphMarkRunPropertyContent` share one definition each rather
 // than each restating the getter/setter logic — the same shape as `run_properties.rs`'s own macros,
 // generalized over which enum a given container type actually holds.
+//
+// Moved to `property_macros.rs` (MJXOFF-101) so `styles.rs`'s own rank-ordered containers
+// (`StyleParagraphProperties`, `StyleDefinition`, `TableStyleOverride`) can invoke the same five
+// macros instead of a third copy of this getter/setter logic.
 // -------------------------------------------------------------------------------------------
 
-/// Declares one `CT_OnOff`-shaped property on the container type the macro is invoked inside: a
-/// tri-state getter and a whole-value setter, exactly as `run_properties.rs`'s own `toggle_property!`
-/// — generalized over `$enum_ty` so both this module's container types can use it.
-macro_rules! toggle_property {
-    ($enum_ty:ident, $getter:ident, $setter:ident, $variant:ident, $local:literal, $doc:literal) => {
-        #[doc = $doc]
-        pub fn $getter(&self, interner: &Interner) -> Result<Option<bool>, AttributeError> {
-            self.content
-                .iter()
-                .find_map(|item| match item {
-                    $enum_ty::$variant(toggle) => Some(toggle),
-                    _ => None,
-                })
-                .map(|toggle| toggle.value(interner))
-                .transpose()
-        }
-
-        #[doc = concat!("Sets `w:", $local, "`: `None` removes the element; `Some(value)` ensures it \
-            is present with `w:val` written explicitly as `value`.")]
-        pub fn $setter(&mut self, interner: &mut Interner, value: Option<bool>) {
-            let is_target = |item: &$enum_ty| matches!(item, $enum_ty::$variant(_));
-            match value {
-                None => self.remove(is_target),
-                Some(value) => {
-                    let mut toggle = Toggle::new(interner, $local);
-                    toggle.set_value(interner, Some(value));
-                    self.set($local, is_target, Some($enum_ty::$variant(toggle)));
-                }
-            }
-        }
-    };
-}
-
-/// Declares one whole-value property: a borrowing getter and a replace-insert-or-remove setter,
-/// generalized the same way as [`toggle_property!`].
-macro_rules! value_property {
-    ($enum_ty:ident, $getter:ident, $setter:ident, $variant:ident, $ty:ty, $local:literal, $doc:literal) => {
-        #[doc = $doc]
-        #[must_use]
-        pub fn $getter(&self) -> Option<&$ty> {
-            self.content.iter().find_map(|item| match item {
-                $enum_ty::$variant(value) => Some(value),
-                _ => None,
-            })
-        }
-
-        #[doc = concat!("Sets `w:", $local, "`: `None` removes the element; `Some(value)` replaces \
-            or inserts it at its schema rank.")]
-        pub fn $setter(&mut self, value: Option<$ty>) {
-            let is_target = |item: &$enum_ty| matches!(item, $enum_ty::$variant(_));
-            self.set($local, is_target, value.map($enum_ty::$variant));
-        }
-    };
-}
-
-/// Declares one `CT_PBdr`-slot property: a borrowing getter and a setter that **renames** the
-/// [`Border`] it is given to this slot's own wire local before storing it.
-///
-/// `CT_PBdr` reuses [`Border`] (`CT_Border`) under six different wire names (`top`, `left`,
-/// `bottom`, `right`, `between`, `bar`), unlike every other reuse of a `run_properties.rs` leaf type
-/// in this module, which is a single wire name shared verbatim between a run's own element and a
-/// paragraph's (e.g. `w:shd` names the same local in both `CT_ParaRPr` and `CT_PPrBase`). A
-/// plain [`value_property!`] setter would store whatever name the caller's `Border` already carried
-/// — `Border::new` always builds `w:bdr` — silently emitting the wrong element. This is the fix: the
-/// setter itself renames, so a caller cannot get this wrong by using [`Border::new`] normally.
-macro_rules! border_property {
-    ($enum_ty:ident, $getter:ident, $setter:ident, $variant:ident, $local:literal, $doc:literal) => {
-        #[doc = $doc]
-        #[must_use]
-        pub fn $getter(&self) -> Option<&Border> {
-            self.content.iter().find_map(|item| match item {
-                $enum_ty::$variant(value) => Some(value),
-                _ => None,
-            })
-        }
-
-        #[doc = concat!("Sets `w:", $local, "`: `None` removes the border; `Some(value)` replaces \
-            or inserts it at its schema rank, renamed to `w:", $local, "` regardless of the name \
-            `value` already carried.")]
-        pub fn $setter(&mut self, interner: &mut Interner, value: Option<Border>) {
-            let is_target = |item: &$enum_ty| matches!(item, $enum_ty::$variant(_));
-            let value = value.map(|border| border.renamed(interner, $local));
-            self.set($local, is_target, value.map($enum_ty::$variant));
-        }
-    };
-}
-
-/// Declares one `CT_DecimalNumber`-shaped property: a fallible flattened getter and a whole-value
-/// setter that builds [`DecimalNumberValue`] under its own wire name.
-macro_rules! decimal_number_property {
-    ($enum_ty:ident, $getter:ident, $setter:ident, $variant:ident, $local:literal, $doc:literal) => {
-        #[doc = $doc]
-        pub fn $getter(&self, interner: &Interner) -> Result<Option<i64>, AttributeError> {
-            self.content
-                .iter()
-                .find_map(|item| match item {
-                    $enum_ty::$variant(value) => Some(value),
-                    _ => None,
-                })
-                .map(|value| value.value(interner))
-                .transpose()
-        }
-
-        #[doc = concat!("Sets `w:", $local, "`: `None` removes the element; `Some(value)` ensures it \
-            is present with `w:val` written explicitly as `value`.")]
-        pub fn $setter(&mut self, interner: &mut Interner, value: Option<i64>) {
-            let is_target = |item: &$enum_ty| matches!(item, $enum_ty::$variant(_));
-            match value {
-                None => self.remove(is_target),
-                Some(value) => {
-                    let element = DecimalNumberValue::new(interner, $local, value);
-                    self.set($local, is_target, Some($enum_ty::$variant(element)));
-                }
-            }
-        }
-    };
-}
-
-/// Declares one `CT_HpsMeasure`-shaped property (`sz`, `szCs`, `kern`): a fallible flattened getter
-/// and a whole-value setter that builds [`HalfPointMeasureValue`] under its own wire name.
-macro_rules! half_point_property {
-    ($enum_ty:ident, $getter:ident, $setter:ident, $variant:ident, $local:literal, $doc:literal) => {
-        #[doc = $doc]
-        pub fn $getter(&self, interner: &Interner) -> Result<Option<HalfPointMeasure>, AttributeError> {
-            self.content
-                .iter()
-                .find_map(|item| match item {
-                    $enum_ty::$variant(value) => Some(value),
-                    _ => None,
-                })
-                .map(|value| value.half_points(interner))
-                .transpose()
-        }
-
-        #[doc = concat!("Sets `w:", $local, "`: `None` removes the element; `Some(value)` ensures it \
-            is present with `w:val` written explicitly as `value` half-points.")]
-        pub fn $setter(&mut self, interner: &mut Interner, value: Option<HalfPointMeasure>) {
-            let is_target = |item: &$enum_ty| matches!(item, $enum_ty::$variant(_));
-            match value {
-                None => self.remove(is_target),
-                Some(value) => {
-                    let element = HalfPointMeasureValue::new(interner, $local, value);
-                    self.set($local, is_target, Some($enum_ty::$variant(element)));
-                }
-            }
-        }
-    };
-}
+use super::property_macros::{
+    border_property, decimal_number_property, half_point_property, toggle_property, value_property,
+};
 
 // -------------------------------------------------------------------------------------------
 // CT_PBdr (w:pBdr)

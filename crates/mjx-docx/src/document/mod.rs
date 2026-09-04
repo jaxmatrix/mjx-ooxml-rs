@@ -39,7 +39,9 @@ use crate::error::DocxError;
 mod body;
 mod paragraph_properties;
 mod parts;
+mod property_macros;
 mod run_properties;
+mod styles;
 
 pub use body::{
     Background, BlockContent, Body, Break, Hyperlink, Paragraph, ParagraphContent,
@@ -64,6 +66,14 @@ pub use run_properties::{
     RunPropertyContent, Scale, Shading, SignedHalfPoint, SignedHalfPointMeasureValue, SignedTwips,
     SignedTwipsMeasureValue, TextEffect, TextScaleValue, ThemeHexDigit, Toggle, Twips, Underline,
     VerticalAlignment,
+};
+pub use styles::{
+    DefaultParagraphProperties, DefaultParagraphPropertyContent, DefaultRunProperties,
+    DefaultRunPropertyContent, DocumentDefaults, DocumentDefaultsContent, LatentStyleContent,
+    LatentStyleException, LatentStyles, LinkedStyleResolution, LongHex, RevisionSaveId,
+    StyleDefinition, StyleDefinitionContent, StyleIndex, StyleParagraphProperties,
+    StyleParagraphPropertyContent, StyleSheet, StyleSheetContent, StyleString, TableStyleOverride,
+    TableStyleOverrideContent, MAX_BASED_ON_CHAIN_DEPTH,
 };
 
 use crate::address::{BlockPath, RunPath};
@@ -238,6 +248,126 @@ impl Document {
     #[must_use]
     pub fn parts(&self) -> &DocumentParts {
         &self.parts
+    }
+
+    /// Reads this document's `word/styles.xml`, or `None` if it relates to none at all (a
+    /// [`Document::blank`] document, for one — see `blank.rs`'s own doc comment for why a blank
+    /// document deliberately starts with no `styles.xml`).
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/styles.xml` is related but cannot be read or is not
+    /// well-formed, or if its root is not `w:styles`.
+    pub fn style_sheet(&mut self) -> Result<Option<StyleSheet>, DocxError> {
+        let Some(styles_part) = self.parts.styles.clone() else {
+            return Ok(None);
+        };
+        let doc = self.package.part_tree(&styles_part)?;
+        Ok(Some(StyleSheet::from_xml(&doc.root, &doc.interner)?))
+    }
+
+    /// Edits this document's style sheet, creating `word/styles.xml` — with its content-type
+    /// registration and its `styles` relationship from the main document part — first if the
+    /// document does not relate to one yet.
+    ///
+    /// `edit` receives the current (or freshly created, empty) [`StyleSheet`] and the package's
+    /// [`mjx_ooxml_core::Interner`]; every [`StyleSheet`]/[`StyleDefinition`]/… setter needs both,
+    /// exactly as every other typed edit in this crate does. This one primitive covers every
+    /// authoring shape this child's ticket names — adding a style, modifying one (read it via the
+    /// `StyleSheet` the closure receives, mutate it with its own setters), and starting a
+    /// `styles.xml` a document does not yet have — without a separate `Document`-level method for
+    /// each of the dozens of properties a style can carry, mirroring how `set_run_text` and
+    /// `insert_paragraph` are themselves thin wrappers around exactly this parse/mutate/write-back
+    /// shape for `word/document.xml`.
+    ///
+    /// Only `word/styles.xml` (and, the first time, `[Content_Types].xml` and
+    /// `word/_rels/document.xml.rels`) is ever dirtied — every other part, and every other style
+    /// inside `word/styles.xml` [`edit`] does not touch, keeps its original bytes (see
+    /// [`mjx_ooxml_core::ToXml::write_back`]).
+    ///
+    /// # Errors
+    /// Returns [`DocxError`] if `word/styles.xml` is related but cannot be read, or if creating a
+    /// missing `word/styles.xml` fails (a malformed existing `[Content_Types].xml`/`.rels`, or a
+    /// part-name collision).
+    pub fn edit_style_sheet<R>(
+        &mut self,
+        edit: impl FnOnce(&mut StyleSheet, &mut mjx_ooxml_core::Interner) -> R,
+    ) -> Result<R, DocxError> {
+        let styles_part = match &self.parts.styles {
+            Some(part) => part.clone(),
+            None => self.create_style_sheet_part()?,
+        };
+        let doc = self.package.part_tree_mut(&styles_part)?;
+        let RawDocument { interner, root, .. } = doc;
+        let mut sheet = if root.name.local == interner.intern("styles") {
+            StyleSheet::from_xml(root, interner)?
+        } else {
+            return Err(DocxError::MalformedDocument(
+                "word/styles.xml root is not w:styles",
+            ));
+        };
+        let result = edit(&mut sheet, interner);
+        sheet.write_back(root, interner);
+        Ok(result)
+    }
+
+    /// Creates an empty `word/styles.xml`, registers its content type, and relates it from the main
+    /// document part — the "a document that has none" case [`Document::edit_style_sheet`] needs
+    /// before it can parse anything.
+    ///
+    /// Written as a minimal XML string template, exactly `blank.rs`'s own `document_bytes` is —
+    /// **not** through [`ToXml::to_xml`] — because a freshly built [`StyleSheet`] value has no
+    /// ancestor to inherit an `xmlns:w` declaration from the way every *parsed* WML element does;
+    /// [`Document::edit_style_sheet`]'s very next step re-parses these bytes through the normal
+    /// `part_tree_mut`/`FromXml` path, so the typed model only ever mutates a tree it actually read.
+    fn create_style_sheet_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
+        let styles_part =
+            self.document_part
+                .resolve("styles.xml")
+                .map_err(|_| DocxError::TargetResolution {
+                    target: "styles.xml".to_owned(),
+                })?;
+        const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+        let bytes = format!(
+            concat!(
+                r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+                "\n",
+                r#"<w:styles xmlns:w="{ns}"/>"#,
+            ),
+            ns = WML_NAMESPACE,
+        )
+        .into_bytes();
+        self.package
+            .insert_part(&styles_part, crate::constants::CONTENT_TYPE_STYLES, bytes)?;
+        let rid = self.next_rid_for(&self.document_part.clone());
+        self.package.add_relationship(
+            Some(&self.document_part),
+            mjx_opc::Relationship {
+                id: rid,
+                rel_type: crate::constants::REL_STYLES.to_owned(),
+                target: "styles.xml".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )?;
+        self.parts.styles = Some(styles_part.clone());
+        Ok(styles_part)
+    }
+
+    /// The next free relationship id (`rId{N}`) in `part`'s `.rels`, one past the current maximum —
+    /// `rId1` when the part has no relationships yet.
+    fn next_rid_for(&self, part: &mjx_opc::PartName) -> String {
+        let mut max_n = 0u32;
+        if let Some(rels) = self.package.relationships_for(Some(part)) {
+            for rel in rels.iter() {
+                if let Some(n) = rel
+                    .id
+                    .strip_prefix("rId")
+                    .and_then(|s| s.parse::<u32>().ok())
+                {
+                    max_n = max_n.max(n);
+                }
+            }
+        }
+        format!("rId{}", max_n + 1)
     }
 
     /// The document's conformance class (`w:document/@conformance`) — `Strict` or `Transitional`, or
