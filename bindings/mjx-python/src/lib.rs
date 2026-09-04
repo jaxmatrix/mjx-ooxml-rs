@@ -10,11 +10,12 @@
 //!
 //! # What this crate is
 //!
-//! A thin, complete projection of [`mjx_ooxml`] — 257 `Deck` methods and the 205 classes their
-//! arguments and results are made of. It adds no behaviour: every method calls exactly one method
-//! one layer down, and every class wraps exactly one value. What it *does* add is the shape a
-//! Python caller expects — an exception hierarchy, keyword arguments, `bytes`, `list`, `dict`, and
-//! a bare `int` where Rust would take an `impl Into<Surface>`.
+//! A thin, complete projection of [`mjx_ooxml`] — the whole `Deck` surface (PowerPoint) and the
+//! curated `Document` surface (Word, MJXOFF-139), and the classes their arguments and results are
+//! made of. It adds no behaviour: every method calls exactly one method one layer down, and every
+//! class wraps exactly one value. What it *does* add is the shape a Python caller expects — an
+//! exception hierarchy, keyword arguments, `bytes`, `list`, `dict`, and a bare `int` where Rust
+//! would take an `impl Into<Surface>`/`impl Into<BlockPath>`.
 //!
 //! ## The mapping is identity
 //!
@@ -72,6 +73,7 @@ pub mod address;
 pub mod charts;
 pub mod content;
 pub mod deck;
+pub mod document;
 pub mod enums;
 pub mod errors;
 pub mod format;
@@ -81,6 +83,7 @@ pub mod paint;
 pub mod tables;
 pub mod text;
 pub mod three_d;
+pub mod word;
 
 /// The `mjx_ooxml` extension module.
 ///
@@ -104,6 +107,8 @@ fn _mjx_ooxml(module: &Bound<'_, PyModule>) -> PyResult<()> {
     content::register(module)?;
     format::register(module)?;
     deck::register(module)?;
+    word::register(module)?;
+    document::register(module)?;
 
     // `__all__` is derived from what was actually registered, so it cannot drift from the module:
     // a class added above appears here, and one removed disappears. `from mjx_ooxml import *`
