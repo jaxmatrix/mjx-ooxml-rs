@@ -32,7 +32,7 @@
 //! rather than left unstated (the "no 'later phase' notes" rule this child's own ticket names):
 //!
 //! 1. **Full get/set, individually named** — every `CT_OnOff` flag (via
-//!    [`super::property_macros::toggle_property`]), every `CT_DecimalNumber` and `CT_TwipsMeasure`
+//!    `super::property_macros::toggle_property`), every `CT_DecimalNumber` and `CT_TwipsMeasure`
 //!    leaf, and the handful of "own type" settings another Phase C child explicitly needs by name
 //!    (`w:evenAndOddHeaders`, `w:mirrorMargins`, `w:defaultTabStop`, `w:trackRevisions` — note the
 //!    *wire* local name, not the ticket's own "trackChanges" shorthand; `wml.xsd:2923` spells it
@@ -1365,7 +1365,7 @@ impl DocumentSettings {
     /// Sets (or, with `None`, removes) `w:themeFontLang`. `value` is renamed to `themeFontLang`
     /// regardless of what it carried (`value` is [`Languages`] — the same `CT_Language` shape
     /// `w:lang` uses — so a value built via [`Languages::new`] still carries that element's own
-    /// name until this setter corrects it; mirrors [`super::run_properties::Border::renamed`]'s own
+    /// name until this setter corrects it; mirrors `super::run_properties::Border::renamed`'s own
     /// reasoning for a reused wire shape under several names).
     pub fn set_theme_font_languages(&mut self, interner: &mut Interner, value: Option<Languages>) {
         let is_target = |item: &SettingsContent| matches!(item, SettingsContent::ThemeFontLang(_));
@@ -2528,7 +2528,7 @@ impl DocumentRevisionSaveIds {
     }
 
     /// Sets (or, with `None`, removes) `w:rsidRoot`. `value`'s own element name is corrected to
-    /// `rsidRoot` regardless of what it carried (mirrors [`super::run_properties::Border::renamed`]'s
+    /// `rsidRoot` regardless of what it carried (mirrors `super::run_properties::Border::renamed`'s
     /// own reasoning for a reused wire shape under several names).
     pub fn set_root(&mut self, interner: &mut Interner, value: Option<RevisionSaveId>) {
         self.content
@@ -2565,7 +2565,7 @@ impl DocumentRevisionSaveIds {
 /// **The sixty-two individual `w:compat` flags are not modelled individually.** Every one is a bare
 /// `CT_OnOff` (`w:wpJustification`, `w:noTabHangInd`, `w:usePrinterMetrics`, …) that nothing in
 /// Phase C's own dependency list names by name, and modelling sixty-two near-identical single-use
-/// enum variants (each needing its own [`super::property_macros::toggle_property`] invocation to be
+/// enum variants (each needing its own `super::property_macros::toggle_property` invocation to be
 /// worth anything) would add sixty-two API surfaces for zero call sites. They still round-trip
 /// **exactly**, in position: [`CompatibilityContent::Raw`] is this crate's normal unknown-element
 /// bucket, and every one of the sixty-two falls into it precisely because this type's own
