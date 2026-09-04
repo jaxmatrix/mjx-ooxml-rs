@@ -115,7 +115,11 @@ fn unknown_bucket_order_is_exactly_preserved() {
         assert_eq!(settings.even_and_odd_headers(interner).unwrap(), Some(true));
         assert!(settings.document_protection().is_some());
         let compat = settings.compat().expect("w:compat is present");
-        assert_eq!(compat.settings().count(), 2, "both w:compatSetting entries must be reachable");
+        assert_eq!(
+            compat.settings().count(),
+            2,
+            "both w:compatSetting entries must be reachable"
+        );
         assert!(settings.doc_vars().is_some());
         assert!(settings.rsids().is_some());
 
@@ -187,12 +191,18 @@ fn web_settings_divs_and_flags_read_back() {
     let mut doc = document();
     doc.web_settings(|settings, interner| {
         assert_eq!(
-            settings.optimize_for_browser().unwrap().value(interner).unwrap(),
+            settings
+                .optimize_for_browser()
+                .unwrap()
+                .value(interner)
+                .unwrap(),
             Some(true)
         );
         assert_eq!(settings.allow_png(interner).unwrap(), Some(true));
         let divs = settings.divs().expect("w:divs is present");
-        let div = divs.by_id(interner, 1_234_567_890).expect("div id 1234567890");
+        let div = divs
+            .by_id(interner, 1_234_567_890)
+            .expect("div id 1234567890");
         assert_eq!(
             div.margin_left()
                 .unwrap()
@@ -216,10 +226,7 @@ fn font_table_resolves_the_embedded_font_and_its_obfuscation_key() {
             .font(interner, "EmbeddedSample")
             .expect("EmbeddedSample is in the font table");
         let embed = font.embed_regular().expect("w:embedRegular is present");
-        assert_eq!(
-            embed.relationship_id(interner).unwrap(),
-            "rIdFont1"
-        );
+        assert_eq!(embed.relationship_id(interner).unwrap(), "rIdFont1");
         assert_eq!(
             embed.font_key(interner).unwrap().as_deref(),
             Some("{12345678-1234-1234-1234-123456789ABC}"),
@@ -262,8 +269,14 @@ fn document_protection_hash_is_preserved_exactly() {
                 .document_protection()
                 .expect("w:documentProtection is present");
             (
-                protection.hash_value(interner).unwrap().map(|s| s.into_owned()),
-                protection.salt_value(interner).unwrap().map(|s| s.into_owned()),
+                protection
+                    .hash_value(interner)
+                    .unwrap()
+                    .map(|s| s.into_owned()),
+                protection
+                    .salt_value(interner)
+                    .unwrap()
+                    .map(|s| s.into_owned()),
             )
         })
         .expect("read word/settings.xml")

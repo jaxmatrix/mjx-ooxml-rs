@@ -81,7 +81,7 @@ use mjx_ooxml_types::child_order::{COMPAT, SETTINGS};
 use mjx_ooxml_types::shared::TwipsMeasure;
 use mjx_ooxml_types::support::OnOff;
 use mjx_ooxml_types::wordprocessingml::{
-    CaptionPosition, CharacterSpacingCompression, ChapterSeparator, ColorSchemeSlot,
+    CaptionPosition, ChapterSeparator, CharacterSpacingCompression, ColorSchemeSlot,
     DecimalNumberOrPercentage, DocumentClassification, DocumentProtection as EditRestriction,
     DocumentView, NumberFormat, PixelsMeasure, ProofingState, StyleSortMethod, ZoomPreset,
 };
@@ -630,70 +630,508 @@ impl DocumentSettings {
         &self.content
     }
 
-    toggle_property!(SettingsContent, remove_personal_information, set_remove_personal_information, RemovePersonalInformation, "removePersonalInformation", "`w:removePersonalInformation`.");
-    toggle_property!(SettingsContent, remove_date_and_time, set_remove_date_and_time, RemoveDateAndTime, "removeDateAndTime", "`w:removeDateAndTime`.");
-    toggle_property!(SettingsContent, do_not_display_page_boundaries, set_do_not_display_page_boundaries, DoNotDisplayPageBoundaries, "doNotDisplayPageBoundaries", "`w:doNotDisplayPageBoundaries`.");
-    toggle_property!(SettingsContent, display_background_shape, set_display_background_shape, DisplayBackgroundShape, "displayBackgroundShape", "`w:displayBackgroundShape`.");
-    toggle_property!(SettingsContent, print_post_script_over_text, set_print_post_script_over_text, PrintPostScriptOverText, "printPostScriptOverText", "`w:printPostScriptOverText`.");
-    toggle_property!(SettingsContent, print_fractional_character_width, set_print_fractional_character_width, PrintFractionalCharacterWidth, "printFractionalCharacterWidth", "`w:printFractionalCharacterWidth`.");
-    toggle_property!(SettingsContent, print_forms_data, set_print_forms_data, PrintFormsData, "printFormsData", "`w:printFormsData`.");
-    toggle_property!(SettingsContent, embed_true_type_fonts, set_embed_true_type_fonts, EmbedTrueTypeFonts, "embedTrueTypeFonts", "`w:embedTrueTypeFonts`.");
-    toggle_property!(SettingsContent, embed_system_fonts, set_embed_system_fonts, EmbedSystemFonts, "embedSystemFonts", "`w:embedSystemFonts`.");
-    toggle_property!(SettingsContent, save_subset_fonts, set_save_subset_fonts, SaveSubsetFonts, "saveSubsetFonts", "`w:saveSubsetFonts`.");
-    toggle_property!(SettingsContent, save_forms_data, set_save_forms_data, SaveFormsData, "saveFormsData", "`w:saveFormsData`.");
-    toggle_property!(SettingsContent, mirror_margins, set_mirror_margins, MirrorMargins, "mirrorMargins", "`w:mirrorMargins` — needed by C9's section model.");
-    toggle_property!(SettingsContent, align_borders_and_edges, set_align_borders_and_edges, AlignBordersAndEdges, "alignBordersAndEdges", "`w:alignBordersAndEdges`.");
-    toggle_property!(SettingsContent, borders_do_not_surround_header, set_borders_do_not_surround_header, BordersDoNotSurroundHeader, "bordersDoNotSurroundHeader", "`w:bordersDoNotSurroundHeader`.");
-    toggle_property!(SettingsContent, borders_do_not_surround_footer, set_borders_do_not_surround_footer, BordersDoNotSurroundFooter, "bordersDoNotSurroundFooter", "`w:bordersDoNotSurroundFooter`.");
-    toggle_property!(SettingsContent, gutter_at_top, set_gutter_at_top, GutterAtTop, "gutterAtTop", "`w:gutterAtTop`.");
-    toggle_property!(SettingsContent, hide_spelling_errors, set_hide_spelling_errors, HideSpellingErrors, "hideSpellingErrors", "`w:hideSpellingErrors`.");
-    toggle_property!(SettingsContent, hide_grammatical_errors, set_hide_grammatical_errors, HideGrammaticalErrors, "hideGrammaticalErrors", "`w:hideGrammaticalErrors`.");
-    toggle_property!(SettingsContent, forms_design, set_forms_design, FormsDesign, "formsDesign", "`w:formsDesign`.");
-    toggle_property!(SettingsContent, link_styles, set_link_styles, LinkStyles, "linkStyles", "`w:linkStyles`.");
+    toggle_property!(
+        SettingsContent,
+        remove_personal_information,
+        set_remove_personal_information,
+        RemovePersonalInformation,
+        "removePersonalInformation",
+        "`w:removePersonalInformation`."
+    );
+    toggle_property!(
+        SettingsContent,
+        remove_date_and_time,
+        set_remove_date_and_time,
+        RemoveDateAndTime,
+        "removeDateAndTime",
+        "`w:removeDateAndTime`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_display_page_boundaries,
+        set_do_not_display_page_boundaries,
+        DoNotDisplayPageBoundaries,
+        "doNotDisplayPageBoundaries",
+        "`w:doNotDisplayPageBoundaries`."
+    );
+    toggle_property!(
+        SettingsContent,
+        display_background_shape,
+        set_display_background_shape,
+        DisplayBackgroundShape,
+        "displayBackgroundShape",
+        "`w:displayBackgroundShape`."
+    );
+    toggle_property!(
+        SettingsContent,
+        print_post_script_over_text,
+        set_print_post_script_over_text,
+        PrintPostScriptOverText,
+        "printPostScriptOverText",
+        "`w:printPostScriptOverText`."
+    );
+    toggle_property!(
+        SettingsContent,
+        print_fractional_character_width,
+        set_print_fractional_character_width,
+        PrintFractionalCharacterWidth,
+        "printFractionalCharacterWidth",
+        "`w:printFractionalCharacterWidth`."
+    );
+    toggle_property!(
+        SettingsContent,
+        print_forms_data,
+        set_print_forms_data,
+        PrintFormsData,
+        "printFormsData",
+        "`w:printFormsData`."
+    );
+    toggle_property!(
+        SettingsContent,
+        embed_true_type_fonts,
+        set_embed_true_type_fonts,
+        EmbedTrueTypeFonts,
+        "embedTrueTypeFonts",
+        "`w:embedTrueTypeFonts`."
+    );
+    toggle_property!(
+        SettingsContent,
+        embed_system_fonts,
+        set_embed_system_fonts,
+        EmbedSystemFonts,
+        "embedSystemFonts",
+        "`w:embedSystemFonts`."
+    );
+    toggle_property!(
+        SettingsContent,
+        save_subset_fonts,
+        set_save_subset_fonts,
+        SaveSubsetFonts,
+        "saveSubsetFonts",
+        "`w:saveSubsetFonts`."
+    );
+    toggle_property!(
+        SettingsContent,
+        save_forms_data,
+        set_save_forms_data,
+        SaveFormsData,
+        "saveFormsData",
+        "`w:saveFormsData`."
+    );
+    toggle_property!(
+        SettingsContent,
+        mirror_margins,
+        set_mirror_margins,
+        MirrorMargins,
+        "mirrorMargins",
+        "`w:mirrorMargins` — needed by C9's section model."
+    );
+    toggle_property!(
+        SettingsContent,
+        align_borders_and_edges,
+        set_align_borders_and_edges,
+        AlignBordersAndEdges,
+        "alignBordersAndEdges",
+        "`w:alignBordersAndEdges`."
+    );
+    toggle_property!(
+        SettingsContent,
+        borders_do_not_surround_header,
+        set_borders_do_not_surround_header,
+        BordersDoNotSurroundHeader,
+        "bordersDoNotSurroundHeader",
+        "`w:bordersDoNotSurroundHeader`."
+    );
+    toggle_property!(
+        SettingsContent,
+        borders_do_not_surround_footer,
+        set_borders_do_not_surround_footer,
+        BordersDoNotSurroundFooter,
+        "bordersDoNotSurroundFooter",
+        "`w:bordersDoNotSurroundFooter`."
+    );
+    toggle_property!(
+        SettingsContent,
+        gutter_at_top,
+        set_gutter_at_top,
+        GutterAtTop,
+        "gutterAtTop",
+        "`w:gutterAtTop`."
+    );
+    toggle_property!(
+        SettingsContent,
+        hide_spelling_errors,
+        set_hide_spelling_errors,
+        HideSpellingErrors,
+        "hideSpellingErrors",
+        "`w:hideSpellingErrors`."
+    );
+    toggle_property!(
+        SettingsContent,
+        hide_grammatical_errors,
+        set_hide_grammatical_errors,
+        HideGrammaticalErrors,
+        "hideGrammaticalErrors",
+        "`w:hideGrammaticalErrors`."
+    );
+    toggle_property!(
+        SettingsContent,
+        forms_design,
+        set_forms_design,
+        FormsDesign,
+        "formsDesign",
+        "`w:formsDesign`."
+    );
+    toggle_property!(
+        SettingsContent,
+        link_styles,
+        set_link_styles,
+        LinkStyles,
+        "linkStyles",
+        "`w:linkStyles`."
+    );
     toggle_property!(SettingsContent, track_revisions, set_track_revisions, TrackRevisions, "trackRevisions", "`w:trackRevisions` — needed by C15. Not `w:trackChanges`; see this type's own doc comment.");
-    toggle_property!(SettingsContent, do_not_track_moves, set_do_not_track_moves, DoNotTrackMoves, "doNotTrackMoves", "`w:doNotTrackMoves`.");
-    toggle_property!(SettingsContent, do_not_track_formatting, set_do_not_track_formatting, DoNotTrackFormatting, "doNotTrackFormatting", "`w:doNotTrackFormatting`.");
-    toggle_property!(SettingsContent, auto_format_override, set_auto_format_override, AutoFormatOverride, "autoFormatOverride", "`w:autoFormatOverride`.");
-    toggle_property!(SettingsContent, style_lock_theme, set_style_lock_theme, StyleLockTheme, "styleLockTheme", "`w:styleLockTheme`.");
-    toggle_property!(SettingsContent, style_lock_quick_format_set, set_style_lock_quick_format_set, StyleLockQuickFormatSet, "styleLockQFSet", "`w:styleLockQFSet`.");
-    toggle_property!(SettingsContent, auto_hyphenation, set_auto_hyphenation, AutoHyphenation, "autoHyphenation", "`w:autoHyphenation`.");
-    toggle_property!(SettingsContent, do_not_hyphenate_caps, set_do_not_hyphenate_caps, DoNotHyphenateCaps, "doNotHyphenateCaps", "`w:doNotHyphenateCaps`.");
-    toggle_property!(SettingsContent, show_envelope, set_show_envelope, ShowEnvelope, "showEnvelope", "`w:showEnvelope`.");
-    toggle_property!(SettingsContent, even_and_odd_headers, set_even_and_odd_headers, EvenAndOddHeaders, "evenAndOddHeaders", "`w:evenAndOddHeaders` — replaces MJXOFF-113's ad-hoc read.");
-    toggle_property!(SettingsContent, book_fold_rev_printing, set_book_fold_rev_printing, BookFoldRevPrinting, "bookFoldRevPrinting", "`w:bookFoldRevPrinting`.");
-    toggle_property!(SettingsContent, book_fold_printing, set_book_fold_printing, BookFoldPrinting, "bookFoldPrinting", "`w:bookFoldPrinting`.");
-    toggle_property!(SettingsContent, do_not_use_margins_for_drawing_grid_origin, set_do_not_use_margins_for_drawing_grid_origin, DoNotUseMarginsForDrawingGridOrigin, "doNotUseMarginsForDrawingGridOrigin", "`w:doNotUseMarginsForDrawingGridOrigin`.");
-    toggle_property!(SettingsContent, do_not_shade_form_data, set_do_not_shade_form_data, DoNotShadeFormData, "doNotShadeFormData", "`w:doNotShadeFormData`.");
-    toggle_property!(SettingsContent, no_punctuation_kerning, set_no_punctuation_kerning, NoPunctuationKerning, "noPunctuationKerning", "`w:noPunctuationKerning`.");
-    toggle_property!(SettingsContent, print_two_on_one, set_print_two_on_one, PrintTwoOnOne, "printTwoOnOne", "`w:printTwoOnOne`.");
-    toggle_property!(SettingsContent, strict_first_and_last_chars, set_strict_first_and_last_chars, StrictFirstAndLastChars, "strictFirstAndLastChars", "`w:strictFirstAndLastChars`.");
-    toggle_property!(SettingsContent, save_preview_picture, set_save_preview_picture, SavePreviewPicture, "savePreviewPicture", "`w:savePreviewPicture`.");
-    toggle_property!(SettingsContent, do_not_validate_against_schema, set_do_not_validate_against_schema, DoNotValidateAgainstSchema, "doNotValidateAgainstSchema", "`w:doNotValidateAgainstSchema`.");
-    toggle_property!(SettingsContent, save_invalid_xml, set_save_invalid_xml, SaveInvalidXml, "saveInvalidXml", "`w:saveInvalidXml`.");
-    toggle_property!(SettingsContent, ignore_mixed_content, set_ignore_mixed_content, IgnoreMixedContent, "ignoreMixedContent", "`w:ignoreMixedContent`.");
-    toggle_property!(SettingsContent, always_show_placeholder_text, set_always_show_placeholder_text, AlwaysShowPlaceholderText, "alwaysShowPlaceholderText", "`w:alwaysShowPlaceholderText`.");
-    toggle_property!(SettingsContent, do_not_demarcate_invalid_xml, set_do_not_demarcate_invalid_xml, DoNotDemarcateInvalidXml, "doNotDemarcateInvalidXml", "`w:doNotDemarcateInvalidXml`.");
-    toggle_property!(SettingsContent, save_xml_data_only, set_save_xml_data_only, SaveXmlDataOnly, "saveXmlDataOnly", "`w:saveXmlDataOnly`.");
-    toggle_property!(SettingsContent, use_xslt_when_saving, set_use_xslt_when_saving, UseXsltWhenSaving, "useXSLTWhenSaving", "`w:useXSLTWhenSaving`.");
-    toggle_property!(SettingsContent, show_xml_tags, set_show_xml_tags, ShowXmlTags, "showXMLTags", "`w:showXMLTags`.");
-    toggle_property!(SettingsContent, always_merge_empty_namespace, set_always_merge_empty_namespace, AlwaysMergeEmptyNamespace, "alwaysMergeEmptyNamespace", "`w:alwaysMergeEmptyNamespace`.");
-    toggle_property!(SettingsContent, update_fields, set_update_fields, UpdateFields, "updateFields", "`w:updateFields`.");
-    toggle_property!(SettingsContent, do_not_include_subdocs_in_stats, set_do_not_include_subdocs_in_stats, DoNotIncludeSubdocsInStats, "doNotIncludeSubdocsInStats", "`w:doNotIncludeSubdocsInStats`.");
-    toggle_property!(SettingsContent, do_not_auto_compress_pictures, set_do_not_auto_compress_pictures, DoNotAutoCompressPictures, "doNotAutoCompressPictures", "`w:doNotAutoCompressPictures`.");
-    toggle_property!(SettingsContent, do_not_embed_smart_tags, set_do_not_embed_smart_tags, DoNotEmbedSmartTags, "doNotEmbedSmartTags", "`w:doNotEmbedSmartTags`.");
+    toggle_property!(
+        SettingsContent,
+        do_not_track_moves,
+        set_do_not_track_moves,
+        DoNotTrackMoves,
+        "doNotTrackMoves",
+        "`w:doNotTrackMoves`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_track_formatting,
+        set_do_not_track_formatting,
+        DoNotTrackFormatting,
+        "doNotTrackFormatting",
+        "`w:doNotTrackFormatting`."
+    );
+    toggle_property!(
+        SettingsContent,
+        auto_format_override,
+        set_auto_format_override,
+        AutoFormatOverride,
+        "autoFormatOverride",
+        "`w:autoFormatOverride`."
+    );
+    toggle_property!(
+        SettingsContent,
+        style_lock_theme,
+        set_style_lock_theme,
+        StyleLockTheme,
+        "styleLockTheme",
+        "`w:styleLockTheme`."
+    );
+    toggle_property!(
+        SettingsContent,
+        style_lock_quick_format_set,
+        set_style_lock_quick_format_set,
+        StyleLockQuickFormatSet,
+        "styleLockQFSet",
+        "`w:styleLockQFSet`."
+    );
+    toggle_property!(
+        SettingsContent,
+        auto_hyphenation,
+        set_auto_hyphenation,
+        AutoHyphenation,
+        "autoHyphenation",
+        "`w:autoHyphenation`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_hyphenate_caps,
+        set_do_not_hyphenate_caps,
+        DoNotHyphenateCaps,
+        "doNotHyphenateCaps",
+        "`w:doNotHyphenateCaps`."
+    );
+    toggle_property!(
+        SettingsContent,
+        show_envelope,
+        set_show_envelope,
+        ShowEnvelope,
+        "showEnvelope",
+        "`w:showEnvelope`."
+    );
+    toggle_property!(
+        SettingsContent,
+        even_and_odd_headers,
+        set_even_and_odd_headers,
+        EvenAndOddHeaders,
+        "evenAndOddHeaders",
+        "`w:evenAndOddHeaders` — replaces MJXOFF-113's ad-hoc read."
+    );
+    toggle_property!(
+        SettingsContent,
+        book_fold_rev_printing,
+        set_book_fold_rev_printing,
+        BookFoldRevPrinting,
+        "bookFoldRevPrinting",
+        "`w:bookFoldRevPrinting`."
+    );
+    toggle_property!(
+        SettingsContent,
+        book_fold_printing,
+        set_book_fold_printing,
+        BookFoldPrinting,
+        "bookFoldPrinting",
+        "`w:bookFoldPrinting`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_use_margins_for_drawing_grid_origin,
+        set_do_not_use_margins_for_drawing_grid_origin,
+        DoNotUseMarginsForDrawingGridOrigin,
+        "doNotUseMarginsForDrawingGridOrigin",
+        "`w:doNotUseMarginsForDrawingGridOrigin`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_shade_form_data,
+        set_do_not_shade_form_data,
+        DoNotShadeFormData,
+        "doNotShadeFormData",
+        "`w:doNotShadeFormData`."
+    );
+    toggle_property!(
+        SettingsContent,
+        no_punctuation_kerning,
+        set_no_punctuation_kerning,
+        NoPunctuationKerning,
+        "noPunctuationKerning",
+        "`w:noPunctuationKerning`."
+    );
+    toggle_property!(
+        SettingsContent,
+        print_two_on_one,
+        set_print_two_on_one,
+        PrintTwoOnOne,
+        "printTwoOnOne",
+        "`w:printTwoOnOne`."
+    );
+    toggle_property!(
+        SettingsContent,
+        strict_first_and_last_chars,
+        set_strict_first_and_last_chars,
+        StrictFirstAndLastChars,
+        "strictFirstAndLastChars",
+        "`w:strictFirstAndLastChars`."
+    );
+    toggle_property!(
+        SettingsContent,
+        save_preview_picture,
+        set_save_preview_picture,
+        SavePreviewPicture,
+        "savePreviewPicture",
+        "`w:savePreviewPicture`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_validate_against_schema,
+        set_do_not_validate_against_schema,
+        DoNotValidateAgainstSchema,
+        "doNotValidateAgainstSchema",
+        "`w:doNotValidateAgainstSchema`."
+    );
+    toggle_property!(
+        SettingsContent,
+        save_invalid_xml,
+        set_save_invalid_xml,
+        SaveInvalidXml,
+        "saveInvalidXml",
+        "`w:saveInvalidXml`."
+    );
+    toggle_property!(
+        SettingsContent,
+        ignore_mixed_content,
+        set_ignore_mixed_content,
+        IgnoreMixedContent,
+        "ignoreMixedContent",
+        "`w:ignoreMixedContent`."
+    );
+    toggle_property!(
+        SettingsContent,
+        always_show_placeholder_text,
+        set_always_show_placeholder_text,
+        AlwaysShowPlaceholderText,
+        "alwaysShowPlaceholderText",
+        "`w:alwaysShowPlaceholderText`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_demarcate_invalid_xml,
+        set_do_not_demarcate_invalid_xml,
+        DoNotDemarcateInvalidXml,
+        "doNotDemarcateInvalidXml",
+        "`w:doNotDemarcateInvalidXml`."
+    );
+    toggle_property!(
+        SettingsContent,
+        save_xml_data_only,
+        set_save_xml_data_only,
+        SaveXmlDataOnly,
+        "saveXmlDataOnly",
+        "`w:saveXmlDataOnly`."
+    );
+    toggle_property!(
+        SettingsContent,
+        use_xslt_when_saving,
+        set_use_xslt_when_saving,
+        UseXsltWhenSaving,
+        "useXSLTWhenSaving",
+        "`w:useXSLTWhenSaving`."
+    );
+    toggle_property!(
+        SettingsContent,
+        show_xml_tags,
+        set_show_xml_tags,
+        ShowXmlTags,
+        "showXMLTags",
+        "`w:showXMLTags`."
+    );
+    toggle_property!(
+        SettingsContent,
+        always_merge_empty_namespace,
+        set_always_merge_empty_namespace,
+        AlwaysMergeEmptyNamespace,
+        "alwaysMergeEmptyNamespace",
+        "`w:alwaysMergeEmptyNamespace`."
+    );
+    toggle_property!(
+        SettingsContent,
+        update_fields,
+        set_update_fields,
+        UpdateFields,
+        "updateFields",
+        "`w:updateFields`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_include_subdocs_in_stats,
+        set_do_not_include_subdocs_in_stats,
+        DoNotIncludeSubdocsInStats,
+        "doNotIncludeSubdocsInStats",
+        "`w:doNotIncludeSubdocsInStats`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_auto_compress_pictures,
+        set_do_not_auto_compress_pictures,
+        DoNotAutoCompressPictures,
+        "doNotAutoCompressPictures",
+        "`w:doNotAutoCompressPictures`."
+    );
+    toggle_property!(
+        SettingsContent,
+        do_not_embed_smart_tags,
+        set_do_not_embed_smart_tags,
+        DoNotEmbedSmartTags,
+        "doNotEmbedSmartTags",
+        "`w:doNotEmbedSmartTags`."
+    );
 
-    value_property!(SettingsContent, write_protection, set_write_protection, WriteProtection, WriteProtectionSetting, "writeProtection", "`w:writeProtection`.");
-    value_property!(SettingsContent, view, set_view, View, ViewSetting, "view", "`w:view`.");
-    value_property!(SettingsContent, zoom, set_zoom, Zoom, ZoomSetting, "zoom", "`w:zoom`.");
-    value_property!(SettingsContent, proof_state, set_proof_state, ProofState, ProofSettings, "proofState", "`w:proofState`.");
-    value_property!(SettingsContent, attached_template, set_attached_template, AttachedTemplate, RelationshipReference, "attachedTemplate", "`w:attachedTemplate`.");
-    value_property!(SettingsContent, style_pane_format_filter, set_style_pane_format_filter, StylePaneFormatFilter, StylePaneFilter, "stylePaneFormatFilter", "`w:stylePaneFormatFilter`.");
-    value_property!(SettingsContent, style_pane_sort_method, set_style_pane_sort_method, StylePaneSortMethod, StyleSortSetting, "stylePaneSortMethod", "`w:stylePaneSortMethod`.");
-    value_property!(SettingsContent, document_type, set_document_type, DocumentType, DocumentTypeSetting, "documentType", "`w:documentType`.");
-    value_property!(SettingsContent, mail_merge, set_mail_merge, MailMerge, super::mail_merge::MailMergeSettings, "mailMerge", "`w:mailMerge` — needed for a mail-merge document to stay one.");
-    value_property!(SettingsContent, revision_view, set_revision_view, RevisionView, TrackChangesView, "revisionView", "`w:revisionView`.");
+    value_property!(
+        SettingsContent,
+        write_protection,
+        set_write_protection,
+        WriteProtection,
+        WriteProtectionSetting,
+        "writeProtection",
+        "`w:writeProtection`."
+    );
+    value_property!(
+        SettingsContent,
+        view,
+        set_view,
+        View,
+        ViewSetting,
+        "view",
+        "`w:view`."
+    );
+    value_property!(
+        SettingsContent,
+        zoom,
+        set_zoom,
+        Zoom,
+        ZoomSetting,
+        "zoom",
+        "`w:zoom`."
+    );
+    value_property!(
+        SettingsContent,
+        proof_state,
+        set_proof_state,
+        ProofState,
+        ProofSettings,
+        "proofState",
+        "`w:proofState`."
+    );
+    value_property!(
+        SettingsContent,
+        attached_template,
+        set_attached_template,
+        AttachedTemplate,
+        RelationshipReference,
+        "attachedTemplate",
+        "`w:attachedTemplate`."
+    );
+    value_property!(
+        SettingsContent,
+        style_pane_format_filter,
+        set_style_pane_format_filter,
+        StylePaneFormatFilter,
+        StylePaneFilter,
+        "stylePaneFormatFilter",
+        "`w:stylePaneFormatFilter`."
+    );
+    value_property!(
+        SettingsContent,
+        style_pane_sort_method,
+        set_style_pane_sort_method,
+        StylePaneSortMethod,
+        StyleSortSetting,
+        "stylePaneSortMethod",
+        "`w:stylePaneSortMethod`."
+    );
+    value_property!(
+        SettingsContent,
+        document_type,
+        set_document_type,
+        DocumentType,
+        DocumentTypeSetting,
+        "documentType",
+        "`w:documentType`."
+    );
+    value_property!(
+        SettingsContent,
+        mail_merge,
+        set_mail_merge,
+        MailMerge,
+        super::mail_merge::MailMergeSettings,
+        "mailMerge",
+        "`w:mailMerge` — needed for a mail-merge document to stay one."
+    );
+    value_property!(
+        SettingsContent,
+        revision_view,
+        set_revision_view,
+        RevisionView,
+        TrackChangesView,
+        "revisionView",
+        "`w:revisionView`."
+    );
     value_property!(SettingsContent, document_protection, set_document_protection, DocumentProtectionChild, DocumentProtection, "documentProtection", "`w:documentProtection` — needed by C9. The password hash is preserved exactly; see the module's own doc comment.");
-    value_property!(SettingsContent, default_tab_stop, set_default_tab_stop_element, DefaultTabStop, TwipsMeasureValue, "defaultTabStop", "`w:defaultTabStop` — needed by C4's tab resolution.");
+    value_property!(
+        SettingsContent,
+        default_tab_stop,
+        set_default_tab_stop_element,
+        DefaultTabStop,
+        TwipsMeasureValue,
+        "defaultTabStop",
+        "`w:defaultTabStop` — needed by C4's tab resolution."
+    );
 
     /// `w:defaultTabStop`'s own twips value, flattened — `None` if the element is absent, `Some`
     /// (fallibly) otherwise. The convenience form of [`DocumentSettings::default_tab_stop`] for a
@@ -702,7 +1140,9 @@ impl DocumentSettings {
         &self,
         interner: &Interner,
     ) -> Result<Option<TwipsMeasure>, AttributeError> {
-        self.default_tab_stop().map(|value| value.twips(interner)).transpose()
+        self.default_tab_stop()
+            .map(|value| value.twips(interner))
+            .transpose()
     }
 
     /// Sets `w:defaultTabStop` to `twips`, building the wrapper element for the caller — the
@@ -714,29 +1154,205 @@ impl DocumentSettings {
             twips,
         )));
     }
-    value_property!(SettingsContent, consecutive_hyphen_limit, set_consecutive_hyphen_limit, ConsecutiveHyphenLimit, DecimalNumberValue, "consecutiveHyphenLimit", "`w:consecutiveHyphenLimit`.");
-    value_property!(SettingsContent, hyphenation_zone, set_hyphenation_zone, HyphenationZone, TwipsMeasureValue, "hyphenationZone", "`w:hyphenationZone`.");
-    value_property!(SettingsContent, summary_length, set_summary_length, SummaryLength, DecimalOrPercentValue, "summaryLength", "`w:summaryLength`.");
-    value_property!(SettingsContent, click_and_type_style, set_click_and_type_style, ClickAndTypeStyle, StyleString, "clickAndTypeStyle", "`w:clickAndTypeStyle`.");
-    value_property!(SettingsContent, default_table_style, set_default_table_style, DefaultTableStyle, StyleString, "defaultTableStyle", "`w:defaultTableStyle`.");
-    value_property!(SettingsContent, book_fold_printing_sheets, set_book_fold_printing_sheets, BookFoldPrintingSheets, DecimalNumberValue, "bookFoldPrintingSheets", "`w:bookFoldPrintingSheets`.");
-    value_property!(SettingsContent, drawing_grid_horizontal_spacing, set_drawing_grid_horizontal_spacing, DrawingGridHorizontalSpacing, TwipsMeasureValue, "drawingGridHorizontalSpacing", "`w:drawingGridHorizontalSpacing`.");
-    value_property!(SettingsContent, drawing_grid_vertical_spacing, set_drawing_grid_vertical_spacing, DrawingGridVerticalSpacing, TwipsMeasureValue, "drawingGridVerticalSpacing", "`w:drawingGridVerticalSpacing`.");
-    value_property!(SettingsContent, display_horizontal_drawing_grid_every, set_display_horizontal_drawing_grid_every, DisplayHorizontalDrawingGridEvery, DecimalNumberValue, "displayHorizontalDrawingGridEvery", "`w:displayHorizontalDrawingGridEvery`.");
-    value_property!(SettingsContent, display_vertical_drawing_grid_every, set_display_vertical_drawing_grid_every, DisplayVerticalDrawingGridEvery, DecimalNumberValue, "displayVerticalDrawingGridEvery", "`w:displayVerticalDrawingGridEvery`.");
-    value_property!(SettingsContent, drawing_grid_horizontal_origin, set_drawing_grid_horizontal_origin, DrawingGridHorizontalOrigin, TwipsMeasureValue, "drawingGridHorizontalOrigin", "`w:drawingGridHorizontalOrigin`.");
-    value_property!(SettingsContent, drawing_grid_vertical_origin, set_drawing_grid_vertical_origin, DrawingGridVerticalOrigin, TwipsMeasureValue, "drawingGridVerticalOrigin", "`w:drawingGridVerticalOrigin`.");
-    value_property!(SettingsContent, character_spacing_control, set_character_spacing_control, CharacterSpacingControl, CharacterSpacingSetting, "characterSpacingControl", "`w:characterSpacingControl`.");
-    value_property!(SettingsContent, no_line_breaks_after, set_no_line_breaks_after, NoLineBreaksAfter, Kinsoku, "noLineBreaksAfter", "`w:noLineBreaksAfter`.");
-    value_property!(SettingsContent, no_line_breaks_before, set_no_line_breaks_before, NoLineBreaksBefore, Kinsoku, "noLineBreaksBefore", "`w:noLineBreaksBefore`.");
-    value_property!(SettingsContent, save_through_xslt, set_save_through_xslt, SaveThroughXslt, SaveThroughXsltSetting, "saveThroughXslt", "`w:saveThroughXslt`.");
+    value_property!(
+        SettingsContent,
+        consecutive_hyphen_limit,
+        set_consecutive_hyphen_limit,
+        ConsecutiveHyphenLimit,
+        DecimalNumberValue,
+        "consecutiveHyphenLimit",
+        "`w:consecutiveHyphenLimit`."
+    );
+    value_property!(
+        SettingsContent,
+        hyphenation_zone,
+        set_hyphenation_zone,
+        HyphenationZone,
+        TwipsMeasureValue,
+        "hyphenationZone",
+        "`w:hyphenationZone`."
+    );
+    value_property!(
+        SettingsContent,
+        summary_length,
+        set_summary_length,
+        SummaryLength,
+        DecimalOrPercentValue,
+        "summaryLength",
+        "`w:summaryLength`."
+    );
+    value_property!(
+        SettingsContent,
+        click_and_type_style,
+        set_click_and_type_style,
+        ClickAndTypeStyle,
+        StyleString,
+        "clickAndTypeStyle",
+        "`w:clickAndTypeStyle`."
+    );
+    value_property!(
+        SettingsContent,
+        default_table_style,
+        set_default_table_style,
+        DefaultTableStyle,
+        StyleString,
+        "defaultTableStyle",
+        "`w:defaultTableStyle`."
+    );
+    value_property!(
+        SettingsContent,
+        book_fold_printing_sheets,
+        set_book_fold_printing_sheets,
+        BookFoldPrintingSheets,
+        DecimalNumberValue,
+        "bookFoldPrintingSheets",
+        "`w:bookFoldPrintingSheets`."
+    );
+    value_property!(
+        SettingsContent,
+        drawing_grid_horizontal_spacing,
+        set_drawing_grid_horizontal_spacing,
+        DrawingGridHorizontalSpacing,
+        TwipsMeasureValue,
+        "drawingGridHorizontalSpacing",
+        "`w:drawingGridHorizontalSpacing`."
+    );
+    value_property!(
+        SettingsContent,
+        drawing_grid_vertical_spacing,
+        set_drawing_grid_vertical_spacing,
+        DrawingGridVerticalSpacing,
+        TwipsMeasureValue,
+        "drawingGridVerticalSpacing",
+        "`w:drawingGridVerticalSpacing`."
+    );
+    value_property!(
+        SettingsContent,
+        display_horizontal_drawing_grid_every,
+        set_display_horizontal_drawing_grid_every,
+        DisplayHorizontalDrawingGridEvery,
+        DecimalNumberValue,
+        "displayHorizontalDrawingGridEvery",
+        "`w:displayHorizontalDrawingGridEvery`."
+    );
+    value_property!(
+        SettingsContent,
+        display_vertical_drawing_grid_every,
+        set_display_vertical_drawing_grid_every,
+        DisplayVerticalDrawingGridEvery,
+        DecimalNumberValue,
+        "displayVerticalDrawingGridEvery",
+        "`w:displayVerticalDrawingGridEvery`."
+    );
+    value_property!(
+        SettingsContent,
+        drawing_grid_horizontal_origin,
+        set_drawing_grid_horizontal_origin,
+        DrawingGridHorizontalOrigin,
+        TwipsMeasureValue,
+        "drawingGridHorizontalOrigin",
+        "`w:drawingGridHorizontalOrigin`."
+    );
+    value_property!(
+        SettingsContent,
+        drawing_grid_vertical_origin,
+        set_drawing_grid_vertical_origin,
+        DrawingGridVerticalOrigin,
+        TwipsMeasureValue,
+        "drawingGridVerticalOrigin",
+        "`w:drawingGridVerticalOrigin`."
+    );
+    value_property!(
+        SettingsContent,
+        character_spacing_control,
+        set_character_spacing_control,
+        CharacterSpacingControl,
+        CharacterSpacingSetting,
+        "characterSpacingControl",
+        "`w:characterSpacingControl`."
+    );
+    value_property!(
+        SettingsContent,
+        no_line_breaks_after,
+        set_no_line_breaks_after,
+        NoLineBreaksAfter,
+        Kinsoku,
+        "noLineBreaksAfter",
+        "`w:noLineBreaksAfter`."
+    );
+    value_property!(
+        SettingsContent,
+        no_line_breaks_before,
+        set_no_line_breaks_before,
+        NoLineBreaksBefore,
+        Kinsoku,
+        "noLineBreaksBefore",
+        "`w:noLineBreaksBefore`."
+    );
+    value_property!(
+        SettingsContent,
+        save_through_xslt,
+        set_save_through_xslt,
+        SaveThroughXslt,
+        SaveThroughXsltSetting,
+        "saveThroughXslt",
+        "`w:saveThroughXslt`."
+    );
     value_property!(SettingsContent, header_shape_defaults, set_header_shape_defaults, HeaderShapeDefaults, Unmodeled, "hdrShapeDefaults", "`w:hdrShapeDefaults` — VML office-drawing defaults, structurally opaque (see the module's own doc comment).");
-    value_property!(SettingsContent, footnote_properties, set_footnote_properties, FootnoteProperties, FootnoteDocumentDefaults, "footnotePr", "`w:footnotePr` — needed by C14.");
-    value_property!(SettingsContent, endnote_properties, set_endnote_properties, EndnoteProperties, EndnoteDocumentDefaults, "endnotePr", "`w:endnotePr` — needed by C14.");
-    value_property!(SettingsContent, compat, set_compat, Compat, Compatibility, "compat", "`w:compat`.");
-    value_property!(SettingsContent, doc_vars, set_doc_vars, DocVars, DocumentVariables, "docVars", "`w:docVars`.");
-    value_property!(SettingsContent, rsids, set_rsids, Rsids, DocumentRevisionSaveIds, "rsids", "`w:rsids` — C15's `w:rsid`-family data.");
-    value_property!(SettingsContent, math_properties, set_math_properties, MathProperties, mjx_omml::MathProperties, "mathPr", "`m:mathPr` — `mjx-omml`'s own type.");
+    value_property!(
+        SettingsContent,
+        footnote_properties,
+        set_footnote_properties,
+        FootnoteProperties,
+        FootnoteDocumentDefaults,
+        "footnotePr",
+        "`w:footnotePr` — needed by C14."
+    );
+    value_property!(
+        SettingsContent,
+        endnote_properties,
+        set_endnote_properties,
+        EndnoteProperties,
+        EndnoteDocumentDefaults,
+        "endnotePr",
+        "`w:endnotePr` — needed by C14."
+    );
+    value_property!(
+        SettingsContent,
+        compat,
+        set_compat,
+        Compat,
+        Compatibility,
+        "compat",
+        "`w:compat`."
+    );
+    value_property!(
+        SettingsContent,
+        doc_vars,
+        set_doc_vars,
+        DocVars,
+        DocumentVariables,
+        "docVars",
+        "`w:docVars`."
+    );
+    value_property!(
+        SettingsContent,
+        rsids,
+        set_rsids,
+        Rsids,
+        DocumentRevisionSaveIds,
+        "rsids",
+        "`w:rsids` — C15's `w:rsid`-family data."
+    );
+    value_property!(
+        SettingsContent,
+        math_properties,
+        set_math_properties,
+        MathProperties,
+        mjx_omml::MathProperties,
+        "mathPr",
+        "`m:mathPr` — `mjx-omml`'s own type."
+    );
     /// `w:themeFontLang` — the document's own theme-font language triple.
     #[must_use]
     pub fn theme_font_languages(&self) -> Option<&Languages> {
@@ -760,12 +1376,60 @@ impl DocumentSettings {
             value.map(SettingsContent::ThemeFontLang),
         );
     }
-    value_property!(SettingsContent, color_scheme_mapping, set_color_scheme_mapping, ColorSchemeMappingChild, ColorSchemeMapping, "clrSchemeMapping", "`w:clrSchemeMapping`.");
-    value_property!(SettingsContent, captions, set_captions, Captions, CaptionsSetting, "captions", "`w:captions`.");
-    value_property!(SettingsContent, read_mode_ink_lock_down, set_read_mode_ink_lock_down, ReadModeInkLockDown, ReadingModeInkLockDown, "readModeInkLockDown", "`w:readModeInkLockDown`.");
-    value_property!(SettingsContent, shape_defaults, set_shape_defaults, ShapeDefaults, Unmodeled, "shapeDefaults", "`w:shapeDefaults` — see the module's own doc comment.");
-    value_property!(SettingsContent, decimal_symbol, set_decimal_symbol, DecimalSymbol, StyleString, "decimalSymbol", "`w:decimalSymbol`.");
-    value_property!(SettingsContent, list_separator, set_list_separator, ListSeparator, StyleString, "listSeparator", "`w:listSeparator`.");
+    value_property!(
+        SettingsContent,
+        color_scheme_mapping,
+        set_color_scheme_mapping,
+        ColorSchemeMappingChild,
+        ColorSchemeMapping,
+        "clrSchemeMapping",
+        "`w:clrSchemeMapping`."
+    );
+    value_property!(
+        SettingsContent,
+        captions,
+        set_captions,
+        Captions,
+        CaptionsSetting,
+        "captions",
+        "`w:captions`."
+    );
+    value_property!(
+        SettingsContent,
+        read_mode_ink_lock_down,
+        set_read_mode_ink_lock_down,
+        ReadModeInkLockDown,
+        ReadingModeInkLockDown,
+        "readModeInkLockDown",
+        "`w:readModeInkLockDown`."
+    );
+    value_property!(
+        SettingsContent,
+        shape_defaults,
+        set_shape_defaults,
+        ShapeDefaults,
+        Unmodeled,
+        "shapeDefaults",
+        "`w:shapeDefaults` — see the module's own doc comment."
+    );
+    value_property!(
+        SettingsContent,
+        decimal_symbol,
+        set_decimal_symbol,
+        DecimalSymbol,
+        StyleString,
+        "decimalSymbol",
+        "`w:decimalSymbol`."
+    );
+    value_property!(
+        SettingsContent,
+        list_separator,
+        set_list_separator,
+        ListSeparator,
+        StyleString,
+        "listSeparator",
+        "`w:listSeparator`."
+    );
 
     /// Every `w:activeWritingStyle`, in document order.
     pub fn active_writing_styles(&self) -> impl Iterator<Item = &WritingStyleSetting> {
@@ -777,7 +1441,10 @@ impl DocumentSettings {
 
     /// Appends a new `w:activeWritingStyle` at its schema rank.
     pub fn add_active_writing_style(&mut self, value: WritingStyleSetting) {
-        self.insert("activeWritingStyle", SettingsContent::ActiveWritingStyle(value));
+        self.insert(
+            "activeWritingStyle",
+            SettingsContent::ActiveWritingStyle(value),
+        );
     }
 
     /// Every `w:attachedSchema`, in document order.
@@ -1801,9 +2468,7 @@ impl DocumentVariables {
     pub fn remove_variable(&mut self, interner: &Interner, name: &str) -> bool {
         let before = self.content.len();
         self.content.retain(|item| match item {
-            DocumentVariablesContent::Var(var) => {
-                var.name(interner).ok().as_deref() != Some(name)
-            }
+            DocumentVariablesContent::Var(var) => var.name(interner).ok().as_deref() != Some(name),
             DocumentVariablesContent::Raw(_) => true,
         });
         self.content.len() != before
@@ -1964,7 +2629,8 @@ impl Compatibility {
             CompatibilityContent::Raw(_) => None,
         };
         let at = COMPAT.insert_index_of_names(self.content.iter().map(rank), "compatSetting");
-        self.content.insert(at, CompatibilityContent::Setting(value));
+        self.content
+            .insert(at, CompatibilityContent::Setting(value));
         self.empty = false;
     }
 }

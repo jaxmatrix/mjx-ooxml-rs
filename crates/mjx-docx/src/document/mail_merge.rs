@@ -628,22 +628,146 @@ impl MailMergeSettings {
         }
     }
 
-    super::property_macros::value_property!(MailMergeContent, main_document_type, set_main_document_type, MainDocumentType, MailMergeDocumentTypeValue, "mainDocumentType", "`w:mainDocumentType`.");
-    super::property_macros::toggle_property!(MailMergeContent, link_to_query, set_link_to_query, LinkToQuery, "linkToQuery", "`w:linkToQuery`.");
-    super::property_macros::value_property!(MailMergeContent, data_type, set_data_type, DataType, MailMergeDataTypeValue, "dataType", "`w:dataType`.");
-    super::property_macros::value_property!(MailMergeContent, connect_string, set_connect_string, ConnectString, StyleString, "connectString", "`w:connectString`.");
-    super::property_macros::value_property!(MailMergeContent, query, set_query, Query, StyleString, "query", "`w:query`.");
-    super::property_macros::value_property!(MailMergeContent, data_source, set_data_source, DataSource, RelationshipReference, "dataSource", "`w:dataSource`.");
-    super::property_macros::value_property!(MailMergeContent, header_source, set_header_source, HeaderSource, RelationshipReference, "headerSource", "`w:headerSource`.");
-    super::property_macros::toggle_property!(MailMergeContent, do_not_suppress_blank_lines, set_do_not_suppress_blank_lines, DoNotSuppressBlankLines, "doNotSuppressBlankLines", "`w:doNotSuppressBlankLines`.");
-    super::property_macros::value_property!(MailMergeContent, destination, set_destination, Destination, MailMergeDestinationValue, "destination", "`w:destination`.");
-    super::property_macros::value_property!(MailMergeContent, address_field_name, set_address_field_name, AddressFieldName, StyleString, "addressFieldName", "`w:addressFieldName`.");
-    super::property_macros::value_property!(MailMergeContent, mail_subject, set_mail_subject, MailSubject, StyleString, "mailSubject", "`w:mailSubject`.");
-    super::property_macros::toggle_property!(MailMergeContent, mail_as_attachment, set_mail_as_attachment, MailAsAttachment, "mailAsAttachment", "`w:mailAsAttachment`.");
-    super::property_macros::toggle_property!(MailMergeContent, view_merged_data, set_view_merged_data, ViewMergedData, "viewMergedData", "`w:viewMergedData`.");
-    super::property_macros::value_property!(MailMergeContent, active_record, set_active_record, ActiveRecord, DecimalNumberValue, "activeRecord", "`w:activeRecord`.");
-    super::property_macros::value_property!(MailMergeContent, check_errors, set_check_errors, CheckErrors, DecimalNumberValue, "checkErrors", "`w:checkErrors`.");
-    super::property_macros::value_property!(MailMergeContent, data_description, set_data_description, DataDescription, Odso, "odso", "`w:odso` — the ODSO (Office Data Source Object) connection description.");
+    super::property_macros::value_property!(
+        MailMergeContent,
+        main_document_type,
+        set_main_document_type,
+        MainDocumentType,
+        MailMergeDocumentTypeValue,
+        "mainDocumentType",
+        "`w:mainDocumentType`."
+    );
+    super::property_macros::toggle_property!(
+        MailMergeContent,
+        link_to_query,
+        set_link_to_query,
+        LinkToQuery,
+        "linkToQuery",
+        "`w:linkToQuery`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        data_type,
+        set_data_type,
+        DataType,
+        MailMergeDataTypeValue,
+        "dataType",
+        "`w:dataType`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        connect_string,
+        set_connect_string,
+        ConnectString,
+        StyleString,
+        "connectString",
+        "`w:connectString`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        query,
+        set_query,
+        Query,
+        StyleString,
+        "query",
+        "`w:query`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        data_source,
+        set_data_source,
+        DataSource,
+        RelationshipReference,
+        "dataSource",
+        "`w:dataSource`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        header_source,
+        set_header_source,
+        HeaderSource,
+        RelationshipReference,
+        "headerSource",
+        "`w:headerSource`."
+    );
+    super::property_macros::toggle_property!(
+        MailMergeContent,
+        do_not_suppress_blank_lines,
+        set_do_not_suppress_blank_lines,
+        DoNotSuppressBlankLines,
+        "doNotSuppressBlankLines",
+        "`w:doNotSuppressBlankLines`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        destination,
+        set_destination,
+        Destination,
+        MailMergeDestinationValue,
+        "destination",
+        "`w:destination`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        address_field_name,
+        set_address_field_name,
+        AddressFieldName,
+        StyleString,
+        "addressFieldName",
+        "`w:addressFieldName`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        mail_subject,
+        set_mail_subject,
+        MailSubject,
+        StyleString,
+        "mailSubject",
+        "`w:mailSubject`."
+    );
+    super::property_macros::toggle_property!(
+        MailMergeContent,
+        mail_as_attachment,
+        set_mail_as_attachment,
+        MailAsAttachment,
+        "mailAsAttachment",
+        "`w:mailAsAttachment`."
+    );
+    super::property_macros::toggle_property!(
+        MailMergeContent,
+        view_merged_data,
+        set_view_merged_data,
+        ViewMergedData,
+        "viewMergedData",
+        "`w:viewMergedData`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        active_record,
+        set_active_record,
+        ActiveRecord,
+        DecimalNumberValue,
+        "activeRecord",
+        "`w:activeRecord`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        check_errors,
+        set_check_errors,
+        CheckErrors,
+        DecimalNumberValue,
+        "checkErrors",
+        "`w:checkErrors`."
+    );
+    super::property_macros::value_property!(
+        MailMergeContent,
+        data_description,
+        set_data_description,
+        DataDescription,
+        Odso,
+        "odso",
+        "`w:odso` — the ODSO (Office Data Source Object) connection description."
+    );
 }
 
 // =================================================================================================
@@ -748,7 +872,10 @@ impl RecipientData {
 
     /// Whether this row is included in the merge (`w:active`'s own tri-state; `None` when the
     /// element is absent — per §17.14.1's own prose, absence means *included*).
-    pub fn active(&self, interner: &Interner) -> Result<Option<bool>, mjx_ooxml_core::AttributeError> {
+    pub fn active(
+        &self,
+        interner: &Interner,
+    ) -> Result<Option<bool>, mjx_ooxml_core::AttributeError> {
         self.content
             .iter()
             .find_map(|item| match item {

@@ -196,6 +196,17 @@ pub use sections::{
     PageVerticalAlignment, PaperSource, SectionLocation, SectionProperties, SectionPropertyContent,
     SectionSpan, SectionType, TopPageBorder,
 };
+pub use settings::{
+    AutoCaptionEntry, AutoCaptionsContent, AutoCaptionsSetting, CaptionLabel, CaptionsContent,
+    CaptionsSetting, CharacterSpacingSetting, ColorSchemeMapping, Compatibility,
+    CompatibilityContent, CompatibilitySetting, DecimalOrPercentValue, DocumentProtection,
+    DocumentRevisionSaveIds, DocumentRevisionSaveIdsContent, DocumentSettings, DocumentTypeSetting,
+    DocumentVariable, DocumentVariables, DocumentVariablesContent, EndnoteDocumentDefaults,
+    EndnoteDocumentDefaultsContent, FootnoteDocumentDefaults, FootnoteDocumentDefaultsContent,
+    Kinsoku, ProofSettings, ReadingModeInkLockDown, SaveThroughXsltSetting, SeparatorReference,
+    SettingsContent, SmartTagTypeEntry, StylePaneFilter, StyleSortSetting, TrackChangesView,
+    TwipsMeasureValue, ViewSetting, WriteProtectionSetting, WritingStyleSetting, ZoomSetting,
+};
 pub use styles::{
     DefaultParagraphProperties, DefaultParagraphPropertyContent, DefaultRunProperties,
     DefaultRunPropertyContent, DocumentDefaults, DocumentDefaultsContent, LatentStyleContent,
@@ -203,18 +214,6 @@ pub use styles::{
     StyleDefinition, StyleDefinitionContent, StyleIndex, StyleParagraphProperties,
     StyleParagraphPropertyContent, StyleSheet, StyleSheetContent, StyleString, TableStyleOverride,
     TableStyleOverrideContent, MAX_BASED_ON_CHAIN_DEPTH,
-};
-pub use settings::{
-    AutoCaptionEntry, AutoCaptionsContent, AutoCaptionsSetting, CaptionLabel, CaptionsContent,
-    CaptionsSetting, CharacterSpacingSetting, ColorSchemeMapping,
-    Compatibility, CompatibilityContent, CompatibilitySetting, DecimalOrPercentValue,
-    DocumentProtection, DocumentRevisionSaveIds, DocumentRevisionSaveIdsContent, DocumentSettings,
-    DocumentTypeSetting, DocumentVariable, DocumentVariables, DocumentVariablesContent,
-    EndnoteDocumentDefaults, EndnoteDocumentDefaultsContent, FootnoteDocumentDefaults,
-    FootnoteDocumentDefaultsContent, Kinsoku, ProofSettings, ReadingModeInkLockDown,
-    SaveThroughXsltSetting, SeparatorReference, SettingsContent, SmartTagTypeEntry,
-    StylePaneFilter, StyleSortSetting, TrackChangesView, TwipsMeasureValue, ViewSetting,
-    WriteProtectionSetting, WritingStyleSetting, ZoomSetting,
 };
 pub use table_properties::{
     CellBorderContent, CellBorders, CellHeaderReferences, CellMargins, CellTextDirection,
@@ -760,12 +759,11 @@ impl Document {
     /// Creates an empty `word/webSettings.xml`, registers its content type, and relates it from the
     /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
     fn create_web_settings_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
-        let web_settings_part =
-            self.document_part
-                .resolve("webSettings.xml")
-                .map_err(|_| DocxError::TargetResolution {
-                    target: "webSettings.xml".to_owned(),
-                })?;
+        let web_settings_part = self.document_part.resolve("webSettings.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "webSettings.xml".to_owned(),
+            }
+        })?;
         const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         let bytes = format!(
             concat!(
@@ -847,12 +845,11 @@ impl Document {
     /// Creates an empty `word/fontTable.xml`, registers its content type, and relates it from the
     /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
     fn create_font_table_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
-        let font_table_part =
-            self.document_part
-                .resolve("fontTable.xml")
-                .map_err(|_| DocxError::TargetResolution {
-                    target: "fontTable.xml".to_owned(),
-                })?;
+        let font_table_part = self.document_part.resolve("fontTable.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "fontTable.xml".to_owned(),
+            }
+        })?;
         const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         const REL_NAMESPACE: &str =
             "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
@@ -937,12 +934,11 @@ impl Document {
     /// Creates an empty `word/recipients.xml`, registers its content type, and relates it from the
     /// main document part — mirrors [`Document::create_style_sheet_part`] exactly.
     fn create_recipients_part(&mut self) -> Result<mjx_opc::PartName, DocxError> {
-        let recipients_part =
-            self.document_part
-                .resolve("recipients.xml")
-                .map_err(|_| DocxError::TargetResolution {
-                    target: "recipients.xml".to_owned(),
-                })?;
+        let recipients_part = self.document_part.resolve("recipients.xml").map_err(|_| {
+            DocxError::TargetResolution {
+                target: "recipients.xml".to_owned(),
+            }
+        })?;
         const WML_NAMESPACE: &str = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
         let bytes = format!(
             concat!(
