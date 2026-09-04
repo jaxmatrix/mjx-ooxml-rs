@@ -37,6 +37,7 @@ use mjx_opc::{Package, TargetMode};
 use crate::error::DocxError;
 
 mod body;
+mod effective;
 mod numbering;
 mod paragraph_properties;
 mod parts;
@@ -51,6 +52,13 @@ pub use body::{
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
     RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
     WhitespacePreservation,
+};
+pub use effective::{
+    EffectiveBorder, EffectiveCharacterProperties, EffectiveColor, EffectiveConditionalFormatting,
+    EffectiveEastAsianLayout, EffectiveFonts, EffectiveFrameProperties, EffectiveIndentation,
+    EffectiveLanguages, EffectiveManualRunWidth, EffectiveNumberingReference,
+    EffectiveParagraphBorders, EffectiveParagraphProperties, EffectiveShading, EffectiveTabStop,
+    EffectiveUnderline,
 };
 pub use numbering::{
     AbstractNumbering, AbstractNumberingContent, HexIdentifier, LevelLegacyFormatting,
