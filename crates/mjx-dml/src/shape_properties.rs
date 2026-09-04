@@ -51,13 +51,25 @@ pub struct ShapeProperties {
 }
 
 impl ShapeProperties {
-    /// Builds a self-closing `<a:spPr/>` (or `<{local}/>`, for a host schema that spells this
-    /// element with a different prefix at the same DrawingML type — `mjx-docx`'s `wsp`/`pic` both use
-    /// the literal `a:spPr` name, so callers normally pass `"spPr"`).
+    /// Builds a self-closing `<a:spPr/>`. **Most host schemas do not want this**: `CT_ShapeProperties`
+    /// is DrawingML-main's own type, but `spPr` is a *local* element declaration inside each host's
+    /// own complex type (`pic:pic`'s `CT_Picture`, `wp:wsp`'s `CT_WordprocessingShape`,
+    /// PresentationML's own `CT_Shape`), so the wrapper element takes that host's own namespace —
+    /// `pic:spPr`, `wp:spPr`, `p:spPr` — never literally `a:spPr` except inside `dml-main.xsd`'s own
+    /// types. Use [`Self::with_name`] with the host's own qualified name instead.
     #[must_use]
     pub fn new(interner: &mut Interner, local: &str) -> Self {
+        let name = dml_name(interner, local);
+        Self::with_name(interner, name)
+    }
+
+    /// [`Self::new`], with the wrapper element's fully qualified name given explicitly — the
+    /// constructor every cross-schema host of this type actually wants; see [`Self::new`]'s own doc
+    /// comment for why.
+    #[must_use]
+    pub fn with_name(_interner: &mut Interner, name: RawName) -> Self {
         Self {
-            name: dml_name(interner, local),
+            name,
             attributes: Vec::new(),
             children: Vec::new(),
             empty: true,

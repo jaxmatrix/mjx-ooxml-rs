@@ -47,6 +47,20 @@ fn is_wp(name: &RawName, interner: &Interner) -> bool {
         || namespace == DML_WORDPROCESSING_DRAWING.strict
 }
 
+/// An `xmlns:prefix="uri"` declaration to hang on a newly built subtree whose root introduces a
+/// prefix the surrounding part does not already bind — see [`Drawing::new`]'s own doc comment.
+fn namespace_declaration(interner: &mut Interner, prefix: &str, uri: &str) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: Some(interner.intern("xmlns")),
+            local: interner.intern(prefix),
+            namespace: None,
+        },
+        value: uri.as_bytes().into(),
+        quote: mjx_ooxml_core::QuoteStyle::Double,
+    }
+}
+
 /// The first `wp:`-namespaced element in `children` named `local`.
 fn wp_child<'a>(
     children: &'a [RawNode],
@@ -102,9 +116,29 @@ impl Drawing {
     /// leniency for a file this crate did not write).
     #[must_use]
     pub fn new(interner: &mut Interner, placement: DrawingContent) -> Self {
+        // A blank `word/document.xml` binds only `w`/`r` (`blank.rs`'s own template): this splice
+        // introduces `wp:`/`a:`/`pic:`, none of which the surrounding part necessarily declares, so —
+        // exactly as `mjx-pptx::build::namespace_declaration`'s own doc comment states for a spliced
+        // `c:chart` — the newly inserted subtree's own root carries the declarations itself. Declaring
+        // `pic:` even when this placement holds no picture is harmless (an unused `xmlns:` binding is
+        // ordinary, valid XML) and keeps this one call site correct regardless of what the placement's
+        // own `a:graphicData` turns out to hold.
+        let attributes = vec![
+            namespace_declaration(interner, "wp", DML_WORDPROCESSING_DRAWING.transitional),
+            namespace_declaration(
+                interner,
+                "a",
+                mjx_ooxml_types::namespaces::DML_MAIN.transitional,
+            ),
+            namespace_declaration(
+                interner,
+                "pic",
+                mjx_ooxml_types::namespaces::DML_PICTURE.transitional,
+            ),
+        ];
         Self {
             name: wml_name(interner, "drawing"),
-            attributes: Vec::new(),
+            attributes,
             empty: false,
             content: vec![placement],
         }
@@ -386,8 +420,8 @@ pub enum EmbeddedObjectContent {
     Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
 )]
 #[xml(namespace = WML)]
-#[xml(attribute(local = "dxaOrig", codec = Twips, accessor = original_width_twips))]
-#[xml(attribute(local = "dyaOrig", codec = Twips, accessor = original_height_twips))]
+#[xml(attribute(local = "dxaOrig", prefix = "w", codec = Twips, accessor = original_width_twips))]
+#[xml(attribute(local = "dyaOrig", prefix = "w", codec = Twips, accessor = original_height_twips))]
 pub struct EmbeddedObject {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -461,11 +495,11 @@ impl EmbeddedObject {
 /// type only ever names the part, it does not touch its bytes), the program id, its shape id in the
 /// accompanying VML preview, and any field codes it carries.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "drawAspect", codec = Enumeration<ObjectDrawAspect>, accessor = draw_aspect))]
+#[xml(attribute(local = "drawAspect", prefix = "w", codec = Enumeration<ObjectDrawAspect>, accessor = draw_aspect))]
 #[xml(attribute(local = "id", prefix = "r", codec = Text, accessor = relationship_id, required))]
-#[xml(attribute(local = "progId", codec = Text, accessor = raw_program_id))]
-#[xml(attribute(local = "shapeId", codec = Text, accessor = raw_shape_id))]
-#[xml(attribute(local = "fieldCodes", codec = Text, accessor = raw_field_codes))]
+#[xml(attribute(local = "progId", prefix = "w", codec = Text, accessor = raw_program_id))]
+#[xml(attribute(local = "shapeId", prefix = "w", codec = Text, accessor = raw_shape_id))]
+#[xml(attribute(local = "fieldCodes", prefix = "w", codec = Text, accessor = raw_field_codes))]
 pub struct ObjectEmbed {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -527,13 +561,13 @@ fn wml_name_local(interner: &mut Interner, local: &str) -> RawName {
 /// `w:objectLink` (`CT_ObjectLink`) — a **linked** (as opposed to embedded) OLE object:
 /// [`ObjectEmbed`]'s own attributes plus `@updateMode` (required) and `@lockedField`.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "drawAspect", codec = Enumeration<ObjectDrawAspect>, accessor = draw_aspect))]
+#[xml(attribute(local = "drawAspect", prefix = "w", codec = Enumeration<ObjectDrawAspect>, accessor = draw_aspect))]
 #[xml(attribute(local = "id", prefix = "r", codec = Text, accessor = relationship_id, required))]
-#[xml(attribute(local = "progId", codec = Text, accessor = raw_program_id))]
-#[xml(attribute(local = "shapeId", codec = Text, accessor = raw_shape_id))]
-#[xml(attribute(local = "fieldCodes", codec = Text, accessor = raw_field_codes))]
-#[xml(attribute(local = "updateMode", codec = Enumeration<ObjectUpdateMode>, accessor = update_mode, required))]
-#[xml(attribute(local = "lockedField", codec = OnOff, accessor = locked_field))]
+#[xml(attribute(local = "progId", prefix = "w", codec = Text, accessor = raw_program_id))]
+#[xml(attribute(local = "shapeId", prefix = "w", codec = Text, accessor = raw_shape_id))]
+#[xml(attribute(local = "fieldCodes", prefix = "w", codec = Text, accessor = raw_field_codes))]
+#[xml(attribute(local = "updateMode", prefix = "w", codec = Enumeration<ObjectUpdateMode>, accessor = update_mode, required))]
+#[xml(attribute(local = "lockedField", prefix = "w", codec = OnOff, accessor = locked_field))]
 pub struct ObjectLink {
     name: RawName,
     attributes: Vec<RawAttribute>,
@@ -601,8 +635,8 @@ impl ToXml for ObjectLink {
 /// id it is bound to, and an optional relationship id resolving to the control's own persisted-state
 /// part (preserved verbatim, never re-encoded — this type only ever names the part).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
-#[xml(attribute(local = "name", codec = Text, accessor = raw_name))]
-#[xml(attribute(local = "shapeid", codec = Text, accessor = raw_shape_id))]
+#[xml(attribute(local = "name", prefix = "w", codec = Text, accessor = raw_name))]
+#[xml(attribute(local = "shapeid", prefix = "w", codec = Text, accessor = raw_shape_id))]
 #[xml(attribute(local = "id", prefix = "r", codec = Text, accessor = relationship_id))]
 pub struct Control {
     name: RawName,

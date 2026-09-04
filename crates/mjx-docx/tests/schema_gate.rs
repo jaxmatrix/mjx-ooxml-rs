@@ -444,3 +444,174 @@ fn an_out_of_range_page_size_is_a_typed_error_not_a_written_file() {
         Err(DocxError::InvalidPageSize { .. })
     ));
 }
+
+// -------------------------------------------------------------------------------------------------
+// MJXOFF-131 (C16) — w:drawing/wp:inline/pic:pic. The schema arm this child owes: "covers the
+// namespace and is green" is satisfied today with the arm absent (an unmapped namespace reports
+// `SkippedForeignNamespace`), so the case below proves it live with a mutation the schema rejects.
+// -------------------------------------------------------------------------------------------------
+
+/// A blank A4 document with one inline picture added via [`Document::add_inline_picture`].
+fn document_with_an_inline_picture() -> Document {
+    let mut document = Document::blank(PageSize::a4()).expect("blank");
+    document
+        .add_inline_picture(
+            0,
+            vec![0x89, b'P', b'N', b'G'],
+            "image/png",
+            "png",
+            914_400,
+            914_400,
+            "Picture 1",
+        )
+        .expect("add_inline_picture");
+    document
+}
+
+#[test]
+fn a_document_with_an_inline_picture_is_schema_valid_and_the_drawing_part_is_audited() {
+    let document = document_with_an_inline_picture();
+    let saved = document.save().expect("save");
+    assert_authored_deck_is_schema_valid("document with an inline picture", &saved);
+
+    // The child-order audit must actually descend into the drawing this child added — proves
+    // `dml-wordprocessingDrawing` joining `CHILD_ORDER_SCHEMAS` reaches word/document.xml's own
+    // walk, not merely that the schema compiles.
+    let audited = audit_deck_order("document with an inline picture order coverage", &saved);
+    let part = audited
+        .iter()
+        .find(|part| part.name == "/word/document.xml")
+        .expect("word/document.xml is audited");
+    assert!(
+        part.elements_visited >= 12,
+        "word/document.xml: the walk checked only {} elements — it is not descending into the \
+         drawing (w:drawing, wp:inline, wp:extent, wp:docPr, a:graphic, a:graphicData, pic:pic, \
+         pic:nvPicPr, pic:cNvPr, pic:cNvPicPr, pic:blipFill, a:blip, pic:spPr, a:xfrm, a:off, \
+         a:ext, a:prstGeom — seventeen elements past the paragraph/run/body itself)",
+        part.elements_visited
+    );
+}
+
+/// `document_with_an_inline_picture`'s `word/document.xml`, with `wp:extent`'s required `cx`
+/// stripped out — syntactically valid XML, invalid per `CT_Inline`'s own `a:CT_PositiveSize2D`
+/// (`cx`/`cy` both `use="required"`).
+fn document_with_an_inline_picture_missing_extent_cx() -> Vec<u8> {
+    let document = document_with_an_inline_picture();
+    let saved = document.save().expect("save");
+    let mut package = Package::open(&saved).expect("reopen the saved bytes");
+    let part = PartName::new("/word/document.xml").expect("a valid part name");
+    let bytes = package
+        .part_bytes(&part)
+        .expect("the document always carries word/document.xml");
+    let xml = std::str::from_utf8(bytes).expect("authored markup is UTF-8");
+    let needle = r#"<wp:extent cx="914400" cy="914400"/>"#;
+    assert!(
+        xml.contains(needle),
+        "word/document.xml does not carry {needle:?} to strip — the inline picture's own markup \
+         changed:\n{xml}"
+    );
+    let corrupted = xml
+        .replacen(needle, r#"<wp:extent cy="914400"/>"#, 1)
+        .into_bytes();
+    package
+        .replace_part_bytes(&part, corrupted)
+        .expect("replace word/document.xml");
+    package
+        .save_unchecked()
+        .expect("save the corrupted document")
+}
+
+#[test]
+fn an_inline_pictures_missing_extent_cx_turns_the_schema_gate_red_naming_the_part() {
+    // The proof the wp: schema arm is live, in this child's own terms: a `wp:extent` outside
+    // `CT_PositiveSize2D`'s requirements (here, missing `cx` entirely) must fail — and the failure
+    // must name `/word/document.xml`, the part `wml.xsd` validates, since `wp:` never roots a part
+    // of its own (`wml.xsd:11` already imports `dml-wordprocessingDrawing.xsd`, so `wp:` content
+    // nested inside a `wml`-rooted part is validated as part of that part's own pass — there is no
+    // separate `schema_for_namespace` arm to add for a namespace that never roots anything).
+    let Some(harness) = harness() else { return };
+    let corrupted = document_with_an_inline_picture_missing_extent_cx();
+    let rows = inspect_deck(
+        &harness,
+        "inline picture with wp:extent missing cx",
+        &corrupted,
+        &[],
+    );
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/word/document.xml")
+        .expect("word/document.xml is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a wp:extent missing @cx must fail against wml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "wml.xsd");
+    assert!(
+        report.contains("/word/document.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("extent"),
+        "the failure must name the element that broke it:\n{report}"
+    );
+    println!("the wp: schema arm, proved live:\n{report}");
+}
+
+/// `document_with_an_inline_picture`'s `word/document.xml`, with `wp:extent`'s `cx` set to a value
+/// outside `a:ST_PositiveCoordinate` (negative — the type is a restricted `xsd:long`, `0..=
+/// 27273042316900`).
+fn document_with_an_inline_picture_negative_extent_cx() -> Vec<u8> {
+    let document = document_with_an_inline_picture();
+    let saved = document.save().expect("save");
+    let mut package = Package::open(&saved).expect("reopen the saved bytes");
+    let part = PartName::new("/word/document.xml").expect("a valid part name");
+    let bytes = package
+        .part_bytes(&part)
+        .expect("the document always carries word/document.xml");
+    let xml = std::str::from_utf8(bytes).expect("authored markup is UTF-8");
+    let needle = r#"cx="914400""#;
+    assert!(
+        xml.contains(needle),
+        "word/document.xml does not carry {needle:?} to corrupt:\n{xml}"
+    );
+    let corrupted = xml.replacen(needle, r#"cx="-1""#, 1).into_bytes();
+    package
+        .replace_part_bytes(&part, corrupted)
+        .expect("replace word/document.xml");
+    package
+        .save_unchecked()
+        .expect("save the corrupted document")
+}
+
+#[test]
+fn an_inline_pictures_negative_extent_cx_turns_the_schema_gate_red_naming_the_part() {
+    // The same proof, the ticket's other named example: a `cx` outside `ST_PositiveCoordinate`
+    // rather than a missing one.
+    let Some(harness) = harness() else { return };
+    let corrupted = document_with_an_inline_picture_negative_extent_cx();
+    let rows = inspect_deck(
+        &harness,
+        "inline picture with negative wp:extent cx",
+        &corrupted,
+        &[],
+    );
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/word/document.xml")
+        .expect("word/document.xml is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a negative wp:extent@cx must fail against wml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "wml.xsd");
+    assert!(
+        report.contains("/word/document.xml"),
+        "the failure must name the part:\n{report}"
+    );
+}

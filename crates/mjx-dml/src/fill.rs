@@ -299,6 +299,22 @@ impl PictureFill {
     /// part) must be added to the package separately.
     #[must_use]
     pub fn new(interner: &mut Interner, rel_id: &str, mode: PictureFillMode) -> Self {
+        let name = dml_name(interner, "blipFill");
+        Self::with_name(interner, name, rel_id, mode)
+    }
+
+    /// [`Self::new`], with the wrapper element's fully qualified name given explicitly — for a host
+    /// that places `CT_BlipFillProperties` under a name outside DrawingML-main's own `a:` namespace
+    /// (`pic:blipFill` inside a `pic:pic`, PresentationML's own `p:blipFill` inside a `p:pic`). The
+    /// inner children (`a:blip`/`a:tile`/`a:stretch`) stay `a:`-namespaced regardless — they are
+    /// declared inside `dml-main.xsd` itself, so no host schema ever renames them, only the wrapper.
+    #[must_use]
+    pub fn with_name(
+        interner: &mut Interner,
+        name: RawName,
+        rel_id: &str,
+        mode: PictureFillMode,
+    ) -> Self {
         let mut blip_attributes = BlipAttributes {
             attributes: Vec::new(),
         };
@@ -330,7 +346,7 @@ impl PictureFill {
             PictureFillMode::None => {}
         }
         Self {
-            name: dml_name(interner, "blipFill"),
+            name,
             attributes: Vec::new(),
             children,
             empty: false,
