@@ -705,6 +705,29 @@ impl StyleParagraphProperties {
     );
     value_property!(
         StyleParagraphPropertyContent,
+        spacing,
+        set_spacing,
+        Spacing,
+        Spacing,
+        "spacing",
+        "`w:spacing` — this style's spacing above/below and between its own lines. **Found missing by \
+         MJXOFF-106**: this style's own `w:spacing` was modelled structurally (round-trips through \
+         `StyleParagraphPropertyContent::Spacing`) but had no typed accessor at all — a caller could \
+         not read or write a style's spacing until this effective-properties ladder needed to walk \
+         it. Added with the same `value_property!` macro every sibling accessor here already uses."
+    );
+    value_property!(
+        StyleParagraphPropertyContent,
+        indentation,
+        set_indentation,
+        Indentation,
+        Indentation,
+        "ind",
+        "`w:ind` — this style's indentation. **Found missing by MJXOFF-106**, the same gap as \
+         [`StyleParagraphProperties::spacing`] — see that accessor's own doc comment."
+    );
+    value_property!(
+        StyleParagraphPropertyContent,
         alignment,
         set_alignment,
         Alignment,
