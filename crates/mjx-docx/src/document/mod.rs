@@ -3452,12 +3452,15 @@ impl Document {
         // Populate the two reserved entries through the normal part_tree_mut/FromXml path (the typed
         // model only ever mutates a tree it actually read — see `headers::initial_bytes`'s own doc
         // comment for why this is a second round trip rather than writing the reserved entries into
-        // the literal bytes above directly).
+        // the literal bytes above directly). Parsing the literal template first — rather than
+        // writing back a fresh `Footnotes::blank` — is what keeps its `xmlns:w`; see
+        // `Footnotes::seed_reserved_entries`'s own doc comment for the bug that shape avoids.
         {
             let doc = self.package.part_tree_mut(&footnotes_part)?;
             let RawDocument { interner, root, .. } = doc;
-            let blank = annotations::Footnotes::blank(interner);
-            blank.write_back(root, interner);
+            let mut footnotes = annotations::Footnotes::from_xml(root, interner)?;
+            footnotes.seed_reserved_entries(interner);
+            footnotes.write_back(root, interner);
         }
         Ok(footnotes_part)
     }
@@ -3856,8 +3859,9 @@ impl Document {
         {
             let doc = self.package.part_tree_mut(&endnotes_part)?;
             let RawDocument { interner, root, .. } = doc;
-            let blank = annotations::Endnotes::blank(interner);
-            blank.write_back(root, interner);
+            let mut endnotes = annotations::Endnotes::from_xml(root, interner)?;
+            endnotes.seed_reserved_entries(interner);
+            endnotes.write_back(root, interner);
         }
         Ok(endnotes_part)
     }
