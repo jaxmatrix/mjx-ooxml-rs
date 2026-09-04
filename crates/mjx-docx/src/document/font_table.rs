@@ -22,7 +22,7 @@ use mjx_ooxml_types::wordprocessingml::FontFamily as FontFamilyKind;
 use mjx_ooxml_types::wordprocessingml::FontPitch;
 
 use super::body::wml_name;
-use super::run_properties::{Toggle, ThemeHexDigit};
+use super::run_properties::{ThemeHexDigit, Toggle};
 use super::styles::{LongHex, StyleString};
 
 // `ThemeHexDigit` (`ST_UcharHexNumber`, `run_properties.rs`) covers `w:charset`; `LongHex`
@@ -419,17 +419,96 @@ impl Font {
         }
     }
 
-    super::property_macros::value_property!(FontContent, alternate_name, set_alternate_name, AlternateName, StyleString, "altName", "`w:altName`.");
-    super::property_macros::value_property!(FontContent, panose, set_panose, Panose, Panose, "panose1", "`w:panose1`.");
-    super::property_macros::value_property!(FontContent, charset, set_charset, Charset, Charset, "charset", "`w:charset`.");
-    super::property_macros::value_property!(FontContent, family, set_family, Family, FontFamily, "family", "`w:family`.");
-    super::property_macros::toggle_property!(FontContent, not_true_type, set_not_true_type, NotTrueType, "notTrueType", "`w:notTrueType`.");
-    super::property_macros::value_property!(FontContent, pitch, set_pitch, Pitch, Pitch, "pitch", "`w:pitch`.");
-    super::property_macros::value_property!(FontContent, signature, set_signature, Signature, FontSignature, "sig", "`w:sig`.");
+    super::property_macros::value_property!(
+        FontContent,
+        alternate_name,
+        set_alternate_name,
+        AlternateName,
+        StyleString,
+        "altName",
+        "`w:altName`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        panose,
+        set_panose,
+        Panose,
+        Panose,
+        "panose1",
+        "`w:panose1`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        charset,
+        set_charset,
+        Charset,
+        Charset,
+        "charset",
+        "`w:charset`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        family,
+        set_family,
+        Family,
+        FontFamily,
+        "family",
+        "`w:family`."
+    );
+    super::property_macros::toggle_property!(
+        FontContent,
+        not_true_type,
+        set_not_true_type,
+        NotTrueType,
+        "notTrueType",
+        "`w:notTrueType`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        pitch,
+        set_pitch,
+        Pitch,
+        Pitch,
+        "pitch",
+        "`w:pitch`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        signature,
+        set_signature,
+        Signature,
+        FontSignature,
+        "sig",
+        "`w:sig`."
+    );
     super::property_macros::value_property!(FontContent, embed_regular, set_embed_regular, EmbedRegular, FontRel, "embedRegular", "`w:embedRegular` — the embedded regular-weight font's own relationship. Payload and obfuscation key are opaque (see the module's own doc comment).");
-    super::property_macros::value_property!(FontContent, embed_bold, set_embed_bold, EmbedBold, FontRel, "embedBold", "`w:embedBold`.");
-    super::property_macros::value_property!(FontContent, embed_italic, set_embed_italic, EmbedItalic, FontRel, "embedItalic", "`w:embedItalic`.");
-    super::property_macros::value_property!(FontContent, embed_bold_italic, set_embed_bold_italic, EmbedBoldItalic, FontRel, "embedBoldItalic", "`w:embedBoldItalic`.");
+    super::property_macros::value_property!(
+        FontContent,
+        embed_bold,
+        set_embed_bold,
+        EmbedBold,
+        FontRel,
+        "embedBold",
+        "`w:embedBold`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        embed_italic,
+        set_embed_italic,
+        EmbedItalic,
+        FontRel,
+        "embedItalic",
+        "`w:embedItalic`."
+    );
+    super::property_macros::value_property!(
+        FontContent,
+        embed_bold_italic,
+        set_embed_bold_italic,
+        EmbedBoldItalic,
+        FontRel,
+        "embedBoldItalic",
+        "`w:embedBoldItalic`."
+    );
 }
 
 impl FromXml for Font {

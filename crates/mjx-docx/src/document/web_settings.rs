@@ -135,8 +135,11 @@ impl AttributeCodec for TargetScreenSizeCodec {
     type Value<'a> = TargetScreenSize;
     type Input<'a> = TargetScreenSize;
 
-    fn decode<'a>(raw: std::borrow::Cow<'a, str>) -> Result<TargetScreenSize, InvalidAttributeValue> {
-        raw.parse().map_err(|_| InvalidAttributeValue::new("not a valid ST_TargetScreenSz"))
+    fn decode<'a>(
+        raw: std::borrow::Cow<'a, str>,
+    ) -> Result<TargetScreenSize, InvalidAttributeValue> {
+        raw.parse()
+            .map_err(|_| InvalidAttributeValue::new("not a valid ST_TargetScreenSz"))
     }
 
     fn encode<'a>(value: TargetScreenSize) -> std::borrow::Cow<'a, str> {
@@ -880,7 +883,13 @@ impl Div {
         })
     }
 
-    fn set_margin(&mut self, interner: &mut Interner, at: u16, local: &str, value: SignedTwipsMeasure) {
+    fn set_margin(
+        &mut self,
+        interner: &mut Interner,
+        at: u16,
+        local: &str,
+        value: SignedTwipsMeasure,
+    ) {
         self.content.retain(|item| Self::rank(item) != Some(at));
         let wrapped = SignedTwipsMeasureElement::new(interner, local, value);
         let item = match at {
@@ -939,7 +948,8 @@ impl Div {
     }
     /// Sets (or removes) `w:divBdr`.
     pub fn set_borders(&mut self, value: Option<DivBorders>) {
-        self.content.retain(|item| !matches!(item, DivContent::Borders(_)));
+        self.content
+            .retain(|item| !matches!(item, DivContent::Borders(_)));
         if let Some(value) = value {
             self.insert_at_rank(DivContent::Borders(value));
         }
@@ -1053,8 +1063,7 @@ impl Divs {
     /// own doc comment).
     #[must_use]
     pub fn by_id(&self, interner: &Interner, id: i64) -> Option<&Div> {
-        self.entries()
-            .find(|div| div.id(interner).ok() == Some(id))
+        self.entries().find(|div| div.id(interner).ok() == Some(id))
     }
 
     /// Appends `div` — the schema imposes no order among `w:div` siblings.
@@ -1187,17 +1196,114 @@ impl WebSettings {
         }
     }
 
-    super::property_macros::value_property!(WebSettingsContent, frameset, set_frameset, Frameset, Frameset, "frameset", "`w:frameset`.");
-    super::property_macros::value_property!(WebSettingsContent, divs, set_divs, Divs, Divs, "divs", "`w:divs` — the `w:divId` (C4) resolution target.");
-    super::property_macros::value_property!(WebSettingsContent, encoding, set_encoding, Encoding, StyleString, "encoding", "`w:encoding`.");
-    super::property_macros::value_property!(WebSettingsContent, optimize_for_browser, set_optimize_for_browser, OptimizeForBrowser, OptimizeForBrowserSetting, "optimizeForBrowser", "`w:optimizeForBrowser`.");
-    super::property_macros::toggle_property!(WebSettingsContent, rely_on_vml, set_rely_on_vml, RelyOnVml, "relyOnVML", "`w:relyOnVML`.");
-    super::property_macros::toggle_property!(WebSettingsContent, allow_png, set_allow_png, AllowPng, "allowPNG", "`w:allowPNG`.");
-    super::property_macros::toggle_property!(WebSettingsContent, do_not_rely_on_css, set_do_not_rely_on_css, DoNotRelyOnCss, "doNotRelyOnCSS", "`w:doNotRelyOnCSS`.");
-    super::property_macros::toggle_property!(WebSettingsContent, do_not_save_as_single_file, set_do_not_save_as_single_file, DoNotSaveAsSingleFile, "doNotSaveAsSingleFile", "`w:doNotSaveAsSingleFile`.");
-    super::property_macros::toggle_property!(WebSettingsContent, do_not_organize_in_folder, set_do_not_organize_in_folder, DoNotOrganizeInFolder, "doNotOrganizeInFolder", "`w:doNotOrganizeInFolder`.");
-    super::property_macros::toggle_property!(WebSettingsContent, do_not_use_long_file_names, set_do_not_use_long_file_names, DoNotUseLongFileNames, "doNotUseLongFileNames", "`w:doNotUseLongFileNames`.");
-    super::property_macros::value_property!(WebSettingsContent, pixels_per_inch, set_pixels_per_inch, PixelsPerInch, DecimalNumberValue, "pixelsPerInch", "`w:pixelsPerInch`.");
-    super::property_macros::value_property!(WebSettingsContent, target_screen_size, set_target_screen_size, TargetScreenSize, TargetScreenSizeSetting, "targetScreenSz", "`w:targetScreenSz`.");
-    super::property_macros::toggle_property!(WebSettingsContent, save_smart_tags_as_xml, set_save_smart_tags_as_xml, SaveSmartTagsAsXml, "saveSmartTagsAsXml", "`w:saveSmartTagsAsXml`.");
+    super::property_macros::value_property!(
+        WebSettingsContent,
+        frameset,
+        set_frameset,
+        Frameset,
+        Frameset,
+        "frameset",
+        "`w:frameset`."
+    );
+    super::property_macros::value_property!(
+        WebSettingsContent,
+        divs,
+        set_divs,
+        Divs,
+        Divs,
+        "divs",
+        "`w:divs` — the `w:divId` (C4) resolution target."
+    );
+    super::property_macros::value_property!(
+        WebSettingsContent,
+        encoding,
+        set_encoding,
+        Encoding,
+        StyleString,
+        "encoding",
+        "`w:encoding`."
+    );
+    super::property_macros::value_property!(
+        WebSettingsContent,
+        optimize_for_browser,
+        set_optimize_for_browser,
+        OptimizeForBrowser,
+        OptimizeForBrowserSetting,
+        "optimizeForBrowser",
+        "`w:optimizeForBrowser`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        rely_on_vml,
+        set_rely_on_vml,
+        RelyOnVml,
+        "relyOnVML",
+        "`w:relyOnVML`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        allow_png,
+        set_allow_png,
+        AllowPng,
+        "allowPNG",
+        "`w:allowPNG`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        do_not_rely_on_css,
+        set_do_not_rely_on_css,
+        DoNotRelyOnCss,
+        "doNotRelyOnCSS",
+        "`w:doNotRelyOnCSS`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        do_not_save_as_single_file,
+        set_do_not_save_as_single_file,
+        DoNotSaveAsSingleFile,
+        "doNotSaveAsSingleFile",
+        "`w:doNotSaveAsSingleFile`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        do_not_organize_in_folder,
+        set_do_not_organize_in_folder,
+        DoNotOrganizeInFolder,
+        "doNotOrganizeInFolder",
+        "`w:doNotOrganizeInFolder`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        do_not_use_long_file_names,
+        set_do_not_use_long_file_names,
+        DoNotUseLongFileNames,
+        "doNotUseLongFileNames",
+        "`w:doNotUseLongFileNames`."
+    );
+    super::property_macros::value_property!(
+        WebSettingsContent,
+        pixels_per_inch,
+        set_pixels_per_inch,
+        PixelsPerInch,
+        DecimalNumberValue,
+        "pixelsPerInch",
+        "`w:pixelsPerInch`."
+    );
+    super::property_macros::value_property!(
+        WebSettingsContent,
+        target_screen_size,
+        set_target_screen_size,
+        TargetScreenSize,
+        TargetScreenSizeSetting,
+        "targetScreenSz",
+        "`w:targetScreenSz`."
+    );
+    super::property_macros::toggle_property!(
+        WebSettingsContent,
+        save_smart_tags_as_xml,
+        set_save_smart_tags_as_xml,
+        SaveSmartTagsAsXml,
+        "saveSmartTagsAsXml",
+        "`w:saveSmartTagsAsXml`."
+    );
 }

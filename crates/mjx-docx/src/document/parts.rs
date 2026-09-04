@@ -171,7 +171,11 @@ impl DocumentParts {
                 rels,
                 PartKind::GlossaryDocument.relationship_type(),
             )?,
-            recipients: single(document_part, rels, PartKind::Recipients.relationship_type())?,
+            recipients: single(
+                document_part,
+                rels,
+                PartKind::Recipients.relationship_type(),
+            )?,
         })
     }
 }
