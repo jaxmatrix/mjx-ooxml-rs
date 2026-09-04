@@ -91,7 +91,7 @@ pub struct Body {
         child(local = "proofErr", variant = ProofingError, ty = ProofingError),
         child(local = "permStart", variant = PermissionRangeStart, ty = PermissionRangeStart),
         child(local = "permEnd", variant = PermissionRangeEnd, ty = PermissionRangeEnd),
-        child(local = "sectPr", variant = SectionProperties, ty = Unmodeled)
+        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties)
     )]
     content: Vec<BlockContent>,
 }
@@ -114,9 +114,9 @@ pub enum BlockContent {
     PermissionRangeStart(PermissionRangeStart),
     /// `w:permEnd` (`CT_Perm`), folded in from `EG_RunLevelElts`.
     PermissionRangeEnd(PermissionRangeEnd),
-    /// `w:sectPr` (`CT_SectPr`) — the section this body ends with. Its own content
-    /// (`CT_SectPrBase`'s ordering row is already generated) is a later child's "sections.rs".
-    SectionProperties(Unmodeled),
+    /// `w:sectPr` (`CT_SectPr`) — the section this body ends with (MJXOFF-109's own type, see
+    /// `sections.rs`); the document's last section.
+    SectionProperties(super::sections::SectionProperties),
     /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -235,6 +235,58 @@ impl Body {
                 .rfind(|(_, item)| matches!(item, BlockContent::Paragraph(_)))
                 .map_or(0, |(at, _)| at + 1)
         })
+    }
+
+    /// The section this body ends with (`w:sectPr`) — the document's last section — or `None` if it
+    /// carries none (schema-legal: `CT_Body/sectPr` is `minOccurs="0"`, though no fixture in this
+    /// workspace's corpus omits it — real Word output always writes one).
+    #[must_use]
+    pub fn section_properties(&self) -> Option<&super::sections::SectionProperties> {
+        self.content.iter().find_map(|item| match item {
+            BlockContent::SectionProperties(section) => Some(section),
+            _ => None,
+        })
+    }
+
+    /// [`Body::section_properties`], mutably.
+    pub fn section_properties_mut(&mut self) -> Option<&mut super::sections::SectionProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            BlockContent::SectionProperties(section) => Some(section),
+            _ => None,
+        })
+    }
+
+    /// Sets (replaces) or removes the body-level `w:sectPr`. `CT_Body`'s own `xsd:sequence` puts it
+    /// after every block-level child, so inserting one when none exists always appends.
+    pub fn set_section_properties(&mut self, value: Option<super::sections::SectionProperties>) {
+        let at = self
+            .content
+            .iter()
+            .position(|item| matches!(item, BlockContent::SectionProperties(_)));
+        match (at, value) {
+            (Some(at), Some(value)) => self.content[at] = BlockContent::SectionProperties(value),
+            (Some(at), None) => {
+                self.content.remove(at);
+            }
+            (None, Some(value)) => self.content.push(BlockContent::SectionProperties(value)),
+            (None, None) => {}
+        }
+    }
+
+    /// [`Body::section_properties_mut`], creating an empty `w:sectPr` at the body's own trailing
+    /// position if it does not already carry one.
+    pub fn section_properties_or_insert(
+        &mut self,
+        interner: &mut Interner,
+    ) -> &mut super::sections::SectionProperties {
+        if self.section_properties().is_none() {
+            self.set_section_properties(Some(super::sections::SectionProperties::new(interner)));
+            self.empty = false;
+        }
+        match self.section_properties_mut() {
+            Some(properties) => properties,
+            None => unreachable!("just inserted above"),
+        }
     }
 }
 
@@ -1179,6 +1231,25 @@ pub struct RelationshipReference {
     empty: bool,
 }
 
+impl RelationshipReference {
+    /// Builds a new `local` reference (`"contentPart"`, `"subDoc"`, `"printerSettings"`, …) pointing
+    /// at `relationship_id`. Building the value here never creates the part or the relationship it
+    /// names — that is the caller's own job through [`mjx_opc::Package`], exactly as
+    /// [`super::sections::SectionProperties::printer_settings`]'s own doc comment says for the one
+    /// reuse this constructor exists for.
+    #[must_use]
+    pub fn new(interner: &mut Interner, local: &str, relationship_id: &str) -> Self {
+        let mut value = Self {
+            name: wml_name(interner, local),
+            attributes: Vec::new(),
+            extra: Vec::new(),
+            empty: true,
+        };
+        value.set_relationship_id(interner, relationship_id);
+        value
+    }
+}
+
 impl FromXml for RelationshipReference {
     fn from_xml(element: &RawElement, _interner: &Interner) -> Result<Self, FromXmlError> {
         Ok(Self {
@@ -1373,13 +1444,43 @@ impl PhoneticGuide {
 /// `w:object`, `w:pict`, `w:drawing`, the footnote/endnote/comment references, `w:tbl`,
 /// `w:customXml`, `w:sdt`, `w:smartTag`, `w:dir`, `w:bdo`, `w:fldSimple`, `w:sectPr`) — which reason
 /// applies is documented on each [`RunInnerContent`]/[`ParagraphContent`]/[`BlockContent`] variant
-/// that carries one, not on this type itself.
+/// that carries one, not on this type itself. `w:sectPr` is no longer one of them (MJXOFF-109 gave
+/// it a real type, `super::sections::SectionProperties`) — its own `w:footnotePr`/`w:endnotePr`/
+/// `w:sectPrChange` children still are, each documented on [`super::sections::SectionPropertyContent`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Unmodeled {
     name: RawName,
     attributes: Vec<RawAttribute>,
     children: Vec<RawNode>,
     empty: bool,
+}
+
+impl Unmodeled {
+    /// Builds a new, empty `local` element — every attribute and child absent until something
+    /// writes one directly through [`Unmodeled::attributes_mut`] (the escape hatch a sibling module
+    /// that needs to layer typed accessors on top of an otherwise-opaque element uses — see
+    /// `sections.rs`'s `SectionProperties::page_size`/`page_margins` for the one caller).
+    #[must_use]
+    pub(crate) fn new(interner: &mut Interner, local: &str) -> Self {
+        Self {
+            name: wml_name(interner, local),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: true,
+        }
+    }
+
+    /// This element's raw attribute list — crate-visible so a sibling module can layer a typed
+    /// accessor (`mjx_xml::attribute::read`) on top of an element this type otherwise leaves
+    /// opaque, without this type growing accessors of its own for every caller's own concept.
+    pub(crate) fn attributes(&self) -> &[RawAttribute] {
+        &self.attributes
+    }
+
+    /// [`Unmodeled::attributes`], mutably.
+    pub(crate) fn attributes_mut(&mut self) -> &mut Vec<RawAttribute> {
+        &mut self.attributes
+    }
 }
 
 impl FromXml for Unmodeled {

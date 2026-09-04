@@ -1812,9 +1812,10 @@ pub enum ParagraphPropertyContent {
     /// `w:rPr`; see the module's own doc comment.
     ParagraphMarkProperties(ParagraphMarkRunProperties),
     /// `w:sectPr` (`CT_SectPr`) — the section this paragraph ends (a "next page"/"continuous"/…
-    /// section break). Its own content is MJXOFF-106's; the field exists here so a caller can reach
-    /// it structurally rather than walking raw XML.
-    SectionProperties(Unmodeled),
+    /// section break; MJXOFF-109's own type, see `sections.rs`). **The paragraph carrying this is
+    /// that section's own last paragraph** — see `sections.rs`'s own module doc for why reading this
+    /// as "the following content's properties" gets every multi-section document wrong.
+    SectionProperties(super::sections::SectionProperties),
     /// `w:pPrChange` (`CT_PPrChange`) — the tracked-change wrapper around a previous `w:pPr`;
     /// MJXOFF-126's own scope, kept opaque here.
     Change(Unmodeled),
@@ -1869,7 +1870,7 @@ pub struct ParagraphProperties {
         child(local = "divId", variant = AssociatedHtmlDivId, ty = DecimalNumberValue),
         child(local = "cnfStyle", variant = ConditionalFormatting, ty = ConditionalFormatting),
         child(local = "rPr", variant = ParagraphMarkProperties, ty = ParagraphMarkRunProperties),
-        child(local = "sectPr", variant = SectionProperties, ty = Unmodeled),
+        child(local = "sectPr", variant = SectionProperties, ty = super::sections::SectionProperties),
         child(local = "pPrChange", variant = Change, ty = Unmodeled)
     )]
     content: Vec<ParagraphPropertyContent>,
@@ -2256,14 +2257,45 @@ impl ParagraphProperties {
         }
     }
 
-    /// The section this paragraph ends (`w:sectPr`), or `None` if it carries none. The section's own
-    /// content is MJXOFF-106's.
-    #[must_use]
-    pub fn section_properties(&self) -> Option<&Unmodeled> {
-        self.content.iter().find_map(|item| match item {
+    value_property!(
+        ParagraphPropertyContent,
+        section_properties,
+        set_section_properties,
+        SectionProperties,
+        super::sections::SectionProperties,
+        "sectPr",
+        "`w:sectPr` — the section this paragraph ends, or `None` if it carries none. See \
+         `sections.rs`'s own module doc for why the paragraph carrying this is that section's own \
+         *last* paragraph, never the first paragraph of what follows."
+    );
+
+    /// [`ParagraphProperties::section_properties`], mutably — creating an empty `w:sectPr` at its
+    /// schema rank if this `w:pPr` does not already carry one, and returning it mutably either way.
+    /// The one primitive behind "split the document into a new section here": the new `w:sectPr`
+    /// lands inside *this* paragraph's own `w:pPr`, ending a section at it, never appended to the
+    /// body.
+    pub fn section_properties_or_insert(
+        &mut self,
+        interner: &mut Interner,
+    ) -> &mut super::sections::SectionProperties {
+        let is_target = |item: &ParagraphPropertyContent| {
+            matches!(item, ParagraphPropertyContent::SectionProperties(_))
+        };
+        if !self.content.iter().any(is_target) {
+            self.insert(
+                "sectPr",
+                ParagraphPropertyContent::SectionProperties(
+                    super::sections::SectionProperties::new(interner),
+                ),
+            );
+        }
+        match self.content.iter_mut().find_map(|item| match item {
             ParagraphPropertyContent::SectionProperties(section) => Some(section),
             _ => None,
-        })
+        }) {
+            Some(section) => section,
+            None => unreachable!("just found or inserted above"),
+        }
     }
 
     /// The tracked-change wrapper around a previous `w:pPr` (`w:pPrChange`), or `None` if this
