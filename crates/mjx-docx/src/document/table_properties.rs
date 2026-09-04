@@ -1387,7 +1387,7 @@ pub enum TablePropertyContent {
     Description(TableStringValue),
     /// `w:tblPrChange` (`CT_TblPrChange`) — the tracked-change wrapper around a previous `w:tblPr`.
     /// `CT_TblPrBase`'s own sequence has no member of this name — it is `CT_TblPr`'s own trailing
-    /// extension — so it is always placed last (see [`TableProperties::rank`]'s own doc comment).
+    /// extension — so it is always placed last (see `TableProperties::rank`'s own doc comment).
     Change(super::revisions::TablePropertiesChange),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
@@ -1779,7 +1779,7 @@ pub enum TableExceptionPropertyContent {
     /// `w:tblLook`.
     Look(TableLook),
     /// `w:tblPrExChange` (`CT_TblPrExChange`) — the tracked-change wrapper around a previous
-    /// `w:tblPrEx`. Always last (see [`TableProperties::rank`]'s own doc comment — the identical
+    /// `w:tblPrEx`. Always last (see `TableProperties::rank`'s own doc comment — the identical
     /// "trailing extension member" reasoning applies here).
     Change(super::revisions::TableExceptionPropertiesChange),
     /// Any other child — preserved verbatim, in position.
@@ -2010,7 +2010,7 @@ pub enum RowPropertyContent {
     Hidden(Toggle),
     /// `w:ins` (`CT_TrackChange`) — marks the whole row as tracked-inserted. `CT_TrPr`'s own
     /// trailing extension over `CT_TrPrBase`, always ordered before [`RowPropertyContent::Deleted`]/
-    /// [`RowPropertyContent::Change`] (see [`RowProperties::insert_trailing`]'s own doc comment).
+    /// [`RowPropertyContent::Change`] (see `RowProperties::insert_trailing`'s own doc comment).
     Inserted(super::revisions::TrackChangeMarker),
     /// `w:del` (`CT_TrackChange`) — marks the whole row as tracked-deleted.
     Deleted(super::revisions::TrackChangeMarker),

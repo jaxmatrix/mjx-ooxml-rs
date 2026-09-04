@@ -220,7 +220,7 @@ fn check_date_time(date: &str) -> Result<(), DocxError> {
 /// `w:cellIns`/`w:cellDel` (a whole table cell), `w:numPr/w:ins` (a whole numbering reference), the
 /// paragraph mark's own `w:pPr/w:rPr/w:ins`/`w:del`/`w:moveFrom`/`w:moveTo`, and the four
 /// `customXml*RangeStart` members of `EG_RangeMarkupElements` (MJXOFF-124's own range group — see
-/// [`classify_custom_xml_range`] below).
+/// `classify_custom_xml_ins_range` and its three siblings below).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
 #[xml(attribute(local = "id", prefix = "w", codec = Number<DecimalNumber>, accessor = id, required))]
 #[xml(attribute(local = "author", prefix = "w", codec = TextCodec, accessor = raw_author, required))]
@@ -1081,8 +1081,9 @@ pub(crate) fn classify_custom_xml_move_to_range(
 // =================================================================================================
 
 /// The kind of tracked change one [`RevisionInfo`] reports — every content/property revision this
-/// child models (move ranges are reported by their own [`RevisionKind::MoveFromRange`]/
-/// `MoveToRange` alongside the content `MoveFrom`/`MoveTo`, since a real move is a `w:moveFrom`
+/// child models (a move is reported both as [`RevisionKind::MovedFromContent`]/`MovedToContent`
+/// (the `w:moveFrom`/`w:moveTo` content containers) and, separately, via
+/// [`crate::Document::move_from_range`]/`move_to_range` (the range markers) — a real move is a `w:moveFrom`
 /// **content** container plus a `w:moveFromRangeStart`/`End` **range** pair together, per
 /// §17.13.5.20-25 — this crate reports both halves rather than assuming a caller only wants one).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
