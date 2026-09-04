@@ -95,13 +95,96 @@ impl Document {
         Self::from_package(Package::open(bytes)?)
     }
 
+    /// Creates a blank document: one empty paragraph and a body-level `w:sectPr` naming `size`, no
+    /// styles, settings, fonts or theme related to it.
+    ///
+    /// Every part is authored from code (see the `blank` module) rather than unpacked from a
+    /// committed template, so the markup is markup this project can explain and the same schema
+    /// gate that validates an edited document validates this one. See that module's own doc comment
+    /// for exactly which optional parts a blank document gets, and why it lands somewhere different
+    /// from [`mjx_pptx::Presentation::blank`](https://docs.rs/mjx-pptx)'s answer to the same
+    /// question.
+    ///
+    /// ```
+    /// # fn main() -> Result<(), mjx_docx::DocxError> {
+    /// use mjx_docx::{Document, PageSize};
+    ///
+    /// let mut document = Document::blank(PageSize::a4())?;
+    /// document.append_paragraph()?;
+    /// document.append_run(1, "Hello, document.")?;
+    /// let bytes = document.save()?;
+    /// # let _ = bytes;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`DocxError::InvalidPageSize`] if `size` is degenerate (see
+    /// [`PageSize::validate`](crate::PageSize)'s doc comment — `word/document.xml`'s
+    /// `w:pgSz`/`w:pgMar` are checked against a physically meaningful condition, not a numeric range
+    /// `ST_TwipsMeasure` does not declare), or another [`DocxError`] if building the package fails.
+    pub fn blank(size: crate::PageSize) -> Result<Self, DocxError> {
+        Self::blank_with_properties(
+            size,
+            &mjx_opc::doc_props::CoreProperties::default(),
+            &mjx_opc::doc_props::ExtendedProperties::default(),
+        )
+    }
+
+    /// [`blank`](Self::blank) with document properties (`docProps/core.xml` / `docProps/app.xml`)
+    /// set from `core_properties` / `extended_properties` rather than left absent.
+    ///
+    /// Both parts are always written — MJXOFF-149's packaging-layer decision, restated in
+    /// `crate::blank`'s own module doc — this constructor only chooses what goes in them. Every
+    /// field of both is optional, so `&CoreProperties::default()` / `&ExtendedProperties::default()`
+    /// produce the same childless parts [`blank`](Self::blank) does.
+    ///
+    /// ```
+    /// # fn main() -> Result<(), mjx_docx::DocxError> {
+    /// use mjx_opc::doc_props::{CoreProperties, DocumentTimestamp, ExtendedProperties};
+    /// use mjx_docx::{Document, PageSize};
+    ///
+    /// let created = DocumentTimestamp::new(2024, 1, 1, 0, 0, 0)?;
+    /// let document = Document::blank_with_properties(
+    ///     PageSize::us_letter(),
+    ///     &CoreProperties {
+    ///         title: Some("Quarterly Review".to_owned()),
+    ///         creator: Some("mjx-ooxml-rs".to_owned()),
+    ///         created: Some(created),
+    ///         modified: Some(created),
+    ///     },
+    ///     &ExtendedProperties {
+    ///         application: Some("mjx-ooxml-rs".to_owned()),
+    ///     },
+    /// )?;
+    /// let bytes = document.save()?;
+    /// # let _ = bytes;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`DocxError::InvalidPageSize`] if `size` is degenerate, or another [`DocxError`] if
+    /// building the package fails.
+    pub fn blank_with_properties(
+        size: crate::PageSize,
+        core_properties: &mjx_opc::doc_props::CoreProperties,
+        extended_properties: &mjx_opc::doc_props::ExtendedProperties,
+    ) -> Result<Self, DocxError> {
+        Self::from_package(crate::blank::package(
+            size,
+            core_properties,
+            extended_properties,
+        )?)
+    }
+
     /// Resolves an already-loaded [`Package`] into a document: the `officeDocument` relationship,
     /// the main document part, and its part graph.
     ///
     /// This is the constructor for a caller who already holds the package, exactly as
     /// `Presentation::from_package` is for a deck — see that method's own doc comment for why a
-    /// package built from nothing (once MJXOFF-98 adds `Document::blank`) will go through this same
-    /// resolution rather than surviving as a special case.
+    /// package built from nothing ([`Document::blank`]) goes through this same resolution rather
+    /// than surviving as a special case.
     ///
     /// # Errors
     /// Returns [`DocxError`] if the package has no `officeDocument` relationship, its main document
