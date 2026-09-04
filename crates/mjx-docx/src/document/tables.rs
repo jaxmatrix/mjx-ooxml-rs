@@ -170,14 +170,19 @@ impl ToXml for GridColumn {
     }
 }
 
-/// One ordered child of a [`Grid`]: a typed [`GridColumn`], or an opaque node (including
-/// `w:tblGridChange`, `CT_TblGridChange` — structure-only per this ticket's own scope, so it round-
-/// trips byte-for-byte as an unread [`GridContent::Raw`] rather than gaining a type of its own).
+/// One ordered child of a [`Grid`]: a typed [`GridColumn`], the tracked-change wrapper around a
+/// previous `w:tblGrid` (`w:tblGridChange`, MJXOFF-126), or an opaque node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GridContent {
     /// `w:gridCol` (`CT_TblGridCol`).
     Column(GridColumn),
-    /// Any other child — `w:tblGridChange`, whitespace, or an unknown element — preserved verbatim.
+    /// `w:tblGridChange` (`CT_TblGridChange`) — `CT_TblGrid`'s own trailing extension over
+    /// `CT_TblGridBase`; §17.13.5.34 states it "shall appear as the last child element".
+    /// [`Grid::insert_column_at`]'s own `typed_insert_index` only ever counts
+    /// [`GridContent::Column`] items when placing a new column, so a trailing
+    /// [`GridContent::Change`] is never disturbed by an ordinary column insertion.
+    Change(super::revisions::TableGridChange),
+    /// Any other child — whitespace or an unknown element — preserved verbatim.
     Raw(RawNode),
 }
 
@@ -189,7 +194,11 @@ pub struct Grid {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(children, child(local = "gridCol", variant = Column, ty = GridColumn))]
+    #[xml(
+        children,
+        child(local = "gridCol", variant = Column, ty = GridColumn),
+        child(local = "tblGridChange", variant = Change, ty = super::revisions::TableGridChange)
+    )]
     content: Vec<GridContent>,
 }
 
@@ -256,6 +265,24 @@ impl Grid {
                 None
             }
         }
+    }
+
+    /// The tracked-change wrapper around a previous `w:tblGrid` (`w:tblGridChange`), or `None` if
+    /// this grid carries none.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::TableGridChange> {
+        self.content.iter().find_map(|item| match item {
+            GridContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`Grid::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::TableGridChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            GridContent::Change(change) => Some(change),
+            _ => None,
+        })
     }
 }
 
@@ -329,9 +356,9 @@ impl ToXml for MergeMarker {
 // w:tcPr (CT_TcPr) — a cell's properties, gridSpan/hMerge/vMerge typed, everything else raw
 // ---------------------------------------------------------------------------------------------
 
-/// One ordered child of [`CellProperties`]: `CT_TcPrBase`'s fourteen members, or an opaque node —
-/// `cellIns`/`cellDel`/`cellMerge` (`EG_CellMarkupElements`, `CT_TcPrInner`'s own extension) and
-/// `tcPrChange` (`CT_TcPr`'s own) stay [`CellPropertiesContent::Raw`], MJXOFF-126's own scope.
+/// One ordered child of [`CellProperties`]: `CT_TcPrBase`'s fourteen members, `EG_CellMarkupElements`
+/// (`cellIns`/`cellDel`/`cellMerge`, `CT_TcPrInner`'s own extension — an `xsd:choice`, so at most one
+/// of the three ever appears), `tcPrChange` (`CT_TcPr`'s own trailing extension), or an opaque node.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CellPropertiesContent {
     /// `w:cnfStyle` — reused directly from
@@ -366,12 +393,20 @@ pub enum CellPropertiesContent {
     HideMark(Toggle),
     /// `w:headers`.
     Headers(CellHeaderReferences),
+    /// `w:cellIns` (`CT_TrackChange`) — marks the whole cell as tracked-inserted.
+    CellInserted(super::revisions::TrackChangeMarker),
+    /// `w:cellDel` (`CT_TrackChange`) — marks the whole cell as tracked-deleted.
+    CellDeleted(super::revisions::TrackChangeMarker),
+    /// `w:cellMerge` (`CT_CellMergeTrackChange`) — a tracked cell merge.
+    CellMerge(super::revisions::CellMergeTrackChange),
+    /// `w:tcPrChange` (`CT_TcPrChange`) — the tracked-change wrapper around a previous `w:tcPr`.
+    Change(super::revisions::CellPropertiesChange),
     /// Any other child — preserved verbatim, in position.
     Raw(RawNode),
 }
 
-/// `w:tcPr` (`CT_TcPr`) — a table cell's properties: `CT_TcPrBase`'s fourteen members typed, plus
-/// `EG_CellMarkupElements` and `w:tcPrChange` opaque (MJXOFF-126's scope).
+/// `w:tcPr` (`CT_TcPr`) — a table cell's properties: `CT_TcPrBase`'s fourteen members, plus
+/// `EG_CellMarkupElements` and `w:tcPrChange` (MJXOFF-126).
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
 #[xml(namespace = WML)]
 pub struct CellProperties {
@@ -393,7 +428,11 @@ pub struct CellProperties {
         child(local = "tcFitText", variant = FitText, ty = Toggle),
         child(local = "vAlign", variant = VerticalAlignment, ty = CellVerticalAlignment),
         child(local = "hideMark", variant = HideMark, ty = Toggle),
-        child(local = "headers", variant = Headers, ty = CellHeaderReferences)
+        child(local = "headers", variant = Headers, ty = CellHeaderReferences),
+        child(local = "cellIns", variant = CellInserted, ty = super::revisions::TrackChangeMarker),
+        child(local = "cellDel", variant = CellDeleted, ty = super::revisions::TrackChangeMarker),
+        child(local = "cellMerge", variant = CellMerge, ty = super::revisions::CellMergeTrackChange),
+        child(local = "tcPrChange", variant = Change, ty = super::revisions::CellPropertiesChange)
     )]
     content: Vec<CellPropertiesContent>,
 }
@@ -440,6 +479,10 @@ impl CellProperties {
             CellPropertiesContent::VerticalAlignment(_) => CELL_PROPERTIES.rank_of(None, "vAlign"),
             CellPropertiesContent::HideMark(_) => CELL_PROPERTIES.rank_of(None, "hideMark"),
             CellPropertiesContent::Headers(_) => CELL_PROPERTIES.rank_of(None, "headers"),
+            CellPropertiesContent::CellInserted(_) => CELL_PROPERTIES.rank_of(None, "cellIns"),
+            CellPropertiesContent::CellDeleted(_) => CELL_PROPERTIES.rank_of(None, "cellDel"),
+            CellPropertiesContent::CellMerge(_) => CELL_PROPERTIES.rank_of(None, "cellMerge"),
+            CellPropertiesContent::Change(_) => CELL_PROPERTIES.rank_of(None, "tcPrChange"),
             CellPropertiesContent::Raw(_) => None,
         }
     }
@@ -667,6 +710,53 @@ impl CellProperties {
         "headers",
         "`w:headers` — the header cells this data cell names for accessibility."
     );
+
+    /// This cell's own tracked-insertion marker (`w:cellIns`), or `None` if absent.
+    #[must_use]
+    pub fn cell_inserted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            CellPropertiesContent::CellInserted(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// This cell's own tracked-deletion marker (`w:cellDel`), or `None` if absent.
+    #[must_use]
+    pub fn cell_deleted(&self) -> Option<&super::revisions::TrackChangeMarker> {
+        self.content.iter().find_map(|item| match item {
+            CellPropertiesContent::CellDeleted(marker) => Some(marker),
+            _ => None,
+        })
+    }
+
+    /// This cell's own tracked cell-merge record (`w:cellMerge`), or `None` if absent. Independent
+    /// of the *live* `w:vMerge` continuation marker ([`CellProperties::vertical_merge`]) — see
+    /// `crate::document::revisions`'s own mutation-path table.
+    #[must_use]
+    pub fn cell_merge(&self) -> Option<&super::revisions::CellMergeTrackChange> {
+        self.content.iter().find_map(|item| match item {
+            CellPropertiesContent::CellMerge(merge) => Some(merge),
+            _ => None,
+        })
+    }
+
+    /// The tracked-change wrapper around a previous `w:tcPr` (`w:tcPrChange`), or `None` if this
+    /// `w:tcPr` carries none.
+    #[must_use]
+    pub fn change(&self) -> Option<&super::revisions::CellPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            CellPropertiesContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`CellProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::CellPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
+            CellPropertiesContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------------------------

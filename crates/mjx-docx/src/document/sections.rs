@@ -1162,8 +1162,9 @@ pub enum SectionPropertyContent {
     /// `w:printerSettings` (`CT_Rel`) — reuses [`RelationshipReference`]; see
     /// [`SectionProperties::printer_settings`]'s own doc comment.
     PrinterSettings(RelationshipReference),
-    /// `w:sectPrChange` (`CT_SectPrChange`) — structure only; MJXOFF-126 owns its semantics.
-    Change(Unmodeled),
+    /// `w:sectPrChange` (`CT_SectPrChange`) — the tracked-change wrapper around a previous
+    /// `w:sectPr`.
+    Change(super::revisions::SectionPropertiesChange),
     /// Any other child — an unknown element — preserved verbatim.
     Raw(RawNode),
 }
@@ -1210,7 +1211,7 @@ pub struct SectionProperties {
         child(local = "rtlGutter", variant = RtlGutter, ty = Toggle),
         child(local = "docGrid", variant = DocumentGrid, ty = DocumentGrid),
         child(local = "printerSettings", variant = PrinterSettings, ty = RelationshipReference),
-        child(local = "sectPrChange", variant = Change, ty = Unmodeled)
+        child(local = "sectPrChange", variant = Change, ty = super::revisions::SectionPropertiesChange)
     )]
     content: Vec<SectionPropertyContent>,
 }
@@ -1809,10 +1810,18 @@ impl SectionProperties {
     }
 
     /// The section-change tracking wrapper (`w:sectPrChange`), or `None` if this section carries
-    /// none. Its semantics are MJXOFF-126's; this crate preserves it structurally.
+    /// none.
     #[must_use]
-    pub fn change(&self) -> Option<&Unmodeled> {
+    pub fn change(&self) -> Option<&super::revisions::SectionPropertiesChange> {
         self.content.iter().find_map(|item| match item {
+            SectionPropertyContent::Change(change) => Some(change),
+            _ => None,
+        })
+    }
+
+    /// [`SectionProperties::change`], mutably.
+    pub fn change_mut(&mut self) -> Option<&mut super::revisions::SectionPropertiesChange> {
+        self.content.iter_mut().find_map(|item| match item {
             SectionPropertyContent::Change(change) => Some(change),
             _ => None,
         })
