@@ -98,10 +98,10 @@ impl PartKind {
 /// richer document — relates to, resolved once when a [`crate::Document`] is opened.
 ///
 /// A singular relationship (`styles`, `numbering`, `settings`, `webSettings`, `fontTable`, `theme`,
-/// `footnotes`, `endnotes`, `comments`, `glossaryDocument`) keeps at most one target, matching what
-/// ECMA-376 allows; `header`/`footer` keep every match, since a document relates to as many as its
-/// sections use. `sample.docx` itself carries only `styles`, `fontTable`, `settings` and `theme` —
-/// the minimum real-world shape — so every other field is `None`/empty on that fixture.
+/// `footnotes`, `endnotes`, `comments`, `glossaryDocument`, `recipients`) keeps at most one target,
+/// matching what ECMA-376 allows; `header`/`footer` keep every match, since a document relates to as
+/// many as its sections use. `sample.docx` itself carries only `styles`, `fontTable`, `settings` and
+/// `theme` — the minimum real-world shape — so every other field is `None`/empty on that fixture.
 #[derive(Debug, Clone, Default)]
 pub struct DocumentParts {
     /// `styles.xml`, if related.
@@ -130,6 +130,9 @@ pub struct DocumentParts {
     pub comments: Option<PartName>,
     /// `glossary/document.xml`, if related.
     pub glossary_document: Option<PartName>,
+    /// `recipients.xml`, if related (`w:recipients` — MJXOFF-136's own part; C1 declared
+    /// [`PartKind::Recipients`] but never resolved it, since nothing modelled the part yet).
+    pub recipients: Option<PartName>,
 }
 
 impl DocumentParts {
@@ -167,6 +170,11 @@ impl DocumentParts {
                 document_part,
                 rels,
                 PartKind::GlossaryDocument.relationship_type(),
+            )?,
+            recipients: single(
+                document_part,
+                rels,
+                PartKind::Recipients.relationship_type(),
             )?,
         })
     }
