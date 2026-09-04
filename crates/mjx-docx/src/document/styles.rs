@@ -245,6 +245,18 @@ impl RevisionSaveId {
         item.set_value(interner, value);
         item
     }
+
+    /// Renames this value to `local` (e.g. `"rsidRoot"`), keeping its own `val`.
+    ///
+    /// `CT_LongHexNumber` is one wire shape under two names in `word/settings.xml`'s own
+    /// `w:rsids` (`w:rsidRoot`, `w:rsid` — MJXOFF-136's [`super::settings::DocumentRevisionSaveIds`]),
+    /// on top of this module's own `w:rsid`. Mirrors [`super::run_properties::Border::renamed`]
+    /// exactly.
+    #[must_use]
+    pub(crate) fn renamed(mut self, interner: &mut Interner, local: &str) -> Self {
+        self.name = wml_name(interner, local);
+        self
+    }
 }
 
 impl FromXml for RevisionSaveId {

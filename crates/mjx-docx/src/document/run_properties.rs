@@ -809,6 +809,18 @@ impl Languages {
             empty: true,
         }
     }
+
+    /// Renames this value to `local` (e.g. `"themeFontLang"`), keeping every attribute.
+    ///
+    /// `CT_Language` is one wire shape under two names: this module's own `w:lang` and
+    /// `word/settings.xml`'s `w:themeFontLang` (MJXOFF-136's
+    /// [`super::settings::DocumentSettings::theme_font_languages`]). Mirrors
+    /// [`Border::renamed`] exactly.
+    #[must_use]
+    pub(crate) fn renamed(mut self, interner: &mut Interner, local: &str) -> Self {
+        self.name = wml_name(interner, local);
+        self
+    }
 }
 
 impl FromXml for Languages {
