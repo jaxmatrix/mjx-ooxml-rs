@@ -51,6 +51,52 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.94] - 2026-09-04
+
+Word comments, footnotes, endnotes and bookmarks (MJXOFF-124, Phase C position 15):
+`crates/mjx-docx/src/document/annotations.rs` (new), `ranges.rs` (new).
+
+**`word/comments.xml`, `word/footnotes.xml` and `word/endnotes.xml` are typed, read, round-tripped and
+authored** — three of `wml.xsd`'s fourteen global elements that could not be reached at all before
+this child. Each is read/edited through a `style_sheet`-shaped pair
+(`Document::comments`/`edit_comments`, `footnotes`/`edit_footnotes`, `endnotes`/`edit_endnotes`),
+created on demand with its content type and relationship, and `Document::add_comment`/`add_footnote`/
+`add_endnote`/`add_bookmark` wrap the whole target paragraph in the matching range markers or
+reference and assign a fresh id — never one already in use.
+
+**One range-resolution mechanism (`ranges.rs`) serves both `w:bookmarkStart`/`w:bookmarkEnd` and
+`w:commentRangeStart`/`w:commentRangeEnd`, pairing every marker by its own `id` attribute alone —
+never by a stack.** ECMA-376 Part 1 §17.13.6.2 states the rule directly ("matched … by matching the
+value of the id attribute"); a stack pairs whichever range opened most recently with the next end
+marker it sees, which is wrong the instant two ranges overlap without nesting. A hand-built fixture
+(`A` starts, `B` starts, `A` ends, `B` ends — no writer that only emits well-nested ranges can produce
+it) proves this both ways: it resolves correctly against the shipped `id`-keyed implementation, and a
+LIFO-stack mutation of the same function turns exactly that one test red. `RangeIndex::build` takes a
+classifier closure rather than being hard-coded to one marker kind, so MJXOFF-126's own
+`moveFromRangeStart`/`moveToRangeStart`/`customXml*RangeStart` reuse the same engine once they have
+typed variants. Range resolution recurses into every table cell (not into a `w:hyperlink`'s own nested
+content, a documented scope limit), so a bookmark starting inside a cell and ending after the table
+resolves correctly.
+
+**The reserved `separator`/`continuationSeparator`/`continuationNotice` footnote/endnote entries are
+identified by `w:type`, never by `w:id`.** The ticket's own "conventionally ids `0`/`-1`" turned out
+to be exactly that — a convention: ECMA-376 Part 1's own worked examples (§17.11.1, §17.11.23) use
+`id="1"` and `id="0"`, not `-1`/`0`. `FootnoteEndnote::is_user_visible` and
+`Footnotes::user_footnotes`/`Endnotes::user_endnotes` filter on `w:type` alone; a freshly authored
+part always carries both reserved entries (Word repairs a file that lacks them), and the part itself
+is never removed even once every user footnote is gone.
+
+**MJXOFF-121's `Hyperlink::anchor` seam is closed, not left as a documented gap**:
+`Document::resolve_bookmark` takes the raw anchor name `HyperlinkTarget::Anchor` carries and resolves
+it against the body's own bookmark index, returning the bookmark's id and the text it covers, or
+reporting an unmatched start (real files have these; ECMA-376 calls them non-conformant, not
+impossible) rather than panicking.
+
+Section-level `w:footnotePr`/`w:endnotePr` (`FootnoteProperties`/`EndnoteProperties`: position, number
+format, start number, restart rule) — left `Unmodeled` by MJXOFF-109 for this child — are typed too,
+via two new curated `mjx_ooxml_types::child_order` constants (`FOOTNOTE_PROPERTIES`,
+`ENDNOTE_PROPERTIES`).
+
 ## [0.0.93] - 2026-09-04
 
 Word fields, hyperlinks and form fields (MJXOFF-121, Phase C position 14): `crates/mjx-docx/src/document/fields.rs` (new), `hyperlinks.rs` (new).
