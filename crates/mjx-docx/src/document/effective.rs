@@ -309,7 +309,7 @@ pub struct EffectiveNumberingReference {
 /// Turns an [`AttributeError`] into a [`DocxError`] the same way every hand-written accessor
 /// elsewhere in this crate does (`.map_err(FromXmlError::from)?`), once, so the 38+32 field
 /// extractions below read as plain field assignments.
-fn attr<T>(result: Result<T, AttributeError>) -> Result<T, DocxError> {
+pub(super) fn attr<T>(result: Result<T, AttributeError>) -> Result<T, DocxError> {
     result.map_err(|error| DocxError::from(FromXmlError::from(error)))
 }
 
@@ -391,7 +391,7 @@ fn word_theme_font_slot(font: ThemeFont) -> (FontSchemeSlot, mjx_dml::FontSlot) 
 /// machinery rather than a second implementation — using a dedicated scratch [`Interner`] that never
 /// meets `word/document.xml`'s, `styles.xml`'s or `numbering.xml`'s own (a scheme-colour wire token
 /// like `"dk1"` is plain ASCII, so which interner it is momentarily stored in is immaterial).
-struct ThemeContext {
+pub(super) struct ThemeContext {
     colors: Option<SchemeColors>,
     fonts: Option<mjx_dml::FontScheme>,
     scratch: RefCell<Interner>,
@@ -617,16 +617,22 @@ impl EffectiveCharacterProperties {
     }
 }
 
-/// Combines one toggle property's five per-tier values per ECMA-376 Part 1 §17.7.3: a direct value
+/// Combines one toggle property's six per-tier values per ECMA-376 Part 1 §17.7.3: a direct value
 /// wins outright; otherwise a `true` at `doc_defaults` wins outright; otherwise the remaining
-/// tiers — numbering, the (already within-chain-resolved) paragraph-style tier, and the
-/// (already within-chain-resolved) character-style tier — combine by Boolean XOR, a tier with no
-/// stated value simply not contributing (XOR's identity element is exactly "no opinion"). Proved by
-/// mutation in `tests/effective.rs`: replacing this with plain fallback (last non-`None` wins) turns
-/// the toggle test red.
-fn combine_toggle(
+/// tiers — the table-style tier (MJXOFF-119's own contribution; `None` outside a table cell), the
+/// numbering tier, the (already within-chain-resolved) paragraph-style tier, and the (already
+/// within-chain-resolved) character-style tier — combine by Boolean XOR, a tier with no stated value
+/// simply not contributing (XOR's identity element is exactly "no opinion"). This is the "fourth XOR
+/// term" MJXOFF-106's own forward note asks for: the table tier is an **additional** operand, not a
+/// replacement for the numbering one — §17.7.3's own "true for an odd number of levels of the style
+/// hierarchy" reasoning generalizes to as many levels as actually apply. Proved by mutation in
+/// `tests/effective.rs`: replacing this with plain fallback (last non-`None` wins) turns the toggle
+/// test red; treating the table tier as a plain override rung (folded into `doc_defaults`/direct
+/// instead of XORed in) turns the table-tier toggle test red specifically.
+pub(super) fn combine_toggle(
     direct: Option<bool>,
     doc_defaults: Option<bool>,
+    table: Option<bool>,
     numbering: Option<bool>,
     paragraph_tier: Option<bool>,
     character_tier: Option<bool>,
@@ -637,7 +643,7 @@ fn combine_toggle(
     if doc_defaults == Some(true) {
         return Some(true);
     }
-    let terms = [numbering, paragraph_tier, character_tier];
+    let terms = [table, numbering, paragraph_tier, character_tier];
     if terms.iter().all(Option::is_none) {
         return doc_defaults;
     }
@@ -650,12 +656,16 @@ fn combine_toggle(
 }
 
 /// Recombines every toggle field of `merged` (already plain-fallback-merged across tiers, which is
-/// wrong for these twelve) using [`combine_toggle`] against the five tiers' own already-extracted,
-/// already within-chain-resolved values.
-fn recombine_toggles(
+/// wrong for these twelve) using [`combine_toggle`] against the six tiers' own already-extracted,
+/// already within-chain-resolved values. `table` is [`EffectiveCharacterProperties::default`]
+/// (all-`None`, contributing nothing to the XOR) outside a table cell — see
+/// `table_regions.rs`'s own `Document::effective_cell_run_properties` for the one caller that
+/// supplies a real table-tier contribution.
+pub(super) fn recombine_toggles(
     merged: &mut EffectiveCharacterProperties,
     direct: &EffectiveCharacterProperties,
     doc_defaults: &EffectiveCharacterProperties,
+    table: &EffectiveCharacterProperties,
     numbering: &EffectiveCharacterProperties,
     paragraph_tier: &EffectiveCharacterProperties,
     character_tier: &EffectiveCharacterProperties,
@@ -666,6 +676,7 @@ fn recombine_toggles(
                 merged.$field = combine_toggle(
                     direct.$field,
                     doc_defaults.$field,
+                    table.$field,
                     numbering.$field,
                     paragraph_tier.$field,
                     character_tier.$field,
@@ -697,7 +708,7 @@ fn recombine_toggles(
 /// read through, so a member added here is added for every rung at once. `interner` is whichever
 /// part `rpr` itself was parsed from (`word/document.xml`, `styles.xml` or `numbering.xml`) — `theme`
 /// is already interner-free and never touches it.
-fn extract_run_properties(
+pub(super) fn extract_run_properties(
     rpr: &RunProperties,
     theme: &ThemeContext,
     interner: &Interner,
@@ -848,7 +859,7 @@ fn extract_underline(
     })
 }
 
-fn extract_border(
+pub(super) fn extract_border(
     border: &Border,
     theme: &ThemeContext,
     interner: &Interner,
@@ -866,7 +877,7 @@ fn extract_border(
     })
 }
 
-fn extract_shading(
+pub(super) fn extract_shading(
     shading: &Shading,
     theme: &ThemeContext,
     interner: &Interner,
@@ -1378,14 +1389,14 @@ fn extract_conditional_formatting(
 /// why this cache does not (and, given [`Interner`] is not [`Clone`], cannot without a larger change
 /// to [`Document`]'s own re-parse-per-call architecture) survive across separate `effective_*` calls,
 /// and what a caller who wants that would do instead.
-struct ChainCache<'a> {
+pub(super) struct ChainCache<'a> {
     style_index: &'a StyleIndex<'a>,
     interner: &'a Interner,
     chains: RefCell<HashMap<String, Vec<&'a StyleDefinition>>>,
 }
 
 impl<'a> ChainCache<'a> {
-    fn new(style_index: &'a StyleIndex<'a>, interner: &'a Interner) -> Self {
+    pub(super) fn new(style_index: &'a StyleIndex<'a>, interner: &'a Interner) -> Self {
         Self {
             style_index,
             interner,
@@ -1397,7 +1408,7 @@ impl<'a> ChainCache<'a> {
     /// `style_id` itself is not in this style sheet, mirroring how an absent `w:pStyle`/`w:rStyle`
     /// already contributes an empty tier: a dangling style reference degrades this one tier to "says
     /// nothing" rather than failing the whole ladder read.
-    fn chain(&self, style_id: &str) -> Result<Vec<&'a StyleDefinition>, DocxError> {
+    pub(super) fn chain(&self, style_id: &str) -> Result<Vec<&'a StyleDefinition>, DocxError> {
         if let Some(hit) = self.chains.borrow().get(style_id) {
             return Ok(hit.clone());
         }
@@ -1417,7 +1428,7 @@ impl<'a> ChainCache<'a> {
 /// [`EffectiveCharacterProperties::merge_under`] — leaf wins per field, falling back down the chain
 /// exactly as ECMA-376 Part 1 §17.7.1 describes. An empty chain (no style stated, or a dangling
 /// reference) contributes the all-`None` default, i.e. nothing.
-fn merge_character_chain(
+pub(super) fn merge_character_chain(
     chain: &[&StyleDefinition],
     theme: &ThemeContext,
     interner: &Interner,
@@ -1486,7 +1497,7 @@ struct DirectRunContext {
 impl Document {
     /// The theme this document relates to, resolved once, interner-free — `None` (both fields) if it
     /// relates to no `word/theme/themeN.xml` at all.
-    fn load_theme_context(&mut self) -> Result<ThemeContext, DocxError> {
+    pub(super) fn load_theme_context(&mut self) -> Result<ThemeContext, DocxError> {
         let Some(theme_part) = self.parts.theme.clone() else {
             return Ok(ThemeContext::empty());
         };
@@ -1657,6 +1668,9 @@ impl Document {
             &mut merged,
             &direct_context.direct,
             &doc_defaults,
+            // No table style applies outside a table cell — an all-`None` contribution, the XOR
+            // identity, leaves this identical to the pre-MJXOFF-119 three-term combination.
+            &EffectiveCharacterProperties::default(),
             &numbering_effective,
             &paragraph_tier,
             &character_tier,
