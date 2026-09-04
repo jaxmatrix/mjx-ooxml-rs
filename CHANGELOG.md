@@ -49,6 +49,55 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.88] - 2026-09-04
+
+Word effective-properties ladder (MJXOFF-106, Phase C position 9): `Document::effective_run_properties`
+and `Document::effective_paragraph_properties` — every `EG_RPrBase` (38 fields) / `CT_PPrBase`
+(32 fields) member resolved across `w:docDefaults` → the numbering level → the paragraph-style
+`w:basedOn` chain → the character-style chain → direct formatting, with colours baked to concrete
+`RRGGBB` through `mjx-dml`'s own theme model.
+
+**The ladder order the ticket stated was wrong, verified against ECMA-376 Part 1 §17.7.2's own
+prose, not assumed.** The ticket ordered the paragraph-style chain above the numbering level;
+§17.7.2 states the opposite ("First, the document defaults … Next, … numbered item and paragraph
+properties are applied … Next, paragraph and run properties are applied … as defined by the
+paragraph style"). `tests/effective.rs`'s discriminating fixture (`w:sz` set to three different
+values at docDefaults/numbering/the paragraph-style chain, moved one rung at a time across three
+paragraphs) is built to fail under the ticket's own order; mutating the merge fold to that order
+turns two tests red, pasted in the PR.
+
+**Toggle properties combine by XOR across ladder tiers, and only twelve of them (ECMA-376 Part 1
+§17.7.3), not every `CT_OnOff`-shaped member.** A run whose paragraph style and character style both
+state `w:b="true"` renders **not bold** — `true XOR true = false` — the opposite of what a naive
+override-based resolver (the same rule every other field correctly uses) would answer. Proved by
+mutation: replacing the twelve-field XOR recombination with plain fallback turns the cancellation
+test red.
+
+**Theme colour and theme font resolve through `mjx-dml`'s own theme model — no second one.** Word's
+`ST_ThemeColor` (17 wire tokens, including the `background1`/`text1`/`background2`/`text2` aliases)
+maps onto DrawingML's `a:schemeClr` vocabulary; the `bg1`/`tx1`/`bg2`/`tx2` half of that mapping
+reuses `mjx_dml::ColorMap::identity` directly rather than restating it, since its own default
+pairing (`bg1→lt1`, `tx1→dk1`, …) is exactly what ECMA-376 Part 1 §17.15.1.20 states for Word's
+`w:clrSchemeMapping` when absent (true of every fixture in this workspace — `word/settings.xml` is
+not modelled by any child yet). `w:rFonts`'s theme attributes resolve the same way against the font
+scheme's major/minor × Latin/East-Asian/complex-script slots.
+
+**Cache design:** a chain, once resolved, is reused for every field of one `effective_*` call rather
+than re-walked per field — `ChainCache`, memoized by `styleId`, scoped to a single call. It does not
+survive across separate calls (`mjx_ooxml_core::Interner` is not `Clone`, and every `Document`
+accessor already re-parses its part fresh); the guide states the caller-side alternative for a loop
+over many runs.
+
+**A gap found and fixed while wiring the ladder:** `StyleParagraphProperties` (MJXOFF-101) modelled
+`w:spacing`/`w:ind` structurally (both round-tripped) but exposed no `spacing()`/`indentation()`
+accessor at all — a caller could not read or write a style's own spacing/indentation. Added with the
+same `value_property!` macro every sibling accessor already uses.
+
+`crates/mjx-docx/docs/effective_properties.md` is wired into a real doctest gate the way
+`mjx-pptx`'s own page is — `src/effective_properties.rs` is `#![doc = include_str!(...)]` with no
+items of its own, so the guide's snippets are compiled by `cargo test --doc`, not merely present;
+proved by breaking one assertion and watching the doctest go red before restoring it.
+
 ## [0.0.87] - 2026-09-04
 
 Word numbering definitions (MJXOFF-104, Phase C position 8): `word/numbering.xml` in full —
