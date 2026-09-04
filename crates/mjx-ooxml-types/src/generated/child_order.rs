@@ -44675,3 +44675,12 @@ pub static TABLE_CELL_MARGINS: &ChildOrder = &WML_TYPES[235];
 
 /// One cell's own margins (`w:tcMar`), overriding the table's `w:tblCellMar` (`CT_TcMar`, `wml.xsd`).
 pub static CELL_MARGINS: &ChildOrder = &WML_TYPES[254];
+
+/// A checkbox form field's own size (fixed or automatic), default and checked state (`w:checkBox`) (`CT_FFCheckBox`, `wml.xsd`).
+pub static FORM_FIELD_CHECK_BOX: &ChildOrder = &WML_TYPES[70];
+
+/// A drop-down-list form field's own entries and selection (`w:ddList`) (`CT_FFDDList`, `wml.xsd`).
+pub static FORM_FIELD_DROP_DOWN_LIST: &ChildOrder = &WML_TYPES[71];
+
+/// A text-input form field's own kind, default text, maximum length and display format (`w:textInput`) (`CT_FFTextInput`, `wml.xsd`).
+pub static FORM_FIELD_TEXT_INPUT: &ChildOrder = &WML_TYPES[76];

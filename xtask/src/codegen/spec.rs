@@ -2480,6 +2480,26 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "CT_TcMar",
         "One cell's own margins (`w:tcMar`), overriding the table's `w:tblCellMar`",
     ),
+    (
+        "FORM_FIELD_CHECK_BOX",
+        "wml",
+        "CT_FFCheckBox",
+        "A checkbox form field's own size (fixed or automatic), default and checked state \
+         (`w:checkBox`)",
+    ),
+    (
+        "FORM_FIELD_DROP_DOWN_LIST",
+        "wml",
+        "CT_FFDDList",
+        "A drop-down-list form field's own entries and selection (`w:ddList`)",
+    ),
+    (
+        "FORM_FIELD_TEXT_INPUT",
+        "wml",
+        "CT_FFTextInput",
+        "A text-input form field's own kind, default text, maximum length and display format \
+         (`w:textInput`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
