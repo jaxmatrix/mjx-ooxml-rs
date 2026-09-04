@@ -44654,3 +44654,24 @@ pub static NUMBERING_LEVEL: &ChildOrder = &WML_TYPES[122];
 
 /// A table cell's own properties (`w:tcPr`) — MJXOFF-116 places `gridSpan`/`hMerge`/`vMerge` (the grid-structural members) at their schema rank; everything else stays raw, typed by MJXOFF-119 (`CT_TcPr`, `wml.xsd`).
 pub static CELL_PROPERTIES: &ChildOrder = &WML_TYPES[255];
+
+/// The table-formatting properties shared by a table's own `w:tblPr` and a table style conditional-formatting override's `w:tblStylePr/w:tblPr` (`CT_TblPrBase`, `wml.xsd`).
+pub static TABLE_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[245];
+
+/// The row-formatting properties shared by a row's own `w:trPr` and a table style conditional-formatting override's `w:tblStylePr/w:trPr` (`CT_TrPrBase`, `wml.xsd`).
+pub static TABLE_ROW_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[267];
+
+/// The table properties a single row may override (`w:tblPrEx`) — a subset of `CT_TblPrBase` (`CT_TblPrExBase`, `wml.xsd`).
+pub static TABLE_EXCEPTION_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[248];
+
+/// The eight borders a table (or a table style) can carry (`w:tblBorders`) (`CT_TblBorders`, `wml.xsd`).
+pub static TABLE_BORDERS: &ChildOrder = &WML_TYPES[234];
+
+/// The ten borders a table cell (or a table style) can carry (`w:tcBorders`) — `CT_TblBorders`'s eight plus the two diagonals (`CT_TcBorders`, `wml.xsd`).
+pub static CELL_BORDERS: &ChildOrder = &WML_TYPES[253];
+
+/// A table's default cell margins (`w:tblCellMar`) (`CT_TblCellMar`, `wml.xsd`).
+pub static TABLE_CELL_MARGINS: &ChildOrder = &WML_TYPES[235];
+
+/// One cell's own margins (`w:tcMar`), overriding the table's `w:tblCellMar` (`CT_TcMar`, `wml.xsd`).
+pub static CELL_MARGINS: &ChildOrder = &WML_TYPES[254];
