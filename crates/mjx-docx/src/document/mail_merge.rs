@@ -825,7 +825,7 @@ impl ToXml for Base64BinaryValue {
 /// fixed order (`active?, column, uniqueTag`), so this type is built and read positionally rather
 /// than through a ranked `Vec<enum>` — there is no reordering to defend against once the value is
 /// itself immutable-shaped, and every foreign extension a real file might still carry is preserved
-/// through [`RecipientData::extra`].
+/// through the `content` list's own `Raw` fallback.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
 #[xml(namespace = WML)]
 pub struct RecipientData {
