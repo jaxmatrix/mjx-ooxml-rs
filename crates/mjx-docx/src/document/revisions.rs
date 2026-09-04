@@ -19,22 +19,22 @@
 //! `CT_ParaRPrChange`/`CT_SectPrChange`/`CT_TblPrChange`/`CT_TblPrExChange`/`CT_TblGridChange`/
 //! `CT_TcPrChange`/`CT_TrPrChange`).
 //!
-//! Two are declined, both checked directly against `wml.xsd` rather than assumed from the ticket's
-//! own list:
+//! One is declined, checked directly against `wml.xsd` rather than assumed from the ticket's own
+//! list: **`CT_TrackChangeRange` is genuinely unreachable** — `grep -c 'CT_TrackChangeRange'
+//! wml.xsd` finds exactly one hit, its own `<xsd:complexType name="CT_TrackChangeRange">`
+//! declaration; nothing extends it and no element names it as a type. This is a real correction to
+//! the pinned pre-dispatch note, which flagged the *sibling* type (`CT_TrackChangeNumbering`) as
+//! unreachable and was wrong about that one (see below) while not checking this one at all.
 //!
-//! - **`CT_TrackChangeRange` is genuinely unreachable** — `grep -c 'CT_TrackChangeRange'
-//!   wml.xsd` finds exactly one hit, its own `<xsd:complexType name="CT_TrackChangeRange">`
-//!   declaration; nothing extends it and no element names it as a type. This is a real correction
-//!   to the pinned pre-dispatch note, which flagged the *sibling* type (`CT_TrackChangeNumbering`)
-//!   as unreachable and was wrong about that one (see below) while not checking this one at all.
-//! - **`CT_MathCtrlIns`/`CT_MathCtrlDel`** extend `CT_TrackChange` but are reached only through
-//!   `EG_RPrMath`, declared in `wml.xsd` but referenced only from `shared-math.xsd`'s own `m:rPr`
-//!   (`grep -rl EG_RPrMath References/.../OfficeOpenXML-XMLSchema-Transitional/` — `wml.xsd` and
-//!   `shared-math.xsd` only). Math content inside a Word run (`m:oMath`/`m:oMathPara`,
-//!   `EG_MathContent`) is not modeled anywhere in `mjx-docx` today — it falls to
-//!   [`super::body::ParagraphContent::Raw`]/[`super::body::RunInnerContent`]'s own catch-all — so
-//!   there is no reachable Rust call site for a *math run's* tracked-change wrapper without first
-//!   typing OMML content in a run, which is `mjx-omml`/a future child's scope, not this one's.
+//! **`CT_MathCtrlIns`/`CT_MathCtrlDel`** — the two this module's own earlier note declined "for want
+//! of a reachable call site" — are modeled by MJXOFF-134 (C17) as [`MathControlInsert`]/
+//! [`MathControlDelete`]: both extend `CT_TrackChange` and are reached only through `EG_RPrMath`,
+//! declared in `wml.xsd` but referenced only from `shared-math.xsd`'s own `m:ctrlPr`. MJXOFF-134
+//! types Office Math itself (`mjx-omml`), whose `ControlProperties` (`m:ctrlPr`) is *that* crate's
+//! own reachable call site — preserved raw there because `w:rPr`/`w:ins`/`w:del` are
+//! WordprocessingML types `mjx-omml` sits below `mjx-docx` and cannot name (see that type's own doc
+//! comment). [`math_control_properties`] is the read side here, over a `ControlProperties`'s own raw
+//! children.
 //!
 //! **The pinned pre-dispatch note's claim that `CT_TrackChangeNumbering` is unreachable is
 //! wrong.** `grep -n 'type="CT_TrackChangeNumbering"' wml.xsd` finds two hits: `CT_NumPr`'s own
@@ -358,7 +358,9 @@ pub struct RunTrackChange {
         child(local = "ins", variant = Ins, ty = RunTrackChange),
         child(local = "del", variant = Del, ty = RunTrackChange),
         child(local = "moveFrom", variant = MoveFrom, ty = RunTrackChange),
-        child(local = "moveTo", variant = MoveTo, ty = RunTrackChange)
+        child(local = "moveTo", variant = MoveTo, ty = RunTrackChange),
+        child(local = "oMath", variant = Math, ty = mjx_omml::Math, ns = SHARED_MATH),
+        child(local = "oMathPara", variant = MathParagraph, ty = mjx_omml::MathParagraph, ns = SHARED_MATH)
     )]
     content: Vec<ParagraphContent>,
 }
@@ -903,6 +905,175 @@ property_change!(
     "`w:trPr` (`CT_TrPrBase`, modeled as the same [`RowProperties`] the live `w:trPr` uses) — the row \
      properties this change replaced."
 );
+
+// =================================================================================================
+// MathControlInsert / MathControlDelete (CT_MathCtrlIns / CT_MathCtrlDel) — m:ctrlPr's own w:ins/
+// w:del (`EG_RPrMath`): a tracked change to an Office Math object's own control properties. Both
+// extend CT_TrackChange (id/author/date), same as every type above. This is the reachable call site
+// MJXOFF-126 declined these two for want of — an equation is now typed (`mjx-omml`), and
+// `math_control_properties` below is what reads `mjx_omml::ControlProperties`'s own raw children
+// (preserved raw there because they are WordprocessingML-typed and `mjx-omml` sits below `mjx-docx`
+// — see that type's own doc comment) as one of `w:rPr`/`w:ins`/`w:del`.
+// =================================================================================================
+
+property_change!(
+    /// `CT_MathCtrlDel` — `m:ctrlPr/w:del`: a tracked deletion of an Office Math object's own
+    /// control properties.
+    MathControlDelete, MathControlDeleteContent, "del",
+    "rPr", RunProperties, RunProperties,
+    run_properties, run_properties_mut,
+    "`w:rPr` — the run properties carried by the deleted control-properties element."
+);
+
+/// One ordered child of a [`MathControlInsert`]: `w:del` (`CT_RPrChange`), `w:rPr`, or an unknown
+/// element. Unlike every `property_change!`-generated content enum, this one names two typed
+/// variants rather than one — `CT_MathCtrlIns` is the one member of this whole family whose own
+/// choice offers more than a single payload shape (§17.13.5.5's own `w:ins`/`w:del`/`w:rPr` choice,
+/// confirmed directly against `wml.xsd`'s `CT_MathCtrlIns`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MathControlInsertContent {
+    /// `w:del` (`CT_RPrChange`) — the run properties *before* this insertion, present only when the
+    /// insertion itself carries a nested property change.
+    PreviousRunProperties(RunPropertiesChange),
+    /// `w:rPr` — the run properties this tracked-inserted control-properties element carries.
+    RunProperties(RunProperties),
+    /// Any other child — preserved verbatim.
+    Raw(RawNode),
+}
+
+/// `CT_MathCtrlIns` — `m:ctrlPr/w:ins`: a tracked insertion of an Office Math object's own control
+/// properties, optionally carrying either the run properties it inserts (`w:rPr`) or the run
+/// properties a nested change replaced (`w:del`, `CT_RPrChange`) — the schema's own choice, never
+/// both at once.
+#[derive(
+    Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
+)]
+#[xml(namespace = WML)]
+#[xml(attribute(local = "id", prefix = "w", codec = Number<DecimalNumber>, accessor = id, required))]
+#[xml(attribute(local = "author", prefix = "w", codec = TextCodec, accessor = raw_author, required))]
+#[xml(attribute(local = "date", prefix = "w", codec = TextCodec, accessor = raw_date))]
+pub struct MathControlInsert {
+    name: RawName,
+    attributes: Vec<RawAttribute>,
+    empty: bool,
+    #[xml(
+        children,
+        child(local = "del", variant = PreviousRunProperties, ty = RunPropertiesChange),
+        child(local = "rPr", variant = RunProperties, ty = RunProperties)
+    )]
+    content: Vec<MathControlInsertContent>,
+}
+
+impl MathControlInsert {
+    /// Builds a new, empty `<w:ins>` with `id`/`author`, no `date`/payload stated.
+    #[must_use]
+    pub fn new(interner: &mut Interner, id: i64, author: &str) -> Self {
+        let mut value = Self {
+            name: wml_name(interner, "ins"),
+            attributes: Vec::new(),
+            empty: true,
+            content: Vec::new(),
+        };
+        value.set_id(interner, id);
+        value.set_raw_author(interner, author);
+        value
+    }
+
+    /// The author (`@author`), or `None` if malformed.
+    #[must_use]
+    pub fn author(&self, interner: &Interner) -> Option<String> {
+        self.raw_author(interner).ok().map(Cow::into_owned)
+    }
+
+    /// The date/time stamp (`@date`), an opaque wire string this crate never parses or normalises,
+    /// or `None` if absent/malformed.
+    #[must_use]
+    pub fn date(&self, interner: &Interner) -> Option<String> {
+        self.raw_date(interner).ok().flatten().map(Cow::into_owned)
+    }
+
+    /// Sets `@date`, refusing a value that is not a well-formed `xsd:dateTime`.
+    ///
+    /// # Errors
+    /// [`DocxError::MalformedDateTime`] if `date` is `Some` and not well-formed.
+    pub fn set_date_checked(
+        &mut self,
+        interner: &mut Interner,
+        date: Option<&str>,
+    ) -> Result<(), DocxError> {
+        if let Some(date) = date {
+            check_date_time(date)?;
+        }
+        self.set_raw_date(interner, date);
+        Ok(())
+    }
+
+    /// `w:rPr` — the run properties this insertion carries, if it declares one.
+    #[must_use]
+    pub fn run_properties(&self) -> Option<&RunProperties> {
+        self.content.iter().find_map(|item| match item {
+            MathControlInsertContent::RunProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+
+    /// `w:del` (`CT_RPrChange`) — the run properties a nested change replaced, if this insertion
+    /// declares one.
+    #[must_use]
+    pub fn previous_run_properties(&self) -> Option<&RunPropertiesChange> {
+        self.content.iter().find_map(|item| match item {
+            MathControlInsertContent::PreviousRunProperties(value) => Some(value),
+            _ => None,
+        })
+    }
+}
+
+/// One child `m:ctrlPr` (`mjx_omml::ControlProperties`) may carry, per `EG_RPrMath`'s own choice:
+/// ordinary (untracked) run properties, or a tracked insertion/deletion of them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MathControlProperties {
+    /// `w:rPr` — ordinary, untracked run properties.
+    RunProperties(RunProperties),
+    /// `w:ins` (`CT_MathCtrlIns`) — a tracked insertion.
+    Insert(MathControlInsert),
+    /// `w:del` (`CT_MathCtrlDel`) — a tracked deletion.
+    Delete(MathControlDelete),
+}
+
+/// Reads `control_properties`'s own raw children ([`mjx_omml::ControlProperties::raw_children`]) as
+/// a [`MathControlProperties`] — `None` if it carries none of `w:rPr`/`w:ins`/`w:del` (the schema
+/// allows at most one; this reads the first).
+#[must_use]
+pub fn math_control_properties(
+    control_properties: &mjx_omml::ControlProperties,
+    interner: &Interner,
+) -> Option<MathControlProperties> {
+    control_properties.raw_children().iter().find_map(|node| {
+        let RawNode::Element(element) = node else {
+            return None;
+        };
+        let namespace = element
+            .name
+            .namespace
+            .map(|symbol| interner.resolve(symbol));
+        let wml = mjx_ooxml_types::namespaces::WML;
+        if namespace != Some(wml.transitional) && namespace != wml.strict {
+            return None;
+        }
+        match interner.resolve(element.name.local) {
+            "rPr" => RunProperties::from_xml(element, interner)
+                .ok()
+                .map(MathControlProperties::RunProperties),
+            "ins" => MathControlInsert::from_xml(element, interner)
+                .ok()
+                .map(MathControlProperties::Insert),
+            "del" => MathControlDelete::from_xml(element, interner)
+                .ok()
+                .map(MathControlProperties::Delete),
+            _ => None,
+        }
+    })
+}
 
 // =================================================================================================
 // TableGridChange (CT_TblGridChange) — w:tblGrid/w:tblGridChange. Extends CT_Markup (id only), not

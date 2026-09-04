@@ -145,8 +145,10 @@ pub use ranges::{
     MarkupRange, RangeIndex, RangeResolution,
 };
 pub use revisions::{
-    CellMergeTrackChange, CellPropertiesChange, CellPropertiesChangeContent, MoveBookmark,
-    ParagraphMarkPropertiesChange, ParagraphMarkPropertiesChangeContent, ParagraphPropertiesChange,
+    math_control_properties, CellMergeTrackChange, CellPropertiesChange,
+    CellPropertiesChangeContent, MathControlDelete, MathControlDeleteContent, MathControlInsert,
+    MathControlInsertContent, MathControlProperties, MoveBookmark, ParagraphMarkPropertiesChange,
+    ParagraphMarkPropertiesChangeContent, ParagraphPropertiesChange,
     ParagraphPropertiesChangeContent, RevisionInfo, RevisionKind, RowPropertiesChange,
     RowPropertiesChangeContent, RunPropertiesChange, RunPropertiesChangeContent, RunTrackChange,
     SectionPropertiesChange, SectionPropertiesChangeContent, TableExceptionPropertiesChange,
