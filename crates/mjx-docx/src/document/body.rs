@@ -60,7 +60,9 @@ use crate::address::{BlockPath, RunPath};
 
 /// Builds a `w:local` qualified name — literal prefix `w` plus the resolved transitional
 /// WordprocessingML namespace, matching `mjx-dml::build::dml_name`'s pattern for `a:`.
-fn wml_name(interner: &mut Interner, local: &str) -> RawName {
+///
+/// `pub(crate)` so `run_properties.rs` (MJXOFF-94) reuses it rather than declaring a second copy.
+pub(crate) fn wml_name(interner: &mut Interner, local: &str) -> RawName {
     RawName {
         prefix: Some(interner.intern("w")),
         local: interner.intern(local),
@@ -531,8 +533,8 @@ impl Paragraph {
 // Run (CT_R) and its content (EG_RunInnerContent, all 33 members)
 // ---------------------------------------------------------------------------------------------
 
-/// `w:r` (`CT_R`) — a run: optional run properties (`w:rPr`, out of scope — MJXOFF-94, preserved
-/// verbatim as an unmatched child), then `EG_RunInnerContent*`.
+/// `w:r` (`CT_R`) — a run: optional run properties (`w:rPr`, `CT_RPr` — MJXOFF-94's own type), then
+/// `EG_RunInnerContent*`.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
 #[xml(namespace = WML)]
 pub struct Run {
@@ -541,6 +543,7 @@ pub struct Run {
     empty: bool,
     #[xml(
         children,
+        child(local = "rPr", variant = RunProperties, ty = super::run_properties::RunProperties),
         child(local = "br", variant = Break, ty = Break),
         child(local = "t", variant = Text, ty = Text),
         child(local = "contentPart", variant = ContentPart, ty = RelationshipReference),
@@ -578,11 +581,15 @@ pub struct Run {
     content: Vec<RunInnerContent>,
 }
 
-/// One ordered child of a [`Run`]: `EG_RunInnerContent`'s 33 members (`w:rPr`, out of this child's
-/// scope, is not one of them — `CT_R`'s content is `rPr?, EG_RunInnerContent*`, so an `rPr` a run
-/// carries falls to [`Raw`](Self::Raw), preserved exactly where it was).
+/// One ordered child of a [`Run`]: `EG_RunInnerContent`'s 33 members, plus `w:rPr` itself —
+/// `CT_R`'s content is `rPr?, EG_RunInnerContent*`, so `rPr` is not technically a member of the
+/// group, but it is `CT_R`'s own first child and MJXOFF-94 types it here rather than adding a second
+/// vector to [`Run`] for one optional element.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RunInnerContent {
+    /// `w:rPr` (`CT_RPr`, "Run Properties", §17.3.2.28) — MJXOFF-94's own type; see
+    /// [`RunProperties`](crate::RunProperties).
+    RunProperties(super::run_properties::RunProperties),
     /// `w:br` (`CT_Br`, "Break", §17.3.3.1) — this child's own type.
     Break(Break),
     /// `w:t` (`CT_Text`, "Text", §17.3.3.31) — this child's own type. The run's visible text.
@@ -661,12 +668,71 @@ pub enum RunInnerContent {
     PositionalTabRun(PositionalTab),
     /// `w:lastRenderedPageBreak` (`CT_Empty`, "Position of Last Calculated Page Break", §17.3.3.13).
     LastRenderedPageBreak(Unmodeled),
-    /// Any other child — most commonly `w:rPr`, out of this child's scope (MJXOFF-94) — preserved
-    /// verbatim.
+    /// Any other child — an unknown element, or `w:rPr` from a non-conformant file that repeats it —
+    /// preserved verbatim.
     Raw(RawNode),
 }
 
 impl Run {
+    /// This run's properties (`w:rPr`), or `None` if it carries none.
+    #[must_use]
+    pub fn run_properties(&self) -> Option<&super::run_properties::RunProperties> {
+        self.content.iter().find_map(|item| match item {
+            RunInnerContent::RunProperties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// This run's properties, mutably, or `None` if it carries none — see
+    /// [`Run::run_properties_or_insert`] to create one.
+    pub fn run_properties_mut(&mut self) -> Option<&mut super::run_properties::RunProperties> {
+        self.content.iter_mut().find_map(|item| match item {
+            RunInnerContent::RunProperties(properties) => Some(properties),
+            _ => None,
+        })
+    }
+
+    /// This run's properties, mutably — creating an empty `w:rPr` at its schema rank (always the
+    /// first child of `w:r`, per `CT_R`'s `xsd:sequence`) if this run does not already carry one.
+    pub fn run_properties_or_insert(
+        &mut self,
+        interner: &mut Interner,
+    ) -> &mut super::run_properties::RunProperties {
+        let at = match self
+            .content
+            .iter()
+            .position(|item| matches!(item, RunInnerContent::RunProperties(_)))
+        {
+            Some(at) => at,
+            None => {
+                // `rPr` is `CT_R`'s unique rank-0 child; every `EG_RunInnerContent` member shares
+                // rank 1 (confirmed against `mjx_ooxml_types::child_order::RUN`), so a rank-0
+                // insertion always belongs at index 0 — computed via the generated table rather than
+                // hard-coded, so a schema change would move this insertion point too.
+                let at = mjx_ooxml_types::child_order::RUN.insert_index_of_names(
+                    self.content.iter().map(|item| match item {
+                        RunInnerContent::RunProperties(_) => Some(0),
+                        RunInnerContent::Raw(_) => None,
+                        _ => Some(1),
+                    }),
+                    "rPr",
+                );
+                self.content.insert(
+                    at,
+                    RunInnerContent::RunProperties(super::run_properties::RunProperties::new(
+                        interner,
+                    )),
+                );
+                self.empty = false;
+                at
+            }
+        };
+        match &mut self.content[at] {
+            RunInnerContent::RunProperties(properties) => properties,
+            _ => unreachable!("`at` was just found or inserted as a `RunProperties` item"),
+        }
+    }
+
     /// The run's text: every [`RunInnerContent::Text`] (`w:t`) it holds, concatenated in document
     /// order — `""` if it holds none. Deliberately **not** `w:delText`/`w:instrText`: those are
     /// different content (deleted text, a field's source), not what the run displays.
