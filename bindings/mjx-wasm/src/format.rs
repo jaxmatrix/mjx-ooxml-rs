@@ -184,8 +184,9 @@ pub fn format_conventional_extension(format: Format) -> String {
     format.to_model().conventional_extension().to_owned()
 }
 
-/// Whether `Deck.open` can edit a format. Word and Excel documents are detected before they are
-/// editable, so a caller can say so precisely instead of reporting a parse failure.
+/// Whether `Deck.open` or `Document.open` can edit a format — true for PresentationML and
+/// WordprocessingML. Excel documents are detected but not yet editable, so a caller can say so
+/// precisely instead of reporting a parse failure.
 #[wasm_bindgen(js_name = "formatIsEditable")]
 pub fn format_is_editable(format: Format) -> bool {
     format.to_model().is_editable()
