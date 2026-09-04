@@ -801,12 +801,14 @@ pub enum ParagraphContent {
 }
 
 /// The visible text `content` renders: every [`Run`] it holds, descending into every
-/// [`ParagraphContent::Hyperlink`] and [`ParagraphContent::SimpleField`] (a field's own cached
-/// result *is* its displayed content — see `fields.rs`'s own doc comment for why instruction text,
-/// carried in `w:instrText`/`RunInnerContent::FieldCode`, is never included here, exactly as
-/// [`Run::text`] already excludes it). `pub(crate)` — [`Paragraph::text`] and
-/// `fields.rs`'s [`super::fields::SimpleField::cached_result_text`] both call this rather than each
-/// walking the tree its own way.
+/// [`ParagraphContent::Hyperlink`], [`ParagraphContent::SimpleField`] (a field's own cached result
+/// *is* its displayed content — see `fields.rs`'s own doc comment for why instruction text, carried
+/// in `w:instrText`/`RunInnerContent::FieldCode`, is never included here, exactly as [`Run::text`]
+/// already excludes it), and every run-level content control or custom-XML/smart-tag/bidirectional
+/// wrapper (MJXOFF-138) — a content control genuinely is part of a paragraph's own rendered text, the
+/// same reasoning that already applies to a hyperlink's wrapped runs. `pub(crate)` —
+/// [`Paragraph::text`] and `fields.rs`'s [`super::fields::SimpleField::cached_result_text`] both call
+/// this rather than each walking the tree its own way.
 pub(crate) fn paragraph_content_text(content: &[ParagraphContent], out: &mut String) {
     for item in content {
         match item {
@@ -817,37 +819,73 @@ pub(crate) fn paragraph_content_text(content: &[ParagraphContent], out: &mut Str
             ParagraphContent::SimpleField(field) => {
                 paragraph_content_text(field.content(), out);
             }
+            ParagraphContent::CustomXml(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
+            ParagraphContent::SmartTag(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
+            ParagraphContent::StructuredDocumentTag(control) => {
+                if let Some(content) = control.content_run() {
+                    paragraph_content_text(content.content(), out);
+                }
+            }
+            ParagraphContent::BidirectionalEmbedding(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
+            ParagraphContent::BidirectionalOverride(wrapper) => {
+                paragraph_content_text(wrapper.content(), out);
+            }
             _ => {}
         }
     }
 }
 
 /// One [`ParagraphContent`] item that is, or can lead to, a run: what
-/// [`Paragraph::run_count`]/[`Paragraph::run`] address.
+/// [`Paragraph::run_count`]/[`Paragraph::run`] address. A [`Hyperlink`] or a run-level content
+/// control/custom-XML/smart-tag/bidirectional wrapper (MJXOFF-138) is a **run container** — it
+/// occupies exactly one top-level slot, and [`RunPath`] descends one level into its own content the
+/// same way it already descends into a [`Hyperlink`]'s.
 enum RunSlot<'a> {
     Run(&'a Run),
     Hyperlink(&'a Hyperlink),
+    Wrapper(&'a [ParagraphContent]),
 }
 
-/// The [`ParagraphContent`] items that occupy a run-addressing slot — a [`Run`] itself, or a
-/// [`Hyperlink`] a [`RunPath`] can descend into — in document order. Everything else
-/// (`w:pPr`, `w:proofErr`, an unmodeled wrapper, …) is skipped: it has no run to be, so it does not
-/// consume a slot.
+/// The [`ParagraphContent`] items that occupy a run-addressing slot — a [`Run`] itself, a
+/// [`Hyperlink`], or a run-level content control/custom-XML/smart-tag/bidirectional wrapper a
+/// [`RunPath`] can descend into — in document order. Everything else (`w:pPr`, `w:proofErr`, …) is
+/// skipped: it has no run to be, so it does not consume a slot.
 fn run_slots(content: &[ParagraphContent]) -> impl Iterator<Item = RunSlot<'_>> {
     content.iter().filter_map(|item| match item {
         ParagraphContent::Run(run) => Some(RunSlot::Run(run)),
         ParagraphContent::Hyperlink(hyperlink) => Some(RunSlot::Hyperlink(hyperlink)),
+        ParagraphContent::CustomXml(wrapper) => Some(RunSlot::Wrapper(wrapper.content())),
+        ParagraphContent::SmartTag(wrapper) => Some(RunSlot::Wrapper(wrapper.content())),
+        ParagraphContent::StructuredDocumentTag(control) => Some(RunSlot::Wrapper(
+            control
+                .content_run()
+                .map(super::structured_content::ContentControlContentRun::content)
+                .unwrap_or(&[]),
+        )),
+        ParagraphContent::BidirectionalEmbedding(wrapper) => {
+            Some(RunSlot::Wrapper(wrapper.content()))
+        }
+        ParagraphContent::BidirectionalOverride(wrapper) => {
+            Some(RunSlot::Wrapper(wrapper.content()))
+        }
         _ => None,
     })
 }
 
-/// Resolves a [`RunPath`]'s indices against `content`, descending into a [`Hyperlink`] for every
-/// index but the last, which must land on an actual [`Run`].
+/// Resolves a [`RunPath`]'s indices against `content`, descending into a [`Hyperlink`] or a
+/// run-level wrapper for every index but the last, which must land on an actual [`Run`].
 fn resolve_run<'a>(content: &'a [ParagraphContent], indices: &[usize]) -> Option<&'a Run> {
     let (&first, rest) = indices.split_first()?;
     match (run_slots(content).nth(first)?, rest.is_empty()) {
         (RunSlot::Run(run), true) => Some(run),
         (RunSlot::Hyperlink(hyperlink), false) => resolve_run(&hyperlink.content, rest),
+        (RunSlot::Wrapper(inner), false) => resolve_run(inner, rest),
         _ => None,
     }
 }
@@ -861,11 +899,30 @@ fn resolve_run_mut<'a>(
     let slot = content.iter_mut().filter_map(|item| match item {
         ParagraphContent::Run(run) => Some(RunSlotMut::Run(run)),
         ParagraphContent::Hyperlink(hyperlink) => Some(RunSlotMut::Hyperlink(hyperlink)),
+        ParagraphContent::CustomXml(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
+        ParagraphContent::SmartTag(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
+        ParagraphContent::StructuredDocumentTag(control) => Some(RunSlotMut::Wrapper(
+            control
+                .content_run_mut()
+                .map(|content| content.content_mut().as_mut_slice())
+                .unwrap_or(&mut []),
+        )),
+        ParagraphContent::BidirectionalEmbedding(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
+        ParagraphContent::BidirectionalOverride(wrapper) => {
+            Some(RunSlotMut::Wrapper(wrapper.content_mut().as_mut_slice()))
+        }
         _ => None,
     });
     match (slot.into_iter().nth(first)?, rest.is_empty()) {
         (RunSlotMut::Run(run), true) => Some(run),
         (RunSlotMut::Hyperlink(hyperlink), false) => resolve_run_mut(&mut hyperlink.content, rest),
+        (RunSlotMut::Wrapper(inner), false) => resolve_run_mut(inner, rest),
         _ => None,
     }
 }
@@ -873,10 +930,13 @@ fn resolve_run_mut<'a>(
 enum RunSlotMut<'a> {
     Run(&'a mut Run),
     Hyperlink(&'a mut Hyperlink),
+    Wrapper(&'a mut [ParagraphContent]),
 }
 
-/// The `content` index of the `index`th run-or-hyperlink slot at the top level (not descending),
-/// or `None` if there is no such slot.
+/// The `content` index of the `index`th run-addressing slot (see [`RunSlot`]) at the top level (not
+/// descending), or `None` if there is no such slot — the same slot definition [`run_slots`] counts,
+/// so [`Paragraph::run_count`]/`insert_run`/`hyperlink_at` agree with [`Paragraph::run`] about which
+/// physical item a given top-level index names.
 fn nth_slot_index(content: &[ParagraphContent], index: usize) -> Option<usize> {
     content
         .iter()
@@ -884,7 +944,13 @@ fn nth_slot_index(content: &[ParagraphContent], index: usize) -> Option<usize> {
         .filter(|(_, item)| {
             matches!(
                 item,
-                ParagraphContent::Run(_) | ParagraphContent::Hyperlink(_)
+                ParagraphContent::Run(_)
+                    | ParagraphContent::Hyperlink(_)
+                    | ParagraphContent::CustomXml(_)
+                    | ParagraphContent::SmartTag(_)
+                    | ParagraphContent::StructuredDocumentTag(_)
+                    | ParagraphContent::BidirectionalEmbedding(_)
+                    | ParagraphContent::BidirectionalOverride(_)
             )
         })
         .nth(index)
