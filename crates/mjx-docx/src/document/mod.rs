@@ -70,6 +70,7 @@ use crate::error::DocxError;
 
 mod annotations;
 mod body;
+mod drawing;
 mod effective;
 mod fields;
 mod headers;
@@ -100,6 +101,10 @@ pub use body::{
     PhoneticGuidePropertyContent, PhoneticGuideTextAlignment, PositionalTab, ProofingError,
     RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
     WhitespacePreservation,
+};
+pub use drawing::{
+    Control, Drawing, DrawingContent, EmbeddedObject, EmbeddedObjectContent, ObjectEmbed,
+    ObjectLink, TextBoxContent, TextboxInfo, WordprocessingShape, WordprocessingShapeContent,
 };
 pub use effective::{
     EffectiveBorder, EffectiveCharacterProperties, EffectiveColor, EffectiveConditionalFormatting,
