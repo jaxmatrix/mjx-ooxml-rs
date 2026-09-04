@@ -615,3 +615,97 @@ fn an_inline_pictures_negative_extent_cx_turns_the_schema_gate_red_naming_the_pa
         "the failure must name the part:\n{report}"
     );
 }
+
+// =================================================================================================
+// The shared-math schema arm (MJXOFF-134): proved live by a mutation that writes markup
+// `shared-math.xsd` rejects and turns the sweep red naming the host part, exactly as the wp: arm is
+// proved above. `m:` never roots a part of its own — an equation is always inline in a
+// WordprocessingML part — so there is no `schema_for_namespace` entry to add: `wml.xsd:14` already
+// imports `shared-math.xsd`, and an equation nested inside `word/document.xml` is validated as part
+// of that part's own `wml.xsd` pass. This inherits MJXOFF-110's `xml.xsd` driver fix with no further
+// work, the same sentence `mjx_schema_gate::harness`'s own module doc makes for this arm by name.
+// =================================================================================================
+
+/// A blank document with one paragraph carrying `<m:oMath><m:f><m:num>1</m:num><m:den>2</m:den></m:f></m:oMath>`.
+fn document_with_an_equation() -> Document {
+    let mut document = Document::blank(PageSize::a4()).expect("blank");
+    document.append_paragraph().expect("append paragraph");
+    document
+        .append_math(1, |interner| {
+            let numerator = mjx_omml::Argument::with_text(interner, "num", "1");
+            let denominator = mjx_omml::Argument::with_text(interner, "den", "2");
+            let fraction = mjx_omml::Fraction::new(interner, numerator, denominator);
+            mjx_omml::Math::with_elements(interner, &[mjx_omml::MathElement::Fraction(fraction)])
+        })
+        .expect("append_math");
+    document
+}
+
+#[test]
+fn a_document_with_an_equation_is_schema_valid_and_the_math_part_is_audited() {
+    let document = document_with_an_equation();
+    let saved = document.save().expect("save");
+    assert_authored_deck_is_schema_valid("document with an equation", &saved);
+}
+
+/// `document_with_an_equation`'s `word/document.xml`, with the fraction's required `m:num` (`CT_F`'s
+/// own `xsd:sequence` requires exactly one, before `m:den`) removed entirely — a fraction offering
+/// only a denominator, which `shared-math.xsd` does not admit.
+fn document_with_an_equation_missing_fraction_numerator() -> Vec<u8> {
+    let document = document_with_an_equation();
+    let saved = document.save().expect("save");
+    let mut package = Package::open(&saved).expect("reopen the saved bytes");
+    let part = PartName::new("/word/document.xml").expect("a valid part name");
+    let bytes = package
+        .part_bytes(&part)
+        .expect("the document always carries word/document.xml");
+    let xml = std::str::from_utf8(bytes).expect("authored markup is UTF-8");
+    let needle = "<m:num><m:r><m:t>1</m:t></m:r></m:num>";
+    assert!(
+        xml.contains(needle),
+        "word/document.xml does not carry {needle:?} to strip — the equation's own markup \
+         changed:\n{xml}"
+    );
+    let corrupted = xml.replacen(needle, "", 1).into_bytes();
+    package
+        .replace_part_bytes(&part, corrupted)
+        .expect("replace word/document.xml");
+    package
+        .save_unchecked()
+        .expect("save the corrupted package (schema-invalid, so the checked save must be bypassed)")
+}
+
+#[test]
+fn a_fractions_missing_required_numerator_turns_the_schema_gate_red_naming_the_part() {
+    // The proof the shared-math schema arm is live, in this child's own terms: `CT_F` without its
+    // required `m:num` must fail — and the failure must name `/word/document.xml`, the part
+    // `wml.xsd` validates, since `m:` never roots a part of its own (`wml.xsd:14` already imports
+    // `shared-math.xsd`, so `m:` content nested inside a `wml`-rooted part is validated as part of
+    // that part's own pass — there is no separate `schema_for_namespace` arm to add for a namespace
+    // that never roots anything, exactly as MJXOFF-131 found for `wp:`).
+    let Some(harness) = harness() else { return };
+    let corrupted = document_with_an_equation_missing_fraction_numerator();
+    let rows = inspect_deck(
+        &harness,
+        "equation with a fraction missing its required m:num",
+        &corrupted,
+        &[],
+    );
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/word/document.xml")
+        .expect("word/document.xml is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "an m:f missing its required m:num must fail against wml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "wml.xsd");
+    assert!(
+        report.contains("/word/document.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    println!("the shared-math schema arm, proved live:\n{report}");
+}
