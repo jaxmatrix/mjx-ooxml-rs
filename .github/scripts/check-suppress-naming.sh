@@ -29,8 +29,12 @@
 #     renamed because `delete_*` sat beside `remove_*` and read as its synonym. A tracked deletion is
 #     not that concept: it is a real deletion, the spec's own caption is "Deletion" or "Deleted
 #     Text", and `Suppressed` would be wrong rather than clearer. Allow-listed by exact token and by
-#     the `Deleted`-prefixed (or bare `Deleted`) identifiers derived from them, so an unrelated
-#     `deleted` still fails.
+#     the `Deleted`-prefixed identifiers derived from them, so an unrelated `deleted` still fails.
+#     The **bare** `Deleted` — which `CT_ParaRPr`'s tracked-change wrapper needs as an enum variant —
+#     is allowed **only under `crates/mjx-docx/` and `crates/mjx-omml/`**, the two crates whose
+#     schemas carry tracked changes. Allowing it workspace-wide would let the chart concept return
+#     as `enum ChartLabelTier { Deleted }` inside `mjx-chart` itself, which is the one place this
+#     gate exists to police; scoping it by path closes that while leaving Word's variant legal.
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #
@@ -81,7 +85,8 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/delText/<wire-token>/g' \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
-        -e 's/\bDeleted\b/<wml-revision>/g' \
+        -e '/^crates\/mjx-docx\//s/\bDeleted\b/<wml-revision>/g' \
+        -e '/^crates\/mjx-omml\//s/\bDeleted\b/<wml-revision>/g' \
   | grep -Ei "$pattern" \
   || true)
 
