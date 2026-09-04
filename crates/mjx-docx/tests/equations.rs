@@ -4,7 +4,9 @@
 //! `sections.rs`, …), which all reach the saved bytes through `mjx_opc::Package::open` rather than
 //! the private `Document::package` field an in-crate test could reach directly.
 
-use mjx_docx::{Document, Package, PageSize, PartName};
+use mjx_docx::{
+    math_control_properties, Document, MathControlProperties, Package, PageSize, PartName,
+};
 use mjx_omml::{
     Argument, Delimiter, DelimiterProperties, Fraction, Math, MathElement, Matrix, MatrixRow,
     NaryOperator, NaryOperatorProperties, Radical,
@@ -193,5 +195,118 @@ fn editing_a_run_five_levels_deep_leaves_every_sibling_and_the_unrelated_paragra
     assert!(
         after_xml.contains("<m:m>") && after_xml.contains("<m:d>"),
         "the matrix and delimiter, siblings of the fraction, must survive"
+    );
+}
+
+/// Hand-authored `word/document.xml`: a fraction whose own `m:fPr/m:ctrlPr` carries a tracked
+/// insertion (`w:ins`, `CT_MathCtrlIns`) of bold run properties, plus a wholly unrelated second
+/// paragraph. Spliced into a blank document's container via `Package::replace_part_bytes` +
+/// `Document::from_package` — both public, so this stays a real round trip through the OPC layer
+/// rather than a `mjx-omml`-only fixture.
+const DOCUMENT_WITH_TRACKED_CTRL_PR: &str = r##"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"><w:body><w:p><m:oMath><m:f><m:fPr><m:ctrlPr><w:ins w:id="1" w:author="Author" w:date="2024-01-01T00:00:00Z"><w:rPr><w:b/></w:rPr></w:ins></m:ctrlPr></m:fPr><m:num><m:r><m:t>1</m:t></m:r></m:num><m:den><m:r><m:t>2</m:t></m:r></m:den></m:f></m:oMath></w:p><w:p><w:r><w:t>Unrelated paragraph.</w:t></w:r></w:p><w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr></w:body></w:document>"##;
+
+/// The first child of `element` (any namespace — every hop in this file's own paths is unambiguous
+/// by local name alone) whose local name is `local`.
+fn find_child<'a>(
+    element: &'a mjx_ooxml_core::RawElement,
+    interner: &mjx_ooxml_core::Interner,
+    local: &str,
+) -> Option<&'a mjx_ooxml_core::RawElement> {
+    element.children.iter().find_map(|node| match node {
+        mjx_ooxml_core::RawNode::Element(child) if interner.resolve(child.name.local) == local => {
+            Some(child)
+        }
+        _ => None,
+    })
+}
+
+fn document_part_name() -> PartName {
+    PartName::new("/word/document.xml").expect("valid part name")
+}
+
+/// Opens a blank document, then replaces `word/document.xml` wholesale with
+/// [`DOCUMENT_WITH_TRACKED_CTRL_PR`] — both `Package::replace_part_bytes` and
+/// `Document::from_package` are public, so this is exactly the substitution a caller of this crate
+/// could perform.
+fn document_with_tracked_ctrl_pr() -> Document {
+    let blank = Document::blank(PageSize::a4()).expect("blank");
+    let mut package = mjx_docx::Package::open(&blank.save().expect("save blank")).expect("reopen");
+    package
+        .replace_part_bytes(
+            &document_part_name(),
+            DOCUMENT_WITH_TRACKED_CTRL_PR.as_bytes().to_vec(),
+        )
+        .expect("replace document.xml");
+    Document::from_package(package).expect("open the substituted package")
+}
+
+/// A fraction's own `m:ctrlPr` carrying a tracked insertion (`w:ins`) reads as
+/// [`MathControlProperties::Insert`], and an unrelated edit elsewhere in the document leaves that
+/// `w:ins`'s own markup — id, author, date, and its nested `w:rPr/w:b` — byte-identical.
+///
+/// Confirmed by hand: changing the unrelated edit below to instead touch paragraph 0 (the one
+/// carrying the equation) turns the final `assert_eq!` red, because the edit's own reflow of
+/// paragraph 0 necessarily rebuilds the fraction it belongs to — restored by editing paragraph 1
+/// again, not `git checkout --`.
+#[test]
+fn a_tracked_insertion_inside_a_fractions_ctrl_pr_survives_an_unrelated_edit() {
+    let mut document = document_with_tracked_ctrl_pr();
+
+    let before = document.save().expect("save before edit");
+    let before_xml = document_xml(&before);
+    let ctrl_pr_markup = r#"<m:ctrlPr><w:ins w:id="1" w:author="Author" w:date="2024-01-01T00:00:00Z"><w:rPr><w:b/></w:rPr></w:ins></m:ctrlPr>"#;
+    assert!(
+        before_xml.contains(ctrl_pr_markup),
+        "fixture markup changed under this test: {before_xml}"
+    );
+
+    // Read it typed, through the real accessor chain, before touching anything — parsing
+    // `word/document.xml` directly (as `mjx-omml`'s own `deep_nesting.rs` does) rather than through
+    // `Document`, which exposes no public accessor handing back a `Math` alongside the `Interner` it
+    // needs to be read with.
+    let raw = mjx_docx::Package::open(&before)
+        .expect("reopen")
+        .part_bytes(&document_part_name())
+        .expect("document.xml")
+        .to_vec();
+    let doc = mjx_xml::fidelity::parse(&raw).expect("parse document.xml");
+    let body = find_child(&doc.root, &doc.interner, "body").expect("w:body");
+    let paragraph_0 = find_child(body, &doc.interner, "p").expect("paragraph 0");
+    let equation_element = find_child(paragraph_0, &doc.interner, "oMath").expect("m:oMath");
+    let equation =
+        <mjx_omml::Math as mjx_ooxml_core::FromXml>::from_xml(equation_element, &doc.interner)
+            .expect("read m:oMath");
+    let interner = &doc.interner;
+    let fraction = match &equation.elements(interner)[0] {
+        mjx_omml::MathElement::Fraction(fraction) => fraction.clone(),
+        other => panic!("expected a fraction, got {other:?}"),
+    };
+    let fraction_properties = fraction.properties(interner).expect("m:fPr is present");
+    let ctrl_pr = fraction_properties
+        .control_properties(interner)
+        .expect("m:ctrlPr is present");
+    match math_control_properties(&ctrl_pr, interner).expect("m:ctrlPr carries a w:ins") {
+        MathControlProperties::Insert(insert) => {
+            assert_eq!(insert.id(interner).ok(), Some(1));
+            assert_eq!(insert.author(interner).as_deref(), Some("Author"));
+        }
+        other => panic!("expected a tracked insertion, got {other:?}"),
+    }
+
+    // An edit wholly unrelated to the equation: paragraph 1's own run text.
+    document
+        .set_run_text(1, 0, "Edited — unrelated to the equation.")
+        .expect("set_run_text on the unrelated paragraph");
+    let after = document.save().expect("save after the unrelated edit");
+    let after_xml = document_xml(&after);
+
+    assert!(
+        after_xml.contains("Edited — unrelated to the equation."),
+        "the unrelated edit must actually land"
+    );
+    assert!(
+        after_xml.contains(ctrl_pr_markup),
+        "the tracked insertion's own markup must survive an edit to a different paragraph: {after_xml}"
     );
 }
