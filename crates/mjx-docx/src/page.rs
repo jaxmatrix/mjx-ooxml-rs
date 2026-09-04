@@ -24,7 +24,7 @@ use crate::error::DocxError;
 ///
 /// Only size and orientation are caller-supplied here — margins are fixed at `PageMargins::NORMAL`
 /// (this module's own private constant), Word's own "Normal" template default, regardless of page
-/// size. The full `w:sectPr` model (headers/footers, columns, line numbering, …) is MJXOFF-106's;
+/// size. The full `w:sectPr` model (headers/footers, columns, line numbering, …) is MJXOFF-109's;
 /// this is the minimum [`crate::Document::blank`] needs, kept small on purpose so that child can
 /// replace it rather than extend it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
