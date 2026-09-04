@@ -250,19 +250,29 @@ impl Document {
         &self.parts
     }
 
-    /// Reads this document's `word/styles.xml`, or `None` if it relates to none at all (a
-    /// [`Document::blank`] document, for one — see `blank.rs`'s own doc comment for why a blank
-    /// document deliberately starts with no `styles.xml`).
+    /// Reads this document's `word/styles.xml`, handing `read` the parsed [`StyleSheet`] together
+    /// with the [`mjx_ooxml_core::Interner`] it was parsed with — every accessor on the returned
+    /// model (a `styleId`, a `w:name`, …) needs that specific interner to resolve, so the two are
+    /// never handed back separately, mirroring [`Document::edit_style_sheet`]'s own shape exactly
+    /// (read-only rather than parse/mutate/write-back).
+    ///
+    /// Returns `None` — `read` is never called — if this document relates to no `word/styles.xml`
+    /// at all (a [`Document::blank`] document, for one; see `blank.rs`'s own doc comment for why a
+    /// blank document deliberately starts with no `styles.xml`).
     ///
     /// # Errors
-    /// Returns [`DocxError`] if `word/styles.xml` is related but cannot be read or is not
-    /// well-formed, or if its root is not `w:styles`.
-    pub fn style_sheet(&mut self) -> Result<Option<StyleSheet>, DocxError> {
+    /// Returns [`DocxError`] if `word/styles.xml` is related but cannot be read, is not
+    /// well-formed, or its root is not `w:styles`.
+    pub fn style_sheet<R>(
+        &mut self,
+        read: impl FnOnce(&StyleSheet, &mjx_ooxml_core::Interner) -> R,
+    ) -> Result<Option<R>, DocxError> {
         let Some(styles_part) = self.parts.styles.clone() else {
             return Ok(None);
         };
         let doc = self.package.part_tree(&styles_part)?;
-        Ok(Some(StyleSheet::from_xml(&doc.root, &doc.interner)?))
+        let sheet = StyleSheet::from_xml(&doc.root, &doc.interner)?;
+        Ok(Some(read(&sheet, &doc.interner)))
     }
 
     /// Edits this document's style sheet, creating `word/styles.xml` — with its content-type
@@ -281,7 +291,7 @@ impl Document {
     ///
     /// Only `word/styles.xml` (and, the first time, `[Content_Types].xml` and
     /// `word/_rels/document.xml.rels`) is ever dirtied — every other part, and every other style
-    /// inside `word/styles.xml` [`edit`] does not touch, keeps its original bytes (see
+    /// inside `word/styles.xml` `edit` does not touch, keeps its original bytes (see
     /// [`mjx_ooxml_core::ToXml::write_back`]).
     ///
     /// # Errors
