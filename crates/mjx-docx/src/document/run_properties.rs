@@ -243,8 +243,13 @@ pub struct Toggle {
 impl Toggle {
     /// Builds a new `local` toggle element (e.g. `"b"`) with no `val` — present, defaulting to on
     /// per [`Toggle::value`]'s own doc comment, until [`Toggle::set_value`] states one explicitly.
+    ///
+    /// `pub(crate)`, not private: `paragraph_properties.rs` (MJXOFF-96) builds a `w:pPr/w:rPr`
+    /// (`CT_ParaRPr`) whose `EG_RPrBase` half is the same twenty `CT_OnOff` shapes this run's `w:rPr`
+    /// carries — reusing this constructor is exactly the "reuse rather than restate" MJXOFF-96 is
+    /// told to follow for the leaf types this module already owns.
     #[must_use]
-    fn new(interner: &mut Interner, local: &str) -> Self {
+    pub(crate) fn new(interner: &mut Interner, local: &str) -> Self {
         Self {
             name: wml_name(interner, local),
             attributes: Vec::new(),
@@ -542,6 +547,19 @@ impl Border {
         };
         value.set_style(interner, style);
         value
+    }
+
+    /// Renames this border to `local` (e.g. `"top"`, `"between"`), keeping every attribute.
+    ///
+    /// `CT_Border` is one wire shape under six different names in `CT_PBdr` alone (`top`, `left`,
+    /// `bottom`, `right`, `between`, `bar` — MJXOFF-96), on top of this module's own `w:bdr`. A
+    /// [`Border`] built by [`Border::new`] (or read from one position and reassigned to another)
+    /// still carries its old name; this is how a caller — or a generic setter macro — corrects it
+    /// before storing, rather than each of the six positions needing its own constructor.
+    #[must_use]
+    pub(crate) fn renamed(mut self, interner: &mut Interner, local: &str) -> Self {
+        self.name = wml_name(interner, local);
+        self
     }
 }
 
@@ -903,8 +921,11 @@ pub struct HalfPointMeasureValue {
 
 impl HalfPointMeasureValue {
     /// Builds a new `local` element (`"sz"`, `"szCs"` or `"kern"`) of `half_points`.
+    ///
+    /// `pub(crate)`: `paragraph_properties.rs` (MJXOFF-96) reuses this for `w:pPr/w:rPr`'s own
+    /// `sz`/`szCs`/`kern`, the same three `CT_HpsMeasure` members `EG_RPrBase` gives a run's `w:rPr`.
     #[must_use]
-    fn new(interner: &mut Interner, local: &str, half_points: HalfPointMeasure) -> Self {
+    pub(crate) fn new(interner: &mut Interner, local: &str, half_points: HalfPointMeasure) -> Self {
         let mut value = Self {
             name: wml_name(interner, local),
             attributes: Vec::new(),

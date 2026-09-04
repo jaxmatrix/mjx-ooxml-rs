@@ -49,6 +49,68 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.84] - 2026-09-04
+
+Word paragraph properties (MJXOFF-96, Phase C position 5): `w:pPr` (`CT_PPr`) and all 33
+`CT_PPrBase` children, plus the paragraph mark's own run properties (`w:pPr/w:rPr`, `CT_ParaRPr`).
+`CT_PPrBase` is the other half of Word's direct formatting — the base MJXOFF-101 (styles) and
+MJXOFF-109 (numbering levels) both build on.
+
+Two traps this child exists to close: the paragraph-mark run properties are not a run's own — `w:b`
+set through `Paragraph::paragraph_mark_properties_or_insert` can never touch a run's `w:rPr`, and
+setting the paragraph's justification can never touch the pilcrow's — proved on bytes, not just by
+type distinctness. And `w:spacing/@line` is meaningless without `@lineRule` (`auto` means 240ths of a
+line, `exact`/`atLeast` mean twips): there is no `Spacing::line` accessor, only
+`Spacing::line_spacing`, which always returns both together (`LineSpacing`), demonstrated by a
+doctest.
+
+`CT_ParaRPr` reuses `run_properties.rs`'s (MJXOFF-94) 39 `EG_RPrBase` leaf types directly —
+`Toggle`, `Fonts`, `Color`, `Border`, `Shading`, … — rather than restating them; only `Toggle::new`
+and `HalfPointMeasureValue::new` needed widening from private to `pub(crate)` to make that reuse
+possible. `CT_PBdr`'s six borders and `w:pPr/w:shd` likewise reuse `CT_Border`/`CT_Shd`
+(`super::run_properties::{Border, Shading}`) rather than defining a second border or shading type.
+
+`CT_Ind`'s logical (`w:start`/`w:end`) and physical (`w:left`/`w:right`) spellings are both preserved
+independently — nothing is normalised on write — with `Indentation::leading_edge`/`trailing_edge`
+resolving between them when a file carries both: the logical spelling wins, since Annex M records it
+as the later, Strict-compatible addition (ECMA-376 Part 1's own prose states no explicit precedence
+here, unlike the `…Chars`-supersedes-twips rule it does state).
+
+One correction to the ticket's own text: `w:kinsoku` inside `w:pPr` is `CT_OnOff` (a plain toggle),
+not the two-attribute `CT_Kinsoku` complex type named in the ticket's "Complex types" list — that
+type belongs to `w:noLineBreaksAfter`/`w:noLineBreaksBefore` in document settings, unrelated to
+paragraph properties. `CT_DecimalNumberOrPrecent` (`w:summaryLength`) and `CT_ParaRPrOriginal`
+(reachable only through `w:pPrChange`, MJXOFF-126's scope) are likewise not `CT_PPrBase` children and
+have no home in this child.
+
+New fixture: `tests/fixtures/paragraph_properties.docx` — the only committed `.docx` carrying
+`w:line`, `w:tabs`, `w:ind`, `w:pBdr` or `w:framePr` before this child; its two paragraphs cover all
+33 `CT_PPrBase` members between them, including the legacy physical indentation spelling and a
+`w:tab` with `val="clear"` (which removes an inherited stop rather than adding one, so is preserved
+structurally like any other stop).
+
+Reachability: `Paragraph::properties`/`properties_mut`/`properties_or_insert` reach `w:pPr` from
+`Paragraph`'s own public surface — MJXOFF-152 found `CT_R`'s legacy leaf types were correct but
+unreachable through `Document`/`Body`/`Paragraph`/`Run`; this child does not repeat that gap for
+`w:pPr` itself. `ParagraphProperties::section_properties`/`change` similarly reach `w:sectPr`/
+`w:pPrChange` structurally (as `Unmodeled`), ahead of MJXOFF-106/MJXOFF-126 giving them real content.
+
+### Added
+
+- **`mjx_docx::ParagraphProperties`** (`CT_PPr`, `w:pPr`) — all 33 `CT_PPrBase` members plus the
+  paragraph mark's own properties, the section this paragraph ends, and the tracked-change wrapper.
+  Reached off `Paragraph::properties`/`properties_mut`/`properties_or_insert`.
+- **`mjx_docx::ParagraphMarkRunProperties`** (`CT_ParaRPr`, `w:pPr/w:rPr`) — the pilcrow's own
+  character formatting, distinct from a run's `w:rPr`.
+- **`mjx_docx::{Spacing, LineSpacing, Indentation, FrameProperties, TabStops, TabStop,
+  ParagraphBorders, NumberingProperties, ConditionalFormatting, ParagraphStyle, ParagraphAlignment,
+  ParagraphTextFlowDirection, VerticalCharacterAlignment, TextBoxTightWrapSetting,
+  DecimalNumberValue}`** and their content enums — the leaf and container types `CT_PPrBase`'s 33
+  members are built from.
+- **`mjx_ooxml_types::child_order::{PARAGRAPH_PROPERTIES, PARAGRAPH_MARK_RUN_PROPERTIES,
+  PARAGRAPH_BORDERS, NUMBERING_PROPERTIES}`** — generated child-order tables for `CT_PPr`,
+  `CT_ParaRPr`, `CT_PBdr` and `CT_NumPr` (`xtask/src/codegen/spec.rs::CHILD_ORDER_EXPORTS`).
+
 ## [0.0.83] - 2026-09-04
 
 Fixes the defect 0.0.82's own changelog reported and left open (MJXOFF-152): `crates/mjx-docx/src/

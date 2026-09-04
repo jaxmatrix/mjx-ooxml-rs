@@ -44586,6 +44586,18 @@ pub static PARAGRAPH: &ChildOrder = &WML_TYPES[151];
 /// The paragraph-formatting properties shared by a paragraph's `w:pPr` and a paragraph mark's run properties container (`CT_PPrBase`, `wml.xsd`).
 pub static PARAGRAPH_PROPERTIES_BASE: &ChildOrder = &WML_TYPES[154];
 
+/// A paragraph's own properties (`w:pPr`): `CT_PPrBase`'s children, then the paragraph mark's run properties, the last section's properties and the tracked-change wrapper (`CT_PPr`, `wml.xsd`).
+pub static PARAGRAPH_PROPERTIES: &ChildOrder = &WML_TYPES[153];
+
+/// The formatting of the paragraph mark itself (`w:pPr/w:rPr`): the tracked-change group, then `EG_RPrBase`'s members, then the tracked-change wrapper (`CT_ParaRPr`, `wml.xsd`).
+pub static PARAGRAPH_MARK_RUN_PROPERTIES: &ChildOrder = &WML_TYPES[166];
+
+/// The six borders a paragraph can carry (`w:pBdr`) (`CT_PBdr`, `wml.xsd`).
+pub static PARAGRAPH_BORDERS: &ChildOrder = &WML_TYPES[152];
+
+/// A paragraph's numbering-definition reference (`w:numPr`): level and definition id, then tracked-change markers (`CT_NumPr`, `wml.xsd`).
+pub static NUMBERING_PROPERTIES: &ChildOrder = &WML_TYPES[141];
+
 /// One run — its properties, then its text and other inline content (`w:r`) (`CT_R`, `wml.xsd`).
 pub static RUN: &ChildOrder = &WML_TYPES[177];
 

@@ -2279,6 +2279,33 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
          run properties container",
     ),
     (
+        "PARAGRAPH_PROPERTIES",
+        "wml",
+        "CT_PPr",
+        "A paragraph's own properties (`w:pPr`): `CT_PPrBase`'s children, then the paragraph mark's \
+         run properties, the last section's properties and the tracked-change wrapper",
+    ),
+    (
+        "PARAGRAPH_MARK_RUN_PROPERTIES",
+        "wml",
+        "CT_ParaRPr",
+        "The formatting of the paragraph mark itself (`w:pPr/w:rPr`): the tracked-change group, then \
+         `EG_RPrBase`'s members, then the tracked-change wrapper",
+    ),
+    (
+        "PARAGRAPH_BORDERS",
+        "wml",
+        "CT_PBdr",
+        "The six borders a paragraph can carry (`w:pBdr`)",
+    ),
+    (
+        "NUMBERING_PROPERTIES",
+        "wml",
+        "CT_NumPr",
+        "A paragraph's numbering-definition reference (`w:numPr`): level and definition id, then \
+         tracked-change markers",
+    ),
+    (
         "RUN",
         "wml",
         "CT_R",

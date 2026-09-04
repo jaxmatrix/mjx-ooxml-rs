@@ -22,13 +22,19 @@
 #     name below, and only in that exact casing, so `auto_title_deleted` and `AutoTitleDeleted`
 #     still fail.
 #   * **WordprocessingML's tracked-change deletion vocabulary.** `w:delText` ("Deleted Text",
-#     ECMA-376 Part 1 §17.3.3.7), `w:delInstrText` ("Deleted Field Code", §17.16.13) and the
-#     `Deleted*` Rust names that model them. This gate exists for the *chart* concept `c:delete` —
-#     "this label tier is switched off" — which was renamed because `delete_*` sat beside `remove_*`
-#     and read as its synonym. A tracked deletion is not that concept: it is a real deletion, the
-#     spec's own caption is "Deleted Text", and `SuppressedText` would be wrong rather than clearer.
-#     Allow-listed by exact token and by the `Deleted`-prefixed identifiers derived from them, so an
-#     unrelated `deleted` still fails.
+#     ECMA-376 Part 1 §17.3.3.7), `w:delInstrText` ("Deleted Field Code", §17.16.13), `w:del`
+#     ("Deletion", §17.13.5.15 — the tracked-change wrapper a paragraph mark's own run properties
+#     carry, MJXOFF-96) and the `Deleted*`/bare `Deleted` Rust names that model them. This gate
+#     exists for the *chart* concept `c:delete` — "this label tier is switched off" — which was
+#     renamed because `delete_*` sat beside `remove_*` and read as its synonym. A tracked deletion is
+#     not that concept: it is a real deletion, the spec's own caption is "Deletion" or "Deleted
+#     Text", and `Suppressed` would be wrong rather than clearer. Allow-listed by exact token and by
+#     the `Deleted`-prefixed identifiers derived from them, so an unrelated `deleted` still fails.
+#     The **bare** `Deleted` — which `CT_ParaRPr`'s tracked-change wrapper needs as an enum variant —
+#     is allowed **only under `crates/mjx-docx/` and `crates/mjx-omml/`**, the two crates whose
+#     schemas carry tracked changes. Allowing it workspace-wide would let the chart concept return
+#     as `enum ChartLabelTier { Deleted }` inside `mjx-chart` itself, which is the one place this
+#     gate exists to police; scoping it by path closes that while leaving Word's variant legal.
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #
@@ -79,6 +85,8 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/delText/<wire-token>/g' \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
+        -e '/^crates\/mjx-docx\//s/\bDeleted\b/<wml-revision>/g' \
+        -e '/^crates\/mjx-omml\//s/\bDeleted\b/<wml-revision>/g' \
   | grep -Ei "$pattern" \
   || true)
 
