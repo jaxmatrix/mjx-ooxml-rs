@@ -49,6 +49,54 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.85] - 2026-09-04
+
+Word document authoring from nothing (MJXOFF-98, Phase C position 6): `Document::blank` and
+`Document::blank_with_properties`, mirroring `mjx_pptx::Presentation::blank`'s shape — one call, no
+file, no template. On top of `mjx_opc::Package::empty` (the same OPC primitives `mjx-pptx`'s own
+`blank.rs` uses), this writes `word/document.xml` (one empty paragraph and a body-level `w:sectPr`
+naming the caller's page) plus `docProps/core.xml`/`docProps/app.xml` (MJXOFF-149's packaging-layer
+decision, restated rather than re-derived). `PageSize`/`PageOrientation` give the caller `a4()` or
+`us_letter()`, portrait or `landscape()`, refused with a typed `DocxError::InvalidPageSize` before
+any byte is written if this crate's fixed "Normal" margins (1 inch, matching Word's own template)
+would leave no printable area.
+
+**Which optional parts a blank document gets, and why the answer differs from PowerPoint's own.**
+`tests/fixtures/sample.docx` — LibreOffice's own output — ships ten parts, four beyond
+`word/document.xml` and the two `docProps`: `styles.xml`, `fontTable.xml`, `settings.xml` and
+`theme/theme1.xml`. None is schema-required (`wml.xsd`'s thirteen part-bearing global elements are
+all `minOccurs="0"` from wherever they are reached). `mjx_pptx::blank`'s answer to the same "what
+beyond the schema minimum" question is to include the master, layout and theme, because without them
+a deck is *structurally* unusable — there is no layout to build a slide from. WordprocessingML has no
+such dependency: a paragraph with no `w:pStyle` and a run with no `w:rStyle` are both legal, and every
+real Word implementation falls back to a built-in appearance when a document names no style to
+inherit from, so `Document::blank`'s body is fully usable through MJXOFF-92's `insert_paragraph` /
+`append_run` / `set_run_text` with zero related parts. Writing even a throwaway `docDefaults`-only
+`styles.xml` — legal under this ticket's own wording — would be work MJXOFF-101 replaces on day one,
+so this module writes none of the four, and `crates/mjx-docx/src/blank.rs`'s module doc names every
+inclusion and every deliberate absence.
+
+**A ticket correction, caught by checking `wml.xsd` directly rather than trusting the brief's own
+claim:** `w:sectPr`, `w:pgSz` and `w:pgMar` are *not* schema-required either — `CT_Body`'s `sectPr`,
+and `pgSz`/`pgMar` inside `EG_SectPrContents`, are all `minOccurs="0"`. All three are included for the
+same "not required, but what makes the result usable" reasoning `mjx_pptx::blank` uses for its
+placeholders, not because the schema demands them. The one attribute-level claim that genuinely is
+`use="required"` — `CT_PageMar`'s seven attributes (`top`, `right`, `bottom`, `left`, `header`,
+`footer`, `gutter`), if `w:pgMar` is written at all — is proved by mutation, once per attribute, in
+`tests/schema_gate.rs`.
+
+**A second, unrelated defect the schema gate caught while building this:** the first draft of
+`document_bytes` wrote `w:pgSz`'s and `w:pgMar`'s attributes with no `w:` prefix (`w="11906"` rather
+than `w:w="11906"`) — `wml.xsd` is `attributeFormDefault="qualified"`, the same class of defect
+MJXOFF-152 fixed for this crate's typed attribute accessors, this time in a hand-written XML
+template rather than a codec. `xmllint` rejected it immediately (`the attribute 'w' is not allowed`),
+before it ever reached a test file.
+
+The LibreOffice open canary (`tests/office_open.rs`, mirroring `mjx-pptx`'s own) is implemented and
+skips cleanly on a machine with no `soffice` installed; `crates/mjx-docx/examples/blank_document.rs`
+and the crate's first guide page (`crates/mjx-docx/src/guide.rs`, `building_a_document`) are the
+runnable and prose versions of the same story.
+
 ## [0.0.84] - 2026-09-04
 
 Word paragraph properties (MJXOFF-96, Phase C position 5): `w:pPr` (`CT_PPr`) and all 33

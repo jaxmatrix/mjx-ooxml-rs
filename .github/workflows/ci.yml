@@ -150,10 +150,18 @@ jobs:
       - name: schema-validity suite (Word and Excel)
         run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
 
-  # The Phase-2 exit gate: a .pptx we construct actually opens in a real Office implementation.
-  # Kept separate from lint-test so the heavy LibreOffice install cannot slow or flake the fast lane.
-  # MJX_REQUIRE_SOFFICE=1 turns a missing binary into a hard failure, so this coverage can never
-  # silently skip in CI (locally the same test skips cleanly when LibreOffice is absent).
+  # The Phase-2 exit gate: a .pptx or .docx we construct actually opens in a real Office
+  # implementation. Kept separate from lint-test so the heavy LibreOffice install cannot slow or
+  # flake the fast lane. MJX_REQUIRE_SOFFICE=1 turns a missing binary into a hard failure, so this
+  # coverage can never silently skip in CI (locally the same tests skip cleanly when LibreOffice is
+  # absent).
+  #
+  # Both `-p mjx-pptx` and `-p mjx-docx` must be named on the canary step: a package filter that
+  # names only one silently drops the other crate's `office_open` cases with the job still reporting
+  # green (MJXOFF-98 found exactly this — Word's four cases had never executed anywhere, here or
+  # locally, because this step named `-p mjx-pptx` alone). Likewise both `libreoffice-impress`
+  # (PowerPoint/Impress) and `libreoffice-writer` (Word/Writer) are required: `soffice` cannot
+  # convert a `.docx` to PDF with only the Impress component installed.
   office-open:
     name: office-open (LibreOffice)
     runs-on: ubuntu-latest
@@ -163,12 +171,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: install LibreOffice Impress
+      - name: install LibreOffice Impress and Writer
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-impress
+          sudo apt-get install -y --no-install-recommends libreoffice-impress libreoffice-writer
       - name: office-open canary
-        run: cargo test -p mjx-pptx --test office_open
+        run: cargo test -p mjx-pptx -p mjx-docx --test office_open
 
       # The guide's headline example must produce a deck a real Office implementation opens.
       # Documentation that cannot be executed is a claim; this makes it a gate.
