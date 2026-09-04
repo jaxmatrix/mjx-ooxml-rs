@@ -52,6 +52,66 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.100] - 2026-09-05
+
+The Word facade, the error mapping and both bindings (MJXOFF-139, Phase C position 21) — closes
+Phase C. `mjx_ooxml::Document` (`crates/mjx-ooxml/src/document.rs` + `document/`, 14 files) is the
+curated Word surface over `mjx_docx::Document`, mirroring [`Deck`]'s own treatment of
+`mjx_pptx::Presentation`: [`BlockPath`]/[`RunPath`] (`u32`-addressed) replace `impl Into<BlockPath>`/
+`impl Into<RunPath>`, a concrete return type replaces every closure `mjx_docx::Document` takes to
+read or edit a part, and `DocxError`'s 35 variants collapse into the existing eleven `ErrorCode`s —
+none needed a twelfth.
+
+**The curated surface**: lifecycle (`open`/`blank`/`save`/`save_unchecked`/`validate`/`conformance`),
+paragraph and run reading/editing, effective properties (run, paragraph, table cell — a documented
+subset of the full ladder, not every field), read-only style lookup, numbering attach/detach,
+sections (page size/margins) and headers/footers, tables (dimensions, spans, merges, structural
+insert/remove), fields, hyperlinks, comments, footnotes/endnotes, revisions (read-only), and inline
+pictures. Mail merge, web settings, the font table, recipients, bookmarks, move ranges, custom-XML
+data binding, `altChunk`, the glossary document, legacy form fields and equations stay reachable
+through [`Document::document_mut`] — documented on [`Document`]'s own module doc, including why
+content controls need no dedicated method (MJXOFF-138 already made paragraph/run addressing recurse
+through one transparently, so nothing new was needed to reach a content control's own text).
+
+**Both bindings** (`bindings/mjx-python`, `bindings/mjx-wasm`) project the same curated surface:
+`mjx_ooxml.Document` in Python (identity-mapped, reusing the existing eleven exception classes) and
+`Document` in the wasm package (camelCase, `free()`-mandatory, reusing `CellExtent`/`CellAddress`
+for the `(rows, columns)`/`(row, column)` pairs `Deck` already projects the same way). New value
+classes and enumerations extend the existing `value_class!`/`sealed_enums!`/`open_enums!` machinery
+in both bindings rather than inventing a second pattern. The Python `.pyi` stub carries every new
+class and method; `bindings/mjx-wasm/tests/node/document_surface.mjs` and (unverifiable locally —
+`maturin`/`pytest` are absent) `bindings/mjx-python/tests/test_document_surface_coverage.py` are the
+mis-wiring guards, the Word siblings of `surface.mjs`/`test_surface_coverage.py`.
+
+**One walkthrough, three languages** — `crates/mjx-ooxml/examples/build_a_document.rs`,
+`bindings/mjx-python/tests/test_build_a_document.py`,
+`bindings/mjx-wasm/tests/node/build_a_document.mjs` — a document authored from `Document::blank`
+through the curated surface only (paragraphs and runs, a numbered list, a hyperlink, a table, a
+header, a comment, a footnote), saved and reopened.
+
+**`Deck::open`'s Word refusal now names `Document::open`**, and `Format::is_editable` covers
+WordprocessingML alongside PresentationML — Excel remains detected but not editable.
+
+**Fixed while writing the Rust walkthrough, in `mjx-docx` (MJXOFF-124's own code, not this child's
+facade)**: `Document::add_footnote`/`add_endnote` silently lost every entry — the two reserved
+separator entries included — on save + reopen, whenever called on a document with no existing
+`footnotes.xml`/`endnotes.xml`. `create_footnotes_part`/`create_endnotes_part` wrote a literal
+`<w:footnotes xmlns:w="...">` template, then wrote back a *fresh* `Footnotes::blank(interner)` —
+built with `attributes: Vec::new()` — over the just-parsed root to seed the two reserved entries,
+discarding the `xmlns:w` the parse had just preserved; the saved bytes were schema-shaped XML with
+every `w:footnote` child under a `w:footnotes` root that never declared its own `w:` prefix, so a
+reopen resolved no `w:` element at all. `Footnotes::seed_reserved_entries`/
+`Endnotes::seed_reserved_entries` push the reserved entries onto the already-parsed value instead of
+replacing it — the same safe shape `create_comments_part`/`create_header_footer` already used.
+Reproduced directly against `mjx-docx`'s own public API, independent of the facade; two regression
+tests added, mutation-proved.
+
+The `wml` ownership audit (MJXOFF-139's other deliverable, per MJXOFF-133's template) is in this
+child's own pull request description: every member of `CT_Body`'s content groups
+(`EG_BlockLevelElts`/`EG_BlockLevelChunkElts`/`EG_ContentBlockContent`/`EG_RunLevelElts`/
+`EG_PContent`/`EG_ContentRunContent`/`EG_RPrBase`) and all fourteen of `wml.xsd`'s global elements,
+each mapped to its owning MJXOFF id — nothing unowned.
+
 ## [0.0.99] - 2026-09-05
 
 Content controls, custom XML, smart tags, `w:dir`/`w:bdo`, `w:altChunk` and the glossary document's
