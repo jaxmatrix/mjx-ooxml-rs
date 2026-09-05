@@ -189,12 +189,14 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
             set: SchemaSet::Markup,
             file: "sml.xsd",
         },
-        ordering: OrderingCoverage::Pending {
-            owner: "MJXOFF-132",
-            reason: "the `sml` row in `CHILD_ORDER_SCHEMAS` belongs to the Excel crate spine, which \
-                     is the child that starts placing SpreadsheetML children; `mjx-chart`'s embedded \
-                     workbook is written whole from a fixed template today",
-        },
+        // MJXOFF-132 added `sml` to `CHILD_ORDER_SCHEMAS` — the Excel crate spine, which creates
+        // `mjx-sml` and the layering rule that lets it exist. The table arrives *before* the first
+        // SpreadsheetML writer does, which is deliberate: every `x:`-rooted part of every package
+        // this gate inspects is audited for child order from now on, so the Phase D children that
+        // start placing `x:` children are held to the sequence from their first line rather than
+        // after the fact. `sml.xsd` reaches `dml-spreadsheetDrawing` through `CT_ObjectAnchor`, so
+        // that schema is parsed as a child-order *dependency*; its own table is MJXOFF-107's (E3).
+        ordering: OrderingCoverage::Generated,
         probe_root_element: "workbook",
     },
     ModeledSchema {
@@ -236,7 +238,8 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
             file: "opc-contentTypes.xsd",
         },
         ordering: OrderingCoverage::NotGenerated {
-            reason: "ECMA-376 Part 2, as for the relationships stream: written whole on every save, \
+            reason:
+                "ECMA-376 Part 2, as for the relationships stream: written whole on every save, \
                      never edited in place",
         },
         probe_root_element: "Types",
@@ -254,7 +257,8 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
         // `xsd:sequence` for a child-order table to enforce, so this is `NotGenerated`, not `Pending`:
         // no future work item closes this gap because there is no gap.
         ordering: OrderingCoverage::NotGenerated {
-            reason: "`CT_CoreProperties` is declared `xs:all`; ECMA-376 places no order constraint \
+            reason:
+                "`CT_CoreProperties` is declared `xs:all`; ECMA-376 places no order constraint \
                      on an `xs:all` group's children, and the part is written whole by \
                      `mjx_opc::doc_props::core_xml` on every call, never edited in place",
         },
@@ -270,7 +274,8 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
         // Same reasoning as the core-properties entry above: `CT_Properties` is also `xs:all`, and
         // `mjx_opc::doc_props::extended_xml` writes `docProps/app.xml` whole every time.
         ordering: OrderingCoverage::NotGenerated {
-            reason: "`CT_Properties` is declared `xs:all`, the same as `CT_CoreProperties`; no order \
+            reason:
+                "`CT_Properties` is declared `xs:all`, the same as `CT_CoreProperties`; no order \
                      constraint exists to enforce, and the part is written whole by \
                      `mjx_opc::doc_props::extended_xml` on every call",
         },

@@ -286,6 +286,7 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
     "wml",
     "dml-wordprocessingDrawing",
     "shared-math",
+    "sml",
 ];
 
 /// Schemas parsed *only* to resolve a cross-schema `xsd:group`/`xsd:element` reference reached
@@ -299,6 +300,10 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
 ///   `sl:schemaLibrary` by element `ref`.
 /// - `dml-picture` — `dml-wordprocessingDrawing`'s own `CT_WordprocessingGroup`/
 ///   `CT_WordprocessingCanvas` reference `dpct:pic` by element `ref` (MJXOFF-131).
+/// - `dml-spreadsheetDrawing` — `sml.xsd`'s `CT_ObjectAnchor` places `xdr:from`/`xdr:to` by element
+///   `ref`, so flattening SpreadsheetML walks into the spreadsheet-drawing namespace (MJXOFF-132).
+///   Its own table is MJXOFF-107's (E3), which owns `xl/drawings` and the three anchor modes; this
+///   child cedes it and only needs the schema *parsed*.
 ///
 /// `dml-wordprocessingDrawing` **left** this list with MJXOFF-131 (C16), and `shared-math` left it
 /// with MJXOFF-134 (C17) — both now have a table of their own in `CHILD_ORDER_SCHEMAS` instead,
@@ -307,8 +312,11 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
 /// Adding a schema here does **not** generate its own child-order table or flip its `COVERAGE.md`
 /// status — that stays the decision of the child that starts authoring *its* markup, by adding it
 /// to `CHILD_ORDER_SCHEMAS` instead.
-const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] =
-    &["shared-customXmlSchemaProperties", "dml-picture"];
+const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] = &[
+    "shared-customXmlSchemaProperties",
+    "dml-picture",
+    "dml-spreadsheetDrawing",
+];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
 ///
@@ -526,8 +534,11 @@ fn uncovered_note(stem: &str, table: Table) -> Result<String> {
 /// Why a schema is not covered, per table: `(stem, simple-type note, child-order note)`.
 ///
 /// A row is needed for every schema not generated in that table, and only for those: a schema that
-/// gains coverage silently stops using its note, and a schema that arrives without one fails the
-/// generator. `pending, owned by MJXOFF-N` names the work item that closes the gap — the same
+/// gains coverage in **both** tables has its row removed (MJXOFF-132 took `sml`'s and the dead one
+/// MJXOFF-134 left behind for `shared-math`), and a schema that arrives without one fails the
+/// generator. Removing the row is not tidying — it is what makes coverage load-bearing: withdraw
+/// `sml` from [`CHILD_ORDER_SCHEMAS`] now and this generator refuses to run rather than quietly
+/// reporting a schema as pending again. `pending, owned by MJXOFF-N` names the work item that closes the gap — the same
 /// ownership `mjx-schema-gate`'s `OrderingCoverage::Pending` states for the namespaces it
 /// categorises, and `crates/mjx-schema-gate/src/categories.rs` has a test that the two agree.
 const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
@@ -605,21 +616,9 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "not modelled — as for its simple types",
     ),
     (
-        "shared-math",
-        "",
-        "pending, owned by MJXOFF-134 — the `mjx-omml` model is the child that starts placing \
-         `m:` children",
-    ),
-    (
         "shared-relationshipReference",
         "not modelled — `r:id` is a token `mjx-opc` owns; the schema declares no enumeration",
         "not modelled — relationship references are attributes, not a content model",
-    ),
-    (
-        "sml",
-        "",
-        "pending, owned by MJXOFF-132 — the Excel crate spine is the child that starts placing \
-         `x:` children",
     ),
     (
         "vml-main",

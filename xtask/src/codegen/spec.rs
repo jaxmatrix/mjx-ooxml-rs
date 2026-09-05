@@ -2837,6 +2837,38 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "SUPERSCRIPT", "shared-math", "CT_SSup",
         "A superscript's own properties, its base, then the superscript (`m:sSup`)",
     ),
+
+    // ---- SpreadsheetML (MJXOFF-132) ----------------------------------------------------------
+    //
+    // The five types the Phase D children place children into first: the two part roots, the
+    // styles part's root, and the two types the cell store is built from. `WORKSHEET`'s 39 slots
+    // are the largest `xsd:sequence` in the workspace, which is precisely why no writer should be
+    // holding that order in its head.
+    //
+    // `ROW` and `CELL` would be ambiguous in this flat namespace — a Word table row and a
+    // DrawingML table cell are both already here under other names — so both are qualified.
+    (
+        "WORKSHEET", "sml", "CT_Worksheet",
+        "A worksheet's 39 children, from `sheetPr` to `extLst` (`x:worksheet`)",
+    ),
+    (
+        "WORKBOOK", "sml", "CT_Workbook",
+        "A workbook's 19 children, from `fileVersion` to `extLst` (`x:workbook`)",
+    ),
+    (
+        "STYLESHEET", "sml", "CT_Stylesheet",
+        "The styles part's 11 children: number formats, the three resource tables (fonts, fills, \
+         borders), the two xf tables, cell styles, dxfs, table styles, colours and `extLst` \
+         (`x:styleSheet`)",
+    ),
+    (
+        "WORKSHEET_ROW", "sml", "CT_Row",
+        "One row of a worksheet: its cells, then `extLst` (`x:row`)",
+    ),
+    (
+        "WORKSHEET_CELL", "sml", "CT_Cell",
+        "One cell: its formula, cached value, inline string, then `extLst` (`x:c`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.

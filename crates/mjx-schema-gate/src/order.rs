@@ -145,8 +145,11 @@ pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
 /// the audit cannot make true by itself: *this schema is generated, so every part rooted in it is
 /// audited*. A new global element the generator missed fails here, naming the part.
 ///
-/// A schema whose coverage is `Pending` (WordprocessingML, SpreadsheetML, DrawingML diagrams) is not
-/// required — and the requirement appears on its own the moment its owner flips the entry.
+/// A schema whose coverage is `Pending` is not required — and the requirement appears on its own
+/// the moment its owner flips the entry. There is no such schema left: WordprocessingML flipped with
+/// MJXOFF-90, DrawingML diagrams with MJXOFF-148 and SpreadsheetML with MJXOFF-132, so every
+/// modelled markup namespace this gate categorises is now audited. `Pending` stays because the enum
+/// is how a *future* gap gets a named owner, not because one is open.
 ///
 /// # Panics
 /// If the package cannot be opened.
