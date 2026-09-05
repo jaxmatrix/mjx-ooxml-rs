@@ -221,6 +221,24 @@ impl SheetData {
         Some(Cell::new(self, index))
     }
 
+    /// Every `@si` shared-formula group on this sheet, indexed on demand.
+    ///
+    /// The store keeps **no** group table: this walks the cells once and allocates one entry per
+    /// *group*, so a sheet whose million cells are one group builds a one-element vector. That is
+    /// what makes a group member cost what any formula cell costs and nothing for its membership —
+    /// see [`crate::formula::shared`](crate::formula) for what the report answers and, more
+    /// importantly, for what it deliberately does not.
+    ///
+    /// # Errors
+    /// [`mjx_ooxml_core::AttributeError`] if an `<f>` on this sheet carries a `t`, `si` or `ref` the
+    /// schema does not allow. The sheet still round-trips byte for byte: nothing in this report is on
+    /// the write path.
+    pub fn shared_formula_groups(
+        &self,
+    ) -> Result<crate::formula::SharedFormulaGroups<'_>, mjx_ooxml_core::AttributeError> {
+        crate::formula::SharedFormulaGroups::of(self)
+    }
+
     /// Whether the whole sheet can still be written straight out of the part's bytes.
     #[must_use]
     pub fn is_verbatim(&self) -> bool {
