@@ -8,12 +8,12 @@ use mjx_xml::text::escape_attribute;
 use crate::address::{CellReference, CellSpans};
 use crate::error::SmlError;
 
-use super::attributes;
 use super::record::{
     CellExtras, CellFlags, CellTypeCode, PackedCell, PackedRow, PayloadShape, RowFlags, NO_EXTRAS,
 };
-use super::text::{TextArena, TextSpan};
 use super::view::{Cell, CellValue, Row};
+use crate::arena::attributes;
+use crate::arena::{TextArena, TextSpan};
 
 /// `CT_SheetData` — every row and every cell of one worksheet, held as packed records over one byte
 /// arena.
@@ -134,7 +134,7 @@ impl SheetData {
     ///
     /// [`SmlError::Address`] for a `c@r` that is not a cell reference — the store is *keyed* on that
     /// value, and a key it cannot parse is not something it can preserve into a working index.
-    /// [`SmlError::SheetDataTooLarge`] for a part beyond the `u32` byte space. Everything else a file
+    /// [`SmlError::PackedStoreTooLarge`] for a part beyond the `u32` byte space. Everything else a file
     /// can get wrong — a row out of order, a duplicate reference, a `c@r` that names a different row
     /// than its `row@r` does, a `t` that disagrees with the child element present — is **preserved
     /// as read** and reported by [`anomalies`](Self::anomalies), never repaired and never a panic.
@@ -273,7 +273,7 @@ impl SheetData {
     /// # Errors
     ///
     /// [`SmlError::UnrepresentableNumber`] for a [`CellValue::Number`] that is `NaN` or an infinity,
-    /// and [`SmlError::SheetDataTooLarge`] if the store's byte space cannot hold the new value.
+    /// and [`SmlError::PackedStoreTooLarge`] if the store's byte space cannot hold the new value.
     pub fn set_cell_value(
         &mut self,
         reference: CellReference,
@@ -388,7 +388,7 @@ impl SheetData {
     ///
     /// # Errors
     ///
-    /// [`SmlError::SheetDataTooLarge`] if the store's byte space cannot hold the rewritten run.
+    /// [`SmlError::PackedStoreTooLarge`] if the store's byte space cannot hold the rewritten run.
     pub fn set_row_attribute(
         &mut self,
         number: u32,

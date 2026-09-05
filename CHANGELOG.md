@@ -37,6 +37,7 @@ reconstructed afterwards.
 | `mjx_pptx::Presentation::activex_binary_bytes` | `activex_state_bytes` | Reads exactly what `set_activex_state` writes; the pair named one artefact two ways. |
 | `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
 | `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
+| `mjx_sml::SmlError::SheetDataTooLarge` | `PackedStoreTooLarge` | There are two packed stores in `mjx-sml` now — the cell store and the shared-string table — over one shared byte arena, and the variant either of them raises said "the cell store's byte space" in its message. A name and a message that are true of one of two callers is the kind of small lie that survives into a user's terminal. |
 | `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
 | `mjx_docx::{RunPropertyContent, ParagraphMarkRunPropertyContent, ParagraphPropertyContent, StyleParagraphPropertyContent, SectionPropertyContent, NumberingPropertyContent}::Change`/`Inserted`/`Deleted`/`MovedFrom`/`MovedTo`, `FieldCharacterContent::NumberingChange` | inner type `Unmodeled` → the real revision type (`RunPropertiesChange`, `ParagraphMarkPropertiesChange`, `ParagraphPropertiesChange`, `TrackChangeMarker`, `SectionPropertiesChange`, `TrackChangeNumbering`) | MJXOFF-126. `ParagraphProperties::change()` already had a public accessor returning `Option<&Unmodeled>` — this one is a real, consumer-visible signature change, not only a formal one; every other listed variant had no accessor before this child, matching the row above. |
@@ -51,6 +52,77 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.106] - 2026-09-05
+
+The shared string table: what a `t="s"` cell's index actually means (MJXOFF-97, Phase D position 5).
+
+### Added
+
+- **`mjx_sml::strings`** — `xl/sharedStrings.xml` and everything reached through it. `CT_Sst`
+  (`SharedStringTable`), `CT_Rst` (`StringItem`), `CT_RElt` (`RichTextRun`), `CT_PhoneticRun`
+  (`PhoneticRun`), `CT_PhoneticPr` (`PhoneticProperties`), the `<is>` of a `t="inlineStr"` cell
+  (`InlineString`), and `RichTextRunSpec` for authoring. `crates/mjx-sml/docs/SHARED_STRINGS.md` is
+  the decision record: the measurements, the alternatives that lost, and the two lifetime policies in
+  full.
+- **`mjx_sml::font`** — `FontProperties`, `FontPropertyOwner` and `Color`. `CT_RPrElt` (a run's
+  `rPr`) and `CT_Font` (a `styles.xml` font-table entry) are the same fifteen slots over the same
+  eight `val`-wrapper complex types, differing only in `rFont` vs `name` and in `family`'s declared
+  type, so they are one Rust type with a two-valued owner. **MJXOFF-105 (D08) reuses this module
+  rather than copying it**; a copy would arrive with no executioner, which is the debt MJXOFF-99
+  exists to discharge for `mjx-chart`'s duplicate SpreadsheetML writer.
+- **`tests/fixtures/shared_strings_rich_text.xlsx`** — authored to disagree with the naive answer:
+  `count="9"`, `uniqueCount="6"` and **seven** entries, an entry nothing references, an
+  `xml:space="preserve"` entry, three rich-text runs in two `rPr` shapes, an East Asian entry with
+  `rPh` and `phoneticPr`, an empty `<t/>`, a duplicate entry, two `t="inlineStr"` cells and a `t="s"`
+  cell whose index points past the end of the table.
+- **`crates/mjx-sml/tests/shared_strings_fidelity.rs`** (31 cases) and
+  **`crates/mjx-sml/tests/shared_string_allocation.rs`** — the fidelity contract, and a second
+  `harness = false` memory gate. A global allocator is process-wide, so a second measurement inside
+  MJXOFF-95's binary would have started from whatever that one left live.
+
+### Changed
+
+- **`crates/mjx-sml/src/arena/`** — the byte arena, the checked start-tag split and the attribute-run
+  scanner move out of `cells/` to sit below both packed stores. `PLAN.md` names two bulk-data cases,
+  not one; two copies of `decompose` would have been two copies of the invariant that a source range
+  is a *claim about somebody else's buffer* and has to be re-checked before it is believed. Gains
+  `span_over` (an authored range lives in the second half of the address space) and
+  `attribute_run_of` (an element whose prefix the caller does not know).
+
+### Notes
+
+- **48.0 bytes per entry, against 660 for a `RawElement` tree of the same table**, and zero bytes
+  authored by a table nobody has edited. The bound is not the gate, and this is worth stating: against
+  twelve-character strings a `Vec<String>` costs 24 bytes of header plus the text — **less** than a
+  48-byte record — so a bytes-per-entry bound would have passed the design this one rejects. The
+  load-bearing assertion is that the table retains the same bytes *to the byte* for entries whose
+  text is ten times longer, which an entry holding a span has and an entry owning its text cannot
+  have at any string length.
+- **`count` and `uniqueCount` are hints, and only one of them is knowable here.** `uniqueCount` is
+  the entry count, which the table is; `count` is the number of `t="s"` cells in the workbook, which
+  it cannot see. Both round-trip as read. Only a change to the entry list moves `uniqueCount`, and
+  only if the file wrote the attribute at all; nothing ever derives `count`, and
+  `set_reference_count` is the only thing that writes it.
+- **Nothing is ever renumbered.** An index is written into cells in every sheet, so removing an entry
+  rewrites the meaning of every later one. Entries are append-only and an unreferenced entry stays;
+  `compact` is an explicit call that returns the old-to-new map the caller must then apply to every
+  sheet itself. The consequence, stated rather than discovered later: a workbook edited many times
+  accumulates dead entries, which is the cheaper of the two wrong answers.
+- **`xml:space="preserve"` is written only where its absence would change the value.** `sml.xsd`
+  types a `t` as the simple type `ST_Xstring`, which can carry no attribute, so the attribute both
+  Excel and LibreOffice write does not validate — and without it a consumer may collapse leading and
+  trailing whitespace and `"  total  "` becomes `"total"`. Losing the string is worse; confining the
+  divergence to strings that need it keeps an ordinary authored table schema-valid and byte-identical
+  to `mjx-chart`'s writer.
+- **`CT_Color` is not `mjx_dml::Color`, and MJXOFF-97's ticket was wrong to say it could be.**
+  DrawingML's colour is a choice of six *elements* whose name is the kind; SpreadsheetML's is one
+  element with five *attributes*, and `indexed`, `theme` (a position, not a token) and `tint` have
+  nowhere to go in the other. There is still exactly one spreadsheet colour type, shared with
+  everything D08 colours.
+- **`CT_RPrElt` is an `xsd:choice`.** The generated `child_order` table says so — every slot at rank
+  zero — so nothing here imposes an order on a run's properties. The fixture writes them in a
+  non-canonical order on purpose, and it round-trips.
 
 ## [0.0.105] - 2026-09-05
 

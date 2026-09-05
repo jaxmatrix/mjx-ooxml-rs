@@ -40,7 +40,7 @@ use mjx_ooxml_types::spreadsheetml::CellType;
 
 use crate::address::CellReference;
 
-use super::text::TextSpan;
+use crate::arena::TextSpan;
 
 /// Where a cell's value lives, and in what shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,7 +190,7 @@ pub(crate) struct CellExtras {
     /// start tag with an unmodelled attribute, a single-quoted value, two spaces, or `t` written
     /// before `r` is replayed exactly as found, and one that this store would have written
     /// identically costs nothing at all. Editing such a cell rewrites this run **in place**
-    /// ([`super::attributes::set_attribute`]) rather than regenerating it, so the unmodelled
+    /// ([`crate::arena::attributes::set_attribute`]) rather than regenerating it, so the unmodelled
     /// attribute survives the edit too.
     pub(crate) attributes: TextSpan,
     /// Bytes between the previous sibling's end and this cell's `<`, when there are any: whitespace
