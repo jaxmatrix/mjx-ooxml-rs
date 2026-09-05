@@ -33,8 +33,9 @@ fn reference(text: &str) -> CellReference {
     CellReference::parse(text).unwrap_or_else(|error| panic!("{text}: {error}"))
 }
 
-/// The `<f>` and `<v>` of one cell of the saved container's worksheet, as bytes.
-fn formula_and_cache(container: &[u8], cell: &str) -> (Vec<u8>, Option<Vec<u8>>) {
+/// The `<f>` and `<v>` of one cell of the saved container's worksheet, as the exact bytes the part
+/// holds — rendered as strings so a failing comparison prints the markup rather than byte values.
+fn formula_and_cache(container: &[u8], cell: &str) -> (String, Option<String>) {
     let package = Package::open(container).expect("the container opens");
     let bytes = package
         .part_bytes(&part_name(SHEET))
@@ -46,10 +47,10 @@ fn formula_and_cache(container: &[u8], cell: &str) -> (Vec<u8>, Option<Vec<u8>>)
         .cell(reference(cell))
         .unwrap_or_else(|| panic!("{cell} is populated"));
     (
-        cell.formula_markup()
-            .expect("the cell carries a formula")
-            .to_vec(),
-        cell.raw_value().map(<[u8]>::to_vec),
+        String::from_utf8_lossy(cell.formula_markup().expect("the cell carries a formula"))
+            .into_owned(),
+        cell.raw_value()
+            .map(|bytes| String::from_utf8_lossy(bytes).into_owned()),
     )
 }
 
@@ -64,7 +65,7 @@ fn formula_and_cache(container: &[u8], cell: &str) -> (Vec<u8>, Option<Vec<u8>>)
 fn a_dependency_edit_leaves_every_formula_and_cached_value_byte_identical() {
     let original = fixture(FIXTURE);
     let dependents = ["B2", "C2", "D2", "E2", "F5", "G6", "B3", "B6"];
-    let before: Vec<(Vec<u8>, Option<Vec<u8>>)> = dependents
+    let before: Vec<(String, Option<String>)> = dependents
         .iter()
         .map(|cell| formula_and_cache(&original, cell))
         .collect();
@@ -73,6 +74,13 @@ fn a_dependency_edit_leaves_every_formula_and_cached_value_byte_identical() {
     workbook
         .set_cell_value(0, reference("A2"), CellValue::Number(11.0))
         .expect("A2 takes a number");
+    // A second dependency edit, in the row a *shared-group member* lives in — `A3` is inside `C2`'s
+    // `SUM(A2:A6)`, and row 3 carries `B3`. Editing it forces that row to be rebuilt with the member
+    // in it, which is the only way a writer that expanded a group into per-cell text would show up
+    // at this tier: rows nobody touched are copied whole and never reach the cell writer at all.
+    workbook
+        .set_cell_value(0, reference("A3"), CellValue::Number(12.0))
+        .expect("A3 takes a number");
     let saved = workbook.save().expect("the workbook saves");
 
     // The edit really landed.
@@ -84,6 +92,14 @@ fn a_dependency_edit_leaves_every_formula_and_cached_value_byte_identical() {
             .as_deref(),
         Some("11"),
         "the dependency really changed"
+    );
+    assert_eq!(
+        reopened
+            .cell_text(0, reference("A3"))
+            .expect("the cell reads")
+            .as_deref(),
+        Some("12"),
+        "and so did the second one, in the row the shared-group member lives in"
     );
 
     for (index, cell) in dependents.iter().enumerate() {
