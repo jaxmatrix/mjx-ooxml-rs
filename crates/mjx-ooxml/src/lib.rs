@@ -108,8 +108,20 @@
 //! *states* versus what a renderer *shows*, and the inheritance ladders the `effective_*` readers
 //! walk to get from one to the other.
 //!
-//! For Word, [`mjx_docx::guide`] carries the same shape — [Building a document](mjx_docx::guide::building_a_document)
-//! is the whole story once, end to end, written against `mjx_docx::Document`; every call translates
+//! For Word, [`mjx_docx::guide`] carries the same shape — five pages plus a README, in the same
+//! reading order:
+//!
+//! - [Building a document](mjx_docx::guide::building_a_document) — the whole story once, end to end.
+//! - [Text, runs and annotations](mjx_docx::guide::text_and_formatting) — addressing a run, editing
+//!   it precisely, and the comments, notes and bookmarks that hang off it.
+//! - [Tables, sections, headers and structured content](mjx_docx::guide::tables_sections_and_headers)
+//!   — structured content, and the section a paragraph sits in.
+//! - [Styles, numbering and inheritance](mjx_docx::guide::styles_and_inheritance) — where a
+//!   property comes from when the run does not state it.
+//! - [Fidelity and the known gaps](mjx_docx::guide::fidelity_and_gaps) — the round-trip guarantee,
+//!   the `wml` preserve-only ledger, and an honest list of what is not modelled.
+//!
+//! It is written against `mjx_docx::Document`; every call translates
 //! to [`Document`] (this crate's own facade type, curated rather than a full re-export — see the
 //! [`document`] module's own doc comment for exactly what is curated and why) the same way the
 //! PowerPoint guide translates to [`Deck`]. `examples/build_a_document.rs` in this crate is the same
