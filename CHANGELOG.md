@@ -53,6 +53,61 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.108] - 2026-09-05
+
+The worksheet spine: `CT_Worksheet`'s thirty-nine slots, the widest content model in the schema
+(MJXOFF-102, Phase D position 7).
+
+### Added
+
+- **`mjx_sml::worksheet`** — `CT_Worksheet` (`sml.xsd:2170`) as `WorksheetPart`, in four subject
+  modules. Seven of the thirty-nine slots are modelled — `SheetProperties` (`sheetPr`, with
+  `TabColor`, `OutlineProperties` and `PageSetupProperties`), `SheetDimension`, `SheetViews` /
+  `SheetView` / `SheetPane` / `Selection` / `PivotSelection`, `SheetFormatProperties`,
+  `ColumnBlock` / `ColumnRun`, `mjx_sml::SheetData` (MJXOFF-95's store) and
+  `SheetCalculationProperties` — and the other **thirty-two are held as the markup the file wrote,
+  in their schema position**. A worksheet whose `pageSetup` survives is proof the frame works, not
+  proof `pageSetup` was modelled.
+- **`mjx_xlsx::Workbook`** grows the worksheet surface: `worksheet_markup`, `worksheet_markup_of`,
+  `write_worksheet_markup`, `set_cell_value`, `cell_text`, `shared_strings` and `package`. A third
+  guide page, *Reading and editing cells*, covers them.
+- **`mjx_xml::fidelity::serialize_start_tag` / `serialize_end_tag`** — an element's tags on their
+  own. `serialize_element` already existed for a model that holds no tree but does hold whole
+  elements; the worksheet frame holds no tree and its `sheetData` child is a packed byte store rather
+  than a `RawElement`, so it writes `<worksheet …>`, then each slot's bytes, then `</worksheet>`.
+- **`tests/fixtures/worksheet_spine.xlsx`** — a worksheet carrying one child from every later Phase D
+  child's territory, **two `<cols>` blocks** rather than one (the slot is `maxOccurs="unbounded"`, so
+  merging them changes the file), `mergeCells` present with `autoFilter` deliberately absent, a
+  frozen pane with two selections, a comment between two slots, and — on one modelled slot and one
+  unmodelled one — a doubled space inside a start tag that nothing but the verbatim source range
+  reproduces. Schema-valid, so it needs no tolerance entry.
+- **`mjx_sml::Color::read_attributes`** — `Color::read` for a caller holding the attribute list
+  rather than the element, so `sheetPr/tabColor` can be *preserved* as an attribute bag and *decoded*
+  on demand rather than stored as a lossy snapshot.
+
+### Changed
+
+- **`WorksheetPart` consumes the document it is read from**, rather than borrowing a tree the package
+  caches. `docs/BENCHMARKS.md` records 913 bytes of peak resident set per cell for a 300,000-cell
+  worksheet held as a `RawElement` tree; the packed store holds the same sheet in 36.8, and a frame
+  that kept the tree alive beside it would hand the 25× straight back. Copy-on-write is therefore
+  restated at a fourth granularity — per **slot** — with the same *exactly one door* rule the cell
+  store uses: a modelled slot's verbatim bytes are given up by the `_mut` accessor and by the setter,
+  and by nothing else. `crates/mjx-sml/tests/cell_store_allocation.rs` gains two cases that measure
+  both claims through the real part.
+- `mjx_sml`'s attribute-bag macro moved from `workbook/leaf.rs` to `leaf.rs`: nine more of the types
+  it declares are the worksheet's, and the macro never belonged to the workbook.
+- `crates/mjx-xlsx/tests/schema_gate.rs`'s "no part under `xl/` is skipped" rule now sweeps **every**
+  committed `.xlsx` rather than `sample.xlsx` alone — `worksheet_spine.xlsx` is the first fixture with
+  a part under `xl/` that `sample.xlsx` does not have, and pinning one fixture would have let it join
+  the sweep as a skip.
+
+### Fixed
+
+- `crates/mjx-sml/tests/cell_store_fidelity.rs`'s corpus sweep listed every part under
+  `/xl/worksheets/` as a worksheet, including the `_rels` streams. No committed fixture had a
+  worksheet-level `.rels` until this child added one, so the defect was latent rather than wrong.
+
 ## [0.0.107] - 2026-09-05
 
 `xl/workbook.xml`: the part that names every sheet (MJXOFF-100, Phase D position 6).
