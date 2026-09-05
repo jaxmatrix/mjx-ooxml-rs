@@ -45,12 +45,13 @@
 //! `formula`, `formula1` and `formula2` do not. The *content* is the same content, so the decoding
 //! and the replay are `crate::formula::element`'s one implementation, called from both.
 //!
-//! # `@dxfId` is a position, and a table names eight of them
+//! # `@dxfId` is a position, and this cluster names nine of them
 //!
-//! `table@headerRowDxfId`, `@dataDxfId`, `@totalsRowDxfId`, `@headerRowBorderDxfId`,
-//! `@tableBorderDxfId`, `@totalsRowBorderDxfId`, and a column's own `@headerRowDxfId`, `@dataDxfId`
-//! and `@totalsRowDxfId` all index `xl/styles.xml`'s `dxfs`, exactly as `cfRule@dxfId` and
-//! `colorFilter@dxfId` do. [`DifferentialFormats`](crate::DifferentialFormats)' rule is unchanged:
+//! Six on the table — `@headerRowDxfId`, `@dataDxfId`, `@totalsRowDxfId`, `@headerRowBorderDxfId`,
+//! `@tableBorderDxfId`, `@totalsRowBorderDxfId` — and three more on **each column**:
+//! `@headerRowDxfId`, `@dataDxfId` and `@totalsRowDxfId`. (A tenth is
+//! [`TableStyleRegion`](crate::TableStyleRegion)'s, in `xl/styles.xml`.) Every one of them indexes
+//! `xl/styles.xml`'s `dxfs`, exactly as `cfRule@dxfId` and `colorFilter@dxfId` do. [`DifferentialFormats`](crate::DifferentialFormats)' rule is unchanged:
 //! **append, never reorder**, because inserting a `dxf` silently repoints every index above it. The
 //! one allocator is
 //! [`StylesheetPart::append_differential_format`](crate::StylesheetPart::append_differential_format)
