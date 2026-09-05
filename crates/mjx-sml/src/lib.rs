@@ -55,7 +55,8 @@
 //! |---|---|
 //! | [`address`] | **MJXOFF-93 (D03) — done**: references, ranges, `sqref`, `spans`, A1 and R1C1 |
 //! | [`cells`] | **MJXOFF-95 (D04) — done**: the cell store, and the hybrid memory model made real |
-//! | [`strings`] | MJXOFF-97 (D05) — `sharedStrings.xml`, rich-text runs, inline strings |
+//! | [`strings`] | **MJXOFF-97 (D05) — done**: `sharedStrings.xml`, rich-text runs, inline strings |
+//! | [`font`] | **MJXOFF-97 (D05) — done**: `CT_RPrElt`/`CT_Font`'s shared property family, reused by D08 |
 //! | [`styles`] | MJXOFF-105 (D08), MJXOFF-108 (D09) — resource tables, then the `xf` indirection |
 //! | [`formula`] | MJXOFF-115 (D11) — formulas as text, cached values, `calcChain` |
 //! | [`worksheet`] | MJXOFF-102 (D07) the 39-slot spine, MJXOFF-117 (D12) the sheet grid |
@@ -83,6 +84,7 @@ pub mod address;
 pub mod cells;
 pub mod error;
 pub mod features;
+pub mod font;
 pub mod formula;
 pub mod strings;
 pub mod styles;
@@ -97,3 +99,8 @@ pub use address::{
 };
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
 pub use error::SmlError;
+pub use font::{Color, FontProperties, FontPropertyOwner};
+pub use strings::{
+    InlineString, PhoneticProperties, PhoneticRun, RichTextRun, RichTextRunSpec, SharedStringTable,
+    StringItem,
+};
