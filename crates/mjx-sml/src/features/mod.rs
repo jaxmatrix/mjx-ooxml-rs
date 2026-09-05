@@ -1,9 +1,9 @@
 //! The optional worksheet features — everything a sheet may carry beside its cells.
 //!
 //! **Filled by MJXOFF-120 (D13) conditional formatting, MJXOFF-123 (D14) data validation,
-//! autofilters and sort state, and MJXOFF-125 (D15) worksheet tables; MJXOFF-127 (D16) hyperlinks
-//! and the object-anchor vocabulary, MJXOFF-129 (D17) print setup, headers/footers and custom views
-//! fill the rest.**
+//! autofilters and sort state, MJXOFF-125 (D15) worksheet tables, and MJXOFF-127 (D16) hyperlinks,
+//! the object-anchor vocabulary and the small worksheet children nothing else claimed; MJXOFF-129
+//! (D17) print setup, headers/footers and custom views fill the rest.**
 //!
 //! These are separated from [`crate::worksheet`] deliberately. The spine is what every worksheet
 //! has; a feature is what some worksheets have, each with its own vocabulary of a dozen or more
@@ -23,6 +23,10 @@
 //! | `validation.rs` | `dataValidations`, `dataValidation`, and its authoring vocabulary | MJXOFF-123 (D14) |
 //! | `tables.rs` | `CT_Table` and everything under it, plus the `tableParts` list — **a part of its own** | MJXOFF-125 (D15) |
 //! | `table_specs.rs` | the plain-data authoring vocabulary for a whole table | MJXOFF-125 (D15) |
+//! | `hyperlinks.rs` | `hyperlinks`, `hyperlink`, and the two kinds a `CT_Hyperlink` can be | MJXOFF-127 (D16) |
+//! | `objects.rs` | `CT_ObjectAnchor` and `CT_ObjectPr` — **the vocabulary three Phase E children share** | MJXOFF-127 (D16) |
+//! | `annotations.rs` | `cellWatches`, `ignoredErrors` and the worksheet `smartTags` cluster | MJXOFF-127 (D16) |
+//! | `publishing.rs` | `dataConsolidate`, `customProperties` and `webPublishItems` | MJXOFF-127 (D16) |
 //!
 //! # Conditional formatting reports; it never evaluates
 //!
@@ -59,22 +63,48 @@
 //! whole column with, and this library neither expands it into per-cell formulas nor evaluates it —
 //! nor computes a totals row, nor parses the structured reference (`Sales[[#This Row],[Q1]]`) inside
 //! either. See [`tables`].
+//!
+//! # A hyperlink is never repaired, and a target is never followed
+//!
+//! MJXOFF-127's two, stated here for the same reason the four above are. `CT_Hyperlink` declares
+//! `@r:id` and `@location` **both optional**, so a file may write either, and **an entry carrying
+//! both is a real shape Excel writes** rather than a defect to tidy. Nothing here drops one because
+//! the other is present, and nothing invents either.
+//!
+//! An external target is an **untrusted URI**: preserved exactly as the `.rels` wrote it, never
+//! percent-normalised, never resolved against a base, never made absolute, and above all never
+//! fetched. The same rule covers a [`WebPublishItem`]'s `@destinationFile`, which is a path on
+//! somebody else's disk. See [`hyperlinks`] and [`publishing`].
+//!
+//! The invariant that runs the other way is real work and lives one tier up: **a hyperlink and its
+//! relationship are one thing.** Adding an external link adds a relationship, removing it removes
+//! that relationship, and a relationship left behind is a defect
+//! `mjx_xlsx::Workbook::validate` reports rather than something Excel is left to repair.
 
 // The subject modules are public, as [`crate::formula`]'s and [`crate::styles`]' are and for the
 // same reason: each carries the design record for its own piece — why conditional formatting is
 // reported and never evaluated, why a filter hides no row, why a `list` validation's source is text
 // — and a reader who reaches one of these types through its re-export should be able to reach the
 // reasoning behind it too.
+pub mod annotations;
 pub mod conditional_chain;
 pub mod conditional_rules;
 pub mod conditional_scales;
 pub mod conditional_specs;
 pub mod filter_specs;
 pub mod filters;
+pub mod hyperlinks;
+pub mod objects;
+pub mod publishing;
 pub mod table_specs;
 pub mod tables;
 pub mod validation;
 
+pub use annotations::{
+    CellSmartTag, CellSmartTagContent, CellSmartTagProperty, CellSmartTags, CellSmartTagsContent,
+    CellWatch, CellWatches, CellWatchesContent, IgnoredError, IgnoredErrors, IgnoredErrorsContent,
+    SmartTags, SmartTagsContent,
+};
 pub use conditional_chain::{
     AppliedConditionalRule, ConditionalCellFormat, ConditionalFormatLayer, ConditionalRuleChain,
 };
@@ -98,6 +128,13 @@ pub use filters::{
     AutoFilter, AutoFilterContent, ColorFilter, CustomFilter, CustomFilters, CustomFiltersContent,
     DateGroupItem, DynamicFilter, Filter, FilterColumn, FilterKind, Filters, FiltersContent,
     IconFilter, SortCondition, SortState, SortStateContent, Top10Filter,
+};
+pub use hyperlinks::{Hyperlink, Hyperlinks, HyperlinksContent};
+pub use objects::{ObjectAnchor, ObjectProperties, ObjectPropertiesContent};
+pub use publishing::{
+    CustomProperties, CustomPropertiesContent, CustomProperty, DataConsolidation,
+    DataConsolidationContent, DataReference, DataReferences, DataReferencesContent, WebPublishItem,
+    WebPublishItems, WebPublishItemsContent,
 };
 pub use table_specs::{TableColumnSpec, TableStyleReferenceSpec, WorksheetTableSpec};
 pub use tables::{

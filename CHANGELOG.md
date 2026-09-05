@@ -54,6 +54,89 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.117] - 2026-09-06
+
+Hyperlinks, the object-anchor vocabulary three Phase E children share, and the last small worksheet
+children nothing else in Phase D had claimed (MJXOFF-127, Phase D position 16).
+
+### Added
+
+- **`mjx_sml::features::hyperlinks`** — `Hyperlinks` (`CT_Hyperlinks`, `sml.xsd:2739`) and
+  `Hyperlink` (`CT_Hyperlink`, `sml.xsd:2744`), filling **rank 18 of `CT_Worksheet`**. `@ref` is an
+  `ST_Ref`, so **a hyperlink covers a range and not a cell**, and nothing splits a `B4:D6` entry into
+  one link per cell. `CT_Hyperlink` declares `@r:id` and `@location` both optional, so there are
+  three shapes and not two — and **an entry carrying both is a real file Excel writes, not a defect
+  to clean up**. Nothing here drops either because the other is present.
+- **`mjx_sml::features::objects`** — `ObjectAnchor` (`CT_ObjectAnchor`, `sml.xsd:238`) and
+  `ObjectProperties` (`CT_ObjectPr`, `sml.xsd:3063`). **Modelled in `mjx-sml` on purpose**: `sml.xsd`
+  reaches `CT_ObjectAnchor` from `CT_CommentPr` (MJXOFF-114, E5), `CT_ObjectPr` (MJXOFF-107, E3) and
+  `CT_ControlPr` (both), so one type in the shared-markup tier is what stops three Phase E children
+  inventing three. The two `xdr:from` / `xdr:to` markers are **held as raw elements** — `CT_Marker`
+  is `dml-spreadsheetDrawing.xsd`'s and MJXOFF-107 models it — while their *placement* goes through
+  the generated `OBJECT_ANCHOR` table, which ranks them across a namespace boundary no `sml` local
+  name reveals. Nine of `CT_ObjectPr`'s twelve attributes are booleans and **six default to `true`**,
+  which is the opposite of every other flag family in `sml.xsd`.
+- **`mjx_sml::features::annotations`** — `CellWatches`/`CellWatch` (rank 26),
+  `IgnoredErrors`/`IgnoredError` (rank 27), and `SmartTags`/`CellSmartTags`/`CellSmartTag`/
+  `CellSmartTagProperty` (rank 28). An `IgnoredError` says *do not draw the indicator*, never *there
+  is no error*; nothing here evaluates a cell. The worksheet `smartTags` cluster is **not**
+  `xl/workbook.xml`'s near-identically-named `smartTagTypes`, which MJXOFF-100 modelled.
+- **`mjx_sml::features::publishing`** — `DataConsolidation`/`DataReferences`/`DataReference`
+  (rank 12), `CustomProperties`/`CustomProperty` (rank 25) and `WebPublishItems`/`WebPublishItem`
+  (rank 36). A consolidation is a **record**, never performed. A `webPublishItem@destinationFile` is
+  an untrusted path on somebody else's disk, carried exactly and never opened.
+- **Seven new `WorksheetPart` slots** — `hyperlinks`, `data_consolidation`, `custom_properties`,
+  `cell_watches`, `ignored_errors`, `smart_tags` and `web_publish_items`, each with its `_mut` and
+  `set_` companions, plus **`hyperlink_covering`, `hyperlink_position_covering`, `add_hyperlink` and
+  `remove_hyperlink`**. **Twenty-five of `CT_Worksheet`'s thirty-nine slots are now modelled and
+  fourteen held raw**, and the frame's own documentation now names the owner of every one of the
+  fourteen.
+- **`Workbook::sheet_hyperlinks`, `cell_hyperlink`, `set_cell_hyperlink`, `remove_cell_hyperlink`,
+  `add_hyperlink_relationship`**, plus **`SheetHyperlink`**, **`HyperlinkTarget`** and
+  **`HyperlinkKind`**. `HyperlinkTarget::Url` keeps `mjx_pptx::Hyperlink::Url`'s name exactly;
+  Excel's *internal* kind is a `@location` string and **no relationship at all**, unlike
+  PowerPoint's slide jump. **A hyperlink and its relationship are one thing**: setting one writes
+  both, removing one removes both, and a relationship survives only while another entry still names
+  it.
+- **`SpreadsheetDefect::OrphanedHyperlinkRelationship`** — the half packaging cannot state.
+  `mjx-opc` reports a dangling `r:id` and is explicit that a relationship nothing names is legal (a
+  `comments` relationship is found by *type*), so this fires for the **`hyperlink` relationship type
+  alone**, over worksheets this library will write.
+- **`mjx_xlsx::parts::REL_HYPERLINK`** — the one relationship in that file that reaches no part.
+- **Four generated child-order exports** — `WORKSHEET_IGNORED_ERRORS`, `OBJECT_ANCHOR`,
+  `OBJECT_PROPERTIES` and `DATA_CONSOLIDATION` in `mjx_ooxml_types::child_order`, from `xtask`'s
+  curated list.
+- **`tests/fixtures/hyperlinks.xlsx`** — **all three hyperlink shapes on one sheet**, because one
+  kind tests one branch: an internal `@location` over the multi-cell `B4:D6`, an external `@r:id`,
+  and one carrying both. The two external entries name `rId2` then `rId1`, **the reverse of the
+  `.rels` order**; the `mailto:` target spells its query `%20` and `&amp;`, so any normalisation of
+  an untrusted URI shows; one `@display` is **single-quoted**; `dataConsolidate@function` is
+  `stdDev`, whose generated variant is `SampleStandardDeviation`; `dataRefs@count` and
+  `webPublishItems@count` are both **stale**; one `dataRef` states no attribute at all; the two
+  `cellWatch`es are out of address order; `ignoredErrors` carries an `extLst` after its records; and
+  the sheet holds an unmodelled `customSheetViews` (rank 13) and `phoneticPr` (rank 15) so the
+  modelled and held slots genuinely interleave.
+- **A guide page** — *Hyperlinks*, with three compiled doctests.
+
+### Changed
+
+- **`Workbook::next_sheet_relationship_id` is now `pub(crate)`** (it was private to
+  `worksheet/tables.rs`). Hyperlinks allocate from the same sheet `.rels`, and a second allocator
+  could hand out an id the first had already promised.
+
+### Notes
+
+- **`customSheetViews` (rank 13) is explicitly preserved, and it is MJXOFF-129 (D17)'s**, which names
+  `CT_CustomSheetViews`/`CT_CustomSheetView` in its own work list. `CT_CustomSheetView` embeds
+  `pageMargins`, `printOptions`, `pageSetup` and `headerFooter` — D17's own print block — so
+  modelling it here would have meant a second copy of it or a model holding it raw twice over.
+- **Three `CT_Worksheet` slots still have no owner**: `phoneticPr` (15), `legacyDrawingHF` (31) and
+  `drawingHF` (32). `CT_PhoneticPr` is already modelled once as `PhoneticProperties`, a value decoded
+  from the shared-string store's packed bytes rather than a `RawElement`-backed slot, so giving rank
+  15 a type means unifying two call sites — a design question, not a slot to fill. The other two are
+  the header/footer half of the drawing family and belong with E3's and E5's. All three round-trip
+  verbatim today; `crates/mjx-sml/src/worksheet/frame.rs` records this table for MJXOFF-133 (D18).
+
 ## [0.0.116] - 2026-09-06
 
 Worksheet tables — the first feature of Phase D that lives in a **part of its own**, and the first

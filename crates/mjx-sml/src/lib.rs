@@ -59,9 +59,9 @@
 //! | [`font`] | **MJXOFF-97 (D05) — done**: `CT_RPrElt`/`CT_Font`'s shared property family, reused by D08 |
 //! | [`styles`] | **MJXOFF-105 (D08) + MJXOFF-108 (D09) — done**: fonts, fills, borders, dxfs, the indexed palette; the `xf` indirection, number formats, named styles and [`EffectiveCellFormat`]; MJXOFF-125 (D15) adds the `tableStyles` slot, the last of `CT_Stylesheet`'s eleven to be modelled |
 //! | [`formula`] | **MJXOFF-115 (D11) — done**: `CT_CellFormula`'s twelve attributes, shared/array/data-table formulas, cached values, `calcChain` — and the written-down guarantee that nothing here recalculates; MJXOFF-123 (D14) adds [`FormulaElement`], the `ST_Formula` *element* three slots share |
-//! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid, MJXOFF-120 (D13) the `conditionalFormatting` slot, MJXOFF-123 (D14) the `autoFilter` and `dataValidations` slots, MJXOFF-125 (D15) the `tableParts` slot |
+//! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid, MJXOFF-120 (D13) the `conditionalFormatting` slot, MJXOFF-123 (D14) the `autoFilter` and `dataValidations` slots, MJXOFF-125 (D15) the `tableParts` slot, MJXOFF-127 (D16) the `hyperlinks`, `dataConsolidate`, `customProperties`, `cellWatches`, `ignoredErrors`, `smartTags` and `webPublishItems` slots |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
-//! | [`features`] | **MJXOFF-120 (D13) — done**: conditional formatting, the cross-block priority order and the `dxf` layer; **MJXOFF-123 (D14) — done**: data validation, autofilters and sort state; **MJXOFF-125 (D15) — done**: worksheet tables, their columns and the `tableParts` list; MJXOFF-127/129 (D16–D17) fill the rest |
+//! | [`features`] | **MJXOFF-120 (D13) — done**: conditional formatting, the cross-block priority order and the `dxf` layer; **MJXOFF-123 (D14) — done**: data validation, autofilters and sort state; **MJXOFF-125 (D15) — done**: worksheet tables, their columns and the `tableParts` list; **MJXOFF-127 (D16) — done**: hyperlinks, the object-anchor vocabulary three Phase E children share, and the six small worksheet clusters nothing else claimed; MJXOFF-129 (D17) fills the rest |
 //! | [`mod@write`] | **MJXOFF-112 (D10) — done**: [`WorkbookPackage`], the package writer that replaces `EmbeddedWorkbook`, and the `styles.xml` skeleton behind it |
 //! | [`error`] | MJXOFF-132 (D01) — this child; every later one adds its variants |
 //!
@@ -101,19 +101,25 @@ pub use address::{
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
 pub use error::SmlError;
 pub use features::{
-    AppliedConditionalRule, AutoFilter, AutoFilterContent, AutoFilterSpec, ColorFilter, ColorScale,
-    ColorScaleContent, ColorScaleSpec, ConditionalCellFormat, ConditionalFormatLayer,
-    ConditionalFormatting, ConditionalFormattingContent, ConditionalFormattingRule,
-    ConditionalFormattingRuleContent, ConditionalRuleChain, ConditionalRuleSpec,
-    ConditionalRuleSpecKind, ConditionalValueObject, ConditionalValueObjectSpec, CustomFilter,
-    CustomFilterSpec, CustomFilters, CustomFiltersContent, DataBar, DataBarContent, DataBarSpec,
-    DataValidation, DataValidationContent, DataValidationSpec, DataValidations,
-    DataValidationsContent, DateGroupItem, DifferentialFormatSpec, DynamicFilter, Filter,
-    FilterColumn, FilterColumnSpec, FilterKind, FilterSpecKind, Filters, FiltersContent,
-    IconFilter, IconSet, IconSetContent, IconSetSpec, SortCondition, SortConditionSpec, SortState,
-    SortStateContent, SortStateSpec, TableColumn, TableColumnContent, TableColumnSpec,
-    TableColumns, TableColumnsContent, TableFormula, TablePart, TableParts, TablePartsContent,
-    TableStyleReference, TableStyleReferenceSpec, Top10Filter, WorksheetTable,
+    AppliedConditionalRule, AutoFilter, AutoFilterContent, AutoFilterSpec, CellSmartTag,
+    CellSmartTagContent, CellSmartTagProperty, CellSmartTags, CellSmartTagsContent, CellWatch,
+    CellWatches, CellWatchesContent, ColorFilter, ColorScale, ColorScaleContent, ColorScaleSpec,
+    ConditionalCellFormat, ConditionalFormatLayer, ConditionalFormatting,
+    ConditionalFormattingContent, ConditionalFormattingRule, ConditionalFormattingRuleContent,
+    ConditionalRuleChain, ConditionalRuleSpec, ConditionalRuleSpecKind, ConditionalValueObject,
+    ConditionalValueObjectSpec, CustomFilter, CustomFilterSpec, CustomFilters,
+    CustomFiltersContent, CustomProperties, CustomPropertiesContent, CustomProperty, DataBar,
+    DataBarContent, DataBarSpec, DataConsolidation, DataConsolidationContent, DataReference,
+    DataReferences, DataReferencesContent, DataValidation, DataValidationContent,
+    DataValidationSpec, DataValidations, DataValidationsContent, DateGroupItem,
+    DifferentialFormatSpec, DynamicFilter, Filter, FilterColumn, FilterColumnSpec, FilterKind,
+    FilterSpecKind, Filters, FiltersContent, Hyperlink, Hyperlinks, HyperlinksContent, IconFilter,
+    IconSet, IconSetContent, IconSetSpec, IgnoredError, IgnoredErrors, IgnoredErrorsContent,
+    ObjectAnchor, ObjectProperties, ObjectPropertiesContent, SmartTags, SmartTagsContent,
+    SortCondition, SortConditionSpec, SortState, SortStateContent, SortStateSpec, TableColumn,
+    TableColumnContent, TableColumnSpec, TableColumns, TableColumnsContent, TableFormula,
+    TablePart, TableParts, TablePartsContent, TableStyleReference, TableStyleReferenceSpec,
+    Top10Filter, WebPublishItem, WebPublishItems, WebPublishItemsContent, WorksheetTable,
     WorksheetTableContent, WorksheetTableSpec, XmlColumnProperties,
 };
 pub use font::{Color, ColorElement, FontProperties, FontPropertyOwner};

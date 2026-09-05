@@ -58605,3 +58605,15 @@ pub static WORKSHEET_TABLE: &ChildOrder = &SML_TYPES[319];
 
 /// One table column's four children: a calculated-column formula, a totals-row formula, the XML-map binding, then `extLst` (`x:tableColumn`) (`CT_TableColumn`, `sml.xsd`).
 pub static WORKSHEET_TABLE_COLUMN: &ChildOrder = &SML_TYPES[320];
+
+/// The errors a sheet tells a consumer not to flag, then `extLst` (`x:ignoredErrors`) (`CT_IgnoredErrors`, `sml.xsd`).
+pub static WORKSHEET_IGNORED_ERRORS: &ChildOrder = &SML_TYPES[160];
+
+/// An anchored object's two cell markers, `xdr:from` then `xdr:to` — both in the SpreadsheetDrawingML namespace (`x:anchor`) (`CT_ObjectAnchor`, `sml.xsd`).
+pub static OBJECT_ANCHOR: &ChildOrder = &SML_TYPES[202];
+
+/// An embedded object's one child, its anchor (`x:objectPr`) (`CT_ObjectPr`, `sml.xsd`).
+pub static OBJECT_PROPERTIES: &ChildOrder = &SML_TYPES[203];
+
+/// A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`) (`CT_DataConsolidate`, `sml.xsd`).
+pub static DATA_CONSOLIDATION: &ChildOrder = &SML_TYPES[79];
