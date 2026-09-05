@@ -525,6 +525,28 @@ fn a_merge_is_readable_from_every_cell_in_it() {
     assert!(!sheet.is_covered_by_merge(cell("A7")).expect("covered"));
     assert!(sheet.is_covered_by_merge(cell("B7")).expect("covered"));
 
+    // The anchor is a position this call derived, so it is relative whatever the `@ref` spelled —
+    // and it answers for a `$`-anchored lookup too.
+    let absolute =
+        worksheet("<x:sheetData/><x:mergeCells><x:mergeCell ref=\"$A$7:$C$7\"/></x:mergeCells>");
+    let anchor = absolute.merge_anchor(cell("$B$7")).expect("anchor");
+    assert_eq!(anchor, cell("A7"));
+    assert_eq!(
+        anchor.text().as_str(),
+        "A7",
+        "no `$` is attached to a derived position"
+    );
+    assert_eq!(
+        absolute
+            .merged_range_containing(cell("B7"))
+            .expect("the merges parse")
+            .expect("covered")
+            .text()
+            .as_str(),
+        "$A$7:$C$7",
+        "the range itself still comes back as the file spelled it"
+    );
+
     // The span belongs to the anchor; a covered cell reports the one cell it occupies.
     assert_eq!(sheet.cell_span(cell("A7")).expect("span"), (1, 3));
     assert_eq!(sheet.cell_span(cell("B7")).expect("span"), (1, 1));
