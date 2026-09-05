@@ -52,6 +52,66 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.103] - 2026-09-05
+
+The `mjx-xlsx` package spine: the part graph, a workbook that opens and saves without touching a
+byte, and the SpreadsheetML invariants a save is held to (MJXOFF-91, Phase D position 2).
+
+### Added
+
+- **`mjx_xlsx::Workbook`** — the format-tier half of the Excel split MJXOFF-132 opened.
+  `crates/mjx-xlsx/src/lib.rs` was thirteen lines with zero public items and an
+  `assert_eq!(2 + 2, 4)` placeholder; it is now a crate with a module tree, a resolved part graph and
+  a byte-exact round trip. `open`/`from_package` find the workbook part through the package-root
+  `officeDocument` relationship and identify it by its **root element** (never by its content type —
+  which is what lets a macro-enabled workbook open at all, see below); `sheets` reads the `x:sheets`
+  list, in document order, resolving each entry's `r:id`; `parts` and `worksheet(i).parts()` resolve
+  the workbook-level and sheet-level part graphs; `part_inventory` says what this crate made of every
+  part; `validate`/`save`/`save_unchecked` are the write path.
+- **`mjx_xlsx::parts`** — the SpreadsheetML part graph: twenty-one `PartKind`s, each pairing a
+  relationship type with its content type(s), plus `SheetKind`, `WorkbookParts` and `WorksheetParts`.
+  Every string is quoted from ECMA-376 Part 1 §12.3 (the theme from §14.2.7, the VML drawing from
+  **Part 4 §8.2**), with the Strict `purl.oclc.org` prefix substituted for the Transitional one every
+  fixture in this workspace actually carries — the same convention `mjx_docx::constants` documents.
+  The four a workbook cannot open without match `mjx-chart`'s own embedded-workbook writer string for
+  string, which is what MJXOFF-112 will delete.
+- **`mjx_xlsx::preserve`** — the tier-1 contract written down, and `PartClassification`. A part this
+  crate cannot classify is **preserved, never rejected**: a `.xlsm`'s macro-enabled workbook, a custom
+  XML mapping and a vendor's private sidecar all round-trip through a crate that knows nothing about
+  any of them.
+- **`mjx_xlsx::SpreadsheetDefect`** — five SpreadsheetML invariants on top of `mjx-opc`'s packaging
+  ones, split by scope exactly as `mjx_pptx::validate` splits its own. Two are **graph** invariants,
+  checked over the whole package: the package-root `officeDocument` relationship must still name the
+  workbook part (§12.3.23), and no `…spreadsheetml.*` part may be unreachable from the root. That
+  second one deliberately narrows `mjx-opc`'s "an unreferenced part is not a defect" for one family
+  and one reason — a shared string table nothing relates to is not dead weight, it is every `t="s"`
+  cell in the workbook indexing into a table no consumer loads. The other three are **markup**
+  invariants over `Package::authored_xml_parts` only, so a workbook opened and saved untouched is
+  never faulted for markup it arrived with: a `x:sheet` entry must lead to a sheet, a related sheet
+  part must be listed, and `@sheetId`/`@name`/`r:id` must each be unique (§18.2.19).
+- **`crates/mjx-xlsx/tests/roundtrip.rs`, `part_graph.rs`, `workbook_validation.rs`** — the tier-1
+  proof over the directory-derived `.xlsx` corpus (part by part on decompressed payloads, never a
+  container hash), the part-graph and preservation clauses, and the refusals proved on the real
+  fixture through the public `Workbook::save`.
+- **Three cases added to `crates/mjx-xlsx/tests/schema_gate.rs`** (MJXOFF-110 created the file,
+  MJXOFF-132 added the ordering case): invalid worksheet markup — a `s:c` planted outside its
+  `s:row`, which `CT_SheetData` rejects — must fail *naming `/xl/worksheets/sheet1.xml`*, which is
+  the part every later Phase D child writes into; **no** part under `xl/` may be skipped rather than
+  validated, which is the general form of the four-part clause the file already pinned by name; and a
+  workbook opened and saved through `Workbook` (not through `Package`) is still schema-valid and
+  still in child order.
+- **A two-page guide** at `crates/mjx-xlsx/docs/guide/`, every snippet a compiled doctest.
+
+### Notes
+
+- **The macro-enabled content types are deliberately not declared.** `macroEnabled` appears nowhere
+  in ECMA-376 Parts 1-4, so declaring one would be guessing a wire token. A `.xlsm` still opens (the
+  workbook part is found by its root element) and still round-trips; its workbook part simply reports
+  as unclassified. `parts.rs` carries a test that fails if a later child ever adds the string, so the
+  note cannot go stale silently.
+- Patch digit only. No existing public identifier changed name or shape: every item here is new, in a
+  crate that previously had none.
+
 ## [0.0.102] - 2026-09-05
 
 `mjx-sml`, the shared-markup layer Excel was missing, and the first mechanical check of the layering
