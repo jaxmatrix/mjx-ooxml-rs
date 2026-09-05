@@ -90,7 +90,7 @@ impl AuthoredWorksheet {
         &self.part
     }
 
-    /// The worksheet markup, mutably — for the thirty-two slots this writer does not author itself.
+    /// The worksheet markup, mutably — for the twenty-six slots this writer does not author itself.
     pub fn part_mut(&mut self) -> &mut WorksheetPart {
         &mut self.part
     }

@@ -75,12 +75,14 @@ assert_eq!(core_properties.classification, PartClassification::Unclassified);
 ## What is deliberately not modelled
 
 Most of it. `mjx-sml` now models cells (MJXOFF-95), shared strings (MJXOFF-97), the workbook part
-(MJXOFF-100) and the worksheet's own thirty-nine slot frame (MJXOFF-102) — but **thirty-two of those
-thirty-nine slots are held as the markup the file wrote, not modelled**: merged cells, conditional
-formatting, data validation, hyperlinks, print setup, drawings, tables and the rest. MJXOFF-105 (D08)
-through MJXOFF-133 (D18) fill them, and each module's own documentation names the child that does.
-Styles are modelled as of MJXOFF-105 and MJXOFF-108, and formulas as of MJXOFF-115 — as **text**,
-which is the whole of what this workspace ever does with one; see the section below.
+(MJXOFF-100) and the worksheet's own thirty-nine slot frame (MJXOFF-102) — but **twenty-six of those
+thirty-nine slots are held as the markup the file wrote, not modelled**: conditional formatting, data
+validation, hyperlinks, print setup, drawings, tables and the rest. MJXOFF-105 (D08) through
+MJXOFF-133 (D18) fill them, and each module's own documentation names the child that does. Styles are
+modelled as of MJXOFF-105 and MJXOFF-108; formulas as of MJXOFF-115 — as **text**, which is the whole
+of what this workspace ever does with one (see the section below); and the sheet grid — merged
+ranges, row and column geometry, outline levels, page breaks, sheet protection and scenarios — as of
+MJXOFF-117.
 
 Held is not dropped. A worksheet whose `pageSetup` survives a save is proof the frame works, not
 proof `pageSetup` was modelled, and that is exactly what the round-trip suites check.

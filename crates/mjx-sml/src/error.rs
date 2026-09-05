@@ -29,7 +29,8 @@ use mjx_xml::XmlError;
 /// — a cell reference, a range, a `sqref` or a `spans` list — that does not parse. Each later Phase D
 /// child adds the variants its own model needs — a shared-string index that names no entry
 /// (MJXOFF-97), an `xf` index outside `cellXfs` (MJXOFF-108). MJXOFF-95 (D04) adds the fifth: a
-/// worksheet whose bytes outgrow the cell store's `u32` address space.
+/// worksheet whose bytes outgrow the cell store's `u32` address space. MJXOFF-117 (D12) adds the two
+/// the merge surface refuses on: an overlapping merge and a single-cell one.
 #[derive(Debug, thiserror::Error)]
 pub enum SmlError {
     /// The underlying OPC package could not be read, edited or written.
@@ -99,6 +100,34 @@ pub enum SmlError {
         index: usize,
         /// How many tabs the workbook holds.
         sheets: usize,
+    },
+
+    /// A caller asked to merge a range that overlaps a merge already in the sheet.
+    ///
+    /// Excel repairs a workbook whose merges overlap, discarding one of them and telling the user
+    /// the file was damaged. Producing that silently would be worse than refusing, so this is the
+    /// one place the merge surface says no rather than writing what it was given.
+    ///
+    /// Reading such a file is **not** an error: an overlap already in the markup is preserved and
+    /// reported by [`WorksheetPart::grid_anomalies`](crate::WorksheetPart::grid_anomalies). Only
+    /// authoring one is refused.
+    #[error("merging {requested} would overlap the existing merged range {existing}")]
+    MergeOverlapsExistingMerge {
+        /// The range the caller asked to merge.
+        requested: crate::address::CellRange,
+        /// The range already there that it would have overlapped.
+        existing: crate::address::CellRange,
+    },
+
+    /// A caller asked to merge a range covering exactly one cell.
+    ///
+    /// `<mergeCell ref="A1"/>` merges nothing, and Excel repairs it the same way it repairs an
+    /// overlap. As with an overlap, a degenerate merge already in a file is preserved and reported
+    /// rather than refused; only authoring one is.
+    #[error("{range} covers one cell, so merging it would merge nothing")]
+    DegenerateMerge {
+        /// The range the caller asked to merge.
+        range: crate::address::CellRange,
     },
 
     /// A style index named no `xf` — a cell's `@s`, a row's `@s` or a column's `@style` pointing

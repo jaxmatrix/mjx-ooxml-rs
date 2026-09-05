@@ -133,10 +133,13 @@ pub use workbook::{
     WorkbookProperties, WorkbookProtection, WorkbookView,
 };
 pub use worksheet::{
-    ColumnBlock, ColumnBlockContent, ColumnRun, OutlineProperties, PageSetupProperties,
-    PivotSelection, Selection, SheetCalculationProperties, SheetDimension, SheetFormatProperties,
-    SheetPane, SheetProperties, SheetPropertiesContent, SheetView, SheetViewContent, SheetViews,
-    SheetViewsContent, WorksheetContent, WorksheetPart,
+    BreakAxis, ColumnBlock, ColumnBlockContent, ColumnRun, ColumnWidth, GridAnomaly, MergedCells,
+    MergedCellsContent, MergedRange, OutlineProperties, PageBreak, PageBreaks, PageBreaksContent,
+    PageSetupProperties, PivotSelection, ProtectedRange, ProtectedRanges, ProtectedRangesContent,
+    RowHeight, Scenario, ScenarioContent, ScenarioInputCells, Scenarios, ScenariosContent,
+    Selection, SheetCalculationProperties, SheetDimension, SheetFormatProperties, SheetPane,
+    SheetProperties, SheetPropertiesContent, SheetProtection, SheetView, SheetViewContent,
+    SheetViews, SheetViewsContent, WorksheetContent, WorksheetPart,
 };
 pub use write::{
     AuthoredCellValue, AuthoredStylesheet, AuthoredWorkbook, AuthoredWorksheet, BorderEdgeSpec,
