@@ -54,8 +54,11 @@
 //! An entry is 48 bytes of `u32` over the arena in `crate::arena`, the same one address space the
 //! cell store uses: a table nobody has edited owns no bytes of its own and shares the part's buffer
 //! with the package. `strings/record.rs` carries the accounting;
-//! `crates/mjx-sml/tests/shared_string_allocation.rs` measures a per-entry bound against it with a
-//! counting global allocator rather than by inspection.
+//! `crates/mjx-sml/tests/shared_string_allocation.rs` measures **48.0 B/entry** against 660 B/entry
+//! for the `RawElement` tree, with a counting global allocator rather than by inspection.
+//!
+//! `crates/mjx-sml/docs/SHARED_STRINGS.md` is the decision record: the numbers, the alternatives
+//! that lost, and the two lifetime policies written out in full.
 
 mod inline;
 mod items;

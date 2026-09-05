@@ -54,7 +54,7 @@ use super::view::StringItem;
 /// The XML declaration and newline this crate writes ahead of an authored `sharedStrings.xml`.
 ///
 /// Byte-identical to what `mjx-chart`'s minimal workbook writer emits, because MJXOFF-112's parity
-/// gate compares the two part for part and MJXOFF-99 then deletes the other one.
+/// gate compares the two part for part and MJXOFF-99 then retires the other one.
 const AUTHORED_PROLOGUE: &[u8] = b"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n";
 
 /// One rich-text run to author — the input side of [`SharedStringTable::push_rich_text`].
