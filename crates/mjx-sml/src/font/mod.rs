@@ -26,6 +26,9 @@
 //!   two complex types they came from.
 //! * [`Color`] — `CT_Color`, SpreadsheetML's five-attribute colour, which is not DrawingML's
 //!   six-element one. [`color`] says why in full.
+//! * [`ColorElement`] — the same complex type as an *element*, under whichever of its five local
+//!   names (`color`, `fgColor`, `bgColor`, `tabColor`) the file wrote. Preservation; [`Color`] is
+//!   interpretation.
 //! * `font::value` (crate-private) — the `val`-wrapper family itself: eight complex types that are
 //!   one shape, read and written once instead of eight times.
 
@@ -33,5 +36,5 @@ pub mod color;
 pub mod properties;
 pub(crate) mod value;
 
-pub use color::Color;
+pub use color::{Color, ColorElement};
 pub use properties::{FontProperties, FontPropertyOwner};
