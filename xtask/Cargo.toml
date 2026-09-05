@@ -33,3 +33,7 @@ mjx-ooxml-types.workspace = true
 # `mjx-sml` test binary can install the same allocator — nothing may depend on `xtask`, and a second
 # `unsafe impl GlobalAlloc` is the last thing this workspace should have two of.
 mjx-allocation-counter.workspace = true
+# MJXOFF-95's cell store, so `corpus --mem xlsx` can report what *holding* the corpus worksheet costs
+# once it is a packed store rather than a `RawElement` tree — the figure that harness exists to make
+# comparable. Another downward edge from a host-only binary nothing depends on.
+mjx-sml.workspace = true

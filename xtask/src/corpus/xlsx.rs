@@ -26,7 +26,9 @@ const CONTENT_TYPE_WORKSHEET: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
 
 /// Builds a SpreadsheetML package with one worksheet of [`CELL_COUNT`] populated cells: column A
-/// holds an inline-string row label, the other [`COLUMN_COUNT`]` - 1` columns hold a numeric value.
+/// holds an inline-string row label, the other [`COLUMN_COUNT`]` - 1` columns hold a numeric value,
+/// and every row carries the `spans` hint Excel writes.
+///
 /// Not a claim that real workbooks are 98% numeric — it is one deliberately simple, deterministic
 /// mix wide enough to stress both a numeric cell (`<c><v>`) and a string cell (`<c t="inlineStr">
 /// <is><t>`) shape, without a shared-strings table `mjx-xlsx` has no model to build yet.
@@ -87,7 +89,12 @@ fn worksheet_bytes() -> Vec<u8> {
     xml.push_str(SPREADSHEETML_NAMESPACE);
     xml.push_str("\"><sheetData>\r\n");
     for row in 1..=ROW_COUNT {
-        xml.push_str(&format!("<row r=\"{row}\">"));
+        // `spans` on every row, as Excel writes it: the corpus is the one large SpreadsheetML file
+        // this workspace has, and MJXOFF-93 could not exercise `ST_CellSpans` against it because
+        // nothing here wrote one. It is an advisory hint, so it changes nothing about the file's
+        // meaning — and it adds about 0.7% to the part's bytes, which the figures in
+        // `docs/BENCHMARKS.md` were re-taken against.
+        xml.push_str(&format!("<row r=\"{row}\" spans=\"1:{COLUMN_COUNT}\">"));
         for col in 0..COLUMN_COUNT {
             let cell_ref = column_letters(col);
             if col == 0 {

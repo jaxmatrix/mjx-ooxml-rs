@@ -65,6 +65,13 @@ by this file existing.
 | `document_long.docx` | 61 KiB | `word/document.xml`, 3,409,233 B (3.25 MiB) | 80,005 | — | Raw WordprocessingML on `mjx_opc::Package` (`mjx-docx` has no model yet) |
 | `workbook_large.xlsx` | 1,233 KiB | `xl/worksheets/sheet1.xml`, 8,955,423 B (8.54 MiB) | 610,005 | **300,000** (5,000 rows × 60 columns) | Raw SpreadsheetML on `mjx_opc::Package` (`mjx-xlsx` has no model yet) |
 
+> **Amended by MJXOFF-95.** The workbook generator now writes `row@spans` on every row, as Excel does:
+> MJXOFF-93 found this corpus carried none, so `ST_CellSpans` had no large-file case anywhere in the
+> workspace. The hint is advisory and changes nothing about the file's meaning. It changes the two
+> size figures by 0.7%: the worksheet part is **9,020,423 B (8.60 MiB)** and the package **1,235 KiB**.
+> The element count (610,005), the cell count and every timing and memory figure below are unaffected
+> — the added bytes are attribute text on elements that already existed.
+
 `deck_large.pptx` is 609 ZIP entries (300 slides × 2 — the slide part and its own `.rels` — plus
 master/layout/theme/rels/content-types), which matters below: its packaging overhead is dominated
 by *entry count*, not by any one part's size. The workbook's one worksheet part is deliberately the
@@ -247,6 +254,36 @@ million-cell workbook, which is not an unusual size in the wild. `PLAN.md`'s hyb
 *"arena/columnar for bulk data (e.g. spreadsheet cells, shared strings), owned trees for small
 structures"* — exists precisely because of this shape of cost, and this is the first measurement
 that puts a number on why the owned-tree half of that design cannot also be the bulk-cell half.
+
+## MJXOFF-95's answer to the figure above, measured on this harness
+
+`cargo run --release -p xtask -- corpus --mem xlsx` gained a fifth checkpoint when the cell store
+landed, so the two figures are read in one process, on one file, by one instrument:
+
+```
+open                                  14088 KiB peak RSS so far
+first-mutation materialisation       288196 KiB peak RSS so far
+cell store (tree still alive)        299760 KiB peak RSS so far
+    5000 rows, 300000 cells, 11040000 bytes of records (36.8 B/cell), 0 bytes edited
+edit (one attribute, already materialised)     299720 KiB peak RSS so far
+save                                 299720 KiB peak RSS so far
+```
+
+**Reading the whole worksheet into the cell store costs 11,564 KiB of peak RSS on top of the tree —
+38.7 B/cell against the tree's 913 B/cell, a 23.6× reduction.** The store's own accounting agrees at
+11,040,000 bytes of records, 36.8 B/cell, and `0 bytes edited`: a worksheet nobody has touched holds
+no bytes of its own, because every value it preserves is a range into the part's buffer.
+
+The checkpoint is deliberately taken **with the tree still alive**, so the reading is the honest
+cumulative one rather than a figure that quietly assumes the caller dropped something. The store's
+independent, allocation-counted measurement — the same shape built in-process, with
+`mjx-allocation-counter` rather than `VmHWM` — is `crates/mjx-sml/tests/cell_store_allocation.rs`,
+and it reports 36.8 B/cell for the store against 802 B/cell for the tree.
+
+**What is not improved:** first materialisation. The store is built *from* a `RawElement` tree, so
+the +274 MiB above is still paid on open; what changed is what a worksheet costs to *hold*, which is
+now 25× less. Building the store straight from the part's bytes would need a streaming reader in
+`mjx-xml` (`quick-xml` is allowed behind that crate and nowhere else) and is not in MJXOFF-95's scope.
 
 ## The short-list for MJXOFF-95 — verbatim as posted to that ticket
 
