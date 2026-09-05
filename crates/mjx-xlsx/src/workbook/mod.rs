@@ -303,7 +303,7 @@ impl Workbook {
     ///
     /// The relationship the entry names is untouched, so the sheet still reaches the same part: a
     /// tab's name and the part behind it are independent, which is the whole point of
-    /// [`super::sheets`]'s first section.
+    /// `crates/mjx-xlsx/src/workbook/sheets.rs`'s first section.
     ///
     /// # Errors
     /// Returns [`XlsxError::NoSuchSheet`] if `index` names no tab, or [`XlsxError`] if the workbook

@@ -42,7 +42,7 @@ use super::leaf::attribute_bag;
 
 attribute_bag! {
     /// `x:calcPr` (`CT_CalcPr`) — the calculation settings, reported exactly as the file states
-    /// them. See the [module documentation](self) for why nothing here is ever acted on.
+    /// them. See [`crate::workbook`]'s own documentation for why nothing here is ever acted on.
     ///
     /// `sample.xlsx` writes `<calcPr iterateCount="100" refMode="A1" iterate="false"
     /// iterateDelta="0.001"/>` — four attributes, in an order that is **not** the schema's

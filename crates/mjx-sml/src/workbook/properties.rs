@@ -55,8 +55,8 @@ attribute_bag! {
     /// **`sample.xlsx`'s is the reason this type must not rebuild its attribute vector.** It reads
     /// `<workbookPr backupFile="false" showObjects="all" dateCompatibility="false"/>`, and
     /// `dateCompatibility` is **not declared** by the Transitional `sml.xsd` — it is LibreOffice's.
-    /// It survives because [`attribute_bag!`](super::leaf) keeps the vector the file wrote and
-    /// never assembles a new one; `crates/mjx-schema-gate/src/tolerances.rs` records the deviation
+    /// It survives because the `attribute_bag!` macro every type in this cluster is declared by
+    /// keeps the vector the file wrote and never assembles a new one; `crates/mjx-schema-gate/src/tolerances.rs` records the deviation
     /// so the schema gate reports it as tolerated rather than failing.
     #[xml(attribute(local = "date1904", codec = OnOff, accessor = uses_1904_date_system, default = false))]
     #[xml(attribute(local = "showObjects", codec = Enumeration<ObjectDisplay>, accessor = object_display, default = ObjectDisplay::All))]
