@@ -4,7 +4,7 @@
 //! # Why a macro rather than seventeen hand-written triples
 //!
 //! `sml.xsd`'s workbook cluster is overwhelmingly *attribute bags*: a complex type with an
-//! `xsd:sequence` that is empty or holds nothing but `extLst`, and between two and twenty-four
+//! `xsd:sequence` that is empty or holds nothing but `extLst`, and between one and twenty-four
 //! attributes. `CT_FileVersion`, `CT_WorkbookPr`, `CT_CalcPr`, `CT_WorkbookProtection`,
 //! `CT_FileSharing`, `CT_FileRecoveryPr`, `CT_OleSize`, `CT_SmartTagPr`, `CT_SmartTagType`,
 //! `CT_FunctionGroup`, `CT_WebPublishing`, `CT_WebPublishObject`, `CT_ExternalReference`,
@@ -13,8 +13,8 @@
 //! [`mjx_derive::XmlAttributes`] already generates the typed accessors from a struct-level
 //! declaration; what it does not generate is the struct itself and its
 //! [`FromXml`](mjx_ooxml_core::FromXml)/[`ToXml`](mjx_ooxml_core::ToXml) pair, which for an
-//! attribute bag is the *same* thirty lines every time — `mjx-docx`'s `web_settings.rs` writes them
-//! out six times over, and `settings.rs` many more. Writing them once here means a type is declared
+//! attribute bag is the *same* thirty lines every time — `mjx-docx`'s `web_settings.rs` writes that
+//! pair out **eight** times over, and `settings.rs` many more. Writing them once here means a type is declared
 //! by saying what the schema says about it and nothing else, and it means the fidelity discipline
 //! (keep the element's own name and prefix, keep every attribute in order, keep the self-closing
 //! flag, keep unmodelled children) is in **one** place rather than in seventeen copies that could
