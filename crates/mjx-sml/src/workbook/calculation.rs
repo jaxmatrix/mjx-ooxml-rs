@@ -38,7 +38,7 @@ use mjx_ooxml_types::support::OnOff;
 
 use crate::address::ReferenceMode;
 
-use super::leaf::attribute_bag;
+use crate::leaf::attribute_bag;
 
 attribute_bag! {
     /// `x:calcPr` (`CT_CalcPr`) — the calculation settings, reported exactly as the file states

@@ -22,7 +22,7 @@ use mjx_ooxml_core::{Enumeration, Number, RawAttribute, RawName, RawNode, Text};
 use mjx_ooxml_types::spreadsheetml::{CommentDisplay, ObjectDisplay, Visibility};
 use mjx_ooxml_types::support::OnOff;
 
-use super::leaf::attribute_bag;
+use crate::leaf::attribute_bag;
 
 attribute_bag! {
     /// `x:workbookView` (`CT_BookView`) — one window position, and what it shows.
@@ -108,7 +108,7 @@ impl BookViews {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "bookViews"),
+            name: crate::leaf::sml_name(interner, prefix, "bookViews"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),
@@ -154,7 +154,7 @@ impl CustomWorkbookViews {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "customWorkbookViews"),
+            name: crate::leaf::sml_name(interner, prefix, "customWorkbookViews"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),

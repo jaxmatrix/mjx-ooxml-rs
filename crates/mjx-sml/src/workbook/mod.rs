@@ -80,8 +80,6 @@
 //! verbatim source range back, so editing one sheet's name re-flows one start tag and copies the
 //! rest.
 
-pub(crate) mod leaf;
-
 mod calculation;
 mod defined_names;
 mod properties;
@@ -320,7 +318,7 @@ impl WorkbookPart {
     #[must_use]
     pub fn new(interner: &mut Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: leaf::sml_name(interner, prefix, "workbook"),
+            name: crate::leaf::sml_name(interner, prefix, "workbook"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),
@@ -336,7 +334,11 @@ impl WorkbookPart {
     /// element in it can carry an `r:id` at all.
     #[must_use]
     pub fn relationship_prefix<'a>(&self, interner: &'a Interner) -> Option<&'a str> {
-        leaf::namespace_prefix(&self.attributes, interner, leaf::RELATIONSHIP_REFERENCE)
+        crate::leaf::namespace_prefix(
+            &self.attributes,
+            interner,
+            crate::leaf::RELATIONSHIP_REFERENCE,
+        )
     }
 
     /// Every child, in document order, including the ones this type does not model.

@@ -289,7 +289,7 @@ impl DefinedNames {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "definedNames"),
+            name: crate::leaf::sml_name(interner, prefix, "definedNames"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),

@@ -30,7 +30,7 @@ use mjx_ooxml_types::support::OnOff;
 
 use crate::address::CellRange;
 
-use super::leaf::attribute_bag;
+use crate::leaf::attribute_bag;
 
 attribute_bag! {
     /// `x:fileVersion` (`CT_FileVersion`, `sml.xsd:4125`) — which application last wrote the
