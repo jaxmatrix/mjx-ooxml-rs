@@ -52,10 +52,10 @@ use mjx_ooxml_types::spreadsheetml::{
 use mjx_opc::{Package, PartName};
 use mjx_sml::styles::effective::CellFormatResolver;
 use mjx_sml::{
-    CellRangeList, CellReference, ColorScaleSpec, ConditionalFormatting,
-    ConditionalFormattingFormula, ConditionalFormattingRule, ConditionalRuleSpec,
-    ConditionalRuleSpecKind, ConditionalValueObjectSpec, DataBarSpec, DifferentialFormat,
-    IconSetSpec, PatternFillSpec, SmlError, StylesheetPart, WorksheetPart,
+    CellRangeList, CellReference, ColorScaleSpec, ConditionalFormatting, ConditionalFormattingRule,
+    ConditionalRuleSpec, ConditionalRuleSpecKind, ConditionalValueObjectSpec, DataBarSpec,
+    DifferentialFormat, FormulaElement, IconSetSpec, PatternFillSpec, SmlError, StylesheetPart,
+    WorksheetPart,
 };
 
 /// The fixture this whole suite is written against.
@@ -330,19 +330,13 @@ fn every_rule_kind_reads_back_as_the_file_wrote_it() {
             .expect("the dxfId reads"),
         Some(0)
     );
-    let operands: Vec<&str> = comparison
-        .formulas()
-        .map(ConditionalFormattingFormula::text)
-        .collect();
+    let operands: Vec<&str> = comparison.formulas().map(FormulaElement::text).collect();
     assert_eq!(operands, vec!["1000"]);
 
     // Block 0, rule 1 — expression, whose formula the file wrote with entity references.
     let expression = blocks[0].rules().nth(1).expect("block 0 has a second rule");
     assert_eq!(
-        expression
-            .formulas()
-            .next()
-            .map(ConditionalFormattingFormula::text),
+        expression.formulas().next().map(FormulaElement::text),
         Some("AND($B2>0,$B2<=\"500\")"),
         "the decoded text is what the accessor answers; the bytes are another matter entirely"
     );
@@ -841,7 +835,7 @@ fn authoring_the_three_rule_kinds_writes_markup_that_reads_back() {
     assert_eq!(
         rules[0]
             .formulas()
-            .map(ConditionalFormattingFormula::text)
+            .map(FormulaElement::text)
             .collect::<Vec<_>>(),
         vec!["10", "20"],
         "`between` writes two operands, in order"

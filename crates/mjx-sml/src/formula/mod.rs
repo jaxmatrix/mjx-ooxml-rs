@@ -82,6 +82,7 @@
 pub mod cached;
 pub mod calc_chain;
 pub mod cell;
+pub mod element;
 pub mod shared;
 
 pub use cached::CachedValue;
@@ -89,6 +90,7 @@ pub use calc_chain::{
     CalculationChain, CalculationChainCell, CalculationChainContent, ResolvedCalculationChainCell,
 };
 pub use cell::CellFormula;
+pub use element::FormulaElement;
 pub use shared::{SharedFormulaGroup, SharedFormulaGroups};
 
 /// `ST_CellFormulaType` (`sml.xsd:2298`) — which of the four things an `<f>` is.

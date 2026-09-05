@@ -11,7 +11,7 @@
 //! something, and one `build` method each that turns a description into markup *inside* the part
 //! that will hold it.
 //!
-//! `MJXOFF-105` set this precedent with [`PatternFillSpec`](crate::PatternFillSpec) and its three
+//! `MJXOFF-105` set this precedent with [`PatternFillSpec`] and its three
 //! siblings, and `MJXOFF-97` set it before that with
 //! [`RichTextRunSpec`](crate::RichTextRunSpec), each for the same reason.
 //!
@@ -43,12 +43,13 @@ use mjx_ooxml_types::spreadsheetml::{
 
 use crate::error::SmlError;
 use crate::font::{Color, ColorElement, FontProperties};
+use crate::formula::FormulaElement;
 use crate::styles::differential::{DifferentialFormat, DifferentialFormats};
 use crate::styles::fonts::Font;
 use crate::styles::stylesheet::StylesheetPart;
 use crate::write::style_specs::{BorderSpec, PatternFillSpec};
 
-use super::conditional_rules::{ConditionalFormattingFormula, ConditionalFormattingRule};
+use super::conditional_rules::ConditionalFormattingRule;
 use super::conditional_scales::{ColorScale, ConditionalValueObject, DataBar, IconSet};
 
 /// One threshold to author: `x:cfvo`'s `@type`, `@val` and `@gte`.
@@ -358,12 +359,12 @@ impl ConditionalRuleSpec {
             ConditionalRuleSpecKind::CellIs { operator, operands } => {
                 rule.set_operator(interner, Some(*operator));
                 for operand in operands {
-                    let formula = ConditionalFormattingFormula::new(interner, prefix, operand);
+                    let formula = FormulaElement::new(interner, prefix, "formula", operand);
                     rule.push_formula(formula);
                 }
             }
             ConditionalRuleSpecKind::Expression { formula } => {
-                let formula = ConditionalFormattingFormula::new(interner, prefix, formula);
+                let formula = FormulaElement::new(interner, prefix, "formula", formula);
                 rule.push_formula(formula);
             }
             ConditionalRuleSpecKind::ColorScale(spec) => {

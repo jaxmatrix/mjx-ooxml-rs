@@ -40,6 +40,7 @@ reconstructed afterwards.
 | `mjx_sml::SmlError::SheetDataTooLarge` | `PackedStoreTooLarge` | There are two packed stores in `mjx-sml` now — the cell store and the shared-string table — over one shared byte arena, and the variant either of them raises said "the cell store's byte space" in its message. A name and a message that are true of one of two callers is the kind of small lie that survives into a user's terminal. |
 | `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
+| `mjx_sml::ConditionalFormattingFormula` | `mjx_sml::FormulaElement` (module `mjx_sml::formula::element`) | MJXOFF-123. `sml.xsd` hangs three elements off `ST_Formula` — `cfRule/formula`, `dataValidation/formula1` and `dataValidation/formula2` — whose content model, escaping rules and no-evaluation contract are identical, so the type carries its own local name and there is one implementation rather than three. `new` gains a `local: &str` parameter for the same reason. The answer to a second consumer is one helper both can reach, not a copy with a different doc comment. |
 | `mjx_docx::{RunPropertyContent, ParagraphMarkRunPropertyContent, ParagraphPropertyContent, StyleParagraphPropertyContent, SectionPropertyContent, NumberingPropertyContent}::Change`/`Inserted`/`Deleted`/`MovedFrom`/`MovedTo`, `FieldCharacterContent::NumberingChange` | inner type `Unmodeled` → the real revision type (`RunPropertiesChange`, `ParagraphMarkPropertiesChange`, `ParagraphPropertiesChange`, `TrackChangeMarker`, `SectionPropertiesChange`, `TrackChangeNumbering`) | MJXOFF-126. `ParagraphProperties::change()` already had a public accessor returning `Option<&Unmodeled>` — this one is a real, consumer-visible signature change, not only a formal one; every other listed variant had no accessor before this child, matching the row above. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
@@ -52,6 +53,85 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.115] - 2026-09-06
+
+Data validation, autofilters and sort state — a cluster whose whole discipline is that **nothing in
+it is ever applied**: a filter hides no row, a sort reorders none, and a `list` validation's range
+source is text this library never resolves (MJXOFF-123, Phase D position 14).
+
+### Added
+
+- **`mjx_sml::features::filters`** — the autofilter cluster, all thirteen complex types of
+  `sml.xsd:16-228`: `AutoFilter` (`CT_AutoFilter`, rank **10** of `CT_Worksheet`), `FilterColumn`,
+  `Filters`/`Filter`/`DateGroupItem`, `CustomFilters`/`CustomFilter`, `Top10Filter`, `ColorFilter`,
+  `IconFilter`, `DynamicFilter`, `SortState` and `SortCondition`. It is its own module, not part of
+  the worksheet, because MJXOFF-125's `CT_Table` embeds `autoFilter` and `sortState` directly and
+  MJXOFF-133's pivot filters reference the same types.
+- **`mjx_sml::FilterKind`** — `CT_FilterColumn`'s `xsd:choice` as a Rust enum rather than six
+  `Option` fields. **Six modelled filter kinds**, not seven: the choice has seven *members* and the
+  seventh is `extLst`, the extension slot, which lands in `FilterKind::Raw` and round-trips byte for
+  byte. `FilterColumn::set_filter` replaces whichever kind is there, in its position, which is what
+  a choice asks for.
+- **`mjx_sml::features::validation`** — `DataValidations` (`CT_DataValidations`, rank **17**) and
+  `DataValidation` (`CT_DataValidation`), all thirteen attributes and both formula slots.
+  `@count` is a producer's cache and is never rewritten, on read or after an append.
+- **`mjx_sml::FormulaElement`** — the `ST_Formula` **element**, one type for the three slots that
+  share it (`cfRule/formula`, `dataValidation/formula1`, `dataValidation/formula2`). It carries its
+  own local name. See the breaking-change row below: this replaces
+  `ConditionalFormattingFormula` rather than sitting beside it.
+- **`WorksheetPart::auto_filter`/`auto_filter_mut`/`set_auto_filter`**,
+  **`sort_state`/`sort_state_mut`/`set_sort_state`** and
+  **`data_validations`/`data_validations_mut`/`set_data_validations`**, plus the curated
+  `data_validation_rules`, `data_validations_for`, `add_data_validation` and
+  `remove_data_validation`. Three more of `CT_Worksheet`'s thirty-nine slots are modelled —
+  seventeen now, twenty-two held raw — and the third is the one easy to miss: **`sortState` is a
+  slot of the worksheet at rank 11 as well as a child of `autoFilter` at its own rank 1**, two
+  different elements of the same complex type.
+- **`mjx_sml::AutoFilterSpec`** and its four companions (`FilterColumnSpec`, `FilterSpecKind`,
+  `CustomFilterSpec`, `SortStateSpec`, `SortConditionSpec`) and **`mjx_sml::DataValidationSpec`** —
+  plain-data authoring descriptions with no interner, on MJXOFF-105's precedent. Unlike
+  `ConditionalRuleSpecKind`, **all six** filter kinds are describable, because every one of them is
+  completely stated by what the caller passes.
+- **`Workbook::auto_filter`, `data_validations`, `set_auto_filter`, `remove_auto_filter`,
+  `add_data_validation`, `remove_data_validation`** — the package tier. Each authoring call rewrites
+  the worksheet part and **nothing else**, which is asserted against the original file's bytes.
+- **`tests/fixtures/validation_and_filters.xlsx`** — **all six filter kinds, one per column**, plus a
+  seventh column holding only the choice's `extLst`; `@colId`s that do **not** ascend
+  (`1, 0, 4, 2, 5, 3, 6`); a two-condition sort state; four validations including two `list` rules
+  whose sources are a range reference and a quoted literal respectively; a hidden row beside a
+  visible one; a deliberately stale `@count`; a `@sqref` with a double space in it; and an `x14`
+  cross-sheet `dataValidations` in the worksheet `extLst`. One filter kind repeated four times would
+  have tested one code path.
+- **Five generated child-order exports** — `AUTO_FILTER`, `FILTER_COLUMN`, `FILTERS`, `SORT_STATE`
+  and `DATA_VALIDATION` in `mjx_ooxml_types::child_order`, from `xtask`'s curated list. Every
+  placement in this cluster goes through them. `FILTER_COLUMN` is the first `ContentModel::Choice`
+  entry any model here consumes, and every one of its members ranks 0 — which is the schema's answer
+  rather than a shortcoming of the table.
+- **A guide page** — *Filters and data validation*, with four compiled doctests, one of which
+  asserts that a filter matching no row hides no row.
+
+### Changed
+
+- **`mjx_sml::features`' subject modules are public**, as `mjx_sml::formula`'s and
+  `mjx_sml::styles`' already were, so a reader who reaches one of these types through its re-export
+  can reach the design record behind it. Purely additive.
+
+### Fidelity
+
+- **A filter never hides a row.** Reading, writing or removing an `autoFilter` leaves every row's
+  `@hidden` exactly as the file wrote it. A hidden row is MJXOFF-117's row property, and this
+  library did not put it there.
+- **A sort state never reorders one.** `CT_SortState` records a sort that happened.
+- **A `list` validation's source is never resolved.** `formula1` may hold `$G$2:$G$4`,
+  `Lookups!$A$1:$A$9` or `"Low,Medium,High"`; all three go in and come out as the same bytes, and
+  neither spelling is converted into the other.
+- **Excel's caches are reported, never recomputed** — `top10@filterVal`, `dynamicFilter@val`/
+  `@maxVal`, and `dataValidations@count`.
+- **`@calendarType` and `@blank` on `CT_Filters` are modelled.** The first says which calendar the
+  date groups are in; the second is *(Blanks)*, which cannot be expressed as a `filter` child.
+- **The `x14` cross-sheet validations are preserved and not modelled**, prefix, `uri` and bytes
+  intact, through an unrelated edit.
 
 ## [0.0.114] - 2026-09-05
 
