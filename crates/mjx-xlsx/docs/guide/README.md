@@ -1,14 +1,15 @@
 # Guide
 
-Two pages. Excel is the last of the three formats this workspace takes on, and `mjx-xlsx` is at the
-start of it: MJXOFF-91 builds the **package** — the container, the part graph, and a `Workbook` that
-opens and saves without touching a byte — and the eighteen Phase D children after it build the model
-that is reached through it. This guide says exactly that much and no more, so that nobody plans
-around a surface that is not here.
+Three pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+**package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
+byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
+adds the worksheet: a sheet's cells can now be read and one of them written. This guide says exactly
+that much and no more, so that nobody plans around a surface that is not here.
 
 | Page | Read it when |
 |---|---|
 | [Opening and saving a workbook](opening_and_saving) | You want the whole of the current surface, once |
+| [Reading and editing cells](reading_and_editing_cells) | You want a value out of a sheet, or one into it |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 
 Every snippet on both pages is a compiled doctest that `cargo test` runs, and every one asserts on a
@@ -34,13 +35,15 @@ std::fs::write("out.xlsx", workbook.save()?)?;
 cell, a row, a shared string or an `xf` is — because an embedded workbook inside a `.pptx` or a
 `.docx` is SpreadsheetML too, and `mjx-chart` has to be able to reach it without pointing sideways at
 a format crate. `mjx-xlsx` owns OPC structure: parts, content types, relationships, the ZIP, and the
-[`Workbook`] a caller holds. If you are looking for a cell, you are looking for `mjx-sml`, and for
-the moment you will not find one there either.
+[`Workbook`] a caller holds. So a `mjx_sml::WorksheetPart` is what a sheet's markup *is*, and this
+crate is what finds the part it lives in.
 
 **Reading never dirties a part.** Opening a workbook parses exactly one part — `xl/workbook.xml`, to
 read its sheet list — and parsing is not mutating: the part keeps its container bytes and `save`
-re-emits them verbatim. Nothing in this crate's current surface can dirty a part at all, which is why
-open-then-save is a byte-exact round trip of the whole container.
+re-emits them verbatim. Reading a worksheet does not even parse it into the package: the bytes are
+parsed into a model that outlives the tree, and the part stays exactly as the container held it. Only
+[`Workbook::set_cell_value`] and [`Workbook::write_worksheet_markup`] change anything, and each
+changes one part.
 
 **Saving validates.** [`Workbook::save`] runs [`Workbook::validate`] first, and refuses to write a
 package that breaks a packaging invariant or a SpreadsheetML one. [`Workbook::save_unchecked`] is the

@@ -15,15 +15,18 @@
 //! | Module | Filled by |
 //! |---|---|
 //! | `mod.rs` (this file) | MJXOFF-91 (D02) — [`Worksheet`], the handle, and [`crate::WorksheetParts`] |
-//! | [`grid`](self::grid) | MJXOFF-102 (D07) the 39-slot spine, MJXOFF-117 (D12) the sheet grid |
+//! | [`grid`](self::grid) | **MJXOFF-102 (D07) — done**: opening a worksheet part, one cell in or out, writing it back. MJXOFF-117 (D12) adds the sheet's geometry |
 //! | [`features`](self::features) | MJXOFF-120/123/125/127/129 (D13-D17) — the optional worksheet features |
 //!
 //! # What this is not
 //!
-//! [`Worksheet`] holds no cells. `mjx_sml::worksheet` is where `CT_Worksheet` — the largest
-//! `xsd:sequence` in this workspace, at 39 slots — is modelled, and MJXOFF-102 is what fills it.
-//! Until then a [`Worksheet`] is a name, a kind and a resolved set of related parts, which is
-//! precisely what a later child needs and no more than this one can honestly provide.
+//! [`Worksheet`] itself still holds no cells: it is a name, a kind and a resolved set of related
+//! parts. The **markup** is [`mjx_sml::WorksheetPart`] — `CT_Worksheet`, the largest `xsd:sequence`
+//! in this workspace at 39 slots — and this tier's job is to hand one over and take it back, which
+//! [`crate::Workbook::worksheet_markup`] and [`crate::Workbook::write_worksheet_markup`] do.
+//!
+//! The division is the crate split restated: `mjx-sml` answers *what a row is*, and this module
+//! answers *which part in this package holds row 7*.
 
 pub(crate) mod features;
 pub(crate) mod grid;

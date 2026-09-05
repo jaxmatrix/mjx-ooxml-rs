@@ -322,6 +322,25 @@ impl Workbook {
         })
     }
 
+    /// The package this workbook was opened from.
+    ///
+    /// `&self`, so nothing reached through here can dirty a part. It is what
+    /// `crates/mjx-xlsx/src/worksheet/grid.rs` reads a worksheet's **bytes** through, rather than
+    /// asking for a tree the package would then cache.
+    #[must_use]
+    pub fn package(&self) -> &Package {
+        &self.package
+    }
+
+    /// The package, mutably — for the one call that replaces a part's bytes.
+    ///
+    /// Deliberately `pub(crate)`: a caller reaching the package mutably could dirty any part of the
+    /// container without this type knowing, and the resolved sheet list would then describe markup
+    /// that is no longer there.
+    pub(crate) fn package_mut(&mut self) -> &mut Package {
+        &mut self.package
+    }
+
     /// Every addressable part of the container, in container order, with its content type and what
     /// this crate made of it.
     ///

@@ -23,6 +23,12 @@ pub mod opening_and_saving {
     guide_vocabulary!();
 }
 
+/// Getting a value out of a sheet, and one into it.
+pub mod reading_and_editing_cells {
+    #![doc = include_str!("../docs/guide/reading_and_editing_cells.md")]
+    guide_vocabulary!();
+}
+
 /// What survives a round trip, what this crate does not model, and what a save refuses.
 pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]

@@ -336,6 +336,102 @@ fn invalid_worksheet_markup_is_caught_and_names_the_worksheet_part() {
     println!("the sml arm on the worksheet part, proved live:\n{report}");
 }
 
+/// **MJXOFF-102's ordering gate, reached rather than assumed.**
+///
+/// The extracted harness (`mjx_schema_gate::audit_deck_order`) is run over a workbook this crate has
+/// *edited*, so the worksheet the walk audits is markup this library wrote out rather than markup it
+/// merely copied. Three separate facts are asserted, and the third is the one that stops the case
+/// passing vacuously:
+///
+/// 1. the category table **requires** `/xl/worksheets/sheet1.xml` to be audited;
+/// 2. the walk **did** audit it, with no ordering defect;
+/// 3. its `elements_visited` count is well past the floor — a count of zero, or the part missing
+///    from the audited list, would mean the walk never entered the worksheet and the mutation gate
+///    below would prove nothing.
+///
+/// The count is printed, because MJXOFF-102's report has to quote it.
+#[test]
+fn the_edited_worksheet_is_reached_by_the_order_audit_and_the_count_is_quoted() {
+    for name in ["sample.xlsx", "worksheet_spine.xlsx"] {
+        let mut workbook = mjx_xlsx::Workbook::open(&fixture(name)).expect("open");
+        workbook
+            .set_cell_value(
+                0,
+                mjx_sml::CellReference::parse("B2").expect("B2"),
+                mjx_sml::CellValue::Number(7.5),
+            )
+            .expect("B2 is inside the grid");
+        let saved = workbook.save().expect("save");
+        let label = format!("{name} with one cell edited");
+
+        let required = mjx_schema_gate::parts_that_must_be_audited(&label, &saved);
+        assert!(
+            required.iter().any(|part| part == "/xl/worksheets/sheet1.xml"),
+            "the worksheet is rooted in SpreadsheetML, so the category table must require it to be \
+             audited; it required {required:?}"
+        );
+
+        let audited = mjx_schema_gate::audit_deck_order(&label, &saved);
+        let worksheet = audited
+            .iter()
+            .find(|part| part.name == "/xl/worksheets/sheet1.xml")
+            .expect("the worksheet was required but the ordering walk did not audit it");
+        println!(
+            "{label}: /xl/worksheets/sheet1.xml — elements_visited = {}, root_child_elements = {}, \
+             floor = {}",
+            worksheet.elements_visited,
+            worksheet.root_child_elements,
+            worksheet.floor()
+        );
+        assert!(
+            worksheet.elements_visited > worksheet.floor(),
+            "{label}: the worksheet audit visited {} element(s) against a floor of {} — a walk that \
+             recognised the root and none of its structure proves nothing",
+            worksheet.elements_visited,
+            worksheet.floor()
+        );
+
+        // …and the edited workbook is still schema-valid, so the ordering walk is not the only thing
+        // watching this part.
+        mjx_schema_gate::assert_deck_is_in_schema_order(&label, &saved);
+        let Some(harness) = harness() else { continue };
+        let tolerances = mjx_schema_gate::tolerances_for(name);
+        let rows = inspect_deck(&harness, &label, &saved, &tolerances);
+        mjx_schema_gate::assert_rows_are_valid(&label, &rows);
+    }
+}
+
+/// The worksheet spine fixture's own parts are validated, `/xl/tables/table1.xml` included.
+///
+/// It is the first committed `.xlsx` to carry a part under `xl/` that is not one of the four
+/// `sample.xlsx` has, and the first with a worksheet-level `.rels`. Both are the kind of thing that
+/// joins a sweep as a *skip* if nobody looks, which is the false green MJXOFF-110 exists to close.
+#[test]
+fn the_worksheet_spine_fixtures_parts_are_all_validated() {
+    let rows = inspect_fixture("worksheet_spine.xlsx");
+    if rows.is_empty() {
+        return;
+    }
+    println!("{}", outcome_table("worksheet_spine.xlsx", &rows));
+
+    for expected in [
+        "/xl/workbook.xml",
+        "/xl/worksheets/sheet1.xml",
+        "/xl/tables/table1.xml",
+        "/xl/styles.xml",
+    ] {
+        let row = rows
+            .iter()
+            .find(|row| row.name == expected)
+            .unwrap_or_else(|| panic!("{expected} is not in the sweep at all"));
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated("sml.xsd")),
+            "{expected} must be validated against sml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    }
+}
+
 #[test]
 fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
     // MJXOFF-91's schema clause in its general form. `the_spreadsheetml_parts_are_validated_and_not_skipped`
@@ -346,30 +442,39 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
     // reports a *skip*, and `assert_outcomes_are_valid` fails on neither a skip nor a tolerance. So
     // "schema validity covers the .xlsx fixtures and is green" is satisfied precisely when the Excel
     // parts are not being validated at all.
-    let rows = inspect_fixture("sample.xlsx");
-    if rows.is_empty() {
-        return;
-    }
-    println!("{}", outcome_table("sample.xlsx", &rows));
-
+    // Swept over **every** committed `.xlsx`, not over `sample.xlsx` alone (MJXOFF-102). A later
+    // child adding a fixture with a new kind of part under `xl/` is exactly the case this rule is
+    // for, and pinning one fixture would have let `worksheet_spine.xlsx`'s `/xl/tables/table1.xml`
+    // join the sweep as a skip.
+    let fixtures = package_fixtures_with_extension("xlsx");
+    assert!(!fixtures.is_empty(), "no .xlsx fixture to sweep");
     let mut checked = 0usize;
-    for row in &rows {
-        if !row.name.starts_with("/xl/") || row.name.ends_with(".rels") {
-            continue;
+    for name in &fixtures {
+        let rows = inspect_fixture(name);
+        if rows.is_empty() {
+            return;
         }
-        checked += 1;
-        match &row.outcome {
-            PartOutcome::Validated(_) | PartOutcome::Tolerated { .. } => {}
-            other => panic!(
-                "{} is under xl/ and was not validated at all — it reported: {}",
-                row.name,
-                other.describe()
-            ),
+        println!("{}", outcome_table(name, &rows));
+        for row in &rows {
+            if !row.name.starts_with("/xl/") || row.name.ends_with(".rels") {
+                continue;
+            }
+            checked += 1;
+            match &row.outcome {
+                PartOutcome::Validated(_) | PartOutcome::Tolerated { .. } => {}
+                other => panic!(
+                    "{name}: {} is under xl/ and was not validated at all — it reported: {}",
+                    row.name,
+                    other.describe()
+                ),
+            }
         }
     }
     assert!(
-        checked >= 5,
-        "only {checked} part(s) under xl/ were checked; sample.xlsx carries five"
+        checked >= 12,
+        "only {checked} part(s) under xl/ were checked across {} fixture(s); sample.xlsx alone \
+         carries five",
+        fixtures.len()
     );
 }
 
