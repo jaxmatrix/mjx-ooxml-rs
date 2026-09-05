@@ -32,6 +32,23 @@
 //! sheet list is for, whether a sheet part is listed at all, and the two identifier spaces §18.2.19
 //! requires to be unique.
 //!
+//! # A hyperlink and its relationship are one thing
+//!
+//! [`OrphanedHyperlinkRelationship`](SpreadsheetDefect::OrphanedHyperlinkRelationship) is the *other*
+//! half of MJXOFF-127's two-halves rule, and the half `mjx-opc` cannot state. `mjx-opc` reports the
+//! forward direction — markup naming a relationship its `.rels` never declares — and is explicit
+//! that the reverse, a relationship nothing names, is legal: a `comments` relationship is found by
+//! *type* and no markup ever names it, so a general "unreferenced relationship" rule would fault
+//! every commented worksheet in existence.
+//!
+//! A **hyperlink** relationship is the exception, and narrowly so: it exists for no other purpose
+//! than to be named by an `x:hyperlink@r:id`, so one that nothing names is an entry this library
+//! removed without its other half. The check is therefore scoped to that one relationship type, and
+//! to worksheets [`Package::authored_xml_parts`](mjx_opc::Package::authored_xml_parts) says this
+//! library will write — the same asymmetry
+//! [`TablePartTargetIsNotATable`](SpreadsheetDefect::TablePartTargetIsNotATable) has, and for the
+//! same reason.
+//!
 //! # The orphan question, answered differently here than in OPC
 //!
 //! [`mjx_opc::Package::validate`] is explicit that an unreferenced part is legal, merely dead
@@ -53,7 +70,9 @@ use mjx_xml::fidelity;
 
 use crate::error::XlsxError;
 use crate::nav;
-use crate::parts::{SheetKind, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_OFFICE_DOCUMENT};
+use crate::parts::{
+    SheetKind, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_HYPERLINK, REL_OFFICE_DOCUMENT,
+};
 
 /// The content-type prefix every SpreadsheetML part shares.
 ///
@@ -212,6 +231,30 @@ pub enum SpreadsheetDefect {
         table_id: String,
     },
 
+    /// A `hyperlink` relationship on a worksheet **this library will write** that no `x:hyperlink`
+    /// in that worksheet names.
+    ///
+    /// The half of MJXOFF-127's two-halves rule that packaging cannot state; see this module's own
+    /// documentation for why a hyperlink relationship is the one kind an orphan is a defect for.
+    ///
+    /// **This is not a repair instruction.** Nothing removes the relationship to make the defect go
+    /// away: [`Workbook::remove_cell_hyperlink`](crate::Workbook::remove_cell_hyperlink) removes
+    /// both halves together and this reports when something did not, which is a different act.
+    /// [`Workbook::save_unchecked`](crate::Workbook::save_unchecked) writes the container back
+    /// regardless.
+    #[error(
+        "{part}: relationship {relationship_id} is a hyperlink to {target:?} that no x:hyperlink in \
+         the sheet names"
+    )]
+    OrphanedHyperlinkRelationship {
+        /// The worksheet part whose `.rels` declares it.
+        part: String,
+        /// The relationship nothing names.
+        relationship_id: String,
+        /// Its `Target`, exactly as written — never resolved and never fetched.
+        target: String,
+    },
+
     /// Two tables in the workbook sharing a `@displayName`.
     ///
     /// ECMA-376 Part 1 §18.5.1.2: *"This name shall not have any spaces in it, and it shall be
@@ -246,6 +289,7 @@ pub(crate) fn check(package: &Package, workbook_part: &PartName) -> Result<(), X
     check_sheet_list(package, workbook_part)?;
     check_table_part_targets(package)?;
     check_table_identity(package)?;
+    check_hyperlink_relationships(package)?;
     Ok(())
 }
 
@@ -356,6 +400,78 @@ fn check_table_part_targets(package: &Package) -> Result<(), XlsxError> {
                 relationship_id: reference,
                 target_part: target.as_str().to_owned(),
                 actual_content_type: actual.to_owned(),
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+/// Every `hyperlink` relationship on a worksheet **this library will write** is named by an
+/// `x:hyperlink` in that worksheet.
+///
+/// The reverse direction of `mjx-opc`'s dangling-reference check, restricted to the one relationship
+/// type an orphan means something for. See this module's own documentation.
+///
+/// # Why this walks the tree rather than reading a `WorksheetPart`
+///
+/// [`mjx_sml::WorksheetPart::read_document`] builds MJXOFF-95's packed cell store, which for a
+/// 300,000-cell sheet is the most expensive thing this crate can do. A check that needs one
+/// element's attributes must not pay for that, and every other check in this file walks the same
+/// [`RawDocument`] through [`crate::nav`] for the same reason.
+///
+/// The removal rule in `crate::worksheet::hyperlinks` asks the same question of a model it is
+/// already holding, which is a different starting point and not a second implementation of this one:
+/// this decides what a **saved package** says, that decides whether a relationship still has a user
+/// during one edit.
+fn check_hyperlink_relationships(package: &Package) -> Result<(), XlsxError> {
+    let worksheets: Vec<PartName> = package
+        .authored_xml_parts()
+        .map(|(part, _)| part)
+        .filter(|part| package.content_type_of(part) == Some(CONTENT_TYPE_WORKSHEET))
+        .collect();
+
+    for part in worksheets {
+        let Some(relationships) = package.relationships_for(Some(&part)) else {
+            continue;
+        };
+        let hyperlinks: Vec<(String, String)> = relationships
+            .iter()
+            .filter(|rel| rel.rel_type == REL_HYPERLINK)
+            .map(|rel| (rel.id.clone(), rel.target.clone()))
+            .collect();
+        if hyperlinks.is_empty() {
+            continue;
+        }
+        let Some(tree) = part_tree(package, &part) else {
+            continue;
+        };
+        let tree = tree.get();
+        let interner = &tree.interner;
+        // Every `r:id` the sheet's `x:hyperlink` entries name. A part that binds the
+        // relationship-reference namespace nowhere can spell no `r:id` at all, so every hyperlink
+        // relationship on it is an orphan — which is the answer an empty set gives.
+        let mut named: HashSet<String> = HashSet::new();
+        if let Some(prefix) =
+            nav::namespace_prefix(&tree.root, interner, SHARED_RELATIONSHIP_REFERENCE)
+        {
+            if let Some(list) = nav::child(&tree.root, interner, SML, "hyperlinks") {
+                for entry in nav::children(list, interner, SML, "hyperlink") {
+                    if let Some(reference) = nav::prefixed_attr_value(entry, interner, prefix, "id")
+                    {
+                        named.insert(reference?);
+                    }
+                }
+            }
+        }
+        for (relationship_id, target) in hyperlinks {
+            if named.contains(&relationship_id) {
+                continue;
+            }
+            return Err(SpreadsheetDefect::OrphanedHyperlinkRelationship {
+                part: part.as_str().to_owned(),
+                relationship_id,
+                target,
             }
             .into());
         }

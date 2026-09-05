@@ -471,7 +471,12 @@ impl Workbook {
     }
 
     /// The next free relationship id on `part`'s own `.rels`, one past the current maximum.
-    fn next_sheet_relationship_id(&self, part: &PartName) -> String {
+    ///
+    /// One past the **maximum** rather than one past the count, and that is the whole of it: an id a
+    /// caller deleted may still be named by markup this library did not write, so nothing here ever
+    /// reuses one. `pub(crate)` because MJXOFF-127's hyperlinks allocate from the same `.rels` and a
+    /// second allocator could hand out an id this one had already promised.
+    pub(crate) fn next_sheet_relationship_id(&self, part: &PartName) -> String {
         let mut highest = 0u32;
         if let Some(relationships) = self.package().relationships_for(Some(part)) {
             for relationship in relationships.iter() {

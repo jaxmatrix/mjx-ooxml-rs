@@ -44,6 +44,12 @@
 //! `crates/mjx-xlsx/src/worksheet/mod.rs`'s own module documentation for the file-by-file map of
 //! which later Phase D child fills what, and [`crate::preserve`] for the fidelity contract
 //! everything here rests on.
+//!
+//! MJXOFF-127 (D16) adds hyperlinks — [`Workbook::sheet_hyperlinks`], [`Workbook::cell_hyperlink`],
+//! [`Workbook::set_cell_hyperlink`] and [`Workbook::remove_cell_hyperlink`] — where the whole point
+//! of the tier is that **a hyperlink and its relationship are one thing**: the entry is in the
+//! worksheet and an external target is in the sheet's `.rels`, and neither half is written or
+//! removed without the other.
 
 mod authoring;
 mod blank;
@@ -65,6 +71,7 @@ pub use workbook::{
     WorkbookWindow,
 };
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
+pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};
 pub use worksheet::tables::{SheetTable, SheetTableColumn};
 pub use worksheet::Worksheet;
 

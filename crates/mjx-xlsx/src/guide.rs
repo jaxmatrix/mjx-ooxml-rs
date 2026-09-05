@@ -9,9 +9,9 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            PartClassification, PartInventoryEntry, PartKind, Sheet, SheetKind, SheetTable,
-            SheetTableColumn, SpreadsheetDefect, Workbook, WorkbookParts, Worksheet,
-            WorksheetParts, XlsxError,
+            HyperlinkKind, HyperlinkTarget, PartClassification, PartInventoryEntry, PartKind,
+            Sheet, SheetHyperlink, SheetKind, SheetTable, SheetTableColumn, SpreadsheetDefect,
+            Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
         };
     };
 }
@@ -66,6 +66,12 @@ pub mod filters_and_data_validation {
 /// is not a missing style.
 pub mod worksheet_tables {
     #![doc = include_str!("../docs/guide/worksheet_tables.md")]
+    guide_vocabulary!();
+}
+
+/// A hyperlink and its relationship are one thing — and an external target is never followed.
+pub mod hyperlinks {
+    #![doc = include_str!("../docs/guide/hyperlinks.md")]
     guide_vocabulary!();
 }
 

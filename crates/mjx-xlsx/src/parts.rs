@@ -119,6 +119,20 @@ pub const REL_DRAWING: &str =
 pub const REL_VML_DRAWING: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing";
 
+/// The relationship type of a **hyperlink**, ECMA-376 Part 1 §15.2.9.
+///
+/// The one relationship in this file that reaches **no part**: its `Target` is an external URI and
+/// its `TargetMode` is `External`, so nothing in [`PartKind`] corresponds to it and
+/// [`WorksheetParts`] does not resolve one. It is here because
+/// [`Workbook::set_cell_hyperlink`](crate::Workbook::set_cell_hyperlink) writes it and
+/// [`Workbook::validate`](crate::Workbook::validate) reads it, and those two must agree on the
+/// string.
+///
+/// The same URI `mjx-pptx` declares for the same purpose. It is spelled out in both crates rather
+/// than shared, because they are siblings in the format tier and neither may depend on the other.
+pub const REL_HYPERLINK: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink";
+
 /// The relationship type from a sheet part to its printer settings part (Part 1 §15.2.13, the
 /// *shared* part summary — one Printer Settings part per chartsheet, dialogsheet or worksheet).
 pub const REL_PRINTER_SETTINGS: &str =
