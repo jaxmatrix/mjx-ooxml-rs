@@ -32,7 +32,10 @@
 //! and Miscellaneous; every one begins `_xlnm.`, which the standard reserves — *"End users shall not
 //! use this string for custom names in the user interface"*.
 
-use mjx_ooxml_core::{Number, RawAttribute, RawName, RawNode, Text};
+use mjx_ooxml_core::{
+    FromXml, FromXmlError, Interner, Number, RawAttribute, RawElement, RawName, RawNode, Text,
+    ToXml,
+};
 use mjx_ooxml_types::support::OnOff;
 
 /// One of the eight names ECMA-376 Part 1 §18.2.6 reserves, recognised by its exact token.
@@ -116,13 +119,28 @@ impl core::fmt::Display for BuiltInName {
 
 /// `x:definedName` (`CT_DefinedName`) — one name, its scope, and the formula text it stands for.
 ///
-/// The element's character data is the definition. It is held **decoded** (entity references
-/// resolved) and re-escaped minimally on write, which is what every text leaf in this workspace
-/// does; the element's own name, its attribute vector and its self-closing flag are preserved
-/// exactly.
-#[derive(
-    Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml, mjx_derive::XmlAttributes,
-)]
+/// # Why this one leaf does not use `#[derive(FromXml, ToXml)]`
+///
+/// `mjx-derive`'s `#[xml(text)]` grammar decodes an element's character data on read and re-escapes
+/// it **minimally** on write — only `<` and `&`. That is right for authoring and lossy for
+/// preservation: a producer that wrote `&apos;Hidden Data&apos;!$A$1` gets `'Hidden Data'!$A$1`
+/// back, which is the same *string* and different *bytes*. It normally goes unnoticed, because a
+/// part nothing edited is copied verbatim out of its own source buffer and the model never writes;
+/// it becomes visible the moment anything **else** in the part changes, because a rebuilt text node
+/// that differs from the original denies its element — and every ancestor of it — the verbatim
+/// source range it would otherwise keep.
+///
+/// A defined name's content is a formula, and this is the one place in `CT_Workbook` where a file's
+/// character data is load-bearing, so the pair is written by hand instead:
+/// [`from_xml`](mjx_ooxml_core::FromXml::from_xml) keeps the original children **as they stood**,
+/// and [`to_xml`](mjx_ooxml_core::ToXml::to_xml) replays them until
+/// [`set_definition`](Self::set_definition) states otherwise, after which it writes freshly escaped
+/// text. So an untouched name re-emits its own bytes, an edited one writes clean markup, and
+/// [`definition`](Self::definition) answers with the decoded string either way.
+///
+/// The element's own name, its attribute vector and its self-closing flag are preserved exactly, as
+/// they are for every other type in this cluster.
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
 #[xml(attribute(local = "name", codec = Text, accessor = name, required))]
 #[xml(attribute(local = "comment", codec = Text, accessor = comment))]
 #[xml(attribute(local = "customMenu", codec = Text, accessor = custom_menu_text))]
@@ -142,8 +160,59 @@ pub struct DefinedName {
     name: RawName,
     attributes: Vec<RawAttribute>,
     empty: bool,
-    #[xml(text)]
+    /// The character data, decoded — what [`definition`](Self::definition) answers with.
     definition: String,
+    /// The element's children exactly as the file wrote them, or `None` once the definition has
+    /// been replaced and there is nothing left to preserve.
+    verbatim: Option<Vec<RawNode>>,
+}
+
+impl FromXml for DefinedName {
+    fn from_xml(element: &RawElement, _interner: &Interner) -> Result<Self, FromXmlError> {
+        let mut definition = String::new();
+        for child in &element.children {
+            match child {
+                RawNode::Text(bytes) => {
+                    let raw = core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?;
+                    let decoded = mjx_xml::text::unescape_text(raw)
+                        .map_err(|error| FromXmlError::InvalidEntity(error.to_string()))?;
+                    definition.push_str(&decoded);
+                }
+                RawNode::CData(bytes) => {
+                    definition.push_str(
+                        core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?,
+                    );
+                }
+                _ => {}
+            }
+        }
+        Ok(Self {
+            name: element.name,
+            attributes: element.attributes.clone(),
+            empty: element.empty,
+            definition,
+            verbatim: Some(element.children.clone()),
+        })
+    }
+}
+
+impl ToXml for DefinedName {
+    fn to_xml(&self, _interner: &mut Interner) -> RawElement {
+        let children = match &self.verbatim {
+            // Untouched: replay exactly what the file held — entity spellings, CDATA sections and
+            // any comment between them included.
+            Some(children) => children.clone(),
+            // Edited: one freshly escaped text node, which is what authoring writes.
+            None if self.definition.is_empty() => Vec::new(),
+            None => vec![RawNode::Text(
+                mjx_xml::text::escape_text(&self.definition)
+                    .as_bytes()
+                    .into(),
+            )],
+        };
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
+    }
 }
 
 impl DefinedName {
@@ -158,8 +227,13 @@ impl DefinedName {
     ///
     /// Nothing validates it: a definition is a formula, formulas are text here, and a caller that
     /// writes `#REF!` has written what Excel itself writes when a name's target is deleted.
+    ///
+    /// This is the point at which the preserved character data is given up — see the type's own
+    /// documentation. Everything else about the element (its name, its attributes, their order and
+    /// their quoting) is untouched.
     pub fn set_definition(&mut self, definition: impl Into<String>) {
         self.definition = definition.into();
+        self.verbatim = None;
         self.empty = false;
     }
 

@@ -71,6 +71,20 @@ pub enum XlsxError {
     #[error("workbook is malformed: {0}")]
     MalformedWorkbook(&'static str),
 
+    /// A caller named a tab by an index the sheet list does not have.
+    ///
+    /// A distinct variant rather than an `Option` return, because the two failures a caller wants
+    /// told apart — "there is no such tab" and "the tab is there but its relationship reaches no
+    /// part" — are different questions, and the second is already reported as `None` by
+    /// [`Workbook::worksheet`](crate::Workbook::worksheet).
+    #[error("sheet index {index} is out of range: the workbook lists {sheets} sheet(s)")]
+    NoSuchSheet {
+        /// The index that was asked for.
+        index: usize,
+        /// How many tabs the sheet list actually names.
+        sheets: usize,
+    },
+
     /// A relationship target could not be resolved to a part name.
     #[error("relationship target {target} could not be resolved")]
     TargetResolution {
@@ -90,6 +104,16 @@ pub enum XlsxError {
         /// The external target.
         target: String,
     },
+}
+
+impl From<mjx_ooxml_core::AttributeError> for XlsxError {
+    /// A malformed attribute value is a modelled element not matching its complex type, which is
+    /// what [`Model`](XlsxError::Model) already means — [`FromXmlError`] carries `AttributeError`
+    /// for exactly this reason. Declared so that `?` works on the typed accessors `mjx-sml`'s models
+    /// expose, rather than every call site writing the same two-step conversion out.
+    fn from(error: mjx_ooxml_core::AttributeError) -> Self {
+        Self::Model(FromXmlError::from(error))
+    }
 }
 
 impl From<crate::validate::SpreadsheetDefect> for XlsxError {

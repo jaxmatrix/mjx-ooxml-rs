@@ -90,7 +90,9 @@ mod sheets;
 mod views;
 mod web;
 
-use mjx_ooxml_core::{Enumeration, FromXml, Interner, RawAttribute, RawDocument, RawName, RawNode};
+use mjx_ooxml_core::{
+    Enumeration, FromXml, Interner, RawAttribute, RawDocument, RawElement, RawName, RawNode,
+};
 use mjx_ooxml_types::child_order::WORKBOOK;
 use mjx_ooxml_types::namespaces::SML;
 use mjx_ooxml_types::shared::ConformanceClass;
@@ -287,8 +289,19 @@ impl WorkbookPart {
     /// attribute value that is not UTF-8, or an entity reference that will not decode. Nothing a
     /// well-formed file can *say* is refused.
     pub fn read_part(document: &RawDocument) -> Result<Option<Self>, SmlError> {
-        let interner = &document.interner;
-        let root = &document.root;
+        Self::read_root(&document.root, &document.interner)
+    }
+
+    /// [`read_part`](Self::read_part) for a caller that holds the root element and the interner
+    /// rather than the whole document.
+    ///
+    /// That is the shape an *editing* caller is in: reaching a part's tree mutably yields a
+    /// `&mut RawDocument`, and the root and the interner have to be borrowed apart from each other
+    /// before the model can be parsed from one and written back through both.
+    ///
+    /// # Errors
+    /// As [`read_part`](Self::read_part).
+    pub fn read_root(root: &RawElement, interner: &Interner) -> Result<Option<Self>, SmlError> {
         let namespace = root.name.namespace.map(|symbol| interner.resolve(symbol));
         let in_spreadsheetml =
             namespace == Some(SML.transitional) || (namespace.is_some() && namespace == SML.strict);
