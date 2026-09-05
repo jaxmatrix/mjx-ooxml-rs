@@ -79,6 +79,28 @@ pub enum SmlError {
         bytes: u64,
     },
 
+    /// A part this crate seeds and parses back did not come back as the model it was written as.
+    ///
+    /// Every authoring path in [`crate::write`] writes a minimal part as **bytes** carrying its
+    /// namespace declaration, parses those bytes, and models the parsed root — never a freshly
+    /// constructed one, for the reason `crates/mjx-xlsx/src/blank.rs` states in full. Each of those
+    /// seeds is a literal in this crate, so this variant is unreachable; it exists because a library
+    /// path returns an error where other code would `expect`.
+    #[error("the authored seed for {part} did not parse back as the part it was written as")]
+    AuthoredPartSeedRejected {
+        /// The part the seed was written for.
+        part: &'static str,
+    },
+
+    /// A caller named a sheet the workbook being authored does not have.
+    #[error("sheet index {index} names no tab; the workbook has {sheets}")]
+    SheetIndexOutOfRange {
+        /// The index that named nothing.
+        index: usize,
+        /// How many tabs the workbook holds.
+        sheets: usize,
+    },
+
     /// A style index named no `xf` — a cell's `@s`, a row's `@s` or a column's `@style` pointing
     /// past the end of `cellXfs`.
     ///

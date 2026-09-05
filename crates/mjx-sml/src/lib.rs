@@ -62,7 +62,7 @@
 //! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
 //! | [`features`] | MJXOFF-120/123/125/127/129 (D13–D17) — the optional worksheet features |
-//! | [`mod@write`] | MJXOFF-112 (D10) — the package writer that replaces `EmbeddedWorkbook` |
+//! | [`mod@write`] | **MJXOFF-112 (D10) — done**: [`WorkbookPackage`], the package writer that replaces `EmbeddedWorkbook`, and the `styles.xml` skeleton behind it |
 //! | [`error`] | MJXOFF-132 (D01) — this child; every later one adds its variants |
 //!
 //! The half of `sml.xsd` this workspace deliberately does **not** model — pivot tables, external
@@ -133,4 +133,8 @@ pub use worksheet::{
     PivotSelection, Selection, SheetCalculationProperties, SheetDimension, SheetFormatProperties,
     SheetPane, SheetProperties, SheetPropertiesContent, SheetView, SheetViewContent, SheetViews,
     SheetViewsContent, WorksheetContent, WorksheetPart,
+};
+pub use write::{
+    AuthoredCellValue, AuthoredStylesheet, AuthoredWorkbook, AuthoredWorksheet, BorderEdgeSpec,
+    BorderSpec, CellFormatSpec, CellFormatTarget, PatternFillSpec, WorkbookPackage,
 };
