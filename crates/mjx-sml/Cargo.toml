@@ -50,3 +50,10 @@ mjx-allocation-counter.workspace = true
 [[test]]
 name = "cell_store_allocation"
 harness = false
+
+# The same reasoning, one process further: a second `#[global_allocator]` binary rather than a
+# second case inside the first one, so that neither measurement's zero depends on what the other
+# left live. See the file's own documentation.
+[[test]]
+name = "shared_string_allocation"
+harness = false

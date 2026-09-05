@@ -44,6 +44,21 @@ pub const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[
                  writes no xml:space, so nothing here excuses markup we emit",
     },
     ToleratedDeviation {
+        fixture: "shared_strings_rich_text.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The same producer-wide divergence `sample.xlsx` carries, in a fixture MJXOFF-97 \
+                 authored on purpose: `xml:space=\"preserve\"` is what Excel and LibreOffice write \
+                 on a `s:t` whose text has leading or trailing whitespace, and without it a consumer \
+                 may collapse that whitespace and change the string. `sml.xsd` types `t` as the \
+                 simple type `ST_Xstring`, which can carry no attribute at all. This fixture exists \
+                 to hold a `preserve` entry, an unreferenced entry and a `uniqueCount` that \
+                 disagrees with its own entry count, so that `mjx-sml`'s table is tested against a \
+                 file that disagrees with the naive answer — and `mjx-sml` writes the attribute \
+                 only where its absence would change the value, so an ordinary authored table is \
+                 schema-valid",
+    },
+    ToleratedDeviation {
         fixture: "sample.xlsx",
         part: "/xl/workbook.xml",
         error_contains: "The attribute 'dateCompatibility' is not allowed",
