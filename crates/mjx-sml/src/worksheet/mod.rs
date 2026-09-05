@@ -2,9 +2,11 @@
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is the **widest content model in this workspace** — a
 //! thirty-nine member `xsd:sequence`, ten times `CT_Slide`'s and twice `CT_Workbook`'s.
-//! [`WorksheetPart`] is the frame that holds all thirty-nine: **thirteen** modelled here (seven by
-//! MJXOFF-102, six more by MJXOFF-117), twenty-six kept as the markup the file wrote, every one of
-//! them in its schema position.
+//! [`WorksheetPart`] is the frame that holds all thirty-nine: **eighteen** modelled (seven by
+//! MJXOFF-102, six more by MJXOFF-117, and five more that live in [`crate::features`] — MJXOFF-120's
+//! `conditionalFormatting`, MJXOFF-123's `autoFilter`, `sortState` and `dataValidations`, and
+//! MJXOFF-125's `tableParts`), **twenty-one** kept as the markup the file wrote, every one of them
+//! in its schema position.
 //!
 //! # The module tree, and the child that fills each file
 //!
@@ -28,12 +30,14 @@
 //!
 //! MJXOFF-120 through MJXOFF-133 (D13–D18) fill the optional features, which live in
 //! [`crate::features`] rather than here. Each of those lands in a slot this frame already holds, so
-//! none of them has to touch `frame.rs` to be reachable.
+//! none of them has to touch `frame.rs` to be reachable — except for the one line per slot that
+//! replaces a [`WorksheetContent::Raw`] with a typed variant, which is what MJXOFF-125 did for
+//! `tableParts` at rank 37.
 //!
 //! # What is *held* and what is *modelled* are different claims
 //!
-//! Twenty-six of the thirty-nine slots — `conditionalFormatting`, `dataValidations`, `hyperlinks`,
-//! `pageSetup`, `headerFooter`, `drawing`, `tableParts`, `extLst` and the rest — are held as
+//! Twenty-one of the thirty-nine slots — `hyperlinks`, `pageSetup`, `headerFooter`, `drawing`,
+//! `oleObjects`, `extLst` and the rest — are held as
 //! [`WorksheetContent::Raw`], the markup the producer wrote, in the position it wrote it. **A
 //! worksheet whose `pageSetup` survives is proof the frame works, not proof `pageSetup` was
 //! modelled.**
