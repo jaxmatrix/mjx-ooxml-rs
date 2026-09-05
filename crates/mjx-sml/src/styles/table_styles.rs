@@ -252,7 +252,7 @@ attribute_bag! {
     /// totals row, the first and last column, the four stripes, the corner cells and the pivot-only
     /// regions. **Its generated variant names are read, never inferred** — the generator applies
     /// curated overrides — so a caller names
-    /// [`TableStyleType`](mjx_ooxml_types::spreadsheetml::TableStyleType)'s variants rather than
+    /// [`TableStyleType`]'s variants rather than
     /// spelling a wire token.
     ///
     /// `@size` (default 1) is how many rows or columns wide the band is — a `firstRowStripe` with

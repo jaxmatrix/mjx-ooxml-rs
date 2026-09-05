@@ -1,6 +1,6 @@
 # Guide
 
-Eight pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+Nine pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
@@ -9,7 +9,8 @@ from `mjx-sml`. MJXOFF-115 (D11) adds formulas, which this library carries as te
 calculates. MJXOFF-117 (D12) adds the sheet grid — merging, row and column geometry, outline levels,
 page breaks and sheet protection. MJXOFF-120 (D13) adds conditional formatting, which this library
 reports and never evaluates. MJXOFF-123 (D14) adds autofilters, sort state and data validation,
-which this library records and never applies. This guide says exactly that much and no more, so that
+which this library records and never applies. MJXOFF-125 (D15) adds worksheet tables — the first
+feature here that lives in a part of its own. This guide says exactly that much and no more, so that
 nobody plans around a surface that is not here.
 
 | Page | Read it when |
@@ -21,6 +22,7 @@ nobody plans around a surface that is not here.
 | [The sheet grid](the_sheet_grid) | You want to merge cells, size a row or a column, or read a protected sheet |
 | [Conditional formatting](conditional_formatting) | You want to know which rules apply to a cell — and what this library will not tell you about them |
 | [Filters and data validation](filters_and_data_validation) | You want to read or write an autofilter, a sort state or a validation rule — and to know what none of them will do |
+| [Worksheet tables](worksheet_tables) | You want to read or create a table, and to know why a preset style name is not a missing style |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a

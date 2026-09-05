@@ -18,6 +18,7 @@
 //! | [`grid`](self::grid) | **MJXOFF-102 (D07) — done**: opening a worksheet part, one cell in or out, writing it back |
 //! | [`geometry`](self::geometry) | **MJXOFF-117 (D12) — done**: merging, row and column geometry, the merged-range format, the grid anomaly report |
 //! | [`formatting`](self::formatting) | **MJXOFF-108 (D09) — done**: `xl/styles.xml` plus one worksheet, and every cell's [`mjx_sml::EffectiveCellFormat`]. The resolution order itself is `mjx-sml`'s and is not repeated here |
+//! | [`tables`](self::tables) | **MJXOFF-125 (D15) — done**: worksheet tables — the part each one lives in, the four things that have to agree, and the surface that creates one |
 //! | [`features`](self::features) | **MJXOFF-120 (D13) — done**: conditional formatting, which spans the worksheet and `xl/styles.xml`; **MJXOFF-123 (D14) — done**: autofilters, sort state and data validation, all recorded and none applied; MJXOFF-125/127/129 (D15-D17) fill the rest |
 //!
 //! # What this is not
@@ -34,6 +35,7 @@ pub(crate) mod features;
 pub(crate) mod formatting;
 pub(crate) mod geometry;
 pub(crate) mod grid;
+pub(crate) mod tables;
 
 use mjx_opc::{Package, PartName};
 
