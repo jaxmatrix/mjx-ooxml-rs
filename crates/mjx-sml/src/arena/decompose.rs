@@ -78,6 +78,34 @@ pub(crate) fn attribute_run_of(bytes: &[u8]) -> Option<&[u8]> {
     bytes.get(run_start..run_end)
 }
 
+/// The qualified name in `bytes`' start tag — the prefix and local name exactly as written.
+///
+/// [`decompose`] wants to be *told* the name, because checking it is what stops a byte range handing
+/// back somebody else's markup. That is right wherever the caller knows what the element is supposed
+/// to be from its position in a content model. It is not available for a run of bytes the store kept
+/// **because** it matched a local name: `crate::cells`'s reader finds a cell's `<f>` by local name
+/// alone, so the prefix on those bytes is the file's choice and not the `sheetData` element's, and a
+/// reader of them has to take the name from the bytes before it can check anything against it.
+///
+/// `None` unless the bytes open with `<` and a name that is followed by a delimiter — so a caller
+/// still gets a checked decomposition, it simply supplies the name from the same source.
+pub(crate) fn qualified_name_of(bytes: &[u8]) -> Option<&[u8]> {
+    if bytes.first() != Some(&b'<') {
+        return None;
+    }
+    let mut at = 1;
+    while let Some(byte) = bytes.get(at) {
+        if byte.is_ascii_whitespace() || *byte == b'/' || *byte == b'>' {
+            break;
+        }
+        at += 1;
+    }
+    // A name has to end *at* a delimiter, and it has to be non-empty: `<`, `< a` and `<>` are not
+    // elements, and a name that ran to the end of the buffer was never closed.
+    bytes.get(at)?;
+    bytes.get(1..at).filter(|name| !name.is_empty())
+}
+
 /// Where an element's start tag ends and its content begins and ends, **in arena addresses**.
 ///
 /// [`Decomposed`] answers the same question in offsets into the element's own bytes; this is the

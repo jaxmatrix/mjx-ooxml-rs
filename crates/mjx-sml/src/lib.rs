@@ -58,7 +58,7 @@
 //! | [`strings`] | **MJXOFF-97 (D05) — done**: `sharedStrings.xml`, rich-text runs, inline strings |
 //! | [`font`] | **MJXOFF-97 (D05) — done**: `CT_RPrElt`/`CT_Font`'s shared property family, reused by D08 |
 //! | [`styles`] | **MJXOFF-105 (D08) + MJXOFF-108 (D09) — done**: fonts, fills, borders, dxfs, the indexed palette; the `xf` indirection, number formats, named styles and [`EffectiveCellFormat`] |
-//! | [`formula`] | MJXOFF-115 (D11) — formulas as text, cached values, `calcChain` |
+//! | [`formula`] | **MJXOFF-115 (D11) — done**: `CT_CellFormula`'s twelve attributes, shared/array/data-table formulas, cached values, `calcChain` — and the written-down guarantee that nothing here recalculates |
 //! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
 //! | [`features`] | MJXOFF-120/123/125/127/129 (D13–D17) — the optional worksheet features |
@@ -101,6 +101,10 @@ pub use address::{
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
 pub use error::SmlError;
 pub use font::{Color, ColorElement, FontProperties, FontPropertyOwner};
+pub use formula::{
+    CachedValue, CalculationChain, CalculationChainCell, CalculationChainContent, CellFormula,
+    FormulaKind, ResolvedCalculationChainCell, SharedFormulaGroup, SharedFormulaGroups,
+};
 pub use strings::{
     InlineString, PhoneticProperties, PhoneticRun, RichTextRun, RichTextRunSpec, SharedStringTable,
     StringItem,
