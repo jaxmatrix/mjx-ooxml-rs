@@ -505,6 +505,50 @@ fn one_changed_priority_byte_is_caught() {
     );
 }
 
+/// **A block re-emitted from the model keeps every priority the file wrote** — the gap and the
+/// duplicate with it.
+///
+/// The two byte-identity assertions above cannot see this. A part nobody edited is one copy of its
+/// own buffer, and after an edit *elsewhere* each conditional-formatting slot still writes from its
+/// own bytes — so a write path that renumbered densely would be invisible to both. This reaches a
+/// block **mutably**, which is the one door that gives up its verbatim bytes, and then asserts on
+/// what the model actually emits.
+#[test]
+fn a_block_re_emitted_from_the_model_keeps_its_priorities_and_its_gap() {
+    let mut sheet = sheet();
+    // Reach block 3 mutably. That drops its claim on the file's bytes, so from here on it is the
+    // model that writes it — and block 3 is the one holding the duplicate `2` and the gapped `7`.
+    let removed = sheet
+        .conditional_formatting_block_mut(3)
+        .expect("the fourth block")
+        .remove_rule(0)
+        .expect("its first rule");
+    assert_eq!(removed.priority(sheet.interner()).expect("its priority"), 2);
+
+    let markup = String::from_utf8(sheet.to_markup()).expect("UTF-8");
+    assert!(
+        markup.contains("<cfRule type=\"iconSet\" priority=\"7\">"),
+        "the surviving rule kept `priority=\"7\"`; a dense renumber would have written 1"
+    );
+
+    // And re-read, the whole sheet's numbering is still the file's own — gap included.
+    let reread = read(markup.as_bytes());
+    let priorities: Vec<i32> = reread
+        .conditional_formatting_blocks()
+        .flat_map(|block| {
+            block
+                .rules()
+                .map(|rule| rule.priority(reread.interner()).expect("a priority"))
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    assert_eq!(
+        priorities,
+        vec![1, 4, 2, 3, 7],
+        "removing one rule renumbers nothing: 5 and 6 are still absent and 4 is still 4"
+    );
+}
+
 /// A cell edit rewrites `sheetData` and leaves every conditional-formatting block — and both `x14`
 /// extensions — byte for byte where they were.
 ///
