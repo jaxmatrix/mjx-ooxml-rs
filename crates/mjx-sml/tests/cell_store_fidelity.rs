@@ -694,6 +694,43 @@ fn every_cell_type_writes_the_attribute_that_belongs_to_it_and_reads_back() {
     assert!(sheet.anomalies().is_empty());
 }
 
+/// A number SpreadsheetML cannot express is refused, not written.
+///
+/// Rust spells the infinities `inf` and `-inf`, which `xsd:double` does not accept (it wants `INF`),
+/// and `INF` does not parse back through `str::parse::<f64>` — so writing either spelling produces a
+/// cell nothing can read. Excel's answer for these is an error cell, and so is this one's.
+#[test]
+fn a_number_spreadsheetml_cannot_express_is_refused_rather_than_written() {
+    let mut sheet = SheetData::authored(None);
+    let a1 = CellReference::parse("A1").expect("a reference");
+    for value in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let error = sheet
+            .set_cell_value(a1, CellValue::Number(value))
+            .expect_err("a non-finite number has no cell to be written into");
+        assert!(
+            matches!(error, mjx_sml::SmlError::UnrepresentableNumber { .. }),
+            "{value} produced {error:?}"
+        );
+        assert!(
+            error.to_string().contains("#NUM!"),
+            "the error says what to write instead: {error}"
+        );
+    }
+    // The finite neighbours are written, so the guard is a guard and not a refusal to write numbers.
+    sheet
+        .set_cell_value(a1, CellValue::Number(f64::MAX))
+        .expect("the largest finite double is a number");
+    assert_eq!(sheet.cell(a1).expect("A1").number(), Some(f64::MAX));
+    // And the error-cell answer the message names actually works.
+    sheet
+        .set_cell_value(a1, CellValue::Error("#NUM!"))
+        .expect("an error cell is what Excel writes here");
+    assert_eq!(
+        String::from_utf8_lossy(&sheet.cell(a1).expect("A1").markup()),
+        r#"<c r="A1" t="e"><v>#NUM!</v></c>"#
+    );
+}
+
 /// An authored sheet, built in the order a file is written, and the values read back out of it.
 #[test]
 fn an_authored_sheet_can_be_built_edited_and_written() {

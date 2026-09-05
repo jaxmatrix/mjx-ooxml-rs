@@ -272,7 +272,8 @@ impl SheetData {
     ///
     /// # Errors
     ///
-    /// [`SmlError::SheetDataTooLarge`] if the store's byte space cannot hold the new value.
+    /// [`SmlError::UnrepresentableNumber`] for a [`CellValue::Number`] that is `NaN` or an infinity,
+    /// and [`SmlError::SheetDataTooLarge`] if the store's byte space cannot hold the new value.
     pub fn set_cell_value(
         &mut self,
         reference: CellReference,
@@ -676,11 +677,16 @@ impl SheetData {
             CellValue::Blank => (TextSpan::NONE, PayloadShape::Absent, None),
             // A number carries no `t`: `n` is the schema default, and a file that would not have
             // written the attribute must not gain it.
-            CellValue::Number(number) => (
-                self.arena.store(number.to_string().as_bytes())?,
-                PayloadShape::ValueText,
-                None,
-            ),
+            CellValue::Number(number) => {
+                if !number.is_finite() {
+                    return Err(SmlError::UnrepresentableNumber { value: number });
+                }
+                (
+                    self.arena.store(number.to_string().as_bytes())?,
+                    PayloadShape::ValueText,
+                    None,
+                )
+            }
             CellValue::NumberText(text) => (
                 self.arena.store(escape_text_bytes(text).as_ref())?,
                 PayloadShape::ValueText,

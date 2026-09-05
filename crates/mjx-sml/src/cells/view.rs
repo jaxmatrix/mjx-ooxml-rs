@@ -460,6 +460,11 @@ pub enum CellValue<'a> {
     /// No value element at all. The cell survives — a blank cell still carries a style.
     Blank,
     /// A number, written in Rust's shortest round-tripping spelling.
+    ///
+    /// `NaN` and the infinities are refused with
+    /// [`SmlError::UnrepresentableNumber`](crate::SmlError::UnrepresentableNumber) rather than
+    /// written: SpreadsheetML has no numeric spelling for them, and Excel writes an error cell —
+    /// [`Error`](Self::Error) with `#NUM!` — in their place.
     Number(f64),
     /// A number written exactly as given, for a caller who has a spelling to preserve — `1.0`,
     /// `1e-7`, `0.30000000000000004`. Escaped as character data before it is written.
