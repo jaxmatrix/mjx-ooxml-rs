@@ -58557,3 +58557,15 @@ pub static WORKSHEET_ROW: &ChildOrder = &SML_TYPES[281];
 
 /// One cell: its formula, cached value, inline string, then `extLst` (`x:c`) (`CT_Cell`, `sml.xsd`).
 pub static WORKSHEET_CELL: &ChildOrder = &SML_TYPES[23];
+
+/// One border of the styles part's border table: its **nine** edges, from `start` to `horizontal` (`x:border`) (`CT_Border`, `sml.xsd`).
+pub static STYLESHEET_BORDER: &ChildOrder = &SML_TYPES[7];
+
+/// A pattern fill's foreground colour, then its background colour (`x:patternFill`) (`CT_PatternFill`, `sml.xsd`).
+pub static STYLESHEET_PATTERN_FILL: &ChildOrder = &SML_TYPES[227];
+
+/// One differential format's seven children: font, number format, fill, alignment, border, protection, then `extLst` (`x:dxf`) (`CT_Dxf`, `sml.xsd`).
+pub static STYLESHEET_DIFFERENTIAL_FORMAT: &ChildOrder = &SML_TYPES[102];
+
+/// The colour table's indexed palette, then its most-recently-used colours (`x:colors`) (`CT_Colors`, `sml.xsd`).
+pub static STYLESHEET_COLOR_TABLE: &ChildOrder = &SML_TYPES[51];

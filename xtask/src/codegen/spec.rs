@@ -2869,6 +2869,32 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "WORKSHEET_CELL", "sml", "CT_Cell",
         "One cell: its formula, cached value, inline string, then `extLst` (`x:c`)",
     ),
+
+    // ---- The styles part's resource tables (MJXOFF-105) ---------------------------------------
+    //
+    // Four more types inside `CT_Stylesheet` whose children a writer places rather than appends.
+    // Each is qualified `STYLESHEET_` for the reason `WORKSHEET_ROW` and `WORKSHEET_CELL` are
+    // qualified: `CT_Border`, `CT_Color*` and `CT_Dxf` name concepts that already exist under other
+    // schemas in this flat namespace, and a bare `BORDER` beside `CELL_BORDERS` would read as the
+    // same thing.
+    (
+        "STYLESHEET_BORDER", "sml", "CT_Border",
+        "One border of the styles part's border table: its **nine** edges, from `start` to \
+         `horizontal` (`x:border`)",
+    ),
+    (
+        "STYLESHEET_PATTERN_FILL", "sml", "CT_PatternFill",
+        "A pattern fill's foreground colour, then its background colour (`x:patternFill`)",
+    ),
+    (
+        "STYLESHEET_DIFFERENTIAL_FORMAT", "sml", "CT_Dxf",
+        "One differential format's seven children: font, number format, fill, alignment, border, \
+         protection, then `extLst` (`x:dxf`)",
+    ),
+    (
+        "STYLESHEET_COLOR_TABLE", "sml", "CT_Colors",
+        "The colour table's indexed palette, then its most-recently-used colours (`x:colors`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
