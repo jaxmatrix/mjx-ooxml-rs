@@ -16,22 +16,10 @@ use anyhow::{Context, Result};
 use mjx_docx::{Document, PageSize};
 use mjx_opc::doc_props::{CoreProperties, DocumentTimestamp, ExtendedProperties};
 
-/// Where this example writes: its first argument, or `blank_document.docx` under the target
-/// directory — the same convention `mjx-pptx`'s examples use.
-fn output_path() -> std::path::PathBuf {
-    match std::env::args().nth(1) {
-        Some(path) => std::path::PathBuf::from(path),
-        None => {
-            let dir =
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../target/examples");
-            let _ = std::fs::create_dir_all(&dir);
-            dir.join("blank_document.docx")
-        }
-    }
-}
+mod support;
 
 fn main() -> Result<()> {
-    let out = output_path();
+    let out = support::output_path("blank_document.docx");
 
     // ---- A document from nothing, with document properties set ------------------------------
     // Every part below is authored in memory. `DocumentTimestamp` has no `now()` — a value can only
