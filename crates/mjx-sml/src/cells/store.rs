@@ -193,6 +193,14 @@ impl SheetData {
     /// A binary search when the rows are ascending, which they are for every file a producer writes;
     /// a scan otherwise. When a file wrote the same `r` twice, this answers with the **first** of
     /// them — both are kept, and [`anomalies`](Self::anomalies) names the duplicate.
+    ///
+    /// A row that wrote **no** `r` at all is legal, and is held with a number of `0` rather than
+    /// with the number its position implies — because giving it one would be inventing an attribute
+    /// the file did not write. Such a row is reachable through [`rows`](Self::rows), and
+    /// [`anomalies`](Self::anomalies) reports it as
+    /// [`RowWithoutNumber`](crate::SheetDataAnomaly::RowWithoutNumber); it is *not* reachable by the
+    /// number a reader would infer for it, and neither are its cells through
+    /// [`cell`](Self::cell).
     #[must_use]
     pub fn row(&self, number: u32) -> Option<Row<'_>> {
         self.row_position(number).map(|index| Row::new(self, index))
@@ -203,6 +211,9 @@ impl SheetData {
     /// `O(log rows + log columns)` for an ordered sheet. The row is found by the reference's row,
     /// and the column within it by the reference's column; **anchoring is not part of the key**,
     /// because `$B$7` and `B7` name the same cell and differ only in how a formula copies.
+    ///
+    /// See [`row`](Self::row) for the one case this cannot reach: a cell inside a row that wrote no
+    /// `row@r`.
     #[must_use]
     pub fn cell(&self, reference: CellReference) -> Option<Cell<'_>> {
         let row = self.row_position(reference.row().saturating_add(1))?;
@@ -318,6 +329,10 @@ impl SheetData {
     ///
     /// The row survives an empty of its cells: a `<row>` carries height, style and hidden-ness of
     /// its own, and removing the last cell from a row is not the same statement as removing the row.
+    ///
+    /// The cell's side-table record, if it had one, is left where it is rather than compacted: the
+    /// indices into that table are what every *other* cell's `extra` field holds, and rebasing them
+    /// to reclaim one entry of at most forty bytes would be trading a real invariant for nothing.
     pub fn remove_cell(&mut self, reference: CellReference) -> bool {
         let Some(row_index) = self.row_position(reference.row().saturating_add(1)) else {
             return false;
