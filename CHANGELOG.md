@@ -53,6 +53,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.111] - 2026-09-05
+
+The `mjx-sml` package writer that replaces `mjx_chart::EmbeddedWorkbook`, `Workbook::blank`, and the
+Excel authoring surface (MJXOFF-112, Phase D position 10).
+
+### Added
+
+- **`mjx_sml::write`** — the SpreadsheetML **package writer**, a directory of subject modules:
+  `constants` (part names, content types, relationship types), `workbook` (`xl/workbook.xml`),
+  `sheet` (one authored worksheet), `stylesheet` (`xl/styles.xml` and its four appends),
+  `style_specs` (the plain-data descriptions those appends take) and `package`
+  ([`WorkbookPackage`], which assembles the whole `.xlsx`). It authors `[Content_Types].xml`,
+  `_rels/.rels`, `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/worksheets/sheetN.xml`,
+  `xl/sharedStrings.xml`, `xl/styles.xml` and — on request — `docProps/core.xml` and
+  `docProps/app.xml`.
+- **`mjx_sml::write::AuthoredCellValue`** — a cell value stated *before* there is a shared-string
+  table to point into, which is the shape a caller actually holds. `WorkbookPackage::push_row`
+  interns text in first-use order and writes nothing at all for a `Blank` or a non-finite number,
+  which is what a grid with holes in it means; `WorkbookPackage::set_cell_value` takes the wire-shaped
+  `CellValue` and **refuses** a non-finite number instead, because naming one cell is stating a value.
+- **`mjx_sml::write::{PatternFillSpec, BorderSpec, BorderEdgeSpec, CellFormatSpec}`** — plain-data
+  descriptions of the four `styles.xml` resources, with no interner and no lifetime. A `Border` is
+  **nine** edges (`start`, `end`, `left`, `right`, `top`, `bottom`, `diagonal`, `vertical`,
+  `horizontal`), not four. Fonts reuse `FontProperties`, which is already that description.
+- **`mjx_xlsx::Workbook::blank`** and **`blank_with_properties`** — a workbook authored from nothing,
+  through the `mjx-sml` writer. **There is no schema-valid empty workbook**: `CT_Workbook` has
+  nineteen slots and only `sheets` is mandatory, and `CT_Sheets` requires at least one `sheet`, so
+  `blank()` necessarily authors a worksheet part, its content type, its relationship and a
+  `sheetData` as well. Deterministic — two calls produce byte-identical containers.
+- **`mjx_xlsx::Workbook::add_sheet`, `set_cell_style`, `intern_shared_string`, `append_font`,
+  `append_pattern_fill`, `append_border`, `append_cell_format`** — the authoring surface. Concrete
+  types, no closures in a signature, nothing returning a borrowed view into the workbook.
+- **`mjx_sml::SmlError::AuthoredPartSeedRejected`** and **`SheetIndexOutOfRange`**.
+- **`mjx-chart` now depends on `mjx-sml`** — the legal downward edge (2.2 → 2.1) MJXOFF-99 needs, in
+  place and green under `xtask/tests/layering.rs`. **Nothing is removed here**: `EmbeddedWorkbook`
+  and `to_package_bytes` are untouched, and MJXOFF-99 owns their removal.
+
+### Changed
+
+- **`mjx_xlsx::parts` re-exports eight constants from `mjx_sml::write::constants`** rather than
+  declaring them a second time — `REL_OFFICE_DOCUMENT`, `REL_WORKSHEET`, `REL_SHARED_STRINGS`,
+  `REL_STYLES`, `CONTENT_TYPE_WORKBOOK`, `CONTENT_TYPE_WORKSHEET`, `CONTENT_TYPE_SHARED_STRINGS`,
+  `CONTENT_TYPE_STYLES`. Same paths, same values, one definition. The other twenty-one stay this
+  crate's: reading a part graph needs them and authoring one does not.
+- **`SharedStringTable::authored` writes an empty table self-closing** (`<sst … count="0"
+  uniqueCount="0"/>`), which is what Excel and `mjx-chart`'s writer both emit. The non-empty form is
+  unchanged, and the parity gate compares the two byte for byte.
+
+### Verified
+
+- **The parity gate** (`crates/mjx-chart/tests/workbook_parity.rs`): the same grid through
+  `EmbeddedWorkbook` and through `WorkbookPackage`, compared part by part. `[Content_Types].xml`,
+  `_rels/.rels`, `xl/_rels/workbook.xml.rels`, `xl/workbook.xml`, `xl/worksheets/sheet1.xml` and
+  `xl/sharedStrings.xml` are **byte-identical**. `xl/styles.xml` states the same six tables with the
+  same counts and the same record behind every index-0 reference, and differs only in the order of a
+  font's children — `CT_Font` is an `xsd:choice`, so the schema imposes none.
+- **The writer needs nothing above `mjx-sml`** (`crates/mjx-sml/tests/package_writer.rs`): a whole
+  package is authored, read back and asserted on from inside a crate whose manifest names no format
+  crate, no facade and no `mjx-chart` — checked by reading that manifest rather than claimed.
+- Every part `Workbook::blank` authors validates against `sml.xsd` and the OPC schemas, and is in
+  `xsd:sequence` order (`crates/mjx-xlsx/tests/schema_gate.rs`).
+- **The office-open canary now covers Excel.** `crates/mjx-xlsx/tests/office_open.rs` drives
+  LibreOffice over the blank workbook, an authored-and-filled-in one, `sample.xlsx` and a
+  round-tripped `sample.xlsx`; `.github/workflows/ci.yml` installs `libreoffice-calc` and names
+  `-p mjx-xlsx` on the canary step. Schema validity is necessary and not sufficient — a package can
+  satisfy every XSD and still be refused for a broken relationship graph — and a package filter that
+  named only two of the three crates would have dropped these four cases with the job still green,
+  which is precisely the failure MJXOFF-98 found for Word.
+
 ## [0.0.110] - 2026-09-05
 
 `xl/styles.xml` part 2: the `xf` indirection, number formats, named styles, and the resolver that

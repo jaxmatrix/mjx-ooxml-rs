@@ -156,12 +156,13 @@ jobs:
   # coverage can never silently skip in CI (locally the same tests skip cleanly when LibreOffice is
   # absent).
   #
-  # Both `-p mjx-pptx` and `-p mjx-docx` must be named on the canary step: a package filter that
-  # names only one silently drops the other crate's `office_open` cases with the job still reporting
-  # green (MJXOFF-98 found exactly this — Word's four cases had never executed anywhere, here or
-  # locally, because this step named `-p mjx-pptx` alone). Likewise both `libreoffice-impress`
-  # (PowerPoint/Impress) and `libreoffice-writer` (Word/Writer) are required: `soffice` cannot
-  # convert a `.docx` to PDF with only the Impress component installed.
+  # **Every crate with an `office_open` suite must be named on the canary step**: a package filter
+  # that names only some of them silently drops the rest with the job still reporting green
+  # (MJXOFF-98 found exactly this — Word's four cases had never executed anywhere, here or locally,
+  # because this step named `-p mjx-pptx` alone; MJXOFF-112 added Excel's four and had to widen the
+  # filter again). Likewise each component is required — `libreoffice-impress` (PowerPoint/Impress),
+  # `libreoffice-writer` (Word/Writer) and `libreoffice-calc` (Excel/Calc): `soffice` cannot convert
+  # an `.xlsx` to PDF with only Impress and Writer installed.
   office-open:
     name: office-open (LibreOffice)
     runs-on: ubuntu-latest
@@ -171,12 +172,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: install LibreOffice Impress and Writer
+      - name: install LibreOffice Impress, Writer and Calc
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libreoffice-impress libreoffice-writer
+          sudo apt-get install -y --no-install-recommends \
+            libreoffice-impress libreoffice-writer libreoffice-calc
       - name: office-open canary
-        run: cargo test -p mjx-pptx -p mjx-docx --test office_open
+        run: cargo test -p mjx-pptx -p mjx-docx -p mjx-xlsx --test office_open
 
       # The guide's headline example must produce a deck a real Office implementation opens.
       # Documentation that cannot be executed is a claim; this makes it a gate.
