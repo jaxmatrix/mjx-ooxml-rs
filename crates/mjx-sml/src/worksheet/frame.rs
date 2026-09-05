@@ -83,8 +83,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the seventeen slots it knows, keeps the other
-//! twenty-two as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the twenty-five slots it knows, keeps the other
+//! fourteen as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -358,7 +358,7 @@ impl Slot {
 ///
 /// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
 /// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// twenty-two unmodelled children cost nothing.
+/// fourteen unmodelled children cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -667,7 +667,7 @@ impl WorksheetPart {
         self.content.iter().map(|slot| &slot.value)
     }
 
-    /// The local name of every **element** child, in document order — the twenty-two unmodelled
+    /// The local name of every **element** child, in document order — the fourteen unmodelled
     /// slots included.
     ///
     /// This is what an ordering assertion is written against: it says what the part *will emit*,
