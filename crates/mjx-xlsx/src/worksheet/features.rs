@@ -1,9 +1,10 @@
-//! The optional things a worksheet carries beside its cells — conditional formatting today,
-//! autofilters and tables, data validation, comments, hyperlinks and form controls as the later
-//! Phase D children land.
+//! The optional things a worksheet carries beside its cells — conditional formatting, data
+//! validation, autofilters and sort state today; tables, comments, hyperlinks and form controls as
+//! the later Phase D children land.
 //!
-//! **MJXOFF-120 (D13) — done**: conditional formatting. MJXOFF-123, MJXOFF-125, MJXOFF-127 and
-//! MJXOFF-129 (D14–D17) fill the rest.
+//! **MJXOFF-120 (D13) — done**: conditional formatting. **MJXOFF-123 (D14) — done**: data
+//! validation, autofilters and sort state. MJXOFF-125, MJXOFF-127 and MJXOFF-129 (D15–D17) fill the
+//! rest.
 //!
 //! # What this file adds, and what it deliberately does not
 //!
@@ -31,8 +32,9 @@
 //! a second run of this crate's writer.
 
 use mjx_sml::{
-    CellRangeList, CellReference, ConditionalCellFormat, ConditionalFormatting,
-    ConditionalRuleChain, ConditionalRuleSpec, DifferentialFormatSpec,
+    AutoFilter, AutoFilterSpec, CellRangeList, CellReference, ConditionalCellFormat,
+    ConditionalFormatting, ConditionalRuleChain, ConditionalRuleSpec, DataValidation,
+    DataValidationSpec, DifferentialFormatSpec, WorksheetPart,
 };
 
 use crate::error::XlsxError;
@@ -171,5 +173,152 @@ impl Workbook {
             markup.push_conditional_formatting(block);
             Ok(())
         })
+    }
+}
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-123 (D14) — data validation, autofilters and sort state
+// -------------------------------------------------------------------------------------------
+
+/// **Neither of the two features below is ever applied**, and the package tier is where that has to
+/// be said again, because it is the tier a caller reaches for when they want something *done*.
+///
+/// * [`Workbook::set_auto_filter`] writes an `x:autoFilter`. It reads no cell, evaluates no filter,
+///   and sets no row's `@hidden` — a hidden row is MJXOFF-117's row property and survives untouched.
+/// * A `sortState` inside that autofilter records a sort. Nothing reorders a row.
+/// * [`Workbook::add_data_validation`] writes an `x:dataValidation`. Nothing compares a cell against
+///   it, and a `list` rule's source formula — a range reference as often as a quoted literal list —
+///   is the caller's text, written through unchanged.
+///
+/// The reasoning is in [`mjx_sml::features::filters`] and [`mjx_sml::features::validation`], and
+/// `crates/mjx-xlsx/tests/validation_and_filters.rs` asserts it against a file rather than against a
+/// second run of this crate's writer.
+impl Workbook {
+    /// `x:autoFilter` on the tab at `index`, handed to `read` — the filtered range, its per-column
+    /// filters and the sort state over it.
+    ///
+    /// A visitor rather than a returned value because the element borrows the worksheet part, and
+    /// this call is what parses it: the same shape [`Workbook::conditional_rules_for`] takes.
+    /// `Ok(None)` when the tab reaches no worksheet part, and `read` receives `None` for its second
+    /// argument when that worksheet writes no `x:autoFilter`.
+    ///
+    /// **The part comes first because an attribute's value needs its interner.** Every accessor on
+    /// [`AutoFilter`] and the six filter kinds takes one — an attribute name is a symbol — and the
+    /// only interner those symbols are meaningful in is the one this part was parsed with, which
+    /// [`WorksheetPart::interner`] answers.
+    ///
+    /// Reading does not dirty the package.
+    ///
+    /// # Errors
+    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, or [`XlsxError::Sml`] if the part will
+    /// not read.
+    pub fn auto_filter<R>(
+        &self,
+        index: usize,
+        read: impl FnOnce(&WorksheetPart, Option<&AutoFilter>) -> R,
+    ) -> Result<Option<R>, XlsxError> {
+        let Some(markup) = self.worksheet_markup(index)? else {
+            return Ok(None);
+        };
+        let filter = markup.auto_filter();
+        Ok(Some(read(&markup, filter)))
+    }
+
+    /// Every `x:dataValidation` on the tab at `index`, in document order, handed to `read`.
+    ///
+    /// A visitor, and the part comes first, both for the reason [`auto_filter`](Self::auto_filter)
+    /// gives. `Ok(None)` when the tab reaches no worksheet part; an empty slice when it writes no
+    /// `x:dataValidations`.
+    ///
+    /// # Errors
+    /// As [`auto_filter`](Self::auto_filter).
+    pub fn data_validations<R>(
+        &self,
+        index: usize,
+        read: impl FnOnce(&WorksheetPart, &[&DataValidation]) -> R,
+    ) -> Result<Option<R>, XlsxError> {
+        let Some(markup) = self.worksheet_markup(index)? else {
+            return Ok(None);
+        };
+        let rules: Vec<&DataValidation> = markup.data_validation_rules().collect();
+        Ok(Some(read(&markup, &rules)))
+    }
+
+    /// Sets the tab's `x:autoFilter` at rank 10 of `CT_Worksheet`'s sequence, replacing whichever
+    /// one is there.
+    ///
+    /// A worksheet carries **at most one** — the slot is `minOccurs="0" maxOccurs="1"` — so this is
+    /// a setter rather than an append, unlike
+    /// [`add_conditional_formatting`](Self::add_conditional_formatting) whose slot is unbounded.
+    ///
+    /// # Errors
+    /// [`XlsxError::NoSuchSheet`] if `index` names no tab, and
+    /// [`XlsxError::MissingWorkbookPart`] if it reaches no worksheet part.
+    pub fn set_auto_filter(
+        &mut self,
+        index: usize,
+        spec: &AutoFilterSpec,
+    ) -> Result<(), XlsxError> {
+        self.edit_worksheet(index, |markup| {
+            let prefix = markup.element_prefix().map(str::to_owned);
+            let filter = spec.build(markup.interner_mut(), prefix.as_deref());
+            markup.set_auto_filter(Some(filter));
+            Ok(())
+        })
+    }
+
+    /// Removes the tab's `x:autoFilter`, reporting whether there was one.
+    ///
+    /// **Removing a filter unhides nothing.** Whatever rows the file records as hidden stay hidden,
+    /// because their `@hidden` is the file's statement and this library did not put it there.
+    ///
+    /// # Errors
+    /// As [`set_auto_filter`](Self::set_auto_filter).
+    pub fn remove_auto_filter(&mut self, index: usize) -> Result<bool, XlsxError> {
+        let mut had_one = false;
+        self.edit_worksheet(index, |markup| {
+            had_one = markup.auto_filter().is_some();
+            markup.set_auto_filter(None);
+            Ok(())
+        })?;
+        Ok(had_one)
+    }
+
+    /// Appends one `x:dataValidation` to the tab at `index`, creating `x:dataValidations` at rank 17
+    /// of `CT_Worksheet`'s sequence if the sheet has none.
+    ///
+    /// `@count` on the enclosing element is left exactly as the file wrote it: it is a producer's
+    /// cache, and rewriting one nobody asked about is the correction this phase keeps refusing.
+    ///
+    /// # Errors
+    /// As [`set_auto_filter`](Self::set_auto_filter).
+    pub fn add_data_validation(
+        &mut self,
+        index: usize,
+        spec: &DataValidationSpec,
+    ) -> Result<(), XlsxError> {
+        self.edit_worksheet(index, |markup| {
+            let prefix = markup.element_prefix().map(str::to_owned);
+            let rule = spec.build(markup.interner_mut(), prefix.as_deref());
+            markup.add_data_validation(rule);
+            Ok(())
+        })
+    }
+
+    /// Removes the `rule`-th `x:dataValidation` from the tab at `index`, reporting whether there was
+    /// one.
+    ///
+    /// When the last rule goes the whole `x:dataValidations` goes with it, because the schema
+    /// declares `dataValidation` `minOccurs="1"`.
+    ///
+    /// # Errors
+    /// As [`set_auto_filter`](Self::set_auto_filter).
+    pub fn remove_data_validation(&mut self, index: usize, rule: usize) -> Result<bool, XlsxError> {
+        let mut removed = false;
+        self.edit_worksheet(index, |markup| {
+            removed = markup.remove_data_validation(rule);
+            Ok(())
+        })?;
+        Ok(removed)
     }
 }

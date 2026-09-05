@@ -55,6 +55,12 @@ pub mod conditional_formatting {
     guide_vocabulary!();
 }
 
+/// Autofilters, sort state and data validation — and why none of the three is ever applied.
+pub mod filters_and_data_validation {
+    #![doc = include_str!("../docs/guide/filters_and_data_validation.md")]
+    guide_vocabulary!();
+}
+
 /// What survives a round trip, what this crate does not model, and what a save refuses.
 pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]
