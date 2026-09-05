@@ -1,9 +1,9 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, seven modelled, thirty-two held
+//! # Thirty-nine slots, thirteen modelled, twenty-six held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Thirty-two of those slots belong to later Phase D children, and this type
+//! twice `CT_Workbook`'s. Twenty-six of those slots belong to later Phase D children, and this type
 //! holds every one of them **in its schema position**, as the markup the file wrote. A worksheet
 //! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
 //! modelled.
@@ -17,7 +17,19 @@
 //! | 4 | `cols` | [`ColumnBlock`] — **`maxOccurs="unbounded"`**, so a list |
 //! | 5 | `sheetData` | [`SheetData`] — MJXOFF-95's packed store, not a subtree |
 //! | 6 | `sheetCalcPr` | [`SheetCalculationProperties`] |
-//! | 7–38 | `sheetProtection` … `extLst` | [`WorksheetContent::Raw`], verbatim and in position |
+//! | 7 | `sheetProtection` | [`SheetProtection`] |
+//! | 8 | `protectedRanges` | [`ProtectedRanges`] |
+//! | 9 | `scenarios` | [`Scenarios`] |
+//! | 10–13 | `autoFilter` … `customSheetViews` | [`WorksheetContent::Raw`], verbatim and in position |
+//! | 14 | `mergeCells` | [`MergedCells`] |
+//! | 15–22 | `phoneticPr` … `headerFooter` | [`WorksheetContent::Raw`] |
+//! | 23 | `rowBreaks` | [`PageBreaks`] |
+//! | 24 | `colBreaks` | [`PageBreaks`] — the same complex type, the other axis |
+//! | 25–38 | `customProperties` … `extLst` | [`WorksheetContent::Raw`] |
+//!
+//! **The modelled slots are no longer a prefix**, and that changed what placement has to do: see
+//! [`Slot::rank`], which is the one thing MJXOFF-117 had to fix in MJXOFF-102's frame rather than
+//! add beside it.
 //!
 //! The ranks are never written down. Every placement goes through
 //! [`mjx_ooxml_types::child_order::WORKSHEET`], generated from `sml.xsd` by
@@ -37,8 +49,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the seven slots it knows, keeps the other
-//! thirty-two as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the thirteen slots it knows, keeps the other
+//! twenty-six as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -76,11 +88,15 @@ use crate::address::{CellRange, CellReference};
 use crate::cells::{Cell, CellValue, Row, SheetData};
 use crate::error::SmlError;
 
+use super::breaks::PageBreaks;
 use super::columns::{ColumnBlock, SheetFormatProperties};
 use super::grid::{SheetCalculationProperties, SheetDimension};
+use super::merges::MergedCells;
+use super::protection::{ProtectedRanges, SheetProtection};
+use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: seven modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: thirteen modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -98,7 +114,19 @@ pub enum WorksheetContent {
     SheetData(SheetData),
     /// `x:sheetCalcPr` (rank 6).
     CalculationProperties(SheetCalculationProperties),
-    /// Everything this type does not model: the thirty-two later slots, any foreign element, any
+    /// `x:sheetProtection` (rank 7) — advisory locks and a preserved hash, never security.
+    Protection(SheetProtection),
+    /// `x:protectedRanges` (rank 8).
+    ProtectedRanges(ProtectedRanges),
+    /// `x:scenarios` (rank 9).
+    Scenarios(Scenarios),
+    /// `x:mergeCells` (rank 14).
+    MergedCells(MergedCells),
+    /// `x:rowBreaks` (rank 23) — `CT_PageBreak` in the row axis.
+    RowBreaks(PageBreaks),
+    /// `x:colBreaks` (rank 24) — the same complex type in the column axis.
+    ColumnBreaks(PageBreaks),
+    /// Everything this type does not model: the twenty-six later slots, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -118,6 +146,12 @@ impl WorksheetContent {
             Self::Columns(_) => "cols",
             Self::SheetData(_) => "sheetData",
             Self::CalculationProperties(_) => "sheetCalcPr",
+            Self::Protection(_) => "sheetProtection",
+            Self::ProtectedRanges(_) => "protectedRanges",
+            Self::Scenarios(_) => "scenarios",
+            Self::MergedCells(_) => "mergeCells",
+            Self::RowBreaks(_) => "rowBreaks",
+            Self::ColumnBreaks(_) => "colBreaks",
             Self::Raw(_) => return None,
         })
     }
@@ -136,6 +170,11 @@ impl WorksheetContent {
             Self::FormatProperties(value) => value.as_raw_element(),
             Self::Columns(value) => value.as_raw_element(),
             Self::CalculationProperties(value) => value.as_raw_element(),
+            Self::Protection(value) => value.as_raw_element(),
+            Self::ProtectedRanges(value) => value.as_raw_element(),
+            Self::Scenarios(value) => value.as_raw_element(),
+            Self::MergedCells(value) => value.as_raw_element(),
+            Self::RowBreaks(value) | Self::ColumnBreaks(value) => value.as_raw_element(),
             Self::SheetData(_) | Self::Raw(_) => return None,
         })
     }
@@ -164,10 +203,30 @@ impl Slot {
 
     /// This child's rank in `CT_Worksheet`'s `xsd:sequence`, from the generated table.
     ///
-    /// `None` for a node the table does not name, which is exactly the set of nodes placement must
-    /// step over rather than treat as a boundary.
-    fn rank(&self) -> Option<u16> {
-        WORKSHEET.rank_of(None, self.value.local()?)
+    /// # An unmodelled child is ranked too, and that is load-bearing
+    ///
+    /// The obvious implementation answers `None` for every [`WorksheetContent::Raw`], on the grounds
+    /// that placement steps over what it cannot rank. **That is only safe while the modelled slots
+    /// are a prefix of the sequence**, which they were when MJXOFF-102 (D07) modelled ranks 0–6 and
+    /// stopped: an unranked child was then necessarily a *later* one, so putting a new modelled child
+    /// before it was always right.
+    ///
+    /// MJXOFF-117 (D12) ends that. It models ranks 7, 8, 9, 14, 23 and 24, and leaves 10–13, 15–22
+    /// and 25–38 held raw — so the modelled and unmodelled slots now **interleave**. A worksheet
+    /// holding `sheetData` (5), an unmodelled `autoFilter` (10) and `colBreaks` (24) would place a new
+    /// `mergeCells` (14) *before* the `autoFilter` if the `autoFilter` were unranked, because
+    /// placement would have nothing between rank 5 and rank 24 to stop at. That is a worksheet in
+    /// schema-invalid order, written by this library.
+    ///
+    /// So a `Raw` element goes through [`ChildOrder::rank_of_node`], which answers from the same
+    /// generated table and still says `None` for exactly what placement must step over: text, a
+    /// comment, an `mc:AlternateContent`, and any element in a namespace `CT_Worksheet` does not put
+    /// here. `crates/mjx-sml/tests/sheet_grid.rs` pins the interleaved case.
+    fn rank(&self, interner: &Interner) -> Option<u16> {
+        match &self.value {
+            WorksheetContent::Raw(node) => WORKSHEET.rank_of_node(node, interner),
+            modelled => WORKSHEET.rank_of(None, modelled.local()?),
+        }
     }
 
     /// Gives up the claim on this slot's original bytes, because it is about to be changed.
@@ -197,7 +256,7 @@ impl Slot {
 ///
 /// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
 /// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// thirty-two unmodelled children cost nothing.
+/// twenty-six unmodelled children cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -228,8 +287,8 @@ pub struct WorksheetPart {
 /// verbatim bytes, and a setter that replaces the existing child in place or inserts a new one at
 /// its rank in `CT_Worksheet`'s sequence.
 ///
-/// Six slots share these three bodies, and writing them out six times would be six chances to reach
-/// for the wrong variant. The mutable getter is **the one door** the slot-level copy-on-write rests
+/// Eleven slots share these three bodies, and writing them out eleven times would be eleven chances
+/// to reach for the wrong variant. The mutable getter is **the one door** the slot-level copy-on-write rests
 /// on: it is the only way a caller can reach a modelled child mutably, and it is where the claim on
 /// the original bytes is dropped.
 macro_rules! singleton_slot {
@@ -423,7 +482,7 @@ impl WorksheetPart {
         !self.edited && self.source.is_some()
     }
 
-    /// Every child, in document order, including the thirty-two slot kinds this type does not
+    /// Every child, in document order, including the twenty-six slot kinds this type does not
     /// model.
     ///
     /// An iterator rather than a slice: each child is stored beside the claim on its original
@@ -432,7 +491,7 @@ impl WorksheetPart {
         self.content.iter().map(|slot| &slot.value)
     }
 
-    /// The local name of every **element** child, in document order — the thirty-two unmodelled
+    /// The local name of every **element** child, in document order — the twenty-six unmodelled
     /// slots included.
     ///
     /// This is what an ordering assertion is written against: it says what the part *will emit*,
@@ -501,6 +560,77 @@ impl WorksheetPart {
         "`x:sheetCalcPr` — whether a consumer should recalculate this sheet on load. Reported, never \
          acted on."
     );
+
+    singleton_slot!(
+        protection,
+        protection_mut,
+        set_protection,
+        Protection,
+        SheetProtection,
+        "sheetProtection",
+        "`x:sheetProtection` — the fifteen advisory **locks** a consumer should honour while the \
+         sheet is protected, and the password hash that lifts them. Every flag forbids rather than \
+         permits, and nothing in this workspace computes or verifies the hash; see \
+         [`SheetProtection`]'s own documentation."
+    );
+    singleton_slot!(
+        protected_ranges,
+        protected_ranges_mut,
+        set_protected_ranges,
+        ProtectedRanges,
+        ProtectedRanges,
+        "protectedRanges",
+        "`x:protectedRanges` — the ranges a named group may edit even while the sheet is protected."
+    );
+    singleton_slot!(
+        scenarios,
+        scenarios_mut,
+        set_scenarios,
+        Scenarios,
+        Scenarios,
+        "scenarios",
+        "`x:scenarios` — Excel's saved what-if alternatives. Reported, never applied."
+    );
+    singleton_slot!(
+        merged_cells,
+        merged_cells_mut,
+        set_merged_cells,
+        MergedCells,
+        MergedCells,
+        "mergeCells",
+        "`x:mergeCells` — every merged range in the sheet. \
+         [`merged_ranges`](Self::merged_ranges) is the curated way in."
+    );
+    singleton_slot!(
+        row_breaks,
+        row_breaks_mut,
+        set_row_breaks,
+        RowBreaks,
+        PageBreaks,
+        "rowBreaks",
+        "`x:rowBreaks` — the page breaks between rows."
+    );
+    singleton_slot!(
+        column_breaks,
+        column_breaks_mut,
+        set_column_breaks,
+        ColumnBreaks,
+        PageBreaks,
+        "colBreaks",
+        "`x:colBreaks` — the page breaks between columns. The same `CT_PageBreak` as \
+         [`row_breaks`](Self::row_breaks), in the other axis."
+    );
+
+    /// The prefix this part's root element is bound to, as an owned string.
+    ///
+    /// Owned rather than borrowed because every caller needs it *while* holding the interner
+    /// mutably to build a child, and the two live in one struct. A prefix is at most a handful of
+    /// bytes, and this is reached once per authored element rather than once per attribute.
+    pub(super) fn own_prefix(&self) -> Option<String> {
+        self.name
+            .prefix
+            .map(|symbol| self.interner.resolve(symbol).to_owned())
+    }
 
     /// Every `x:cols` block, in document order.
     ///
@@ -705,11 +835,16 @@ impl WorksheetPart {
 
     /// Where a child named `local` belongs among the current children.
     ///
-    /// One call into the generated table: unranked nodes are stepped over rather than treated as a
-    /// boundary, so a comment or an `mc:AlternateContent` between two slots neither moves nor
-    /// displaces what is inserted next to it.
+    /// One call into the generated table, over **every** child's rank — the unmodelled ones
+    /// included, which is what keeps a new slot on the right side of a held one now that the modelled
+    /// ranks interleave with the held ones. See [`Slot::rank`]. What is still stepped over rather
+    /// than treated as a boundary is what genuinely has no rank: a comment, an
+    /// `mc:AlternateContent`, an element in somebody else's namespace.
     fn insert_index(&self, local: &str) -> usize {
-        WORKSHEET.insert_index_of_names(self.content.iter().map(Slot::rank), local)
+        WORKSHEET.insert_index_of_names(
+            self.content.iter().map(|slot| slot.rank(&self.interner)),
+            local,
+        )
     }
 
     /// Replaces the first child `is_target` accepts, keeping its position; inserts at the schema
@@ -818,7 +953,7 @@ fn range_between(bounds: (u16, u32, u16, u32)) -> Option<CellRange> {
 /// Reads one child node of `x:worksheet` into a slot.
 ///
 /// A node is modelled only when it is an element **in the SpreadsheetML namespace** with one of the
-/// seven local names this frame knows. An element merely *named* `sheetData` in somebody else's
+/// thirteen local names this frame knows. An element merely *named* `sheetData` in somebody else's
 /// namespace is unmodelled markup, and goes into the bucket with its prefix intact.
 fn read_slot(
     node: RawNode,
@@ -863,6 +998,16 @@ fn read_slot(
         "sheetCalcPr" => WorksheetContent::CalculationProperties(
             SheetCalculationProperties::from_xml(&element, interner)?,
         ),
+        "sheetProtection" => {
+            WorksheetContent::Protection(SheetProtection::from_xml(&element, interner)?)
+        }
+        "protectedRanges" => {
+            WorksheetContent::ProtectedRanges(ProtectedRanges::from_xml(&element, interner)?)
+        }
+        "scenarios" => WorksheetContent::Scenarios(Scenarios::from_xml(&element, interner)?),
+        "mergeCells" => WorksheetContent::MergedCells(MergedCells::from_xml(&element, interner)?),
+        "rowBreaks" => WorksheetContent::RowBreaks(PageBreaks::from_xml(&element, interner)?),
+        "colBreaks" => WorksheetContent::ColumnBreaks(PageBreaks::from_xml(&element, interner)?),
         _ => {
             return Ok(Slot {
                 verbatim: None,

@@ -215,8 +215,8 @@ fn a_realistic_worksheet_part_keeps_the_per_cell_bound() -> usize {
     live
 }
 
-/// A whole `CT_Worksheet` around one cell at the far corner of the grid: the seven modelled slots
-/// and four unmodelled ones, so the frame is really exercised.
+/// A whole `CT_Worksheet` around one cell at the far corner of the grid: several modelled slots and
+/// several held ones, so the frame is really exercised.
 fn sparse_worksheet_markup() -> String {
     concat!(
         r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" "#,

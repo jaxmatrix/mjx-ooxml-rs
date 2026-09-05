@@ -465,14 +465,75 @@ impl SheetData {
         self.set_row_attribute(number, "spans", rendered.as_deref())
     }
 
-    /// Sets `row@ht`, the row's height in points, or removes it with `None`.
+    /// Sets `row@ht` **and** `row@customHeight` together, or removes both with `None`.
+    ///
+    /// # Why this takes a [`RowHeight`](crate::RowHeight) and not an `f64`
+    ///
+    /// `ht` on its own is a height a consumer *computed*, and a consumer is free to compute it
+    /// again; `customHeight="1"` is the claim that a person set it. The two state one fact between
+    /// them, so a caller states both halves of it or neither — there is deliberately no way through
+    /// this type to write a height whose provenance is unsaid. [`RowHeight`](crate::RowHeight) carries the whole
+    /// rationale.
+    ///
+    /// # What is not rewritten
+    ///
+    /// `customHeight` is only touched when its **effective value changes**. A row that already says
+    /// `customHeight="true"` and is given a [`RowHeight::Custom`](crate::RowHeight::Custom) keeps that spelling, exactly as
+    /// every other attribute this store leaves alone keeps its own: the value is not changing, so
+    /// its bytes have no reason to.
     ///
     /// # Errors
     ///
     /// As [`set_row_attribute`](Self::set_row_attribute).
-    pub fn set_row_height(&mut self, number: u32, height: Option<f64>) -> Result<(), SmlError> {
-        let rendered = height.map(|height| height.to_string());
-        self.set_row_attribute(number, "ht", rendered.as_deref())
+    pub fn set_row_height(
+        &mut self,
+        number: u32,
+        height: Option<crate::worksheet::RowHeight>,
+    ) -> Result<(), SmlError> {
+        let wanted_custom = height.is_some_and(crate::worksheet::RowHeight::is_custom);
+        let states_custom = self.row(number).is_some_and(|row| row.uses_custom_height());
+        let rendered = height.map(|height| height.points().to_string());
+        self.set_row_attribute(number, "ht", rendered.as_deref())?;
+        if states_custom != wanted_custom {
+            self.set_row_attribute(
+                number,
+                "customHeight",
+                wanted_custom.then(|| boolean_wire_value(true)),
+            )?;
+        }
+        Ok(())
+    }
+
+    /// Sets `row@outlineLevel`, or removes it with `None`.
+    ///
+    /// The sheet-wide maximum this level has to stay in step with is `sheetFormatPr`'s, which is a
+    /// sibling of `sheetData` rather than anything this store can see;
+    /// [`WorksheetPart::set_row_outline_level`](crate::WorksheetPart::set_row_outline_level) is the
+    /// door that keeps the two together.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_row_attribute`](Self::set_row_attribute).
+    pub fn set_row_outline_level(
+        &mut self,
+        number: u32,
+        level: Option<u8>,
+    ) -> Result<(), SmlError> {
+        let rendered = level.map(|level| level.to_string());
+        self.set_row_attribute(number, "outlineLevel", rendered.as_deref())
+    }
+
+    /// Sets `row@collapsed`, or removes it with `None`.
+    ///
+    /// # Errors
+    ///
+    /// As [`set_row_attribute`](Self::set_row_attribute).
+    pub fn set_row_collapsed(
+        &mut self,
+        number: u32,
+        collapsed: Option<bool>,
+    ) -> Result<(), SmlError> {
+        self.set_row_attribute(number, "collapsed", collapsed.map(boolean_wire_value))
     }
 
     /// Sets `row@hidden`, or removes it with `None`.
