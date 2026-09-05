@@ -19,7 +19,7 @@ use super::view::{Cell, CellValue, Row};
 /// arena.
 ///
 /// See the [module docs](super) for the representation and what it was chosen against, and
-/// [`super::record`] for the byte count of each record and the alternatives that were costed.
+/// `cells/record.rs` for the byte count of each record and the alternatives that were costed.
 ///
 /// # What "sparse" means here, exactly
 ///

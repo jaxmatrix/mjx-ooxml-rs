@@ -25,7 +25,7 @@
 //! * one byte arena, which for a worksheet nobody has edited is **the part's own buffer, shared with
 //!   the package and never copied**.
 //!
-//! [`record`] carries the byte-by-byte accounting and the table of alternatives — an owned typed
+//! `cells/record.rs` carries the byte-by-byte accounting and the table of alternatives — an owned typed
 //! tree, a `BTreeMap` keyed on the address, a dense grid over the addressable range — with what each
 //! costs and why it lost.
 //!
