@@ -30,7 +30,7 @@
 //! writes every attribute an element holds, in order, without inspecting any of them. There is no
 //! code path that could decide a declaration is unused.
 
-use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawName, RawNode};
+use mjx_ooxml_core::{Interner, RawAttribute, RawDocument, RawElement, RawName, RawNode};
 
 /// Everything the walk below reads off a document: the interner its names resolve through, and the
 /// source buffer an unmodified element may still be copied from.
@@ -131,6 +131,68 @@ pub fn serialize_node(
     write_node(Context { interner, source }, node, out);
 }
 
+/// Serializes an element's **start tag alone** — `<name attr="value" …>`, or `<name …/>` when
+/// `self_closing` — appending to `out`.
+///
+/// # Why this exists beside [`serialize_element`]
+///
+/// [`serialize_element`] is for a model that holds no tree but does hold whole elements. A model
+/// that holds no tree and whose *children are not elements either* cannot use it for its own
+/// container: `mjx_sml::worksheet`'s frame writes `<worksheet …>`, then thirty-nine slots of which
+/// one is `mjx_sml::cells`'s packed byte store rather than a [`RawElement`], then `</worksheet>`.
+/// Without this it would have to assemble a `RawElement` holding the whole `sheetData` — the
+/// hundreds of megabytes the packed store exists to avoid — purely to write one start tag.
+///
+/// No verbatim shortcut applies: a start tag on its own has no recorded range (a
+/// [source span](RawElement::source_span) covers a whole element), so this always writes from the
+/// model. Attributes come back in order with their original quoting and escaping; the whitespace
+/// *between* them does not, which is the same property every rebuilt element has.
+///
+/// # Examples
+///
+/// ```
+/// use mjx_xml::fidelity;
+/// let doc = fidelity::parse(br#"<a:root xmlns:a="urn:a">text</a:root>"#).unwrap();
+/// let mut out = Vec::new();
+/// fidelity::serialize_start_tag(&doc.root.name, &doc.root.attributes, false, &doc.interner, &mut out);
+/// out.extend_from_slice(b"text");
+/// fidelity::serialize_end_tag(&doc.root.name, &doc.interner, &mut out);
+/// assert_eq!(out, br#"<a:root xmlns:a="urn:a">text</a:root>"#);
+/// ```
+pub fn serialize_start_tag(
+    name: &RawName,
+    attributes: &[RawAttribute],
+    self_closing: bool,
+    interner: &Interner,
+    out: &mut Vec<u8>,
+) {
+    let ctx = Context {
+        interner,
+        source: None,
+    };
+    out.push(b'<');
+    write_qname(ctx, name, out);
+    write_attributes(ctx, attributes, out);
+    if self_closing {
+        out.extend_from_slice(b"/>");
+    } else {
+        out.push(b'>');
+    }
+}
+
+/// Serializes an element's **end tag alone** — `</name>` — appending to `out`.
+///
+/// The counterpart of [`serialize_start_tag`]; see there for why both exist.
+pub fn serialize_end_tag(name: &RawName, interner: &Interner, out: &mut Vec<u8>) {
+    let ctx = Context {
+        interner,
+        source: None,
+    };
+    out.extend_from_slice(b"</");
+    write_qname(ctx, name, out);
+    out.push(b'>');
+}
+
 /// Convenience: serialize into a fresh `Vec`.
 #[must_use]
 pub fn serialize_to_vec(doc: &RawDocument) -> Vec<u8> {
@@ -158,15 +220,7 @@ fn write_element(ctx: Context<'_>, element: &RawElement, out: &mut Vec<u8>) {
     }
     out.push(b'<');
     write_qname(ctx, &element.name, out);
-    // Every attribute, in order, declarations included — see the module docs.
-    for attr in element.attributes.iter() {
-        out.push(b' ');
-        write_qname(ctx, &attr.name, out);
-        out.push(b'=');
-        out.push(attr.quote.byte());
-        out.extend_from_slice(&attr.value);
-        out.push(attr.quote.byte());
-    }
+    write_attributes(ctx, &element.attributes, out);
     if element.empty && element.children.is_empty() {
         out.extend_from_slice(b"/>");
     } else {
@@ -177,6 +231,18 @@ fn write_element(ctx: Context<'_>, element: &RawElement, out: &mut Vec<u8>) {
         out.extend_from_slice(b"</");
         write_qname(ctx, &element.name, out);
         out.push(b'>');
+    }
+}
+
+/// Every attribute, in order, declarations included — see the module docs.
+fn write_attributes(ctx: Context<'_>, attributes: &[RawAttribute], out: &mut Vec<u8>) {
+    for attr in attributes.iter() {
+        out.push(b' ');
+        write_qname(ctx, &attr.name, out);
+        out.push(b'=');
+        out.push(attr.quote.byte());
+        out.extend_from_slice(&attr.value);
+        out.push(attr.quote.byte());
     }
 }
 
