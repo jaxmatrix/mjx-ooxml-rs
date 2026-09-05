@@ -250,3 +250,66 @@ fn a_workbook_opened_and_saved_unchanged_opens() {
     let workbook = Workbook::open(&bytes).expect("opens");
     let _ = convert_opens(&workbook.save().expect("saves"), "round_tripped_fixture");
 }
+
+#[test]
+fn a_workbook_with_an_authored_validation_and_autofilter_opens() {
+    // MJXOFF-123's own *Done when* clause: *"Authoring a list validation produces markup that passes
+    // the schema-validity suite and that LibreOffice opens."* The schema half is
+    // `crates/mjx-xlsx/tests/validation_and_filters.rs`; this is the other half, and it is a
+    // genuinely different question — a `dataValidation` whose `@sqref` names cells outside the
+    // sheet, or an `autoFilter` whose `@colId` is past the end of its own `@ref`, is schema-valid
+    // markup a renderer can still refuse.
+    //
+    // Both features are authored into a workbook built from nothing, so nothing preserved from a
+    // real file is holding them up.
+    use mjx_sml::{
+        AutoFilterSpec, CellRange, CellRangeList, DataValidationSpec, FilterColumnSpec,
+        FilterSpecKind, SortConditionSpec, SortStateSpec,
+    };
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let range = |text: &str| CellRange::parse(text).expect("a literal range");
+    let ranges = |text: &str| CellRangeList::parse(text).expect("a literal sqref");
+
+    let mut workbook = Workbook::blank().expect("authored");
+    for (address, value) in [
+        ("A1", CellValue::InlineString("Region")),
+        ("B1", CellValue::InlineString("Q1")),
+        ("A2", CellValue::InlineString("North")),
+        ("B2", CellValue::Number(1200.0)),
+        ("A3", CellValue::InlineString("South")),
+        ("B3", CellValue::Number(300.0)),
+    ] {
+        workbook
+            .set_cell_value(0, at(address), value)
+            .expect("the store accepts the value");
+    }
+
+    workbook
+        .set_auto_filter(
+            0,
+            &AutoFilterSpec::over(range("A1:B3"))
+                .with_column(FilterColumnSpec::new(
+                    0,
+                    FilterSpecKind::values(["North", "South"]),
+                ))
+                .with_sort_state(SortStateSpec::new(
+                    range("A2:B3"),
+                    vec![SortConditionSpec::descending(range("B2:B3"))],
+                )),
+        )
+        .expect("the autofilter writes");
+    workbook
+        .add_data_validation(
+            0,
+            &DataValidationSpec::list(ranges("A2:A100"), "\"North,South,East,West\"")
+                .with_error("Not a region", "Pick one of the four")
+                .with_prompt("Region", "North, South, East or West"),
+        )
+        .expect("the validation writes");
+
+    let _ = convert_opens(
+        &workbook.save().expect("saves"),
+        "authored_validation_and_autofilter",
+    );
+}
