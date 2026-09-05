@@ -149,8 +149,10 @@ fn read_entries(doc: &RawDocument) -> Result<Vec<SheetEntry>, XlsxError> {
     // the root binds. A workbook that binds none can carry no relationship reference at all.
     let reference_prefix = part.relationship_prefix(interner);
     let Some(list) = part.sheets() else {
-        // Legal: `CT_Workbook`'s `sheets` is `minOccurs="0"` in the generated content model, and a
-        // workbook with no sheet list has no tabs — a thing this crate reads rather than refuses.
+        // `sml.xsd` declares `sheets` `minOccurs="1"`, so a workbook without one is **invalid** —
+        // and this crate reads it anyway, with no tabs, rather than refusing to open it. (D02's own
+        // comment here said `minOccurs="0"`, which is not what the schema says; the behaviour was
+        // right and the reason given for it was not.)
         return Ok(Vec::new());
     };
 
@@ -287,8 +289,12 @@ mod tests {
         assert_eq!(sheets[1].kind, None);
     }
 
-    /// A workbook with no `x:sheets` at all reads as no sheets — `CT_Workbook` declares the element
-    /// `minOccurs="0"`, so this is a legal file rather than a malformed one.
+    /// A workbook with no `x:sheets` at all reads as no sheets.
+    ///
+    /// `sml.xsd:4104` declares the element `minOccurs="1"`, so such a file is **invalid** — and
+    /// this crate opens it regardless and reports no tabs, because refusing would trade a readable
+    /// file for an unreadable one. `Workbook::validate` is where a caller asks whether a file is
+    /// one this library would agree to *write*.
     #[test]
     fn a_workbook_with_no_sheet_list_reads_as_no_sheets() {
         let (mut package, workbook_part) = workbook_package(
