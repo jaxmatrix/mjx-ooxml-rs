@@ -258,3 +258,139 @@ fn an_xlsx_the_library_re_emits_unchanged_is_still_schema_valid() {
     let rows = inspect_deck(&harness, "saved unedited sample.xlsx", &saved, &tolerances);
     mjx_schema_gate::assert_rows_are_valid("saved unedited sample.xlsx", &rows);
 }
+
+/// `sample.xlsx` with a `s:c` planted directly inside `s:sheetData` — a cell outside its row, which
+/// `CT_SheetData` rejects: its `xsd:sequence` holds exactly one element, `row`.
+///
+/// MJXOFF-91's own mutation, and deliberately in a *different part* from
+/// [`sample_xlsx_with_sheet_data_inside_file_version`]'s. That case proves the `sml` arm reaches
+/// `/xl/workbook.xml`; a part being validated is a property of the part, not of the schema, and
+/// `/xl/worksheets/sheet1.xml` is the part every later Phase D child actually writes into.
+fn sample_xlsx_with_a_cell_outside_its_row() -> Vec<u8> {
+    let mut package = Package::open(&fixture("sample.xlsx")).expect("open sample.xlsx");
+    let part = PartName::new("/xl/worksheets/sheet1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } = package
+        .part_tree_mut(&part)
+        .expect("edit xl/worksheets/sheet1.xml");
+    let cell = RawElement::new(
+        RawName {
+            prefix: None,
+            local: interner.intern("c"),
+            namespace: Some(interner.intern(SML_NS)),
+        },
+        Vec::new(),
+        Vec::new(),
+        true,
+    );
+    assert!(
+        plant_in_first(root, interner, "sheetData", &cell),
+        "sample.xlsx's worksheet has no s:sheetData to corrupt"
+    );
+    package.save().expect("save the corrupted worksheet")
+}
+
+#[test]
+fn invalid_worksheet_markup_is_caught_and_names_the_worksheet_part() {
+    let Some(harness) = harness() else { return };
+    let corrupted = sample_xlsx_with_a_cell_outside_its_row();
+    let tolerances = mjx_schema_gate::tolerances_for("sample.xlsx");
+    let rows = inspect_deck(
+        &harness,
+        "sample.xlsx with a s:c outside its s:row",
+        &corrupted,
+        &tolerances,
+    );
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/worksheets/sheet1.xml")
+        .expect("xl/worksheets/sheet1.xml is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a s:c outside its s:row must fail against sml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "sml.xsd");
+    assert!(
+        report.contains("/xl/worksheets/sheet1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("sheetData") || report.contains("}c'"),
+        "the failure must name the element whose content model was broken:\n{report}"
+    );
+
+    // The discriminating half: only that part broke. `/xl/workbook.xml`'s own tolerated deviation is
+    // still tolerated, and `/xl/styles.xml` is still clean — so this case cannot pass because the
+    // corruption happened to break everything.
+    let styles = rows
+        .iter()
+        .find(|row| row.name == "/xl/styles.xml")
+        .expect("xl/styles.xml is in the sweep");
+    assert!(
+        matches!(styles.outcome, PartOutcome::Validated("sml.xsd")),
+        "/xl/styles.xml must be unaffected; it reported: {}",
+        styles.outcome.describe()
+    );
+    println!("the sml arm on the worksheet part, proved live:\n{report}");
+}
+
+#[test]
+fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
+    // MJXOFF-91's schema clause in its general form. `the_spreadsheetml_parts_are_validated_and_not_skipped`
+    // pins four parts by name; this pins the *rule* those four are instances of, so a part a later
+    // Phase D child adds under `xl/` cannot quietly join the sweep as a skip.
+    //
+    // This is the exact false-green MJXOFF-110 exists to close: a part in a namespace with no arm
+    // reports a *skip*, and `assert_outcomes_are_valid` fails on neither a skip nor a tolerance. So
+    // "schema validity covers the .xlsx fixtures and is green" is satisfied precisely when the Excel
+    // parts are not being validated at all.
+    let rows = inspect_fixture("sample.xlsx");
+    if rows.is_empty() {
+        return;
+    }
+    println!("{}", outcome_table("sample.xlsx", &rows));
+
+    let mut checked = 0usize;
+    for row in &rows {
+        if !row.name.starts_with("/xl/") || row.name.ends_with(".rels") {
+            continue;
+        }
+        checked += 1;
+        match &row.outcome {
+            PartOutcome::Validated(_) | PartOutcome::Tolerated { .. } => {}
+            other => panic!(
+                "{} is under xl/ and was not validated at all — it reported: {}",
+                row.name,
+                other.describe()
+            ),
+        }
+    }
+    assert!(
+        checked >= 5,
+        "only {checked} part(s) under xl/ were checked; sample.xlsx carries five"
+    );
+}
+
+#[test]
+fn a_workbook_opened_and_saved_through_this_crate_is_still_schema_valid() {
+    // The gate applied to *this crate's* entry point rather than to `mjx-opc`'s.
+    // `an_xlsx_the_library_re_emits_unchanged_is_still_schema_valid` proves the container layer does
+    // not corrupt a workbook; this proves `Workbook::open`/`Workbook::save` — which parse
+    // `xl/workbook.xml`, resolve the whole part graph and run the SpreadsheetML validator on the way
+    // out — do not either.
+    let workbook = mjx_xlsx::Workbook::open(&fixture("sample.xlsx")).expect("open");
+    let saved = workbook.save().expect("save");
+    mjx_schema_gate::assert_deck_is_in_schema_order("sample.xlsx through Workbook", &saved);
+    let Some(harness) = harness() else { return };
+    let tolerances = mjx_schema_gate::tolerances_for("sample.xlsx");
+    let rows = inspect_deck(
+        &harness,
+        "sample.xlsx through Workbook",
+        &saved,
+        &tolerances,
+    );
+    mjx_schema_gate::assert_rows_are_valid("sample.xlsx through Workbook", &rows);
+    println!("{}", outcome_table("sample.xlsx through Workbook", &rows));
+}
