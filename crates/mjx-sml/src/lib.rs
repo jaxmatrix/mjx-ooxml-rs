@@ -44,15 +44,16 @@
 //! trust: `xtask/tests/layering.rs` reads the real dependency graph out of `cargo metadata` and
 //! fails, naming both crates and both ranks, on any edge that does not point down.
 //!
-//! # Status — the crate spine, and nothing else
+//! # Status — the crate spine, plus the addressing vocabulary
 //!
-//! MJXOFF-132 creates the crate, the module tree, the `sml` child-order table and the layering test.
-//! It **emits no markup and models nothing**: every module below is a named home with the work item
+//! MJXOFF-132 creates the crate, the module tree, the `sml` child-order table and the layering test;
+//! MJXOFF-93 fills [`address`], which is markup vocabulary rather than package structure and which
+//! eleven later children consume. Everything else below is still a named home with the work item
 //! that fills it, so that no later child has to invent a place to put its model.
 //!
 //! | Module | Filled by |
 //! |---|---|
-//! | [`address`] | MJXOFF-93 (D03) — references, ranges, `sqref`, A1 and R1C1 |
+//! | [`address`] | **MJXOFF-93 (D03) — done**: references, ranges, `sqref`, `spans`, A1 and R1C1 |
 //! | [`cells`] | MJXOFF-95 (D04) — the cell store, the hybrid memory model |
 //! | [`strings`] | MJXOFF-97 (D05) — `sharedStrings.xml`, rich-text runs, inline strings |
 //! | [`styles`] | MJXOFF-105 (D08), MJXOFF-108 (D09) — resource tables, then the `xf` indirection |
@@ -87,4 +88,9 @@ pub mod workbook;
 pub mod worksheet;
 pub mod write;
 
+pub use address::{
+    AddressError, AddressText, Anchoring, CellRange, CellRangeList, CellReference, CellSpan,
+    CellSpans, ColumnBound, GridBounds, R1C1Coordinate, R1C1Range, R1C1Reference, ReferenceMode,
+    RowBound, SheetName, SheetQualifiedReference,
+};
 pub use error::SmlError;
