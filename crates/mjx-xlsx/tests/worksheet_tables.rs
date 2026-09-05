@@ -494,12 +494,15 @@ fn a_second_added_table_gets_a_second_id_and_the_workbook_still_validates() {
         )
         .expect("created");
 
-    assert_eq!((first.id, second.id), (5, 6));
-    assert_ne!(first.part, second.part);
-    assert_ne!(first.relationship_id, second.relationship_id);
+    // The validation comes **first**, because it is the assertion the ticket's mutation is aimed
+    // at: an allocator that reused an existing id produces a package `validate` refuses, and a test
+    // that checked the numbers before checking the package would report the wrong thing about why.
     workbook
         .validate()
         .expect("two tables, two ids, two display names");
+    assert_eq!((first.id, second.id), (5, 6));
+    assert_ne!(first.part, second.part);
+    assert_ne!(first.relationship_id, second.relationship_id);
 
     let ids: Vec<u32> = workbook
         .sheet_tables(0)

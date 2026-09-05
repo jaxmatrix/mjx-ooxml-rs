@@ -160,8 +160,10 @@ until [`mjx_sml::WorksheetPart::recompute_outline_levels`] is called. That is th
 
 ## What is still held rather than modelled
 
-Thirteen of `CT_Worksheet`'s thirty-nine slots are modelled as of MJXOFF-117. The other twenty-six —
-conditional formatting, data validation, autofilters, hyperlinks, print setup, drawings, tables —
-are held as the markup the producer wrote, in the position it wrote it, and come back byte for byte.
+**Eighteen** of `CT_Worksheet`'s thirty-nine slots are modelled as of MJXOFF-125 — thirteen by
+MJXOFF-117, plus `conditionalFormatting` (MJXOFF-120), `autoFilter`, `sortState` and
+`dataValidations` (MJXOFF-123) and `tableParts` (MJXOFF-125). The other twenty-one — hyperlinks,
+print setup, headers and footers, drawings, OLE objects and the rest — are held as the markup the
+producer wrote, in the position it wrote it, and come back byte for byte.
 Held is not dropped: a worksheet whose `conditionalFormatting` survives an edit to its column widths
 is proof the frame works.
