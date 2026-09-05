@@ -75,18 +75,21 @@ fn reference(text: &str) -> CellReference {
     CellReference::parse(text).unwrap_or_else(|error| panic!("{text}: {error}"))
 }
 
-/// The `<f>` of one cell, as bytes.
-fn formula_markup(part: &WorksheetPart, cell: &str) -> Vec<u8> {
-    part.cell(reference(cell))
+/// The `<f>` of one cell, as the exact bytes the file holds — rendered as a string so that a failing
+/// comparison prints the markup rather than a hundred byte values.
+fn formula_markup(part: &WorksheetPart, cell: &str) -> String {
+    let bytes = part
+        .cell(reference(cell))
         .unwrap_or_else(|| panic!("{cell} is populated"))
         .formula_markup()
-        .unwrap_or_else(|| panic!("{cell} carries a formula"))
-        .to_vec()
+        .unwrap_or_else(|| panic!("{cell} carries a formula"));
+    String::from_utf8_lossy(bytes).into_owned()
 }
 
-/// The `<v>` text of one cell, as bytes, or `None` when it has none.
-fn cached_bytes(part: &WorksheetPart, cell: &str) -> Option<Vec<u8>> {
-    part.cell(reference(cell))?.raw_value().map(<[u8]>::to_vec)
+/// The still-escaped `<v>` text of one cell, or `None` when it has none.
+fn cached_text(part: &WorksheetPart, cell: &str) -> Option<String> {
+    let bytes = part.cell(reference(cell))?.raw_value()?;
+    Some(String::from_utf8_lossy(bytes).into_owned())
 }
 
 /// The fixture must actually be in the corpus, or every byte-identity suite below it is vacuous.
@@ -141,7 +144,7 @@ fn one_changed_byte_in_a_formula_is_caught() {
 fn each_of_the_four_kinds_is_read_as_the_kind_it_is() {
     let part = sheet();
     let kind = |cell: &str| {
-        CellFormula::parse(&formula_markup(&part, cell))
+        CellFormula::parse(formula_markup(&part, cell).as_bytes())
             .expect("an f element")
             .kind()
             .expect("a declared kind")
@@ -162,8 +165,8 @@ fn an_absent_t_and_a_written_normal_stay_different_bytes() {
     let part = sheet();
     let absent_markup = formula_markup(&part, "C2");
     let written_markup = formula_markup(&part, "C3");
-    let absent = CellFormula::parse(&absent_markup).expect("an f element");
-    let written = CellFormula::parse(&written_markup).expect("an f element");
+    let absent = CellFormula::parse(absent_markup.as_bytes()).expect("an f element");
+    let written = CellFormula::parse(written_markup.as_bytes()).expect("an f element");
 
     assert!(!absent.has_written_kind());
     assert_eq!(absent.written_kind(), Ok(None));
@@ -184,7 +187,7 @@ fn the_array_and_data_table_formulas_report_their_own_attributes() {
     let part = sheet();
 
     let array_markup = formula_markup(&part, "D2");
-    let array = CellFormula::parse(&array_markup).expect("an f element");
+    let array = CellFormula::parse(array_markup.as_bytes()).expect("an f element");
     assert_eq!(array.kind(), Ok(FormulaKind::Array));
     assert_eq!(array.always_calculate_array(), Ok(true));
     assert_eq!(
@@ -212,7 +215,7 @@ fn the_array_and_data_table_formulas_report_their_own_attributes() {
     }
 
     let table_markup = formula_markup(&part, "F5");
-    let table = CellFormula::parse(&table_markup).expect("an f element");
+    let table = CellFormula::parse(table_markup.as_bytes()).expect("an f element");
     assert_eq!(table.kind(), Ok(FormulaKind::DataTable));
     assert_eq!(table.is_two_dimensional_data_table(), Ok(false));
     assert_eq!(table.is_row_oriented_data_table(), Ok(false));
@@ -231,7 +234,7 @@ fn the_array_and_data_table_formulas_report_their_own_attributes() {
 fn escaped_formula_text_is_decoded_for_reading_and_kept_for_writing() {
     let part = sheet();
     let markup = formula_markup(&part, "E2");
-    let formula = CellFormula::parse(&markup).expect("an f element");
+    let formula = CellFormula::parse(markup.as_bytes()).expect("an f element");
     assert_eq!(
         formula.text().expect("decodes"),
         r#"IF(A2<3,"low & slow","high")"#
@@ -294,7 +297,7 @@ fn a_cached_value_is_read_through_the_cell_type_and_only_beside_a_formula() {
 fn the_two_rarest_flags_are_read_from_the_bytes_that_carry_them() {
     let part = sheet();
     let markup = formula_markup(&part, "G6");
-    let formula = CellFormula::parse(&markup).expect("an f element");
+    let formula = CellFormula::parse(markup.as_bytes()).expect("an f element");
     assert_eq!(formula.assigns_value_to_name(), Ok(true), "@bx");
     assert_eq!(formula.needs_recalculation(), Ok(false), "@ca is absent");
     assert!(!formula.has_written_kind(), "and so is @t");
@@ -328,14 +331,14 @@ fn the_shared_group_has_one_host_and_four_text_less_members() {
 /// an optimisation.
 fn assert_text_distribution(part: &WorksheetPart) {
     let host_markup = formula_markup(part, "B2");
-    let host = CellFormula::parse(&host_markup).expect("an f element");
+    let host = CellFormula::parse(host_markup.as_bytes()).expect("an f element");
     assert!(host.has_text(), "the host carries the text");
     assert_eq!(host.raw_text(), b"A2*2");
     assert_eq!(host.raw_attribute("ref"), Some(&b"B2:B6"[..]));
 
     for member in ["B3", "B4", "B5", "B6"] {
         let markup = formula_markup(part, member);
-        let formula = CellFormula::parse(&markup).expect("an f element");
+        let formula = CellFormula::parse(markup.as_bytes()).expect("an f element");
         assert_eq!(
             formula.is_shared_group_member(),
             Ok(true),
@@ -396,13 +399,13 @@ fn editing_one_members_style_leaves_the_groups_text_distribution_unchanged() {
 fn a_formula_and_its_cached_value_survive_an_edit_to_a_cell_they_reference() {
     let part = sheet();
     let dependents = ["B2", "C2", "D2", "E2"];
-    let formulas: Vec<Vec<u8>> = dependents
+    let formulas: Vec<String> = dependents
         .iter()
         .map(|cell| formula_markup(&part, cell))
         .collect();
-    let cached: Vec<Option<Vec<u8>>> = dependents
+    let cached: Vec<Option<String>> = dependents
         .iter()
-        .map(|cell| cached_bytes(&part, cell))
+        .map(|cell| cached_text(&part, cell))
         .collect();
 
     let mut edited = sheet();
@@ -438,7 +441,7 @@ fn a_formula_and_its_cached_value_survive_an_edit_to_a_cell_they_reference() {
             "{cell}'s formula must be byte-identical after an edit to a cell it references"
         );
         assert_eq!(
-            cached_bytes(&reread, cell),
+            cached_text(&reread, cell),
             cached[index],
             "{cell}'s cached value must be byte-identical — a stale cache is correct here, and \
              blanking it would destroy data in a file the caller opened to change one number"
@@ -456,7 +459,7 @@ fn a_formula_and_its_cached_value_survive_an_edit_to_a_cell_they_reference() {
 #[test]
 fn a_dependency_edit_in_another_row_changes_nothing_either() {
     let part = sheet();
-    let before: Vec<Vec<u8>> = ["C2", "D2", "B2"]
+    let before: Vec<String> = ["C2", "D2", "B2"]
         .iter()
         .map(|cell| formula_markup(&part, cell))
         .collect();
@@ -473,8 +476,8 @@ fn a_dependency_edit_in_another_row_changes_nothing_either() {
     for (index, cell) in ["C2", "D2", "B2"].iter().enumerate() {
         assert_eq!(formula_markup(&reread, cell), before[index], "{cell}");
         assert_eq!(
-            cached_bytes(&reread, cell),
-            cached_bytes(&part, cell),
+            cached_text(&reread, cell),
+            cached_text(&part, cell),
             "{cell}"
         );
     }
