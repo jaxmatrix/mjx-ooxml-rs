@@ -648,11 +648,12 @@ fn every_cell_type_writes_the_attribute_that_belongs_to_it_and_reads_back() {
             "<c r=\"E1\" t=\"e\"><v>#DIV/0!</v></c>",
             "<c r=\"F1\" t=\"str\"><v>text &amp; more</v></c>",
             "<c r=\"G1\" t=\"inlineStr\"><is><t>a &lt; b</t></is></c>",
-            "<c r=\"H1\"></c>",
+            "<c r=\"H1\"/>",
             "</row></sheetData>"
         ),
         "a number writes no `t`, because `n` is the schema default and a file that would not have \
-         written the attribute must not gain one"
+         written the attribute must not gain one; and a blank cell this store authored is written \
+         `<c/>`, the way a producer writes one"
     );
 
     assert_eq!(sheet.cell(at("A1")).expect("A1").number(), Some(1.5));

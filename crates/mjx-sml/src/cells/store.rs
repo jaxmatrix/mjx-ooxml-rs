@@ -546,7 +546,7 @@ impl SheetData {
                 extent: TextSpan::NONE,
                 attributes,
                 trailing: TextSpan::NONE,
-                flags: RowFlags::HAS_NUMBER | RowFlags::CELLS_ASCENDING,
+                flags: RowFlags::HAS_NUMBER | RowFlags::CELLS_ASCENDING | RowFlags::SELF_CLOSING,
             },
         );
         self.rows_ascending = still_ascending;
@@ -582,7 +582,11 @@ impl SheetData {
                 style: 0,
                 extra: NO_EXTRAS,
                 kind: CellTypeCode::ABSENT,
-                flags: CellFlags::HAS_REFERENCE,
+                // Self-closing: a cell this store authors and never gives content to should look
+                // like the `<c r="A1"/>` every producer writes, not like `<c r="A1"></c>`. The flag
+                // only decides the *empty* form — the writer takes the full form the moment there is
+                // a value, a formula or anything foreign to put between the tags.
+                flags: CellFlags::HAS_REFERENCE | CellFlags::SELF_CLOSING,
             },
         );
         let row = &mut self.rows[row_index];
@@ -713,9 +717,11 @@ impl SheetData {
                 Some(CellType::FormulaString),
             ),
             CellValue::InlineString(text) => {
+                // The markup is built before the arena is touched, so the prefix is *borrowed* here
+                // rather than cloned. One `Box<str>` clone per inline-string write would be a small
+                // allocation on a path this store exists to keep allocation-free.
                 let mut markup = Vec::new();
-                let prefix = self.prefix.clone();
-                super::write::write_inline_string(prefix.as_deref(), text, &mut markup);
+                super::write::write_inline_string(self.prefix.as_deref(), text, &mut markup);
                 (
                     self.arena.store(&markup)?,
                     PayloadShape::InlineString,
