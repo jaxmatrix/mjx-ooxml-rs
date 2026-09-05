@@ -41,6 +41,13 @@ pub mod formulas_and_cached_values {
     guide_vocabulary!();
 }
 
+/// Merged ranges, row and column geometry, page breaks, sheet protection — and why none of it is
+/// ever repaired on read.
+pub mod the_sheet_grid {
+    #![doc = include_str!("../docs/guide/the_sheet_grid.md")]
+    guide_vocabulary!();
+}
+
 /// What survives a round trip, what this crate does not model, and what a save refuses.
 pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]
