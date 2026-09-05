@@ -707,7 +707,7 @@ impl ColumnStyles {
     /// Reads every `col` of every `cols` block a worksheet wrote.
     ///
     /// `CT_Worksheet` declares `cols` `maxOccurs="unbounded"`, so this takes all the blocks and not
-    /// one; see [`crate::worksheet::columns`] for why merging them would change the file.
+    /// one; see [`ColumnBlock`]'s own documentation for why merging them would change the file.
     ///
     /// # Errors
     /// [`SmlError::Model`] if a `col` omits its required `@min` or `@max`, or states one that is not
