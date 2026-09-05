@@ -83,6 +83,26 @@
 #     quotes alone do not save it; requiring them is what keeps the exemption to a string literal,
 #     which is where this script has always said a wire token belongs. A bare `deleteColumns`
 #     identifier under the same path still fails.
+#   * **SpreadsheetML's deleted smart tag** (MJXOFF-127) — `smart_tag_was_deleted`, the accessor for
+#     `CT_CellSmartTag`'s `@deleted` (`sml.xsd:2491`), and the `"deleted"` wire token it is declared
+#     against. This is the **third instance of the same situation** as the two bullets above, not a
+#     new judgement: a smart tag the user removed is written out anyway — the record stays in the
+#     file and the flag says the user took it away — which is `CT_InputCells@deleted`'s
+#     *"shall be present in the file format, but shall not be presented to the user"* exactly. It is
+#     not the chart's "this tier is switched off", and `smart_tag_was_suppressed` would be wrong
+#     rather than clearer. `is_removed` would be worse still: `remove_*` in this workspace means
+#     *take the element out*, which is the very confusion this gate exists to prevent, and the
+#     element is emphatically still there.
+#
+#     The name deliberately copies `input_cell_was_deleted`'s shape rather than inventing a fourth
+#     one. Allow-listed by **exact token and by exact file** — only `smart_tag_was_deleted`, and only
+#     in `crates/mjx-sml/src/features/annotations.rs`, so an unrelated `deleted` anywhere else in
+#     `crates/mjx-sml/src/features/` still fails and a chart-shaped `delete_*` planted in that very
+#     file still fails too. Probed both ways before this entry was written: with the entry in place,
+#     a `delete_smart_tags` fn planted in `annotations.rs` still fails the gate, and removing the
+#     entry turns `smart_tag_was_deleted` red again. The wire token is permitted only **inside its
+#     double quotes**, exactly as `"deleteColumns"`/`"deleted"` are on the worksheet path, because
+#     `deleted` is identifier-shaped and the quotes are what keep the exemption to a string literal.
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #   * **The two bindings' own projection of `RevisionKind`** (MJXOFF-139) — `Deleted` and
@@ -235,6 +255,8 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e '/^crates\/mjx-sml\/src\/worksheet\//s/locks_deleting_(columns|rows)/<sheet-protection-lock>/g' \
         -e '/^crates\/mjx-sml\/src\/worksheet\//s/input_cell_was_deleted|deletion_was_undone/<scenario-input-cell>/g' \
         -e '/^crates\/mjx-sml\/src\/worksheet\//s/"(deleteColumns|deleteRows|deleted)"/<wire-token>/g' \
+        -e '/^crates\/mjx-sml\/src\/features\/annotations\.rs:/s/smart_tag_was_deleted/<smart-tag>/g' \
+        -e '/^crates\/mjx-sml\/src\/features\/annotations\.rs:/s/"deleted"/<wire-token>/g' \
   | awk -F: -v py_range="$py_enums_range" -v wasm_range="$wasm_enums_range" -v pyi_range="$pyi_stub_range" \
         -v dist_web_js_range="$wasm_dist_web_js_range" -v dist_web_dts_range="$wasm_dist_web_dts_range" \
         -v dist_bundler_js_range="$wasm_dist_bundler_js_range" -v dist_bundler_dts_range="$wasm_dist_bundler_dts_range" '

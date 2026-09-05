@@ -79,7 +79,11 @@ children nothing else in Phase D had claimed (MJXOFF-127, Phase D position 16).
 - **`mjx_sml::features::annotations`** — `CellWatches`/`CellWatch` (rank 26),
   `IgnoredErrors`/`IgnoredError` (rank 27), and `SmartTags`/`CellSmartTags`/`CellSmartTag`/
   `CellSmartTagProperty` (rank 28). An `IgnoredError` says *do not draw the indicator*, never *there
-  is no error*; nothing here evaluates a cell. The worksheet `smartTags` cluster is **not**
+  is no error*; nothing here evaluates a cell. `CT_CellSmartTag`'s `@deleted` is read through
+  `smart_tag_was_deleted`, and `.github/scripts/check-suppress-naming.sh` gains an allow-list entry
+  for it — scoped to that exact token in that exact file — because a tag the user removed is still
+  written out, which is `CT_InputCells@deleted`'s situation and not the chart family's *"draw nothing
+  here"*. The worksheet `smartTags` cluster is **not**
   `xl/workbook.xml`'s near-identically-named `smartTagTypes`, which MJXOFF-100 modelled.
 - **`mjx_sml::features::publishing`** — `DataConsolidation`/`DataReferences`/`DataReference`
   (rank 12), `CustomProperties`/`CustomProperty` (rank 25) and `WebPublishItems`/`WebPublishItem`
