@@ -33,10 +33,20 @@
 //! over the rows a file actually has. Replacing the row lookup in `crates/mjx-sml/src/cells/store.rs`
 //! with a dense `Vec` indexed by row number turns the measured figure from hundreds of bytes into
 //! megabytes, and the assertion below names both.
+//!
+//! # Cases three and four: the same gate, through the real part (MJXOFF-102)
+//!
+//! Cases one and two measure a bare `sheetData`. A worksheet in a workbook is not one: it is a
+//! thirty-nine slot `CT_Worksheet` with `sheetPr`, `dimension`, `sheetViews`, `cols`, `pageSetup`
+//! and the rest around it, and MJXOFF-102's [`WorksheetPart`] is what holds all of that. So the same
+//! two claims are re-asserted **driven through the part**, because a frame that materialised its
+//! `sheetData` as a `RawElement` tree in order to serialize it — or that simply kept the parsed
+//! document alive beside the store — would pass every structural assertion in
+//! `crates/mjx-sml/tests/worksheet_spine.rs` and show up only here.
 
 use std::sync::Arc;
 
-use mjx_sml::{CellReference, CellValue, SheetData};
+use mjx_sml::{CellReference, CellValue, SheetData, WorksheetPart};
 
 #[global_allocator]
 static ALLOCATOR: mjx_allocation_counter::Counting = mjx_allocation_counter::Counting;
@@ -48,6 +58,15 @@ static ALLOCATOR: mjx_allocation_counter::Counting = mjx_allocation_counter::Cou
 /// costs four megabytes at four bytes a slot, a thousand times this; a dense grid over all
 /// 17,179,869,184 addressable cells cannot be allocated at all.
 const SPARSE_BOUND: usize = 8 * 1024;
+
+/// The bound for a whole worksheet **part** whose one cell is at `XFD1048576`, in bytes.
+///
+/// Larger than [`SPARSE_BOUND`] and for a stated reason: this case reads a real part, so it pays for
+/// an interner, for the thirty-nine slot frame's own `Vec`, and for the twelve children the markup
+/// below carries — none of which the bare-store case has. It is still three orders of magnitude
+/// below the four megabytes a dense index over the 1,048,576 addressable rows would cost, which is
+/// the line this bound draws.
+const SPARSE_PART_BOUND: usize = 32 * 1024;
 
 /// The bound on what the store itself retains, per populated cell, for a realistic dense sheet.
 ///
@@ -72,10 +91,141 @@ fn main() {
     println!("MJXOFF-95 — the cell store's memory gate\n");
     let sparse = sparse_sheet_costs_what_its_one_cell_costs();
     let dense = a_realistic_sheet_costs_far_less_than_a_tree_of_it();
-    println!("\nboth cases passed");
+    let sparse_part = a_sparse_worksheet_part_costs_what_its_one_cell_costs();
+    let dense_part = a_realistic_worksheet_part_keeps_the_per_cell_bound();
+    println!("\nall four cases passed");
     // Keep the figures alive to the end of `main`, so nothing above can be optimised away on the
     // strength of the store being dropped early.
-    assert!(sparse > 0 && dense > 0);
+    assert!(sparse > 0 && dense > 0 && sparse_part > 0 && dense_part > 0);
+}
+
+/// **MJXOFF-102's re-assertion, driven through the real part.**
+///
+/// The two cases above build or read a bare `sheetData`. This one reads a whole
+/// `xl/worksheets/sheetN.xml` — a thirty-nine slot `CT_Worksheet` with a `sheetPr`, a `dimension`,
+/// a `sheetViews`, two `cols` blocks, a `pageSetup`, a `headerFooter` and a `tableParts` around it —
+/// whose only populated cell is at `XFD1048576`. Reading that part must still cost what its one cell
+/// costs.
+///
+/// It is measured rather than inspected for the same reason case one is: a frame that materialised
+/// its `sheetData` as a `RawElement` tree to serialize it, or that kept the parsed document alive
+/// beside the store, would pass every structural assertion and show up only here.
+fn a_sparse_worksheet_part_costs_what_its_one_cell_costs() -> usize {
+    let far_corner = CellReference::parse("XFD1048576").expect("the last cell of the grid");
+    let markup: Arc<[u8]> = Arc::from(sparse_worksheet_markup().into_bytes());
+
+    // The buffer is allocated *before* the measurement and handed over shared, exactly as case two
+    // does: the package already holds these bytes for its own copy-on-write, and the part points
+    // into them rather than duplicating them.
+    let before = mjx_allocation_counter::reset_peak();
+    let part = WorksheetPart::read_shared(Arc::clone(&markup))
+        .expect("the part reads")
+        .expect("the root is an x:worksheet");
+    let peak = mjx_allocation_counter::peak() - before;
+    let live = mjx_allocation_counter::live() - before;
+
+    println!("\ncase 3 — a whole worksheet part whose one cell is at XFD1048576");
+    println!(
+        "  part markup                    {:>12} bytes",
+        markup.len()
+    );
+    println!("  peak allocated while reading   {peak:>12} bytes");
+    println!("  live after reading             {live:>12} bytes");
+    println!("  bound                          {SPARSE_PART_BOUND:>12} bytes");
+    println!("  rows held                      {:>12}", part.row_count());
+    println!("  cells held                     {:>12}", part.cell_count());
+    println!(
+        "  worksheet children held        {:>12}",
+        part.child_element_locals().count()
+    );
+    println!(
+        "  a dense row index would cost   {:>12} bytes (1,048,576 rows x 4)",
+        1_048_576 * 4
+    );
+
+    assert_eq!(part.row_count(), 1, "one populated row, not 1,048,576");
+    assert_eq!(part.cell_count(), 1);
+    assert!(
+        part.child_element_locals().count() >= 8,
+        "the part must really carry the frame around the one cell, or this measures a bare \
+         sheetData under another name"
+    );
+    assert!(
+        peak <= SPARSE_PART_BOUND,
+        "reading a worksheet part with one cell at XFD1048576 allocated {peak} bytes at peak, over \
+         the {SPARSE_PART_BOUND}-byte bound. A frame that costs memory proportional to the \
+         addressable range — or that keeps the parsed tree alive beside the store — is the defect \
+         this gate exists to catch."
+    );
+
+    // The value is readable, so the bound was not met by failing to store anything.
+    let cell = part.cell(far_corner).expect("the cell is there");
+    assert_eq!(cell.number(), Some(1.0));
+    assert_eq!(cell.reference().text().as_str(), "XFD1048576");
+    // …and the part re-emits verbatim, so it was not met by dropping the frame either.
+    assert_eq!(part.to_markup(), markup.as_ref());
+    peak
+}
+
+/// The same 5,000 x 60 sheet as case two, read as a **whole part** rather than as a bare
+/// `sheetData`, so MJXOFF-95's per-cell bound is asserted end to end through MJXOFF-102's frame.
+fn a_realistic_worksheet_part_keeps_the_per_cell_bound() -> usize {
+    let markup: Arc<[u8]> = Arc::from(worksheet_markup().into_bytes());
+    let cells = ROW_COUNT * COLUMN_COUNT;
+
+    let before = mjx_allocation_counter::reset_peak();
+    let part = WorksheetPart::read_shared(Arc::clone(&markup))
+        .expect("the part reads")
+        .expect("the root is an x:worksheet");
+    let live = mjx_allocation_counter::live() - before;
+    let peak = mjx_allocation_counter::peak() - before;
+
+    println!("\ncase 4 — the same {cells} cells, read as a whole worksheet part");
+    println!(
+        "  part markup                    {:>12} bytes",
+        markup.len()
+    );
+    println!(
+        "  part + store, live             {live:>12} bytes  ({:.1} B/cell)",
+        live as f64 / cells as f64
+    );
+    println!("  peak across parse + read       {peak:>12} bytes");
+    println!("  bound                          {BYTES_PER_CELL_BOUND:>12} B/cell");
+    println!("  MJXOFF-147 recorded                     913 B/cell of peak RSS for this shape");
+
+    assert_eq!(part.cell_count(), cells);
+    assert_eq!(part.row_count(), ROW_COUNT);
+    let per_cell = live / cells;
+    assert!(
+        per_cell <= BYTES_PER_CELL_BOUND,
+        "the part retains {live} bytes for {cells} cells — {per_cell} B/cell, over the \
+         {BYTES_PER_CELL_BOUND} B/cell bound"
+    );
+    live
+}
+
+/// A whole `CT_Worksheet` around one cell at the far corner of the grid: the seven modelled slots
+/// and four unmodelled ones, so the frame is really exercised.
+fn sparse_worksheet_markup() -> String {
+    concat!(
+        r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" "#,
+        r#"xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">"#,
+        r#"<sheetPr codeName="Far"><tabColor rgb="FF00B050"/><pageSetUpPr fitToPage="true"/></sheetPr>"#,
+        r#"<dimension ref="XFD1048576"/>"#,
+        r#"<sheetViews><sheetView tabSelected="true" workbookViewId="0">"#,
+        r#"<selection activeCell="XFD1048576" sqref="XFD1048576"/></sheetView></sheetViews>"#,
+        r#"<sheetFormatPr defaultRowHeight="15"/>"#,
+        r#"<cols><col min="16384" max="16384" width="30" customWidth="true"/></cols>"#,
+        r#"<sheetData><row r="1048576"><c r="XFD1048576"><v>1</v></c></row></sheetData>"#,
+        r#"<sheetCalcPr fullCalcOnLoad="true"/>"#,
+        r#"<mergeCells count="1"><mergeCell ref="A5:B5"/></mergeCells>"#,
+        r#"<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/>"#,
+        r#"<pageSetup paperSize="9" orientation="landscape"/>"#,
+        r#"<headerFooter><oddHeader>&amp;CFar</oddHeader></headerFooter>"#,
+        r#"<tableParts count="1"><tablePart r:id="rId1"/></tableParts>"#,
+        r#"</worksheet>"#,
+    )
+    .to_owned()
 }
 
 /// **The clause.** A sheet with one cell at `XFD1048576` allocates for one cell, not for the grid.

@@ -80,7 +80,15 @@ fn worksheet_parts() -> Vec<(String, Vec<u8>)> {
         let package = Package::open(&bytes).expect("a committed fixture opens");
         let parts: Vec<PartName> = package
             .part_names()
-            .filter(|part| part.as_str().starts_with("/xl/worksheets/"))
+            // `part_names` lists every addressable part, `.rels` streams included, and
+            // `worksheet_spine.xlsx` (MJXOFF-102) is the first committed fixture whose worksheet has
+            // relationships of its own — so `/xl/worksheets/_rels/sheet1.xml.rels` reaches here and
+            // is not a worksheet. Excluded by path rather than by extension: a part directly under
+            // `worksheets/` is a sheet, and one under its `_rels/` never is.
+            .filter(|part| {
+                part.as_str().starts_with("/xl/worksheets/")
+                    && !part.as_str().starts_with("/xl/worksheets/_rels/")
+            })
             .collect();
         for part in parts {
             let markup = package

@@ -104,8 +104,22 @@ impl Color {
     /// reason to fail opening a workbook.
     #[must_use]
     pub fn read(element: &RawElement, interner: &Interner) -> Self {
+        Self::read_attributes(&element.attributes, interner)
+    }
+
+    /// [`read`](Self::read) for a caller that holds the attribute list rather than the element.
+    ///
+    /// That is the shape a *preserving* holder is in. `crate::worksheet`'s `sheetPr/tabColor` is
+    /// kept as an attribute bag — so that an attribute this project has never heard of survives
+    /// with its order, quoting and prefix — and decoded through here on demand, rather than being
+    /// stored as one of these and written back from it.
+    #[must_use]
+    pub fn read_attributes(
+        attributes: &[mjx_ooxml_core::RawAttribute],
+        interner: &Interner,
+    ) -> Self {
         let mut color = Self::default();
-        for attribute in element.attributes.iter() {
+        for attribute in attributes.iter() {
             let Ok(text) = core::str::from_utf8(&attribute.value) else {
                 continue;
             };
