@@ -1,10 +1,10 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, eighteen modelled, twenty-one held
+//! # Thirty-nine slots, twenty-five modelled, fourteen held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Twenty-one of those slots belong to later Phase D children or to no
-//! ticket at all, and this type holds every one of them **in its schema position**, as the markup
+//! twice `CT_Workbook`'s. Fourteen of those slots belong to later children or to no ticket at all,
+//! and this type holds every one of them **in its schema position**, as the markup
 //! the file wrote. A worksheet
 //! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
 //! modelled.
@@ -23,21 +23,47 @@
 //! | 9 | `scenarios` | [`Scenarios`] |
 //! | 10 | `autoFilter` | [`AutoFilter`] |
 //! | 11 | `sortState` | [`SortState`] — the sheet-level one, beside the autofilter's own |
-//! | 12–13 | `dataConsolidate`, `customSheetViews` | [`WorksheetContent::Raw`], verbatim and in position |
+//! | 12 | `dataConsolidate` | [`DataConsolidation`] |
+//! | 13 | `customSheetViews` | [`WorksheetContent::Raw`] — **explicitly preserved**, and MJXOFF-129's; see below |
 //! | 14 | `mergeCells` | [`MergedCells`] |
-//! | 15 | `phoneticPr` | [`WorksheetContent::Raw`] |
+//! | 15 | `phoneticPr` | [`WorksheetContent::Raw`] — **unowned**; see below |
 //! | 16 | `conditionalFormatting` | [`ConditionalFormatting`] — **`maxOccurs="unbounded"`**, so a list |
 //! | 17 | `dataValidations` | [`DataValidations`] |
-//! | 18–22 | `hyperlinks` … `headerFooter` | [`WorksheetContent::Raw`] |
+//! | 18 | `hyperlinks` | [`Hyperlinks`] |
+//! | 19–22 | `printOptions` … `headerFooter` | [`WorksheetContent::Raw`] — MJXOFF-129's (D17) print block |
 //! | 23 | `rowBreaks` | [`PageBreaks`] |
 //! | 24 | `colBreaks` | [`PageBreaks`] — the same complex type, the other axis |
-//! | 25–36 | `customProperties` … `webPublishItems` | [`WorksheetContent::Raw`] |
+//! | 25 | `customProperties` | [`CustomProperties`] |
+//! | 26 | `cellWatches` | [`CellWatches`] |
+//! | 27 | `ignoredErrors` | [`IgnoredErrors`] |
+//! | 28 | `smartTags` | [`SmartTags`] — the *worksheet* cluster, not the workbook's `smartTagTypes` |
+//! | 29–35 | `drawing` … `controls` | [`WorksheetContent::Raw`] — the drawing family; see below |
+//! | 36 | `webPublishItems` | [`WebPublishItems`] |
 //! | 37 | `tableParts` | [`TableParts`] — the sheet's edges to its table parts, held as raw `r:id`s |
 //! | 38 | `extLst` | [`WorksheetContent::Raw`] |
 //!
 //! **The modelled slots are no longer a prefix**, and that changed what placement has to do: see
 //! [`Slot::rank`], which is the one thing MJXOFF-117 had to fix in MJXOFF-102's frame rather than
 //! add beside it.
+//!
+//! # Who owns the fourteen slots this type still holds raw
+//!
+//! MJXOFF-127 (D16) modelled seven of them and the table above names each new type. The rest are
+//! **held on purpose and by somebody**, and the point of writing the owners down is that
+//! MJXOFF-133 (D18) audits this list rather than re-deriving it:
+//!
+//! | Slot(s) | Held for |
+//! |---|---|
+//! | 13 `customSheetViews` | **MJXOFF-129 (D17)**, which names `CT_CustomSheetViews`/`CT_CustomSheetView` in its own work list and requires them to reuse D12's breaks, D14's autofilter and its own print block. `CT_CustomSheetView` embeds `pageMargins`, `printOptions`, `pageSetup` and `headerFooter` — four types that do not exist yet — so modelling it here would have meant either a second copy of D17's print block or a model that holds it raw twice over |
+//! | 19–22 `printOptions`, `pageMargins`, `pageSetup`, `headerFooter` | **MJXOFF-129 (D17)** |
+//! | 29 `drawing`, 34 `oleObjects`, 35 `controls` | **MJXOFF-107 (E3)** |
+//! | 30 `legacyDrawing` | **MJXOFF-114 (E5)** |
+//! | 33 `picture` | **MJXOFF-129 (D17)**, which names `CT_SheetBackgroundPicture` |
+//! | 38 `extLst` | the unknown bucket, by design — an `extLst` is markup no schema in this workspace types |
+//! | **15 `phoneticPr`, 31 `legacyDrawingHF`, 32 `drawingHF`** | **nobody.** Recorded here rather than closed by MJXOFF-127, and each for a stated reason: `CT_PhoneticPr` is *already* modelled once, as [`PhoneticProperties`](crate::PhoneticProperties) — a value decoded from the shared-string store's packed bytes rather than a `RawElement`-backed slot — so giving this slot a type means unifying the two call sites, which is a design question and not a slot to fill. `legacyDrawingHF` and `drawingHF` are the header/footer half of the drawing family, and splitting that family between D16 and E3/E5 would put two children in one file |
+//!
+//! Every one of the fourteen still round-trips byte-for-byte, in position: that is what
+//! [`WorksheetContent::Raw`] is for, and it is unrelated to whether a slot is typed.
 //!
 //! The ranks are never written down. Every placement goes through
 //! [`mjx_ooxml_types::child_order::WORKSHEET`], generated from `sml.xsd` by
@@ -57,8 +83,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the seventeen slots it knows, keeps the other
-//! twenty-two as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the twenty-five slots it knows, keeps the other
+//! fourteen as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -95,7 +121,10 @@ use mjx_ooxml_types::namespaces::SML;
 use crate::address::{CellRange, CellReference};
 use crate::cells::{Cell, CellValue, Row, SheetData};
 use crate::error::SmlError;
-use crate::features::{AutoFilter, ConditionalFormatting, DataValidations, SortState, TableParts};
+use crate::features::{
+    AutoFilter, CellWatches, ConditionalFormatting, CustomProperties, DataConsolidation,
+    DataValidations, Hyperlinks, IgnoredErrors, SmartTags, SortState, TableParts, WebPublishItems,
+};
 
 use super::breaks::PageBreaks;
 use super::columns::{ColumnBlock, SheetFormatProperties};
@@ -105,7 +134,7 @@ use super::protection::{ProtectedRanges, SheetProtection};
 use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: eighteen modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: twenty-five modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -135,6 +164,9 @@ pub enum WorksheetContent {
     /// `x:sortState` (rank 11) — the **sheet-level** sort, the sibling of the one an `x:autoFilter`
     /// may carry. The same `CT_SortState`, and the same rule: a record of a sort, never a sort.
     SortState(SortState),
+    /// `x:dataConsolidate` (rank 12) — the consolidation this sheet records. **Recorded, never
+    /// performed:** nothing here combines a range or evaluates its function.
+    DataConsolidation(DataConsolidation),
     /// `x:mergeCells` (rank 14).
     MergedCells(MergedCells),
     /// `x:conditionalFormatting` (rank 16) — one block. The schema declares the slot
@@ -145,15 +177,34 @@ pub enum WorksheetContent {
     /// `x:dataValidations` (rank 17) — every validation rule on the sheet. A rule's `formula1` is
     /// text, and a `list` rule's range source is never resolved into the values it names.
     DataValidations(DataValidations),
+    /// `x:hyperlinks` (rank 18) — every link on the sheet. A link's `@ref` is a **range**, and an
+    /// entry carrying both an `@r:id` and a `@location` is a real shape Excel writes rather than one
+    /// this crate tidies away. See [`crate::features::hyperlinks`].
+    Hyperlinks(Hyperlinks),
     /// `x:rowBreaks` (rank 23) — `CT_PageBreak` in the row axis.
     RowBreaks(PageBreaks),
     /// `x:colBreaks` (rank 24) — the same complex type in the column axis.
     ColumnBreaks(PageBreaks),
+    /// `x:customProperties` (rank 25) — the custom-property parts hung off this sheet, each named
+    /// by an `r:id` this crate never resolves. **Not** `docProps/custom.xml`.
+    CustomProperties(CustomProperties),
+    /// `x:cellWatches` (rank 26) — the cells in Excel's Watch Window. A bookmark, not a format.
+    CellWatches(CellWatches),
+    /// `x:ignoredErrors` (rank 27) — the error indicators a consumer is told not to draw.
+    /// **Suppressing an indicator is not fixing an error**, and nothing here evaluates a cell.
+    IgnoredErrors(IgnoredErrors),
+    /// `x:smartTags` (rank 28) — where on this sheet a recogniser fired. The *worksheet* cluster;
+    /// `xl/workbook.xml`'s near-identically-named `smartTagTypes` is
+    /// [`SmartTagTypes`](crate::SmartTagTypes) and a different thing.
+    SmartTags(SmartTags),
+    /// `x:webPublishItems` (rank 36) — the fragments of this sheet published as HTML, and the
+    /// untrusted destination path each names. Never resolved, never opened.
+    WebPublishItems(WebPublishItems),
     /// `x:tableParts` (rank 37) — the sheet's list of the tables on it, each named by a
     /// relationship identifier this crate holds as the string the file wrote. Resolving one to a
     /// part is `mjx-xlsx`'s; see [`crate::features::tables`].
     TableParts(TableParts),
-    /// Everything this type does not model: the twenty-one remaining slots, any foreign element, any
+    /// Everything this type does not model: the fourteen remaining slots, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -178,11 +229,18 @@ impl WorksheetContent {
             Self::Scenarios(_) => "scenarios",
             Self::AutoFilter(_) => "autoFilter",
             Self::SortState(_) => "sortState",
+            Self::DataConsolidation(_) => "dataConsolidate",
             Self::MergedCells(_) => "mergeCells",
             Self::ConditionalFormatting(_) => "conditionalFormatting",
             Self::DataValidations(_) => "dataValidations",
+            Self::Hyperlinks(_) => "hyperlinks",
             Self::RowBreaks(_) => "rowBreaks",
             Self::ColumnBreaks(_) => "colBreaks",
+            Self::CustomProperties(_) => "customProperties",
+            Self::CellWatches(_) => "cellWatches",
+            Self::IgnoredErrors(_) => "ignoredErrors",
+            Self::SmartTags(_) => "smartTags",
+            Self::WebPublishItems(_) => "webPublishItems",
             Self::TableParts(_) => "tableParts",
             Self::Raw(_) => return None,
         })
@@ -207,10 +265,17 @@ impl WorksheetContent {
             Self::Scenarios(value) => value.as_raw_element(),
             Self::AutoFilter(value) => value.as_raw_element(),
             Self::SortState(value) => value.as_raw_element(),
+            Self::DataConsolidation(value) => value.as_raw_element(),
             Self::MergedCells(value) => value.as_raw_element(),
             Self::ConditionalFormatting(value) => value.as_raw_element(),
             Self::DataValidations(value) => value.as_raw_element(),
+            Self::Hyperlinks(value) => value.as_raw_element(),
             Self::RowBreaks(value) | Self::ColumnBreaks(value) => value.as_raw_element(),
+            Self::CustomProperties(value) => value.as_raw_element(),
+            Self::CellWatches(value) => value.as_raw_element(),
+            Self::IgnoredErrors(value) => value.as_raw_element(),
+            Self::SmartTags(value) => value.as_raw_element(),
+            Self::WebPublishItems(value) => value.as_raw_element(),
             Self::TableParts(value) => value.as_raw_element(),
             Self::SheetData(_) | Self::Raw(_) => return None,
         })
@@ -293,7 +358,7 @@ impl Slot {
 ///
 /// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
 /// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// twenty-two unmodelled children cost nothing.
+/// fourteen unmodelled children cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -602,7 +667,7 @@ impl WorksheetPart {
         self.content.iter().map(|slot| &slot.value)
     }
 
-    /// The local name of every **element** child, in document order — the twenty-two unmodelled
+    /// The local name of every **element** child, in document order — the fourteen unmodelled
     /// slots included.
     ///
     /// This is what an ordering assertion is written against: it says what the part *will emit*,
@@ -762,6 +827,82 @@ impl WorksheetPart {
         "colBreaks",
         "`x:colBreaks` — the page breaks between columns. The same `CT_PageBreak` as \
          [`row_breaks`](Self::row_breaks), in the other axis."
+    );
+    singleton_slot!(
+        data_consolidation,
+        data_consolidation_mut,
+        set_data_consolidation,
+        DataConsolidation,
+        DataConsolidation,
+        "dataConsolidate",
+        "`x:dataConsolidate` — the consolidation this sheet records: a function, three label flags, \
+         a live-link flag and the ranges it draws from. **Recorded, never performed** — nothing in \
+         this workspace combines a range or evaluates the function. See [`crate::features::publishing`]."
+    );
+    singleton_slot!(
+        hyperlinks,
+        hyperlinks_mut,
+        set_hyperlinks,
+        Hyperlinks,
+        Hyperlinks,
+        "hyperlinks",
+        "`x:hyperlinks` — every link on the sheet, each over a **range** rather than a cell. \
+         [`hyperlink_covering`](Self::hyperlink_covering), [`add_hyperlink`](Self::add_hyperlink) \
+         and [`remove_hyperlink`](Self::remove_hyperlink) are the curated way in; this is the whole \
+         element. See [`crate::features::hyperlinks`]."
+    );
+    singleton_slot!(
+        custom_properties,
+        custom_properties_mut,
+        set_custom_properties,
+        CustomProperties,
+        CustomProperties,
+        "customProperties",
+        "`x:customProperties` — the custom-property parts hung off this sheet, each named by an \
+         `r:id` this crate holds as text and never resolves. **Not** the package's \
+         `docProps/custom.xml`."
+    );
+    singleton_slot!(
+        cell_watches,
+        cell_watches_mut,
+        set_cell_watches,
+        CellWatches,
+        CellWatches,
+        "cellWatches",
+        "`x:cellWatches` — the cells somebody added to Excel's Watch Window. A bookmark: it changes \
+         no value and no format."
+    );
+    singleton_slot!(
+        ignored_errors,
+        ignored_errors_mut,
+        set_ignored_errors,
+        IgnoredErrors,
+        IgnoredErrors,
+        "ignoredErrors",
+        "`x:ignoredErrors` — the error indicators a consumer is told not to draw, each over its own \
+         `@sqref`. **Suppressing an indicator is not fixing an error**, and nothing here evaluates \
+         a cell to know whether the error is even present."
+    );
+    singleton_slot!(
+        smart_tags,
+        smart_tags_mut,
+        set_smart_tags,
+        SmartTags,
+        SmartTags,
+        "smartTags",
+        "`x:smartTags` — where on this sheet a recogniser fired, one `cellSmartTags` per tagged \
+         cell. The **worksheet** cluster; `xl/workbook.xml`'s near-identically-named \
+         `smartTagTypes` is [`SmartTagTypes`](crate::SmartTagTypes) and says something else."
+    );
+    singleton_slot!(
+        web_publish_items,
+        web_publish_items_mut,
+        set_web_publish_items,
+        WebPublishItems,
+        WebPublishItems,
+        "webPublishItems",
+        "`x:webPublishItems` — the fragments of this sheet published as HTML. Each names an \
+         untrusted `@destinationFile`, preserved exactly and never resolved, rewritten or opened."
     );
     singleton_slot!(
         table_parts,
@@ -1192,7 +1333,7 @@ fn range_between(bounds: (u16, u32, u16, u32)) -> Option<CellRange> {
 /// Reads one child node of `x:worksheet` into a slot.
 ///
 /// A node is modelled only when it is an element **in the SpreadsheetML namespace** with one of the
-/// seventeen local names this frame knows. An element merely *named* `sheetData` in somebody else's
+/// twenty-five local names this frame knows. An element merely *named* `sheetData` in somebody else's
 /// namespace is unmodelled markup, and goes into the bucket with its prefix intact.
 fn read_slot(
     node: RawNode,
@@ -1246,6 +1387,9 @@ fn read_slot(
         "scenarios" => WorksheetContent::Scenarios(Scenarios::from_xml(&element, interner)?),
         "autoFilter" => WorksheetContent::AutoFilter(AutoFilter::from_xml(&element, interner)?),
         "sortState" => WorksheetContent::SortState(SortState::from_xml(&element, interner)?),
+        "dataConsolidate" => {
+            WorksheetContent::DataConsolidation(DataConsolidation::from_xml(&element, interner)?)
+        }
         "mergeCells" => WorksheetContent::MergedCells(MergedCells::from_xml(&element, interner)?),
         "conditionalFormatting" => WorksheetContent::ConditionalFormatting(
             ConditionalFormatting::from_xml(&element, interner)?,
@@ -1253,8 +1397,20 @@ fn read_slot(
         "dataValidations" => {
             WorksheetContent::DataValidations(DataValidations::from_xml(&element, interner)?)
         }
+        "hyperlinks" => WorksheetContent::Hyperlinks(Hyperlinks::from_xml(&element, interner)?),
         "rowBreaks" => WorksheetContent::RowBreaks(PageBreaks::from_xml(&element, interner)?),
         "colBreaks" => WorksheetContent::ColumnBreaks(PageBreaks::from_xml(&element, interner)?),
+        "customProperties" => {
+            WorksheetContent::CustomProperties(CustomProperties::from_xml(&element, interner)?)
+        }
+        "cellWatches" => WorksheetContent::CellWatches(CellWatches::from_xml(&element, interner)?),
+        "ignoredErrors" => {
+            WorksheetContent::IgnoredErrors(IgnoredErrors::from_xml(&element, interner)?)
+        }
+        "smartTags" => WorksheetContent::SmartTags(SmartTags::from_xml(&element, interner)?),
+        "webPublishItems" => {
+            WorksheetContent::WebPublishItems(WebPublishItems::from_xml(&element, interner)?)
+        }
         "tableParts" => WorksheetContent::TableParts(TableParts::from_xml(&element, interner)?),
         _ => {
             return Ok(Slot {

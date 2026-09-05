@@ -2993,6 +2993,35 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "One table column's four children: a calculated-column formula, a totals-row formula, the \
          XML-map binding, then `extLst` (`x:tableColumn`)",
     ),
+
+    // ---- Hyperlinks, the object-anchor vocabulary and the small sheet children (MJXOFF-127) ----
+    //
+    // Four of this child's nineteen types place a child rather than append one, and only those four
+    // are here — the rule `CT_TableParts` and `CT_NumFmts` are left out under. `CT_Hyperlinks`,
+    // `CT_CellWatches`, `CT_SmartTags`, `CT_CellSmartTags`, `CT_CellSmartTag`,
+    // `CT_CustomProperties`, `CT_DataRefs` and `CT_WebPublishItems` each declare a single repeating
+    // child, so appending is placing; the seven attribute-only leaves declare none at all.
+    //
+    // `CT_ObjectAnchor` is the one whose table earns its keep twice over: its two children are in
+    // **another schema's** namespace (`xdr:from`, `xdr:to`), so their order cannot be read off the
+    // `sml` element names at all.
+    (
+        "WORKSHEET_IGNORED_ERRORS", "sml", "CT_IgnoredErrors",
+        "The errors a sheet tells a consumer not to flag, then `extLst` (`x:ignoredErrors`)",
+    ),
+    (
+        "OBJECT_ANCHOR", "sml", "CT_ObjectAnchor",
+        "An anchored object's two cell markers, `xdr:from` then `xdr:to` — both in the \
+         SpreadsheetDrawingML namespace (`x:anchor`)",
+    ),
+    (
+        "OBJECT_PROPERTIES", "sml", "CT_ObjectPr",
+        "An embedded object's one child, its anchor (`x:objectPr`)",
+    ),
+    (
+        "DATA_CONSOLIDATION", "sml", "CT_DataConsolidate",
+        "A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
