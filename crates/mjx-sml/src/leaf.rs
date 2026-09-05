@@ -134,6 +134,79 @@ pub(crate) fn write_relationship_id(
 /// The relationship-reference namespace, re-exported so the modules beside this one name it once.
 pub(crate) const RELATIONSHIP_REFERENCE: SchemaNamespace = SHARED_RELATIONSHIP_REFERENCE;
 
+/// Parses `markup` and re-interns the element it holds into `interner`, so that a model built from
+/// bytes can be inserted into a document that was interned somewhere else.
+///
+/// # Why authoring goes through the parser
+///
+/// [`FontProperties`](crate::FontProperties) writes itself as **bytes** and keeps the markup it does
+/// not model as bytes too (see its own documentation for why the packed stores in this crate
+/// preserve that way). So there is no node-building path that could reproduce it: a second
+/// fifteen-slot writer would still have to parse the unknown bucket, and the two writers would be
+/// free to drift apart. Parsing what the one writer produced keeps a single description of the
+/// markup, and costs one parse of an element that is a hundred bytes long.
+///
+/// # Errors
+/// [`mjx_xml::XmlError`] if `markup` is not well-formed — reachable only through a hand-authored
+/// unknown bucket, since markup this crate serialized never is.
+pub(crate) fn parse_into(
+    markup: &[u8],
+    interner: &mut Interner,
+) -> Result<mjx_ooxml_core::RawElement, mjx_xml::XmlError> {
+    let document = mjx_xml::fidelity::parse(markup)?;
+    Ok(adopt_element(&document.root, &document.interner, interner))
+}
+
+/// Copies `element` into an owned one whose every name is interned in `into`.
+///
+/// The copy carries **no** verbatim source range, which is correct: it describes a different
+/// buffer from the one the element was parsed out of.
+fn adopt_element(
+    element: &mjx_ooxml_core::RawElement,
+    source: &Interner,
+    into: &mut Interner,
+) -> mjx_ooxml_core::RawElement {
+    let attributes = element
+        .attributes
+        .iter()
+        .map(|attribute| RawAttribute {
+            name: adopt_name(attribute.name, source, into),
+            value: attribute.value.clone(),
+            quote: attribute.quote,
+        })
+        .collect();
+    let children = element
+        .children
+        .iter()
+        .map(|child| match child {
+            mjx_ooxml_core::RawNode::Element(child) => {
+                mjx_ooxml_core::RawNode::Element(adopt_element(child, source, into))
+            }
+            other => other.clone(),
+        })
+        .collect::<Vec<_>>();
+    let empty = element.empty && children.is_empty();
+    mjx_ooxml_core::RawElement::rebuilt(
+        adopt_name(element.name, source, into),
+        attributes,
+        children,
+        empty,
+    )
+}
+
+/// Re-interns one qualified name from `source` into `into`.
+fn adopt_name(name: RawName, source: &Interner, into: &mut Interner) -> RawName {
+    RawName {
+        prefix: name
+            .prefix
+            .map(|symbol| into.intern(source.resolve(symbol))),
+        local: into.intern(source.resolve(name.local)),
+        namespace: name
+            .namespace
+            .map(|symbol| into.intern(source.resolve(symbol))),
+    }
+}
+
 /// Declares one attribute-only complex type: the struct, its typed accessors, and its
 /// `FromXml`/`ToXml` pair.
 ///
