@@ -194,9 +194,13 @@ fn all_eleven_slots_are_held_in_the_order_the_file_wrote_them() {
         .content()
         .iter()
         .filter_map(|child| match child {
+            StylesheetContent::NumberFormats(_) => Some("numFmts"),
             StylesheetContent::Fonts(_) => Some("fonts"),
             StylesheetContent::Fills(_) => Some("fills"),
             StylesheetContent::Borders(_) => Some("borders"),
+            StylesheetContent::CellStyleFormats(_) => Some("cellStyleXfs"),
+            StylesheetContent::CellFormats(_) => Some("cellXfs"),
+            StylesheetContent::NamedStyles(_) => Some("cellStyles"),
             StylesheetContent::DifferentialFormats(_) => Some("dxfs"),
             StylesheetContent::Colors(_) => Some("colors"),
             StylesheetContent::Raw(_) => None,
@@ -204,9 +208,19 @@ fn all_eleven_slots_are_held_in_the_order_the_file_wrote_them() {
         .collect();
     assert_eq!(
         modelled,
-        vec!["fonts", "fills", "borders", "dxfs", "colors"],
-        "MJXOFF-105 models the five resource tables; the other six are MJXOFF-108's and \
-         MJXOFF-127's, held raw"
+        vec![
+            "numFmts",
+            "fonts",
+            "fills",
+            "borders",
+            "cellStyleXfs",
+            "cellXfs",
+            "cellStyles",
+            "dxfs",
+            "colors"
+        ],
+        "MJXOFF-105 modelled the five resource tables and MJXOFF-108 took four more; only \
+         `tableStyles` (MJXOFF-127) and `extLst` are still held raw"
     );
     assert_eq!(STYLESHEET.slots.len(), locals.len());
 }

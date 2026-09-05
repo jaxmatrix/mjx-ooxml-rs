@@ -78,6 +78,27 @@ pub enum SmlError {
         /// How many bytes were asked for.
         bytes: u64,
     },
+
+    /// A style index named no `xf` — a cell's `@s`, a row's `@s` or a column's `@style` pointing
+    /// past the end of `cellXfs`.
+    ///
+    /// Refused rather than answered with record `0`. A dangling index is a corrupt workbook, and
+    /// substituting the `Normal` format would report formatting the file does not state — silently,
+    /// on every cell that shares the bad index.
+    ///
+    /// A dangling `@xfId` on a record that *does* exist is **not** this error: that is a layer which
+    /// is absent, and
+    /// [`FormatLayer::Neither`](crate::styles::effective::FormatLayer::Neither) is how it is
+    /// reported.
+    #[error("style index {index} names no <xf> in <{table}>, which holds {available}")]
+    CellFormatIndexOutOfRange {
+        /// The index that named nothing.
+        index: u32,
+        /// The wire name of the table it was looked up in.
+        table: &'static str,
+        /// How many records that table actually holds.
+        available: usize,
+    },
 }
 
 #[cfg(test)]
