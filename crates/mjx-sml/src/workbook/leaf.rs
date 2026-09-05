@@ -1,7 +1,7 @@
-//! The attribute-only leaf: the shape twenty-two of `CT_Workbook`'s thirty complex types have, and
-//! the one macro that declares them.
+//! The attribute-only leaf: the shape **seventeen** of the workbook cluster's twenty-nine complex
+//! types have, and the one macro that declares them.
 //!
-//! # Why a macro rather than twenty-two hand-written triples
+//! # Why a macro rather than seventeen hand-written triples
 //!
 //! `sml.xsd`'s workbook cluster is overwhelmingly *attribute bags*: a complex type with an
 //! `xsd:sequence` that is empty or holds nothing but `extLst`, and between two and twenty-four
@@ -17,7 +17,7 @@
 //! out six times over, and `settings.rs` many more. Writing them once here means a type is declared
 //! by saying what the schema says about it and nothing else, and it means the fidelity discipline
 //! (keep the element's own name and prefix, keep every attribute in order, keep the self-closing
-//! flag, keep unmodelled children) is in **one** place rather than in twenty-two copies that could
+//! flag, keep unmodelled children) is in **one** place rather than in seventeen copies that could
 //! drift apart one at a time.
 //!
 //! # What a bag preserves
