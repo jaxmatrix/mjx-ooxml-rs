@@ -266,9 +266,11 @@ impl WorksheetPart {
     /// Part 1 §18.3.1.55: *"The formatting and content for the merged range is always stored in the
     /// top left cell."*
     ///
-    /// The anchor keeps the **anchoring** (`$`) of the range's own start, because that is the
-    /// reference the file wrote; a caller comparing it against a relative reference should compare
-    /// [`CellReference::column`] and [`CellReference::row`].
+    /// The anchor is always **relative**, whatever `$` anchoring the range's own `@ref` carried.
+    /// `$A$7:$C$7` and `A7:C7` name the same three cells, and an anchor is a position this call
+    /// derived rather than a reference the file wrote — carrying a `$` into it would attach a
+    /// meaning to a value nobody spelled. A caller that wants the range as the file spelled it has
+    /// [`merged_range_containing`](Self::merged_range_containing).
     ///
     /// # Errors
     /// As [`merged_ranges`](Self::merged_ranges).
