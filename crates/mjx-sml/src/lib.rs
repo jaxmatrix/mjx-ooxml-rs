@@ -79,6 +79,7 @@
 //! `mjx-schema-gate` audits every `x:`-rooted part of every package it inspects.
 
 pub(crate) mod arena;
+pub(crate) mod leaf;
 
 pub mod address;
 pub mod cells;
