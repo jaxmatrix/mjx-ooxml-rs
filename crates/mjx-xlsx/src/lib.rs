@@ -60,6 +60,7 @@ pub use workbook::{
     CalculationSettings, DateSystem, DefinedNameEntry, DefinedNameScope, Sheet, Workbook,
     WorkbookWindow,
 };
+pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::Worksheet;
 
 /// Re-exported so that a caller who holds a [`Workbook`] can name what it is built on without

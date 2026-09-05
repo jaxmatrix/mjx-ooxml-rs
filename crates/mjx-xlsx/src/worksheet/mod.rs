@@ -16,6 +16,7 @@
 //! |---|---|
 //! | `mod.rs` (this file) | MJXOFF-91 (D02) — [`Worksheet`], the handle, and [`crate::WorksheetParts`] |
 //! | [`grid`](self::grid) | **MJXOFF-102 (D07) — done**: opening a worksheet part, one cell in or out, writing it back. MJXOFF-117 (D12) adds the sheet's geometry |
+//! | [`formatting`](self::formatting) | **MJXOFF-108 (D09) — done**: `xl/styles.xml` plus one worksheet, and every cell's [`mjx_sml::EffectiveCellFormat`]. The resolution order itself is `mjx-sml`'s and is not repeated here |
 //! | [`features`](self::features) | MJXOFF-120/123/125/127/129 (D13-D17) — the optional worksheet features |
 //!
 //! # What this is not
@@ -29,6 +30,7 @@
 //! answers *which part in this package holds row 7*.
 
 pub(crate) mod features;
+pub(crate) mod formatting;
 pub(crate) mod grid;
 
 use mjx_opc::{Package, PartName};
