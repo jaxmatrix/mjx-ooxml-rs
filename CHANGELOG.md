@@ -52,6 +52,51 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.104] - 2026-09-05
+
+Cell addressing: the SpreadsheetML reference vocabulary eleven later Phase D children consume
+(MJXOFF-93, Phase D position 3).
+
+### Added
+
+- **`mjx_sml::address`** — `crates/mjx-sml/src/address.rs` was a module slot with a note naming this
+  child; it is now the workspace's one model of a cell address. `CellReference` (`ST_CellRef`),
+  `CellRange` (`ST_Ref`) in all four forms (`A1`, `A1:C3`, `A:A`, `1:1`), `CellRangeList`
+  (`ST_Sqref`), `CellSpans`/`CellSpan` (`ST_CellSpans`), `SheetQualifiedReference`/`SheetName`,
+  `R1C1Reference`/`R1C1Range`/`R1C1Coordinate`, the bijective base-26 conversion both ways
+  (`column_letters`, `column_index_from_letters`), `Anchoring`, `ColumnBound`, `RowBound`,
+  `GridBounds`, `AddressText` and `AddressError`. `ReferenceMode` (`calcPr@refMode`) is re-exported
+  from the generated `sml` simple types rather than declared a second time.
+- **`mjx_sml::SmlError::Address`** — the fourth variant, carrying `AddressError`. The enum stays
+  deliberately exhaustive, so MJXOFF-137's facade mapping cannot silently file it under a wildcard.
+- **`crates/mjx-sml/tests/fixture_addressing.rs`** — every address in `tests/fixtures/sample.xlsx`
+  parses and re-emits byte-identically, asserted against a **pinned** list of the thirteen the
+  worksheet carries rather than against a count, so a scan that stops finding anything fails rather
+  than passing vacuously. `sample.xlsx` carries no `row@spans`, so the other half of the `spans`
+  rule — never drop one that was written — is asserted against authored `x:`-prefixed markup in the
+  same suite.
+
+### Notes
+
+- **Eight bytes, `Copy`, no allocation on the parse path.** MJXOFF-95 (D04) will parse a reference
+  for every cell of a sheet that may hold 1,048,576 x 16,384 of them, so `CellReference` is a `u32`
+  row, a `u16` column and two one-byte anchorings with no padding waste; parsing is one forward pass
+  over `&str` with no intermediate `String`, and formatting writes into `AddressText`, a `Copy`
+  48-byte stack buffer. `Copy` is the proof rather than the decoration — a `Copy` type cannot own a
+  heap allocation.
+- **Round-trip is exact, not canonical.** `$A$1` writes `$A$1`, `A1` never widens to `A1:A1`,
+  `C3:A1` stays backwards, `RC` never becomes `R[0]C[0]`, and a `sqref`'s separator run survives
+  until the list is edited. The ordered view is a separate answer (`CellRange::normalized_bounds`),
+  because a reference-formatting "improvement" is an edit-isolation failure.
+- **Out-of-grid input is refused, never clamped.** `XFE` is an error, not `XFD`; a row number is
+  accumulated with saturating arithmetic, so an absurd digit run is reported rather than wrapped.
+- **Column letters are not case-folded.** `"a1"` is a typed error rather than a silent rewrite to
+  `A1`. Every producer this workspace has read writes uppercase, and folding would canonicalize a
+  file that said otherwise.
+- **`mjx_chart::workbook::column_letters` is superseded but not yet retired.** It returns a `String`
+  per call and has no parser; MJXOFF-112 (D10) switches `mjx-chart` over to `column_letters` here and
+  MJXOFF-99 (E1) retires the copy. A second, independent copy lives in `xtask/src/corpus/xlsx.rs`.
+
 ## [0.0.103] - 2026-09-05
 
 The `mjx-xlsx` package spine: the part graph, a workbook that opens and saves without touching a
