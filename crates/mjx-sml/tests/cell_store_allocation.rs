@@ -76,6 +76,16 @@ const SPARSE_PART_BOUND: usize = 32 * 1024;
 /// printed beside the figure.
 const BYTES_PER_CELL_BOUND: usize = 48;
 
+/// The same bound for a sheet whose every cell carries a **formula** (MJXOFF-115's memory clause).
+///
+/// Higher than [`BYTES_PER_CELL_BOUND`] and for a stated reason rather than a fudged one: a cell with
+/// an `<f>` has a side-table record, because that is where MJXOFF-95 keeps the formula's byte range,
+/// so it pays 36 bytes for its `PackedCell` plus 40 for its `CellExtras`. MJXOFF-115 added **nothing**
+/// to that — a formula is read out of the bytes the store already held. The line this bound draws is
+/// against the design that would: a decoded formula struct or a `String` per cell, or a formula table
+/// with a four-byte index on every cell in the sheet.
+const FORMULA_BYTES_PER_CELL_BOUND: usize = 96;
+
 /// The corpus shape from `xtask/src/corpus/xlsx.rs` (MJXOFF-147): 5,000 rows × 60 columns.
 ///
 /// The same shape, so the figure below is comparable with the 913 B/cell that harness recorded — but
@@ -88,15 +98,16 @@ const ROW_COUNT: usize = 5_000;
 const COLUMN_COUNT: usize = 60;
 
 fn main() {
-    println!("MJXOFF-95 — the cell store's memory gate\n");
+    println!("MJXOFF-95 — the cell store's memory gate, and MJXOFF-115's clause on it\n");
     let sparse = sparse_sheet_costs_what_its_one_cell_costs();
     let dense = a_realistic_sheet_costs_far_less_than_a_tree_of_it();
     let sparse_part = a_sparse_worksheet_part_costs_what_its_one_cell_costs();
     let dense_part = a_realistic_worksheet_part_keeps_the_per_cell_bound();
-    println!("\nall four cases passed");
+    let formulas = a_sheet_of_formula_cells_pays_for_no_formula_table();
+    println!("\nall five cases passed");
     // Keep the figures alive to the end of `main`, so nothing above can be optimised away on the
     // strength of the store being dropped early.
-    assert!(sparse > 0 && dense > 0 && sparse_part > 0 && dense_part > 0);
+    assert!(sparse > 0 && dense > 0 && sparse_part > 0 && dense_part > 0 && formulas > 0);
 }
 
 /// **MJXOFF-102's re-assertion, driven through the real part.**
@@ -385,4 +396,117 @@ fn column_letters(index: usize) -> String {
         .expect("inside the grid")
         .as_str()
         .to_owned()
+}
+
+/// **MJXOFF-115's memory clause.** The same 5,000 x 60 shape as case two, but with a formula in
+/// *every* cell — 5,000 shared-group hosts carrying the text and 295,000 members carrying none.
+///
+/// The question this answers is the one MJXOFF-115's constraints ask: *what does a shared-group
+/// member cost?* The answer is that it costs what any formula cell costs and **nothing at all for
+/// being in a group** — there is no group table, no per-cell index into one, and above all no copy of
+/// the host's text per member. `SheetData::shared_formula_groups` builds a report on demand and
+/// allocates one entry per *group*, so it is not part of this measurement, which is what the store
+/// retains.
+///
+/// It also says what D11 itself added to the per-cell cost, which is **nothing**: a formula cell paid
+/// for a `CellExtras` record under MJXOFF-95 already, because that is where the `<f>` byte range
+/// lives, and this child gave those bytes a type rather than a second home. The figure below is
+/// `PackedCell` + `CellExtras` and no third thing.
+fn a_sheet_of_formula_cells_pays_for_no_formula_table() -> usize {
+    let markup: Arc<[u8]> = Arc::from(formula_worksheet_markup().into_bytes());
+    let cells = ROW_COUNT * COLUMN_COUNT;
+
+    let before = mjx_allocation_counter::reset_peak();
+    let part = WorksheetPart::read_shared(Arc::clone(&markup))
+        .expect("the part reads")
+        .expect("the root is an x:worksheet");
+    let live = mjx_allocation_counter::live() - before;
+    let peak = mjx_allocation_counter::peak() - before;
+
+    println!("\ncase 5 — the same {cells} cells, every one of them a formula cell");
+    println!(
+        "  part markup                    {:>12} bytes",
+        markup.len()
+    );
+    println!(
+        "  part + store, live             {live:>12} bytes  ({:.1} B/cell)",
+        live as f64 / cells as f64
+    );
+    println!("  peak across parse + read       {peak:>12} bytes");
+    println!("  bound                          {FORMULA_BYTES_PER_CELL_BOUND:>12} B/cell");
+    println!("  of which, per formula cell:              36 B PackedCell + 40 B CellExtras = 76 B");
+    println!(
+        "  MJXOFF-147 recorded                     913 B/cell of peak RSS for the value shape"
+    );
+    println!("  case 2 measured a value cell at          36.8 B/cell");
+
+    assert_eq!(part.cell_count(), cells);
+    assert_eq!(part.row_count(), ROW_COUNT);
+
+    // Every cell really carries a formula, and the members really carry no text — or this measures
+    // something other than what it claims to.
+    let hosts = part.cells().filter(|cell| {
+        cell.formula()
+            .is_some_and(|formula| formula.is_shared_group_host() == Ok(true))
+    });
+    assert_eq!(hosts.count(), ROW_COUNT, "one host a row");
+    let text_less = part.cells().filter(|cell| {
+        cell.formula().is_some_and(|formula| {
+            !formula.has_text() && formula.is_shared_group_member() == Ok(true)
+        })
+    });
+    assert_eq!(
+        text_less.count(),
+        cells - ROW_COUNT,
+        "every other cell is a member carrying no text at all"
+    );
+
+    let per_cell = live / cells;
+    assert!(
+        per_cell <= FORMULA_BYTES_PER_CELL_BOUND,
+        "the part retains {live} bytes for {cells} formula cells — {per_cell} B/cell, over the \
+         {FORMULA_BYTES_PER_CELL_BOUND} B/cell bound. A formula table with a per-cell index, or a \
+         decoded formula struct per cell, is the defect this bound exists to catch."
+    );
+
+    // The formulas are readable, so the figure was not met by dropping them.
+    let host = part
+        .cell(CellReference::parse("A2").expect("a reference"))
+        .expect("row 2 column A is a host")
+        .formula()
+        .expect("the host carries an f element");
+    assert_eq!(host.raw_text(), b"SUM(B2:BH2)");
+    live
+}
+
+/// The same sheet as [`worksheet_markup`], with every cell a formula cell: column A hosts a shared
+/// group covering the row, and every other column is a text-less member of it.
+fn formula_worksheet_markup() -> String {
+    let mut xml = String::with_capacity(ROW_COUNT * COLUMN_COUNT * 40 + 256);
+    xml.push_str(
+        "<worksheet xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\">\
+         <sheetData>\r\n",
+    );
+    let last = column_letters(COLUMN_COUNT - 1);
+    for row in 1..=ROW_COUNT {
+        let group = row - 1;
+        xml.push_str(&format!("<row r=\"{row}\" spans=\"1:{COLUMN_COUNT}\">"));
+        for column in 0..COLUMN_COUNT {
+            let letters = column_letters(column);
+            let value = numeric_value(row, column);
+            if column == 0 {
+                xml.push_str(&format!(
+                    "<c r=\"{letters}{row}\"><f t=\"shared\" ref=\"A{row}:{last}{row}\" \
+                     si=\"{group}\">SUM(B{row}:{last}{row})</f><v>{value}</v></c>"
+                ));
+            } else {
+                xml.push_str(&format!(
+                    "<c r=\"{letters}{row}\"><f t=\"shared\" si=\"{group}\"/><v>{value}</v></c>"
+                ));
+            }
+        }
+        xml.push_str("</row>\r\n");
+    }
+    xml.push_str("</sheetData></worksheet>");
+    xml
 }
