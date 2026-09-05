@@ -58,7 +58,7 @@
 //! | [`strings`] | **MJXOFF-97 (D05) — done**: `sharedStrings.xml`, rich-text runs, inline strings |
 //! | [`font`] | **MJXOFF-97 (D05) — done**: `CT_RPrElt`/`CT_Font`'s shared property family, reused by D08 |
 //! | [`styles`] | **MJXOFF-105 (D08) + MJXOFF-108 (D09) — done**: fonts, fills, borders, dxfs, the indexed palette; the `xf` indirection, number formats, named styles and [`EffectiveCellFormat`] |
-//! | [`formula`] | **MJXOFF-115 (D11) — done**: `CT_CellFormula`'s twelve attributes, shared/array/data-table formulas, cached values, `calcChain` — and the written-down guarantee that nothing here recalculates |
+//! | [`formula`] | **MJXOFF-115 (D11) — done**: `CT_CellFormula`'s twelve attributes, shared/array/data-table formulas, cached values, `calcChain` — and the written-down guarantee that nothing here recalculates; MJXOFF-123 (D14) adds [`FormulaElement`], the `ST_Formula` *element* three slots share |
 //! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid, MJXOFF-120 (D13) the `conditionalFormatting` slot |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
 //! | [`features`] | **MJXOFF-120 (D13) — done**: conditional formatting, the cross-block priority order and the `dxf` layer; MJXOFF-123/125/127/129 (D14–D17) fill the rest |
@@ -103,15 +103,16 @@ pub use error::SmlError;
 pub use features::{
     AppliedConditionalRule, ColorScale, ColorScaleContent, ColorScaleSpec, ConditionalCellFormat,
     ConditionalFormatLayer, ConditionalFormatting, ConditionalFormattingContent,
-    ConditionalFormattingFormula, ConditionalFormattingRule, ConditionalFormattingRuleContent,
-    ConditionalRuleChain, ConditionalRuleSpec, ConditionalRuleSpecKind, ConditionalValueObject,
+    ConditionalFormattingRule, ConditionalFormattingRuleContent, ConditionalRuleChain,
+    ConditionalRuleSpec, ConditionalRuleSpecKind, ConditionalValueObject,
     ConditionalValueObjectSpec, DataBar, DataBarContent, DataBarSpec, DifferentialFormatSpec,
     IconSet, IconSetContent, IconSetSpec,
 };
 pub use font::{Color, ColorElement, FontProperties, FontPropertyOwner};
 pub use formula::{
     CachedValue, CalculationChain, CalculationChainCell, CalculationChainContent, CellFormula,
-    FormulaKind, ResolvedCalculationChainCell, SharedFormulaGroup, SharedFormulaGroups,
+    FormulaElement, FormulaKind, ResolvedCalculationChainCell, SharedFormulaGroup,
+    SharedFormulaGroups,
 };
 pub use strings::{
     InlineString, PhoneticProperties, PhoneticRun, RichTextRun, RichTextRunSpec, SharedStringTable,
