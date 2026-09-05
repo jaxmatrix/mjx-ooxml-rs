@@ -65,6 +65,7 @@ pub use workbook::{
     WorkbookWindow,
 };
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
+pub use worksheet::tables::{SheetTable, SheetTableColumn};
 pub use worksheet::Worksheet;
 
 /// Re-exported so that a caller who holds a [`Workbook`] can name what it is built on without

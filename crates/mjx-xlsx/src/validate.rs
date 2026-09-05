@@ -53,7 +53,7 @@ use mjx_xml::fidelity;
 
 use crate::error::XlsxError;
 use crate::nav;
-use crate::parts::{SheetKind, REL_OFFICE_DOCUMENT};
+use crate::parts::{SheetKind, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_OFFICE_DOCUMENT};
 
 /// The content-type prefix every SpreadsheetML part shares.
 ///
@@ -165,6 +165,74 @@ pub enum SpreadsheetDefect {
         /// The repeated `@name`.
         name: String,
     },
+
+    /// A `x:tablePart` naming a relationship that leads to something that is not a table part.
+    ///
+    /// The direction packaging cannot see, and the table cluster's counterpart of
+    /// [`SheetEntryTargetIsNotASheet`](Self::SheetEntryTargetIsNotASheet). A `tablePart@r:id` that
+    /// names **no** relationship at all is not this: that is a dangling relationship reference like
+    /// any other, and `mjx-opc` reports it as
+    /// [`UndeclaredRelationshipReference`](mjx_opc::PackageDefect::UndeclaredRelationshipReference)
+    /// over the same set of parts. Restating it here would be a second, drifting implementation of
+    /// one rule.
+    #[error(
+        "{part}: x:tableParts names relationship {relationship_id}, which targets {target_part} of \
+         type {actual_content_type} — not a table definition part"
+    )]
+    TablePartTargetIsNotATable {
+        /// The worksheet part holding the list.
+        part: String,
+        /// The relationship the entry names.
+        relationship_id: String,
+        /// The part that relationship targets.
+        target_part: String,
+        /// The content type that target actually has.
+        actual_content_type: String,
+    },
+
+    /// Two tables in the workbook sharing a `@id`.
+    ///
+    /// ECMA-376 Part 1 §18.5.1.2: *"A non zero integer representing the unique identifier for this
+    /// table. Each table in the workbook shall have a unique id."* The scope is the **workbook**,
+    /// not the sheet, so two tables on different sheets collide exactly as two on one sheet do —
+    /// which is why [`Workbook::add_table`](crate::Workbook::add_table) allocates from every table
+    /// part in the package rather than from the sheet's own.
+    ///
+    /// Nothing renumbers a table to make this go away: a table's id is what other records name it
+    /// by, and moving one silently repoints whatever named it.
+    /// [`Workbook::save_unchecked`](crate::Workbook::save_unchecked) writes a container back exactly
+    /// as it arrived.
+    #[error("{first_part} and {second_part} are both tables with id {table_id}, which §18.5.1.2 requires to be unique in the workbook")]
+    DuplicateTableId {
+        /// The first part carrying the id, in container order.
+        first_part: String,
+        /// The second.
+        second_part: String,
+        /// The repeated `@id`.
+        table_id: String,
+    },
+
+    /// Two tables in the workbook sharing a `@displayName`.
+    ///
+    /// ECMA-376 Part 1 §18.5.1.2: *"This name shall not have any spaces in it, and it shall be
+    /// unique amongst all other displayNames and definedNames in the workbook."* A formula
+    /// references a table by this name, so two tables answering to it make every such formula
+    /// ambiguous.
+    ///
+    /// **The check is narrower than the clause**, deliberately: it compares table display names
+    /// against each other and **not** against the workbook's defined names, because a defined name
+    /// and a table name colliding is a third thing to reason about (`_FilterDatabase` and the other
+    /// built-in names among them) and reporting it wrongly would be worse than not reporting it.
+    /// The gap is written down in the guide rather than hidden.
+    #[error("{first_part} and {second_part} are both tables with displayName {display_name:?}, which §18.5.1.2 requires to be unique in the workbook")]
+    DuplicateTableDisplayName {
+        /// The first part carrying the name, in container order.
+        first_part: String,
+        /// The second.
+        second_part: String,
+        /// The repeated `@displayName`.
+        display_name: String,
+    },
 }
 
 /// Checks every SpreadsheetML invariant, in a deterministic order: the workbook edge, then
@@ -176,6 +244,209 @@ pub(crate) fn check(package: &Package, workbook_part: &PartName) -> Result<(), X
     check_office_document_edge(package, workbook_part)?;
     check_spreadsheet_parts_are_reachable(package)?;
     check_sheet_list(package, workbook_part)?;
+    check_table_part_targets(package)?;
+    check_table_identity(package)?;
+    Ok(())
+}
+
+/// A part's fidelity tree, borrowed from the package's cache when there is one and parsed for the
+/// length of the call when there is not.
+///
+/// The two halves exist because an *edited* part has no bytes to parse — `mjx-opc` holds it as a
+/// tree — while a part read off disk has bytes and no tree, and a check that only handled one of
+/// them would silently skip the other. Skipping is the failure mode this whole file is written
+/// against.
+enum PartTree<'a> {
+    Cached(&'a RawDocument),
+    // Boxed because a `RawDocument` is 216 bytes against a reference's 8, and this value is only
+    // ever a short-lived local — the allocation is one per part checked, and the alternative is an
+    // enum every caller moves 216 bytes of.
+    Parsed(Box<RawDocument>),
+}
+
+impl PartTree<'_> {
+    fn get(&self) -> &RawDocument {
+        match self {
+            Self::Cached(tree) => tree,
+            Self::Parsed(tree) => tree,
+        }
+    }
+}
+
+/// `part`'s tree, however the package is holding it, or `None` when it is absent or will not parse.
+///
+/// Well-formedness of an authored part is `mjx-opc`'s defect to report; if it will not parse there
+/// is nothing here to check.
+fn part_tree<'a>(package: &'a Package, part: &PartName) -> Option<PartTree<'a>> {
+    if let Some((_, entry)) = package.authored_xml_parts().find(|(name, _)| name == part) {
+        if let Some(tree) = entry.tree() {
+            return Some(PartTree::Cached(tree));
+        }
+        let bytes = entry.bytes()?;
+        return fidelity::parse(bytes)
+            .ok()
+            .map(|tree| PartTree::Parsed(Box::new(tree)));
+    }
+    let bytes = package.part_bytes(part)?;
+    fidelity::parse(bytes)
+        .ok()
+        .map(|tree| PartTree::Parsed(Box::new(tree)))
+}
+
+/// Every `x:tablePart` of every worksheet **this library will write** names a relationship that
+/// leads to a table definition part.
+///
+/// Scoped to [`Package::authored_xml_parts`](mjx_opc::Package::authored_xml_parts) for the reason
+/// this module's own documentation gives: a workbook opened and saved untouched is never faulted for
+/// markup it arrived with.
+///
+/// The *other* direction — a `tablePart@r:id` naming a relationship that does not exist — is
+/// deliberately absent: it is a dangling relationship reference like any other, and
+/// [`Package::validate`](mjx_opc::Package::validate) already reports it as
+/// `UndeclaredRelationshipReference` over exactly this set of parts.
+fn check_table_part_targets(package: &Package) -> Result<(), XlsxError> {
+    let worksheets: Vec<PartName> = package
+        .authored_xml_parts()
+        .map(|(part, _)| part)
+        .filter(|part| package.content_type_of(part) == Some(CONTENT_TYPE_WORKSHEET))
+        .collect();
+
+    for part in worksheets {
+        let Some(tree) = part_tree(package, &part) else {
+            continue;
+        };
+        let tree = tree.get();
+        let interner = &tree.interner;
+        let Some(list) = nav::child(&tree.root, interner, SML, "tableParts") else {
+            continue;
+        };
+        let Some(prefix) =
+            nav::namespace_prefix(&tree.root, interner, SHARED_RELATIONSHIP_REFERENCE)
+        else {
+            // The part binds the relationship-reference namespace nowhere, so no `tablePart` in it
+            // can carry an `r:id` at all. `CT_TablePart` declares one required; that is a schema
+            // defect, which the schema gate reports and this check does not restate.
+            continue;
+        };
+        let Some(relationships) = package.relationships_for(Some(&part)) else {
+            continue;
+        };
+        for entry in nav::children(list, interner, SML, "tablePart") {
+            let Some(reference) = nav::prefixed_attr_value(entry, interner, prefix, "id") else {
+                continue;
+            };
+            let reference = reference?;
+            let Some(rel) = relationships.by_id(&reference) else {
+                continue; // Undeclared: reported one layer down, as a dangling reference.
+            };
+            if rel.mode == TargetMode::External {
+                continue; // An external target has no content type to compare against.
+            }
+            let Ok(target) = nav::resolve_target(&part, &rel.target) else {
+                continue; // `mjx-opc`'s defect to report.
+            };
+            let Some(actual) = package.content_type_of(&target) else {
+                continue; // A target with no content type is `mjx-opc`'s defect to report.
+            };
+            if actual == CONTENT_TYPE_TABLE {
+                continue;
+            }
+            return Err(SpreadsheetDefect::TablePartTargetIsNotATable {
+                part: part.as_str().to_owned(),
+                relationship_id: reference,
+                target_part: target.as_str().to_owned(),
+                actual_content_type: actual.to_owned(),
+            }
+            .into());
+        }
+    }
+    Ok(())
+}
+
+/// No table **this library wrote** shares its `@id` or its `@displayName` with another table in the
+/// workbook.
+///
+/// The scope is deliberately asymmetric, and it is the scope that makes the check both useful and
+/// safe: the *offending* table has to be one this library will write, while the table it collides
+/// with may be any table in the package. A workbook that arrived with two tables sharing an id
+/// therefore still saves — its markup is not ours to fault — while a table
+/// [`Workbook::add_table`](crate::Workbook::add_table) put there colliding with one on another sheet
+/// is caught.
+///
+/// §18.5.1.2 requires both identifiers to be unique across the **workbook**, not the sheet.
+fn check_table_identity(package: &Package) -> Result<(), XlsxError> {
+    let authored: HashSet<String> = package
+        .authored_xml_parts()
+        .map(|(part, _)| part.as_str().to_owned())
+        .collect();
+
+    // Every table part in the package, in container order, with the two identifiers §18.5.1.2 makes
+    // unique. `None` for either means the attribute is absent or will not decode, which is a schema
+    // defect the gate reports rather than a collision.
+    struct TableIdentity {
+        part: String,
+        authored: bool,
+        id: Option<String>,
+        display_name: Option<String>,
+    }
+    let mut tables: Vec<TableIdentity> = Vec::new();
+    for part in package.part_names() {
+        if package.content_type_of(&part) != Some(CONTENT_TYPE_TABLE) {
+            continue;
+        }
+        let Some(tree) = part_tree(package, &part) else {
+            continue;
+        };
+        let tree = tree.get();
+        let interner = &tree.interner;
+        if !nav::name_is(&tree.root.name, interner, SML, "table") {
+            continue; // Registered as a table and rooted at something else: not this check's.
+        }
+        tables.push(TableIdentity {
+            authored: authored.contains(part.as_str()),
+            part: part.as_str().to_owned(),
+            id: nav::attr_value(&tree.root, interner, "id").and_then(Result::ok),
+            display_name: nav::attr_value(&tree.root, interner, "displayName").and_then(Result::ok),
+        });
+    }
+
+    for (position, table) in tables.iter().enumerate() {
+        if !table.authored {
+            continue;
+        }
+        for (other_position, other) in tables.iter().enumerate() {
+            if position == other_position {
+                continue;
+            }
+            // The pair is named in container order, so the message does not depend on which of the
+            // two happened to be the authored one.
+            let (first, second) = if position < other_position {
+                (&table.part, &other.part)
+            } else {
+                (&other.part, &table.part)
+            };
+            if let (Some(id), Some(other_id)) = (&table.id, &other.id) {
+                if id == other_id {
+                    return Err(SpreadsheetDefect::DuplicateTableId {
+                        first_part: first.clone(),
+                        second_part: second.clone(),
+                        table_id: id.clone(),
+                    }
+                    .into());
+                }
+            }
+            if let (Some(name), Some(other_name)) = (&table.display_name, &other.display_name) {
+                if name == other_name {
+                    return Err(SpreadsheetDefect::DuplicateTableDisplayName {
+                        first_part: first.clone(),
+                        second_part: second.clone(),
+                        display_name: name.clone(),
+                    }
+                    .into());
+                }
+            }
+        }
+    }
     Ok(())
 }
 

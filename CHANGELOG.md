@@ -54,6 +54,84 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.116] - 2026-09-06
+
+Worksheet tables — the first feature of Phase D that lives in a **part of its own**, and the first
+place this library creates one (MJXOFF-125, Phase D position 15).
+
+### Added
+
+- **`mjx_sml::features::tables`** — `WorksheetTable` (`CT_Table`, `sml.xsd:3946`, the root of
+  `xl/tables/tableN.xml`), `TableColumns`/`TableColumn`, `TableFormula` (`CT_TableFormula`),
+  `XmlColumnProperties` (`CT_XmlColumnPr`), `TableStyleReference` (`CT_TableStyleInfo`), and
+  `TableParts`/`TablePart` — the last of which fills **rank 37 of `CT_Worksheet`**, so eighteen of
+  its thirty-nine slots are now modelled and twenty-one held raw. A table's `autoFilter` and
+  `sortState` are MJXOFF-123's own `AutoFilter` and `SortState`; there is no second filter or sort
+  model. **`sortState` now has three distinct homes** — rank 11 of `CT_Worksheet`, rank 1 of
+  `CT_AutoFilter`, rank 1 of `CT_Table` — and they are three different elements.
+- **`mjx_sml::styles::table_styles`** — `TableStyles` (`CT_TableStyles`), `TableStyleDefinition`
+  (`CT_TableStyle`) and `TableStyleRegion` (`CT_TableStyleElement`). This is **rank 8 of
+  `CT_Stylesheet`, the last of its eleven slots to be modelled**; only `extLst` is held raw now.
+- **`builtin_table_style_name`, `BuiltInTableStyle`, `BuiltInTableStyleFamily`,
+  `TableStyleLookup`, `TableStyleOrigin`** — the distinction the ticket names. Excel's 144 preset
+  table styles are in **no `.xlsx` at all**, so a lookup has three answers and not two:
+  locally defined, built-in, or genuinely undefined. The six contiguous families and their bounds
+  are read off ECMA-376 Part 1's own `presetTableStyles.xml`, on
+  `builtin_cell_style_name`'s precedent, and a unit test walks all 144 plus both boundaries.
+- **`mjx_sml::WorksheetTableSpec`, `TableColumnSpec`, `TableStyleReferenceSpec`** — plain-data
+  authoring descriptions with no interner, and **`mjx_sml::write::AuthoredTable`**, the whole-part
+  writer, which seeds `<table xmlns="…"/>` as bytes and writes back the root it *read*.
+- **`WorksheetPart::table_parts`/`table_parts_mut`/`set_table_parts`**, and
+  **`WorksheetPart::bind_relationship_prefix`** — the second declares `xmlns:r` on a worksheet root
+  that binds none, because a `tablePart` is nothing but an `r:id` and a sheet authored from nothing
+  declares only the SpreadsheetML namespace. It never overwrites a binding the file made.
+- **`StylesheetPart::table_styles`/`table_styles_mut`/`set_table_styles`**.
+- **`Workbook::sheet_tables`, `table_markup`, `edit_table_markup`, `table_style_origin`,
+  `next_table_id`, `add_table`**, plus the owned reports **`SheetTable`** and **`SheetTableColumn`**.
+  `add_table` writes the **four things a table is** — the part, its content-type override, a `table`
+  relationship from the *sheet* part, and a `tablePart` entry — in one call.
+- **`SpreadsheetDefect::TablePartTargetIsNotATable`, `DuplicateTableId`,
+  `DuplicateTableDisplayName`** — the directions packaging cannot see. The last two fault only a
+  table **this library wrote**; a workbook that arrived with a collision still saves. A
+  `tablePart@r:id` naming *no* relationship is deliberately not restated here: `mjx-opc` already
+  reports it over exactly the same set of parts.
+- **`SmlError::TableGeometryDoesNotFit`, `TableHasNoColumns`** — the two refusals.
+- **`tests/fixtures/worksheet_tables.xlsx`** — **two tables on one sheet**, because one tests neither
+  the id allocation nor the built-in/local distinction. They differ in every way that matters: ids
+  **1 and 4** (a gap, so the next free id is 5 and not the table count plus one); one wears the
+  preset `TableStyleMedium2` and the other the workbook's own `AcmeBlue`; one has a totals row with
+  `sum`, `average` *and* `custom` and the other none; one declares `tableColumns@count="9"` against
+  four columns. The sheet also lists the two **in the reverse of the relationship order**, and the
+  calculated-column formula spells `>` as `&gt;` — an entity XML does not require, so re-escaping it
+  would change the bytes.
+- **Two generated child-order exports** — `WORKSHEET_TABLE` and `WORKSHEET_TABLE_COLUMN` in
+  `mjx_ooxml_types::child_order`, from `xtask`'s curated list.
+- **A guide page** — *Worksheet tables*, with four compiled doctests.
+
+### Fidelity
+
+- **A table's `@ref` and its two row counts move together or not at all.** There is deliberately no
+  `set_range`: §18.5.1.2 makes the three one statement, so `WorksheetTable::resize` takes all three
+  and refuses a combination the range cannot hold.
+- **An unrelated cell edit never moves a table's boundary.** Setting a value inside a table rewrites
+  one row of the worksheet part; the table part is not opened, and comes back byte for byte.
+- **A table's `@id` is never reused and never renumbered.** `Workbook::add_table` allocates one past
+  the highest id any table part in the package writes, and `spec.id` is ignored.
+- **A calculated column is never expanded** into per-cell formulas, a totals row is never computed,
+  and a structured reference (`Sales[[#This Row],[Q1]]`) is never parsed. Formulas are text on
+  MJXOFF-115's terms, at two more doors.
+- **A preset style name is not a missing style.** Reporting "not found" for `TableStyleMedium2`
+  would be a confident wrong answer where the honest one is a distinction.
+- **`tableColumns@count`, `tableStyles@count` and `tableParts@count` are producer caches** — refreshed
+  when the collection is edited *and* the file declared one, never added to an element that wrote
+  none, and never corrected on a read.
+- **`xmlColumnPr` is preserved and never resolved**; the XML map part it names is modelled nowhere.
+
+### Fixed
+
+- **`crates/mjx-sml/src/styles/stylesheet.rs` said MJXOFF-127 owned `tableStyles`.** It is
+  MJXOFF-125's (D15); MJXOFF-127 is D16. Corrected in three places.
+
 ## [0.0.115] - 2026-09-06
 
 Data validation, autofilters and sort state — a cluster whose whole discipline is that **nothing in

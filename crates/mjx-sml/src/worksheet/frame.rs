@@ -522,6 +522,68 @@ impl WorksheetPart {
         )
     }
 
+    /// The prefix this part binds to the relationship-reference namespace, **declaring one on the
+    /// root when the part binds none**, and marking the part edited if it had to.
+    ///
+    /// [`relationship_prefix`](Self::relationship_prefix) answers the question; this one answers it
+    /// and makes the answer true. A caller about to author a `tablePart`, a `hyperlink` or a
+    /// `drawing` needs a binding to exist, and a worksheet may genuinely have none:
+    /// [`AuthoredWorksheet`](crate::write::AuthoredWorksheet)'s seed declares the SpreadsheetML
+    /// namespace and nothing else, because a sheet with no related part needs nothing else. Refusing
+    /// instead would mean a sheet authored from nothing could **never** gain a table.
+    ///
+    /// The declaration added is `xmlns:r="…/relationships"`, the Transitional URI, under `r` — or
+    /// under `r2`, `r3` … if the root already binds `r` to something else, because overwriting a
+    /// binding the file made would change what every existing `r:`-prefixed attribute in the part
+    /// means.
+    ///
+    /// Nothing else about the part changes: no attribute is rewritten, no child moves, and a part
+    /// that already binds the namespace is not marked edited at all.
+    pub fn bind_relationship_prefix(&mut self) -> String {
+        if let Some(prefix) = crate::leaf::namespace_prefix(
+            &self.attributes,
+            &self.interner,
+            crate::leaf::RELATIONSHIP_REFERENCE,
+        ) {
+            return prefix.to_owned();
+        }
+        let prefix = self.free_namespace_prefix();
+        mjx_xml::attribute::set(
+            &mut self.attributes,
+            &mut self.interner,
+            Some("xmlns"),
+            &prefix,
+            crate::leaf::RELATIONSHIP_REFERENCE.transitional,
+        );
+        self.edited = true;
+        prefix
+    }
+
+    /// `r`, or the first of `r2`, `r3`, … the root does not already bind to something else.
+    fn free_namespace_prefix(&self) -> String {
+        let bound = |candidate: &str| {
+            self.attributes.iter().any(|attribute| {
+                attribute
+                    .name
+                    .prefix
+                    .is_some_and(|prefix| self.interner.resolve(prefix) == "xmlns")
+                    && self.interner.resolve(attribute.name.local) == candidate
+            })
+        };
+        if !bound("r") {
+            return "r".to_owned();
+        }
+        for suffix in 2..=u32::MAX {
+            let candidate = format!("r{suffix}");
+            if !bound(&candidate) {
+                return candidate;
+            }
+        }
+        // Unreachable: the loop runs to four billion and an element cannot carry that many
+        // declarations.
+        "r".to_owned()
+    }
+
     /// Whether the whole part can still be written straight out of the bytes it was read from.
     ///
     /// False for an authored part, for one read without a source buffer, and for one anything has

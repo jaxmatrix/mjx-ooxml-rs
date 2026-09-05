@@ -313,3 +313,50 @@ fn a_workbook_with_an_authored_validation_and_autofilter_opens() {
         "authored_validation_and_autofilter",
     );
 }
+
+#[test]
+fn a_workbook_with_an_authored_table_opens() {
+    // MJXOFF-125's own *Done when* clause: *"Creating a table over a range produces a valid part,
+    // relationship, content-type entry and `tablePart`, passes `Package::validate` and the schema
+    // suite, and opens in LibreOffice."* The first three are
+    // `crates/mjx-xlsx/tests/worksheet_tables.rs` and the schema suite is `schema_gate.rs`; this is
+    // the fourth, and it is a genuinely different question. A table is the first part type Phase D
+    // creates, so a missing content-type override, a relationship written from the *workbook* part
+    // instead of the sheet, or a `tablePart` whose `r:id` is unbound all produce schema-valid markup
+    // a renderer still refuses.
+    //
+    // Authored into a workbook built from nothing, so nothing preserved from a real file is holding
+    // it up — and the sheet a blank workbook writes declares only the SpreadsheetML namespace, so
+    // this is also what proves the `xmlns:r` a `tablePart` needs really does get bound.
+    use mjx_sml::{CellRange, TableStyleReferenceSpec, WorksheetTableSpec};
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let range = |text: &str| CellRange::parse(text).expect("a literal range");
+
+    let mut workbook = Workbook::blank().expect("authored");
+    for (address, value) in [
+        ("A1", CellValue::InlineString("Region")),
+        ("B1", CellValue::InlineString("Units")),
+        ("A2", CellValue::InlineString("North")),
+        ("B2", CellValue::Number(1200.0)),
+        ("A3", CellValue::InlineString("South")),
+        ("B3", CellValue::Number(300.0)),
+        ("A4", CellValue::InlineString("East")),
+        ("B4", CellValue::Number(980.0)),
+    ] {
+        workbook
+            .set_cell_value(0, at(address), value)
+            .expect("the store accepts the value");
+    }
+
+    let mut spec = WorksheetTableSpec::new("Sales", range("A1:B4"), &["Region", "Units"]);
+    spec.style = Some(TableStyleReferenceSpec {
+        name: Some("TableStyleMedium2".to_owned()),
+        show_row_stripes: Some(true),
+        ..TableStyleReferenceSpec::default()
+    });
+    let created = workbook.add_table(0, &spec).expect("the table is created");
+    assert_eq!(created.id, 1, "the first table in a workbook gets id 1");
+
+    let _ = convert_opens(&workbook.save().expect("saves"), "authored_table");
+}

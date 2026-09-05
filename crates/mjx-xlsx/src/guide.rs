@@ -9,8 +9,9 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            PartClassification, PartInventoryEntry, PartKind, Sheet, SheetKind, SpreadsheetDefect,
-            Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
+            PartClassification, PartInventoryEntry, PartKind, Sheet, SheetKind, SheetTable,
+            SheetTableColumn, SpreadsheetDefect, Workbook, WorkbookParts, Worksheet,
+            WorksheetParts, XlsxError,
         };
     };
 }
@@ -58,6 +59,13 @@ pub mod conditional_formatting {
 /// Autofilters, sort state and data validation — and why none of the three is ever applied.
 pub mod filters_and_data_validation {
     #![doc = include_str!("../docs/guide/filters_and_data_validation.md")]
+    guide_vocabulary!();
+}
+
+/// A table is a part of its own — the four things that have to agree, and why a preset style name
+/// is not a missing style.
+pub mod worksheet_tables {
+    #![doc = include_str!("../docs/guide/worksheet_tables.md")]
     guide_vocabulary!();
 }
 

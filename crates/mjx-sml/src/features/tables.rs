@@ -98,7 +98,8 @@ attribute_bag! {
     ///
     /// **`ST_`/`CT_` symbol:** `CT_TableStyleInfo`. Wire element: `tableStyleInfo`. ECMA-376 Part 1
     /// §18.5.1.5 titles it *"Table Style"*, which is why this type is named for the **reference**
-    /// rather than for the definition: the definition is [`TableStyleDefinition`] in
+    /// rather than for the definition: the definition is
+    /// [`TableStyleDefinition`](crate::TableStyleDefinition) in
     /// `xl/styles.xml`, and this is a table pointing at one by name.
     ///
     /// **`@name` naming a style the file does not define is the normal case, not a defect.**

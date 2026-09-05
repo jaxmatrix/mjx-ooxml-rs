@@ -12,7 +12,7 @@
 //!
 //! MJXOFF-105 set this precedent with [`PatternFillSpec`](crate::write::PatternFillSpec), MJXOFF-120
 //! with [`ConditionalRuleSpec`](crate::ConditionalRuleSpec) and MJXOFF-123 with
-//! [`AutoFilterSpec`](crate::AutoFilterSpec), which this file reuses rather than restates.
+//! [`AutoFilterSpec`], which this file reuses rather than restates.
 //!
 //! # What a spec deliberately does not decide
 //!
