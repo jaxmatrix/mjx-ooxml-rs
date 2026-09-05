@@ -2906,6 +2906,34 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "STYLESHEET_CELL_FORMAT", "sml", "CT_Xf",
         "One cell format's three children: alignment, protection, then `extLst` (`x:xf`)",
     ),
+
+    // ---- Conditional formatting (MJXOFF-120) --------------------------------------------------
+    //
+    // Three of the five types in this cluster place children rather than append them, and one of
+    // the three is the reason `CT_CfRule` cannot be an attribute bag: its `formula` children come
+    // *before* the `colorScale`/`dataBar`/`iconSet` that a rule of that kind carries, so a writer
+    // that appended a threshold beside a formula would emit them the wrong way round.
+    //
+    // `CT_IconSet` and `CT_Cfvo` are deliberately absent: an icon set declares a single repeating
+    // child (`cfvo`) and a value object declares only `extLst`, so both are appends with no order
+    // to hold — the rule `CT_NumFmts` and `CT_CellXfs` are left out under.
+    (
+        "WORKSHEET_CONDITIONAL_FORMATTING", "sml", "CT_ConditionalFormatting",
+        "One conditional-formatting block's rules, then `extLst` (`x:conditionalFormatting`)",
+    ),
+    (
+        "CONDITIONAL_FORMAT_RULE", "sml", "CT_CfRule",
+        "One conditional-formatting rule's children: up to three formulas, then whichever of \
+         `colorScale`, `dataBar` and `iconSet` it carries, then `extLst` (`x:cfRule`)",
+    ),
+    (
+        "CONDITIONAL_FORMAT_COLOR_SCALE", "sml", "CT_ColorScale",
+        "A colour scale's value objects, then its colours (`x:colorScale`)",
+    ),
+    (
+        "CONDITIONAL_FORMAT_DATA_BAR", "sml", "CT_DataBar",
+        "A data bar's two value objects, then its one colour (`x:dataBar`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
