@@ -3,8 +3,10 @@
 //!
 //! The entry point is [`Workbook`]: open a `.xlsx`'s container bytes with [`Workbook::open`], read
 //! its tabs with [`Workbook::sheets`] and its part graph with [`Workbook::parts`], and save with
-//! [`Workbook::save`]. Everything this crate does not model — which, today, is everything — is
-//! preserved verbatim by the OPC copy-on-write layer.
+//! [`Workbook::save`]. A worksheet's cells are read with [`Workbook::worksheet_markup`] and one is
+//! written with [`Workbook::set_cell_value`]. Everything this crate does not model — which is still
+//! most of a workbook, thirty-two of `CT_Worksheet`'s thirty-nine slots included — is preserved
+//! verbatim by the OPC copy-on-write layer.
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {

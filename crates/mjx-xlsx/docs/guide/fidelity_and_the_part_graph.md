@@ -29,9 +29,15 @@ for (before, after) in before.entries().iter().zip(after.entries()) {
 # }
 ```
 
-Nothing in this crate's current surface can dirty a part, so the guarantee is easy to keep today. It
-is written down here because it is the constraint every later Phase D child inherits: the moment
-something *does* dirty a part, only that part may change.
+One call in this crate's surface can dirty a part: [`Workbook::set_cell_value`] (MJXOFF-102), and it
+dirties exactly the worksheet it was pointed at. That is the constraint every later Phase D child
+inherits, and it is checked rather than asserted — `crates/mjx-xlsx/tests/worksheet_part.rs` sets one
+cell of `worksheet_spine.xlsx` and requires the list of parts whose bytes changed to be **exactly**
+`["/xl/worksheets/sheet1.xml"]`, with every other worksheet child inside that part still equal to the
+file's own bytes.
+
+Reading is still not mutating: [`Workbook::worksheet_markup`] takes `&self`, reads the part's bytes,
+and leaves the package holding them.
 
 ## Classification is not a gate
 
@@ -68,9 +74,15 @@ assert_eq!(core_properties.classification, PartClassification::Unclassified);
 
 ## What is deliberately not modelled
 
-Everything. There is no cell, no shared string, no style and no formula in this crate or in `mjx-sml`
-yet — MJXOFF-95 (D04) through MJXOFF-129 (D17) build them, and each module's own documentation names
-the child that fills it. What exists today is the package a model is reached through.
+Most of it. `mjx-sml` now models cells (MJXOFF-95), shared strings (MJXOFF-97), the workbook part
+(MJXOFF-100) and the worksheet's own thirty-nine slot frame (MJXOFF-102) — but **thirty-two of those
+thirty-nine slots are held as the markup the file wrote, not modelled**: merged cells, conditional
+formatting, data validation, hyperlinks, print setup, drawings, tables and the rest. MJXOFF-105 (D08)
+through MJXOFF-133 (D18) fill them, and each module's own documentation names the child that does.
+Styles and formulas are not modelled at all yet.
+
+Held is not dropped. A worksheet whose `pageSetup` survives a save is proof the frame works, not
+proof `pageSetup` was modelled, and that is exactly what the round-trip suites check.
 
 Two things are not modelled *and will not be*, and are recorded rather than left to be discovered:
 the macro-enabled content types (`macroEnabled` appears nowhere in ECMA-376, so this crate declines
