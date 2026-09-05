@@ -29,6 +29,12 @@ pub mod reading_and_editing_cells {
     guide_vocabulary!();
 }
 
+/// A workbook written from code, and the surface for filling it in.
+pub mod authoring_a_workbook {
+    #![doc = include_str!("../docs/guide/authoring_a_workbook.md")]
+    guide_vocabulary!();
+}
+
 /// What survives a round trip, what this crate does not model, and what a save refuses.
 pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]

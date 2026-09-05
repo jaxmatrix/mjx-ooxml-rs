@@ -499,3 +499,108 @@ fn a_workbook_opened_and_saved_through_this_crate_is_still_schema_valid() {
     mjx_schema_gate::assert_rows_are_valid("sample.xlsx through Workbook", &rows);
     println!("{}", outcome_table("sample.xlsx through Workbook", &rows));
 }
+
+// -------------------------------------------------------------------------------------------
+// The authored workbook (MJXOFF-112)
+// -------------------------------------------------------------------------------------------
+
+/// Every part `Workbook::blank` authors validates against the XSDs, and every one of them is in
+/// `xsd:sequence` order.
+///
+/// This is the arm the ticket names: *"an authoring path that emits invalid markup is the exact
+/// defect A1 exists to prevent, and it survived 58 releases last time."* Nothing about it is
+/// specific to `blank` — the same call validates any container this library produces — but `blank`
+/// is the one whose every byte the library wrote, so it is where an invalid authored part would show
+/// up first.
+#[test]
+fn a_blank_workbook_is_schema_valid_and_in_schema_order() {
+    let bytes = mjx_xlsx::Workbook::blank()
+        .expect("a blank workbook is authored")
+        .save()
+        .expect("it saves");
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("Workbook::blank", &bytes);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "Workbook::blank", &bytes, &[]);
+    println!("{}", outcome_table("Workbook::blank", &rows));
+
+    // A green run that never entered the SpreadsheetML parts would prove nothing, so the verdict is
+    // pinned per part and names the schema.
+    for part in [
+        "/xl/workbook.xml",
+        "/xl/worksheets/sheet1.xml",
+        "/xl/styles.xml",
+        "/xl/sharedStrings.xml",
+    ] {
+        let row = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("Workbook::blank: {part} is not in the sweep"));
+        assert_eq!(row.namespace.as_deref(), Some(SML_NS), "{part}");
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated("sml.xsd")),
+            "{part} must be validated against sml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    }
+}
+
+/// A workbook authored from nothing, filled with every cell type and a styled cell, is still
+/// schema-valid.
+///
+/// `blank` alone exercises the *empty* shape of every part. This exercises the populated one: a
+/// `sheetData` with rows, a `dimension` with a range in it, a shared-string table with entries, and
+/// a `styles.xml` with a second font, fill, border and `xf`.
+#[test]
+fn a_workbook_authored_from_nothing_and_filled_in_is_schema_valid() {
+    use mjx_sml::write::{BorderSpec, CellFormatSpec, CellFormatTarget, PatternFillSpec};
+    use mjx_sml::{CellReference, CellValue, FontProperties};
+
+    let mut workbook = mjx_xlsx::Workbook::blank().expect("authored");
+    let shared = workbook.intern_shared_string("North").expect("interns");
+    let font = workbook
+        .append_font(&FontProperties {
+            font_name: Some("Calibri".to_owned()),
+            size_in_points: Some(11.0),
+            bold: Some(true),
+            ..FontProperties::default()
+        })
+        .expect("appends");
+    let fill = workbook
+        .append_pattern_fill(&PatternFillSpec::solid("FFFF00"))
+        .expect("appends");
+    let border = workbook
+        .append_border(&BorderSpec::all_edges_plain())
+        .expect("appends");
+    let style = workbook
+        .append_cell_format(
+            CellFormatTarget::CellFormats,
+            &CellFormatSpec {
+                font_index: Some(font),
+                fill_index: Some(fill),
+                border_index: Some(border),
+                ..CellFormatSpec::skeleton_cell_format()
+            },
+        )
+        .expect("appends");
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    for (address, value) in [
+        ("A1", CellValue::SharedString(shared)),
+        ("B1", CellValue::Number(19.25)),
+        ("C1", CellValue::Boolean(false)),
+        ("D1", CellValue::Error("#REF!")),
+        ("E1", CellValue::InlineString("in the cell")),
+    ] {
+        workbook
+            .set_cell_value(0, at(address), value)
+            .expect("the store accepts the value");
+    }
+    workbook
+        .set_cell_style(0, at("B1"), Some(style))
+        .expect("the store accepts the style");
+    workbook.add_sheet("Data").expect("a second tab");
+
+    let bytes = workbook.save().expect("saves");
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("an authored workbook", &bytes);
+}

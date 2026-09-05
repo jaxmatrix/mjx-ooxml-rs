@@ -34,7 +34,10 @@
 //! # Status — the package spine, and nothing else
 //!
 //! MJXOFF-91 (D02) builds the package, the part graph, and a workbook that opens and saves without
-//! touching a byte. MJXOFF-100 (D06) adds the first model: `xl/workbook.xml`, through
+//! touching a byte. MJXOFF-112 (D10) adds [`Workbook::blank`] and the authoring surface beside it —
+//! [`Workbook::add_sheet`], [`Workbook::set_cell_style`], [`Workbook::intern_shared_string`] and the
+//! four `append_*` methods — every part of which is markup [`mjx_sml::write`] writes.
+//! MJXOFF-100 (D06) adds the first model: `xl/workbook.xml`, through
 //! [`mjx_sml::WorkbookPart`], plus the navigation surface over it — [`Workbook::sheets`],
 //! [`Workbook::sheet_by_name`], [`Workbook::defined_names`], [`Workbook::date_system`] and
 //! [`Workbook::rename_sheet`]. See `crates/mjx-xlsx/src/workbook/mod.rs`'s and
@@ -42,6 +45,7 @@
 //! which later Phase D child fills what, and [`crate::preserve`] for the fidelity contract
 //! everything here rests on.
 
+mod authoring;
 mod blank;
 mod error;
 pub mod guide;

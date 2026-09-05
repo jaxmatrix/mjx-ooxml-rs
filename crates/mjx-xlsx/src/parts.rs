@@ -41,13 +41,13 @@ use crate::error::XlsxError;
 // Relationship types (ECMA-376 Part 1 §12.3, Transitional spellings)
 // ---------------------------------------------------------------------------------------------
 
-/// The relationship type from the package root to the workbook part (§12.3.23).
-pub const REL_OFFICE_DOCUMENT: &str =
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument";
-
-/// The relationship type from the workbook part to a worksheet part (§12.3.24).
-pub const REL_WORKSHEET: &str =
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
+// The four relationship types and four content types a package *this workspace authors* carries are
+// declared once, in `mjx_sml::write::constants`, and re-exported here. They were declared twice —
+// there and in `mjx-chart` — and would have been three times over the moment MJXOFF-112 wrote a
+// third producer; `mjx-sml` is below this crate in the layering, so the one set can live there and
+// be reached from both sides. Every other constant below is this crate's own: reading a part graph
+// needs twenty-five relationship types and an author needs four.
+pub use mjx_sml::write::constants::{REL_OFFICE_DOCUMENT, REL_WORKSHEET};
 
 /// The relationship type from the workbook part to a chartsheet part (§12.3.2).
 pub const REL_CHARTSHEET: &str =
@@ -57,13 +57,7 @@ pub const REL_CHARTSHEET: &str =
 pub const REL_DIALOGSHEET: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/dialogsheet";
 
-/// The relationship type from the workbook part to the shared string table (§12.3.15).
-pub const REL_SHARED_STRINGS: &str =
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
-
-/// The relationship type from the workbook part to the styles part (§12.3.20).
-pub const REL_STYLES: &str =
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
+pub use mjx_sml::write::constants::{REL_SHARED_STRINGS, REL_STYLES};
 
 /// The relationship type from the workbook part to the calculation chain (§12.3.1).
 pub const REL_CALCULATION_CHAIN: &str =
@@ -142,18 +136,13 @@ pub const REL_THEME: &str =
 // Content types (ECMA-376 Part 1 §12.3)
 // ---------------------------------------------------------------------------------------------
 
-/// The content type of the workbook part of a spreadsheet document (§12.3.23, first of the two the
-/// clause lists). Identical to `mjx_chart`'s own `CONTENT_TYPE_WORKBOOK`.
-pub const CONTENT_TYPE_WORKBOOK: &str =
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml";
+pub use mjx_sml::write::constants::CONTENT_TYPE_WORKBOOK;
 
 /// The content type of the workbook part of a spreadsheet *template* (§12.3.23, second of the two).
 pub const CONTENT_TYPE_WORKBOOK_TEMPLATE: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml";
 
-/// The content type of a worksheet part (§12.3.24).
-pub const CONTENT_TYPE_WORKSHEET: &str =
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml";
+pub use mjx_sml::write::constants::CONTENT_TYPE_WORKSHEET;
 
 /// The content type of a chartsheet part (§12.3.2).
 pub const CONTENT_TYPE_CHARTSHEET: &str =
@@ -163,13 +152,7 @@ pub const CONTENT_TYPE_CHARTSHEET: &str =
 pub const CONTENT_TYPE_DIALOGSHEET: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.dialogsheet+xml";
 
-/// The content type of the shared string table (§12.3.15).
-pub const CONTENT_TYPE_SHARED_STRINGS: &str =
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sharedStrings+xml";
-
-/// The content type of the styles part (§12.3.20).
-pub const CONTENT_TYPE_STYLES: &str =
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml";
+pub use mjx_sml::write::constants::{CONTENT_TYPE_SHARED_STRINGS, CONTENT_TYPE_STYLES};
 
 /// The content type of the calculation chain (§12.3.1).
 pub const CONTENT_TYPE_CALCULATION_CHAIN: &str =
