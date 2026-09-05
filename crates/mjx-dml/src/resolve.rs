@@ -126,8 +126,15 @@ impl SchemeColors {
     }
 
     /// The RGB of `slot`, or `None` if the scheme did not define (or could not resolve) it.
+    ///
+    /// **Public because this type is the interner-free bridge between two parts, and a bridge only
+    /// one crate can cross is a bridge to nowhere.** `mjx-sml` needs it: SpreadsheetML addresses a
+    /// theme colour by *position* in the `a:clrScheme` collection (ECMA-376 Part 1 §18.8.19, and the
+    /// index table in §20.1.6.2) rather than by a `schemeClr` token, so it maps a position to a
+    /// [`ColorSchemeSlot`] and asks here — resolving a workbook's colour against the same resolved
+    /// scheme a shape's would resolve against, rather than against a second implementation of it.
     #[must_use]
-    fn rgb(&self, slot: ColorSchemeSlot) -> Option<[u8; 3]> {
+    pub fn rgb(&self, slot: ColorSchemeSlot) -> Option<[u8; 3]> {
         self.slots
             .iter()
             .find_map(|(candidate, rgb)| (*candidate == slot).then_some(*rgb))
