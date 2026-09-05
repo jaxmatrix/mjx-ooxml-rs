@@ -29,3 +29,7 @@ mjx-fixtures.workspace = true
 # depends on — the same shape as the three fuzz edges above.
 mjx-pptx.workspace = true
 mjx-ooxml-types.workspace = true
+# The fuzz campaign's memory ceiling (MJXOFF-146), extracted to its own crate by MJXOFF-95 so a
+# `mjx-sml` test binary can install the same allocator — nothing may depend on `xtask`, and a second
+# `unsafe impl GlobalAlloc` is the last thing this workspace should have two of.
+mjx-allocation-counter.workspace = true

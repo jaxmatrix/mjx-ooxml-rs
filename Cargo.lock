@@ -403,6 +403,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "mjx-allocation-counter"
+version = "0.0.104"
+
+[[package]]
 name = "mjx-chart"
 version = "0.0.104"
 dependencies = [
@@ -1153,6 +1157,7 @@ name = "xtask"
 version = "0.0.104"
 dependencies = [
  "anyhow",
+ "mjx-allocation-counter",
  "mjx-fixtures",
  "mjx-mce",
  "mjx-ooxml-core",

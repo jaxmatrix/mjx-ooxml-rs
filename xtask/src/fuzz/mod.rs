@@ -29,9 +29,9 @@
 //!
 //! * **A panic** is caught by [`std::panic::catch_unwind`] and recorded with its message and
 //!   location, so one panicking input does not end the campaign.
-//! * **Unbounded allocation** is measured by [`allocation`]'s counting global allocator: the peak
-//!   for each execution is compared against a soft ceiling, and a hard ceiling inside the allocator
-//!   aborts rather than let the kernel decide.
+//! * **Unbounded allocation** is measured by [`mjx_allocation_counter`]'s counting global
+//!   allocator: the peak for each execution is compared against a soft ceiling, and a hard ceiling
+//!   inside the allocator aborts rather than let the kernel decide.
 //! * **A hang** is caught by a watchdog thread. Neither a panic hook nor an allocator can see an
 //!   input that simply never returns, and without the watchdog it is indistinguishable from a slow
 //!   campaign.
@@ -39,7 +39,6 @@
 //! Every input is written to the in-flight file *before* it runs, so the two failures that cannot
 //! unwind — the hard ceiling and the watchdog — still name their cause.
 
-mod allocation;
 mod container;
 mod mutate;
 mod random;
@@ -61,8 +60,12 @@ use crate::fuzz::targets::{Finding, Target, TARGETS};
 /// two relaxed atomic operations per allocation for it, which is not measurable next to reading
 /// schemas off disk, and the alternative — a second binary — would be a second thing to keep in
 /// step.
+///
+/// The implementation lives in `mjx-allocation-counter` rather than here because MJXOFF-95 needs the
+/// same instrument from a `mjx-sml` test binary, and nothing may depend on `xtask`. One
+/// `unsafe impl GlobalAlloc` in the workspace, two consumers.
 #[global_allocator]
-static ALLOCATOR: allocation::Counting = allocation::Counting;
+static ALLOCATOR: mjx_allocation_counter::Counting = mjx_allocation_counter::Counting;
 
 /// How much a single execution may have allocated at its peak before it is reported as a finding.
 ///
@@ -178,7 +181,10 @@ pub fn run(arguments: &[String]) -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
     let workspace = Workspace::create(&root)?;
 
-    allocation::set_hard_ceiling(HARD_CEILING);
+    mjx_allocation_counter::set_hard_ceiling(
+        HARD_CEILING,
+        "See the in-flight input file the driver wrote before this execution began.",
+    );
     install_panic_hook();
     let campaign_start = Instant::now();
     start_watchdog(campaign_start, workspace.in_flight.clone());
@@ -271,10 +277,10 @@ fn run_target(
         STARTED_AT.store(elapsed_millis(campaign_start), Ordering::Relaxed);
         GENERATION.fetch_add(1, Ordering::Relaxed);
         IN_FLIGHT.store(true, Ordering::Relaxed);
-        let before = allocation::reset_peak();
+        let before = mjx_allocation_counter::reset_peak();
         let outcome =
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (target.run)(&input)));
-        let used = allocation::peak().saturating_sub(before);
+        let used = mjx_allocation_counter::peak().saturating_sub(before);
         IN_FLIGHT.store(false, Ordering::Relaxed);
         executions += 1;
         peak = peak.max(used);
