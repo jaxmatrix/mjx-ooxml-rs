@@ -2934,6 +2934,41 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "CONDITIONAL_FORMAT_DATA_BAR", "sml", "CT_DataBar",
         "A data bar's two value objects, then its one colour (`x:dataBar`)",
     ),
+
+    // ---- Autofilters, sort state and data validation (MJXOFF-123) -----------------------------
+    //
+    // Five of this cluster's fifteen types place children rather than append them. The four that
+    // are left out are left out under the rule `CT_NumFmts` and `CT_CellXfs` are: `CT_CustomFilters`
+    // and `CT_DataValidations` each declare a single repeating child, and `CT_Filter`, `CT_Top10`,
+    // `CT_ColorFilter`, `CT_IconFilter`, `CT_DynamicFilter`, `CT_CustomFilter`, `CT_SortCondition`
+    // and `CT_DateGroupItem` declare none at all.
+    //
+    // `CT_FilterColumn` is the one entry here whose model is an `xsd:choice` rather than an
+    // `xsd:sequence`, so every one of its seven members ranks 0 and the table cannot order them
+    // against each other. That is the schema's own answer — a filter column carries **at most one**
+    // child — and the table is still what `mjx-sml` asks, because the alternative is a hand-rolled
+    // list of the six filter kinds and MJXOFF-89 deleted fourteen of those.
+    (
+        "AUTO_FILTER", "sml", "CT_AutoFilter",
+        "An autofilter's per-column filters, then its sort state, then `extLst` (`x:autoFilter`)",
+    ),
+    (
+        "FILTER_COLUMN", "sml", "CT_FilterColumn",
+        "One filtered column's `xsd:choice` of six filter kinds and `extLst` — every member ranks 0, \
+         because the schema lets a column carry only one of them (`x:filterColumn`)",
+    ),
+    (
+        "FILTERS", "sml", "CT_Filters",
+        "A value filter's literal values, then its date-group items (`x:filters`)",
+    ),
+    (
+        "SORT_STATE", "sml", "CT_SortState",
+        "A recorded sort's conditions, then `extLst` (`x:sortState`)",
+    ),
+    (
+        "DATA_VALIDATION", "sml", "CT_DataValidation",
+        "One validation rule's first formula, then its second (`x:dataValidation`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.

@@ -58584,3 +58584,18 @@ pub static CONDITIONAL_FORMAT_COLOR_SCALE: &ChildOrder = &SML_TYPES[50];
 
 /// A data bar's two value objects, then its one colour (`x:dataBar`) (`CT_DataBar`, `sml.xsd`).
 pub static CONDITIONAL_FORMAT_DATA_BAR: &ChildOrder = &SML_TYPES[77];
+
+/// An autofilter's per-column filters, then its sort state, then `extLst` (`x:autoFilter`) (`CT_AutoFilter`, `sml.xsd`).
+pub static AUTO_FILTER: &ChildOrder = &SML_TYPES[1];
+
+/// One filtered column's `xsd:choice` of six filter kinds and `extLst` — every member ranks 0, because the schema lets a column carry only one of them (`x:filterColumn`) (`CT_FilterColumn`, `sml.xsd`).
+pub static FILTER_COLUMN: &ChildOrder = &SML_TYPES[130];
+
+/// A value filter's literal values, then its date-group items (`x:filters`) (`CT_Filters`, `sml.xsd`).
+pub static FILTERS: &ChildOrder = &SML_TYPES[131];
+
+/// A recorded sort's conditions, then `extLst` (`x:sortState`) (`CT_SortState`, `sml.xsd`).
+pub static SORT_STATE: &ChildOrder = &SML_TYPES[315];
+
+/// One validation rule's first formula, then its second (`x:dataValidation`) (`CT_DataValidation`, `sml.xsd`).
+pub static DATA_VALIDATION: &ChildOrder = &SML_TYPES[84];
