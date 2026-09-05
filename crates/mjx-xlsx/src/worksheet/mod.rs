@@ -18,7 +18,7 @@
 //! | [`grid`](self::grid) | **MJXOFF-102 (D07) — done**: opening a worksheet part, one cell in or out, writing it back |
 //! | [`geometry`](self::geometry) | **MJXOFF-117 (D12) — done**: merging, row and column geometry, the merged-range format, the grid anomaly report |
 //! | [`formatting`](self::formatting) | **MJXOFF-108 (D09) — done**: `xl/styles.xml` plus one worksheet, and every cell's [`mjx_sml::EffectiveCellFormat`]. The resolution order itself is `mjx-sml`'s and is not repeated here |
-//! | [`features`](self::features) | MJXOFF-120/123/125/127/129 (D13-D17) — the optional worksheet features |
+//! | [`features`](self::features) | **MJXOFF-120 (D13) — done**: conditional formatting, which spans the worksheet and `xl/styles.xml`; MJXOFF-123/125/127/129 (D14-D17) fill the rest |
 //!
 //! # What this is not
 //!
