@@ -19,6 +19,13 @@ mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
+# The SpreadsheetML *markup* layer (MJXOFF-132). `mjx-sml` is rank 2.1 and this crate is rank 3.0,
+# so the edge points strictly downward and `xtask/tests/layering.rs` checks it rather than trusting
+# this comment. It is what makes the split real: `mjx-sml` owns what a cell, a row or an `xf` *is*;
+# this crate owns the package, the part graph and the `Workbook` a caller holds. Used here today by
+# `XlsxError::Sml`, which is how every later Phase D child's model failures will surface.
+mjx-sml.workspace = true
+thiserror.workspace = true
 
 [dev-dependencies]
 # The shared ECMA-376 schema and child-order gate — the same harness `mjx-pptx` and `mjx-docx` are

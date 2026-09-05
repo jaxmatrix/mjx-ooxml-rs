@@ -1,13 +1,59 @@
-//! `mjx-xlsx` — SpreadsheetML: workbook, worksheets, shared strings, styles/xf; formulas preserved as text.
+//! `mjx-xlsx` — the SpreadsheetML **package**: the container, the part graph, and the [`Workbook`] a
+//! caller holds.
 //!
-//! Part of the `mjx-ooxml-rs` workspace. Scaffold stub — see `PLAN.md` for the roadmap
-//! and the phase in which this crate is implemented.
+//! The entry point is [`Workbook`]: open a `.xlsx`'s container bytes with [`Workbook::open`], read
+//! its tabs with [`Workbook::sheets`] and its part graph with [`Workbook::parts`], and save with
+//! [`Workbook::save`]. Everything this crate does not model — which, today, is everything — is
+//! preserved verbatim by the OPC copy-on-write layer.
+//!
+//! ```no_run
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! let bytes = std::fs::read("book.xlsx")?;
+//! let workbook = mjx_xlsx::Workbook::open(&bytes)?;
+//! for sheet in workbook.sheets() {
+//!     println!("{} -> {:?}", sheet.name, sheet.part);
+//! }
+//! let saved = workbook.save()?;
+//! # let _ = saved;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Excel is two crates
+//!
+//! **`mjx-sml` owns `sml.xsd` content; `mjx-xlsx` owns OPC structure.** A cell, a row, a shared
+//! string, an `xf` — what they *are* — belong to [`mjx_sml`], in the shared-markup tier, because an
+//! embedded workbook inside a `.pptx` or a `.docx` is SpreadsheetML too and `mjx-chart` must be able
+//! to reach it without an upward or sideways crate edge. Parts, content types, relationships, the
+//! ZIP and the [`Workbook`] surface are this crate's, in the format tier beside `mjx-pptx` and
+//! `mjx-docx`. `xtask/tests/layering.rs` checks that this crate depends on `mjx-sml` and that
+//! nothing at or below the shared-markup tier depends on this one.
+//!
+//! # Status — the package spine, and nothing else
+//!
+//! MJXOFF-91 (D02) builds the package, the part graph, and a workbook that opens and saves without
+//! touching a byte. It **models nothing**. See `crates/mjx-xlsx/src/workbook/mod.rs`'s and
+//! `crates/mjx-xlsx/src/worksheet/mod.rs`'s own module documentation for the file-by-file map of
+//! which later Phase D child fills what, and [`crate::preserve`] for the fidelity contract
+//! everything here rests on.
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_scaffold_builds() {
-        // Placeholder so the crate is born green (TDD: always-green increments).
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod blank;
+mod error;
+pub mod guide;
+mod nav;
+pub mod parts;
+pub mod preserve;
+mod validate;
+mod workbook;
+mod worksheet;
+
+pub use error::XlsxError;
+pub use parts::{PartKind, SheetKind, WorkbookParts, WorksheetParts};
+pub use preserve::{PartClassification, PartInventoryEntry};
+pub use validate::SpreadsheetDefect;
+pub use workbook::{Sheet, Workbook};
+pub use worksheet::Worksheet;
+
+/// Re-exported so that a caller who holds a [`Workbook`] can name what it is built on without
+/// declaring `mjx-opc` themselves — the same courtesy `mjx-pptx` extends for the same types.
+pub use mjx_opc::{OpcError, Package, PartName, TargetMode};

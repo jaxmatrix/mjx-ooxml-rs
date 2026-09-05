@@ -1,0 +1,235 @@
+//! The [`Workbook`] entry point: open a container, read its part graph, save it back.
+//!
+//! # Why this is a directory on day one
+//!
+//! `mjx-pptx`'s `Presentation` reached **12,771 lines** in one file before A8 split it across
+//! nineteen modules under `presentation/`, and `mjx-docx` started its equivalent split at MJXOFF-90
+//! rather than repeat that. Excel is the larger of the three schemas — `sml.xsd` declares 367
+//! complex types against `pml.xsd`'s 149 — so this crate gets the same treatment before the first
+//! model lands, and each of the eighteen Phase D children after this one has a home named for it
+//! rather than a god module to append to.
+//!
+//! # The split this crate is one half of
+//!
+//! **`mjx-sml` owns `sml.xsd` content; `mjx-xlsx` owns OPC structure.** A cell, a row, a shared
+//! string, an `xf` — what they *are* — is `mjx-sml`'s, because an embedded workbook inside a `.pptx`
+//! or a `.docx` is SpreadsheetML too and `mjx-chart` has to reach it. Parts, content types,
+//! relationships, the ZIP and the [`Workbook`] a caller holds are this crate's. `mjx_sml::workbook`
+//! and this module therefore share a name and share nothing else: that one models `CT_Workbook`,
+//! this one is the surface a package is reached through.
+//!
+//! # The module tree, and the child that fills each file
+//!
+//! | Module | Filled by |
+//! |---|---|
+//! | `mod.rs` (this file) | MJXOFF-91 (D02) — [`Workbook`]: `open`/`from_package`/`save`/`save_unchecked`/`validate`/`parts`/`sheets`/`part_inventory` |
+//! | [`sheets`](self::sheets) | MJXOFF-91 (D02) — the `x:sheets` graph entry ([`Sheet`], [`crate::SheetKind`]); MJXOFF-100 (D06) adds the modelled sheet list on top |
+//! | [`views`](self::views) | MJXOFF-100 (D06) — `x:bookViews`, `x:workbookView`, the active tab and window geometry |
+//! | [`properties`](self::properties) | MJXOFF-100 (D06) — `x:workbookPr`, `x:workbookProtection`, `x:calcPr`, `x:fileVersion` |
+//! | [`defined_names`](self::defined_names) | MJXOFF-100 (D06) — `x:definedNames`, and the built-in names (`_xlnm.Print_Area`, …) |
+//!
+//! Beside this directory: [`crate::parts`] (the part graph), [`crate::preserve`] (what happens to a
+//! part nobody models), [`crate::validate`] (the SpreadsheetML invariants), [`crate::worksheet`]
+//! (the sheet-level graph and, from MJXOFF-102, the sheet itself), [`crate::blank`] (MJXOFF-112),
+//! [`crate::error`], [`crate::guide`] and `nav.rs`. A child needing a subject none of them names
+//! adds the file *and* a row here, the same way `mjx-pptx`'s own list grew past A8.
+//!
+//! # What MJXOFF-91 deliberately does not do
+//!
+//! It models nothing. There is no cell, no shared string and no style here, and reading a workbook
+//! never re-serializes a part: the whole deliverable is that
+//! `Workbook::open(bytes)?.save()?` reproduces every decompressed part byte for byte, and that the
+//! part graph a later child needs is already resolved. See [`crate::preserve`] for that contract in
+//! full.
+
+pub(crate) mod defined_names;
+pub(crate) mod properties;
+pub(crate) mod sheets;
+pub(crate) mod views;
+
+use mjx_ooxml_types::namespaces::SML;
+use mjx_opc::{Package, PartName, TargetMode};
+
+use crate::error::XlsxError;
+use crate::nav;
+use crate::parts::{PartKind, WorkbookParts};
+use crate::preserve::PartInventoryEntry;
+use crate::worksheet::Worksheet;
+
+pub use sheets::Sheet;
+
+/// A SpreadsheetML workbook: an [`mjx_opc::Package`], the workbook part inside it, and the part
+/// graph reached from there.
+///
+/// ```no_run
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let bytes = std::fs::read("book.xlsx")?;
+/// let workbook = mjx_xlsx::Workbook::open(&bytes)?;
+/// for sheet in workbook.sheets() {
+///     println!("{} -> {:?}", sheet.name, sheet.part);
+/// }
+/// let saved = workbook.save()?;
+/// # let _ = saved;
+/// # Ok(())
+/// # }
+/// ```
+///
+/// # Fidelity
+///
+/// Opening a workbook parses exactly one part — `xl/workbook.xml`, to read its sheet list — and
+/// parsing is not mutating: the part keeps its container bytes and [`save`](Self::save) re-emits
+/// them verbatim, as it does for every part nothing has touched. There is nothing in this type that
+/// can dirty a part, which is why [`Workbook::open`] followed by [`Workbook::save`] is a byte-exact
+/// round trip of the whole container.
+#[derive(Debug)]
+pub struct Workbook {
+    package: Package,
+    workbook_part: PartName,
+    parts: WorkbookParts,
+    sheets: Vec<Sheet>,
+}
+
+impl Workbook {
+    /// Opens a workbook from its container bytes, resolving the workbook part and its part graph.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the package is unreadable, has no `officeDocument` relationship, its
+    /// workbook part is missing, or that part's root element is not `x:workbook`.
+    pub fn open(bytes: &[u8]) -> Result<Self, XlsxError> {
+        Self::from_package(Package::open(bytes)?)
+    }
+
+    /// Resolves an already-loaded [`Package`] into a workbook.
+    ///
+    /// The constructor for a caller who already holds the package — and the one path every other
+    /// constructor goes through, so that a workbook built from nothing (MJXOFF-112's
+    /// `Workbook::blank`) is resolved by the same code that resolves one read off disk, rather than
+    /// surviving as a special case nothing checks.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError::MissingOfficeDocument`] if the package root has no `officeDocument`
+    /// relationship, [`XlsxError::ExternalTarget`] if that relationship points outside the package,
+    /// [`XlsxError::MissingWorkbookPart`] if the part it names is absent, or
+    /// [`XlsxError::MalformedWorkbook`] if that part's root element is not `x:workbook`.
+    pub fn from_package(mut package: Package) -> Result<Self, XlsxError> {
+        let workbook_part = {
+            let root_rels = package
+                .relationships_for(None)
+                .ok_or(XlsxError::MissingOfficeDocument)?;
+            let rel = root_rels
+                .by_type(PartKind::Workbook.relationship_type())
+                .next()
+                .ok_or(XlsxError::MissingOfficeDocument)?;
+            if rel.mode == TargetMode::External {
+                return Err(XlsxError::ExternalTarget {
+                    target: rel.target.clone(),
+                });
+            }
+            nav::resolve_from_root(&rel.target)?
+        };
+        if !package.part_names().any(|part| part == workbook_part) {
+            return Err(XlsxError::MissingWorkbookPart(
+                workbook_part.as_str().to_owned(),
+            ));
+        }
+
+        {
+            // A read, never a mutation: `part_tree` keeps the part's original bytes and `save` still
+            // re-emits them verbatim. The workbook part is identified by its **root element**, not
+            // by its content type — which is what lets a macro-enabled workbook open even though
+            // ECMA-376 declares no content type for one (see `crate::parts`).
+            let doc = package.part_tree(&workbook_part)?;
+            if !nav::name_is(&doc.root.name, &doc.interner, SML, "workbook") {
+                return Err(XlsxError::MalformedWorkbook(
+                    "root element is not x:workbook",
+                ));
+            }
+        }
+
+        let parts = WorkbookParts::resolve(&package, &workbook_part)?;
+        let sheets = sheets::resolve(&mut package, &workbook_part)?;
+
+        Ok(Self {
+            package,
+            workbook_part,
+            parts,
+            sheets,
+        })
+    }
+
+    /// The workbook part's own name — `/xl/workbook.xml` in everything a real producer writes,
+    /// though nothing in OPC requires that spelling.
+    #[must_use]
+    pub fn workbook_part(&self) -> &PartName {
+        &self.workbook_part
+    }
+
+    /// The resolved part graph: styles, shared strings, theme, and every other part this crate
+    /// classifies that the workbook relates to.
+    #[must_use]
+    pub fn parts(&self) -> &WorkbookParts {
+        &self.parts
+    }
+
+    /// The workbook's tabs, in the order `x:sheets` lists them — see
+    /// `crates/mjx-xlsx/src/workbook/sheets.rs`'s own module documentation for why that list, and
+    /// not the relationship order, is the answer.
+    #[must_use]
+    pub fn sheets(&self) -> &[Sheet] {
+        &self.sheets
+    }
+
+    /// The sheet at `index` in the `x:sheets` list, with its own part graph resolved.
+    ///
+    /// `None` if `index` is past the end, or if the entry's `r:id` reaches no part.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if one of the sheet's own relationships has an unresolvable or external
+    /// target.
+    pub fn worksheet(&self, index: usize) -> Result<Option<Worksheet<'_>>, XlsxError> {
+        let Some(sheet) = self.sheets.get(index) else {
+            return Ok(None);
+        };
+        Worksheet::resolve(&self.package, sheet)
+    }
+
+    /// Every addressable part of the container, in container order, with its content type and what
+    /// this crate made of it.
+    ///
+    /// A part reported [`Unclassified`](crate::PartClassification::Unclassified) is preserved,
+    /// not rejected — see [`crate::preserve`].
+    #[must_use]
+    pub fn part_inventory(&self) -> Vec<PartInventoryEntry<'_>> {
+        crate::preserve::inventory(&self.package)
+    }
+
+    /// Checks the packaging graph ([`mjx_opc::Package::validate`]) and this crate's own
+    /// SpreadsheetML invariants, without writing anything.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError::Opc`] carrying the first packaging defect found, or
+    /// [`XlsxError::InvalidWorkbook`] carrying the first SpreadsheetML one.
+    pub fn validate(&self) -> Result<(), XlsxError> {
+        self.package.validate().map_err(mjx_opc::OpcError::from)?;
+        crate::validate::check(&self.package, &self.workbook_part)
+    }
+
+    /// Validates the workbook, then serializes it back to container bytes.
+    ///
+    /// # Errors
+    /// Returns whatever [`validate`](Self::validate) returns, or [`XlsxError::Opc`] if the ZIP
+    /// writer fails.
+    pub fn save(&self) -> Result<Vec<u8>, XlsxError> {
+        self.validate()?;
+        self.save_unchecked()
+    }
+
+    /// Serializes the workbook back to container bytes **without** checking its invariants — the
+    /// escape hatch for writing back a container that arrived broken.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError::Opc`] if the ZIP writer fails.
+    pub fn save_unchecked(&self) -> Result<Vec<u8>, XlsxError> {
+        Ok(self.package.save_unchecked()?)
+    }
+}
