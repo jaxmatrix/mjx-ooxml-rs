@@ -346,12 +346,19 @@ impl ToXml for IgnoredErrors {
 /// a name. This crate holds the number; resolving it is a caller's, and this crate never does it —
 /// the same rule a `@dxfId` and a `@styleId` follow.
 ///
-/// `@deleted` records that the user dismissed the tag, and `@xmlBased` that it came from an XML map
-/// rather than from a recogniser. Both default to `false`, and neither is acted on.
+/// `@deleted` records that the user **removed the tag** while the record was kept in the file, and
+/// `@xmlBased` that it came from an XML map rather than from a recogniser. Both default to `false`,
+/// and neither is acted on.
+///
+/// The accessor's `_was_` shape copies [`ScenarioInputCells`](crate::ScenarioInputCells)' own
+/// accessor for `CT_InputCells`' identically-named attribute, and for the same reason: this is a
+/// **real removal by the user** reported as a fact about the file, not the chart family's *"draw
+/// nothing here"*, which this workspace spells `suppressed`. Nothing is switched off — the record
+/// stays in the file and is written out exactly as it was read.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = SML)]
 #[xml(attribute(local = "type", codec = Number<u32>, accessor = type_index, required))]
-#[xml(attribute(local = "deleted", codec = OnOff, accessor = is_deleted, default = false))]
+#[xml(attribute(local = "deleted", codec = OnOff, accessor = smart_tag_was_deleted, default = false))]
 #[xml(attribute(local = "xmlBased", codec = OnOff, accessor = is_xml_based, default = false))]
 pub struct CellSmartTag {
     name: RawName,

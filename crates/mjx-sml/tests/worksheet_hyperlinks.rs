@@ -669,7 +669,7 @@ fn worksheet_smart_tags_read_three_levels_deep() {
         Ok(1),
         "@type is an index into the workbook's smartTagTypes, and is never resolved here"
     );
-    assert_eq!(tag.is_deleted(interner), Ok(true));
+    assert_eq!(tag.smart_tag_was_deleted(interner), Ok(true));
     assert_eq!(tag.is_xml_based(interner), Ok(false));
 
     let properties: Vec<_> = tag
