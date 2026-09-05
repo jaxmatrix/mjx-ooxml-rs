@@ -105,6 +105,15 @@ pub use strings::{
     InlineString, PhoneticProperties, PhoneticRun, RichTextRun, RichTextRunSpec, SharedStringTable,
     StringItem,
 };
+pub use styles::{
+    apply_tint, apply_tint_to_luminance, Border, BorderContent, BorderEdge, BorderEdgeContent,
+    BorderTable, BorderTableContent, CellAlignment, CellProtection, ColorTable, ColorTableContent,
+    DifferentialFormat, DifferentialFormatContent, DifferentialFormats, DifferentialFormatsContent,
+    Fill, FillContent, FillTable, FillTableContent, Font, FontTable, FontTableContent,
+    GradientFill, GradientFillContent, GradientStop, GradientStopContent, IndexedColor,
+    IndexedColorPalette, IndexedColors, IndexedColorsContent, MruColors, MruColorsContent,
+    NumberFormat, PatternFill, PatternFillContent, RgbColor, StylesheetContent, StylesheetPart,
+};
 pub use workbook::{
     BookViews, BuiltInName, CalculationProperties, CustomWorkbookView, CustomWorkbookViews,
     DefinedName, DefinedNames, EmbeddedObjectSize, ExternalReference, ExternalReferences,
