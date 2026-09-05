@@ -564,6 +564,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "mjx-sml"
+version = "0.0.101"
+dependencies = [
+ "mjx-derive",
+ "mjx-dml",
+ "mjx-mce",
+ "mjx-ooxml-core",
+ "mjx-ooxml-types",
+ "mjx-opc",
+ "mjx-xml",
+ "thiserror",
+]
+
+[[package]]
 name = "mjx-vml"
 version = "0.0.101"
 dependencies = [

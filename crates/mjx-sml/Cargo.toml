@@ -1,0 +1,34 @@
+[package]
+name = "mjx-sml"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "SpreadsheetML markup: cells, rows, sheet data, shared strings, styles and number formats (shared by all formats)."
+
+[lints]
+workspace = true
+
+# Exactly the set `mjx-chart` carries, plus `mjx-mce`: that is the evidence this crate is in the
+# shared-markup tier and not in the format tier. Every edge points strictly downward from rank 2.1 —
+# `mjx-dml` is rank 2.0, everything else is rank 0 or 1 — and `xtask/tests/layering.rs` checks it
+# rather than trusting this comment.
+#
+# Two edges have no user in this crate yet and are declared here on purpose, because a dependency
+# added later is a dependency nobody re-derives the legality of:
+#   * `mjx-derive`  — the `#[derive(FromXml, ToXml)]` every model in this crate will be built with,
+#                     first used by MJXOFF-100 (D06).
+#   * `mjx-dml`     — SpreadsheetML reaches DrawingML for real at MJXOFF-107 (E3), whose worksheet
+#                     drawings are `xdr:`-wrapped `a:` markup. It is also the one edge that makes
+#                     rank 2.1 → 2.0 a *checked* fact instead of a claim about a graph with no edges.
+[dependencies]
+mjx-ooxml-core.workspace = true
+mjx-xml.workspace = true
+mjx-derive.workspace = true
+mjx-ooxml-types.workspace = true
+mjx-opc.workspace = true
+mjx-mce.workspace = true
+mjx-dml.workspace = true
+thiserror.workspace = true
