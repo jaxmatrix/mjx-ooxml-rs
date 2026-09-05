@@ -32,3 +32,9 @@ mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
 thiserror.workspace = true
+
+[dev-dependencies]
+# The committed corpus, so `tests/fixture_addressing.rs` reads `sample.xlsx` from the one place the
+# workspace derives its fixtures from. Dependency-free, and a `[dev-dependencies]` edge, so it adds
+# nothing to the shipped graph — the same edge every other suite in this workspace already has.
+mjx-fixtures.workspace = true

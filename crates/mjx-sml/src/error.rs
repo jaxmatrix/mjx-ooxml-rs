@@ -25,9 +25,10 @@ use mjx_xml::XmlError;
 ///
 /// MJXOFF-132 (D01) creates the crate and this enum with the three failures every SpreadsheetML
 /// path can already produce: a package that will not open, a part that is not well-formed XML, and a
-/// modelled element that does not match its schema type. Each later Phase D child adds the variants
-/// its own model needs — an unresolvable cell reference (MJXOFF-93), a shared-string index that
-/// names no entry (MJXOFF-97), an `xf` index outside `cellXfs` (MJXOFF-108).
+/// modelled element that does not match its schema type. MJXOFF-93 (D03) adds the fourth: an address
+/// — a cell reference, a range, a `sqref` or a `spans` list — that does not parse. Each later Phase D
+/// child adds the variants its own model needs — a shared-string index that names no entry
+/// (MJXOFF-97), an `xf` index outside `cellXfs` (MJXOFF-108).
 #[derive(Debug, thiserror::Error)]
 pub enum SmlError {
     /// The underlying OPC package could not be read, edited or written.
@@ -41,6 +42,10 @@ pub enum SmlError {
     /// A modelled element did not match the shape its complex type declares.
     #[error(transparent)]
     Model(#[from] FromXmlError),
+
+    /// A cell reference, range, `sqref` or `spans` value did not parse.
+    #[error(transparent)]
+    Address(#[from] crate::address::AddressError),
 }
 
 #[cfg(test)]
@@ -77,16 +82,20 @@ mod tests {
         let xml_text = xml.to_string();
         let model = FromXmlError::InvalidUtf8;
         let model_text = model.to_string();
+        let address = crate::address::AddressError::ColumnOutOfGrid;
+        let address_text = address.to_string();
 
         let built = [
             (through_question_mark(opc), opc_text),
             (through_question_mark(xml), xml_text),
             (through_question_mark(model), model_text),
+            (through_question_mark(address), address_text),
         ];
 
         assert!(matches!(built[0].0, SmlError::Opc(_)));
         assert!(matches!(built[1].0, SmlError::Xml(_)));
         assert!(matches!(built[2].0, SmlError::Model(_)));
+        assert!(matches!(built[3].0, SmlError::Address(_)));
 
         for (error, wrapped) in &built {
             assert!(
