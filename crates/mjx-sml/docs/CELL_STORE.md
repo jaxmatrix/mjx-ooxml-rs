@@ -101,6 +101,25 @@ Reading the whole worksheet into the store costs **11,564 KiB of peak RSS on top
 38.7 B/cell against 913, a 23.6× reduction** — and the store reports `0 bytes edited`, which is the
 copy-on-write rule as a number.
 
+### Interning and `Cow`, the other half of the `PLAN.md` line
+
+`PLAN.md` also settles strings as *"intern hot repeated strings (namespaces, element/attribute names,
+shared strings); borrow text from the buffer via `Cow`, own only on edit/unescape."* The store's
+answer is that half taken to its limit: **it holds no strings at all.** A cell's value, a row's
+attribute run and an unmodelled `extLst` are byte ranges into the part's own buffer, so the
+borrow-from-the-buffer case costs eight bytes and no lifetime, and the own-on-edit case is an append
+to the store's `edits` vector. Nothing is interned here because nothing repeats here — the element
+*names* that would be worth interning are the tree's, and the tree is where
+`mjx_ooxml_core::Interner` is still used. A shared-string cell holds a `u32` index
+(`Cell::shared_string_index`), never a string; MJXOFF-97 (D05) owns the table it indexes into, and
+this is the contract that table will be read through.
+
+Where a caller does want text, it gets a `Cow`: `Cell::value` borrows the part's bytes when the value
+carries no entity reference and owns only when unescaping has something to do, and
+`Cell::raw_attribute` borrows for a cell that keeps its attribute run and owns for one whose start tag
+is regenerated — which is the only case where the text is not stored anywhere, because storing it
+would be storing it a million times.
+
 ## The alternatives, and why each lost
 
 | Shape | Cost per cell | Why not |
