@@ -38,3 +38,15 @@ thiserror.workspace = true
 # workspace derives its fixtures from. Dependency-free, and a `[dev-dependencies]` edge, so it adds
 # nothing to the shipped graph — the same edge every other suite in this workspace already has.
 mjx-fixtures.workspace = true
+# The counting global allocator, so `tests/cell_store_allocation.rs` can assert a byte bound instead
+# of asserting by inspection. Dependency-free and outside the shipped graph, like `mjx-fixtures`; it
+# is the same allocator `xtask`'s fuzz campaign installs, not a second one.
+mjx-allocation-counter.workspace = true
+
+# The memory gate is a binary of its own with **no test harness**, and both halves of that are load
+# bearing. A `#[global_allocator]` is process-wide, so a peak measured in a binary that also runs
+# other tests measures the other tests; and `cargo test` runs a harness's cases on several threads
+# at once, so even one binary's own cases would interleave. One target, one `main`, one thread.
+[[test]]
+name = "cell_store_allocation"
+harness = false

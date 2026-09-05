@@ -28,7 +28,8 @@ use mjx_xml::XmlError;
 /// modelled element that does not match its schema type. MJXOFF-93 (D03) adds the fourth: an address
 /// — a cell reference, a range, a `sqref` or a `spans` list — that does not parse. Each later Phase D
 /// child adds the variants its own model needs — a shared-string index that names no entry
-/// (MJXOFF-97), an `xf` index outside `cellXfs` (MJXOFF-108).
+/// (MJXOFF-97), an `xf` index outside `cellXfs` (MJXOFF-108). MJXOFF-95 (D04) adds the fifth: a
+/// worksheet whose bytes outgrow the cell store's `u32` address space.
 #[derive(Debug, thiserror::Error)]
 pub enum SmlError {
     /// The underlying OPC package could not be read, edited or written.
@@ -46,6 +47,20 @@ pub enum SmlError {
     /// A cell reference, range, `sqref` or `spans` value did not parse.
     #[error(transparent)]
     Address(#[from] crate::address::AddressError),
+
+    /// A worksheet's `sheetData`, or the edits made to it, outgrew the byte space the cell store
+    /// addresses values in.
+    ///
+    /// The store keeps every preserved value as a `(start, length)` pair of `u32`s over one address
+    /// space — see `crate::cells` for why — so the part's bytes plus whatever has been edited must
+    /// stay under four gigabytes. No producer writes a worksheet part anywhere near that, and
+    /// `mjx-xml`'s reader already stops recording byte ranges past the same limit; this is here
+    /// because untrusted input does not get to decide whether an index is in range.
+    #[error("the cell store's byte space cannot address {bytes} bytes (the limit is 4 GiB)")]
+    SheetDataTooLarge {
+        /// How many bytes were asked for.
+        bytes: u64,
+    },
 }
 
 #[cfg(test)]

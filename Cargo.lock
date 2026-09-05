@@ -571,6 +571,7 @@ dependencies = [
 name = "mjx-sml"
 version = "0.0.104"
 dependencies = [
+ "mjx-allocation-counter",
  "mjx-derive",
  "mjx-dml",
  "mjx-fixtures",
@@ -1164,6 +1165,7 @@ dependencies = [
  "mjx-ooxml-types",
  "mjx-opc",
  "mjx-pptx",
+ "mjx-sml",
  "mjx-xml",
 ]
 
