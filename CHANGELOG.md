@@ -52,6 +52,61 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.101] - 2026-09-05
+
+The Word usage guide, its examples, and the `wml` preserve-only ledger (MJXOFF-150, Phase C position
+22) — the last child of Phase C.
+
+### Added
+
+- **Four Word guide pages**, so `crates/mjx-docx/docs/guide/` is now the five-pages-plus-a-README
+  shape `crates/mjx-pptx/docs/guide/` settled on, in the same reading order:
+  [`text_and_formatting`](https://docs.rs/mjx-docx/latest/mjx_docx/guide/text_and_formatting/)
+  (addressing a run, positions shifting under an insert, equations, run-level content that is not
+  text, comments/notes/bookmarks, tracked changes read but never applied),
+  [`tables_sections_and_headers`](https://docs.rs/mjx-docx/latest/mjx_docx/guide/tables_sections_and_headers/)
+  (both kinds of merge, the grid-discrepancy report, sections ending rather than starting at a
+  `w:sectPr`, header inheritance, fields, structured content), [`styles_and_inheritance`](https://docs.rs/mjx-docx/latest/mjx_docx/guide/styles_and_inheritance/)
+  (the six-rung ladder, the `w:basedOn` chain and its typed cycle error, the toggle-property XOR
+  rule, numbering, the table-cell rung) and [`fidelity_and_gaps`](https://docs.rs/mjx-docx/latest/mjx_docx/guide/fidelity_and_gaps/).
+  `crates/mjx-docx/src/guide.rs` grows from two `include_str!` to six.
+  **Every snippet is a compiled doctest that asserts on a value it computed** — 38 doctests in
+  `mjx-docx`, up from 24 — and every one of the new ones runs against a real `Document::blank`
+  rather than being `no_run`, so an assertion that stopped holding would go red rather than merely
+  still compiling.
+- **`crates/mjx-docx/docs/guide/fidelity_and_gaps.md`**, the artefact MJXOFF-128 (F2) named and no
+  unit produced. Same structure as PowerPoint's: the round-trip guarantee, what `save` refuses,
+  the content that is not WordprocessingML, and four lists under *The gaps* — **Non-goals** (twelve
+  rows, each with the reason it is a decision), **Built, not yet verified against Office** (eight
+  rows, F2's input; nothing here is marked verified, and no agent may mark it so), **Whole formats**
+  and **What used to be here**. It also names, rather than leaves implied, that `mjx-docx` has no
+  `DocumentDefect` counterpart to `mjx-pptx`'s `PresentationDefect`: Word's `save` runs the package
+  graph check alone, and the WordprocessingML-level invariants are enforced at the point of each edit
+  instead.
+- **The `wml` preserve-only ledger**, in that page: the one complex type of 285 with no Rust type
+  (`CT_ShapeDefaults`, whose whole content model is `xsd:any` in the VML office namespace), the
+  elements typed as `Unmodeled` and why each is (most are `CT_Empty`, where "unmodelled" is the
+  complete truth), the eight clusters whose *reference* is typed and whose *payload* is preserved
+  (`w:altChunk` payloads, custom XML data, printer settings, embedded fonts, OLE streams, `w:subDoc`,
+  charts and SmartArt inside a `w:drawing`, VML beyond `mjx-vml`'s coverage), and the one
+  deliberately unmodelled recursion (`w:divsChild`).
+- **Eight new `mjx-docx` examples**, taking the crate from one to nine and matching `mjx-pptx`'s
+  eight: `read_document`, `edit_text`, `build_table`, `styles_and_numbering`, `sections_and_headers`,
+  `fields_and_hyperlinks`, `annotations` and `structured_content`. Each takes a CLI argument with a
+  `target/examples/` default, prints section banners, and **reopens what it wrote and asserts on
+  it** — `read_document` compares every part's decompressed payload against the original to prove
+  that reading dirties nothing, and `edit_text` proves the converse for four parts nothing addressed.
+- **`crates/mjx-docx/examples/support/mod.rs`**, `mjx-pptx`'s four helpers (`fixture_dir`, `fixture`,
+  `template`, `output_path`) by the same names and signatures, with `fixture_dir` delegating to
+  `mjx_fixtures::fixtures_dir()` rather than recomputing the path — two spellings of one directory is
+  the drift `mjx-fixtures` exists to end. `blank_document.rs` moves onto it, losing its own private
+  copy of `output_path`.
+
+### Changed
+
+- `mjx-ooxml`'s crate-level *Guides* section lists all five Word pages by name, as it already did for
+  PowerPoint's five, instead of naming only `building_a_document`.
+
 ## [0.0.100] - 2026-09-05
 
 The Word facade, the error mapping and both bindings (MJXOFF-139, Phase C position 21) — closes
