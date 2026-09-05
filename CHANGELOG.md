@@ -52,6 +52,74 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.105] - 2026-09-05
+
+The cell store: `PLAN.md`'s hybrid memory model stops being theoretical (MJXOFF-95, Phase D
+position 4).
+
+### Added
+
+- **`mjx_sml::cells`** — `CT_SheetData`, `CT_Row` and `CT_Cell`, held as three flat arrays over one
+  byte arena rather than as a tree. `SheetData` (read, edit, write), the `Row` and `Cell` views,
+  `CellValue`, `PayloadShape` and `SheetDataAnomaly`. `crates/mjx-sml/docs/CELL_STORE.md` is the
+  decision record: every alternative that was costed, what each would have cost, and the machine the
+  numbers came from.
+- **`mjx_sml::SmlError::SheetDataTooLarge`** — the fifth variant: a worksheet whose bytes outgrow the
+  store's `u32` address space. The enum stays deliberately exhaustive, so MJXOFF-137's facade mapping
+  cannot silently file it under a wildcard.
+- **`mjx_xml::fidelity::serialize_element` / `serialize_node`** — serialize one element or node
+  against an interner and an optional source buffer, without a `RawDocument`. A model that holds
+  rows rather than a tree has both and no document to put them in; the alternative was a second
+  serializer in a crate that must not have one.
+- **`crates/mjx-allocation-counter`** — the counting global allocator MJXOFF-146 wrote inside
+  `xtask/src/fuzz/`, moved so that a `mjx-sml` test binary can install it too. Nothing may depend on
+  `xtask`, and a second `unsafe impl GlobalAlloc` is the last thing a workspace with
+  `unsafe_code = "deny"` should have. Dependency-free and outside the shipped graph, like
+  `mjx-fixtures`; `CLAUDE.md`'s "two test-only crates" and "three places allow unsafe" both become
+  three, and `xtask/tests/layering.rs` grows the tier that keeps the claim checked.
+- **`tests/fixtures/row_spans_and_extensions.xlsx`** — a real package carrying `row@spans` on two
+  rows and none on a third, plus a `c/extLst` of foreign markup. MJXOFF-93 could only assert
+  `ST_CellSpans` against authored markup, `sample.xlsx` being LibreOffice-authored and carrying none.
+- **`crates/mjx-sml/tests/cell_store_allocation.rs`** — the memory gate: one target, one `main`, one
+  thread, `harness = false`, and a hard byte bound measured by the allocation counter.
+- **`crates/mjx-sml/tests/cell_store_fidelity.rs`** — the round-trip, edit-isolation, unknown-bucket,
+  `spans` and untrusted-input cases.
+
+### Changed
+
+- **`xtask`'s SpreadsheetML corpus writes `row@spans`**, as Excel does. The hint is advisory and
+  changes nothing about the file's meaning; the worksheet part moves from 8,955,423 to 9,020,423
+  bytes and the package from 1,233 to 1,235 KiB, and `docs/BENCHMARKS.md` says so where the figures
+  are. Element and cell counts are unchanged.
+- **`cargo run --release -p xtask -- corpus --mem xlsx` gained a fifth checkpoint** — what holding
+  the corpus worksheet costs as a packed store rather than a tree — taken with the tree still alive,
+  so the reading is the honest cumulative one.
+
+### Notes
+
+- **36.8 bytes per cell, against the 913 MJXOFF-147 measured for a `RawElement` tree of the same
+  worksheet.** That benchmark also said where the 913 comes from — not the 72-byte element struct but
+  the two small heap allocations every element carries — so this store has no per-cell allocation at
+  all: 36 bytes a cell, 48 a row, 40 for the rare cell that carries something unusual, and, for a
+  worksheet nobody has edited, not one byte of its own, because every value it preserves is a range
+  into the part's buffer, shared with the package rather than copied. A sheet whose only populated
+  cell is `XFD1048576` allocates 368 bytes and holds one row record.
+- **Holding is 25x cheaper; opening is unchanged.** The store is built from a `RawElement` tree, so
+  the +274 MiB first materialisation MJXOFF-147 recorded is still paid on open. Building it straight
+  from the part's bytes would need a streaming reader in `mjx-xml`, `quick-xml` being allowed behind
+  that crate and nowhere else, and is not in this child's scope.
+- **The unknown bucket in a packed store.** `CLAUDE.md` states the rule as `extra: Vec<RawNode>`; a
+  `Vec<RawNode>` per cell is precisely the allocation the 913 is made of. The same rule is kept in
+  raw bytes, which is the stricter of the two — it preserves the whitespace inside a start tag, which
+  a decomposed attribute list does not record. A cell's start tag keeps the file's bytes unless
+  regenerating it from `r`, `s` and `t` would reproduce them, decided by doing the regeneration and
+  comparing; editing such a cell rewrites the run in place, so an unmodelled attribute survives the
+  edit as well as the row.
+- **One thing a file can say is refused**: a `c@r` that is not a cell reference, because the store is
+  keyed on it. Rows out of order, duplicated row numbers, a `c@r` naming a different row than its
+  `row@r`, cells out of column order and a `t` that disagrees with the child element present are all
+  preserved as read and described by `SheetData::anomalies`, never repaired.
+
 ## [0.0.104] - 2026-09-05
 
 Cell addressing: the SpreadsheetML reference vocabulary eleven later Phase D children consume
