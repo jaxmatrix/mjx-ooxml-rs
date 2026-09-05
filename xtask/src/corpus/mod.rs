@@ -140,13 +140,18 @@ fn run_membench(format: &str) -> Result<()> {
     if !path.exists() {
         generate_all()?;
     }
-    membench_package(format, &path, &target)
+    membench_package(format, &path, &target, format == "xlsx")
 }
 
 /// The four checkpoints, for one already-on-disk package. Reads its bytes fresh from disk as the
 /// very first thing this process does with them, so the "open" checkpoint is not inflated by
 /// whatever building the corpus in-process would have cost (see [`memory`]'s module docs).
-fn membench_package(label: &str, path: &Path, target: &PartName) -> Result<()> {
+fn membench_package(
+    label: &str,
+    path: &Path,
+    target: &PartName,
+    cell_store: bool,
+) -> Result<()> {
     println!(
         "\n{label} ({}) — peak RSS, cumulative since process start:",
         path.display()
@@ -159,6 +164,28 @@ fn membench_package(label: &str, path: &Path, target: &PartName) -> Result<()> {
         .part_tree_mut(target)
         .context("first-mutation materialisation")?;
     memory::checkpoint("first-mutation materialisation")?;
+
+    if cell_store {
+        // MJXOFF-95's fifth checkpoint, and the one the cell store exists for: what does *holding*
+        // this worksheet cost once it is a packed store rather than a tree? The tree above is still
+        // alive, so this reading is cumulative over both — the store's own figure is the one it
+        // prints for itself underneath.
+        let tree = package
+            .part_tree(target)
+            .context("re-borrowing the materialised worksheet")?;
+        let sheet = mjx_sml::SheetData::read_worksheet(tree)
+            .context("reading the cell store")?
+            .context("the corpus worksheet has a sheetData")?;
+        memory::checkpoint("cell store (tree still alive)")?;
+        println!(
+            "    {} rows, {} cells, {} bytes of records ({:.1} B/cell), {} bytes edited",
+            sheet.row_count(),
+            sheet.cell_count(),
+            sheet.reserved_bytes(),
+            sheet.reserved_bytes() as f64 / sheet.cell_count().max(1) as f64,
+            sheet.edited_bytes(),
+        );
+    }
 
     {
         let tree = package
