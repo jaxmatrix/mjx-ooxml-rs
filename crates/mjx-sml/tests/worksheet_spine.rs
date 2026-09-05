@@ -826,38 +826,35 @@ fn recomputing_the_dimension_is_explicit() {
 ///
 /// The whole file names `mjx_opc` only to fetch a part's bytes; every model assertion above is made
 /// without one, which is the layering rule stated as a test.
+///
+/// MJXOFF-125 (D15) modelled the slot, so the claim is now made through
+/// [`mjx_sml::TableParts`] rather than by digging through a raw node — and it is a **stronger**
+/// claim, because a modelled type is exactly the place a resolver could have crept in.
+/// `TablePart::relationship_id` takes the prefix the part binds and answers a `String`; there is no
+/// method anywhere in this crate that turns one into a part name.
 #[test]
 fn a_relationship_id_is_held_as_text_and_never_resolved_here() {
     let bytes = spine();
     let sheet = read(&bytes);
-    assert_eq!(sheet.relationship_prefix(), Some("r"));
+    let prefix = sheet.relationship_prefix();
+    assert_eq!(prefix, Some("r"));
 
-    let held = sheet
-        .children()
-        .filter_map(|child| match child {
-            mjx_sml::WorksheetContent::Raw(mjx_ooxml_core::RawNode::Element(element)) => {
-                Some(element)
-            }
-            _ => None,
-        })
-        .find(|element| sheet.interner().resolve(element.name.local) == "tableParts")
-        .expect("the fixture writes tableParts");
-    let part = held
-        .children
-        .iter()
-        .find_map(|node| match node {
-            mjx_ooxml_core::RawNode::Element(element) => Some(element),
-            _ => None,
-        })
-        .expect("a tablePart");
-    let id = part
-        .attributes
-        .iter()
-        .find(|attribute| sheet.interner().resolve(attribute.name.local) == "id")
-        .expect("an r:id");
-    assert_eq!(&*id.value, b"rId1");
+    let parts = sheet.table_parts().expect("the fixture writes tableParts");
+    assert_eq!(parts.declared_count(sheet.interner()), Ok(Some(1)));
+    assert_eq!(parts.len(), 1);
+
+    let table = parts.parts().next().expect("a tablePart");
     assert_eq!(
-        sheet.interner().resolve(id.name.prefix.expect("a prefix")),
-        "r"
+        table
+            .relationship_id(sheet.interner(), prefix)
+            .expect("the r:id decodes"),
+        Some("rId1".to_owned()),
+        "the identifier comes back as the string the file wrote"
+    );
+    assert_eq!(
+        table.relationship_id(sheet.interner(), None),
+        Ok(None),
+        "with no prefix bound there is no `r:id` to read: an attribute in no namespace is not one, \
+         however it is spelled"
     );
 }

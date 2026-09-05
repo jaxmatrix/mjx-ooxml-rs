@@ -202,6 +202,7 @@ fn all_eleven_slots_are_held_in_the_order_the_file_wrote_them() {
             StylesheetContent::CellFormats(_) => Some("cellXfs"),
             StylesheetContent::NamedStyles(_) => Some("cellStyles"),
             StylesheetContent::DifferentialFormats(_) => Some("dxfs"),
+            StylesheetContent::TableStyles(_) => Some("tableStyles"),
             StylesheetContent::Colors(_) => Some("colors"),
             StylesheetContent::Raw(_) => None,
         })
@@ -217,10 +218,11 @@ fn all_eleven_slots_are_held_in_the_order_the_file_wrote_them() {
             "cellXfs",
             "cellStyles",
             "dxfs",
+            "tableStyles",
             "colors"
         ],
-        "MJXOFF-105 modelled the five resource tables and MJXOFF-108 took four more; only \
-         `tableStyles` (MJXOFF-127) and `extLst` are still held raw"
+        "MJXOFF-105 modelled the five resource tables, MJXOFF-108 took four more and MJXOFF-125 \
+         took `tableStyles`; only `extLst` is still held raw"
     );
     assert_eq!(STYLESHEET.slots.len(), locals.len());
 }

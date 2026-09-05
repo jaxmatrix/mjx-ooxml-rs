@@ -2969,6 +2969,30 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "DATA_VALIDATION", "sml", "CT_DataValidation",
         "One validation rule's first formula, then its second (`x:dataValidation`)",
     ),
+
+    // ---- Worksheet tables (MJXOFF-125) --------------------------------------------------------
+    //
+    // Two of this cluster's ten types place children rather than append them. The other eight are
+    // left out under the rule `CT_NumFmts` and `CT_CellXfs` are: `CT_TableColumns`, `CT_TableStyles`,
+    // `CT_TableStyle` and `CT_TableParts` each declare a single repeating child; `CT_XmlColumnPr`
+    // declares only `extLst`; and `CT_TableStyleInfo`, `CT_TableStyleElement` and `CT_TablePart`
+    // declare none at all.
+    //
+    // Both names are qualified for the reason `WORKSHEET_ROW` and `WORKSHEET_CELL` are: `CT_Table`
+    // and `CT_TableColumn` name concepts that already exist under DrawingML and WordprocessingML in
+    // this flat namespace, and a bare `TABLE` beside `TABLE_PROPERTIES` would read as the same
+    // thing. `WORKSHEET_` rather than `SHEET_` because a `x:table` is a worksheet's table, even
+    // though it lives in a part of its own.
+    (
+        "WORKSHEET_TABLE", "sml", "CT_Table",
+        "One worksheet table's five children: its autofilter, its sort state, its columns, its \
+         style reference, then `extLst` (`x:table`)",
+    ),
+    (
+        "WORKSHEET_TABLE_COLUMN", "sml", "CT_TableColumn",
+        "One table column's four children: a calculated-column formula, a totals-row formula, the \
+         XML-map binding, then `extLst` (`x:tableColumn`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
