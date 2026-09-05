@@ -60,7 +60,7 @@
 //! | [`styles`] | MJXOFF-105 (D08), MJXOFF-108 (D09) — resource tables, then the `xf` indirection |
 //! | [`formula`] | MJXOFF-115 (D11) — formulas as text, cached values, `calcChain` |
 //! | [`worksheet`] | MJXOFF-102 (D07) the 39-slot spine, MJXOFF-117 (D12) the sheet grid |
-//! | [`workbook`] | MJXOFF-100 (D06) — the sheet list, properties, views, defined names |
+//! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
 //! | [`features`] | MJXOFF-120/123/125/127/129 (D13–D17) — the optional worksheet features |
 //! | [`mod@write`] | MJXOFF-112 (D10) — the package writer that replaces `EmbeddedWorkbook` |
 //! | [`error`] | MJXOFF-132 (D01) — this child; every later one adds its variants |
@@ -103,4 +103,12 @@ pub use font::{Color, FontProperties, FontPropertyOwner};
 pub use strings::{
     InlineString, PhoneticProperties, PhoneticRun, RichTextRun, RichTextRunSpec, SharedStringTable,
     StringItem,
+};
+pub use workbook::{
+    BookViews, BuiltInName, CalculationProperties, CustomWorkbookView, CustomWorkbookViews,
+    DefinedName, DefinedNames, EmbeddedObjectSize, ExternalReference, ExternalReferences,
+    FileRecoveryProperties, FileSharing, FileVersion, FunctionGroup, FunctionGroups, PivotCache,
+    PivotCaches, SheetEntry, SheetList, SmartTagProperties, SmartTagType, SmartTagTypes,
+    WebPublishObject, WebPublishObjects, WebPublishing, WorkbookContent, WorkbookPart,
+    WorkbookProperties, WorkbookProtection, WorkbookView,
 };
