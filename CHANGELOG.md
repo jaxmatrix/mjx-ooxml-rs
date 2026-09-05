@@ -114,6 +114,13 @@ Excel authoring surface (MJXOFF-112, Phase D position 10).
   crate, no facade and no `mjx-chart` — checked by reading that manifest rather than claimed.
 - Every part `Workbook::blank` authors validates against `sml.xsd` and the OPC schemas, and is in
   `xsd:sequence` order (`crates/mjx-xlsx/tests/schema_gate.rs`).
+- **The office-open canary now covers Excel.** `crates/mjx-xlsx/tests/office_open.rs` drives
+  LibreOffice over the blank workbook, an authored-and-filled-in one, `sample.xlsx` and a
+  round-tripped `sample.xlsx`; `.github/workflows/ci.yml` installs `libreoffice-calc` and names
+  `-p mjx-xlsx` on the canary step. Schema validity is necessary and not sufficient — a package can
+  satisfy every XSD and still be refused for a broken relationship graph — and a package filter that
+  named only two of the three crates would have dropped these four cases with the job still green,
+  which is precisely the failure MJXOFF-98 found for Word.
 
 ## [0.0.110] - 2026-09-05
 
