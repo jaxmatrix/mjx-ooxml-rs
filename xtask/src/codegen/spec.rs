@@ -2895,6 +2895,17 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "STYLESHEET_COLOR_TABLE", "sml", "CT_Colors",
         "The colour table's indexed palette, then its most-recently-used colours (`x:colors`)",
     ),
+
+    // ---- The xf indirection (MJXOFF-108) ------------------------------------------------------
+    //
+    // `CT_Xf` is the one type of the `xf` cluster whose children a writer *places*: `alignment`,
+    // `protection` and `extLst`, in that order. The four tables around it — `CT_NumFmts`,
+    // `CT_CellXfs`, `CT_CellStyleXfs` and `CT_CellStyles` — each declare a single repeating child,
+    // so a writer appends and there is no order to hold.
+    (
+        "STYLESHEET_CELL_FORMAT", "sml", "CT_Xf",
+        "One cell format's three children: alignment, protection, then `extLst` (`x:xf`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
