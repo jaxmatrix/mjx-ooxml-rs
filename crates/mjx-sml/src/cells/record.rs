@@ -40,7 +40,7 @@ use mjx_ooxml_types::spreadsheetml::CellType;
 
 use crate::address::CellReference;
 
-use super::text::TextSpan;
+use crate::arena::TextSpan;
 
 /// Where a cell's value lives, and in what shape.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

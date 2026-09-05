@@ -40,7 +40,9 @@ use super::record::{
     CellExtras, CellFlags, CellTypeCode, PackedCell, PackedRow, PayloadShape, RowFlags, NO_EXTRAS,
 };
 use super::store::SheetData;
-use super::text::{TextArena, TextSpan};
+use crate::arena::{
+    layout_in_arena, span_between, span_present_between, ElementLayout, TextArena, TextSpan,
+};
 
 /// Reads a `sheetData` element into a [`SheetData`].
 pub(super) fn read_sheet_data(
@@ -159,14 +161,6 @@ struct Reader<'a> {
     scratch: Vec<u8>,
 }
 
-/// Where an element's start tag ends and its content begins and ends, in arena addresses.
-struct Layout {
-    attribute_run: TextSpan,
-    inner_start: u32,
-    inner_end: u32,
-    self_closing: bool,
-}
-
 impl Reader<'_> {
     fn local(&self, element: &RawElement) -> &str {
         self.interner.resolve(element.name.local)
@@ -187,14 +181,7 @@ impl Reader<'_> {
     /// it: it must open with `<` and this element's qualified name, and close the way the element
     /// says it closes. Anything else falls back to building from the model — a reflow, never wrong
     /// bytes.
-    fn layout_of(&mut self, element: &RawElement, extent: TextSpan) -> Option<Layout> {
-        if extent.is_none() {
-            return None;
-        }
-        let bytes = self.arena.bytes(extent);
-        if bytes.is_empty() {
-            return None;
-        }
+    fn layout_of(&mut self, element: &RawElement, extent: TextSpan) -> Option<ElementLayout> {
         self.qname.clear();
         if let Some(prefix) = element.name.prefix {
             self.qname
@@ -203,17 +190,7 @@ impl Reader<'_> {
         }
         self.qname
             .extend_from_slice(self.interner.resolve(element.name.local).as_bytes());
-        let parts = decompose(bytes, &self.qname)?;
-        let base = extent.start();
-        Some(Layout {
-            attribute_run: TextSpan::new(
-                base + parts.attribute_run.start as u32,
-                (parts.attribute_run.end - parts.attribute_run.start) as u32,
-            ),
-            inner_start: base + parts.inner.start as u32,
-            inner_end: base + parts.inner.end as u32,
-            self_closing: parts.self_closing,
-        })
+        layout_in_arena(self.arena.bytes(extent), &self.qname, extent)
     }
 
     /// Serializes one node into `out`, for the path where there are no byte ranges to point at.
@@ -461,7 +438,7 @@ impl Reader<'_> {
     fn read_cell_content(
         &mut self,
         element: &RawElement,
-        layout: &Option<Layout>,
+        layout: &Option<ElementLayout>,
         cell: &mut PackedCell,
         extras: &mut CellExtras,
     ) -> Result<(), SmlError> {
@@ -616,162 +593,5 @@ impl Reader<'_> {
             cell.set_payload_shape(payload_shape);
         }
         Ok(())
-    }
-}
-
-/// A span over `start..end`, or [`TextSpan::NONE`] when that is empty or inverted.
-fn span_between(start: u32, end: u32) -> TextSpan {
-    if end > start {
-        TextSpan::new(start, end - start)
-    } else {
-        TextSpan::NONE
-    }
-}
-
-/// A span over `start..end` that stays **present** when empty — `<v></v>` is a value, and an absent
-/// one is not the same thing.
-fn span_present_between(start: u32, end: u32) -> TextSpan {
-    if end >= start {
-        TextSpan::new(start, end - start)
-    } else {
-        TextSpan::NONE
-    }
-}
-
-/// Where an element's start tag ends and its content begins and ends, as offsets into its own bytes.
-struct Decomposed {
-    attribute_run: core::ops::Range<usize>,
-    inner: core::ops::Range<usize>,
-    self_closing: bool,
-}
-
-/// Splits `bytes` — which must be exactly one element — into its attribute run and its content.
-///
-/// Returns `None` unless the bytes open with `<` and `qname` followed by a delimiter, and close the
-/// way an element closes. That is the same check `mjx-xml`'s writer makes before trusting a range,
-/// and for the same reason: the range is a claim about somebody else's buffer, and a claim that does
-/// not check out must degrade to a rebuild rather than to wrong bytes.
-fn decompose(bytes: &[u8], qname: &[u8]) -> Option<Decomposed> {
-    if bytes.first() != Some(&b'<') || !bytes.get(1..)?.starts_with(qname) {
-        return None;
-    }
-    let run_start = 1 + qname.len();
-    match bytes.get(run_start) {
-        Some(b'>' | b'/') => {}
-        Some(byte) if byte.is_ascii_whitespace() => {}
-        _ => return None,
-    }
-
-    // Scan to the `>` that closes the start tag, stepping over quoted attribute values — `>` is
-    // perfectly legal inside one, so the first `>` is not necessarily the tag's.
-    let mut at = run_start;
-    let mut quote = 0u8;
-    let tag_end = loop {
-        let byte = *bytes.get(at)?;
-        if quote != 0 {
-            if byte == quote {
-                quote = 0;
-            }
-        } else if byte == b'"' || byte == b'\'' {
-            quote = byte;
-        } else if byte == b'>' {
-            break at;
-        }
-        at += 1;
-    };
-
-    let self_closing = tag_end > run_start && bytes[tag_end - 1] == b'/';
-    let run_end = if self_closing { tag_end - 1 } else { tag_end };
-    let attribute_run = run_start..run_end;
-    if self_closing {
-        if tag_end + 1 != bytes.len() {
-            return None;
-        }
-        return Some(Decomposed {
-            attribute_run,
-            inner: bytes.len()..bytes.len(),
-            self_closing: true,
-        });
-    }
-
-    // `</name >` is legal, so trim the whitespace an end tag may carry before its `>`.
-    let rest = bytes.strip_suffix(b">")?;
-    let mut end = rest.len();
-    while end > 0 && rest[end - 1].is_ascii_whitespace() {
-        end -= 1;
-    }
-    let rest = rest.get(..end)?.strip_suffix(qname)?.strip_suffix(b"</")?;
-    let inner_end = rest.len();
-    let inner_start = tag_end + 1;
-    if inner_end < inner_start {
-        return None;
-    }
-    Some(Decomposed {
-        attribute_run,
-        inner: inner_start..inner_end,
-        self_closing: false,
-    })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn parts(markup: &str, qname: &str) -> Option<(String, String, bool)> {
-        let parsed = decompose(markup.as_bytes(), qname.as_bytes())?;
-        Some((
-            markup[parsed.attribute_run].to_owned(),
-            markup[parsed.inner].to_owned(),
-            parsed.self_closing,
-        ))
-    }
-
-    #[test]
-    fn splits_a_start_tag_from_its_content() {
-        assert_eq!(
-            parts(r#"<c r="A1"><v>12</v></c>"#, "c"),
-            Some((" r=\"A1\"".to_owned(), "<v>12</v>".to_owned(), false))
-        );
-        assert_eq!(
-            parts(r#"<x:c r="A1"/>"#, "x:c"),
-            Some((" r=\"A1\"".to_owned(), String::new(), true))
-        );
-        assert_eq!(
-            parts("<c></c>", "c"),
-            Some((String::new(), String::new(), false))
-        );
-    }
-
-    #[test]
-    fn an_angle_bracket_inside_an_attribute_value_does_not_end_the_tag() {
-        // Legal XML: `>` needs no escaping in an attribute value, and a naive scan for the first
-        // `>` would cut the tag in half and read the rest of it as content.
-        assert_eq!(
-            parts(r#"<c note="a>b" r="A1">x</c>"#, "c"),
-            Some((r#" note="a>b" r="A1""#.to_owned(), "x".to_owned(), false))
-        );
-    }
-
-    #[test]
-    fn whitespace_an_end_tag_is_allowed_to_carry_is_not_content() {
-        assert_eq!(
-            parts("<v>12</v >", "v"),
-            Some((String::new(), "12".to_owned(), false))
-        );
-        assert_eq!(
-            parts("<v >12</v>", "v"),
-            Some((" ".to_owned(), "12".to_owned(), false))
-        );
-    }
-
-    #[test]
-    fn bytes_that_do_not_describe_this_element_are_refused() {
-        // Each of these would otherwise be a way to write somebody else's markup into a cell.
-        assert_eq!(parts("<cc r=\"A1\"/>", "c"), None, "a longer name");
-        assert_eq!(parts("<b/>", "c"), None, "a different name");
-        assert_eq!(parts("c/>", "c"), None, "no opening angle bracket");
-        assert_eq!(parts("<c><v>1</v></b>", "c"), None, "a mismatched end tag");
-        assert_eq!(parts("<c/><c/>", "c"), None, "more than one element");
-        assert_eq!(parts("<c>", "c"), None, "no end tag at all");
     }
 }

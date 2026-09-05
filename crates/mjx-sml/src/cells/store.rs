@@ -12,8 +12,8 @@ use super::attributes;
 use super::record::{
     CellExtras, CellFlags, CellTypeCode, PackedCell, PackedRow, PayloadShape, RowFlags, NO_EXTRAS,
 };
-use super::text::{TextArena, TextSpan};
 use super::view::{Cell, CellValue, Row};
+use crate::arena::{TextArena, TextSpan};
 
 /// `CT_SheetData` — every row and every cell of one worksheet, held as packed records over one byte
 /// arena.

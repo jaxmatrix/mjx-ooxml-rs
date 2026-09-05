@@ -9,7 +9,7 @@
 //! two attributes per cell, over hundreds of thousands of cells.
 //!
 //! So a row keeps its attributes the way the file wrote them: one range of bytes, `r="7" spans="1:3"`,
-//! addressed in the store's [arena](super::text::TextArena). Reading one attribute is a scan of that
+//! addressed in the store's [arena](crate::arena::text::TextArena). Reading one attribute is a scan of that
 //! range; there is no allocation on either the read or the store path, and re-emitting the element is
 //! a copy.
 //!
