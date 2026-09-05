@@ -1,9 +1,9 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, fourteen modelled, twenty-five held
+//! # Thirty-nine slots, seventeen modelled, twenty-two held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Twenty-five of those slots belong to later Phase D children, and this type
+//! twice `CT_Workbook`'s. Twenty-two of those slots belong to later Phase D children, and this type
 //! holds every one of them **in its schema position**, as the markup the file wrote. A worksheet
 //! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
 //! modelled.
@@ -20,11 +20,14 @@
 //! | 7 | `sheetProtection` | [`SheetProtection`] |
 //! | 8 | `protectedRanges` | [`ProtectedRanges`] |
 //! | 9 | `scenarios` | [`Scenarios`] |
-//! | 10–13 | `autoFilter` … `customSheetViews` | [`WorksheetContent::Raw`], verbatim and in position |
+//! | 10 | `autoFilter` | [`AutoFilter`] |
+//! | 11 | `sortState` | [`SortState`] — the sheet-level one, beside the autofilter's own |
+//! | 12–13 | `dataConsolidate`, `customSheetViews` | [`WorksheetContent::Raw`], verbatim and in position |
 //! | 14 | `mergeCells` | [`MergedCells`] |
 //! | 15 | `phoneticPr` | [`WorksheetContent::Raw`] |
 //! | 16 | `conditionalFormatting` | [`ConditionalFormatting`] — **`maxOccurs="unbounded"`**, so a list |
-//! | 17–22 | `dataValidations` … `headerFooter` | [`WorksheetContent::Raw`] |
+//! | 17 | `dataValidations` | [`DataValidations`] |
+//! | 18–22 | `hyperlinks` … `headerFooter` | [`WorksheetContent::Raw`] |
 //! | 23 | `rowBreaks` | [`PageBreaks`] |
 //! | 24 | `colBreaks` | [`PageBreaks`] — the same complex type, the other axis |
 //! | 25–38 | `customProperties` … `extLst` | [`WorksheetContent::Raw`] |
@@ -51,8 +54,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the fourteen slots it knows, keeps the other
-//! twenty-five as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the seventeen slots it knows, keeps the other
+//! twenty-two as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -89,7 +92,7 @@ use mjx_ooxml_types::namespaces::SML;
 use crate::address::{CellRange, CellReference};
 use crate::cells::{Cell, CellValue, Row, SheetData};
 use crate::error::SmlError;
-use crate::features::ConditionalFormatting;
+use crate::features::{AutoFilter, ConditionalFormatting, DataValidations, SortState};
 
 use super::breaks::PageBreaks;
 use super::columns::{ColumnBlock, SheetFormatProperties};
@@ -99,7 +102,7 @@ use super::protection::{ProtectedRanges, SheetProtection};
 use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: fourteen modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: seventeen modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -123,6 +126,12 @@ pub enum WorksheetContent {
     ProtectedRanges(ProtectedRanges),
     /// `x:scenarios` (rank 9).
     Scenarios(Scenarios),
+    /// `x:autoFilter` (rank 10) — the filtered range, its per-column filters and the sort state over
+    /// it. Recorded, never applied: no row's `@hidden` is set from it and no row is ever reordered.
+    AutoFilter(AutoFilter),
+    /// `x:sortState` (rank 11) — the **sheet-level** sort, the sibling of the one an `x:autoFilter`
+    /// may carry. The same `CT_SortState`, and the same rule: a record of a sort, never a sort.
+    SortState(SortState),
     /// `x:mergeCells` (rank 14).
     MergedCells(MergedCells),
     /// `x:conditionalFormatting` (rank 16) — one block. The schema declares the slot
@@ -130,11 +139,14 @@ pub enum WorksheetContent {
     /// `cfRule@priority` orders **across** them, which is why merging them would change the file and
     /// why [`WorksheetPart::conditional_rules_for`] exists.
     ConditionalFormatting(ConditionalFormatting),
+    /// `x:dataValidations` (rank 17) — every validation rule on the sheet. A rule's `formula1` is
+    /// text, and a `list` rule's range source is never resolved into the values it names.
+    DataValidations(DataValidations),
     /// `x:rowBreaks` (rank 23) — `CT_PageBreak` in the row axis.
     RowBreaks(PageBreaks),
     /// `x:colBreaks` (rank 24) — the same complex type in the column axis.
     ColumnBreaks(PageBreaks),
-    /// Everything this type does not model: the twenty-five remaining slots, any foreign element, any
+    /// Everything this type does not model: the twenty-two remaining slots, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -157,8 +169,11 @@ impl WorksheetContent {
             Self::Protection(_) => "sheetProtection",
             Self::ProtectedRanges(_) => "protectedRanges",
             Self::Scenarios(_) => "scenarios",
+            Self::AutoFilter(_) => "autoFilter",
+            Self::SortState(_) => "sortState",
             Self::MergedCells(_) => "mergeCells",
             Self::ConditionalFormatting(_) => "conditionalFormatting",
+            Self::DataValidations(_) => "dataValidations",
             Self::RowBreaks(_) => "rowBreaks",
             Self::ColumnBreaks(_) => "colBreaks",
             Self::Raw(_) => return None,
@@ -182,8 +197,11 @@ impl WorksheetContent {
             Self::Protection(value) => value.as_raw_element(),
             Self::ProtectedRanges(value) => value.as_raw_element(),
             Self::Scenarios(value) => value.as_raw_element(),
+            Self::AutoFilter(value) => value.as_raw_element(),
+            Self::SortState(value) => value.as_raw_element(),
             Self::MergedCells(value) => value.as_raw_element(),
             Self::ConditionalFormatting(value) => value.as_raw_element(),
+            Self::DataValidations(value) => value.as_raw_element(),
             Self::RowBreaks(value) | Self::ColumnBreaks(value) => value.as_raw_element(),
             Self::SheetData(_) | Self::Raw(_) => return None,
         })
@@ -266,7 +284,7 @@ impl Slot {
 ///
 /// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
 /// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// twenty-five unmodelled children cost nothing.
+/// twenty-two unmodelled children cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -504,7 +522,7 @@ impl WorksheetPart {
         !self.edited && self.source.is_some()
     }
 
-    /// Every child, in document order, including the twenty-five slot kinds this type does not
+    /// Every child, in document order, including the twenty-two slot kinds this type does not
     /// model.
     ///
     /// An iterator rather than a slice: each child is stored beside the claim on its original
@@ -513,7 +531,7 @@ impl WorksheetPart {
         self.content.iter().map(|slot| &slot.value)
     }
 
-    /// The local name of every **element** child, in document order — the twenty-five unmodelled
+    /// The local name of every **element** child, in document order — the twenty-two unmodelled
     /// slots included.
     ///
     /// This is what an ordering assertion is written against: it says what the part *will emit*,
@@ -612,6 +630,38 @@ impl WorksheetPart {
         Scenarios,
         "scenarios",
         "`x:scenarios` — Excel's saved what-if alternatives. Reported, never applied."
+    );
+    singleton_slot!(
+        auto_filter,
+        auto_filter_mut,
+        set_auto_filter,
+        AutoFilter,
+        AutoFilter,
+        "autoFilter",
+        "`x:autoFilter` — the filtered range, the per-column filters over it and the sort state \
+         Excel last performed. **Recorded, never applied**: reading one sets no row's `@hidden` and \
+         reorders nothing. See [`crate::features::filters`]."
+    );
+    singleton_slot!(
+        sort_state,
+        sort_state_mut,
+        set_sort_state,
+        SortState,
+        SortState,
+        "sortState",
+        "`x:sortState` — the **sheet-level** sort record at rank 11, which is a *different element* \
+         from the one an [`AutoFilter`] carries at its own rank 1. Recorded, never performed."
+    );
+    singleton_slot!(
+        data_validations,
+        data_validations_mut,
+        set_data_validations,
+        DataValidations,
+        DataValidations,
+        "dataValidations",
+        "`x:dataValidations` — every validation rule on the sheet, each with its own `@sqref` and \
+         its formulas-as-text. A `list` rule's range source is never resolved into values; see \
+         [`crate::features::validation`]."
     );
     singleton_slot!(
         merged_cells,
@@ -1059,7 +1109,7 @@ fn range_between(bounds: (u16, u32, u16, u32)) -> Option<CellRange> {
 /// Reads one child node of `x:worksheet` into a slot.
 ///
 /// A node is modelled only when it is an element **in the SpreadsheetML namespace** with one of the
-/// fourteen local names this frame knows. An element merely *named* `sheetData` in somebody else's
+/// seventeen local names this frame knows. An element merely *named* `sheetData` in somebody else's
 /// namespace is unmodelled markup, and goes into the bucket with its prefix intact.
 fn read_slot(
     node: RawNode,
@@ -1111,10 +1161,15 @@ fn read_slot(
             WorksheetContent::ProtectedRanges(ProtectedRanges::from_xml(&element, interner)?)
         }
         "scenarios" => WorksheetContent::Scenarios(Scenarios::from_xml(&element, interner)?),
+        "autoFilter" => WorksheetContent::AutoFilter(AutoFilter::from_xml(&element, interner)?),
+        "sortState" => WorksheetContent::SortState(SortState::from_xml(&element, interner)?),
         "mergeCells" => WorksheetContent::MergedCells(MergedCells::from_xml(&element, interner)?),
         "conditionalFormatting" => WorksheetContent::ConditionalFormatting(
             ConditionalFormatting::from_xml(&element, interner)?,
         ),
+        "dataValidations" => {
+            WorksheetContent::DataValidations(DataValidations::from_xml(&element, interner)?)
+        }
         "rowBreaks" => WorksheetContent::RowBreaks(PageBreaks::from_xml(&element, interner)?),
         "colBreaks" => WorksheetContent::ColumnBreaks(PageBreaks::from_xml(&element, interner)?),
         _ => {

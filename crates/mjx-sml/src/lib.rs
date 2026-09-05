@@ -59,9 +59,9 @@
 //! | [`font`] | **MJXOFF-97 (D05) — done**: `CT_RPrElt`/`CT_Font`'s shared property family, reused by D08 |
 //! | [`styles`] | **MJXOFF-105 (D08) + MJXOFF-108 (D09) — done**: fonts, fills, borders, dxfs, the indexed palette; the `xf` indirection, number formats, named styles and [`EffectiveCellFormat`] |
 //! | [`formula`] | **MJXOFF-115 (D11) — done**: `CT_CellFormula`'s twelve attributes, shared/array/data-table formulas, cached values, `calcChain` — and the written-down guarantee that nothing here recalculates; MJXOFF-123 (D14) adds [`FormulaElement`], the `ST_Formula` *element* three slots share |
-//! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid, MJXOFF-120 (D13) the `conditionalFormatting` slot |
+//! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid, MJXOFF-120 (D13) the `conditionalFormatting` slot, MJXOFF-123 (D14) the `autoFilter` and `dataValidations` slots |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
-//! | [`features`] | **MJXOFF-120 (D13) — done**: conditional formatting, the cross-block priority order and the `dxf` layer; MJXOFF-123/125/127/129 (D14–D17) fill the rest |
+//! | [`features`] | **MJXOFF-120 (D13) — done**: conditional formatting, the cross-block priority order and the `dxf` layer; **MJXOFF-123 (D14) — done**: data validation, autofilters and sort state; MJXOFF-125/127/129 (D15–D17) fill the rest |
 //! | [`mod@write`] | **MJXOFF-112 (D10) — done**: [`WorkbookPackage`], the package writer that replaces `EmbeddedWorkbook`, and the `styles.xml` skeleton behind it |
 //! | [`error`] | MJXOFF-132 (D01) — this child; every later one adds its variants |
 //!
@@ -101,12 +101,17 @@ pub use address::{
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
 pub use error::SmlError;
 pub use features::{
-    AppliedConditionalRule, ColorScale, ColorScaleContent, ColorScaleSpec, ConditionalCellFormat,
-    ConditionalFormatLayer, ConditionalFormatting, ConditionalFormattingContent,
-    ConditionalFormattingRule, ConditionalFormattingRuleContent, ConditionalRuleChain,
-    ConditionalRuleSpec, ConditionalRuleSpecKind, ConditionalValueObject,
-    ConditionalValueObjectSpec, DataBar, DataBarContent, DataBarSpec, DifferentialFormatSpec,
-    IconSet, IconSetContent, IconSetSpec,
+    AppliedConditionalRule, AutoFilter, AutoFilterContent, AutoFilterSpec, ColorFilter, ColorScale,
+    ColorScaleContent, ColorScaleSpec, ConditionalCellFormat, ConditionalFormatLayer,
+    ConditionalFormatting, ConditionalFormattingContent, ConditionalFormattingRule,
+    ConditionalFormattingRuleContent, ConditionalRuleChain, ConditionalRuleSpec,
+    ConditionalRuleSpecKind, ConditionalValueObject, ConditionalValueObjectSpec, CustomFilter,
+    CustomFilterSpec, CustomFilters, CustomFiltersContent, DataBar, DataBarContent, DataBarSpec,
+    DataValidation, DataValidationContent, DataValidationSpec, DataValidations,
+    DataValidationsContent, DateGroupItem, DifferentialFormatSpec, DynamicFilter, Filter,
+    FilterColumn, FilterColumnSpec, FilterKind, FilterSpecKind, Filters, FiltersContent,
+    IconFilter, IconSet, IconSetContent, IconSetSpec, SortCondition, SortConditionSpec, SortState,
+    SortStateContent, SortStateSpec, Top10Filter,
 };
 pub use font::{Color, ColorElement, FontProperties, FontPropertyOwner};
 pub use formula::{
