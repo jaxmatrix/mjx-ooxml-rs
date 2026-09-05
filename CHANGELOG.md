@@ -53,6 +53,58 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.107] - 2026-09-05
+
+`xl/workbook.xml`: the part that names every sheet (MJXOFF-100, Phase D position 6).
+
+### Added
+
+- **`mjx_sml::workbook`** — `CT_Workbook` (`sml.xsd:4097`) and the twenty-nine complex types its
+  cluster runs to at `sml.xsd:4439`, in eight subject modules. `WorkbookPart` is the nineteen-slot
+  sequence; `SheetList`/`SheetEntry`, `WorkbookProperties`, `FileVersion`, `FileSharing`,
+  `WorkbookProtection`, `FileRecoveryProperties`, `EmbeddedObjectSize`, `BookViews`/`WorkbookView`,
+  `CustomWorkbookViews`/`CustomWorkbookView`, `CalculationProperties`, `DefinedNames`/`DefinedName`,
+  `ExternalReferences`/`ExternalReference`, `PivotCaches`/`PivotCache`,
+  `FunctionGroups`/`FunctionGroup`, `SmartTagProperties`/`SmartTagTypes`/`SmartTagType`,
+  `WebPublishing`/`WebPublishObjects`/`WebPublishObject` are the rest.
+- **`mjx_sml::BuiltInName`** — the eight names ECMA-376 Part 1 §18.2.6 reserves
+  (`_xlnm.Print_Area`, `_xlnm.Print_Titles`, `_xlnm.Criteria`, `_xlnm._FilterDatabase`,
+  `_xlnm.Extract`, `_xlnm.Consolidate_Area`, `_xlnm.Database`, `_xlnm.Sheet_Title`), matched on the
+  exact token and taken from the standard's own prose rather than guessed.
+- **`mjx_xlsx::Workbook`** grows the navigation surface over that model: `sheet_index_by_name`,
+  `sheet_by_name`, `worksheet_by_name`, `visible_sheets`, `defined_names`, `defined_name`,
+  `print_area`, `date_system`, `calculation_settings`, `window_views`, `active_sheet`,
+  `rename_sheet`, and the whole-part pair `workbook_markup` / `edit_workbook_markup`. New public
+  types: `DateSystem`, `CalculationSettings`, `WorkbookWindow`, `DefinedNameEntry`,
+  `DefinedNameScope`; new error variant `XlsxError::NoSuchSheet`.
+- **`tests/fixtures/workbook_sheet_order.xlsx`** — three sheets whose list order, `@sheetId` order
+  and relationship order **all disagree**, one `hidden` and one `veryHidden` tab, a global defined
+  name, a sheet-scoped one, a `_xlnm.Print_Area` and a `@localSheetId` that names no sheet. A
+  workbook whose orderings agree cannot tell a correct resolver from three wrong ones. Schema-valid,
+  so it needs no tolerance entry.
+
+### Changed
+
+- `mjx_xlsx`'s sheet-list reader no longer walks the workbook tree by hand: it reads through
+  `mjx_sml::WorkbookPart` and then resolves each entry's `r:id` against the package. That is the
+  whole `mjx-sml` / `mjx-xlsx` seam in one function — the markup layer never names a part, and an
+  embedded workbook inside a `.pptx` needs the first half without the second.
+- `mjx-derive` gains its first user in `mjx-sml`, as that crate's manifest predicted it would.
+
+### Fixed
+
+- **A defined name's character-data spelling now survives an edit elsewhere in the part.**
+  `mjx-derive`'s `#[xml(text)]` grammar decodes on read and re-escapes **minimally** on write, so
+  `&apos;Sheet&apos;!$A$1` came back as `'Sheet'!$A$1` — the same string, different bytes — and a
+  rebuilt text node that differs from the original denies its element, and every ancestor of it, the
+  verbatim source range subtree copy-on-write would otherwise give it. Nothing notices while a part
+  is untouched, because then the model never writes at all; renaming a *sheet* was enough to make it
+  visible. `CT_DefinedName` therefore has a hand-written `FromXml`/`ToXml` pair that keeps the
+  original children until `set_definition` replaces them. **The same property still holds for every
+  other `#[xml(text)]` leaf in the workspace** (`a:t`, `w:t`, …); fixing it in the derive is a
+  foundation change no ticket owns yet, and it is recorded here so that the next child to trip over
+  it does not re-derive it.
+
 ## [0.0.106] - 2026-09-05
 
 The shared string table: what a `t="s"` cell's index actually means (MJXOFF-97, Phase D position 5).

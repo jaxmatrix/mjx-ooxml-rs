@@ -32,7 +32,10 @@
 //! # Status — the package spine, and nothing else
 //!
 //! MJXOFF-91 (D02) builds the package, the part graph, and a workbook that opens and saves without
-//! touching a byte. It **models nothing**. See `crates/mjx-xlsx/src/workbook/mod.rs`'s and
+//! touching a byte. MJXOFF-100 (D06) adds the first model: `xl/workbook.xml`, through
+//! [`mjx_sml::WorkbookPart`], plus the navigation surface over it — [`Workbook::sheets`],
+//! [`Workbook::sheet_by_name`], [`Workbook::defined_names`], [`Workbook::date_system`] and
+//! [`Workbook::rename_sheet`]. See `crates/mjx-xlsx/src/workbook/mod.rs`'s and
 //! `crates/mjx-xlsx/src/worksheet/mod.rs`'s own module documentation for the file-by-file map of
 //! which later Phase D child fills what, and [`crate::preserve`] for the fidelity contract
 //! everything here rests on.
@@ -51,7 +54,10 @@ pub use error::XlsxError;
 pub use parts::{PartKind, SheetKind, WorkbookParts, WorksheetParts};
 pub use preserve::{PartClassification, PartInventoryEntry};
 pub use validate::SpreadsheetDefect;
-pub use workbook::{Sheet, Workbook};
+pub use workbook::{
+    CalculationSettings, DateSystem, DefinedNameEntry, DefinedNameScope, Sheet, Workbook,
+    WorkbookWindow,
+};
 pub use worksheet::Worksheet;
 
 /// Re-exported so that a caller who holds a [`Workbook`] can name what it is built on without
