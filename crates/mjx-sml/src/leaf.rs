@@ -229,6 +229,29 @@ macro_rules! bag_body {
             pub fn extra(&self) -> &[::mjx_ooxml_core::RawNode] {
                 &self.extra
             }
+
+            /// This element rebuilt as a [`RawElement`](::mjx_ooxml_core::RawElement), **without an
+            /// interner**.
+            ///
+            /// [`ToXml::to_xml`](::mjx_ooxml_core::ToXml::to_xml) takes `&mut Interner` because a
+            /// model that authors a name has to intern it; an attribute bag never authors one — it
+            /// keeps the [`RawName`](::mjx_ooxml_core::RawName) it was read with and every attribute the file wrote — so
+            /// nothing here needs one. `to_xml` is this method, with the parameter ignored.
+            ///
+            /// That distinction is load-bearing for `crate::worksheet`, which serializes its
+            /// children to **bytes** from a `&self` writer and so has no mutable interner to lend.
+            #[must_use]
+            #[allow(dead_code)]
+            pub fn as_raw_element(&self) -> ::mjx_ooxml_core::RawElement {
+                let children = self.extra.clone();
+                let empty = self.empty && children.is_empty();
+                ::mjx_ooxml_core::RawElement::rebuilt(
+                    self.name,
+                    self.attributes.clone(),
+                    children,
+                    empty,
+                )
+            }
         }
 
         impl ::mjx_ooxml_core::FromXml for $name {
@@ -250,14 +273,7 @@ macro_rules! bag_body {
                 &self,
                 _interner: &mut ::mjx_ooxml_core::Interner,
             ) -> ::mjx_ooxml_core::RawElement {
-                let children = self.extra.clone();
-                let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement::rebuilt(
-                    self.name,
-                    self.attributes.clone(),
-                    children,
-                    empty,
-                )
+                self.as_raw_element()
             }
         }
     };
