@@ -48,6 +48,22 @@ pub enum SmlError {
     #[error(transparent)]
     Address(#[from] crate::address::AddressError),
 
+    /// A caller asked the cell store to write a number SpreadsheetML cannot express.
+    ///
+    /// `NaN` and the infinities have no representation in a `<v>`: Excel writes an **error cell**
+    /// for them (`t="e"` with `#NUM!` or `#DIV/0!`), not a numeric one. Rust's own spellings —
+    /// `NaN`, `inf`, `-inf` — are not `xsd:double` either (which wants `NaN`, `INF`, `-INF`), and
+    /// `INF` does not parse back through `str::parse::<f64>`. So rather than write a number nothing
+    /// can read, the store refuses and says what to write instead.
+    #[error(
+        "{value} cannot be written as a cell value; SpreadsheetML has no numeric spelling for it, \
+         and Excel writes an error cell (`CellValue::Error(\"#NUM!\")`) in its place"
+    )]
+    UnrepresentableNumber {
+        /// The value that was asked for.
+        value: f64,
+    },
+
     /// A worksheet's `sheetData`, or the edits made to it, outgrew the byte space the cell store
     /// addresses values in.
     ///

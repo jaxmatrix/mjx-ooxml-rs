@@ -64,9 +64,13 @@ position 4).
   `CellValue`, `PayloadShape` and `SheetDataAnomaly`. `crates/mjx-sml/docs/CELL_STORE.md` is the
   decision record: every alternative that was costed, what each would have cost, and the machine the
   numbers came from.
-- **`mjx_sml::SmlError::SheetDataTooLarge`** — the fifth variant: a worksheet whose bytes outgrow the
-  store's `u32` address space. The enum stays deliberately exhaustive, so MJXOFF-137's facade mapping
-  cannot silently file it under a wildcard.
+- **`mjx_sml::SmlError::SheetDataTooLarge`** and **`::UnrepresentableNumber`** — the fifth and sixth
+  variants: a worksheet whose bytes outgrow the store's `u32` address space, and a `NaN` or infinity
+  asked of `CellValue::Number`. SpreadsheetML has no numeric spelling for the latter — Rust's `inf`
+  is not `xsd:double`, `xsd:double`'s `INF` does not parse back, and Excel writes an error cell — so
+  the store refuses and the message names `CellValue::Error("#NUM!")` as the answer. The enum stays
+  deliberately exhaustive, so MJXOFF-137's facade mapping cannot silently file either under a
+  wildcard.
 - **`mjx_xml::fidelity::serialize_element` / `serialize_node`** — serialize one element or node
   against an interner and an optional source buffer, without a `RawDocument`. A model that holds
   rows rather than a tree has both and no document to put them in; the alternative was a second
