@@ -53,6 +53,77 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.110] - 2026-09-05
+
+`xl/styles.xml` part 2: the `xf` indirection, number formats, named styles, and the resolver that
+answers what formatting a cell actually carries (MJXOFF-108, Phase D position 9).
+
+### Added
+
+- **`mjx_sml::styles::formats`** — `CT_Xf` (`sml.xsd:3598`) as `CellFormat`, and `CT_CellXfs` /
+  `CT_CellStyleXfs` as one `CellFormatTable` with a `CellFormatTableKind` to say which slot an
+  authored one stands in. The two complex types are character for character identical; declaring
+  them twice would have been two copies of one index-identity discipline to keep in step.
+  **`CT_Xf` carries thirteen attributes, not the fourteen its ticket claimed.**
+- **`mjx_sml::ApplyFlag`** — `applyNumberFormat`, `applyFont`, `applyFill`, `applyBorder`,
+  `applyAlignment` and `applyProtection` in **all three** of the states the schema gives them. Every
+  one is declared `use="optional"` with **no `default=`**, so *absent*, `"1"` and `"0"` are three
+  distinct values, and collapsing absent into false is a defect no schema validator can see — both
+  spellings are valid documents. `ApplyFlag::participates` is where the meaning lives: absent
+  participates, because §18.8.9's worked example contrasts a record that "does not express any
+  'apply' attributes" (the `Normal` style, which is applied) with records that suppress by writing
+  `applyX="0"`.
+- **`mjx_sml::styles::number_formats`** — `CT_NumFmts` as `NumberFormatTable`, keyed by
+  `@numFmtId` rather than by position (the only table in the part that is not an array), plus
+  ECMA-376 Part 1 §18.8.30's **implied** format codes: `builtin_format_code` for the twenty-eight
+  ids listed under *All Languages*, `builtin_format_code_in` and `NumberFormatLanguage` for the
+  ids whose code depends on the UI language, and `is_locale_dependent`. The all-languages set is
+  **not** `0..=49` — 5–8, 23–26 and 41–44 are not built in and §18.8.30 says so — and the
+  locale-dependent ids run to **81**, not 49. Ids 37 and 38 carry a space before their semicolon
+  while 39 and 40 do not; that asymmetry is the published table's and is reproduced exactly.
+- **`mjx_sml::styles::named_styles`** — `CT_CellStyles` / `CT_CellStyle` as `NamedCellStyles` /
+  `NamedCellStyle`, with **all six** of `CT_CellStyle`'s attributes (its ticket named three), and
+  Annex G.2's fifty-one built-in names through `builtin_cell_style_name`. `builtinId` 1 and 2 are
+  `RowLevel_` / `ColLevel_` plus the style's own `@iLevel`, so `BuiltInCellStyleName` keeps them
+  apart from the forty-nine fixed names rather than inventing a level to concatenate.
+- **`mjx_sml::styles::effective`** — the resolver. `CellFormatResolver` decodes every `xf` in both
+  tables **once**, and then `EffectiveCellFormat` is `Copy` and per-cell resolution parses and
+  allocates nothing. `cell_style_index` walks cell → row (gated on `customFormat`, per §18.3.1.73)
+  → column → the default record and reports which layer answered as a `StyleIndexSource`;
+  `ResolvedAspect` reports, per aspect, the `applyX` it saw, the `FormatLayer` that supplied the
+  value and the resource index it points at. `ColumnStyles` decodes a sheet's `col@style` runs once.
+  Reading takes `&self` throughout and cannot mark a part dirty.
+- **`mjx_xlsx::Workbook::styles_markup`, `sheet_formatting`, `effective_cell_format`**, and
+  `SheetFormatting` / `SheetFormatResolver` — the package tier finds the two parts and hands the
+  `mjx-sml` resolver the bytes. **The resolution order is not repeated there**; a second walk would
+  be a second answer to one question, free to drift.
+- **`mjx_sml::SmlError::CellFormatIndexOutOfRange`** — a style index naming no `xf` is refused
+  rather than answered with record 0. A dangling `@xfId` on a record that *does* exist is a
+  different thing: that is a layer which is absent, reported as `FormatLayer::Neither`.
+- **`STYLESHEET_CELL_FORMAT`** — the generated child-order table for `CT_Xf`'s three children.
+- **`tests/fixtures/effective_cell_format.xlsx`** — a workbook whose `cellXfs` and `cellStyleXfs`
+  entries **deliberately disagree, property by property**: different number format, font, fill,
+  border, alignment and protection on the two layers of one cell, so reading the wrong layer gives a
+  visibly wrong answer. Four `cellXfs` records name the same underlying record and the same four
+  indices and differ only in their `applyX` — false, absent, true, and one record mixing false with
+  true — because that is the only arrangement that can tell the three states apart. A fifth sits on a
+  style record that suppresses `applyFont` itself. The worksheet sets a cell, its row and its column
+  to three different fonts, and writes one row with `s` and **no** `customFormat` so the gate on that
+  attribute is load-bearing.
+- **`docs/EFFECTIVE_CELL_FORMAT_HANDOFF.md`** — the comparison table for MJXOFF-122 (F1), handed
+  over **unmarked**: twenty-eight rows of answers this workspace gives, with the *Excel says* and
+  *Verdict* columns deliberately empty. Two rows are inferences from a worked example rather than
+  from a normative sentence, and are labelled as such.
+
+### Changed
+
+- **`mjx_sml::StylesheetPart` now models nine of `CT_Stylesheet`'s eleven slots**, up from five.
+  `numFmts` (rank 0), `cellStyleXfs` (4), `cellXfs` (5) and `cellStyles` (6) join the four resource
+  tables and `colors`; only `tableStyles` (MJXOFF-127) and `extLst` are still held raw. The
+  interleaving MJXOFF-105 found is narrower and has not gone away — `tableStyles` at rank 8 still
+  sits between `dxfs` at 7 and `colors` at 9 — so placement still ranks unmodelled elements through
+  the generated table by their own name.
+
 ## [0.0.109] - 2026-09-05
 
 `xl/styles.xml` part 1: the resource tables a style index resolves into — fonts, fills, borders,
