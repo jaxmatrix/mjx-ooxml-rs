@@ -22,6 +22,10 @@
 //! | `colors.rs` | `colors` / `indexedColors` / `mruColors` / `rgbColor` | MJXOFF-105 (D08) |
 //! | `palette.rs` | the legacy indexed palette, the theme position, the tint | MJXOFF-105 (D08) |
 //! | `cell_format.rs` | `CT_CellAlignment`, `CT_CellProtection`, `CT_NumFmt` — shared with `CT_Xf` | MJXOFF-105 (D08), for MJXOFF-108 |
+//! | `formats.rs` | `cellXfs` / `cellStyleXfs` / `xf` — the indirection, and the three-state `applyX` | MJXOFF-108 (D09) |
+//! | `number_formats.rs` | `numFmts` / `numFmt`, and §18.8.30's **implied** format codes | MJXOFF-108 (D09) |
+//! | `named_styles.rs` | `cellStyles` / `cellStyle`, and Annex G.2's built-in names | MJXOFF-108 (D09) |
+//! | `effective.rs` | the resolver: cell → row → column, then direct `xf` → `cellStyleXfs` | MJXOFF-108 (D09) |
 //!
 //! It is a **directory** because those are independent vocabularies that happen to share a part: a
 //! resource table is a list of values, and an `xf` is a pointer into four of them with its own
@@ -77,8 +81,12 @@ pub mod borders;
 pub mod cell_format;
 pub mod colors;
 pub mod differential;
+pub mod effective;
 pub mod fills;
 pub mod fonts;
+pub mod formats;
+pub mod named_styles;
+pub mod number_formats;
 pub mod palette;
 pub mod stylesheet;
 
@@ -93,11 +101,27 @@ pub use colors::{
 pub use differential::{
     DifferentialFormat, DifferentialFormatContent, DifferentialFormats, DifferentialFormatsContent,
 };
+pub use effective::{
+    cell_style_index, column_style_index, CellFormatResolver, ColumnStyles, EffectiveCellFormat,
+    FormatLayer, ResolvedAspect, StyleIndexSource,
+};
 pub use fills::{
     Fill, FillContent, FillTable, FillTableContent, GradientFill, GradientFillContent,
     GradientStop, GradientStopContent, PatternFill, PatternFillContent,
 };
 pub use fonts::{Font, FontTable, FontTableContent};
+pub use formats::{
+    ApplyFlag, CellFormat, CellFormatContent, CellFormatTable, CellFormatTableContent,
+    CellFormatTableKind, FormatAspect,
+};
+pub use named_styles::{
+    builtin_cell_style_name, BuiltInCellStyleName, NamedCellStyle, NamedCellStyles,
+    NamedCellStylesContent,
+};
+pub use number_formats::{
+    builtin_format_code, builtin_format_code_in, is_locale_dependent, NumberFormatLanguage,
+    NumberFormatTable, NumberFormatTableContent,
+};
 pub use palette::{
     apply_tint, apply_tint_to_luminance, resolve_color, theme_color_slot, IndexedColor,
     IndexedColorPalette,

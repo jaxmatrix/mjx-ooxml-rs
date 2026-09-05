@@ -58569,3 +58569,6 @@ pub static STYLESHEET_DIFFERENTIAL_FORMAT: &ChildOrder = &SML_TYPES[102];
 
 /// The colour table's indexed palette, then its most-recently-used colours (`x:colors`) (`CT_Colors`, `sml.xsd`).
 pub static STYLESHEET_COLOR_TABLE: &ChildOrder = &SML_TYPES[51];
+
+/// One cell format's three children: alignment, protection, then `extLst` (`x:xf`) (`CT_Xf`, `sml.xsd`).
+pub static STYLESHEET_CELL_FORMAT: &ChildOrder = &SML_TYPES[360];

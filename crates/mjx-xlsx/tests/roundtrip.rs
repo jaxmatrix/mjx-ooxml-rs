@@ -164,6 +164,27 @@ fn opening_reading_and_inventorying_never_dirties_a_part() {
     let _ = workbook.part_inventory();
     workbook.validate().expect("validate");
 
+    // MJXOFF-108's read surface joins the list: the styles part, the per-sheet formatting handle,
+    // and one resolved cell format per sheet. `sheet_formatting` parses two parts and models both,
+    // which is precisely the shape that dirties a package if it reaches for a tree.
+    let _ = workbook.styles_markup().expect("read xl/styles.xml");
+    for index in 0..workbook.sheets().len() {
+        let Some(formatting) = workbook
+            .sheet_formatting(index)
+            .expect("read the sheet's formatting")
+        else {
+            continue;
+        };
+        let resolver = formatting.resolver().expect("decode the xf tables");
+        let reference = mjx_sml::CellReference::parse("A1").expect("a cell reference");
+        let _ = resolver
+            .effective_cell_format(reference)
+            .expect("resolve A1's format");
+        let _ = workbook
+            .effective_cell_format(index, reference)
+            .expect("the one-shot form resolves too");
+    }
+
     // `Workbook` holds its package privately, so the provenance is inspected on the container it
     // writes: a part this library had authored would come back re-serialized, and the only thing
     // that could have authored one is a read above.

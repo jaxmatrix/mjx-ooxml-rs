@@ -1,25 +1,29 @@
 //! `xl/styles.xml` — `CT_Stylesheet` (`sml.xsd:3387`), the eleven-slot frame.
 //!
-//! # Five slots modelled, six held
+//! # Nine slots modelled, two held
 //!
 //! | rank | element | held as |
 //! |---|---|---|
-//! | 0 | `numFmts` | [`StylesheetContent::Raw`] — MJXOFF-108 (D09) |
+//! | 0 | `numFmts` | [`NumberFormatTable`] |
 //! | 1 | `fonts` | [`FontTable`] |
 //! | 2 | `fills` | [`FillTable`] |
 //! | 3 | `borders` | [`BorderTable`] |
-//! | 4 | `cellStyleXfs` | [`StylesheetContent::Raw`] — MJXOFF-108 (D09) |
-//! | 5 | `cellXfs` | [`StylesheetContent::Raw`] — MJXOFF-108 (D09) |
-//! | 6 | `cellStyles` | [`StylesheetContent::Raw`] — MJXOFF-108 (D09) |
+//! | 4 | `cellStyleXfs` | [`CellFormatTable`] |
+//! | 5 | `cellXfs` | [`CellFormatTable`] |
+//! | 6 | `cellStyles` | [`NamedCellStyles`] |
 //! | 7 | `dxfs` | [`DifferentialFormats`] |
 //! | 8 | `tableStyles` | [`StylesheetContent::Raw`] — MJXOFF-127 (D15) |
 //! | 9 | `colors` | [`ColorTable`] |
 //! | 10 | `extLst` | [`StylesheetContent::Raw`], on purpose and for good |
 //!
-//! The split is the part's own seam. MJXOFF-105 builds the **resource tables** a style index
-//! resolves *into*; MJXOFF-108 builds the `xf` indirection that does the resolving. A `cellXfs` that
-//! survives a round-trip today is proof the frame works, not proof an `xf` was modelled — and when
-//! MJXOFF-108 lands, it replaces one `Raw` slot and changes nothing else here.
+//! The split was the part's own seam. MJXOFF-105 built the **resource tables** a style index
+//! resolves *into*; MJXOFF-108 builds the `xf` indirection that does the resolving, and it took the
+//! four slots that child had held raw. One modelled slot is left — `tableStyles`, MJXOFF-127's —
+//! plus `extLst`, which stays raw on purpose and for good.
+//!
+//! **`cellStyleXfs` and `cellXfs` are the same complex type in two slots.** Both are
+//! [`CellFormatTable`]; only the local name they stand under and their meaning differ. See
+//! [`super::formats`].
 //!
 //! The ranks above are never written down. Every placement goes through
 //! [`mjx_ooxml_types::child_order::STYLESHEET`], generated from `sml.xsd` by
@@ -48,6 +52,9 @@ use super::colors::ColorTable;
 use super::differential::DifferentialFormats;
 use super::fills::FillTable;
 use super::fonts::FontTable;
+use super::formats::CellFormatTable;
+use super::named_styles::NamedCellStyles;
+use super::number_formats::NumberFormatTable;
 
 /// `x:styleSheet` (`CT_Stylesheet`, `sml.xsd:3387`) — the whole styles part.
 ///
@@ -64,31 +71,43 @@ pub struct StylesheetPart {
     empty: bool,
     #[xml(
         children,
+        child(local = "numFmts", variant = NumberFormats, ty = NumberFormatTable),
         child(local = "fonts", variant = Fonts, ty = FontTable),
         child(local = "fills", variant = Fills, ty = FillTable),
         child(local = "borders", variant = Borders, ty = BorderTable),
+        child(local = "cellStyleXfs", variant = CellStyleFormats, ty = CellFormatTable),
+        child(local = "cellXfs", variant = CellFormats, ty = CellFormatTable),
+        child(local = "cellStyles", variant = NamedStyles, ty = NamedCellStyles),
         child(local = "dxfs", variant = DifferentialFormats, ty = DifferentialFormats),
         child(local = "colors", variant = Colors, ty = ColorTable)
     )]
     content: Vec<StylesheetContent>,
 }
 
-/// One child of [`StylesheetPart`]: five modelled slots, and everything else.
+/// One child of [`StylesheetPart`]: nine modelled slots, and everything else.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StylesheetContent {
+    /// `x:numFmts` (rank 0).
+    NumberFormats(NumberFormatTable),
     /// `x:fonts` (rank 1).
     Fonts(FontTable),
     /// `x:fills` (rank 2).
     Fills(FillTable),
     /// `x:borders` (rank 3).
     Borders(BorderTable),
+    /// `x:cellStyleXfs` (rank 4) — the records the **named styles** are made of.
+    CellStyleFormats(CellFormatTable),
+    /// `x:cellXfs` (rank 5) — the records a cell's `@s` indexes.
+    CellFormats(CellFormatTable),
+    /// `x:cellStyles` (rank 6).
+    NamedStyles(NamedCellStyles),
     /// `x:dxfs` (rank 7).
     DifferentialFormats(DifferentialFormats),
     /// `x:colors` (rank 9).
     Colors(ColorTable),
-    /// The six slots this child does not model — `numFmts`, `cellStyleXfs`, `cellXfs`,
-    /// `cellStyles`, `tableStyles` and `extLst` — plus any foreign element, any
-    /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
+    /// The two slots this frame does not model — `tableStyles` (MJXOFF-127) and `extLst` — plus any
+    /// foreign element, any `mc:AlternateContent`, and the text, comments and processing
+    /// instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
     /// child never moves and never moves anything else.
@@ -100,9 +119,13 @@ impl StylesheetContent {
     #[must_use]
     fn local(&self) -> Option<&'static str> {
         Some(match self {
+            Self::NumberFormats(_) => "numFmts",
             Self::Fonts(_) => "fonts",
             Self::Fills(_) => "fills",
             Self::Borders(_) => "borders",
+            Self::CellStyleFormats(_) => "cellStyleXfs",
+            Self::CellFormats(_) => "cellXfs",
+            Self::NamedStyles(_) => "cellStyles",
             Self::DifferentialFormats(_) => "dxfs",
             Self::Colors(_) => "colors",
             Self::Raw(_) => return None,
@@ -116,10 +139,15 @@ impl StylesheetContent {
     /// [`WorksheetPart`](crate::WorksheetPart), and the reason is arithmetic rather than taste.
     /// Those two model a *prefix* of their sequence — ranks 0–17 of nineteen, and 0–6 of thirty-nine
     /// — so every slot they model ranks below every slot they hold raw, and a new child always
-    /// belongs before all of them. This frame models ranks **1, 2, 3, 7 and 9** and holds **0, 4, 5,
-    /// 6, 8 and 10** raw: the two sets interleave, so a `colors` inserted into a part that already
-    /// writes `numFmts` and `cellXfs` has to land *after* both. Treating an unmodelled element as
-    /// unranked would put it first.
+    /// belongs before all of them. This frame models ranks **0–7 and 9** and holds **8** and **10**
+    /// raw: the two sets interleave, so a `colors` (rank 9) inserted into a part that already writes
+    /// a `tableStyles` (rank 8) has to land *after* it. Treating an unmodelled element as unranked
+    /// would put it first.
+    ///
+    /// MJXOFF-105 modelled 1, 2, 3, 7 and 9 and held 0, 4, 5, 6, 8 and 10; MJXOFF-108 took four of
+    /// those six. The interleaving is narrower than it was and it has not gone away, so neither has
+    /// this method — and MJXOFF-127 taking rank 8 would leave `extLst` at 10 above `colors` at 9,
+    /// which is the same shape again.
     ///
     /// So a `Raw` element is ranked through the same generated table, by its own name, and only a
     /// node the table genuinely does not name — a foreign element, a comment, an
@@ -137,7 +165,7 @@ impl StylesheetContent {
 /// Declares one singleton slot: a borrowing getter, a mutable getter, and a setter that replaces the
 /// existing child in place or inserts a new one at its rank in `CT_Stylesheet`'s sequence.
 ///
-/// All five slots share these three bodies, and writing them out five times would be five chances to
+/// All nine slots share these three bodies, and writing them out nine times would be nine chances to
 /// reach for the wrong variant.
 macro_rules! singleton_slot {
     ($getter:ident, $getter_mut:ident, $setter:ident, $variant:ident, $ty:ty, $local:literal, $doc:literal) => {
@@ -304,6 +332,48 @@ impl StylesheetPart {
          colours. `None` means the **default** palette, not an empty one; see \
          [`super::palette`]."
     );
+    singleton_slot!(
+        number_formats,
+        number_formats_mut,
+        set_number_formats,
+        NumberFormats,
+        NumberFormatTable,
+        "numFmts",
+        "`x:numFmts` — the number formats this workbook writes down. `None` is the common case and \
+         means every `@numFmtId` in the file is one of the **implied** ids of ECMA-376 Part 1 \
+         §18.8.30; see [`super::number_formats`]."
+    );
+    singleton_slot!(
+        cell_style_formats,
+        cell_style_formats_mut,
+        set_cell_style_formats,
+        CellStyleFormats,
+        CellFormatTable,
+        "cellStyleXfs",
+        "`x:cellStyleXfs` — the master records the **named** cell styles are made of, and the layer \
+         a `cellXfs` record sits on top of through its `@xfId`."
+    );
+    singleton_slot!(
+        cell_formats,
+        cell_formats_mut,
+        set_cell_formats,
+        CellFormats,
+        CellFormatTable,
+        "cellXfs",
+        "`x:cellXfs` — the master records a cell's `@s`, a row's `@s` and a column's `@style` index. \
+         §18.8.10 calls these \"the starting point for determining the formatting for a cell\"."
+    );
+    singleton_slot!(
+        named_styles,
+        named_styles_mut,
+        set_named_styles,
+        NamedStyles,
+        NamedCellStyles,
+        "cellStyles",
+        "`x:cellStyles` — the named styles (\"Normal\", \"Comma\", \"Heading 1\"), each naming a \
+         `cellStyleXfs` record through its `@xfId`. Not on the resolution path: a cell names an \
+         index, never a name."
+    );
 
     /// Where a child named `local` belongs among the current children.
     fn insert_index(&self, interner: &Interner, local: &str) -> usize {
@@ -350,15 +420,18 @@ mod tests {
             11,
             "CT_Stylesheet is an eleven-slot sequence"
         );
-        let modelled = ["fonts", "fills", "borders", "dxfs", "colors"];
-        let held = [
+        let modelled = [
             "numFmts",
+            "fonts",
+            "fills",
+            "borders",
             "cellStyleXfs",
             "cellXfs",
             "cellStyles",
-            "tableStyles",
-            "extLst",
+            "dxfs",
+            "colors",
         ];
+        let held = ["tableStyles", "extLst"];
         for slot in STYLESHEET.slots {
             assert!(
                 modelled.contains(&slot.local) || held.contains(&slot.local),
@@ -371,11 +444,14 @@ mod tests {
 
     /// A new table lands at its **schema** rank, not at the end, and not where a comment happens to
     /// be.
+    ///
+    /// Both inserted slots are *modelled* now, so the interleaving this exercises is the one that is
+    /// left: `tableStyles` (rank 8) is held raw and sits between `dxfs` (7) and `colors` (9).
     #[test]
     fn an_inserted_table_lands_at_its_rank_among_unmodelled_neighbours() {
         let markup = concat!(
             r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
-            r#"<numFmts count="0"/><!-- between --><cellXfs count="0"/><extLst/>"#,
+            r#"<numFmts count="0"/><!-- between --><tableStyles count="0"/><extLst/>"#,
             "</styleSheet>"
         );
         let mut document = mjx_xml::fidelity::parse(markup.as_bytes()).expect("the part parses");
@@ -391,8 +467,59 @@ mod tests {
         let locals: Vec<&str> = part.child_element_locals(&document.interner).collect();
         assert_eq!(
             locals,
-            vec!["numFmts", "fonts", "cellXfs", "colors", "extLst"],
-            "`fonts` is rank 1 and `colors` rank 9, so both land among the slots already there"
+            vec!["numFmts", "fonts", "tableStyles", "colors", "extLst"],
+            "`fonts` is rank 1 and `colors` rank 9, so `colors` lands *after* the raw `tableStyles` \
+             at rank 8 — which is what ranking an unmodelled element by its own name buys"
+        );
+    }
+
+    /// The two `xf` tables are one type in two slots, and a setter must not reach for the other's
+    /// variant.
+    ///
+    /// The mistake this is written against is a copy-paste in `singleton_slot!`: both invocations
+    /// name `CellFormatTable`, so swapping `CellFormats` for `CellStyleFormats` still compiles, and
+    /// every assertion about "the part has a cellXfs" still passes.
+    #[test]
+    fn the_two_xf_slots_are_told_apart_by_variant_and_not_by_type() {
+        let markup =
+            r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>"#;
+        let mut document = mjx_xml::fidelity::parse(markup.as_bytes()).expect("the part parses");
+        let mut part = StylesheetPart::read_part(&document)
+            .expect("the part reads")
+            .expect("the root is an x:styleSheet");
+
+        let cell_formats = CellFormatTable::new(
+            &mut document.interner,
+            None,
+            super::super::formats::CellFormatTableKind::CellFormats,
+        );
+        let style_formats = CellFormatTable::new(
+            &mut document.interner,
+            None,
+            super::super::formats::CellFormatTableKind::CellStyleFormats,
+        );
+        // Set the *later* slot first: a setter that inserted at the end would pass anyway.
+        part.set_cell_formats(&document.interner, Some(cell_formats));
+        part.set_cell_style_formats(&document.interner, Some(style_formats));
+
+        let locals: Vec<&str> = part.child_element_locals(&document.interner).collect();
+        assert_eq!(locals, vec!["cellStyleXfs", "cellXfs"]);
+        assert!(part.cell_formats().is_some());
+        assert!(part.cell_style_formats().is_some());
+        assert_eq!(
+            document
+                .interner
+                .resolve(part.cell_formats().expect("cellXfs").element_name().local),
+            "cellXfs"
+        );
+        assert_eq!(
+            document.interner.resolve(
+                part.cell_style_formats()
+                    .expect("cellStyleXfs")
+                    .element_name()
+                    .local
+            ),
+            "cellStyleXfs"
         );
     }
 }
