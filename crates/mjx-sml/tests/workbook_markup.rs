@@ -504,6 +504,70 @@ fn defined_names_are_read_with_their_scope_and_never_renumbered() {
     assert_eq!(round_trip(DISCRIMINATING), DISCRIMINATING);
 }
 
+/// A defined name's own **character-data spelling** survives an edit elsewhere in the part.
+///
+/// This is the case the derived `#[xml(text)]` grammar would fail. It decodes on read and re-escapes
+/// minimally on write, so `&apos;` becomes `'` and `&#65;` becomes `A` — the same string, different
+/// bytes — and a text node that differs from the original denies its element, and every ancestor of
+/// it, the verbatim source range it would otherwise keep. Nothing notices while the part is
+/// untouched, because then the model never writes at all; renaming a **sheet** is what makes the
+/// definedName subtree get rebuilt, and it is why this case renames one.
+#[test]
+fn an_entity_spelling_in_a_definition_survives_an_edit_elsewhere() {
+    const ESCAPED: &[u8] = br#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheets><sheet name="S" sheetId="1"/></sheets><definedNames><definedName name="Quoted">&apos;My Sheet&apos;!$A$1</definedName><definedName name="Charref">&#65;lpha!$B$2</definedName><definedName name="Wrapped"><![CDATA[Sheet1!$C$3]]></definedName></definedNames></workbook>"#;
+
+    // Read: the decoded value is the string, whatever spelling the file used for it.
+    let (_, part) = read(ESCAPED);
+    let definitions: Vec<&str> = part
+        .defined_names()
+        .expect("definedNames")
+        .names()
+        .map(mjx_sml::DefinedName::definition)
+        .collect();
+    assert_eq!(
+        definitions,
+        vec!["'My Sheet'!$A$1", "Alpha!$B$2", "Sheet1!$C$3"],
+        "an entity reference, a character reference and a CDATA section all decode"
+    );
+
+    // Write, after renaming a sheet: the spellings come back exactly as they went in.
+    let (mut document, mut part) = read(ESCAPED);
+    part.sheets_mut()
+        .expect("a sheet list")
+        .entry_mut(0)
+        .expect("one entry")
+        .set_name(&mut document.interner, Some("Renamed"));
+    part.write_back(&mut document.root, &mut document.interner);
+    let written = mjx_xml::fidelity::serialize_to_vec(&document);
+    let expected = String::from_utf8_lossy(ESCAPED).replace(r#"name="S""#, r#"name="Renamed""#);
+    assert_eq!(
+        String::from_utf8_lossy(&written),
+        expected,
+        "&apos;, &#65; and the CDATA section must all be exactly as the file wrote them"
+    );
+}
+
+/// Replacing a definition is the one thing that gives up the preserved spelling — and it writes
+/// clean, minimally escaped markup, which is what authoring should write.
+#[test]
+fn setting_a_definition_writes_freshly_escaped_text() {
+    let (mut document, mut part) = read(
+        br#"<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><definedNames><definedName name="N">&apos;A&apos;!$A$1</definedName></definedNames></workbook>"#,
+    );
+    part.defined_names_mut()
+        .expect("definedNames")
+        .names_mut()
+        .next()
+        .expect("one name")
+        .set_definition("IF(A1<2,\"a & b\",'c')");
+    part.write_back(&mut document.root, &mut document.interner);
+    let written = String::from_utf8(mjx_xml::fidelity::serialize_to_vec(&document)).expect("utf-8");
+    assert!(
+        written.contains(r#"<definedName name="N">IF(A1&lt;2,"a &amp; b",'c')</definedName>"#),
+        "`<` and `&` are escaped and nothing else is: {written}"
+    );
+}
+
 /// A defined name whose definition is edited keeps every other name's bytes.
 #[test]
 fn editing_one_definition_leaves_the_others_alone() {

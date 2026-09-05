@@ -12,14 +12,36 @@
 //! # What this is not
 //!
 //! [`Sheet`] is a **graph** entry, not `CT_Sheet`. It carries what is needed to find the part and
-//! name it to a user, and nothing else; `mjx_sml`'s `workbook` module is where the modelled
-//! `CT_Workbook`/`CT_Sheet` land (MJXOFF-100, D06), and `views.rs`, `properties.rs` and
-//! `defined_names.rs` beside this file are that child's other homes.
+//! name it to a user, and nothing else. The modelled `CT_Workbook`/`CT_Sheet` are
+//! [`mjx_sml::WorkbookPart`] and [`mjx_sml::SheetEntry`] (MJXOFF-100), one crate down, and this file
+//! reads the markup **through them** rather than walking the tree a second time.
+//!
+//! # Where the seam runs, in one function
+//!
+//! [`resolve`] is the whole boundary between the two crates:
+//!
+//! 1. `mjx-sml` parses the part and hands back each entry's `@name`, `@sheetId`, `@state` and the
+//!    **raw string** its `r:id` holds. It has never heard of a package.
+//! 2. This crate looks that string up in `xl/_rels/workbook.xml.rels`, resolves the target against
+//!    the workbook part's own directory, and reads the target's content type.
+//!
+//! Nothing in step 1 needs step 2, which is what an embedded workbook inside a `.pptx` — reached by
+//! `mjx-chart`, which may not depend on this crate — actually requires.
+//!
+//! # Reading is lenient here and strict one layer down
+//!
+//! `mjx_sml::SheetEntry`'s accessors *report* a malformed `@sheetId` or an `@state` outside
+//! `ST_SheetState` as an error, because the markup layer's job is to say what the file says. This
+//! layer's job is to let a broken file **open**, so it degrades: an unparseable `@sheetId` becomes
+//! `None` and an unknown `@state` falls back to the schema's own default. Neither degradation
+//! rewrites anything — the original token is still in the part's bytes and still written back
+//! verbatim, which [`an_unknown_visibility_token_falls_back_to_visible`] checks by reopening the
+//! saved container.
 
-use mjx_ooxml_core::RawDocument;
-use mjx_ooxml_types::namespaces::{SHARED_RELATIONSHIP_REFERENCE, SML};
+use mjx_ooxml_core::{FromXmlError, RawDocument};
 use mjx_ooxml_types::spreadsheetml::SheetState;
 use mjx_opc::{Package, PartName, TargetMode};
+use mjx_sml::WorkbookPart;
 
 use crate::error::XlsxError;
 use crate::nav;
@@ -111,44 +133,43 @@ pub(crate) fn resolve(
     Ok(sheets)
 }
 
-/// Reads `x:workbook/x:sheets/x:sheet` out of a parsed workbook part.
+/// Reads `x:workbook/x:sheets/x:sheet` out of a parsed workbook part, through the markup model.
+///
+/// # Errors
+/// Returns [`XlsxError::Sml`] if the part's root is not an `x:workbook` or a modelled element does
+/// not match its complex type, and [`XlsxError::Model`] if a tab's `@name` is not decodable text.
 fn read_entries(doc: &RawDocument) -> Result<Vec<SheetEntry>, XlsxError> {
     let interner = &doc.interner;
-    let Some(sheets) = nav::child(&doc.root, interner, SML, "sheets") else {
-        // Legal: `CT_Workbook`'s `sheets` is `minOccurs="0"`. A workbook with no sheet list has no
-        // tabs, which is a thing this crate reads rather than a thing it refuses.
-        return Ok(Vec::new());
+    let Some(part) = WorkbookPart::read_part(doc)? else {
+        return Err(XlsxError::MalformedWorkbook(
+            "root element is not x:workbook",
+        ));
     };
     // The reader leaves attribute namespaces unresolved, so `r:id` is found through whichever prefix
     // the root binds. A workbook that binds none can carry no relationship reference at all.
-    let reference_prefix =
-        nav::namespace_prefix(&doc.root, interner, SHARED_RELATIONSHIP_REFERENCE);
+    let reference_prefix = part.relationship_prefix(interner);
+    let Some(list) = part.sheets() else {
+        // Legal: `CT_Workbook`'s `sheets` is `minOccurs="0"` in the generated content model, and a
+        // workbook with no sheet list has no tabs — a thing this crate reads rather than refuses.
+        return Ok(Vec::new());
+    };
 
-    let mut entries = Vec::new();
-    for sheet in nav::children(sheets, interner, SML, "sheet") {
-        let name = match nav::attr_value(sheet, interner, "name") {
-            Some(value) => value?,
-            None => String::new(),
-        };
-        let sheet_id = match nav::attr_value(sheet, interner, "sheetId") {
-            Some(value) => value?.parse::<u32>().ok(),
-            None => None,
-        };
-        let visibility = match nav::attr_value(sheet, interner, "state") {
-            Some(value) => SheetState::from_wire(&value?).unwrap_or(SheetState::Visible),
-            None => SheetState::Visible,
-        };
-        let relationship_id = match reference_prefix
-            .and_then(|prefix| nav::prefixed_attr_value(sheet, interner, prefix, "id"))
-        {
-            Some(value) => value?,
-            None => String::new(),
-        };
+    let mut entries = Vec::with_capacity(list.len());
+    for sheet in list.entries() {
         entries.push(SheetEntry {
-            name,
-            sheet_id,
-            visibility,
-            relationship_id,
+            // A tab name is user text: `Q1 &amp; Q2` must read back as `Q1 & Q2`.
+            name: sheet
+                .name(interner)
+                .map_err(FromXmlError::from)?
+                .unwrap_or_default()
+                .into_owned(),
+            // Degraded rather than propagated — see this module's own documentation.
+            sheet_id: sheet.sheet_id(interner).ok().flatten(),
+            visibility: sheet.visibility(interner).unwrap_or(SheetState::Visible),
+            relationship_id: sheet
+                .relationship_id(interner, reference_prefix)
+                .map_err(FromXmlError::from)?
+                .unwrap_or_default(),
         });
     }
     Ok(entries)

@@ -23,10 +23,10 @@
 //! | Module | Filled by |
 //! |---|---|
 //! | `mod.rs` (this file) | MJXOFF-91 (D02) — [`Workbook`]: `open`/`from_package`/`save`/`save_unchecked`/`validate`/`parts`/`sheets`/`part_inventory` |
-//! | [`sheets`](self::sheets) | MJXOFF-91 (D02) — the `x:sheets` graph entry ([`Sheet`], [`crate::SheetKind`]); MJXOFF-100 (D06) adds the modelled sheet list on top |
-//! | [`views`](self::views) | MJXOFF-100 (D06) — `x:bookViews`, `x:workbookView`, the active tab and window geometry |
-//! | [`properties`](self::properties) | MJXOFF-100 (D06) — `x:workbookPr`, `x:workbookProtection`, `x:calcPr`, `x:fileVersion` |
-//! | [`defined_names`](self::defined_names) | MJXOFF-100 (D06) — `x:definedNames`, and the built-in names (`_xlnm.Print_Area`, …) |
+//! | [`sheets`](self::sheets) | MJXOFF-91 (D02) — the `x:sheets` graph entry ([`Sheet`], [`crate::SheetKind`]); MJXOFF-100 (D06) reads it through [`mjx_sml::WorkbookPart`] and resolves each `r:id` |
+//! | [`views`](self::views) | MJXOFF-100 (D06) — [`WorkbookWindow`]: the active tab and the window geometry, decoded |
+//! | [`properties`](self::properties) | MJXOFF-100 (D06) — [`DateSystem`] and [`CalculationSettings`], decoded |
+//! | [`defined_names`](self::defined_names) | MJXOFF-100 (D06) — [`DefinedNameEntry`], with `@localSheetId` resolved against the sheet list |
 //!
 //! Beside this directory: [`crate::parts`] (the part graph), [`crate::preserve`] (what happens to a
 //! part nobody models), [`crate::validate`] (the SpreadsheetML invariants), [`crate::worksheet`]
@@ -47,8 +47,10 @@ pub(crate) mod properties;
 pub(crate) mod sheets;
 pub(crate) mod views;
 
+use mjx_ooxml_core::{Interner, RawDocument, ToXml};
 use mjx_ooxml_types::namespaces::SML;
 use mjx_opc::{Package, PartName, TargetMode};
+use mjx_sml::WorkbookPart;
 
 use crate::error::XlsxError;
 use crate::nav;
@@ -56,7 +58,10 @@ use crate::parts::{PartKind, WorkbookParts};
 use crate::preserve::PartInventoryEntry;
 use crate::worksheet::Worksheet;
 
+pub use defined_names::{DefinedNameEntry, DefinedNameScope};
+pub use properties::{CalculationSettings, DateSystem};
 pub use sheets::Sheet;
+pub use views::WorkbookWindow;
 
 /// A SpreadsheetML workbook: an [`mjx_opc::Package`], the workbook part inside it, and the part
 /// graph reached from there.
@@ -191,6 +196,130 @@ impl Workbook {
             return Ok(None);
         };
         Worksheet::resolve(&self.package, sheet)
+    }
+
+    /// The index in the sheet list of the tab named exactly `name`, or `None`.
+    ///
+    /// Exact and case-sensitive. `@name` is `ST_Xstring`, ECMA-376 gives no case-folding rule for
+    /// it, and a workbook may legally carry two tabs whose names differ only in case — so matching
+    /// case-insensitively would be this library inventing a rule and then answering ambiguously.
+    /// The **first** match wins, which matters only for a file that already broke §18.2.19's
+    /// uniqueness requirement; [`Workbook::validate`](Self::validate) reports that separately.
+    #[must_use]
+    pub fn sheet_index_by_name(&self, name: &str) -> Option<usize> {
+        self.sheets.iter().position(|sheet| sheet.name == name)
+    }
+
+    /// The tab named exactly `name`, or `None`. See [`sheet_index_by_name`](Self::sheet_index_by_name).
+    #[must_use]
+    pub fn sheet_by_name(&self, name: &str) -> Option<&Sheet> {
+        self.sheets.iter().find(|sheet| sheet.name == name)
+    }
+
+    /// The sheet named exactly `name`, with its own part graph resolved.
+    ///
+    /// `None` if no tab has that name, or if its entry's `r:id` reaches no part.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if one of the sheet's own relationships has an unresolvable or external
+    /// target.
+    pub fn worksheet_by_name(&self, name: &str) -> Result<Option<Worksheet<'_>>, XlsxError> {
+        let Some(sheet) = self.sheet_by_name(name) else {
+            return Ok(None);
+        };
+        Worksheet::resolve(&self.package, sheet)
+    }
+
+    /// The tabs a consumer shows, in tab order — those whose `@state` is `visible`.
+    pub fn visible_sheets(&self) -> impl Iterator<Item = &Sheet> + '_ {
+        self.sheets.iter().filter(|sheet| sheet.is_visible())
+    }
+
+    /// Reads the modelled `xl/workbook.xml`, handing `read` the parsed [`WorkbookPart`] together
+    /// with the [`Interner`] it was parsed with.
+    ///
+    /// **This is not a mutation.** The part keeps its container bytes and
+    /// [`save`](Self::save) still re-emits them verbatim; parsing a tree for reading is what
+    /// [`mjx_opc::Package::part_tree`] is for. Mirrors `mjx_docx::Document::document_settings`
+    /// exactly, which is the shape this workspace already uses for a whole-part model.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the workbook part cannot be read or is not well-formed, or
+    /// [`XlsxError::MalformedWorkbook`] if its root is not `x:workbook` — which
+    /// [`from_package`](Self::from_package) has already ruled out for a workbook that opened.
+    pub fn workbook_markup<R>(
+        &mut self,
+        read: impl FnOnce(&WorkbookPart, &Interner) -> R,
+    ) -> Result<R, XlsxError> {
+        let part = self.workbook_part.clone();
+        let document = self.package.part_tree(&part)?;
+        let Some(markup) = WorkbookPart::read_part(document)? else {
+            return Err(XlsxError::MalformedWorkbook(
+                "root element is not x:workbook",
+            ));
+        };
+        Ok(read(&markup, &document.interner))
+    }
+
+    /// Edits the modelled `xl/workbook.xml` and writes it back, keeping the verbatim bytes of every
+    /// element the edit did not touch.
+    ///
+    /// The write-back goes through [`ToXml::write_back`], which restores the source range of every
+    /// node the rebuild reproduced unchanged — so renaming one tab re-flows that one start tag and
+    /// copies the rest of the part, extension list included.
+    ///
+    /// The resolved sheet list is refreshed afterwards, so [`sheets`](Self::sheets) never reports a
+    /// tab name the part no longer holds.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the workbook part cannot be read or is not well-formed, or if the
+    /// sheet list cannot be re-resolved afterwards.
+    pub fn edit_workbook_markup<R>(
+        &mut self,
+        edit: impl FnOnce(&mut WorkbookPart, &mut Interner) -> R,
+    ) -> Result<R, XlsxError> {
+        let part = self.workbook_part.clone();
+        let result = {
+            let document = self.package.part_tree_mut(&part)?;
+            let RawDocument { interner, root, .. } = document;
+            let mut markup = match WorkbookPart::read_root(root, interner)? {
+                Some(markup) => markup,
+                None => {
+                    return Err(XlsxError::MalformedWorkbook(
+                        "root element is not x:workbook",
+                    ))
+                }
+            };
+            let result = edit(&mut markup, interner);
+            markup.write_back(root, interner);
+            result
+        };
+        self.sheets = sheets::resolve(&mut self.package, &part)?;
+        Ok(result)
+    }
+
+    /// Renames the tab at `index`, leaving every other part — and every other element of
+    /// `xl/workbook.xml` — byte-identical.
+    ///
+    /// The relationship the entry names is untouched, so the sheet still reaches the same part: a
+    /// tab's name and the part behind it are independent, which is the whole point of
+    /// [`super::sheets`]'s first section.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError::NoSuchSheet`] if `index` names no tab, or [`XlsxError`] if the workbook
+    /// part cannot be read or written.
+    pub fn rename_sheet(&mut self, index: usize, name: &str) -> Result<(), XlsxError> {
+        if index >= self.sheets.len() {
+            return Err(XlsxError::NoSuchSheet {
+                index,
+                sheets: self.sheets.len(),
+            });
+        }
+        self.edit_workbook_markup(|markup, interner| {
+            if let Some(entry) = markup.sheets_mut().and_then(|list| list.entry_mut(index)) {
+                entry.set_name(interner, Some(name));
+            }
+        })
     }
 
     /// Every addressable part of the container, in container order, with its content type and what
