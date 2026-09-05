@@ -57,6 +57,32 @@
 #     `crates/mjx-sml/src/formula/`, so an unrelated `deleted` anywhere in `mjx-sml` still fails and
 #     a chart-shaped `delete_*` planted in that very file still fails (probed, both ways, in
 #     MJXOFF-115's pull request).
+#   * **SpreadsheetML's sheet grid** (MJXOFF-117) — four identifiers under
+#     `crates/mjx-sml/src/worksheet/`, each a real deletion rather than the chart's "switched off",
+#     and each named from ECMA-376 Part 1's own prose:
+#       - `locks_deleting_columns` / `locks_deleting_rows`, for `CT_SheetProtection`'s
+#         `@deleteColumns` and `@deleteRows`. §18.3.1.85's captions are "Delete Columns Locked" and
+#         "Delete Rows Locked", and the descriptions are *"If 1 or true then deleting columns should
+#         not be allowed when the sheet is protected"*. The thing being locked **is** a deletion of
+#         columns; `locks_suppressing_columns` would describe a different operation, and dropping the
+#         verb entirely would lose which of `formatColumns`/`insertColumns`/`deleteColumns` is meant.
+#       - `input_cell_was_deleted` / `deletion_was_undone`, for `CT_InputCells`'s `@deleted` and
+#         `@undone`. §18.3.1.52 spells them out in full — *"Input cell was deleted. This input cell
+#         shall be present in the file format, but shall not be presented to the user"* and *"Cell's
+#         deletion was undone"* — and the accessors are those sentences. This is the same situation as
+#         the data-table `@del1`/`@del2` bullet above: a cell is gone, and `suppressed` would be
+#         wrong rather than clearer.
+#     Allow-listed by **exact token and by path** — only those four, and only under
+#     `crates/mjx-sml/src/worksheet/`, so an unrelated `deleted` anywhere else in `mjx-sml` still
+#     fails and a chart-shaped `delete_chart_data_labels` planted in `protection.rs` or
+#     `scenarios.rs` still fails. Probed both ways before this entry was written.
+#
+#     The three **wire tokens** these accessors are declared against — `"deleteColumns"`,
+#     `"deleteRows"`, `"deleted"` — are permitted on the same path, and only **inside their double
+#     quotes**. `deleteColumns` is identifier-shaped, so unlike the chart's bare `flag("delete")` the
+#     quotes alone do not save it; requiring them is what keeps the exemption to a string literal,
+#     which is where this script has always said a wire token belongs. A bare `deleteColumns`
+#     identifier under the same path still fails.
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #   * **The two bindings' own projection of `RevisionKind`** (MJXOFF-139) — `Deleted` and
@@ -206,6 +232,9 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/DeletedText/<wml-revision>/g' \
         -e '/^crates\/(mjx-docx|mjx-omml)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
         -e '/^crates\/mjx-sml\/src\/formula\//s/(first|second)_input_cell_deleted/<data-table-input>/g' \
+        -e '/^crates\/mjx-sml\/src\/worksheet\//s/locks_deleting_(columns|rows)/<sheet-protection-lock>/g' \
+        -e '/^crates\/mjx-sml\/src\/worksheet\//s/input_cell_was_deleted|deletion_was_undone/<scenario-input-cell>/g' \
+        -e '/^crates\/mjx-sml\/src\/worksheet\//s/"(deleteColumns|deleteRows|deleted)"/<wire-token>/g' \
   | awk -F: -v py_range="$py_enums_range" -v wasm_range="$wasm_enums_range" -v pyi_range="$pyi_stub_range" \
         -v dist_web_js_range="$wasm_dist_web_js_range" -v dist_web_dts_range="$wasm_dist_web_dts_range" \
         -v dist_bundler_js_range="$wasm_dist_bundler_js_range" -v dist_bundler_dts_range="$wasm_dist_bundler_dts_range" '

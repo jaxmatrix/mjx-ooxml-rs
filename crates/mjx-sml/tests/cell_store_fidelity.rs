@@ -23,7 +23,7 @@ use std::sync::Arc;
 use mjx_ooxml_core::{RawDocument, RawNode};
 use mjx_ooxml_types::spreadsheetml::CellType;
 use mjx_opc::{Package, PartName};
-use mjx_sml::{CellReference, CellValue, SheetData, SheetDataAnomaly};
+use mjx_sml::{CellReference, CellValue, RowHeight, SheetData, SheetDataAnomaly};
 
 /// An authored worksheet carrying, on purpose, the constructs a rebuild loses.
 ///
@@ -518,8 +518,12 @@ fn every_row_attribute_is_readable_and_writable_without_disturbing_its_neighbour
     assert_eq!(row.raw_attribute("x14ac:dyDescent"), Some("0.25"));
 
     // One write, in place: everything else keeps its spelling — `true` where the file said `true`,
-    // `1` where it said `1`, and the unmodelled attribute exactly where it was.
-    sheet.set_row_height(4, Some(21.0)).expect("set the height");
+    // `1` where it said `1`, and the unmodelled attribute exactly where it was. `customHeight` is
+    // among the untouched ones: the row already claims a custom height, and a `RowHeight::Custom`
+    // does not change that claim, so its bytes have no reason to change either.
+    sheet
+        .set_row_height(4, Some(RowHeight::Custom(21.0)))
+        .expect("set the height");
     assert_eq!(
         String::from_utf8_lossy(&sheet.row(4).expect("row 4").markup()),
         r#"<x:row r="4" spans="1:2" s="6" customFormat="true" ht="21" hidden="1" customHeight="true" outlineLevel="2" collapsed="false" thickTop="1" thickBot="0" ph="true" x14ac:dyDescent="0.25" xmlns:x14ac="urn:x14ac"><x:c r="A4"><x:v>1</x:v></x:c></x:row>"#
@@ -758,7 +762,9 @@ fn an_authored_sheet_can_be_built_edited_and_written() {
     assert_eq!(sheet.row_count(), 3);
     assert_eq!(sheet.cell_count(), 9);
 
-    sheet.set_row_height(2, Some(30.0)).expect("set the height");
+    sheet
+        .set_row_height(2, Some(RowHeight::Custom(30.0)))
+        .expect("set the height");
     sheet
         .set_cell_style(CellReference::parse("B2").expect("a reference"), Some(3))
         .expect("set the style");
@@ -773,7 +779,7 @@ fn an_authored_sheet_can_be_built_edited_and_written() {
             "<x:sheetData>",
             "<x:row r=\"1\"><x:c r=\"A1\"><x:v>10</x:v></x:c><x:c r=\"B1\"><x:v>11</x:v></x:c>",
             "<x:c r=\"C1\"><x:v>12</x:v></x:c></x:row>",
-            "<x:row r=\"2\" ht=\"30\"><x:c r=\"A2\"><x:v>20</x:v></x:c>",
+            "<x:row r=\"2\" ht=\"30\" customHeight=\"true\"><x:c r=\"A2\"><x:v>20</x:v></x:c>",
             "<x:c r=\"B2\" s=\"3\"><x:v>21</x:v></x:c><x:c r=\"C2\"><x:v>22</x:v></x:c></x:row>",
             "<x:row r=\"3\"><x:c r=\"A3\"><x:v>30</x:v></x:c><x:c r=\"B3\"><x:v>31</x:v></x:c></x:row>",
             "</x:sheetData>"

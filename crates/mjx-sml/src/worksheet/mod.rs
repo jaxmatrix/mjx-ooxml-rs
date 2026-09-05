@@ -2,8 +2,9 @@
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is the **widest content model in this workspace** — a
 //! thirty-nine member `xsd:sequence`, ten times `CT_Slide`'s and twice `CT_Workbook`'s.
-//! [`WorksheetPart`] is the frame that holds all thirty-nine: seven modelled here, thirty-two kept
-//! as the markup the file wrote, every one of them in its schema position.
+//! [`WorksheetPart`] is the frame that holds all thirty-nine: **thirteen** modelled here (seven by
+//! MJXOFF-102, six more by MJXOFF-117), twenty-six kept as the markup the file wrote, every one of
+//! them in its schema position.
 //!
 //! # The module tree, and the child that fills each file
 //!
@@ -18,19 +19,24 @@
 //! | `views.rs` | `sheetPr`, `sheetViews`, panes, selections | MJXOFF-102 (D07) |
 //! | `columns.rs` | `sheetFormatPr`, `cols`/`col` | MJXOFF-102 (D07) |
 //! | `grid.rs` | `dimension`, `sheetCalcPr`, the `sheetData` seam | MJXOFF-102 (D07) |
+//! | `merges.rs` | `mergeCells`/`mergeCell`, and the merge surface on the part | MJXOFF-117 (D12) |
+//! | `rows.rs` | row geometry: height, hiding, outline level, and the outline maxima | MJXOFF-117 (D12) |
+//! | `breaks.rs` | `rowBreaks`/`colBreaks`/`brk` | MJXOFF-117 (D12) |
+//! | `protection.rs` | `sheetProtection`, `protectedRanges`/`protectedRange` | MJXOFF-117 (D12) |
+//! | `scenarios.rs` | `scenarios`/`scenario`/`inputCells` | MJXOFF-117 (D12) |
+//! | `anomalies.rs` | what the grid says that a well-formed sheet would not | MJXOFF-117 (D12) |
 //!
-//! MJXOFF-117 (D12) adds merged cells, row and column geometry, outline levels, page breaks and
-//! sheet protection; MJXOFF-120 through MJXOFF-133 (D13–D18) fill the optional features, which live
-//! in [`crate::features`] rather than here. Each of those lands in a slot this frame already holds,
-//! so none of them has to touch `frame.rs` to be reachable.
+//! MJXOFF-120 through MJXOFF-133 (D13–D18) fill the optional features, which live in
+//! [`crate::features`] rather than here. Each of those lands in a slot this frame already holds, so
+//! none of them has to touch `frame.rs` to be reachable.
 //!
 //! # What is *held* and what is *modelled* are different claims
 //!
-//! Thirty-two of the thirty-nine slots — `sheetProtection`, `mergeCells`, `conditionalFormatting`,
-//! `dataValidations`, `hyperlinks`, `pageSetup`, `headerFooter`, `drawing`, `tableParts`, `extLst`
-//! and the rest — are held as [`WorksheetContent::Raw`], the markup the producer wrote, in the
-//! position it wrote it. **A worksheet whose `pageSetup` survives is proof the frame works, not
-//! proof `pageSetup` was modelled.**
+//! Twenty-six of the thirty-nine slots — `conditionalFormatting`, `dataValidations`, `hyperlinks`,
+//! `pageSetup`, `headerFooter`, `drawing`, `tableParts`, `extLst` and the rest — are held as
+//! [`WorksheetContent::Raw`], the markup the producer wrote, in the position it wrote it. **A
+//! worksheet whose `pageSetup` survives is proof the frame works, not proof `pageSetup` was
+//! modelled.**
 //!
 //! That distinction is what makes the later children cheap: each replaces one `Raw` slot with a
 //! typed one and changes nothing else, and until it does, a caller's file is not damaged by the
@@ -47,16 +53,28 @@
 //! `crates/mjx-sml/tests/worksheet_spine.rs` checks it the other way round, reading and re-emitting
 //! whole worksheet parts without naming `mjx_opc` once.
 
+mod anomalies;
+mod breaks;
 mod columns;
 mod frame;
 mod grid;
+mod merges;
+mod protection;
+mod rows;
+mod scenarios;
 mod views;
 
 use mjx_ooxml_core::{RawAttribute, RawElement, RawName, RawNode};
 
-pub use columns::{ColumnBlock, ColumnBlockContent, ColumnRun, SheetFormatProperties};
+pub use anomalies::GridAnomaly;
+pub use breaks::{BreakAxis, PageBreak, PageBreaks, PageBreaksContent};
+pub use columns::{ColumnBlock, ColumnBlockContent, ColumnRun, ColumnWidth, SheetFormatProperties};
 pub use frame::{WorksheetContent, WorksheetPart};
 pub use grid::{SheetCalculationProperties, SheetDimension};
+pub use merges::{MergedCells, MergedCellsContent, MergedRange};
+pub use protection::{ProtectedRange, ProtectedRanges, ProtectedRangesContent, SheetProtection};
+pub use rows::RowHeight;
+pub use scenarios::{Scenario, ScenarioContent, ScenarioInputCells, Scenarios, ScenariosContent};
 pub use views::{
     OutlineProperties, PageSetupProperties, PivotSelection, Selection, SheetPane, SheetProperties,
     SheetPropertiesContent, SheetView, SheetViewContent, SheetViews, SheetViewsContent,

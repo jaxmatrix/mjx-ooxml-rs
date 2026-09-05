@@ -169,7 +169,7 @@ impl WorkbookPackage {
     }
 
     /// The tab at `index`, mutably — the door to [`AuthoredWorksheet::part_mut`] and the
-    /// thirty-two worksheet slots this writer does not author itself.
+    /// twenty-six worksheet slots this writer does not author itself.
     pub fn sheet_mut(&mut self, index: usize) -> Option<&mut AuthoredWorksheet> {
         self.sheets.get_mut(index)
     }

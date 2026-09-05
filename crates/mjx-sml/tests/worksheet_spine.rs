@@ -477,11 +477,19 @@ fn closing_index(text: &str, start: usize, local: &str) -> usize {
     start + rest.find(&close).expect("an end tag") + close.len()
 }
 
-/// Every slot the generated table names is either modelled here or held raw — and the seven modelled
-/// ones are exactly the seven this child claims.
+/// Every slot the generated table names is either modelled or held raw, and the modelled set is
+/// exactly the thirteen this workspace claims.
+///
+/// MJXOFF-102 (D07) modelled the first seven ranks, and the fact that they were a **prefix** was
+/// what let the frame hold everything else as unranked raw markup. MJXOFF-117 (D12) added six more —
+/// ranks 7, 8, 9, 14, 23 and 24 — so the modelled and held slots now interleave, and the frame ranks
+/// a held child through the same generated table rather than treating it as unrankable. The
+/// assertion below is what stops that distinction being lost again:
+/// `crates/mjx-sml/tests/sheet_grid.rs` pins the placement it makes possible.
 #[test]
 fn the_thirty_nine_slots_are_accounted_for() {
     const MODELLED: &[&str] = &[
+        // MJXOFF-102 (D07) — ranks 0..=6.
         "sheetPr",
         "dimension",
         "sheetViews",
@@ -489,6 +497,13 @@ fn the_thirty_nine_slots_are_accounted_for() {
         "cols",
         "sheetData",
         "sheetCalcPr",
+        // MJXOFF-117 (D12) — ranks 7, 8, 9, 14, 23, 24.
+        "sheetProtection",
+        "protectedRanges",
+        "scenarios",
+        "mergeCells",
+        "rowBreaks",
+        "colBreaks",
     ];
 
     let names: BTreeSet<&'static str> = WORKSHEET.slots.iter().map(|slot| slot.local).collect();
@@ -499,14 +514,21 @@ fn the_thirty_nine_slots_are_accounted_for() {
             "{local} is modelled here but is not a slot of CT_Worksheet"
         );
     }
-    // The seven modelled slots are the first seven ranks, which is why the frame can hold the rest
-    // as raw markup without ever having to reorder anything.
     let mut modelled_ranks: Vec<u16> = MODELLED
         .iter()
         .map(|local| WORKSHEET.rank_of(None, local).expect("a rank"))
         .collect();
     modelled_ranks.sort_unstable();
-    assert_eq!(modelled_ranks, vec![0, 1, 2, 3, 4, 5, 6]);
+    assert_eq!(
+        modelled_ranks,
+        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 23, 24]
+    );
+    assert_ne!(
+        modelled_ranks,
+        (0..modelled_ranks.len() as u16).collect::<Vec<_>>(),
+        "the modelled slots are no longer a prefix of the sequence, which is why a held child has \
+         to be ranked too — see `Slot::rank` in `crates/mjx-sml/src/worksheet/frame.rs`"
+    );
 }
 
 /// The modelled slots of the spine fixture read back through their typed accessors.
