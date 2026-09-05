@@ -1,5 +1,5 @@
-//! `x:definedNames` / `x:definedName` (`CT_DefinedNames` at `sml.xsd:4318`, `CT_DefinedName` at
-//! `4323`) — a name a formula may use in place of a range, and the eight names SpreadsheetML
+//! `x:definedNames` / `x:definedName` (`CT_DefinedNames` at `sml.xsd:4312`, `CT_DefinedName` at
+//! `4317`) — a name a formula may use in place of a range, and the eight names SpreadsheetML
 //! reserves for itself.
 //!
 //! # A defined name's value is a formula, and a formula is text

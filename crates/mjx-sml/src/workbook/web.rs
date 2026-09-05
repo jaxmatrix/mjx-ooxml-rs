@@ -1,9 +1,9 @@
 //! `x:webPublishing`, `x:webPublishObjects` and the smart-tag pair — the four remaining slots of
 //! `CT_Workbook`'s sequence, all of them legacy.
 //!
-//! Save-as-web-page (`CT_WebPublishing` at `sml.xsd:4401`, `CT_WebPublishObjects` at `4427`,
-//! `CT_WebPublishObject` at `4432`) and smart tags (`CT_SmartTagPr` at `4259`, `CT_SmartTagTypes` at
-//! `4271`, `CT_SmartTagType` at `4277`) are features no current version of Excel authors. They are
+//! Save-as-web-page (`CT_WebPublishing` at `sml.xsd:4388`, `CT_WebPublishObjects` at `4424`,
+//! `CT_WebPublishObject` at `4431`) and smart tags (`CT_SmartTagPr` at `4257`, `CT_SmartTagTypes` at
+//! `4268`, `CT_SmartTagType` at `4273`) are features no current version of Excel authors. They are
 //! modelled here for the reason the whole sequence is: an old workbook that carries them and a
 //! writer that dropped them would produce a file that lost something, and the elements occupy ranks
 //! 13, 14, 15 and 17, so anything written after them has to know they exist.

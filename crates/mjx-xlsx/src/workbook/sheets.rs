@@ -291,7 +291,7 @@ mod tests {
 
     /// A workbook with no `x:sheets` at all reads as no sheets.
     ///
-    /// `sml.xsd:4104` declares the element `minOccurs="1"`, so such a file is **invalid** — and
+    /// `sml.xsd:4105` declares the element `minOccurs="1"`, so such a file is **invalid** — and
     /// this crate opens it regardless and reports no tabs, because refusing would trade a readable
     /// file for an unreadable one. `Workbook::validate` is where a caller asks whether a file is
     /// one this library would agree to *write*.
