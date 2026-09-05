@@ -95,8 +95,13 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   all three produce byte-identical parts. 🔨 Next, **validation**: every shipped feature checked by
   hand against real PowerPoint, which nothing has yet been.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
-- **Phase 5 — Excel slice.** `mjx-xlsx` workbook/sheets/shared-strings/styles; formulas as text (no
-  calc engine).
+- **Phase 5 — Excel slice.** **Two** crates, not one: `mjx-sml` holds the SpreadsheetML *markup* —
+  cells, rows, shared strings, styles, number formats, formulas as text (no calc engine) — in the
+  shared-markup tier at rank 2.1, and `mjx-xlsx` holds the `Workbook` surface and the package graph
+  in the format tier. The split exists because an authored chart embeds a whole workbook inside a
+  `.pptx` or a `.docx`, so `mjx-chart` needs SpreadsheetML and may only point *downward*: with one
+  Excel crate, retiring `mjx-chart`'s duplicate workbook writer would need `mjx-chart → mjx-xlsx`,
+  which points up. See `CLAUDE.md`'s rank table and `xtask/tests/layering.rs`.
 - **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (a typed drawing model with shape-level
   references, re-exposed from `mjx-pptx` behind the `vml` feature).
 - **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF).

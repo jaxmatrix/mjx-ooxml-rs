@@ -24,12 +24,36 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 
 ## Architecture rules
 
-- **Layering:** dependencies point **downward only**. Foundations (`mjx-ooxml-core`, `mjx-xml`,
-  `mjx-derive`) → packaging/compat (`mjx-opc`, `mjx-mce`, `mjx-ooxml-types`) → shared markup
-  (`mjx-dml`, `mjx-omml`, `mjx-chart`, `mjx-vml`) → formats (`mjx-pptx`, `mjx-docx`, `mjx-xlsx`) →
-  facade (`mjx-ooxml`) → bindings (`bindings/mjx-python`, `bindings/mjx-wasm`). Never introduce an
-  upward or sideways dependency. **The bindings depend on `mjx-ooxml` alone** — never on a crate
+- **Layering:** dependencies point **downward only**, and each crate has a *rank*. An edge is legal
+  **iff** it points to a **strictly lower** rank — so sideways is as illegal as upward, and the graph
+  is acyclic by construction.
+
+  | Rank | Crates |
+  |---|---|
+  | 0.0 — foundations, core | `mjx-ooxml-core`, `mjx-derive` |
+  | 0.1 — foundations, XML | `mjx-xml` |
+  | 1.0 — packaging / compatibility | `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` |
+  | 2.0 — shared markup, base | `mjx-dml` |
+  | 2.1 — shared markup, spreadsheet | `mjx-sml` |
+  | 2.2 — shared markup, upper | `mjx-chart`, `mjx-omml`, `mjx-vml` |
+  | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
+  | 4.0 — facade | `mjx-ooxml` |
+  | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
+
+  **Shared markup is not flat**, and neither are the foundations. `mjx-xml` is built on
+  `mjx-ooxml-core`. `mjx-sml` sits between `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
+  shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
+  makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
+  deleted. Excel is therefore **two** crates: `mjx-sml` (the markup) and `mjx-xlsx` (the package and
+  `Workbook` surface, format tier). **The bindings depend on `mjx-ooxml` alone** — never on a crate
   below it — and nothing depends on them.
+
+  This is checked, not trusted: `xtask/tests/layering.rs` reads the real graph out of
+  `cargo metadata --no-deps` and fails on any edge that does not point strictly down, naming both
+  crates and both ranks. The table there and the table here are the same table; a new crate must be
+  added to both. Dev-dependencies are deliberately exempt from the rank check (`mjx-derive` tests
+  against `mjx-ooxml-types`; every format crate dev-depends on the gate) but may still never reach a
+  binding or `xtask`.
 - **Two test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema and
   child-order gate, a `dev-dependency` of the three format crates) and `mjx-fixtures` (the committed
   corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can reach it

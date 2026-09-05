@@ -60,7 +60,7 @@ Every schema of the ECMA-376 Transitional set has a row in **both** tables, so a
 | shared-documentPropertiesVariantTypes | not modelled — as for its simple types |
 | shared-math | generated — every complex type |
 | shared-relationshipReference | not modelled — relationship references are attributes, not a content model |
-| sml | pending, owned by MJXOFF-132 — the Excel crate spine is the child that starts placing `x:` children |
+| sml | generated — every complex type |
 | vml-main | not modelled — VML parts are preserved byte for byte, never re-sequenced |
 | vml-officeDrawing | not modelled — as for `vml-main` |
 | vml-presentationDrawing | not modelled — as for `vml-main` |

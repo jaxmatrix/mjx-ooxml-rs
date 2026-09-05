@@ -8,6 +8,11 @@ members = [
     "crates/mjx-opc",
     "crates/mjx-mce",
     "crates/mjx-dml",
+    # `mjx-sml` sits *beside* `mjx-dml` and *beneath* `mjx-chart` — shared markup, rank 2.1. An
+    # embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx`, so the markup is shared even
+    # though the `.xlsx` package is Excel's; the package half is `mjx-xlsx`, in the format tier. This
+    # position is what makes `mjx-chart -> mjx-sml` (MJXOFF-112) a legal downward edge.
+    "crates/mjx-sml",
     "crates/mjx-omml",
     "crates/mjx-chart",
     "crates/mjx-vml",
@@ -34,7 +39,7 @@ members = [
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
 # PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
 # this one line. See CHANGELOG.md.
-version = "0.0.101"
+version = "0.0.102"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -70,6 +75,7 @@ mjx-ooxml-types = { path = "crates/mjx-ooxml-types" }
 mjx-opc = { path = "crates/mjx-opc" }
 mjx-mce = { path = "crates/mjx-mce" }
 mjx-dml = { path = "crates/mjx-dml" }
+mjx-sml = { path = "crates/mjx-sml" }
 mjx-omml = { path = "crates/mjx-omml" }
 mjx-chart = { path = "crates/mjx-chart" }
 mjx-vml = { path = "crates/mjx-vml" }

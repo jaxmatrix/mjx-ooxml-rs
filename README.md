@@ -104,15 +104,28 @@ project earlier revisions of this file described.
 Layered Cargo workspace; dependencies only ever point *downward*.
 
 ```
-Foundations     mjx-ooxml-core  ·  mjx-xml  ·  mjx-derive
-Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
-Shared markup   mjx-dml  ·  mjx-omml  ·  mjx-chart  ·  mjx-vml
-Formats         mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
-Facade          mjx-ooxml   (open()/save(), the binding-ready public API)
-Bindings        bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
-Tooling         xtask       (schema codegen)
-Test-only       mjx-schema-gate  ·  mjx-fixtures   (never published, never a runtime dependency)
+0.0  Foundations      mjx-ooxml-core  ·  mjx-derive
+0.1  Foundations      mjx-xml
+1.0  Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
+2.0  Shared markup    mjx-dml
+2.1  Shared markup    mjx-sml     (SpreadsheetML markup — an embedded workbook is not Excel's alone)
+2.2  Shared markup    mjx-chart  ·  mjx-omml  ·  mjx-vml
+3.0  Formats          mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
+4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
+5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
+     Tooling          xtask       (schema codegen)
+     Test-only        mjx-schema-gate  ·  mjx-fixtures   (never published, never a runtime dependency)
 ```
+
+An edge is legal **iff** it points to a *strictly* lower rank, which makes sideways as illegal as
+upward and the graph acyclic. `xtask/tests/layering.rs` checks that against the real graph, out of
+`cargo metadata`, and names both crates and both ranks when it fails.
+
+Excel is **two** crates rather than one. `mjx-sml` holds the SpreadsheetML *markup* — cells, rows,
+shared strings, styles — and sits in the shared-markup tier, because an authored chart embeds a whole
+workbook inside a `.pptx` or a `.docx`. `mjx-xlsx` holds the `Workbook` surface and the package
+graph, in the format tier. The split is what makes `mjx-chart → mjx-sml` a downward edge; a single
+Excel crate would have forced `mjx-chart → mjx-xlsx`, which points up.
 
 The two binding members sit *above* the facade and nothing depends on them, so the downward-only
 rule is unaffected.
