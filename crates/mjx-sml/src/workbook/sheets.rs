@@ -32,7 +32,7 @@
 use mjx_ooxml_core::{Enumeration, Number, RawAttribute, RawName, RawNode, Text};
 use mjx_ooxml_types::spreadsheetml::SheetState;
 
-use super::leaf::{attribute_bag, relationship_reference};
+use crate::leaf::{attribute_bag, relationship_reference};
 
 attribute_bag! {
     /// `x:sheet` (`CT_Sheet`) — one tab: its name, its workbook-internal id, whether it is shown,
@@ -80,7 +80,7 @@ impl SheetList {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "sheets"),
+            name: crate::leaf::sml_name(interner, prefix, "sheets"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),

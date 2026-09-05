@@ -26,7 +26,7 @@
 
 use mjx_ooxml_core::{Number, RawAttribute, RawName, RawNode, Text};
 
-use super::leaf::{attribute_bag, bag_without_declared_attributes, relationship_reference};
+use crate::leaf::{attribute_bag, bag_without_declared_attributes, relationship_reference};
 
 bag_without_declared_attributes! {
     /// `x:externalReference` (`CT_ExternalReference`) — one relationship to an external-link part.
@@ -79,7 +79,7 @@ impl ExternalReferences {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "externalReferences"),
+            name: crate::leaf::sml_name(interner, prefix, "externalReferences"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),
@@ -126,7 +126,7 @@ impl PivotCaches {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "pivotCaches"),
+            name: crate::leaf::sml_name(interner, prefix, "pivotCaches"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),
@@ -176,7 +176,7 @@ impl FunctionGroups {
     #[must_use]
     pub fn new(interner: &mut mjx_ooxml_core::Interner, prefix: Option<&str>) -> Self {
         Self {
-            name: super::leaf::sml_name(interner, prefix, "functionGroups"),
+            name: crate::leaf::sml_name(interner, prefix, "functionGroups"),
             attributes: Vec::new(),
             empty: true,
             content: Vec::new(),

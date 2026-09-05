@@ -59,7 +59,7 @@
 //! | [`font`] | **MJXOFF-97 (D05) — done**: `CT_RPrElt`/`CT_Font`'s shared property family, reused by D08 |
 //! | [`styles`] | MJXOFF-105 (D08), MJXOFF-108 (D09) — resource tables, then the `xf` indirection |
 //! | [`formula`] | MJXOFF-115 (D11) — formulas as text, cached values, `calcChain` |
-//! | [`worksheet`] | MJXOFF-102 (D07) the 39-slot spine, MJXOFF-117 (D12) the sheet grid |
+//! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
 //! | [`features`] | MJXOFF-120/123/125/127/129 (D13–D17) — the optional worksheet features |
 //! | [`mod@write`] | MJXOFF-112 (D10) — the package writer that replaces `EmbeddedWorkbook` |
@@ -79,6 +79,7 @@
 //! `mjx-schema-gate` audits every `x:`-rooted part of every package it inspects.
 
 pub(crate) mod arena;
+pub(crate) mod leaf;
 
 pub mod address;
 pub mod cells;
@@ -111,4 +112,10 @@ pub use workbook::{
     PivotCaches, SheetEntry, SheetList, SmartTagProperties, SmartTagType, SmartTagTypes,
     WebPublishObject, WebPublishObjects, WebPublishing, WorkbookContent, WorkbookPart,
     WorkbookProperties, WorkbookProtection, WorkbookView,
+};
+pub use worksheet::{
+    ColumnBlock, ColumnBlockContent, ColumnRun, OutlineProperties, PageSetupProperties,
+    PivotSelection, Selection, SheetCalculationProperties, SheetDimension, SheetFormatProperties,
+    SheetPane, SheetProperties, SheetPropertiesContent, SheetView, SheetViewContent, SheetViews,
+    SheetViewsContent, TabColor, WorksheetContent, WorksheetPart,
 };

@@ -1,9 +1,18 @@
-//! The attribute-only leaf: the shape **seventeen** of the workbook cluster's twenty-nine complex
-//! types have, and the one macro that declares them.
+//! The attribute-only leaf: the shape most of `sml.xsd`'s complex types have, and the one macro that
+//! declares them.
 //!
-//! # Why a macro rather than seventeen hand-written triples
+//! # Where this lives, and why it is not under one subject
 //!
-//! `sml.xsd`'s workbook cluster is overwhelmingly *attribute bags*: a complex type with an
+//! It began as `workbook/leaf.rs` (MJXOFF-100), because the workbook cluster was the first place
+//! that needed it — **seventeen** of that cluster's twenty-nine complex types are this shape. It is
+//! at the crate root as of MJXOFF-102, which needs the same macro for nine more: `CT_SheetPr`,
+//! `CT_SheetDimension`, `CT_OutlinePr`, `CT_PageSetUpPr`, `CT_SheetFormatPr`, `CT_SheetCalcPr`,
+//! `CT_Col`, `CT_Pane` and `CT_Selection`. A `use crate::workbook::leaf::…` from the worksheet spine
+//! would have said the macro belongs to the workbook, which it never did.
+//!
+//! # Why a macro rather than a hand-written triple per type
+//!
+//! `sml.xsd` is overwhelmingly *attribute bags*: a complex type with an
 //! `xsd:sequence` that is empty or holds nothing but `extLst`, and between one and twenty-four
 //! attributes. `CT_FileVersion`, `CT_WorkbookPr`, `CT_CalcPr`, `CT_WorkbookProtection`,
 //! `CT_FileSharing`, `CT_FileRecoveryPr`, `CT_OleSize`, `CT_SmartTagPr`, `CT_SmartTagType`,
@@ -81,7 +90,7 @@ pub(crate) fn namespace_prefix<'a>(
 /// attribute names with no resolved namespace (see `mjx_xml::attribute`'s own documentation), so an
 /// attribute's namespace is exactly its prefix, and the prefix a file binds is the producer's
 /// choice. Every producer this project has read writes `r`, and none of them is obliged to. The
-/// binding lives on the part's root element, so [`WorkbookPart`](super::WorkbookPart) resolves it
+/// binding lives on the part's root element, so [`WorkbookPart`](crate::WorkbookPart) resolves it
 /// once and passes it down.
 ///
 /// # Errors
@@ -149,7 +158,7 @@ macro_rules! attribute_bag {
         $(#[$meta:meta])*
         $name:ident, $local:literal $(,)?
     ) => {
-        $crate::workbook::leaf::bag_body! {
+        $crate::leaf::bag_body! {
             #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::XmlAttributes)]
             $(#[$meta])*
             $name, $local
@@ -163,7 +172,7 @@ macro_rules! bag_without_declared_attributes {
         $(#[$meta:meta])*
         $name:ident, $local:literal $(,)?
     ) => {
-        $crate::workbook::leaf::bag_body! {
+        $crate::leaf::bag_body! {
             #[derive(Debug, Clone, PartialEq, Eq)]
             $(#[$meta])*
             $name, $local
@@ -199,7 +208,7 @@ macro_rules! bag_body {
                 prefix: ::core::option::Option<&str>,
             ) -> Self {
                 Self {
-                    name: $crate::workbook::leaf::sml_name(interner, prefix, $local),
+                    name: $crate::leaf::sml_name(interner, prefix, $local),
                     attributes: ::std::vec::Vec::new(),
                     extra: ::std::vec::Vec::new(),
                     empty: true,
@@ -219,6 +228,29 @@ macro_rules! bag_body {
             #[allow(dead_code)]
             pub fn extra(&self) -> &[::mjx_ooxml_core::RawNode] {
                 &self.extra
+            }
+
+            /// This element rebuilt as a [`RawElement`](::mjx_ooxml_core::RawElement), **without an
+            /// interner**.
+            ///
+            /// [`ToXml::to_xml`](::mjx_ooxml_core::ToXml::to_xml) takes `&mut Interner` because a
+            /// model that authors a name has to intern it; an attribute bag never authors one — it
+            /// keeps the [`RawName`](::mjx_ooxml_core::RawName) it was read with and every attribute the file wrote — so
+            /// nothing here needs one. `to_xml` is this method, with the parameter ignored.
+            ///
+            /// That distinction is load-bearing for `crate::worksheet`, which serializes its
+            /// children to **bytes** from a `&self` writer and so has no mutable interner to lend.
+            #[must_use]
+            #[allow(dead_code)]
+            pub fn as_raw_element(&self) -> ::mjx_ooxml_core::RawElement {
+                let children = self.extra.clone();
+                let empty = self.empty && children.is_empty();
+                ::mjx_ooxml_core::RawElement::rebuilt(
+                    self.name,
+                    self.attributes.clone(),
+                    children,
+                    empty,
+                )
             }
         }
 
@@ -241,14 +273,7 @@ macro_rules! bag_body {
                 &self,
                 _interner: &mut ::mjx_ooxml_core::Interner,
             ) -> ::mjx_ooxml_core::RawElement {
-                let children = self.extra.clone();
-                let empty = self.empty && children.is_empty();
-                ::mjx_ooxml_core::RawElement::rebuilt(
-                    self.name,
-                    self.attributes.clone(),
-                    children,
-                    empty,
-                )
+                self.as_raw_element()
             }
         }
     };
@@ -264,7 +289,7 @@ macro_rules! relationship_reference {
         impl $name {
             /// The `r:id` this element names, under `reference_prefix` — the prefix the part binds
             /// to the relationship-reference namespace, from
-            /// [`WorkbookPart::relationship_prefix`](super::WorkbookPart::relationship_prefix).
+            /// [`WorkbookPart::relationship_prefix`](crate::WorkbookPart::relationship_prefix).
             ///
             /// `None` means the attribute is absent, or that the part binds the namespace to no
             /// prefix at all and therefore cannot spell `r:id`. Resolving the id to a part is
@@ -282,11 +307,7 @@ macro_rules! relationship_reference {
                 ::core::option::Option<::std::string::String>,
                 ::mjx_ooxml_core::AttributeError,
             > {
-                $crate::workbook::leaf::read_relationship_id(
-                    &self.attributes,
-                    interner,
-                    reference_prefix,
-                )
+                $crate::leaf::read_relationship_id(&self.attributes, interner, reference_prefix)
             }
 
             /// Points this element at `relationship_id`, writing the attribute in place if it is
@@ -298,7 +319,7 @@ macro_rules! relationship_reference {
                 reference_prefix: &str,
                 relationship_id: &str,
             ) {
-                $crate::workbook::leaf::write_relationship_id(
+                $crate::leaf::write_relationship_id(
                     &mut self.attributes,
                     interner,
                     reference_prefix,
