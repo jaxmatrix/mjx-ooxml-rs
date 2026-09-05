@@ -40,8 +40,8 @@ pub use conditional_chain::{
     AppliedConditionalRule, ConditionalCellFormat, ConditionalFormatLayer, ConditionalRuleChain,
 };
 pub use conditional_rules::{
-    ConditionalFormatting, ConditionalFormattingContent, ConditionalFormattingFormula,
-    ConditionalFormattingRule, ConditionalFormattingRuleContent,
+    ConditionalFormatting, ConditionalFormattingContent, ConditionalFormattingRule,
+    ConditionalFormattingRuleContent,
 };
 pub use conditional_scales::{
     ColorScale, ColorScaleContent, ConditionalValueObject, DataBar, DataBarContent, IconSet,

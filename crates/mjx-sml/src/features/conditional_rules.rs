@@ -44,8 +44,7 @@
 //! would be a defect.
 
 use mjx_ooxml_core::{
-    Enumeration, FromXml, FromXmlError, Interner, Number, RawAttribute, RawElement, RawName,
-    RawNode, Text, ToXml,
+    Enumeration, Interner, Number, RawAttribute, RawElement, RawName, RawNode, Text, ToXml,
 };
 use mjx_ooxml_types::child_order::{CONDITIONAL_FORMAT_RULE, WORKSHEET_CONDITIONAL_FORMATTING};
 use mjx_ooxml_types::spreadsheetml::{
@@ -54,128 +53,10 @@ use mjx_ooxml_types::spreadsheetml::{
 use mjx_ooxml_types::support::OnOff;
 
 use crate::address::CellRangeList;
+use crate::formula::FormulaElement;
 use crate::worksheet::rebuild_element;
 
 use super::conditional_scales::{ColorScale, DataBar, IconSet};
-
-/// `x:cfRule/formula` (`ST_Formula`) — one condition of a rule, as text.
-///
-/// # Why this is not `#[derive(FromXml, ToXml)]`
-///
-/// The same reason [`DefinedName`](crate::DefinedName) is not: `mjx-derive`'s `#[xml(text)]` grammar
-/// re-escapes character data **minimally** on write, so a producer that spelled a comparison
-/// `&quot;OK&quot;` would get `"OK"` back — the same string and different bytes. That is invisible
-/// while the part is copied verbatim and becomes visible the moment anything *else* in the part
-/// changes, because a rebuilt text node denies its element, and every ancestor of it, the verbatim
-/// source range it would otherwise keep.
-///
-/// So the pair is written by hand: [`from_xml`](FromXml::from_xml) keeps the original children as
-/// they stood, and the rebuild replays them until [`set_text`](Self::set_text) states otherwise.
-///
-/// # It is never evaluated, and never rewritten
-///
-/// MJXOFF-115's contract, restated for the one other place `sml.xsd` puts a formula that is not a
-/// cell's. Nothing here parses the expression, translates it between `A1` and `R1C1`, or offsets its
-/// references when a rule is copied to another range.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ConditionalFormattingFormula {
-    name: RawName,
-    attributes: Vec<RawAttribute>,
-    empty: bool,
-    /// The character data, decoded — what [`text`](Self::text) answers with.
-    text: String,
-    /// The element's children exactly as the file wrote them, or `None` once the text has been
-    /// replaced and there is nothing left to preserve.
-    verbatim: Option<Vec<RawNode>>,
-}
-
-impl ConditionalFormattingFormula {
-    /// Builds an `x:formula` holding `text`, bound to `prefix` or to the default namespace.
-    #[must_use]
-    pub fn new(interner: &mut Interner, prefix: Option<&str>, text: impl Into<String>) -> Self {
-        Self {
-            name: crate::leaf::sml_name(interner, prefix, "formula"),
-            attributes: Vec::new(),
-            empty: false,
-            text: text.into(),
-            verbatim: None,
-        }
-    }
-
-    /// The condition's text, exactly as the file wrote it (entity references decoded).
-    #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-
-    /// Replaces the text.
-    ///
-    /// Nothing validates it: a condition is a formula, formulas are text here, and a caller that
-    /// writes something Excel will refuse has written what a producer is free to write.
-    ///
-    /// This is the point at which the preserved character data is given up.
-    pub fn set_text(&mut self, text: impl Into<String>) {
-        self.text = text.into();
-        self.verbatim = None;
-        self.empty = false;
-    }
-
-    /// The element's own qualified name, as the file wrote it.
-    #[must_use]
-    pub fn element_name(&self) -> RawName {
-        self.name
-    }
-
-    /// This element rebuilt as a [`RawElement`], without an interner.
-    #[must_use]
-    pub fn as_raw_element(&self) -> RawElement {
-        let children = match &self.verbatim {
-            // Untouched: replay exactly what the file held — entity spellings and CDATA included.
-            Some(children) => children.clone(),
-            None if self.text.is_empty() => Vec::new(),
-            None => vec![RawNode::Text(
-                mjx_xml::text::escape_text(&self.text).as_bytes().into(),
-            )],
-        };
-        let empty = self.empty && children.is_empty();
-        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
-    }
-}
-
-impl FromXml for ConditionalFormattingFormula {
-    fn from_xml(element: &RawElement, _interner: &Interner) -> Result<Self, FromXmlError> {
-        let mut text = String::new();
-        for child in &element.children {
-            match child {
-                RawNode::Text(bytes) => {
-                    let raw = core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?;
-                    let decoded = mjx_xml::text::unescape_text(raw)
-                        .map_err(|error| FromXmlError::InvalidEntity(error.to_string()))?;
-                    text.push_str(&decoded);
-                }
-                RawNode::CData(bytes) => {
-                    text.push_str(
-                        core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?,
-                    );
-                }
-                _ => {}
-            }
-        }
-        Ok(Self {
-            name: element.name,
-            attributes: element.attributes.clone(),
-            empty: element.empty,
-            text,
-            verbatim: Some(element.children.clone()),
-        })
-    }
-}
-
-impl ToXml for ConditionalFormattingFormula {
-    fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        self.as_raw_element()
-    }
-}
 
 /// `x:cfRule` (`CT_CfRule`, `sml.xsd:2717`) — one conditional-formatting rule.
 ///
@@ -224,7 +105,7 @@ pub struct ConditionalFormattingRule {
     empty: bool,
     #[xml(
         children,
-        child(local = "formula", variant = Formula, ty = ConditionalFormattingFormula),
+        child(local = "formula", variant = Formula, ty = FormulaElement),
         child(local = "colorScale", variant = ColorScale, ty = ColorScale),
         child(local = "dataBar", variant = DataBar, ty = DataBar),
         child(local = "iconSet", variant = IconSet, ty = IconSet)
@@ -236,7 +117,7 @@ pub struct ConditionalFormattingRule {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ConditionalFormattingRuleContent {
     /// `x:formula` (rank 0) — one of up to three conditions, as text.
-    Formula(ConditionalFormattingFormula),
+    Formula(FormulaElement),
     /// `x:colorScale` (rank 1).
     ColorScale(ColorScale),
     /// `x:dataBar` (rank 2).
@@ -325,7 +206,7 @@ impl ConditionalFormattingRule {
     ///
     /// A `cellIs` rule with `operator="between"` writes two; every other operator writes one; a
     /// `colorScale`, `dataBar` or `iconSet` rule writes none.
-    pub fn formulas(&self) -> impl Iterator<Item = &ConditionalFormattingFormula> + '_ {
+    pub fn formulas(&self) -> impl Iterator<Item = &FormulaElement> + '_ {
         self.content.iter().filter_map(|item| match item {
             ConditionalFormattingRuleContent::Formula(formula) => Some(formula),
             _ => None,
@@ -333,7 +214,7 @@ impl ConditionalFormattingRule {
     }
 
     /// The `index`-th `x:formula`, mutably.
-    pub fn formula_mut(&mut self, index: usize) -> Option<&mut ConditionalFormattingFormula> {
+    pub fn formula_mut(&mut self, index: usize) -> Option<&mut FormulaElement> {
         self.content
             .iter_mut()
             .filter_map(|item| match item {
@@ -345,7 +226,7 @@ impl ConditionalFormattingRule {
 
     /// Appends a condition after the formulas already present, and before whichever of
     /// `colorScale`, `dataBar` and `iconSet` the rule carries.
-    pub fn push_formula(&mut self, formula: ConditionalFormattingFormula) {
+    pub fn push_formula(&mut self, formula: FormulaElement) {
         let at = self.insert_index("formula");
         self.content
             .insert(at, ConditionalFormattingRuleContent::Formula(formula));
