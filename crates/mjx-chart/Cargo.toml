@@ -18,4 +18,18 @@ mjx-derive.workspace = true
 mjx-ooxml-types.workspace = true
 mjx-opc.workspace = true
 mjx-dml.workspace = true
+# The SpreadsheetML markup layer, and the edge this crate's one scheduled deletion hangs on
+# (MJXOFF-112, then MJXOFF-99). A chart embeds a whole workbook package at `/ppt/embeddings/*.xlsx`,
+# so `src/workbook.rs` had to write one itself before `mjx-sml` existed. That module names `mjx-xlsx`
+# as its replacement, which would be an **upward** edge (2.2 -> 3.0) and is forbidden; `mjx-sml` is
+# rank 2.1, so this edge points down and `xtask/tests/layering.rs` checks that rather than trusting
+# this comment.
+#
+# It has no user in this crate's `src/` yet, and is declared here on purpose. MJXOFF-112 owns the
+# replacement writer and the parity gate (`tests/workbook_parity.rs`, which uses this edge);
+# **MJXOFF-99 owns the deletion** of `src/workbook.rs` and the reroute of
+# `EmbeddedWorkbook::to_package_bytes` through `mjx_sml::write::WorkbookPackage`. Adding the edge and
+# performing the deletion are deliberately different commits: a duplicate quietly absorbed is a
+# duplicate nobody can prove was removed.
+mjx-sml.workspace = true
 thiserror.workspace = true
