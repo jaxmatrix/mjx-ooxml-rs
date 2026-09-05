@@ -59,7 +59,7 @@ pub use frame::{WorksheetContent, WorksheetPart};
 pub use grid::{SheetCalculationProperties, SheetDimension};
 pub use views::{
     OutlineProperties, PageSetupProperties, PivotSelection, Selection, SheetPane, SheetProperties,
-    SheetPropertiesContent, SheetView, SheetViewContent, SheetViews, SheetViewsContent, TabColor,
+    SheetPropertiesContent, SheetView, SheetViewContent, SheetViews, SheetViewsContent,
 };
 
 /// Rebuilds one of this module's container elements as a [`RawElement`], **without an interner**.

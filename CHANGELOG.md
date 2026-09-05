@@ -53,6 +53,80 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.109] - 2026-09-05
+
+`xl/styles.xml` part 1: the resource tables a style index resolves into — fonts, fills, borders,
+`dxf`s and the indexed-colour legacy (MJXOFF-105, Phase D position 8).
+
+### Added
+
+- **`mjx_sml::styles`** — `CT_Stylesheet` (`sml.xsd:3387`) as `StylesheetPart`, in eight subject
+  modules. Five of the eleven slots are modelled — `FontTable`/`Font`, `FillTable`/`Fill`/
+  `PatternFill`/`GradientFill`/`GradientStop`, `BorderTable`/`Border`/`BorderEdge`,
+  `DifferentialFormats`/`DifferentialFormat` and `ColorTable`/`IndexedColors`/`MruColors`/`RgbColor`
+  — and the other **six are held as the markup the file wrote, in their schema position**:
+  `numFmts`, `cellStyleXfs`, `cellXfs` and `cellStyles` are MJXOFF-108's, `tableStyles` is
+  MJXOFF-127's, and `extLst` is nobody's on purpose.
+- **`mjx_sml::styles::palette`** — the indexed-colour legacy, sourced from ECMA-376 Part 1 §18.8.27:
+  `IndexedColorPalette::DEFAULT` is the spec's own sixty-four rows (`0`–`7` are the spec's stated
+  duplicates of `8`–`15`), `IndexedColor::SystemForeground`/`SystemBackground` are its `indexed="64"`
+  and `"65"`, which have no ARGB, and a workbook's `indexedColors` block replaces the whole table.
+  `theme_color_slot` is §20.1.6.2's index table — SpreadsheetML addresses a theme colour by
+  *position*, not by a `schemeClr` token. `apply_tint` is §18.8.19's luminance algorithm, and
+  `resolve_color` puts the three together, taking `mjx_dml::SchemeColors` so that a workbook's theme
+  colour resolves to exactly what a DrawingML `a:schemeClr` on the same slot resolves to.
+- **`mjx_sml::styles::cell_format`** — `CellAlignment`, `CellProtection` and `NumberFormat`
+  (`CT_CellAlignment`, `CT_CellProtection`, `CT_NumFmt`), in a module belonging to neither subject
+  because `CT_Dxf` needs all three now and `CT_Xf` needs them at MJXOFF-108.
+- **`mjx_sml::ColorElement`** — `CT_Color` as an *element*, one type for all five local names it
+  stands under (`color`, `fgColor`, `bgColor`, `tabColor`). Preservation; `Color` stays the decoded
+  snapshot.
+- **`mjx_dml::SchemeColors::rgb`** is public. The type exists to be the interner-free bridge between
+  a colour in one part and a theme in another, and a bridge only `mjx-dml` can cross is a bridge to
+  nowhere.
+- **Four generated child-order tables** for the styles cluster: `STYLESHEET_BORDER`,
+  `STYLESHEET_PATTERN_FILL`, `STYLESHEET_DIFFERENTIAL_FORMAT` and `STYLESHEET_COLOR_TABLE`.
+- **`tests/fixtures/style_resources.xlsx`** — a styles part authored against this subject's own
+  traps: **two byte-identical `<font>` entries**, so deduplicating on write breaks the
+  index-identity case rather than passing it; a `<border>` exercising all **nine** edges, `start` and
+  `end` included; four `dxf`s (fill only, font only, all six members, and `<dxf/>`); an
+  `indexedColors` block differing from the default palette at exactly one row; and four of the six
+  raw slots, a doubled space in two start tags, a single-quoted attribute, an element written
+  `<top …></top>`, a comment between two slots and an `ext` in a foreign namespace. Schema-valid, so
+  it needs no tolerance entry.
+
+### Changed
+
+- **`mjx_sml::TabColor` is gone; the slot is `ColorElement`.** MJXOFF-102 declared a `tabColor`
+  attribute bag of its own; MJXOFF-105 found four more slots of the same complex type in
+  `styles.xml`, and five bag types for one `CT_Color` is exactly the duplication this crate already
+  has a scheduled child to undo once. `SheetProperties::tab_colour` and
+  `SheetProperties::tab_color_element` are unchanged in meaning.
+- **The styles frame ranks its unmodelled slots too**, which neither `WorkbookPart` nor
+  `WorksheetPart` has to. Those two model a *prefix* of their sequence (ranks 0–17 of nineteen, 0–6
+  of thirty-nine), so a modelled child always belongs before every raw one and unranked-means-stepped
+  -over is harmless. `CT_Stylesheet`'s modelled ranks are **1, 2, 3, 7, 9** and its raw ones **0, 4,
+  5, 6, 8, 10**: they interleave, so `StylesheetPart`'s setters take an `&Interner` and rank a raw
+  element through the same generated table by its own name. Treating one as unranked put an inserted
+  `colors` before the `numFmts` already in the file.
+
+### Notes on the specification
+
+- **The indexed palette has sixty-four rows, not fifty-six**, plus two indices that are not colours.
+  §18.8.27's own note explains it: *"0-7 are redundant of 8-15 to preserve backwards
+  compatibility"*, so the distinct BIFF palette is `8`..=`63` and a lookup table starting at `8`
+  would answer nothing for the eight indices a file most often uses for black and white.
+- **§18.8.19's third worked tint example rounds.** It prints
+  `100 * .25 + (255 - 255 * .25) = 25 + (255 - 63) = 217`, but `255 * .25` is `63.75`; the exact
+  result is `216.25`, and `217` comes of truncating an intermediate in integer HLS arithmetic. This
+  crate computes on the unit interval — both branches are linear in luminance, so `HLSMAX` cancels —
+  and rounds once, at the end.
+- **`CT_Border` declares nine edges**, `start` and `end` among them, while §18.8.4's prose enumerates
+  five and §18.8 carries no entry for either of the two. They are documented in WordprocessingML
+  instead (§17.4.33 *Leading Edge Border*, §17.4.12 *Trailing Edge Border*), which is where this
+  crate takes `Border::leading_edge`/`trailing_edge` from — the spelling `mjx_docx::Indentation`
+  already uses for the same pair.
+
 ## [0.0.108] - 2026-09-05
 
 The worksheet spine: `CT_Worksheet`'s thirty-nine slots, the widest content model in the schema

@@ -22,10 +22,16 @@
 //! recognises. Holding the tab colour as a `Color` and writing it back from one would drop any
 //! attribute this project has not heard of, and would re-order and re-quote the ones it has.
 //!
-//! So the element is held as [`TabColor`] — an attribute bag, which keeps the file's own attribute
-//! vector, order, quoting and prefixes — and [`SheetProperties::tab_colour`] decodes it through
-//! `Color::read_attributes` on demand. Preservation and interpretation are different jobs and this
-//! is the one place in the worksheet spine where both are wanted at once.
+//! So the element is held as [`ColorElement`], which keeps the file's own attribute vector, order,
+//! quoting and prefixes, and [`SheetProperties::tab_colour`] decodes it through [`Color`] on demand.
+//! Preservation and interpretation are different jobs and this is the one place in the worksheet
+//! spine where both are wanted at once.
+//!
+//! MJXOFF-102 declared that holder as a `tabColor` attribute bag of its own. MJXOFF-105 found four
+//! more slots of the same complex type in `styles.xml` — a font's `color`, a pattern fill's
+//! `fgColor` and `bgColor`, a border edge's and a gradient stop's `color` — and replaced the bag
+//! with the one [`ColorElement`], which carries whichever local name the file wrote. Four bag types
+//! for one complex type is the duplication this crate already has a scheduled child to undo once.
 //!
 //! # `sheetView` selections: up to four, and the `pane` attribute is which one
 //!
@@ -41,24 +47,10 @@ use mjx_ooxml_types::spreadsheetml::{Pane, PaneState, PivotTableAxis, SheetViewT
 use mjx_ooxml_types::support::OnOff;
 
 use crate::address::{CellRange, CellRangeList, CellReference};
-use crate::font::Color;
+use crate::font::{Color, ColorElement};
 use crate::leaf::attribute_bag;
 
 use super::rebuild_element;
-
-attribute_bag! {
-    /// `x:sheetPr/tabColor` (`CT_Color`, `sml.xsd:3502`; the slot is `CT_SheetPr`'s first child at `sml.xsd:2308`) — the colour of the sheet's
-    /// tab.
-    ///
-    /// A bag rather than a [`Color`], for the reason this module's own documentation gives: `Color`
-    /// is a decoded snapshot and this is the element. Decode it with
-    /// [`SheetProperties::tab_colour`].
-    ///
-    /// The bag declares no typed accessors of its own — every one of `CT_Color`'s five attributes is
-    /// reached through `Color`, so declaring them twice would be two spellings of one rule.
-    #[xml(attribute(local = "rgb", codec = Text, accessor = rgb_text))]
-    TabColor, "tabColor"
-}
 
 attribute_bag! {
     /// `x:sheetPr/outlinePr` (`CT_OutlinePr`, `sml.xsd:2423`) — where an outline's summary row and
@@ -171,7 +163,7 @@ pub struct SheetProperties {
     empty: bool,
     #[xml(
         children,
-        child(local = "tabColor", variant = TabColor, ty = TabColor),
+        child(local = "tabColor", variant = TabColor, ty = ColorElement),
         child(local = "outlinePr", variant = Outline, ty = OutlineProperties),
         child(local = "pageSetUpPr", variant = PageSetup, ty = PageSetupProperties)
     )]
@@ -181,8 +173,8 @@ pub struct SheetProperties {
 /// One child of [`SheetProperties`] — three modelled slots, and everything else.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SheetPropertiesContent {
-    /// `x:tabColor` (rank 0).
-    TabColor(TabColor),
+    /// `x:tabColor` (rank 0) — one of the five slots `CT_Color` stands in.
+    TabColor(ColorElement),
     /// `x:outlinePr` (rank 1).
     Outline(OutlineProperties),
     /// `x:pageSetUpPr` (rank 2).
@@ -211,7 +203,7 @@ impl SheetProperties {
 
     /// `x:tabColor` as the element the file wrote, or `None`.
     #[must_use]
-    pub fn tab_color_element(&self) -> Option<&TabColor> {
+    pub fn tab_color_element(&self) -> Option<&ColorElement> {
         self.content.iter().find_map(|item| match item {
             SheetPropertiesContent::TabColor(value) => Some(value),
             _ => None,
@@ -226,7 +218,7 @@ impl SheetProperties {
     #[must_use]
     pub fn tab_colour(&self, interner: &Interner) -> Option<Color> {
         self.tab_color_element()
-            .map(|element| Color::read_attributes(&element.attributes, interner))
+            .map(|element| element.color(interner))
     }
 
     /// `x:outlinePr` — where an outline's summary row and column sit. `None` if absent.
