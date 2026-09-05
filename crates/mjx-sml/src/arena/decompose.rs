@@ -35,6 +35,49 @@ pub(crate) fn span_present_between(start: u32, end: u32) -> TextSpan {
     }
 }
 
+/// The attribute run of an element whose own bytes are `bytes`, **without being told its name**.
+///
+/// [`decompose`] is the right tool when the caller knows what the element is supposed to be, which
+/// is nearly always: checking the name is what stops a range handing back somebody else's markup.
+/// This exists for the one case where the name is genuinely not known — a `phoneticPr` whose prefix
+/// need not match the `si` around it — and it is therefore deliberately weaker: it says what the
+/// start tag's attributes are, and makes no claim about which element they belong to.
+///
+/// `None` unless the bytes open with `<`, a name, and a start tag that closes.
+pub(crate) fn attribute_run_of(bytes: &[u8]) -> Option<&[u8]> {
+    if bytes.first() != Some(&b'<') {
+        return None;
+    }
+    let mut at = 1;
+    while let Some(byte) = bytes.get(at) {
+        if byte.is_ascii_whitespace() || *byte == b'/' || *byte == b'>' {
+            break;
+        }
+        at += 1;
+    }
+    let run_start = at;
+    let mut quote = 0u8;
+    let tag_end = loop {
+        let byte = *bytes.get(at)?;
+        if quote != 0 {
+            if byte == quote {
+                quote = 0;
+            }
+        } else if byte == b'"' || byte == b'\'' {
+            quote = byte;
+        } else if byte == b'>' {
+            break at;
+        }
+        at += 1;
+    };
+    let run_end = if tag_end > run_start && bytes[tag_end - 1] == b'/' {
+        tag_end - 1
+    } else {
+        tag_end
+    };
+    bytes.get(run_start..run_end)
+}
+
 /// Where an element's start tag ends and its content begins and ends, **in arena addresses**.
 ///
 /// [`Decomposed`] answers the same question in offsets into the element's own bytes; this is the
@@ -167,6 +210,32 @@ mod tests {
             markup[parsed.inner].to_owned(),
             parsed.self_closing,
         ))
+    }
+
+    #[test]
+    fn an_attribute_run_is_readable_without_knowing_the_element_name() {
+        assert_eq!(
+            attribute_run_of(br#"<phoneticPr fontId="1" type="Hiragana"/>"#),
+            Some(&br#" fontId="1" type="Hiragana""#[..])
+        );
+        assert_eq!(
+            attribute_run_of(br#"<x:phoneticPr fontId="1"/>"#),
+            Some(&br#" fontId="1""#[..]),
+            "the prefix is not the caller's business here — that is the whole point"
+        );
+        assert_eq!(attribute_run_of(b"<t/>"), Some(&b""[..]));
+        assert_eq!(attribute_run_of(b"<t>x</t>"), Some(&b""[..]));
+        assert_eq!(
+            attribute_run_of(br#"<c note="a>b"/>"#),
+            Some(&br#" note="a>b""#[..]),
+            "a `>` inside a quoted value does not end the tag"
+        );
+        assert_eq!(attribute_run_of(b"phoneticPr/>"), None);
+        assert_eq!(
+            attribute_run_of(b"<t"),
+            None,
+            "a start tag that never closes"
+        );
     }
 
     #[test]

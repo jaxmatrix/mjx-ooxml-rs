@@ -49,8 +49,9 @@
 //! mechanism. It **restates** it:
 //!
 //! * The sheet, every row and every cell each hold the byte range they were read from — three
-//!   [`TextSpan`](crate::arena::TextSpan)s in the arena's address space, eight bytes each. The arena
-//!   itself lives in [`crate::arena`], shared with the shared-string table, which is built on the
+//!   `TextSpan`s in the arena's address space, eight bytes each. The arena
+//!   itself lives in `crate::arena` (crate-private), shared with the shared-string table, which is
+//!   built on the
 //!   same address space for the same reason.
 //! * Writing asks the same question at each level, outermost first. A sheet with its range intact is
 //!   one `memcpy` and the rows are never visited. A sheet with one edited cell copies every *other*
@@ -105,7 +106,6 @@
 //! MJXOFF-102 (D07), and styles are MJXOFF-105 / MJXOFF-108.
 
 mod anomaly;
-mod attributes;
 mod read;
 mod record;
 mod store;

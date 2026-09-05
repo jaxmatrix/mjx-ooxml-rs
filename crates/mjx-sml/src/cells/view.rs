@@ -11,9 +11,9 @@ use mjx_ooxml_types::spreadsheetml::CellType;
 
 use crate::address::{AddressError, CellReference, CellSpans};
 
-use super::attributes;
 use super::record::{CellFlags, PayloadShape, RowFlags, NO_EXTRAS};
 use super::store::SheetData;
+use crate::arena::attributes;
 use crate::arena::TextSpan;
 
 /// One row of a [`SheetData`] — `CT_Row`.

@@ -67,13 +67,14 @@ pub enum SmlError {
     /// A worksheet's `sheetData`, or the edits made to it, outgrew the byte space the cell store
     /// addresses values in.
     ///
-    /// The store keeps every preserved value as a `(start, length)` pair of `u32`s over one address
-    /// space — see `crate::cells` for why — so the part's bytes plus whatever has been edited must
-    /// stay under four gigabytes. No producer writes a worksheet part anywhere near that, and
+    /// Both packed stores in this crate — the cell store and the shared-string table — keep every
+    /// preserved value as a `(start, length)` pair of `u32`s over one address space, see
+    /// [`crate::cells`] for why, so the part's bytes plus whatever has been edited must stay under
+    /// four gigabytes. No producer writes a worksheet or a string table anywhere near that, and
     /// `mjx-xml`'s reader already stops recording byte ranges past the same limit; this is here
     /// because untrusted input does not get to decide whether an index is in range.
-    #[error("the cell store's byte space cannot address {bytes} bytes (the limit is 4 GiB)")]
-    SheetDataTooLarge {
+    #[error("a packed store's byte space cannot address {bytes} bytes (the limit is 4 GiB)")]
+    PackedStoreTooLarge {
         /// How many bytes were asked for.
         bytes: u64,
     },

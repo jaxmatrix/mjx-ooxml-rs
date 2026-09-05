@@ -25,12 +25,17 @@
 //! * [`layout_in_arena`] — one element's own bytes split into its attribute run and its content,
 //!   in arena addresses, and the checks that make a range refuse rather than hand back somebody
 //!   else's bytes. [`decompose`](decompose::decompose) is the offset-level primitive behind it.
+//! * [`attributes`] — reading one attribute out of a preserved start-tag run, and editing that run
+//!   in place, without decomposing it into a list that would forget its spacing and quote styles.
 //! * [`span_between`] / [`span_present_between`] — the two ways an empty range is read, which are
 //!   not the same thing: the whitespace between two rows being empty means *there is none*, and a
 //!   `<v></v>` being empty means *there is a value and it is the empty string*.
 
+pub(crate) mod attributes;
 pub(crate) mod decompose;
 pub(crate) mod text;
 
-pub(crate) use decompose::{layout_in_arena, span_between, span_present_between, ElementLayout};
+pub(crate) use decompose::{
+    attribute_run_of, layout_in_arena, span_between, span_present_between, ElementLayout,
+};
 pub(crate) use text::{TextArena, TextSpan};

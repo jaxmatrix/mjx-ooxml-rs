@@ -39,7 +39,7 @@
 //! constraint anyone will meet — a `.xlsx` part above 4 GiB decompressed is beyond what any producer
 //! writes, and `mjx-xml`'s own reader already stops recording source ranges past that point — but it
 //! is checked on the way in and on every store, and reported as
-//! [`SmlError::SheetDataTooLarge`](crate::SmlError::SheetDataTooLarge). Untrusted input does not get
+//! [`SmlError::PackedStoreTooLarge`](crate::SmlError::PackedStoreTooLarge). Untrusted input does not get
 //! to decide whether an index is in range.
 
 use std::sync::Arc;
@@ -130,16 +130,18 @@ impl TextArena {
     ///
     /// # Errors
     ///
-    /// [`SmlError::SheetDataTooLarge`] if the buffer is too large for a `u32` address space.
+    /// [`SmlError::PackedStoreTooLarge`] if the buffer is too large for a `u32` address space.
     pub(crate) fn new(source: Option<Arc<[u8]>>) -> Result<Self, SmlError> {
         let source_length = match &source {
-            Some(bytes) => u32::try_from(bytes.len()).map_err(|_| SmlError::SheetDataTooLarge {
-                bytes: bytes.len() as u64,
-            })?,
+            Some(bytes) => {
+                u32::try_from(bytes.len()).map_err(|_| SmlError::PackedStoreTooLarge {
+                    bytes: bytes.len() as u64,
+                })?
+            }
             None => 0,
         };
         if source_length > MAXIMUM_ADDRESS {
-            return Err(SmlError::SheetDataTooLarge {
+            return Err(SmlError::PackedStoreTooLarge {
                 bytes: u64::from(source_length),
             });
         }
@@ -194,28 +196,49 @@ impl TextArena {
         TextSpan::new(start, end - start)
     }
 
+    /// A span over `start..end` **anywhere** in the byte space — the part's own bytes or this
+    /// arena's own — or [`TextSpan::NONE`] if that is not a range this arena can address.
+    ///
+    /// [`span_in_source`](Self::span_in_source) is the narrower question, and the two are not
+    /// interchangeable. A store reading a part asks the narrower one, because a range past the
+    /// source is a range the file did not have. A store reading back markup it has *just authored*
+    /// asks this one, because those bytes live in the second half of the address space by
+    /// construction — and refusing them there would make an authored item the one item with no
+    /// bytes behind it, which is exactly the state the design exists to not have.
+    pub(crate) fn span_over(&self, start: u32, end: u32) -> TextSpan {
+        if end < start || u64::from(end) > self.total_length() {
+            return TextSpan::NONE;
+        }
+        TextSpan::new(start, end - start)
+    }
+
+    /// How many bytes the whole address space currently holds.
+    pub(crate) fn total_length(&self) -> u64 {
+        u64::from(self.source_length) + self.edits.len() as u64
+    }
+
     /// Appends `bytes` and returns the span covering them.
     ///
     /// # Errors
     ///
-    /// [`SmlError::SheetDataTooLarge`] if the byte space would grow past what a `u32` can address.
+    /// [`SmlError::PackedStoreTooLarge`] if the byte space would grow past what a `u32` can address.
     pub(crate) fn store(&mut self, bytes: &[u8]) -> Result<TextSpan, SmlError> {
-        let length = u32::try_from(bytes.len()).map_err(|_| SmlError::SheetDataTooLarge {
+        let length = u32::try_from(bytes.len()).map_err(|_| SmlError::PackedStoreTooLarge {
             bytes: bytes.len() as u64,
         })?;
         let start = self
             .source_length
             .checked_add(u32::try_from(self.edits.len()).map_err(|_| {
-                SmlError::SheetDataTooLarge {
+                SmlError::PackedStoreTooLarge {
                     bytes: self.edits.len() as u64,
                 }
             })?)
-            .ok_or(SmlError::SheetDataTooLarge { bytes: u64::MAX })?;
+            .ok_or(SmlError::PackedStoreTooLarge { bytes: u64::MAX })?;
         if start
             .checked_add(length)
             .is_none_or(|end| end > MAXIMUM_ADDRESS)
         {
-            return Err(SmlError::SheetDataTooLarge {
+            return Err(SmlError::PackedStoreTooLarge {
                 bytes: u64::from(start) + u64::from(length),
             });
         }
@@ -284,6 +307,25 @@ mod tests {
             TextSpan::NONE,
             "a range past the buffer is not a range"
         );
+    }
+
+    #[test]
+    fn a_span_over_authored_bytes_is_addressable_and_a_span_past_the_end_is_not() {
+        let mut arena = arena(b"<si><t>a</t></si>");
+        let authored = arena
+            .store(b"<si><t>b</t></si>")
+            .expect("the arena has room");
+        // The exact question the authoring path asks: is `[start, end)` of what was just stored a
+        // range this arena can hand back?
+        let over = arena.span_over(authored.start(), authored.end());
+        assert_eq!(arena.bytes(over), b"<si><t>b</t></si>");
+        assert_eq!(
+            arena.span_in_source(authored.start(), authored.end()),
+            TextSpan::NONE,
+            "the source-only constructor must refuse an authored range, which is why both exist"
+        );
+        assert_eq!(arena.span_over(0, 9_999), TextSpan::NONE);
+        assert_eq!(arena.span_over(5, 2), TextSpan::NONE);
     }
 
     #[test]
