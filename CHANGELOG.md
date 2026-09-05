@@ -53,6 +53,126 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.114] - 2026-09-05
+
+Conditional formatting: the rule kinds, the priority order that runs *across* blocks, and the `dxf`
+layer that is reported beside a cell's format rather than folded into it (MJXOFF-120, Phase D
+position 13).
+
+### Added
+
+- **`mjx_sml::features`** — a directory of subject modules from the first commit:
+  `conditional_rules` (`CT_ConditionalFormatting`, `CT_CfRule`, a rule's `formula`),
+  `conditional_scales` (`CT_Cfvo`, `CT_ColorScale`, `CT_DataBar`, `CT_IconSet`),
+  `conditional_chain` (the cross-block order and the two-layer answer) and `conditional_specs`
+  (the plain-data authoring vocabulary). Nothing over 500 lines.
+- **`mjx_sml::ConditionalFormatting`** — `CT_ConditionalFormatting` (`sml.xsd:2709`), at rank **16**
+  of `CT_Worksheet`. It and `cols` are the **only two** of that type's thirty-nine children declared
+  `maxOccurs="unbounded"`, so `WorksheetPart` grows a *list* surface for it —
+  `conditional_formatting_blocks`, `conditional_formatting_block_mut`,
+  `push_conditional_formatting`, `remove_conditional_formatting` — never an `Option`. Merging the
+  blocks would change the file and would destroy the thing that makes the feature hard.
+- **`mjx_sml::ConditionalFormattingRule`** — `CT_CfRule` (`2717`), all thirteen attributes and all
+  four child kinds, with every accessor named from ECMA-376 Part 1 §18.3.1.10's own prose
+  (`stops_lower_priority_rules`, `top_or_bottom_count`, `ranks_from_bottom`, `includes_the_average`).
+- **`mjx_sml::ColorScale`, `DataBar`, `IconSet`, `ConditionalValueObject`** — `CT_ColorScale`
+  (`2769`), `CT_DataBar` (`2775`), `CT_IconSet` (`2784`), `CT_Cfvo` (`2793`). `@iconSet`'s schema
+  default `3TrafficLights1` is the **generated** `IconSetType::ThreeTrafficLights`; nothing here
+  writes a table of icon-set names.
+- **`mjx_sml::ConditionalFormattingFormula`** — `cfRule/formula`, on MJXOFF-115's terms exactly:
+  text in, the same text out, never parsed and never rewritten. Its `FromXml`/`ToXml` pair is
+  hand-written for the reason `DefinedName`'s is — minimal re-escaping is lossy for preservation.
+- **`WorksheetPart::conditional_rules_for`** and **`mjx_sml::ConditionalRuleChain`** — every rule
+  that applies to a cell, merged across every block whose `@sqref` covers it and sorted by
+  `@priority` across all of them at once. Stable, so equal priorities keep document order.
+- **`mjx_sml::ConditionalCellFormat`** and **`CellFormatResolver::conditional_cell_format`** — a
+  cell's base format and its conditional candidates, **side by side, with no call that merges
+  them**. MJXOFF-108 documented this seam; it is now filled *beside* the resolver rather than inside
+  it, and `CellFormatResolver::differential_format` is the one addition to that type.
+- **`StylesheetPart::append_differential_format`** and **`Workbook::append_differential_format`** —
+  appends a `dxf` and answers the index it appended at. Appending is the table's only mutation:
+  a `@dxfId` is a position, so inserting or reordering would silently repoint every rule above it.
+- **`Workbook::conditional_rules_for`, `conditional_cell_format`, `add_conditional_formatting`** and
+  **`SheetFormatting::conditional_cell_format`** — the package tier, which adds exactly one thing the
+  markup tier cannot reach: conditional formatting spans *two* parts, and authoring a highlighted
+  rule writes both.
+- **`mjx_sml::ConditionalRuleSpec`** and its four companions (`ColorScaleSpec`, `DataBarSpec`,
+  `IconSetSpec`, `ConditionalValueObjectSpec`, `DifferentialFormatSpec`) — plain-data descriptions
+  with no interner, on MJXOFF-105's precedent. They cover the five rule kinds whose markup is
+  *completely* determined by their arguments; the other thirteen `ST_CfType` members are authored
+  through the model, because a spec that wrote only `type="top10"` would author markup known to be
+  incomplete.
+- **`tests/fixtures/conditional_formatting.xlsx`** — **four blocks whose priorities interleave**
+  (block 0 holds 1 and 4, block 1 holds 2, block 2 holds 3, block 3 holds 2 again and 7), a
+  multi-range `@sqref`, a duplicate priority, a gap, a `stopIfTrue`, all four rule kinds, two `dxf`
+  entries, and an `x14` `extLst` in two places. A fixture with one block per priority range tests
+  nothing: a per-block sort and a cross-block sort agree on it.
+- **Four generated child-order exports** — `WORKSHEET_CONDITIONAL_FORMATTING`,
+  `CONDITIONAL_FORMAT_RULE`, `CONDITIONAL_FORMAT_COLOR_SCALE`, `CONDITIONAL_FORMAT_DATA_BAR`, added
+  to `xtask`'s curated list and regenerated. `CT_IconSet` and `CT_Cfvo` are deliberately absent:
+  each declares a single repeating child or none, so both are appends with no order to hold.
+- **`SmlError::ConditionalFormattingBlockHasNoRange`** and
+  **`ConditionalFormattingRuleHasNoPriority`** — the two things a chain cannot be answered *around*.
+  A block whose `@sqref` is missing might be the one covering the cell, and a rule with no
+  `@priority` has no place in the order; a silently shortened chain would report the wrong rule as
+  winning.
+- **A guide page**, `crates/mjx-xlsx/docs/guide/conditional_formatting.md`, beside the formulas page
+  that draws the same boundary.
+
+### The position, stated rather than implied
+
+- **Reporting which rules apply is in scope. Deciding whether a rule is *true* is not, ever.** That
+  needs a calculation engine, which MJXOFF-115 settles as absent by design. `stopIfTrue` is
+  therefore reported as a *position* in the chain and never applied as a truncation — §18.3.1.10
+  makes the stop conditional on the rule firing.
+- **Priorities are as read; nothing renumbers.** Excel's own files have gaps and duplicates, and
+  renumbering changes which rule wins. The fixture has both, and the byte-identity gate is what
+  keeps it that way.
+- **A cell's conditional layer is reported alongside its base format, never folded in.** Every member
+  of a `dxf` is optional and absent means *inherited*, so even a fold performed by a consumer that
+  *could* evaluate would need both halves; producing one merged answer here would assert a rule
+  fired.
+- **The `x14` extensions round-trip and are not modelled.** Data bars with negative fills and
+  icon-set overrides live in that namespace; they come back through an unrelated edit byte for byte,
+  prefix, `uri` and GUIDs included.
+
+## [0.0.113] - 2026-09-05
+
+The sheet grid — merging, row and column geometry, outline levels, page breaks, sheet protection and
+scenarios (MJXOFF-117, Phase D position 12).
+
+> **Recorded late.** MJXOFF-117's own release commit (`c2b965f`) bumped the workspace to `0.0.113`
+> and the wasm package with it, but added no entry here; the omission was found by MJXOFF-120 while
+> writing the entry above. What follows is reconstructed from that child's own commits and code, so
+> that the ledger has no hole in it.
+
+### Added
+
+- **Six more of `CT_Worksheet`'s slots modelled** — `sheetProtection` (7), `protectedRanges` (8),
+  `scenarios` (9), `mergeCells` (14), `rowBreaks` (23) and `colBreaks` (24) — in a directory of
+  subject modules under `mjx_sml::worksheet`: `merges`, `breaks`, `protection`, `scenarios`, `rows`
+  and `anomalies`.
+- **`WorksheetPart::merge_cells` / `unmerge_cells` / `merge_anchor` / `is_covered_by_merge` /
+  `cell_span`**, and the same surface at the package tier, plus
+  `Workbook::effective_merged_cell_format`.
+- **Run-length column splitting** — setting one column's width inside a `col` run breaks it into up
+  to three, and only the middle piece takes the new value.
+- **`RowHeight` / `ColumnWidth`** — the `customHeight`/`customWidth` flag travels with its value in
+  the type, so no call can write a height without saying where the number came from.
+- **`WorksheetPart::grid_anomalies`** — overlapping merges, merges over populated cells, and
+  conflicting `col` runs are described rather than repaired.
+- **`tests/fixtures/sheet_grid.xlsx`**, and `SmlError::MergeOverlapsExistingMerge` /
+  `DegenerateMerge`.
+
+### Fixed
+
+- **`Slot::rank` ranks a held element through the generated table.** MJXOFF-102 modelled ranks 0–6,
+  a *prefix*, which was the only reason an unmodelled child could safely be treated as unrankable.
+  Promoting ranks 7, 8, 9, 14, 23 and 24 broke the prefix, and a `mergeCells` (14) inserted beside a
+  held `autoFilter` (10) would have landed in schema-invalid order. MJXOFF-120 depends on this fix:
+  `conditionalFormatting` is rank 16, between a held `phoneticPr` (15) and a held `dataValidations`
+  (17).
+
 ## [0.0.112] - 2026-09-05
 
 Formulas, carried as text — and the written-down guarantee that nothing here ever acts on one
