@@ -1,11 +1,12 @@
 # Guide
 
-Four pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+Five pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
 the other direction — `Workbook::blank` and the authoring surface, every byte of whose markup comes
-from `mjx-sml`. This guide says exactly that much and no more, so that nobody plans around a surface
+from `mjx-sml`. MJXOFF-115 (D11) adds formulas, which this library carries as text and never
+calculates. This guide says exactly that much and no more, so that nobody plans around a surface
 that is not here.
 
 | Page | Read it when |
@@ -13,6 +14,7 @@ that is not here.
 | [Opening and saving a workbook](opening_and_saving) | You want the whole of the current surface, once |
 | [Reading and editing cells](reading_and_editing_cells) | You want a value out of a sheet, or one into it |
 | [Authoring a workbook](authoring_a_workbook) | You want a workbook this library wrote, rather than one it opened |
+| [Formulas and cached values](formulas_and_cached_values) | Before you edit a workbook that has formulas in it |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a

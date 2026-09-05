@@ -35,6 +35,12 @@ pub mod authoring_a_workbook {
     guide_vocabulary!();
 }
 
+/// Formulas as text, the cached values beside them, and why neither is ever recalculated.
+pub mod formulas_and_cached_values {
+    #![doc = include_str!("../docs/guide/formulas_and_cached_values.md")]
+    guide_vocabulary!();
+}
+
 /// What survives a round trip, what this crate does not model, and what a save refuses.
 pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]

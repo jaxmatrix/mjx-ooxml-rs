@@ -45,6 +45,18 @@
 #     compound one exact token at a time, the whole `delete` family is permitted, case-insensitively,
 #     under those two paths (a case-insensitive substitution, `gI`, since the FORBIDDEN pattern above
 #     is itself matched case-insensitively).
+#   * **SpreadsheetML's data-table input cells** (MJXOFF-115) — `first_input_cell_deleted` and
+#     `second_input_cell_deleted`, the accessors for `CT_CellFormula`'s `@del1` and `@del2`. ECMA-376
+#     Part 1 §18.3.1.40's own captions are "Input 1 Deleted" and "Input 2 Deleted", and the
+#     description is *"Whether the first input cell for data table has been deleted"* — a **real
+#     deletion of a cell**, reported as a fact about the file, which is the same situation as
+#     WordprocessingML's tracked-change vocabulary two bullets above and not the chart concept this
+#     gate exists for. `first_input_cell_suppressed` would be wrong rather than clearer: nothing is
+#     switched off, a cell is gone. Allow-listed by **exact token and by path** — only
+#     `first_input_cell_deleted` / `second_input_cell_deleted`, and only under
+#     `crates/mjx-sml/src/formula/`, so an unrelated `deleted` anywhere in `mjx-sml` still fails and
+#     a chart-shaped `delete_*` planted in that very file still fails (probed, both ways, in
+#     MJXOFF-115's pull request).
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
 #   * **The two bindings' own projection of `RevisionKind`** (MJXOFF-139) — `Deleted` and
@@ -193,6 +205,7 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
         -e '/^crates\/(mjx-docx|mjx-omml)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
+        -e '/^crates\/mjx-sml\/src\/formula\//s/(first|second)_input_cell_deleted/<data-table-input>/g' \
   | awk -F: -v py_range="$py_enums_range" -v wasm_range="$wasm_enums_range" -v pyi_range="$pyi_stub_range" \
         -v dist_web_js_range="$wasm_dist_web_js_range" -v dist_web_dts_range="$wasm_dist_web_dts_range" \
         -v dist_bundler_js_range="$wasm_dist_bundler_js_range" -v dist_bundler_dts_range="$wasm_dist_bundler_dts_range" '

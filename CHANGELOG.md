@@ -53,6 +53,77 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.112] - 2026-09-05
+
+Formulas, carried as text — and the written-down guarantee that nothing here ever acts on one
+(MJXOFF-115, Phase D position 11).
+
+### Added
+
+- **`mjx_sml::formula`** — a directory of subject modules: `cell` (`CT_CellFormula`), `cached`
+  (the `<v>` beside an `<f>`), `shared` (the `@si` grouping) and `calc_chain` (`CT_CalcChain` /
+  `CT_CalcCell`). Nothing over 400 lines.
+- **`mjx_sml::CellFormula`** — `CT_CellFormula` (`sml.xsd:2751`), all **twelve** attributes, as a
+  *borrowed view over the `<f>` element's own bytes*. It adds **zero bytes per cell**: MJXOFF-95's
+  cell store already kept the formula's byte range, and this gives those bytes a type rather than a
+  second home. A decoded struct per cell — a `String` for the text, `Option<CellRange>` for `@ref`,
+  seven `bool`s — was rejected on both counts it would fail: memory (a million formula cells) and
+  fidelity (nothing decoded reproduces `&quot;`, a single-quoted value, or `si` written before `t`).
+- **`mjx_sml::FormulaKind`** — `ST_CellFormulaType`'s four values, **re-exported from the generated
+  `mjx_ooxml_types::spreadsheetml::CellFormulaType` rather than declared a second time.**
+  `has_written_kind` is the distinction a round trip turns on: `t` is declared
+  `use="optional" default="normal"`, so an absent `t` and `t="normal"` mean the same thing and must
+  not be written the same way.
+- **`mjx_sml::CachedValue`** and **`Cell::cached_value`** — the result a producer last computed, read
+  through the `c@t` beside it. `None` for a `<v>` with no `<f>`: a value somebody typed and a result
+  Excel computed are different facts about the file.
+- **`mjx_sml::SharedFormulaGroups` / `SharedFormulaGroup`** and **`SheetData::shared_formula_groups`**
+  — the `@si` grouping, indexed on demand and held nowhere. It reports the host, the group's range
+  and its cell count; it deliberately does **not** answer "what is this member's formula", because
+  that answer is the host's text shifted by the offset between the two cells, and shifting references
+  is translation.
+- **`mjx_sml::CalculationChain` / `CalculationChainCell`** and **`mjx_xlsx::Workbook::calculation_chain`**
+  — `CT_CalcChain` (`sml.xsd:257`) and `CT_CalcCell` (`263`), with §18.6.1's two carry-forward rules
+  (`@i` and `@s` take the previous entry's value when absent) resolved by `CalculationChain::resolved`
+  and by nothing on the write path.
+- **`tests/fixtures/formulas.xlsx`** — a normal formula writing no `t`, one writing `t='normal'`
+  single-quoted, a shared group of five (host plus four text-less members, written four different
+  ways), an array formula over a range whose other cells carry no `<f>` at all, a data-table formula
+  with all six of its attributes, formula text carrying `&lt;`/`&amp;`/`&quot;`, and an
+  `xl/calcChain.xml` of eleven entries.
+- **A fifth case in `crates/mjx-sml/tests/cell_store_allocation.rs`** — 300,000 cells, *every one* a
+  formula cell, 295,000 of them text-less shared-group members. Measured: **76.8 B/cell**, against
+  36.8 for the same sheet of values and the 913 B/cell `docs/BENCHMARKS.md` (MJXOFF-147) records for
+  a `RawElement` tree of it. The 40-byte difference is MJXOFF-95's `CellExtras`, which a formula cell
+  already paid for; **a group member costs what any formula cell costs and nothing for its
+  membership**.
+- **A guide page**, `crates/mjx-xlsx/docs/guide/formulas_and_cached_values.md`, and a new section on
+  the fidelity page — both stating the stale-cache limitation in prose and naming it deliberate.
+
+### The position, stated rather than implied
+
+- **Nothing here calculates, and a stale cached value is correct behaviour.** An edit that changes a
+  cell a formula depends on leaves the cached `<v>` exactly as it was. Recalculating needs an engine
+  this workspace does not have and will not grow; blanking the `<v>` destroys data in a file the
+  caller opened to change a label; marking the workbook dirty writes into a part nobody asked to
+  edit. `crates/mjx-sml/tests/formulas.rs` and `crates/mjx-xlsx/tests/formulas.rs` fail if any of the
+  three ever starts happening.
+- **A shared group's text distribution is preserved exactly.** The host carries the text and the
+  members carry none. Expanding a group to per-cell text on write is a corruption and not an
+  optimisation: it changes bytes nobody asked to change, and because a shared formula's references
+  are written relative to the host, a copied expression states a different formula from the one that
+  cell has.
+- **`xl/calcChain.xml` is left exactly as found** — neither maintained nor dropped. Maintaining it
+  means computing a dependency order, which means parsing expressions. Dropping it is an edit the
+  caller did not ask for, made on every save, and it loses a record they may be reading the file to
+  inspect. §18.6 says a consumer "is free to perform calculations in a different order at run time",
+  which is what makes leaving a stale chain safe.
+
+### Fixed
+
+- `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md` said "Styles and formulas are not
+  modelled at all yet", which stopped being true at MJXOFF-105.
+
 ## [0.0.111] - 2026-09-05
 
 The `mjx-sml` package writer that replaces `mjx_chart::EmbeddedWorkbook`, `Workbook::blank`, and the

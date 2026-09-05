@@ -384,6 +384,46 @@ impl<'a> Cell<'a> {
         self.formula_markup().is_some()
     }
 
+    /// The cell's formula, typed — `CT_CellFormula`'s twelve attributes and its expression text,
+    /// read out of the same bytes [`formula_markup`](Self::formula_markup) returns.
+    ///
+    /// **This costs nothing to have.** The store holds exactly one copy of a formula — the byte
+    /// range it was read from — and [`CellFormula`](crate::CellFormula) is a borrowed view over that
+    /// range, adding no per-cell memory at all. See [`crate::formula`] for why a decoded struct per
+    /// cell was rejected, and for the guarantee that nothing here ever writes one.
+    ///
+    /// `None` if the cell has no `<f>`, or — unreachable for a cell this store read, and stated
+    /// rather than assumed — if its range does not describe an `f` element.
+    #[must_use]
+    pub fn formula(&self) -> Option<crate::formula::CellFormula<'a>> {
+        self.formula_markup()
+            .and_then(crate::formula::CellFormula::parse)
+    }
+
+    /// The value a producer last computed for this cell's formula — the `<v>` beside the `<f>`,
+    /// with the `c@t` that says how to read it.
+    ///
+    /// `None` for a cell with no formula, **including one that has a `<v>`**: a value with no formula
+    /// beside it is content somebody typed, not a cache, and the two are different facts about the
+    /// file. `None` too for a formula cell whose value is an `<is>` rather than a `<v>`, which
+    /// [`inline_string_markup`](Self::inline_string_markup) answers for.
+    ///
+    /// It is a report. Nothing recomputes it, nothing blanks it when a cell it depends on changes,
+    /// and **a stale cached value is the correct behaviour of this library** — see
+    /// [`crate::formula`].
+    #[must_use]
+    pub fn cached_value(&self) -> Option<crate::formula::CachedValue<'a>> {
+        if !self.has_formula() {
+            return None;
+        }
+        let raw = self.raw_value()?;
+        Some(crate::formula::CachedValue::new(
+            self.cell_type(),
+            self.written_cell_type().is_some(),
+            raw,
+        ))
+    }
+
     /// Everything the cell holds **before** its value element — its formula, and any markup this
     /// workspace does not model that the file put ahead of the value.
     #[must_use]
