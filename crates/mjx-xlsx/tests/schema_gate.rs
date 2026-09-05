@@ -189,6 +189,62 @@ fn invalid_spreadsheetml_is_caught_and_names_the_part() {
     println!("the sml arm, proved live:\n{report}");
 }
 
+/// The `sml` child-order table is what puts the SpreadsheetML parts under the ordering gate
+/// (MJXOFF-132).
+///
+/// Before this child, `assert_deck_is_in_schema_order` on a `.xlsx` was very nearly the vacuous pass
+/// `mjx_schema_gate::order`'s own module doc warns about: `sml` had no generated table, so the only
+/// part of `sample.xlsx` the walk recognised was `/xl/theme/theme1.xml` — a DrawingML part that
+/// happens to live in a workbook. Every `x:`-rooted part was invisible to it, and the case was green
+/// anyway.
+///
+/// So this asserts the fact the ticket's own "the row must be load-bearing" clause is about, and
+/// asserts it from **both** ends: the category table says these parts are *required* to be audited
+/// (which reads `OrderingCoverage::Generated`), and the walk says they *were* audited, each having
+/// descended into real structure rather than recognising a root and none of its children. Drop
+/// `"sml"` from `CHILD_ORDER_SCHEMAS` and both halves go red here, on top of the two reconciliation
+/// cases in `mjx-schema-gate` and the hard codegen error the `WORKSHEET` export raises.
+#[test]
+fn the_generated_sml_table_is_what_puts_the_worksheet_parts_under_the_ordering_gate() {
+    // The four SpreadsheetML parts of `sample.xlsx`. `/xl/theme/theme1.xml` is deliberately not in
+    // this list: it is the part that was already audited, and the one that made the old assertion
+    // look like it covered a workbook.
+    const SPREADSHEETML_PARTS: &[&str] = &[
+        "/xl/workbook.xml",
+        "/xl/worksheets/sheet1.xml",
+        "/xl/sharedStrings.xml",
+        "/xl/styles.xml",
+    ];
+
+    let package = Package::open(&fixture("sample.xlsx")).expect("open sample.xlsx");
+    let saved = package.save().expect("save sample.xlsx");
+
+    let required = mjx_schema_gate::parts_that_must_be_audited("sample.xlsx", &saved);
+    let audited = mjx_schema_gate::audit_deck_order("sample.xlsx", &saved);
+
+    for part in SPREADSHEETML_PARTS {
+        assert!(
+            required.iter().any(|name| name == part),
+            "{part} is rooted in SpreadsheetML, so the category table must require it to be \
+             audited; it required {required:?}"
+        );
+        let entry = audited
+            .iter()
+            .find(|entry| entry.name == *part)
+            .unwrap_or_else(|| {
+                panic!("{part} was required but the ordering walk did not audit it")
+            });
+        assert!(
+            entry.elements_visited >= mjx_schema_gate::MINIMUM_ELEMENTS_VISITED,
+            "{part} visited only {} element(s); the tables knew its root and recognised none of \
+             its children, which is a vacuous audit",
+            entry.elements_visited
+        );
+    }
+
+    println!("the sml ordering table, proved live: {audited:#?}");
+}
+
 #[test]
 fn an_xlsx_the_library_re_emits_unchanged_is_still_schema_valid() {
     // `mjx-opc` rewrites the content types and every `.rels` stream on every save, so this is not a
