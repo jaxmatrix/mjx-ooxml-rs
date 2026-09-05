@@ -14,7 +14,7 @@ use crate::address::{AddressError, CellReference, CellSpans};
 use super::attributes;
 use super::record::{CellFlags, PayloadShape, RowFlags, NO_EXTRAS};
 use super::store::SheetData;
-use super::text::TextSpan;
+use crate::arena::TextSpan;
 
 /// One row of a [`SheetData`] — `CT_Row`.
 ///

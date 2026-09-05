@@ -77,6 +77,8 @@
 //! workspace. Every writer added here places children through that table rather than by hand, and
 //! `mjx-schema-gate` audits every `x:`-rooted part of every package it inspects.
 
+pub(crate) mod arena;
+
 pub mod address;
 pub mod cells;
 pub mod error;
