@@ -66,8 +66,10 @@ impl Workbook {
     /// `sheet` entry's `r:id` — which is the **only** thing that names a part; `@sheetId` and the
     /// position in the list name nothing. See `crates/mjx-sml/src/workbook/sheets.rs`.
     ///
-    /// Everything fallible happens before the package is touched, so a failure leaves the workbook
-    /// exactly as it was.
+    /// **Everything fallible that does not touch the package happens first** — the part name, the
+    /// authored markup, and reading the relationship prefix — so the common refusals leave the
+    /// workbook exactly as it was. The three calls that follow write, and each is fallible only if
+    /// the packaging layer rejects a name this method just derived from the package's own contents.
     ///
     /// # Errors
     /// [`XlsxError::MalformedWorkbook`] if `xl/workbook.xml` binds no prefix to the
