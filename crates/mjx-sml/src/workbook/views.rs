@@ -1,9 +1,9 @@
 //! `x:bookViews` and `x:customWorkbookViews` — how a consumer opens the workbook window, and the
 //! saved views a user can switch between.
 //!
-//! `CT_BookViews` (`sml.xsd:4130`) holds one or more `x:workbookView` (`CT_BookView`, `4135`);
-//! `CT_CustomWorkbookViews` (`4166`) holds one or more `x:customWorkbookView` (`CT_CustomWorkbookView`,
-//! `4172`). They are two lists of window geometry, and the second is the largest attribute bag in the
+//! `CT_BookViews` (`sml.xsd:4132`) holds one or more `x:workbookView` (`CT_BookView`, `4137`);
+//! `CT_CustomWorkbookViews` (`4162`) holds one or more `x:customWorkbookView` (`CT_CustomWorkbookView`,
+//! `4168`). They are two lists of window geometry, and the second is the largest attribute bag in the
 //! cluster — **twenty-four** direct `xsd:attribute` declarations, counted from the schema.
 //!
 //! # Window geometry is a producer's, not a consumer's

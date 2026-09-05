@@ -4,7 +4,7 @@
 //!
 //! # References are modelled; what they reach is not
 //!
-//! `CT_ExternalReference` (`sml.xsd:4355`) and `CT_PivotCache` (`4368`) are one relationship id
+//! `CT_ExternalReference` (`sml.xsd:4344`) and `CT_PivotCache` (`4355`) are one relationship id
 //! each. The parts they name — `xl/externalLinks/externalLink1.xml`, `xl/pivotCache/*` — are
 //! MJXOFF-133's (D18) to write down and nothing here's to interpret. But the *elements* sit in the
 //! workbook's own `xsd:sequence`, at ranks 7 and 12, so a workbook that carries them and a writer
@@ -17,7 +17,7 @@
 //!
 //! # `CT_FunctionGroups`, and a schema oddity worth naming
 //!
-//! `CT_FunctionGroups` (`sml.xsd:4419`) declares `<xsd:sequence maxOccurs="unbounded">` around a
+//! `CT_FunctionGroups` (`sml.xsd:4415`) declares `<xsd:sequence maxOccurs="unbounded">` around a
 //! single `<xsd:element name="functionGroup" minOccurs="0"/>` — a repeated sequence of one optional
 //! element, which is a long way of writing "any number of `functionGroup`s". `@builtInGroupCount`
 //! says how many of the groups are the consumer's own built-ins rather than add-in registered ones;

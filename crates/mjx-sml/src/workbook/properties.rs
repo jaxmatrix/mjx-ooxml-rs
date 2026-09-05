@@ -33,7 +33,7 @@ use crate::address::CellRange;
 use super::leaf::attribute_bag;
 
 attribute_bag! {
-    /// `x:fileVersion` (`CT_FileVersion`, `sml.xsd:4121`) — which application last wrote the
+    /// `x:fileVersion` (`CT_FileVersion`, `sml.xsd:4125`) — which application last wrote the
     /// workbook, and at which build.
     ///
     /// Every attribute is `xsd:string` in the schema, including `lastEdited`/`lowestEdited`/
@@ -80,7 +80,7 @@ attribute_bag! {
 }
 
 attribute_bag! {
-    /// `x:fileSharing` (`CT_FileSharing`, `sml.xsd:4370`) — the write-reservation password and the
+    /// `x:fileSharing` (`CT_FileSharing`, `sml.xsd:4359`) — the write-reservation password and the
     /// read-only recommendation a consumer shows before opening.
     ///
     /// `reservationPassword` is the legacy `ST_UnsignedShortHex` form and
@@ -97,7 +97,7 @@ attribute_bag! {
 }
 
 attribute_bag! {
-    /// `x:workbookProtection` (`CT_WorkbookProtection`, `sml.xsd:4385`) — whether the sheet
+    /// `x:workbookProtection` (`CT_WorkbookProtection`, `sml.xsd:4371`) — whether the sheet
     /// structure and the window layout may be changed, and the two password families that guard
     /// them.
     ///
@@ -123,7 +123,7 @@ attribute_bag! {
 }
 
 attribute_bag! {
-    /// `x:fileRecoveryPr` (`CT_FileRecoveryPr`, `sml.xsd:4283`) — what a consumer that crashed last
+    /// `x:fileRecoveryPr` (`CT_FileRecoveryPr`, `sml.xsd:4278`) — what a consumer that crashed last
     /// time should do on the next open.
     ///
     /// The **one repeatable slot** in `CT_Workbook`'s nineteen: the schema declares it
@@ -137,7 +137,7 @@ attribute_bag! {
 }
 
 attribute_bag! {
-    /// `x:oleSize` (`CT_OleSize`, `sml.xsd:4383`) — the cell range an OLE container shows when the
+    /// `x:oleSize` (`CT_OleSize`, `sml.xsd:4368`) — the cell range an OLE container shows when the
     /// workbook is embedded in another document rather than opened on its own.
     ///
     /// `@ref` is `ST_Ref`, which is D03's [`CellRange`] and not a second address type: the range is
