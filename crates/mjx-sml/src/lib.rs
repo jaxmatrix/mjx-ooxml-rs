@@ -54,7 +54,7 @@
 //! | Module | Filled by |
 //! |---|---|
 //! | [`address`] | **MJXOFF-93 (D03) — done**: references, ranges, `sqref`, `spans`, A1 and R1C1 |
-//! | [`cells`] | MJXOFF-95 (D04) — the cell store, the hybrid memory model |
+//! | [`cells`] | **MJXOFF-95 (D04) — done**: the cell store, and the hybrid memory model made real |
 //! | [`strings`] | MJXOFF-97 (D05) — `sharedStrings.xml`, rich-text runs, inline strings |
 //! | [`styles`] | MJXOFF-105 (D08), MJXOFF-108 (D09) — resource tables, then the `xf` indirection |
 //! | [`formula`] | MJXOFF-115 (D11) — formulas as text, cached values, `calcChain` |
@@ -93,4 +93,5 @@ pub use address::{
     CellSpans, ColumnBound, GridBounds, R1C1Coordinate, R1C1Range, R1C1Reference, ReferenceMode,
     RowBound, SheetName, SheetQualifiedReference,
 };
+pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
 pub use error::SmlError;

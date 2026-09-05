@@ -84,6 +84,11 @@ enum Tier {
     /// `mjx-schema-gate`: the shared ECMA-376 gate, a `dev-dependency` of the three format crates
     /// and of nothing else. Outside the shipped graph.
     TestGate,
+    /// `mjx-allocation-counter`: the counting global allocator, **no dependencies at all** for the
+    /// same reason `mjx-fixtures` has none — its two consumers sit in different tiers (`xtask`'s
+    /// fuzz campaign and `mjx-sml`'s allocation gate) and nothing may depend on `xtask`. Outside
+    /// the shipped graph.
+    TestInstrument,
     /// `xtask`: a host-only developer binary nothing depends on, so it may reach anything.
     Tooling,
 }
@@ -112,7 +117,9 @@ impl Tier {
             Self::Formats => Rank(3, 0),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
-            Self::TestCorpus | Self::TestGate | Self::Tooling => return None,
+            Self::TestCorpus | Self::TestGate | Self::TestInstrument | Self::Tooling => {
+                return None
+            }
         })
     }
 
@@ -130,6 +137,7 @@ impl Tier {
             Self::Bindings => "bindings",
             Self::TestCorpus => "test-only corpus (outside the shipped graph)",
             Self::TestGate => "test-only gate (outside the shipped graph)",
+            Self::TestInstrument => "test-only instrument (outside the shipped graph)",
             Self::Tooling => "host-only tooling (outside the shipped graph)",
         }
     }
@@ -166,6 +174,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-wasm", Tier::Bindings),
     ("mjx-fixtures", Tier::TestCorpus),
     ("mjx-schema-gate", Tier::TestGate),
+    ("mjx-allocation-counter", Tier::TestInstrument),
     ("xtask", Tier::Tooling),
 ];
 
@@ -408,11 +417,15 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
             // "`mjx-fixtures` … with **no dependencies at all** so `mjx-opc`'s suites can reach it
             // without an upward edge" — `CLAUDE.md`. Stated over the total, external crates
             // included: a `serde` here would be as much of a problem as an `mjx-opc`.
-            Some(Tier::TestCorpus) => assert_eq!(
+            // The allocator instrument carries the same rule, and for the same reason: `xtask`
+            // reaches it from outside the graph and `mjx-sml` from rank 2.1, so it must be
+            // reachable from both without an edge of its own. Anything it depended on would also
+            // be allocating inside the process whose allocations it counts.
+            Some(Tier::TestCorpus | Tier::TestInstrument) => assert_eq!(
                 member.declared_dependencies,
                 0,
-                "`{}` is the committed corpus and must declare no dependencies at all, so that any \
-                 crate's tests can reach it from anywhere in the graph; it declares {}",
+                "`{}` is outside the shipped graph and must declare no dependencies at all, so that \
+                 any crate's tests can reach it from anywhere in the graph; it declares {}",
                 member.name,
                 member.declared_dependencies
             ),
@@ -454,7 +467,10 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
             let target_tier =
                 tier_of(target).expect("the target is a workspace member, so it has a row");
             assert!(
-                !matches!(target_tier, Tier::TestCorpus | Tier::TestGate),
+                !matches!(
+                    target_tier,
+                    Tier::TestCorpus | Tier::TestGate | Tier::TestInstrument
+                ),
                 "`{}` declares the test-only crate `{target}` as {} — it may only appear in a \
                  `[dev-dependencies]` section, or it stops being test-only",
                 member.name,
