@@ -58572,3 +58572,15 @@ pub static STYLESHEET_COLOR_TABLE: &ChildOrder = &SML_TYPES[51];
 
 /// One cell format's three children: alignment, protection, then `extLst` (`x:xf`) (`CT_Xf`, `sml.xsd`).
 pub static STYLESHEET_CELL_FORMAT: &ChildOrder = &SML_TYPES[360];
+
+/// One conditional-formatting block's rules, then `extLst` (`x:conditionalFormatting`) (`CT_ConditionalFormatting`, `sml.xsd`).
+pub static WORKSHEET_CONDITIONAL_FORMATTING: &ChildOrder = &SML_TYPES[59];
+
+/// One conditional-formatting rule's children: up to three formulas, then whichever of `colorScale`, `dataBar` and `iconSet` it carries, then `extLst` (`x:cfRule`) (`CT_CfRule`, `sml.xsd`).
+pub static CONDITIONAL_FORMAT_RULE: &ChildOrder = &SML_TYPES[36];
+
+/// A colour scale's value objects, then its colours (`x:colorScale`) (`CT_ColorScale`, `sml.xsd`).
+pub static CONDITIONAL_FORMAT_COLOR_SCALE: &ChildOrder = &SML_TYPES[50];
+
+/// A data bar's two value objects, then its one colour (`x:dataBar`) (`CT_DataBar`, `sml.xsd`).
+pub static CONDITIONAL_FORMAT_DATA_BAR: &ChildOrder = &SML_TYPES[77];
