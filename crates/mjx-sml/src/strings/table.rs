@@ -119,6 +119,13 @@ impl SharedStringTable {
         let attributes = items
             .arena
             .store(format!(" xmlns=\"{}\"", SML.transitional).as_bytes())?;
+        // `self_closing` is `true` so that a table with no entry writes `<sst … count="0"
+        // uniqueCount="0"/>` rather than `<sst …></sst>`. Both are the same infoset and both are
+        // valid; the self-closing form is what Excel writes for an empty table and what
+        // `mjx-chart`'s writer emits, and MJXOFF-112's parity gate compares the two byte for byte
+        // in `crates/mjx-chart/tests/workbook_parity.rs`. It decides the *empty* form only — the
+        // writer takes the full form the moment there is an entry to put between the tags — so the
+        // non-empty parity this file already pins is untouched.
         Ok(Self {
             items,
             extent: TextSpan::NONE,
@@ -126,7 +133,7 @@ impl SharedStringTable {
             trailing: TextSpan::NONE,
             prologue,
             epilogue: TextSpan::NONE,
-            self_closing: false,
+            self_closing: true,
             reference_count: Some(0),
             unique_count: Some(0),
             reference_count_tracks_entries: true,
