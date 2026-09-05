@@ -30,20 +30,105 @@
 //! writes every attribute an element holds, in order, without inspecting any of them. There is no
 //! code path that could decide a declaration is unused.
 
-use mjx_ooxml_core::{RawDocument, RawElement, RawName, RawNode};
+use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawName, RawNode};
+
+/// Everything the walk below reads off a document: the interner its names resolve through, and the
+/// source buffer an unmodified element may still be copied from.
+///
+/// Split out from [`RawDocument`] so that [`serialize_element`] can serialize one element of a
+/// document without a document — which is what a model that holds *rows* rather than a tree needs
+/// (`mjx_sml::cells`, MJXOFF-95). It is `Copy` and two words wide, so passing it costs what passing
+/// the reference cost.
+#[derive(Clone, Copy)]
+struct Context<'a> {
+    interner: &'a Interner,
+    source: Option<&'a [u8]>,
+}
+
+impl<'a> Context<'a> {
+    fn of(doc: &'a RawDocument) -> Self {
+        Self {
+            interner: &doc.interner,
+            source: doc.source(),
+        }
+    }
+}
 
 /// Serializes a document back to bytes, appending to `out`.
 pub fn serialize(doc: &RawDocument, out: &mut Vec<u8>) {
+    let ctx = Context::of(doc);
     if doc.bom {
         out.extend_from_slice(&[0xEF, 0xBB, 0xBF]);
     }
     for node in doc.prologue.iter() {
-        write_node(doc, node, out);
+        write_node(ctx, node, out);
     }
-    write_element(doc, &doc.root, out);
+    write_element(ctx, &doc.root, out);
     for node in doc.epilogue.iter() {
-        write_node(doc, node, out);
+        write_node(ctx, node, out);
     }
+}
+
+/// Serializes **one element** — start tag, children, end tag — appending to `out`.
+///
+/// Same rules as [`serialize`], applied to a subtree instead of a document: an element still in the
+/// state a reader left it in is copied verbatim out of `source`, and everything else is written from
+/// the model. `interner` must be the one the element's [`Symbol`](mjx_ooxml_core::Symbol)s came
+/// from, and `source` the buffer its [source ranges](RawElement::source_span) were measured against
+/// — pass `None` if the element was authored, or if the buffer is not to hand, and every element is
+/// written from the model instead. A wrong buffer cannot produce wrong bytes: the range is checked
+/// against the element it claims to describe before it is trusted, exactly as it is for a document.
+///
+/// This exists for a model that does **not** hold a tree. `mjx_sml::cells` stores a worksheet's rows
+/// as packed records plus byte ranges, so when it has to write an unmodelled child back it has an
+/// element and an interner but no [`RawDocument`] to put them in.
+///
+/// # Examples
+///
+/// ```
+/// use mjx_xml::fidelity;
+/// let doc = fidelity::parse(br#"<a:root xmlns:a="urn:a"><a:kid v="1"/></a:root>"#).unwrap();
+/// let mjx_ooxml_core::RawNode::Element(kid) = &doc.root.children[0] else {
+///     panic!("expected an element");
+/// };
+/// let mut out = Vec::new();
+/// fidelity::serialize_element(kid, &doc.interner, doc.source(), &mut out);
+/// assert_eq!(out, br#"<a:kid v="1"/>"#);
+/// ```
+pub fn serialize_element(
+    element: &RawElement,
+    interner: &Interner,
+    source: Option<&[u8]>,
+    out: &mut Vec<u8>,
+) {
+    write_element(Context { interner, source }, element, out);
+}
+
+/// Serializes **one node** — an element, text, a comment, a processing instruction — appending to
+/// `out`.
+///
+/// [`serialize_element`] for anything that is not an element. Same rules, same arguments, same
+/// reason to exist: a model that holds byte ranges rather than a tree has to be able to turn a node
+/// it was handed into the bytes it will keep.
+///
+/// # Examples
+///
+/// ```
+/// use mjx_xml::fidelity;
+/// let doc = fidelity::parse(b"<root>text<!-- note --></root>").unwrap();
+/// let mut out = Vec::new();
+/// for node in doc.root.children.iter() {
+///     fidelity::serialize_node(node, &doc.interner, doc.source(), &mut out);
+/// }
+/// assert_eq!(out, b"text<!-- note -->");
+/// ```
+pub fn serialize_node(
+    node: &RawNode,
+    interner: &Interner,
+    source: Option<&[u8]>,
+    out: &mut Vec<u8>,
+) {
+    write_node(Context { interner, source }, node, out);
 }
 
 /// Convenience: serialize into a fresh `Vec`.
@@ -54,9 +139,9 @@ pub fn serialize_to_vec(doc: &RawDocument) -> Vec<u8> {
     out
 }
 
-fn write_node(doc: &RawDocument, node: &RawNode, out: &mut Vec<u8>) {
+fn write_node(ctx: Context<'_>, node: &RawNode, out: &mut Vec<u8>) {
     match node {
-        RawNode::Element(element) => write_element(doc, element, out),
+        RawNode::Element(element) => write_element(ctx, element, out),
         RawNode::Text(bytes) => out.extend_from_slice(bytes),
         RawNode::CData(bytes) => wrap(out, b"<![CDATA[", bytes, b"]]>"),
         RawNode::Comment(bytes) => wrap(out, b"<!--", bytes, b"-->"),
@@ -66,17 +151,17 @@ fn write_node(doc: &RawDocument, node: &RawNode, out: &mut Vec<u8>) {
     }
 }
 
-fn write_element(doc: &RawDocument, element: &RawElement, out: &mut Vec<u8>) {
-    if let Some(verbatim) = verbatim_bytes(doc, element) {
+fn write_element(ctx: Context<'_>, element: &RawElement, out: &mut Vec<u8>) {
+    if let Some(verbatim) = verbatim_bytes(ctx, element) {
         out.extend_from_slice(verbatim);
         return;
     }
     out.push(b'<');
-    write_qname(doc, &element.name, out);
+    write_qname(ctx, &element.name, out);
     // Every attribute, in order, declarations included — see the module docs.
     for attr in element.attributes.iter() {
         out.push(b' ');
-        write_qname(doc, &attr.name, out);
+        write_qname(ctx, &attr.name, out);
         out.push(b'=');
         out.push(attr.quote.byte());
         out.extend_from_slice(&attr.value);
@@ -87,10 +172,10 @@ fn write_element(doc: &RawDocument, element: &RawElement, out: &mut Vec<u8>) {
     } else {
         out.push(b'>');
         for child in element.children.iter() {
-            write_node(doc, child, out);
+            write_node(ctx, child, out);
         }
         out.extend_from_slice(b"</");
-        write_qname(doc, &element.name, out);
+        write_qname(ctx, &element.name, out);
         out.push(b'>');
     }
 }
@@ -100,13 +185,13 @@ fn write_element(doc: &RawDocument, element: &RawElement, out: &mut Vec<u8>) {
 /// Returns `Some` only when the document still holds its source buffer, the element has not been
 /// mutated since it was parsed, the recorded range fits the buffer, and the bytes in that range
 /// still describe *this* element — see the module docs for why the last check is not redundant.
-fn verbatim_bytes<'d>(doc: &'d RawDocument, element: &RawElement) -> Option<&'d [u8]> {
-    let source = doc.source()?;
+fn verbatim_bytes<'d>(ctx: Context<'d>, element: &RawElement) -> Option<&'d [u8]> {
+    let source = ctx.source?;
     let span = element.source_span()?;
     // `get` rejects an inverted or out-of-bounds range, so a nonsense span reflows rather than
     // panicking or reading someone else's markup.
     let bytes = source.get(usize::try_from(span.start).ok()?..usize::try_from(span.end).ok()?)?;
-    if !opens_with(doc, element, bytes) || !closes_as_stated(doc, element, bytes) {
+    if !opens_with(ctx, element, bytes) || !closes_as_stated(ctx, element, bytes) {
         return None;
     }
     Some(bytes)
@@ -115,14 +200,14 @@ fn verbatim_bytes<'d>(doc: &'d RawDocument, element: &RawElement) -> Option<&'d 
 /// Whether `bytes` starts `<` + the element's qualified name + a delimiter.
 ///
 /// This is what catches a mutated [`RawElement::name`], which carries no mutation tracking.
-fn opens_with(doc: &RawDocument, element: &RawElement, bytes: &[u8]) -> bool {
+fn opens_with(ctx: Context<'_>, element: &RawElement, bytes: &[u8]) -> bool {
     let mut cursor = 0usize;
     if bytes.first() != Some(&b'<') {
         return false;
     }
     cursor += 1;
     if let Some(prefix) = element.name.prefix {
-        if !consume(bytes, &mut cursor, doc.interner.resolve(prefix).as_bytes())
+        if !consume(bytes, &mut cursor, ctx.interner.resolve(prefix).as_bytes())
             || !consume(bytes, &mut cursor, b":")
         {
             return false;
@@ -131,7 +216,7 @@ fn opens_with(doc: &RawDocument, element: &RawElement, bytes: &[u8]) -> bool {
     if !consume(
         bytes,
         &mut cursor,
-        doc.interner.resolve(element.name.local).as_bytes(),
+        ctx.interner.resolve(element.name.local).as_bytes(),
     ) {
         return false;
     }
@@ -148,7 +233,7 @@ fn opens_with(doc: &RawDocument, element: &RawElement, bytes: &[u8]) -> bool {
 /// `</` + the qualified name + optional whitespace + `>` otherwise.
 ///
 /// This is what catches a flipped [`RawElement::empty`], which carries no mutation tracking.
-fn closes_as_stated(doc: &RawDocument, element: &RawElement, bytes: &[u8]) -> bool {
+fn closes_as_stated(ctx: Context<'_>, element: &RawElement, bytes: &[u8]) -> bool {
     if element.empty && element.children.is_empty() {
         return bytes.ends_with(b"/>");
     }
@@ -157,18 +242,18 @@ fn closes_as_stated(doc: &RawDocument, element: &RawElement, bytes: &[u8]) -> bo
     };
     // `</a >` is legal, so trim the whitespace an end tag is allowed to carry.
     let rest = trim_end_ascii_whitespace(rest);
-    let Some(rest) = strip_qname_suffix(doc, &element.name, rest) else {
+    let Some(rest) = strip_qname_suffix(ctx, &element.name, rest) else {
         return false;
     };
     rest.ends_with(b"</")
 }
 
-fn strip_qname_suffix<'b>(doc: &RawDocument, name: &RawName, bytes: &'b [u8]) -> Option<&'b [u8]> {
-    let rest = bytes.strip_suffix(doc.interner.resolve(name.local).as_bytes())?;
+fn strip_qname_suffix<'b>(ctx: Context<'_>, name: &RawName, bytes: &'b [u8]) -> Option<&'b [u8]> {
+    let rest = bytes.strip_suffix(ctx.interner.resolve(name.local).as_bytes())?;
     match name.prefix {
         Some(prefix) => rest
             .strip_suffix(b":")?
-            .strip_suffix(doc.interner.resolve(prefix).as_bytes()),
+            .strip_suffix(ctx.interner.resolve(prefix).as_bytes()),
         None => Some(rest),
     }
 }
@@ -192,12 +277,12 @@ fn consume(bytes: &[u8], cursor: &mut usize, expected: &[u8]) -> bool {
     true
 }
 
-fn write_qname(doc: &RawDocument, name: &RawName, out: &mut Vec<u8>) {
+fn write_qname(ctx: Context<'_>, name: &RawName, out: &mut Vec<u8>) {
     if let Some(prefix) = name.prefix {
-        out.extend_from_slice(doc.interner.resolve(prefix).as_bytes());
+        out.extend_from_slice(ctx.interner.resolve(prefix).as_bytes());
         out.push(b':');
     }
-    out.extend_from_slice(doc.interner.resolve(name.local).as_bytes());
+    out.extend_from_slice(ctx.interner.resolve(name.local).as_bytes());
 }
 
 fn wrap(out: &mut Vec<u8>, open: &[u8], inner: &[u8], close: &[u8]) {
