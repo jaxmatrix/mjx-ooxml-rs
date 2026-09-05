@@ -48,9 +48,9 @@ pub enum PayloadShape {
     /// The cell carries neither `<v>` nor `<is>` — a blank cell, which is still a cell because it
     /// may carry a style.
     Absent,
-    /// [`PackedCell::payload`] is the raw, still-escaped text **inside** a `<v>` element.
+    /// The cell record's payload span is the raw, still-escaped text **inside** a `<v>` element.
     ValueText,
-    /// [`PackedCell::payload`] is a whole `<is>…</is>` element, kept verbatim.
+    /// The cell record's payload span is a whole `<is>…</is>` element, kept verbatim.
     ///
     /// `CT_Rst` is a rich-text structure — `t`, `r*`, `rPh*`, `phoneticPr?` — and modelling it is
     /// MJXOFF-97's (D05), which owns the shared-string table this shares its type with. Until then
