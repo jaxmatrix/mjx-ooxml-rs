@@ -254,7 +254,7 @@ impl Workbook {
     /// The one shape every mutation on this surface has. A model `edit` leaves untouched — because
     /// it returned early, or because the change was a no-op — writes back the buffer it was read
     /// from, so a failed edit is not a rewritten part.
-    fn edit_worksheet(
+    pub(crate) fn edit_worksheet(
         &mut self,
         index: usize,
         edit: impl FnOnce(&mut WorksheetPart) -> Result<(), XlsxError>,

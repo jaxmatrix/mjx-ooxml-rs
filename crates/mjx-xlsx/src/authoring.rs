@@ -295,7 +295,7 @@ impl Workbook {
     /// Crate-private and closure-taking, which the four public methods above are deliberately not:
     /// this is the read-modify-write those four share, factored so that four copies of it cannot
     /// drift apart, and it is not part of the surface a binding has to project.
-    fn edit_styles<R>(
+    pub(crate) fn edit_styles<R>(
         &mut self,
         edit: impl FnOnce(&mut StylesheetPart, &mut mjx_ooxml_core::Interner) -> Result<R, XlsxError>,
     ) -> Result<R, XlsxError> {

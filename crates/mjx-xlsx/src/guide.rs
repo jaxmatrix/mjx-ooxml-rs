@@ -48,6 +48,13 @@ pub mod the_sheet_grid {
     guide_vocabulary!();
 }
 
+/// Which conditional-formatting rules apply to a cell, in which order — and why none of them is
+/// ever evaluated.
+pub mod conditional_formatting {
+    #![doc = include_str!("../docs/guide/conditional_formatting.md")]
+    guide_vocabulary!();
+}
+
 /// What survives a round trip, what this crate does not model, and what a save refuses.
 pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]

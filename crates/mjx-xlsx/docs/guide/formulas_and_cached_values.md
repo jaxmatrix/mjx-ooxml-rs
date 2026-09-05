@@ -167,3 +167,7 @@ of date, and a consumer rebuilds it: the same thing it does when the part is abs
 | Shared-group expansion | Never. The host keeps the text and the members keep none |
 | `calcChain.xml` | Read; never maintained, never dropped |
 | Evaluation of any kind | Not done, and not planned |
+
+The same boundary holds one page over. A conditional-formatting rule's condition is a formula too, so
+[Conditional formatting](conditional_formatting) reports **which rules apply to a cell** and never
+whether any of them is true.
