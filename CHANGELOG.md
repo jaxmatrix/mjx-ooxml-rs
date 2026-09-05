@@ -52,6 +52,59 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.102] - 2026-09-05
+
+`mjx-sml`, the shared-markup layer Excel was missing, and the first mechanical check of the layering
+rule (MJXOFF-132, Phase D position 1) — the first child of Phase D.
+
+### Added
+
+- **`crates/mjx-sml`**, a new workspace member at rank **2.1**: beside `mjx-dml`, beneath
+  `mjx-chart`. It holds the SpreadsheetML *markup* — cells, rows, sheet data, shared strings, styles,
+  number formats, formulas as text — while `mjx-xlsx` keeps the `Workbook` surface and the package
+  graph in the format tier. **Excel is two crates, not one**, because an authored chart embeds a
+  whole `.xlsx` inside a `.pptx` or a `.docx`: SpreadsheetML is shared markup even though the package
+  is Excel's. That is what makes `mjx-chart → mjx-sml → mjx-dml` a chain of downward edges, and it is
+  what lets MJXOFF-112 and MJXOFF-99 finally delete `mjx-chart`'s duplicate workbook writer — with
+  one Excel crate the retirement would have needed `mjx-chart → mjx-xlsx`, which points **up**.
+  This child **emits no markup and models nothing**: it is the crate, the module tree (each module a
+  named home carrying the work item that fills it), `SmlError`, the generated `sml` ordering table and
+  the layering test.
+- **`xtask/tests/layering.rs`** — the layering rule, checked. `CLAUDE.md`'s downward-only rule was
+  the one architectural rule in the repository with no mechanical check, and two queued children are
+  specified to rely on it existing. The test reads the real graph out of `cargo metadata --no-deps`
+  (rather than scanning manifests, where an unrecognised dependency spelling would drop an edge
+  silently) and fails on any normal or build edge that does not point to a **strictly lower** rank,
+  naming both crates and both ranks. Sideways is as illegal as upward. It also refuses to pass on
+  fewer edges than the shipped graph has, so it cannot go green by reaching nothing.
+- **The `sml` child-order table.** `xtask`'s `CHILD_ORDER_SCHEMAS` gains `"sml"`, so
+  `mjx_ooxml_types::child_order` now carries the `xsd:sequence` position of every child of all 367
+  SpreadsheetML complex types — `CT_Worksheet`'s **39 slots**, the largest sequence in the workspace,
+  among them. Five curated exports name the types the Phase D children place children into first:
+  `WORKSHEET`, `WORKBOOK`, `STYLESHEET`, `WORKSHEET_ROW` and `WORKSHEET_CELL`. `sml.xsd` reaches
+  `dml-spreadsheetDrawing` through `CT_ObjectAnchor`, so that schema joins
+  `CHILD_ORDER_SCHEMA_DEPENDENCIES` (parsed only; its own table stays MJXOFF-107's).
+
+### Changed
+
+- **Every `x:`-rooted part is now audited for child order.** `mjx-schema-gate`'s `sml` entry moves
+  from `OrderingCoverage::Pending { owner: "MJXOFF-132", … }` to `Generated`, which is what
+  `parts_that_must_be_audited` reads. Before this, the ordering gate on a `.xlsx` recognised only
+  `/xl/theme/theme1.xml` — a DrawingML part that happens to live in a workbook — and passed. A new
+  case in `mjx-xlsx` pins the four SpreadsheetML parts of `sample.xlsx` as required *and* audited
+  non-vacuously, from both ends of the mechanism.
+- **`CLAUDE.md`, `README.md` and `PLAN.md`** state the rank table, including the sub-ranks. Two of
+  them were not previously written down: shared markup is not flat (2.0 `mjx-dml` → 2.1 `mjx-sml` →
+  2.2 `mjx-chart`/`mjx-omml`/`mjx-vml`) and neither are the foundations (`mjx-xml` is built on
+  `mjx-ooxml-core`, so 0.0 → 0.1). A flat foundations tier would have made a shipped edge illegal.
+
+### Removed
+
+- Two dead rows from `xtask`'s `UNCOVERED_SCHEMAS`: `sml` (this child covers it) and `shared-math`
+  (MJXOFF-134 covered it and left its row behind). A row exists for a schema a `COVERAGE.md` table
+  does *not* cover; a row for one that both tables cover is read by nothing. Regenerating with the
+  rows gone produces a byte-identical `COVERAGE.md`, which is the proof they were dead.
+
 ## [0.0.101] - 2026-09-05
 
 The Word usage guide, its examples, and the `wml` preserve-only ledger (MJXOFF-150, Phase C position
