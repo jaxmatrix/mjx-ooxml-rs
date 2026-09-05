@@ -7,13 +7,16 @@
 //! corrupting the parts you did not touch** — with a codebase that cross-compiles cleanly to desktop,
 //! Android, iOS, and WebAssembly.
 //!
-//! This crate is where an application starts. Three things live here and nowhere else:
+//! This crate is where an application starts. Four things live here and nowhere else:
 //!
 //! 1. [`detect_format`] — what a package *is*, read from its main part rather than its filename, so
 //!    `.pptm` and `.potx` are recognized and a renamed `.docx` is not mistaken for a deck.
 //! 2. [`Deck`] — the whole PowerPoint surface with concrete types: [`Surface`] and [`ShapePath`]
 //!    instead of `impl Into<…>`, `u32` instead of `usize`, `&str` instead of part-name handles.
-//! 3. [`Error`] — one error type carrying a stable [`ErrorCode`], a human message, and the indices
+//! 3. [`Document`] — the curated Word surface, the same treatment: [`BlockPath`]/[`RunPath`] instead
+//!    of `impl Into<…>`, `u32` instead of `usize`, a concrete return in place of every closure
+//!    `mjx_docx::Document` takes to read or edit a part.
+//! 4. [`Error`] — one error type carrying a stable [`ErrorCode`], a human message, and the indices
 //!    that say *where*, with the full typed cause still reachable through
 //!    [`source`](std::error::Error::source).
 //!
@@ -105,14 +108,25 @@
 //! *states* versus what a renderer *shows*, and the inheritance ladders the `effective_*` readers
 //! walk to get from one to the other.
 //!
+//! For Word, [`mjx_docx::guide`] carries the same shape — [Building a document](mjx_docx::guide::building_a_document)
+//! is the whole story once, end to end, written against `mjx_docx::Document`; every call translates
+//! to [`Document`] (this crate's own facade type, curated rather than a full re-export — see the
+//! [`document`] module's own doc comment for exactly what is curated and why) the same way the
+//! PowerPoint guide translates to [`Deck`]. `examples/build_a_document.rs` in this crate is the same
+//! walkthrough — open, blank, save, paragraphs and runs, a numbered list, a hyperlink, a table, a
+//! header, a comment, a footnote — written through the facade, naming no lower crate.
+//! [`mjx_docx::effective_properties`] is Word's own deep reference on the ladders
+//! [`Document::effective_run_properties`]/[`Document::effective_paragraph_properties`] walk.
+//!
 //! # Status
 //!
-//! Pre-release (`v0.0.x`). PowerPoint is implemented and tested; Word and Excel are detected but not
+//! Pre-release (`v0.0.x`). PowerPoint and Word are implemented and tested; Excel is detected but not
 //! yet editable. See the repository `PLAN.md` and `CHANGELOG.md` for the roadmap and version
 //! milestones (`v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel).
 
 mod address;
 pub mod deck;
+pub mod document;
 mod error;
 mod format;
 mod index;
@@ -120,6 +134,9 @@ mod references;
 
 pub use address::{ShapePath, Surface};
 pub use deck::Deck;
+pub use document::{
+    BlockPath, CommentSummary, Document, NoteSummary, RunPath, SectionLocation, SectionSummary,
+};
 pub use error::{Error, ErrorCode, ErrorDetail};
 pub use format::{detect_format, Format, FormatFamily};
 pub use references::{DiagramParts, ExternalLink, InkReference};
@@ -197,10 +214,31 @@ pub use mjx_chart::{
     TrendlineKind, TrendlineSpec,
 };
 
+// --- WordprocessingML: the interner-free authoring/reading types the Document surface names -------
+//
+// Everything `crate::document`'s own submodules take or hand back that is not already one of this
+// crate's own facade types (`BlockPath`, `RunPath`, `SectionLocation`, `SectionSummary`,
+// `CommentSummary`, `NoteSummary`) — mirroring the DrawingML block above's own reasoning: a caller
+// destructuring an `EffectiveCharacterProperties` or matching on a `HyperlinkTarget` must be able to
+// name every type that appears, without depending on `mjx-docx` directly.
+pub use mjx_docx::{
+    CellBorderEdge, EffectiveBorder, EffectiveCharacterProperties, EffectiveColor,
+    EffectiveEastAsianLayout, EffectiveFonts, EffectiveLanguages, EffectiveManualRunWidth,
+    EffectiveParagraphProperties, EffectiveShading, EffectiveTabStop, EffectiveUnderline, Field,
+    FieldForm, GridDiscrepancy, HeaderFooterType, HyperlinkTarget, MergedCellType, PageMargins,
+    PageOrientation, PageSize, RevisionInfo, RevisionKind,
+};
+
 // --- Generated schema simple types the signatures above name -------------------------------------
 pub use mjx_ooxml_types::drawingml::{
     AdjustmentAxis, AdjustmentBound, AdjustmentSpec, PresetShapeType,
 };
 pub use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
+};
+pub use mjx_ooxml_types::shared::{ConformanceClass, VerticalTextPosition};
+pub use mjx_ooxml_types::wordprocessingml::{
+    EighthPointMeasure, EmphasisMark, FontTypeHint, HalfPointMeasure, HighlightColor,
+    Justification, SignedHalfPointMeasure, SignedTwipsMeasure, TabStopLeader, TabStopType,
+    TextEffect, TextScale,
 };

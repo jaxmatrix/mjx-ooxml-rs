@@ -47,6 +47,49 @@
 #     is itself matched case-insensitively).
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
+#   * **The two bindings' own projection of `RevisionKind`** (MJXOFF-139) — `Deleted` and
+#     `MarkerDeleted`, in `bindings/mjx-python/src/enums.rs`, `bindings/mjx-wasm/src/enums.rs` and
+#     the committed `.pyi` stub. `RevisionKind` is `mjx_docx`'s own tracked-change vocabulary (the
+#     bullet two above this one), reprojected member-for-member by `sealed_enums!`/`open_enums!` —
+#     the same identifiers, not a new naming decision, so the reasoning that already permits `Deleted`
+#     under `crates/mjx-docx/` applies unchanged to the classes that mirror it. **File scoping alone
+#     was tried first and rejected**: a probe planting `ChartLabelTierProbe { Deleted }` elsewhere in
+#     `bindings/mjx-python/src/enums.rs` (a file that also carries `mjx-chart`'s own enumerations)
+#     passed the gate when the exemption blanked every `Deleted`/`MarkerDeleted` token in that file
+#     regardless of which enum declared it — the same "excuses what it might" failure MJXOFF-138's own
+#     namespace allow-list names. So the exemption is scoped **twice**: by **line range**, computed
+#     fresh on every run from each file's own `RevisionKind { … }` (or, for the stub,
+#     `class RevisionKind:` … the next blank line) block boundaries below — not hand-copied numbers
+#     that could drift out of sync with the source — and by the **exact line shape**
+#     `sealed_enums!`/`open_enums!`/the stub generator produce for these two variants specifically
+#     (`        Deleted,`, `    Deleted: RevisionKind`, and their `MarkerDeleted` counterparts), never
+#     a bare substring match. Two probes proved both halves matter: `ChartLabelTierProbe { Deleted }`
+#     planted elsewhere in the same file (outside the line range) still fails the gate, and a
+#     `DeletedSomethingElse` variant planted *inside* `RevisionKind`'s own block (in range, but not one
+#     of the two exact permitted lines) still fails it too — MJXOFF-139's own commit message pastes
+#     both.
+#   * **The same `RevisionKind` variant, a third time, in wasm-bindgen's own generated output**
+#     (MJXOFF-139) — `bindings/mjx-wasm/npm/dist/{web,bundler}/mjx_ooxml.js` (glue code; for the
+#     `bundler` target this lives in `mjx_ooxml_bg.js` instead, since that target splits the glue
+#     from the re-exporting wrapper) and the matching `.d.ts` in each. This is not a new naming
+#     decision either — it is wasm-bindgen re-emitting the identifiers the bullet above already
+#     permits, once as a frozen JS object (`Deleted: 1, "1": "Deleted",`) and once as a TypeScript
+#     `enum` member (`Deleted = 1,`) — but it was **missed on first landing**: the local check only
+#     ever ran against `wasm-pack test --node`, which builds a test harness and never touches
+#     `npm/dist`, so this arm was never exercised until CI's *second* invocation of this script
+#     (`check-suppress-naming.sh bindings/mjx-wasm/npm/dist`, run only after `build-npm.sh`) caught
+#     it. Scoped exactly like the source projection — by a freshly computed line range per file
+#     (`export const RevisionKind = Object.freeze({` … `});` for JS, `export enum RevisionKind {` …
+#     `}` for TypeScript) and by the exact generated line shape, never a blanket exemption for
+#     `npm/dist` as a whole, which would reopen precisely the hole the two probes above already
+#     closed once. A generated enum's own discriminant number is not fixed in these patterns
+#     (`[0-9]+`, not `1`/`16`) since it is derived from variant order, not a naming decision this
+#     gate polices. **The general lesson, for the next generated enum that adds a permitted
+#     identifier here**: a source-scoped exemption is not automatically dist-scoped too — any build
+#     step that re-emits an already-permitted identifier into a generated artifact this script's
+#     `targets` can reach needs its own line-range-and-shape entry, and the local dry run must
+#     actually produce that artifact (`build-npm.sh`, not just `wasm-pack test`) before trusting a
+#     green result.
 #
 # FORBIDDEN: anything identifier-shaped — `delete_x`, `x_delete`, `deleted`, `deleteX`, `Deleted`,
 # `delete(`. That is the whole rule.
@@ -77,6 +120,60 @@ fi
 # case-insensitively, so `Deleted` and `deleteChartDataLabels` are caught as well as `deleted`.
 pattern='(delete[a-zA-Z0-9_]|[a-zA-Z0-9_]delete|(^|[^a-zA-Z0-9_])delete[[:space:]]*\()'
 
+# The line range of `RevisionKind`'s own block in one file, as "start,end" for a `sed` address —
+# computed fresh from the file every run, not hand-copied line numbers that could silently stop
+# matching the source they describe. `start_pattern` finds the block's own opening line;
+# `end_pattern` is the first line at or after it that closes the block.
+#
+# Guarded against a missing `file`, not just an absent block within one: the four wasm dist ranges
+# below name paths under `bindings/mjx-wasm/npm/dist`, which is git-ignored and exists only after
+# `build-npm.sh` has run. CI invokes this script twice — once over the default source surface, once
+# with the dist as an explicit argument (see the SCOPE comment above) — and the first of those runs
+# before the dist exists, as does every plain local run that never built it. Checked, not assumed:
+# `start=$(failing pipeline)` here does not actually trip `errexit` on its own (bash does not treat
+# a command substitution's exit status as the assignment statement's own when the assignment is not
+# the last thing the enclosing function does), so an unguarded version of this function still
+# returns "0,0" for a missing file rather than aborting the script — verified by running an
+# unguarded copy with the dist directory moved aside. The guard exists to keep that case *quiet*:
+# without it, `grep` prints a "No such file or directory" line to stderr for each of the four dist
+# paths on every ordinary source-only run, which reads as a real problem it is not.
+revision_kind_range() {
+  local file="$1" start_pattern="$2" end_pattern="$3"
+  local start end
+  if [ ! -f "$file" ]; then
+    echo "0,0" # this invocation never named this file — nothing to scope
+    return
+  fi
+  start=$(grep -nE "$start_pattern" "$file" | head -1 | cut -d: -f1)
+  if [ -z "$start" ]; then
+    echo "0,0" # no such block in this file — the substitution below then matches nothing
+    return
+  fi
+  end=$(tail -n "+$start" "$file" | grep -nE "$end_pattern" | head -1 | cut -d: -f1)
+  echo "$start,$((start + end - 1))"
+}
+
+py_enums_range=$(revision_kind_range bindings/mjx-python/src/enums.rs '^    RevisionKind \{$' '^    \}$')
+wasm_enums_range=$(revision_kind_range bindings/mjx-wasm/src/enums.rs '^    RevisionKind \{$' '^    \}$')
+pyi_stub_range=$(revision_kind_range bindings/mjx-python/python/mjx_ooxml/__init__.pyi '^class RevisionKind:$' '^$')
+
+# The same variant, reprojected a second time by wasm-bindgen itself into the npm package's
+# generated JS glue and `.d.ts` — not hand-written, not covered by the source-scoped exemption
+# above, and only reachable once `build-npm.sh` has produced `bindings/mjx-wasm/npm/dist`. Two
+# build targets (`web`, a single bundled file; `bundler`, glue split into `..._bg.js`) each emit the
+# enum once in JS and once in TypeScript, so four files, each scoped by its own freshly computed
+# line range exactly as the source files are above — never a blanket exemption for the dist
+# directory, which would reopen the same "excuses what it might" hole the two probes in the bullet
+# above this already found and closed once for the source files.
+wasm_dist_web_js_range=$(revision_kind_range bindings/mjx-wasm/npm/dist/web/mjx_ooxml.js \
+  '^export const RevisionKind = Object\.freeze\(\{$' '^\}\);$')
+wasm_dist_web_dts_range=$(revision_kind_range bindings/mjx-wasm/npm/dist/web/mjx_ooxml.d.ts \
+  '^export enum RevisionKind \{$' '^\}$')
+wasm_dist_bundler_js_range=$(revision_kind_range bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml_bg.js \
+  '^export const RevisionKind = Object\.freeze\(\{$' '^\}\);$')
+wasm_dist_bundler_dts_range=$(revision_kind_range bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml.d.ts \
+  '^export enum RevisionKind \{$' '^\}$')
+
 # Two passes with the same pattern: the first finds candidate lines, then every permitted spelling is
 # blanked out and the pattern is re-applied, so a line carrying both a permitted token and a real
 # offender is still reported. (Blanking beats dropping the line.)
@@ -96,6 +193,47 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e 's/DeletedFieldCode/<wml-revision>/g' \
         -e 's/DeletedText/<wml-revision>/g' \
         -e '/^crates\/(mjx-docx|mjx-omml)\//Is/delet(e|ed|ing|ion)[A-Za-z0-9_]*/<wml-revision>/gI' \
+  | awk -F: -v py_range="$py_enums_range" -v wasm_range="$wasm_enums_range" -v pyi_range="$pyi_stub_range" \
+        -v dist_web_js_range="$wasm_dist_web_js_range" -v dist_web_dts_range="$wasm_dist_web_dts_range" \
+        -v dist_bundler_js_range="$wasm_dist_bundler_js_range" -v dist_bundler_dts_range="$wasm_dist_bundler_dts_range" '
+      # Portable (POSIX awk, no GNU \< \> word-boundary extension) — matches the *exact* line shape
+      # `sealed_enums!`/`open_enums!` (Rust), the stub generator (`.pyi`), or wasm-bindgen itself
+      # (the generated JS/TS below) produce for a bare variant, never a substring, so this cannot
+      # blank `Deleted` inside some other identifier that happens to contain it.
+      function in_range(line, range,   parts, n) {
+        n = split(range, parts, ",")
+        return n == 2 && line + 0 >= parts[1] + 0 && line + 0 <= parts[2] + 0
+      }
+      {
+        file = $1; line = $2; rest = $0
+        sub(/^[^:]*:[^:]*:/, "", rest)
+        scoped = 0
+        is_dist_js = 0
+        is_dist_ts = 0
+        if (file == "bindings/mjx-python/src/enums.rs" && in_range(line, py_range)) scoped = 1
+        if (file == "bindings/mjx-wasm/src/enums.rs" && in_range(line, wasm_range)) scoped = 1
+        if (file == "bindings/mjx-python/python/mjx_ooxml/__init__.pyi" && in_range(line, pyi_range)) scoped = 1
+        if (file == "bindings/mjx-wasm/npm/dist/web/mjx_ooxml.js" && in_range(line, dist_web_js_range)) { scoped = 1; is_dist_js = 1 }
+        if (file == "bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml_bg.js" && in_range(line, dist_bundler_js_range)) { scoped = 1; is_dist_js = 1 }
+        if (file == "bindings/mjx-wasm/npm/dist/web/mjx_ooxml.d.ts" && in_range(line, dist_web_dts_range)) { scoped = 1; is_dist_ts = 1 }
+        if (file == "bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml.d.ts" && in_range(line, dist_bundler_dts_range)) { scoped = 1; is_dist_ts = 1 }
+        if (scoped) {
+          if (rest ~ /^[ \t]*Deleted,[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*MarkerDeleted,[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*Deleted: RevisionKind[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*MarkerDeleted: RevisionKind[ \t]*$/) rest = "<wml-revision>"
+        }
+        if (is_dist_js) {
+          if (rest ~ /^[ \t]*Deleted: [0-9]+, "[0-9]+": "Deleted",[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*MarkerDeleted: [0-9]+, "[0-9]+": "MarkerDeleted",[ \t]*$/) rest = "<wml-revision>"
+        }
+        if (is_dist_ts) {
+          if (rest ~ /^[ \t]*Deleted = [0-9]+,[ \t]*$/) rest = "<wml-revision>"
+          if (rest ~ /^[ \t]*MarkerDeleted = [0-9]+,[ \t]*$/) rest = "<wml-revision>"
+        }
+        print file ":" line ":" rest
+      }
+    ' \
   | grep -Ei "$pattern" \
   || true)
 

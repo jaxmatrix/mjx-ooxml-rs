@@ -163,8 +163,9 @@ impl Format {
         self.to_model().conventional_extension()
     }
 
-    /// Whether `Deck.open` can edit this format. Word and Excel documents are detected before they
-    /// are editable, so a caller can say so precisely instead of reporting a parse failure.
+    /// Whether `Deck.open` or `Document.open` can edit this format — true for PresentationML and
+    /// WordprocessingML. Excel documents are detected but not yet editable, so a caller can say so
+    /// precisely instead of reporting a parse failure.
     #[getter]
     fn is_editable(&self) -> bool {
         self.to_model().is_editable()

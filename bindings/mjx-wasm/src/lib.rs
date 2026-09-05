@@ -92,6 +92,7 @@ pub mod address;
 pub mod charts;
 pub mod content;
 pub mod deck;
+pub mod document;
 pub mod enums;
 pub mod errors;
 pub mod format;
@@ -101,6 +102,7 @@ pub mod paint;
 pub mod tables;
 pub mod text;
 pub mod three_d;
+pub mod word;
 
 /// The version of `mjx-ooxml` this package was built from.
 #[wasm_bindgen::prelude::wasm_bindgen(js_name = "version")]

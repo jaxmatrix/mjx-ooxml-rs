@@ -1,26 +1,31 @@
 //! [`Error`] — one error type, shaped so a foreign-function binding can act on it.
 //!
 //! `mjx-pptx` reports failures as [`PptxError`], sixty-five variants each carrying exactly the
-//! context its own call site had. That is the right shape for Rust and the wrong shape for a
-//! binding: neither PyO3 nor wasm-bindgen can project sixty-five variants with sixty-five payload
-//! shapes into an exception hierarchy anyone would want to catch, and pinning a stable ABI to a
-//! variant list that grows every release is a promise this library cannot keep.
+//! context its own call site had, and `mjx-docx` reports its own as [`DocxError`], thirty-five more.
+//! That is the right shape for Rust and the wrong shape for a binding: neither PyO3 nor wasm-bindgen
+//! can project a hundred-odd variants with as many payload shapes into an exception hierarchy anyone
+//! would want to catch, and pinning a stable ABI to a variant list that grows every release is a
+//! promise this library cannot keep.
 //!
 //! So the facade collapses them into **eleven stable [`ErrorCode`]s**, a human [`message`](Error::message),
 //! and the machine-readable indices in [`ErrorDetail`] — the surface, shape, row, column and index a
 //! caller needs to say *where*. Bindings switch on the code; Rust callers keep everything by
-//! downcasting [`source`](std::error::Error::source) back to a [`PptxError`].
+//! downcasting [`source`](std::error::Error::source) back to a [`PptxError`] or a [`DocxError`],
+//! whichever the call that failed belongs to.
 //!
 //! # The mapping is exhaustive on purpose
 //!
-//! [`classify`] matches every `PptxError` and every [`OpcError`] variant with **no wildcard arm**,
-//! which is why [`PptxError`] is deliberately not `#[non_exhaustive]`. Adding a variant down there
-//! fails to compile up here until someone decides which code it belongs to. A catch-all arm would
-//! instead file every future failure under whichever code happened to be the fallback — and no test
-//! would notice.
+//! [`classify`] matches every `PptxError` and every [`OpcError`] variant, and [`classify_docx`]
+//! matches every [`DocxError`] variant, both with **no wildcard arm** — which is why neither
+//! [`PptxError`] nor [`DocxError`] is `#[non_exhaustive]`. Adding a variant to either fails to
+//! compile here until someone decides which code it belongs to. A catch-all arm would instead file
+//! every future failure under whichever code happened to be the fallback — and no test would notice.
+//! Every one of `DocxError`'s thirty-five variants fits an existing code from the PresentationML
+//! mapping; none needed a twelfth.
 
 use std::fmt;
 
+use mjx_docx::DocxError;
 use mjx_pptx::{OpcError, PptxError};
 
 use crate::address::{ShapePath, Surface};
@@ -114,15 +119,19 @@ impl fmt::Display for ErrorCode {
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ErrorDetail {
     /// The surface addressed — a slide, layout, master, notes slide, or the notes master.
+    /// `None` for every Word failure: WordprocessingML has no equivalent of a shape-bearing surface,
+    /// so a `Document` error never populates this field.
     pub surface: Option<Surface>,
     /// The shape addressed, as the path a caller passed: `[2]` top-level, `[2, 1]` inside a group.
+    /// `None` for every Word failure, for the same reason as [`surface`](Self::surface).
     pub shape: Option<ShapePath>,
-    /// The table row addressed.
+    /// The table row addressed — a `mjx_pptx` table cell, or a `mjx_docx` one (`w:tbl`'s own
+    /// `(row, column)` addressing).
     pub row: Option<u32>,
     /// The table column addressed.
     pub column: Option<u32>,
     /// Whatever else was indexed — a slide, layout, master, paragraph, run, field, chart series,
-    /// axis, plot, trendline, ActiveX control, or the start of a text range.
+    /// axis, plot, trendline, ActiveX control, the start of a text range, or (for Word) a section.
     pub index: Option<u32>,
 }
 
@@ -219,6 +228,18 @@ impl From<PptxError> for Error {
 impl From<OpcError> for Error {
     fn from(error: OpcError) -> Self {
         Self::from(PptxError::from(error))
+    }
+}
+
+impl From<DocxError> for Error {
+    fn from(error: DocxError) -> Self {
+        let (code, detail) = classify_docx(&error);
+        Self {
+            code,
+            message: error.to_string(),
+            detail,
+            source: Some(Box::new(error)),
+        }
     }
 }
 
@@ -384,6 +405,90 @@ fn opc_code(error: &OpcError) -> ErrorCode {
     }
 }
 
+/// Classifies a [`DocxError`] into its stable code and the coordinates it carries.
+///
+/// **This match names every variant and has no wildcard arm** — the same discipline [`classify`]
+/// keeps for [`PptxError`], and for the same reason: adding a `DocxError` variant must fail to
+/// compile here until someone decides what code it belongs to. Every one of the current thirty-five
+/// variants fits an existing [`ErrorCode`]; none needed a twelfth.
+fn classify_docx(error: &DocxError) -> (ErrorCode, ErrorDetail) {
+    use ErrorCode as C;
+
+    let none = ErrorDetail::default;
+    /// The coordinates of a failure that names one index (a section, for Word).
+    fn nth(index: usize) -> ErrorDetail {
+        ErrorDetail {
+            index: Some(count(index)),
+            ..ErrorDetail::default()
+        }
+    }
+    /// The coordinates of a failure that names one table cell.
+    fn cell(row: usize, column: usize) -> ErrorDetail {
+        ErrorDetail {
+            row: Some(count(row)),
+            column: Some(count(column)),
+            ..ErrorDetail::default()
+        }
+    }
+
+    match error {
+        // --- the layer below, classified by what it means here -----------------------------
+        DocxError::Opc(opc) => (opc_code(opc), none()),
+        DocxError::Xml(_) | DocxError::Model(_) | DocxError::Mce(_) | DocxError::Vml(_) => {
+            (C::MalformedDocument, none())
+        }
+
+        // --- the package or a part is not the markup the schema requires -------------------
+        DocxError::MissingOfficeDocument
+        | DocxError::MissingDocumentPart(_)
+        | DocxError::MalformedDocument(_)
+        | DocxError::TargetResolution { .. }
+        | DocxError::BasedOnChainTooDeep { .. }
+        | DocxError::MissingAbstractNumberingReference(_)
+        | DocxError::NumberingStyleLinkTooDeep { .. }
+        | DocxError::UnbalancedField(_) => (C::MalformedDocument, none()),
+
+        // --- the caller asked to follow a reference that leaves the package ------------------
+        DocxError::ExternalTarget { .. } => (C::UnsupportedContent, none()),
+
+        // --- the document is there, but states nothing for this call -----------------------
+        DocxError::NoBody
+        | DocxError::FieldHasNoCachedResult
+        | DocxError::NumberingStyleLinkHasNoNumbering { .. } => (C::NothingToRead, none()),
+
+        // --- an address or an index argument is outside the document -----------------------
+        DocxError::AddressNotFound(_) => (C::IndexOutOfRange, none()),
+        DocxError::SectionOutOfRange { index, .. } => (C::IndexOutOfRange, nth(*index)),
+        DocxError::TableCellOutOfRange { row, column, .. } => {
+            (C::IndexOutOfRange, cell(*row, *column))
+        }
+
+        // --- the addressed thing is of a kind that cannot answer ---------------------------
+        DocxError::NumberingStyleLinkWrongKind { .. } => (C::WrongKind, none()),
+
+        // --- a name resolved to nothing ------------------------------------------------------
+        DocxError::UnknownStyleId(_)
+        | DocxError::UnknownNumberingId(_)
+        | DocxError::UnknownAbstractNumberingId(_)
+        | DocxError::NumberingStyleLinkTargetMissing { .. }
+        | DocxError::FieldNotFound(_)
+        | DocxError::DataBindingPartNotFound { .. }
+        | DocxError::DataBindingXPathNotFound { .. }
+        | DocxError::AltChunkRelationshipNotFound { .. } => (C::NotFound, none()),
+
+        // --- refused before anything was written --------------------------------------------
+        DocxError::InvalidPageSize { .. }
+        | DocxError::InvalidTableSize { .. }
+        | DocxError::ValueTooLong { .. }
+        | DocxError::MalformedDateTime(_) => (C::InvalidArgument, none()),
+
+        // --- the edit conflicts with the structure already there ----------------------------
+        DocxError::FieldHasNestedContent { .. } | DocxError::BookmarkNameInUse(_) => {
+            (C::StructureConflict, none())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -404,5 +509,36 @@ mod tests {
             ErrorCode::UnsupportedFormat.to_string(),
             "UnsupportedFormat"
         );
+    }
+
+    /// A `DocxError` converts to the code its own doc comment on [`classify_docx`] claims — picked
+    /// asymmetrically (a table address and a name lookup, never the same code twice) so a shuffled
+    /// match arm is caught here rather than only by the exhaustiveness check.
+    #[test]
+    fn docx_errors_classify_into_the_code_their_shape_implies() {
+        let out_of_range = DocxError::TableCellOutOfRange {
+            row: 4,
+            column: 1,
+            rows: 2,
+            columns: 2,
+        };
+        let error = Error::from(out_of_range);
+        assert_eq!(error.code(), ErrorCode::IndexOutOfRange);
+        assert_eq!(error.detail().row, Some(4));
+        assert_eq!(error.detail().column, Some(1));
+
+        let not_found = DocxError::UnknownStyleId("Heading9".to_owned());
+        assert_eq!(Error::from(not_found).code(), ErrorCode::NotFound);
+
+        let conflict = DocxError::BookmarkNameInUse("Intro".to_owned());
+        assert_eq!(Error::from(conflict).code(), ErrorCode::StructureConflict);
+
+        let no_body = DocxError::NoBody;
+        assert_eq!(Error::from(no_body).code(), ErrorCode::NothingToRead);
+
+        let section = DocxError::SectionOutOfRange { index: 3, count: 1 };
+        let error = Error::from(section);
+        assert_eq!(error.code(), ErrorCode::IndexOutOfRange);
+        assert_eq!(error.detail().index, Some(3));
     }
 }
