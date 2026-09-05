@@ -6,7 +6,10 @@ mod reader;
 mod writer;
 
 pub use reader::{parse, parse_shared, MAXIMUM_DEPTH};
-pub use writer::{serialize, serialize_element, serialize_node, serialize_to_vec};
+pub use writer::{
+    serialize, serialize_element, serialize_end_tag, serialize_node, serialize_start_tag,
+    serialize_to_vec,
+};
 
 #[cfg(test)]
 mod tests {
