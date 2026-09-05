@@ -170,13 +170,53 @@ fn the_discriminating_worksheet_round_trips_before_anything_is_edited() {
 
 /// **The edit-isolation clause.** One cell changes; every other row comes back byte-identical, and
 /// the assertion is made over each untouched row on its own rather than over the whole part.
+///
+/// # Why the comparison is against the *file*, not against a second run of the writer
+///
+/// The obvious shape — write the rows before the edit, write them after, compare — passes with
+/// copy-on-write switched off, because both sides would then be the same rebuild. So each untouched
+/// row is compared against [`Row::source_markup`], which is a slice of the part's own buffer and
+/// cannot be produced by the writer at all.
+///
+/// And because a store this preservation-heavy rebuilds *almost* identically, the first half of this
+/// case proves the fixture still discriminates: read the same worksheet with its source buffer
+/// released, so that every record must be rebuilt, and require that at least one row comes back
+/// different from the bytes the file wrote. If that stops being true, the assertions below stop
+/// measuring the mechanism they are named after, and this fails rather than passing quietly.
 #[test]
 fn rows_the_caller_never_touched_re_emit_verbatim_after_an_edit_elsewhere() {
-    let (_document, before) = read(DISCRIMINATING);
-    let untouched: Vec<(u32, Vec<u8>)> = before
+    let (document, before) = read(DISCRIMINATING);
+    let from_the_file: Vec<(u32, Vec<u8>)> = before
         .rows()
-        .map(|row| (row.number().expect("every row is numbered"), row.markup()))
+        .map(|row| {
+            (
+                row.number().expect("every row is numbered"),
+                row.source_markup()
+                    .expect("nothing has been edited yet")
+                    .to_vec(),
+            )
+        })
         .collect();
+    drop(document);
+
+    // The fixture still discriminates: with nothing to copy from, the rebuild differs.
+    let mut released =
+        mjx_xml::fidelity::parse(DISCRIMINATING).expect("the worksheet parses again");
+    released.release_source();
+    let rebuilt = SheetData::read_worksheet(&released)
+        .expect("the sheet reads")
+        .expect("the worksheet has a sheetData");
+    let differing = rebuilt
+        .rows()
+        .zip(from_the_file.iter())
+        .filter(|(row, (_, original))| &row.markup() != original)
+        .count();
+    assert!(
+        differing > 0,
+        "every row rebuilds to exactly the bytes the file wrote, so the assertions below would pass \
+         with copy-on-write switched off. The fixture has lost the markup a rebuild cannot \
+         reproduce — `</x:v >`, whitespace inside an end tag."
+    );
 
     let (_document, mut after) = read(DISCRIMINATING);
     after
@@ -186,27 +226,26 @@ fn rows_the_caller_never_touched_re_emit_verbatim_after_an_edit_elsewhere() {
         )
         .expect("A2 exists");
 
-    // Row 2 is the one that changed. Rows 1 and 3 must be byte-identical *and* still verbatim: the
-    // first says the output is right, the second says it was produced by copying rather than by a
-    // rebuild that happened to agree.
-    for (number, original) in &untouched {
+    // Row 2 is the one that changed. Every other row must come back as the bytes the *file* holds.
+    for (number, original) in &from_the_file {
         let row = after.row(*number).expect("the row is still there");
         if *number == 2 {
             assert!(
                 !row.is_verbatim(),
                 "the edited row must have lost its range"
             );
+            assert_eq!(row.source_markup(), None);
             assert_ne!(&row.markup(), original, "the edited row must have changed");
             continue;
         }
+        assert!(
+            row.is_verbatim(),
+            "row {number} was not touched and must still carry the range it was read from"
+        );
         assert_eq!(
             String::from_utf8_lossy(&row.markup()),
             String::from_utf8_lossy(original),
-            "row {number} was not touched and must come back byte for byte"
-        );
-        assert!(
-            row.is_verbatim(),
-            "row {number} must still be written from the part's own bytes, not rebuilt"
+            "row {number} was not touched and must be written as the bytes the part holds"
         );
     }
 
@@ -214,9 +253,10 @@ fn rows_the_caller_never_touched_re_emit_verbatim_after_an_edit_elsewhere() {
     // range — the third level of the copy-on-write rule.
     let row = after.row(2).expect("row 2");
     let b2 = row.cell(1).expect("B2");
-    assert!(
-        b2.is_verbatim(),
-        "an untouched cell inside a rewritten row must still be copied verbatim"
+    assert_eq!(
+        String::from_utf8_lossy(&b2.markup()),
+        String::from_utf8_lossy(b2.source_markup().expect("B2 was not touched")),
+        "an untouched cell inside a rewritten row must still be written from the part's own bytes"
     );
     let a2 = row.cell(0).expect("A2");
     assert!(!a2.is_verbatim(), "the edited cell was rebuilt");
@@ -231,7 +271,9 @@ fn a_rewritten_row_keeps_everything_about_it_that_was_not_edited() {
     let b2_before = before
         .cell(CellReference::parse("B2").expect("a reference"))
         .expect("B2")
-        .markup();
+        .source_markup()
+        .expect("nothing has been edited yet")
+        .to_vec();
 
     let (_document, mut sheet) = read(DISCRIMINATING);
     sheet

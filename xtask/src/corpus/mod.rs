@@ -146,12 +146,7 @@ fn run_membench(format: &str) -> Result<()> {
 /// The four checkpoints, for one already-on-disk package. Reads its bytes fresh from disk as the
 /// very first thing this process does with them, so the "open" checkpoint is not inflated by
 /// whatever building the corpus in-process would have cost (see [`memory`]'s module docs).
-fn membench_package(
-    label: &str,
-    path: &Path,
-    target: &PartName,
-    cell_store: bool,
-) -> Result<()> {
+fn membench_package(label: &str, path: &Path, target: &PartName, cell_store: bool) -> Result<()> {
     println!(
         "\n{label} ({}) — peak RSS, cumulative since process start:",
         path.display()
