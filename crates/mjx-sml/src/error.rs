@@ -30,7 +30,9 @@ use mjx_xml::XmlError;
 /// child adds the variants its own model needs — a shared-string index that names no entry
 /// (MJXOFF-97), an `xf` index outside `cellXfs` (MJXOFF-108). MJXOFF-95 (D04) adds the fifth: a
 /// worksheet whose bytes outgrow the cell store's `u32` address space. MJXOFF-117 (D12) adds the two
-/// the merge surface refuses on: an overlapping merge and a single-cell one.
+/// the merge surface refuses on: an overlapping merge and a single-cell one. MJXOFF-120 (D13) adds
+/// the two a conditional-formatting query cannot answer around: a block with no `@sqref`, and a rule
+/// with no `@priority`.
 #[derive(Debug, thiserror::Error)]
 pub enum SmlError {
     /// The underlying OPC package could not be read, edited or written.
@@ -149,6 +151,39 @@ pub enum SmlError {
         table: &'static str,
         /// How many records that table actually holds.
         available: usize,
+    },
+
+    /// An `x:conditionalFormatting` block writes no `@sqref`, so there is no way to say which cells
+    /// its rules apply to.
+    ///
+    /// Refused rather than skipped. A block whose range list is missing might be the one that covers
+    /// the cell being asked about, and quietly leaving it out of the chain would report the wrong
+    /// rule as winning — the same reason
+    /// [`WorksheetPart::merged_ranges`](crate::WorksheetPart::merged_ranges) refuses an unreadable
+    /// `mergeCell@ref` instead of answering around it.
+    ///
+    /// The schema declares `@sqref` optional, so this is a legal-but-meaningless block rather than a
+    /// malformed one. It is preserved on write exactly as it stands; only *querying* it fails.
+    #[error(
+        "the conditional-formatting block at index {block} writes no @sqref, so the cells its          rules apply to are unknown"
+    )]
+    ConditionalFormattingBlockHasNoRange {
+        /// Which `x:conditionalFormatting` block, counting from zero in document order.
+        block: usize,
+    },
+
+    /// An `x:cfRule` writes no `@priority`, which the schema declares `use="required"`.
+    ///
+    /// Priority is what orders the rules across every block, so a rule without one has no place in
+    /// the chain and cannot be given a made-up number: inventing one would decide which rule wins.
+    #[error(
+        "rule {rule} of the conditional-formatting block at index {block} writes no @priority,          which CT_CfRule declares required"
+    )]
+    ConditionalFormattingRuleHasNoPriority {
+        /// Which `x:conditionalFormatting` block, counting from zero in document order.
+        block: usize,
+        /// Which `x:cfRule` of that block, counting from zero in document order.
+        rule: usize,
     },
 }
 

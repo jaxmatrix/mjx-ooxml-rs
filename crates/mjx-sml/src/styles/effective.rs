@@ -69,15 +69,17 @@
 //!   so honouring them is the faithful reading — but no sentence says what happens when both layers
 //!   suppress, and [`FormatLayer::Neither`] is this crate's answer rather than the specification's.
 //!
-//! # A place for the `dxf` layer, which is not here
+//! # The `dxf` layer sits beside this, never inside it
 //!
 //! A conditionally formatted cell has a `dxf` applied **on top of** everything above (§18.8.15: *"to
-//! be applied on top of or in addition to any formatting already present"*). That is MJXOFF-120's,
-//! and the seam it will sit at is exactly here: the `dxf` is a delta over an
-//! [`EffectiveCellFormat`], evaluated after this resolver has produced one, and every member it does
-//! not state is inherited from what this resolver answered. Nothing in this module has to change for
-//! that layer to arrive — [`DifferentialFormat`](super::DifferentialFormat) is already built, and
-//! this type is already the thing it deltas.
+//! be applied on top of or in addition to any formatting already present"*). MJXOFF-120 (D13) filled
+//! that seam, and it filled it **beside** this resolver rather than inside it: this module still
+//! answers exactly what `styles.xml` says a cell's format is, and
+//! [`CellFormatResolver::differential_format`] hands out a `dxf` by index for a caller that wants
+//! one. The two are put next to each other, and never merged, by
+//! [`ConditionalCellFormat`](crate::features::ConditionalCellFormat) — because merging them would
+//! assert that a rule fired, and whether a rule's condition holds needs a calculation engine this
+//! workspace does not have.
 //!
 //! # No rendering, ever
 //!
@@ -108,6 +110,7 @@ use crate::worksheet::ColumnBlock;
 
 use super::borders::Border;
 use super::cell_format::{CellAlignment, CellProtection, NumberFormat};
+use super::differential::{DifferentialFormat, DifferentialFormats};
 use super::fills::Fill;
 use super::fonts::Font;
 use super::formats::{ApplyFlag, CellFormat, FormatAspect};
@@ -343,6 +346,7 @@ pub struct CellFormatResolver<'a> {
     fills: Vec<&'a Fill>,
     borders: Vec<&'a Border>,
     named_styles: Option<&'a NamedCellStyles>,
+    differential_formats: Option<&'a DifferentialFormats>,
 }
 
 impl<'a> CellFormatResolver<'a> {
@@ -395,6 +399,7 @@ impl<'a> CellFormatResolver<'a> {
                 .map(|table| table.borders().collect())
                 .unwrap_or_default(),
             named_styles: stylesheet.named_styles(),
+            differential_formats: stylesheet.differential_formats(),
         })
     }
 
@@ -591,6 +596,29 @@ impl<'a> CellFormatResolver<'a> {
         let index = format.cell_style_format_index()?;
         self.named_styles?
             .by_cell_style_format_index(self.interner, index)
+    }
+
+    /// The `x:dxf` at `index` — the number a `cfRule@dxfId` or a table style carries.
+    ///
+    /// **Not part of the resolution above, and deliberately reached separately.** A `dxf` is a
+    /// *delta over* what this resolver answered (§18.8.15: *"to be applied on top of or in addition
+    /// to any formatting already present"*), and whether it applies depends on whether a rule fired
+    /// — which nothing in this workspace can decide. So the two are never combined here:
+    /// [`ConditionalCellFormat`](crate::features::ConditionalCellFormat) reports the base format and
+    /// the candidate deltas beside each other, and the caller keeps the distinction.
+    ///
+    /// `None` when the workbook writes no `dxfs` table, or when the table is shorter than `index`.
+    /// A dangling `@dxfId` is a defect in the file, reported as an absence rather than repaired.
+    #[must_use]
+    pub fn differential_format(&self, index: u32) -> Option<&'a DifferentialFormat> {
+        self.differential_formats?.get(usize::try_from(index).ok()?)
+    }
+
+    /// How many records `dxfs` holds — `0` for a workbook that writes no table at all.
+    #[must_use]
+    pub fn differential_format_count(&self) -> usize {
+        self.differential_formats
+            .map_or(0, DifferentialFormats::len)
     }
 
     /// The record `aspect` was supplied by.
