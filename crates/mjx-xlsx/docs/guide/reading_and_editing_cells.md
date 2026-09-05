@@ -113,11 +113,12 @@ with [`Workbook::write_worksheet_markup`] — one read and one write instead of 
 
 ## What a worksheet holds that this crate does not yet model
 
-`CT_Worksheet` has thirty-nine slots and **seven** of them are modelled: `sheetPr`, `dimension`,
-`sheetViews`, `sheetFormatPr`, `cols`, `sheetData` and `sheetCalcPr`. The other thirty-two —
-`mergeCells`, `conditionalFormatting`, `dataValidations`, `hyperlinks`, `pageSetup`, `headerFooter`,
-`drawing`, `tableParts` and the rest — are held as the markup the producer wrote, in the position it
-wrote it, and come back byte for byte.
+`CT_Worksheet` has thirty-nine slots and **thirteen** of them are modelled: `sheetPr`, `dimension`,
+`sheetViews`, `sheetFormatPr`, `cols`, `sheetData` and `sheetCalcPr` (MJXOFF-102), plus
+`sheetProtection`, `protectedRanges`, `scenarios`, `mergeCells`, `rowBreaks` and `colBreaks`
+(MJXOFF-117). The other twenty-six — `conditionalFormatting`, `dataValidations`, `hyperlinks`,
+`pageSetup`, `headerFooter`, `drawing`, `tableParts` and the rest — are held as the markup the
+producer wrote, in the position it wrote it, and come back byte for byte.
 
 So you can open a workbook with conditional formatting on it, change a number, and save: the
 conditional formatting is still there, still exactly as Excel wrote it. You just cannot ask this
