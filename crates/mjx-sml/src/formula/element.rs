@@ -118,14 +118,7 @@ impl FormulaElement {
     /// This element rebuilt as a [`RawElement`], without an interner.
     #[must_use]
     pub fn as_raw_element(&self) -> RawElement {
-        let children = match &self.verbatim {
-            // Untouched: replay exactly what the file held — entity spellings and CDATA included.
-            Some(children) => children.clone(),
-            None if self.text.is_empty() => Vec::new(),
-            None => vec![RawNode::Text(
-                mjx_xml::text::escape_text(&self.text).as_bytes().into(),
-            )],
-        };
+        let children = replayed_children(self.verbatim.as_ref(), &self.text);
         let empty = self.empty && children.is_empty();
         RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
@@ -133,30 +126,56 @@ impl FormulaElement {
 
 impl FromXml for FormulaElement {
     fn from_xml(element: &RawElement, _interner: &Interner) -> Result<Self, FromXmlError> {
-        let mut text = String::new();
-        for child in &element.children {
-            match child {
-                RawNode::Text(bytes) => {
-                    let raw = core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?;
-                    let decoded = mjx_xml::text::unescape_text(raw)
-                        .map_err(|error| FromXmlError::InvalidEntity(error.to_string()))?;
-                    text.push_str(&decoded);
-                }
-                RawNode::CData(bytes) => {
-                    text.push_str(
-                        core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?,
-                    );
-                }
-                _ => {}
-            }
-        }
         Ok(Self {
             name: element.name,
             attributes: element.attributes.clone(),
             empty: element.empty,
-            text,
+            text: decoded_text(element)?,
             verbatim: Some(element.children.clone()),
         })
+    }
+}
+
+/// The character data of an `ST_Formula`-typed element, decoded — text nodes unescaped and CDATA
+/// sections taken literally, concatenated in document order.
+///
+/// `pub(crate)` because `CT_TableFormula` ([`TableFormula`](crate::TableFormula)) is a
+/// `simpleContent` **extension** of `ST_Formula` rather than `ST_Formula` itself: it carries an
+/// `@array` the other three slots do not declare, so it is its own complex type — but its content is
+/// the same content, and the decoding of it is written once, here.
+pub(crate) fn decoded_text(element: &RawElement) -> Result<String, FromXmlError> {
+    let mut text = String::new();
+    for child in &element.children {
+        match child {
+            RawNode::Text(bytes) => {
+                let raw = core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?;
+                let decoded = mjx_xml::text::unescape_text(raw)
+                    .map_err(|error| FromXmlError::InvalidEntity(error.to_string()))?;
+                text.push_str(&decoded);
+            }
+            RawNode::CData(bytes) => {
+                text.push_str(core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?);
+            }
+            _ => {}
+        }
+    }
+    Ok(text)
+}
+
+/// The children an `ST_Formula`-typed element writes: the ones the file held while they are still
+/// claimed, and one freshly escaped text node once [`set_text`](FormulaElement::set_text) has
+/// replaced them.
+///
+/// The counterpart of [`decoded_text`], `pub(crate)` for the same reason.
+#[must_use]
+pub(crate) fn replayed_children(verbatim: Option<&Vec<RawNode>>, text: &str) -> Vec<RawNode> {
+    match verbatim {
+        // Untouched: replay exactly what the file held — entity spellings and CDATA included.
+        Some(children) => children.clone(),
+        None if text.is_empty() => Vec::new(),
+        None => vec![RawNode::Text(
+            mjx_xml::text::escape_text(text).as_bytes().into(),
+        )],
     }
 }
 

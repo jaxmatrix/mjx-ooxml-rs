@@ -60,6 +60,8 @@ pub mod conditional_scales;
 pub mod conditional_specs;
 pub mod filter_specs;
 pub mod filters;
+pub mod table_specs;
+pub mod tables;
 pub mod validation;
 
 pub use conditional_chain::{
@@ -85,6 +87,12 @@ pub use filters::{
     AutoFilter, AutoFilterContent, ColorFilter, CustomFilter, CustomFilters, CustomFiltersContent,
     DateGroupItem, DynamicFilter, Filter, FilterColumn, FilterKind, Filters, FiltersContent,
     IconFilter, SortCondition, SortState, SortStateContent, Top10Filter,
+};
+pub use table_specs::{TableColumnSpec, TableStyleReferenceSpec, WorksheetTableSpec};
+pub use tables::{
+    TableColumn, TableColumnContent, TableColumns, TableColumnsContent, TableFormula, TablePart,
+    TableParts, TablePartsContent, TableStyleReference, WorksheetTable, WorksheetTableContent,
+    XmlColumnProperties,
 };
 pub use validation::{
     DataValidation, DataValidationContent, DataValidationSpec, DataValidations,

@@ -89,6 +89,7 @@ pub mod named_styles;
 pub mod number_formats;
 pub mod palette;
 pub mod stylesheet;
+pub mod table_styles;
 
 pub use borders::{
     Border, BorderContent, BorderEdge, BorderEdgeContent, BorderTable, BorderTableContent,
@@ -127,3 +128,8 @@ pub use palette::{
     IndexedColorPalette,
 };
 pub use stylesheet::{StylesheetContent, StylesheetPart};
+pub use table_styles::{
+    builtin_table_style_name, BuiltInTableStyle, BuiltInTableStyleFamily, TableStyleDefinition,
+    TableStyleDefinitionContent, TableStyleLookup, TableStyleOrigin, TableStyleRegion, TableStyles,
+    TableStylesContent,
+};

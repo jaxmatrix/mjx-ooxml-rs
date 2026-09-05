@@ -185,6 +185,42 @@ pub enum SmlError {
         /// Which `x:cfRule` of that block, counting from zero in document order.
         rule: usize,
     },
+
+    /// A caller asked for a table geometry whose header and totals rows do not fit inside its range.
+    ///
+    /// A table's `@ref`, `@headerRowCount` and `@totalsRowCount` are one statement in three
+    /// attributes — ECMA-376 Part 1 §18.5.1.2: *"The reference shall include the totals row if it is
+    /// shown"* — so [`WorksheetTable::resize`](crate::WorksheetTable::resize) writes all three or
+    /// writes none. This is the refusal: a range four rows tall cannot hold three header rows and
+    /// two totals rows, and the alternative to saying so is a table whose own totals row falls
+    /// outside itself.
+    ///
+    /// **A file that already says this keeps saying it.** Refusing to *author* a shape and refusing
+    /// to *read* one are different acts, and only the first is this library's business:
+    /// [`WorksheetTable::data_row_count`](crate::WorksheetTable::data_row_count) answers `None` for
+    /// such a table and nothing repairs it.
+    #[error(
+        "a table over {range} cannot have {header_rows} header row(s) and {totals_rows} totals          row(s): the range is not tall enough to hold them and any data"
+    )]
+    TableGeometryDoesNotFit {
+        /// The range asked for, as it would have been written.
+        range: String,
+        /// The header-row count asked for.
+        header_rows: u32,
+        /// The totals-row count asked for.
+        totals_rows: u32,
+    },
+
+    /// A caller asked for a table with no columns.
+    ///
+    /// `CT_TableColumns` declares `tableColumn` `minOccurs="1"`, so a table with none is markup no
+    /// consumer will load. Refused at the door rather than written and left for Excel to repair —
+    /// the same treatment [`DegenerateMerge`](Self::DegenerateMerge) gets, and for the same reason.
+    #[error("a table ({display_name}) must have at least one column; CT_TableColumns declares tableColumn minOccurs=\"1\"")]
+    TableHasNoColumns {
+        /// The `@displayName` the table would have carried.
+        display_name: String,
+    },
 }
 
 #[cfg(test)]
