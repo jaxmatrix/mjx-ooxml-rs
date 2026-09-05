@@ -1,0 +1,21 @@
+[package]
+name = "mjx-allocation-counter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test-only counting global allocator: live bytes, a high-water mark, and a hard ceiling."
+publish = false
+
+[lints]
+workspace = true
+
+# **No dependencies at all**, for the same reason `mjx-fixtures` has none: a measurement instrument
+# has to be reachable from anywhere in the graph — `xtask`'s fuzz campaign sits above every format
+# crate, `mjx-sml`'s allocation gate sits in the shared-markup tier — and a crate with no edges can
+# be reached from both without giving either one an edge it should not have. It also keeps the
+# instrument from measuring itself: whatever this crate pulled in would allocate inside the very
+# process whose allocations it is counting.
+[dependencies]
