@@ -317,9 +317,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      # Pinned, not `latest` (MJXOFF-139): `jetli/wasm-pack-action@v0.4.0`'s `latest` resolution is
+      # broken independently of anything in this repository — on this run it installed wasm-pack
+      # v0.9.1 (from 2020) against the real latest release, v0.15.0. v0.9.1 bundles a Cargo-manifest
+      # parser that predates workspace-inherited fields (`license.workspace = true`, stable since
+      # Cargo 1.64), which every crate in this workspace uses, so the job failed at
+      # "failed to parse manifest: bindings/mjx-wasm/Cargo.toml" before running a single test — not a
+      # regression in this PR's own commits (`bindings/mjx-wasm/Cargo.toml`'s `license.workspace =
+      # true` predates this branch entirely, from MJX-210) and not fixable by anything this branch's
+      # own diff could touch other than this pin. Verified against the actual release feed
+      # (`https://api.github.com/repos/rustwasm/wasm-pack/releases/latest` → `v0.15.0`, matching this
+      # workspace's locally installed `wasm-pack --version`) before pinning to it.
       - uses: jetli/wasm-pack-action@v0.4.0
         with:
-          version: latest
+          version: v0.15.0
 
       # In a browser, because that is the runtime this binding exists for. `wasm-pack test` starts
       # the driver itself; the runner image ships Chrome.
