@@ -14,7 +14,7 @@ use std::borrow::Cow;
 
 use mjx_ooxml_types::spreadsheetml::{PhoneticAlignment, PhoneticType};
 
-use crate::arena::{attribute_run_of, attributes, TextSpan};
+use crate::arena::{attribute_run_of, attributes};
 use crate::font::{FontProperties, FontPropertyOwner};
 
 use super::items::StringItems;
@@ -333,9 +333,6 @@ fn unescape(raw: &[u8]) -> Result<Cow<'_, str>, mjx_xml::XmlError> {
         .map_err(|_| mjx_xml::XmlError::Syntax("a shared string was not UTF-8".to_owned()))?;
     mjx_xml::text::unescape_text(text)
 }
-
-/// The width of a `TextSpan`, named so the record module's size table has a reader here too.
-const _: () = assert!(core::mem::size_of::<TextSpan>() == 8);
 
 #[cfg(test)]
 mod tests {
