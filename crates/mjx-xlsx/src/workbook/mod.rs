@@ -50,7 +50,7 @@ pub(crate) mod views;
 use mjx_ooxml_core::{Interner, RawDocument, ToXml};
 use mjx_ooxml_types::namespaces::SML;
 use mjx_opc::{Package, PartName, TargetMode};
-use mjx_sml::WorkbookPart;
+use mjx_sml::{CalculationChain, WorkbookPart};
 
 use crate::error::XlsxError;
 use crate::nav;
@@ -259,6 +259,48 @@ impl Workbook {
             ));
         };
         Ok(read(&markup, &document.interner))
+    }
+
+    /// Reads `xl/calcChain.xml`, handing `read` the parsed [`CalculationChain`] together with the
+    /// [`Interner`] it was parsed with. `Ok(None)` when the workbook relates no calculation-chain
+    /// part, which is legal and common.
+    ///
+    /// # The chain is read here and maintained nowhere
+    ///
+    /// §18.6 calls the chain *"the order in which the cells in a workbook were last calculated"* and
+    /// says a consumer *"is free to perform calculations in a different order at run time"*. It is
+    /// derived data Excel owns, and this library **leaves it exactly as it found it**: no entry is
+    /// added when a formula is authored, none is removed when a cell is deleted, and the part is
+    /// never dropped on save. A workbook whose formulas were edited here therefore carries a chain
+    /// that is out of date, and a consumer rebuilds it — the same thing it does when the part is
+    /// absent.
+    ///
+    /// Maintaining it would mean computing a dependency order, which means parsing formula
+    /// expressions: a calculation engine, which `PLAN.md` settles as out of scope. Dropping the part
+    /// would be an edit to the package the caller did not ask for, on every save. The reasoning for
+    /// both is written out in [`mjx_sml::formula`], and the limitation is recorded in
+    /// `docs/fidelity_and_gaps.md`.
+    ///
+    /// **This is not a mutation.** The part keeps its container bytes and [`save`](Self::save) still
+    /// re-emits them verbatim.
+    ///
+    /// # Errors
+    /// Returns [`XlsxError`] if the part cannot be read or is not well-formed, or
+    /// [`XlsxError::MalformedWorkbook`] if its root is not `x:calcChain`.
+    pub fn calculation_chain<R>(
+        &mut self,
+        read: impl FnOnce(&CalculationChain, &Interner) -> R,
+    ) -> Result<Option<R>, XlsxError> {
+        let Some(part) = self.parts.calculation_chain.clone() else {
+            return Ok(None);
+        };
+        let document = self.package.part_tree(&part)?;
+        let Some(chain) = CalculationChain::read_part(document)? else {
+            return Err(XlsxError::MalformedWorkbook(
+                "the calcChain part's root element is not x:calcChain",
+            ));
+        };
+        Ok(Some(read(&chain, &document.interner)))
     }
 
     /// Edits the modelled `xl/workbook.xml` and writes it back, keeping the verbatim bytes of every

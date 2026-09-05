@@ -79,7 +79,8 @@ Most of it. `mjx-sml` now models cells (MJXOFF-95), shared strings (MJXOFF-97), 
 thirty-nine slots are held as the markup the file wrote, not modelled**: merged cells, conditional
 formatting, data validation, hyperlinks, print setup, drawings, tables and the rest. MJXOFF-105 (D08)
 through MJXOFF-133 (D18) fill them, and each module's own documentation names the child that does.
-Styles and formulas are not modelled at all yet.
+Styles are modelled as of MJXOFF-105 and MJXOFF-108, and formulas as of MJXOFF-115 — as **text**,
+which is the whole of what this workspace ever does with one; see the section below.
 
 Held is not dropped. A worksheet whose `pageSetup` survives a save is proof the frame works, not
 proof `pageSetup` was modelled, and that is exactly what the round-trip suites check.
@@ -89,6 +90,38 @@ the macro-enabled content types (`macroEnabled` appears nowhere in ECMA-376, so 
 to guess the string — the workbook part is found by its root element instead), and the shared-workbook
 revision parts, which MJXOFF-133 (D18) writes down as deliberately out of scope. Both are still
 preserved byte for byte.
+
+## A cached value goes stale, and that is deliberate
+
+**This is the one behaviour on this page that looks like a defect and is not.** A formula's `<v>` is
+the result a producer last computed. Change a cell that formula depends on, and this library leaves
+the `<v>` exactly as it was — out of date, and byte-identical to what was read:
+
+```
+# fn main() -> Result<(), mjx_xlsx::XlsxError> {
+use mjx_sml::{CellReference, CellValue};
+use mjx_xlsx::Workbook;
+
+let reference = |text: &str| CellReference::parse(text).expect("a reference");
+let mut workbook = Workbook::open(&mjx_fixtures::fixture("formulas.xlsx"))?;
+// B2 holds `=A2*2`; A2 holds 1; the cached result is 2.
+workbook.set_cell_value(0, reference("A2"), CellValue::Number(50.0))?;
+assert_eq!(workbook.cell_text(0, reference("B2"))?.as_deref(), Some("2"));
+# Ok(())
+# }
+```
+
+The three things a library could do instead were each considered and rejected:
+
+| Instead | Why not |
+|---|---|
+| Recalculate | There is no calculation engine here and there will not be one; `PLAN.md` settles it as scope |
+| Blank the `<v>` | It destroys data in a file the caller opened to change a label, in cells they never named, and the saved file cannot be undone |
+| Mark the workbook dirty for calculation | It writes `fullCalcOnLoad` into a part the caller did not ask to edit. If you want that, set it yourself through `mjx_sml::CalculationProperties` |
+
+Excel recalculates on open when it needs to. The same rule covers `xl/calcChain.xml`, which is left
+exactly as found, and `x:dimension`, which is reported as written rather than recomputed on a read.
+[The formulas page](formulas_and_cached_values) has the whole of it, shared groups included.
 
 ## What a save refuses
 
