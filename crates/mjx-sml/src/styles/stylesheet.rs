@@ -1,6 +1,6 @@
 //! `xl/styles.xml` — `CT_Stylesheet` (`sml.xsd:3387`), the eleven-slot frame.
 //!
-//! # Nine slots modelled, two held
+//! # Ten slots modelled, one held
 //!
 //! | rank | element | held as |
 //! |---|---|---|
@@ -12,14 +12,14 @@
 //! | 5 | `cellXfs` | [`CellFormatTable`] |
 //! | 6 | `cellStyles` | [`NamedCellStyles`] |
 //! | 7 | `dxfs` | [`DifferentialFormats`] |
-//! | 8 | `tableStyles` | [`StylesheetContent::Raw`] — MJXOFF-127 (D15) |
+//! | 8 | `tableStyles` | [`TableStyles`] |
 //! | 9 | `colors` | [`ColorTable`] |
 //! | 10 | `extLst` | [`StylesheetContent::Raw`], on purpose and for good |
 //!
 //! The split was the part's own seam. MJXOFF-105 built the **resource tables** a style index
 //! resolves *into*; MJXOFF-108 builds the `xf` indirection that does the resolving, and it took the
-//! four slots that child had held raw. One modelled slot is left — `tableStyles`, MJXOFF-127's —
-//! plus `extLst`, which stays raw on purpose and for good.
+//! four slots that child had held raw. MJXOFF-125 (D15) takes the last of them, `tableStyles`, and
+//! what is left is `extLst`, which stays raw on purpose and for good.
 //!
 //! **`cellStyleXfs` and `cellXfs` are the same complex type in two slots.** Both are
 //! [`CellFormatTable`]; only the local name they stand under and their meaning differ. See
@@ -55,6 +55,7 @@ use super::fonts::FontTable;
 use super::formats::CellFormatTable;
 use super::named_styles::NamedCellStyles;
 use super::number_formats::NumberFormatTable;
+use super::table_styles::TableStyles;
 
 /// `x:styleSheet` (`CT_Stylesheet`, `sml.xsd:3387`) — the whole styles part.
 ///
@@ -79,12 +80,13 @@ pub struct StylesheetPart {
         child(local = "cellXfs", variant = CellFormats, ty = CellFormatTable),
         child(local = "cellStyles", variant = NamedStyles, ty = NamedCellStyles),
         child(local = "dxfs", variant = DifferentialFormats, ty = DifferentialFormats),
+        child(local = "tableStyles", variant = TableStyles, ty = TableStyles),
         child(local = "colors", variant = Colors, ty = ColorTable)
     )]
     content: Vec<StylesheetContent>,
 }
 
-/// One child of [`StylesheetPart`]: nine modelled slots, and everything else.
+/// One child of [`StylesheetPart`]: ten modelled slots, and everything else.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StylesheetContent {
     /// `x:numFmts` (rank 0).
@@ -103,11 +105,14 @@ pub enum StylesheetContent {
     NamedStyles(NamedCellStyles),
     /// `x:dxfs` (rank 7).
     DifferentialFormats(DifferentialFormats),
+    /// `x:tableStyles` (rank 8) — the table styles the workbook defines, and the two it prefers.
+    /// **Not** the 144 Excel supplies; see [`super::table_styles`].
+    TableStyles(TableStyles),
     /// `x:colors` (rank 9).
     Colors(ColorTable),
-    /// The two slots this frame does not model — `tableStyles` (MJXOFF-127) and `extLst` — plus any
-    /// foreign element, any `mc:AlternateContent`, and the text, comments and processing
-    /// instructions between siblings.
+    /// The one slot this frame does not model — `extLst` — plus any foreign element, any
+    /// `mc:AlternateContent`, and the text, comments and processing instructions between
+    /// siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
     /// child never moves and never moves anything else.
@@ -127,6 +132,7 @@ impl StylesheetContent {
             Self::CellFormats(_) => "cellXfs",
             Self::NamedStyles(_) => "cellStyles",
             Self::DifferentialFormats(_) => "dxfs",
+            Self::TableStyles(_) => "tableStyles",
             Self::Colors(_) => "colors",
             Self::Raw(_) => return None,
         })
@@ -139,15 +145,16 @@ impl StylesheetContent {
     /// [`WorksheetPart`](crate::WorksheetPart), and the reason is arithmetic rather than taste.
     /// Those two model a *prefix* of their sequence — ranks 0–17 of nineteen, and 0–6 of thirty-nine
     /// — so every slot they model ranks below every slot they hold raw, and a new child always
-    /// belongs before all of them. This frame models ranks **0–7 and 9** and holds **8** and **10**
-    /// raw: the two sets interleave, so a `colors` (rank 9) inserted into a part that already writes
-    /// a `tableStyles` (rank 8) has to land *after* it. Treating an unmodelled element as unranked
-    /// would put it first.
+    /// belongs before all of them. This frame models ranks **0–9** and holds **10** raw: the two
+    /// sets interleave, so a `colors` (rank 9) inserted into a part that already writes an `extLst`
+    /// (rank 10) has to land *before* it. Treating an unmodelled element as unranked would put it
+    /// first, and `colors` would come out ahead of `numFmts`.
     ///
     /// MJXOFF-105 modelled 1, 2, 3, 7 and 9 and held 0, 4, 5, 6, 8 and 10; MJXOFF-108 took four of
-    /// those six. The interleaving is narrower than it was and it has not gone away, so neither has
-    /// this method — and MJXOFF-127 taking rank 8 would leave `extLst` at 10 above `colors` at 9,
-    /// which is the same shape again.
+    /// those six, and MJXOFF-125 took rank 8. **The interleaving survives even now that only
+    /// `extLst` is held raw**: `extLst` is rank 10 and `colors` is rank 9, so a `colors` inserted
+    /// into a part that already writes an `extLst` still has to land before it, which it does only
+    /// because the `extLst` is ranked.
     ///
     /// So a `Raw` element is ranked through the same generated table, by its own name, and only a
     /// node the table genuinely does not name — a foreign element, a comment, an
@@ -318,8 +325,20 @@ impl StylesheetPart {
         DifferentialFormats,
         "dxfs",
         "`x:dxfs` — the differential formats a conditional-formatting rule (MJXOFF-120) or a table \
-         style (MJXOFF-127) names by `@dxfId`. Built here because it is a resource table like the \
-         other three, even though its consumers arrive later."
+         style (MJXOFF-125) names by `@dxfId`. Built here because it is a resource table like the \
+         other three, even though its consumers arrived later."
+    );
+    singleton_slot!(
+        table_styles,
+        table_styles_mut,
+        set_table_styles,
+        TableStyles,
+        TableStyles,
+        "tableStyles",
+        "`x:tableStyles` — the table styles this workbook defines for **itself**, plus its preferred \
+         default table and pivot style names. `None` is the common case and does not mean the \
+         workbook has no table styles: Excel's 144 presets are in no file at all. See \
+         [`TableStyles::lookup`](super::table_styles::TableStyles::lookup)."
     );
     singleton_slot!(
         colors,
@@ -429,9 +448,10 @@ mod tests {
             "cellXfs",
             "cellStyles",
             "dxfs",
+            "tableStyles",
             "colors",
         ];
-        let held = ["tableStyles", "extLst"];
+        let held = ["extLst"];
         for slot in STYLESHEET.slots {
             assert!(
                 modelled.contains(&slot.local) || held.contains(&slot.local),
@@ -445,8 +465,10 @@ mod tests {
     /// A new table lands at its **schema** rank, not at the end, and not where a comment happens to
     /// be.
     ///
-    /// Both inserted slots are *modelled* now, so the interleaving this exercises is the one that is
-    /// left: `tableStyles` (rank 8) is held raw and sits between `dxfs` (7) and `colors` (9).
+    /// Every slot but `extLst` is *modelled* as of MJXOFF-125, so the interleaving this exercises is
+    /// the one that is left: `extLst` is rank 10, held raw, and `colors` at rank 9 has to land
+    /// **before** it. The `tableStyles` in the markup is now a modelled slot and stands where the
+    /// file put it, which is what says an insertion did not move it.
     #[test]
     fn an_inserted_table_lands_at_its_rank_among_unmodelled_neighbours() {
         let markup = concat!(
@@ -468,8 +490,8 @@ mod tests {
         assert_eq!(
             locals,
             vec!["numFmts", "fonts", "tableStyles", "colors", "extLst"],
-            "`fonts` is rank 1 and `colors` rank 9, so `colors` lands *after* the raw `tableStyles` \
-             at rank 8 — which is what ranking an unmodelled element by its own name buys"
+            "`fonts` is rank 1 and `colors` rank 9, so `colors` lands *before* the raw `extLst` at \
+             rank 10 — which is what ranking an unmodelled element by its own name buys"
         );
     }
 

@@ -58599,3 +58599,9 @@ pub static SORT_STATE: &ChildOrder = &SML_TYPES[315];
 
 /// One validation rule's first formula, then its second (`x:dataValidation`) (`CT_DataValidation`, `sml.xsd`).
 pub static DATA_VALIDATION: &ChildOrder = &SML_TYPES[84];
+
+/// One worksheet table's five children: its autofilter, its sort state, its columns, its style reference, then `extLst` (`x:table`) (`CT_Table`, `sml.xsd`).
+pub static WORKSHEET_TABLE: &ChildOrder = &SML_TYPES[319];
+
+/// One table column's four children: a calculated-column formula, a totals-row formula, the XML-map binding, then `extLst` (`x:tableColumn`) (`CT_TableColumn`, `sml.xsd`).
+pub static WORKSHEET_TABLE_COLUMN: &ChildOrder = &SML_TYPES[320];

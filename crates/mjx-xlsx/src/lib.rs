@@ -5,7 +5,7 @@
 //! its tabs with [`Workbook::sheets`] and its part graph with [`Workbook::parts`], and save with
 //! [`Workbook::save`]. A worksheet's cells are read with [`Workbook::worksheet_markup`] and one is
 //! written with [`Workbook::set_cell_value`]. Everything this crate does not model — which is still
-//! most of a workbook, twenty-six of `CT_Worksheet`'s thirty-nine slots included — is preserved
+//! most of a workbook, twenty-one of `CT_Worksheet`'s thirty-nine slots included — is preserved
 //! verbatim by the OPC copy-on-write layer.
 //!
 //! ```no_run
@@ -65,6 +65,7 @@ pub use workbook::{
     WorkbookWindow,
 };
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
+pub use worksheet::tables::{SheetTable, SheetTableColumn};
 pub use worksheet::Worksheet;
 
 /// Re-exported so that a caller who holds a [`Workbook`] can name what it is built on without

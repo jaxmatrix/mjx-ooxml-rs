@@ -55,6 +55,7 @@
 //! | [`workbook`] | `xl/workbook.xml`: the sheet list, and why there is no empty workbook |
 //! | [`sheet`] | one authored worksheet: its name, its cells, its cached bounding box |
 //! | [`stylesheet`] | `xl/styles.xml`: the skeleton, and the four appends |
+//! | [`mod@table`] | `xl/tables/tableN.xml`: a whole table part, authored from a description |
 //! | [`style_specs`] | the plain-data descriptions those appends take |
 //! | [`package`] | [`WorkbookPackage`] itself: the parts, the content types, the relationships |
 //!
@@ -81,6 +82,7 @@ pub mod package;
 pub mod sheet;
 pub mod style_specs;
 pub mod stylesheet;
+pub mod table;
 pub mod workbook;
 
 pub use constants::{
@@ -93,4 +95,5 @@ pub use package::{AuthoredCellValue, WorkbookPackage};
 pub use sheet::AuthoredWorksheet;
 pub use style_specs::{BorderEdgeSpec, BorderSpec, CellFormatSpec, PatternFillSpec};
 pub use stylesheet::{AuthoredStylesheet, CellFormatTarget};
+pub use table::AuthoredTable;
 pub use workbook::AuthoredWorkbook;

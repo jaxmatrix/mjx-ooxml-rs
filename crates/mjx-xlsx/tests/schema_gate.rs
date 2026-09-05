@@ -604,3 +604,57 @@ fn a_workbook_authored_from_nothing_and_filled_in_is_schema_valid() {
     let bytes = workbook.save().expect("saves");
     mjx_schema_gate::assert_authored_deck_is_schema_valid("an authored workbook", &bytes);
 }
+
+/// A table this library authored is schema-valid, and the **table part itself** is validated rather
+/// than skipped.
+///
+/// MJXOFF-125 creates the first new *part type* of Phase D, so "the package is schema-valid" is a
+/// weaker claim here than usual: a table part the sweep never opened would leave the whole gate
+/// green with the new markup unexamined. The per-part verdict is therefore pinned by name, which is
+/// the guard MJXOFF-110 put in place for exactly this shape.
+#[test]
+fn an_authored_table_part_is_schema_valid_and_is_not_skipped() {
+    use mjx_ooxml_types::spreadsheetml::TotalsRowFunction;
+    use mjx_sml::{
+        CellRange, CellReference, CellValue, TableStyleReferenceSpec, WorksheetTableSpec,
+    };
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let range = |text: &str| CellRange::parse(text).expect("a literal range");
+
+    let mut workbook = mjx_xlsx::Workbook::blank().expect("authored");
+    for (address, value) in [
+        ("A1", CellValue::InlineString("Region")),
+        ("B1", CellValue::InlineString("Units")),
+        ("A2", CellValue::InlineString("North")),
+        ("B2", CellValue::Number(1200.0)),
+    ] {
+        workbook
+            .set_cell_value(0, at(address), value)
+            .expect("the store accepts the value");
+    }
+
+    let mut spec = WorksheetTableSpec::new("Sales", range("A1:B3"), &["Region", "Units"]);
+    spec.totals_row_count = 1;
+    spec.style = Some(TableStyleReferenceSpec::named("TableStyleMedium2"));
+    spec.columns[1].totals_row_function = Some(TotalsRowFunction::Sum);
+    spec.columns[1].calculated_column_formula = Some("Sales[[#This Row],[Units]]*1".to_owned());
+    workbook.add_table(0, &spec).expect("the table is created");
+
+    let bytes = workbook.save().expect("saves");
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("an authored table", &bytes);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "an authored table", &bytes, &[]);
+    println!("{}", outcome_table("an authored table", &rows));
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/tables/table1.xml")
+        .expect("the authored table part is in the sweep");
+    assert_eq!(row.namespace.as_deref(), Some(SML_NS));
+    assert!(
+        matches!(row.outcome, PartOutcome::Validated("sml.xsd")),
+        "the table part must be validated against sml.xsd; it reported: {}",
+        row.outcome.describe()
+    );
+}

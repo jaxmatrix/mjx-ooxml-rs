@@ -1,10 +1,11 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, seventeen modelled, twenty-two held
+//! # Thirty-nine slots, eighteen modelled, twenty-one held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Twenty-two of those slots belong to later Phase D children, and this type
-//! holds every one of them **in its schema position**, as the markup the file wrote. A worksheet
+//! twice `CT_Workbook`'s. Twenty-one of those slots belong to later Phase D children or to no
+//! ticket at all, and this type holds every one of them **in its schema position**, as the markup
+//! the file wrote. A worksheet
 //! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
 //! modelled.
 //!
@@ -30,7 +31,9 @@
 //! | 18–22 | `hyperlinks` … `headerFooter` | [`WorksheetContent::Raw`] |
 //! | 23 | `rowBreaks` | [`PageBreaks`] |
 //! | 24 | `colBreaks` | [`PageBreaks`] — the same complex type, the other axis |
-//! | 25–38 | `customProperties` … `extLst` | [`WorksheetContent::Raw`] |
+//! | 25–36 | `customProperties` … `webPublishItems` | [`WorksheetContent::Raw`] |
+//! | 37 | `tableParts` | [`TableParts`] — the sheet's edges to its table parts, held as raw `r:id`s |
+//! | 38 | `extLst` | [`WorksheetContent::Raw`] |
 //!
 //! **The modelled slots are no longer a prefix**, and that changed what placement has to do: see
 //! [`Slot::rank`], which is the one thing MJXOFF-117 had to fix in MJXOFF-102's frame rather than
@@ -92,7 +95,7 @@ use mjx_ooxml_types::namespaces::SML;
 use crate::address::{CellRange, CellReference};
 use crate::cells::{Cell, CellValue, Row, SheetData};
 use crate::error::SmlError;
-use crate::features::{AutoFilter, ConditionalFormatting, DataValidations, SortState};
+use crate::features::{AutoFilter, ConditionalFormatting, DataValidations, SortState, TableParts};
 
 use super::breaks::PageBreaks;
 use super::columns::{ColumnBlock, SheetFormatProperties};
@@ -102,7 +105,7 @@ use super::protection::{ProtectedRanges, SheetProtection};
 use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: seventeen modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: eighteen modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -146,7 +149,11 @@ pub enum WorksheetContent {
     RowBreaks(PageBreaks),
     /// `x:colBreaks` (rank 24) — the same complex type in the column axis.
     ColumnBreaks(PageBreaks),
-    /// Everything this type does not model: the twenty-two remaining slots, any foreign element, any
+    /// `x:tableParts` (rank 37) — the sheet's list of the tables on it, each named by a
+    /// relationship identifier this crate holds as the string the file wrote. Resolving one to a
+    /// part is `mjx-xlsx`'s; see [`crate::features::tables`].
+    TableParts(TableParts),
+    /// Everything this type does not model: the twenty-one remaining slots, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -176,6 +183,7 @@ impl WorksheetContent {
             Self::DataValidations(_) => "dataValidations",
             Self::RowBreaks(_) => "rowBreaks",
             Self::ColumnBreaks(_) => "colBreaks",
+            Self::TableParts(_) => "tableParts",
             Self::Raw(_) => return None,
         })
     }
@@ -203,6 +211,7 @@ impl WorksheetContent {
             Self::ConditionalFormatting(value) => value.as_raw_element(),
             Self::DataValidations(value) => value.as_raw_element(),
             Self::RowBreaks(value) | Self::ColumnBreaks(value) => value.as_raw_element(),
+            Self::TableParts(value) => value.as_raw_element(),
             Self::SheetData(_) | Self::Raw(_) => return None,
         })
     }
@@ -513,6 +522,68 @@ impl WorksheetPart {
         )
     }
 
+    /// The prefix this part binds to the relationship-reference namespace, **declaring one on the
+    /// root when the part binds none**, and marking the part edited if it had to.
+    ///
+    /// [`relationship_prefix`](Self::relationship_prefix) answers the question; this one answers it
+    /// and makes the answer true. A caller about to author a `tablePart`, a `hyperlink` or a
+    /// `drawing` needs a binding to exist, and a worksheet may genuinely have none:
+    /// [`AuthoredWorksheet`](crate::write::AuthoredWorksheet)'s seed declares the SpreadsheetML
+    /// namespace and nothing else, because a sheet with no related part needs nothing else. Refusing
+    /// instead would mean a sheet authored from nothing could **never** gain a table.
+    ///
+    /// The declaration added is `xmlns:r="…/relationships"`, the Transitional URI, under `r` — or
+    /// under `r2`, `r3` … if the root already binds `r` to something else, because overwriting a
+    /// binding the file made would change what every existing `r:`-prefixed attribute in the part
+    /// means.
+    ///
+    /// Nothing else about the part changes: no attribute is rewritten, no child moves, and a part
+    /// that already binds the namespace is not marked edited at all.
+    pub fn bind_relationship_prefix(&mut self) -> String {
+        if let Some(prefix) = crate::leaf::namespace_prefix(
+            &self.attributes,
+            &self.interner,
+            crate::leaf::RELATIONSHIP_REFERENCE,
+        ) {
+            return prefix.to_owned();
+        }
+        let prefix = self.free_namespace_prefix();
+        mjx_xml::attribute::set(
+            &mut self.attributes,
+            &mut self.interner,
+            Some("xmlns"),
+            &prefix,
+            crate::leaf::RELATIONSHIP_REFERENCE.transitional,
+        );
+        self.edited = true;
+        prefix
+    }
+
+    /// `r`, or the first of `r2`, `r3`, … the root does not already bind to something else.
+    fn free_namespace_prefix(&self) -> String {
+        let bound = |candidate: &str| {
+            self.attributes.iter().any(|attribute| {
+                attribute
+                    .name
+                    .prefix
+                    .is_some_and(|prefix| self.interner.resolve(prefix) == "xmlns")
+                    && self.interner.resolve(attribute.name.local) == candidate
+            })
+        };
+        if !bound("r") {
+            return "r".to_owned();
+        }
+        for suffix in 2..=u32::MAX {
+            let candidate = format!("r{suffix}");
+            if !bound(&candidate) {
+                return candidate;
+            }
+        }
+        // Unreachable: the loop runs to four billion and an element cannot carry that many
+        // declarations.
+        "r".to_owned()
+    }
+
     /// Whether the whole part can still be written straight out of the bytes it was read from.
     ///
     /// False for an authored part, for one read without a source buffer, and for one anything has
@@ -691,6 +762,18 @@ impl WorksheetPart {
         "colBreaks",
         "`x:colBreaks` — the page breaks between columns. The same `CT_PageBreak` as \
          [`row_breaks`](Self::row_breaks), in the other axis."
+    );
+    singleton_slot!(
+        table_parts,
+        table_parts_mut,
+        set_table_parts,
+        TableParts,
+        TableParts,
+        "tableParts",
+        "`x:tableParts` — the sheet's edges to the table parts on it, at rank 37. Each names a \
+         relationship and nothing else: **this crate never resolves one to a part**, which is what \
+         keeps the markup tier free of any notion of a package. See \
+         [`crate::features::tables`], and `mjx_xlsx::Workbook::sheet_tables` for the resolved side."
     );
 
     /// The prefix this part's root element is bound to, as an owned string.
@@ -1172,6 +1255,7 @@ fn read_slot(
         }
         "rowBreaks" => WorksheetContent::RowBreaks(PageBreaks::from_xml(&element, interner)?),
         "colBreaks" => WorksheetContent::ColumnBreaks(PageBreaks::from_xml(&element, interner)?),
+        "tableParts" => WorksheetContent::TableParts(TableParts::from_xml(&element, interner)?),
         _ => {
             return Ok(Slot {
                 verbatim: None,

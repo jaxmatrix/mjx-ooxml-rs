@@ -1,8 +1,8 @@
 //! The optional worksheet features — everything a sheet may carry beside its cells.
 //!
-//! **Filled by MJXOFF-120 (D13) conditional formatting and MJXOFF-123 (D14) data validation,
-//! autofilters and sort state; MJXOFF-125 (D15) worksheet tables, MJXOFF-127 (D16) hyperlinks and
-//! the object-anchor vocabulary, MJXOFF-129 (D17) print setup, headers/footers and custom views
+//! **Filled by MJXOFF-120 (D13) conditional formatting, MJXOFF-123 (D14) data validation,
+//! autofilters and sort state, and MJXOFF-125 (D15) worksheet tables; MJXOFF-127 (D16) hyperlinks
+//! and the object-anchor vocabulary, MJXOFF-129 (D17) print setup, headers/footers and custom views
 //! fill the rest.**
 //!
 //! These are separated from [`crate::worksheet`] deliberately. The spine is what every worksheet
@@ -21,6 +21,8 @@
 //! | `filters.rs` | `autoFilter`, `filterColumn`'s six filter kinds, `sortState` — **the cluster `CT_Table` and the pivot types reuse** | MJXOFF-123 (D14) |
 //! | `filter_specs.rs` | the plain-data authoring vocabulary for those | MJXOFF-123 (D14) |
 //! | `validation.rs` | `dataValidations`, `dataValidation`, and its authoring vocabulary | MJXOFF-123 (D14) |
+//! | `tables.rs` | `CT_Table` and everything under it, plus the `tableParts` list — **a part of its own** | MJXOFF-125 (D15) |
+//! | `table_specs.rs` | the plain-data authoring vocabulary for a whole table | MJXOFF-125 (D15) |
 //!
 //! # Conditional formatting reports; it never evaluates
 //!
@@ -48,6 +50,15 @@
 //!   never resolved into the values it names.
 //!
 //! Each is spelled out where it lives: [`filters`] for the first two, [`validation`] for the third.
+//!
+//! # A table is a part, and a calculated column is never expanded
+//!
+//! MJXOFF-125's own two, for the same reason. `x:table` lives in `xl/tables/tableN.xml` rather than
+//! in the worksheet, and the `tablePart@r:id` that reaches it is held here as **text**: resolving it
+//! to a part is `mjx-xlsx`'s. A table's `calculatedColumnFormula` is the expression Excel fills a
+//! whole column with, and this library neither expands it into per-cell formulas nor evaluates it —
+//! nor computes a totals row, nor parses the structured reference (`Sales[[#This Row],[Q1]]`) inside
+//! either. See [`tables`].
 
 // The subject modules are public, as [`crate::formula`]'s and [`crate::styles`]' are and for the
 // same reason: each carries the design record for its own piece — why conditional formatting is
@@ -60,6 +71,8 @@ pub mod conditional_scales;
 pub mod conditional_specs;
 pub mod filter_specs;
 pub mod filters;
+pub mod table_specs;
+pub mod tables;
 pub mod validation;
 
 pub use conditional_chain::{
@@ -85,6 +98,12 @@ pub use filters::{
     AutoFilter, AutoFilterContent, ColorFilter, CustomFilter, CustomFilters, CustomFiltersContent,
     DateGroupItem, DynamicFilter, Filter, FilterColumn, FilterKind, Filters, FiltersContent,
     IconFilter, SortCondition, SortState, SortStateContent, Top10Filter,
+};
+pub use table_specs::{TableColumnSpec, TableStyleReferenceSpec, WorksheetTableSpec};
+pub use tables::{
+    TableColumn, TableColumnContent, TableColumns, TableColumnsContent, TableFormula, TablePart,
+    TableParts, TablePartsContent, TableStyleReference, WorksheetTable, WorksheetTableContent,
+    XmlColumnProperties,
 };
 pub use validation::{
     DataValidation, DataValidationContent, DataValidationSpec, DataValidations,
