@@ -13,8 +13,9 @@
 //! the TypeScript binding, where `None` is a legal member name, keeps it. Nine enumerations are
 //! affected: `FontCollectionIndex`, `LineEndType`, `PathFillMode`, `PictureFillMode`,
 //! `ScatterStyle`, `TextCapitalization`, `TextUnderline`, `TickLabelPosition` and `TickMark` —
-//! and, since MJXOFF-137 added Excel, four more: `BorderStyle`, `SpreadsheetPatternType`,
-//! `SpreadsheetFontScheme` and `TotalsRowFunction`. Thirteen in all.
+//! and, since MJXOFF-137 added Excel, five more: `BorderStyle`, `SpreadsheetPatternType`,
+//! `SpreadsheetFontScheme`, `TotalsRowFunction` and `UnderlineType`. Fourteen in all, pinned by
+//! `tests/test_enums.py`'s `RENAMED_NONE`.
 //!
 //! # Sealed and open
 //!

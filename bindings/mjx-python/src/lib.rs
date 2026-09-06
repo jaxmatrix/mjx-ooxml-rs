@@ -24,7 +24,8 @@
 //! `deck.set_shape_run_properties(…)` in Python, and the guide translates line for line. There are
 //! exactly two exceptions, both forced:
 //!
-//! * `None` is a Python keyword, so the `None` **member** of nine enumerations is spelled `NONE`.
+//! * `None` is a Python keyword, so the `None` **member** of fourteen enumerations is spelled
+//!   `NONE` — nine from PowerPoint's vocabulary and five from Excel's (MJXOFF-137).
 //!   See [`enums`].
 //! * `Deck.presentation`, `Deck.presentation_mut` and `Deck.into_presentation` are absent, because
 //!   all three hand back a `Presentation` — the Rust-only escape hatch whose value is precisely the
