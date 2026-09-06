@@ -15,9 +15,11 @@
 //! the two are given different values on purpose.
 
 use mjx_ooxml::{
-    BorderEdgeSpec, BorderSpec, BorderStyle, CellFormatSpec, CellFormatTarget, CellInput,
-    CellWrite, Color, ErrorCode, FontProperties, GeometrySource, PatternFillSpec, ResizingBehavior,
-    SheetKind, SpreadsheetPatternType, UnderlineType, Workbook,
+    AxisOrientation, BorderEdgeSpec, BorderSpec, BorderStyle, CellFormatSpec, CellFormatTarget,
+    CellInput, CellWrite, ChartData, ChartKind, ChartLabelScope, ChartRangeSeries, Color,
+    ColorSpec, DataLabelSpec, ErrorBarSpec, ErrorBarType, ErrorCode, ErrorValueType, FillSpec,
+    FontProperties, GeometrySource, LegendPosition, LineSpec, PatternFillSpec, ResizingBehavior,
+    SheetKind, SpreadsheetPatternType, TrendlineKind, TrendlineSpec, UnderlineType, Workbook,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -767,4 +769,345 @@ fn bytes_that_are_not_an_image_are_an_invalid_argument() {
         .add_absolute_anchored_picture(workbook.sheet_count(), PNG, "nope", 0, 0, 1, 1)
         .expect_err("no such tab");
     assert_eq!(missing.code(), ErrorCode::IndexOutOfRange);
+}
+
+#[test]
+fn the_whole_chart_family_is_reachable_naming_only_the_facade() {
+    // MJXOFF-111 (E4). Every chart method on the Excel surface, driven once, with the value read
+    // back — the Excel counterpart of `document_public_paths.rs`'s Word chart case. Nothing here
+    // names `mjx_xlsx` or `mjx_chart`, so a signature leaking a type a caller cannot spell stops
+    // this file compiling, which is the same claim as "a binding can wrap it".
+    let mut workbook = filled();
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("North", [12.5, 18.0, 21.5])
+        .series("South", [9.0, 11.5, 14.0]);
+    let anchor = workbook
+        .add_chart(
+            0,
+            &chart,
+            4,
+            1,
+            10,
+            16,
+            "Revenue",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart");
+    assert_eq!(workbook.chart_anchor_indices(0).expect("anchors"), [anchor]);
+    assert!(workbook.chart_rel_id(0, anchor).expect("rel").is_some());
+    assert!(workbook
+        .chart_part_bytes(0, anchor)
+        .expect("bytes")
+        .is_some());
+    assert_eq!(
+        workbook.chart_kinds(0, anchor).expect("kinds"),
+        [ChartKind::Bar]
+    );
+
+    let series = workbook.chart_series(0, anchor).expect("series");
+    assert_eq!(series.len(), 2);
+    assert_eq!(series[0].name.as_deref(), Some("North"));
+    assert_eq!(series[1].values, [9.0, 11.5, 14.0]);
+
+    let workbooks = workbook.chart_workbooks().expect("workbooks");
+    assert_eq!(workbooks.len(), 1);
+    assert_eq!(workbooks[0].anchor, anchor);
+    assert!(!workbooks[0].external);
+    assert!(workbook.refresh_chart_workbook(0, anchor).expect("refresh"));
+
+    workbook
+        .set_chart_title(0, anchor, Some("Regional revenue"))
+        .expect("title");
+    assert_eq!(
+        workbook.chart_title(0, anchor).expect("title").as_deref(),
+        Some("Regional revenue")
+    );
+    workbook
+        .set_chart_legend(0, anchor, Some(LegendPosition::Right))
+        .expect("legend");
+    assert_eq!(
+        workbook
+            .chart_legend(0, anchor)
+            .expect("legend")
+            .expect("a legend")
+            .position,
+        Some(LegendPosition::Right)
+    );
+
+    workbook
+        .set_chart_series_values(0, anchor, 0, &[40.0, 41.0, 42.0])
+        .expect("values");
+    assert_eq!(
+        workbook.chart_series(0, anchor).expect("series")[0].values,
+        [40.0, 41.0, 42.0]
+    );
+    workbook
+        .set_chart_series_categories(0, anchor, 1, &["A", "B", "C"])
+        .expect("categories");
+    assert_eq!(
+        workbook.chart_series(0, anchor).expect("series")[1].categories,
+        ["A", "B", "C"]
+    );
+
+    workbook
+        .set_chart_axis_scale(0, anchor, 1, Some(0.0), Some(50.0))
+        .expect("scale");
+    workbook
+        .set_chart_axis_title(0, anchor, 1, Some("Millions"))
+        .expect("axis title");
+    workbook
+        .set_chart_axis_gridlines(0, anchor, 1, true, false)
+        .expect("gridlines");
+    workbook
+        .set_chart_axis_orientation(0, anchor, 1, AxisOrientation::MaximumToMinimum)
+        .expect("orientation");
+    let axis = &workbook.chart_axes(0, anchor).expect("axes")[1];
+    assert_eq!(axis.minimum, Some(0.0));
+    assert_eq!(axis.title.as_deref(), Some("Millions"));
+
+    let blue = FillSpec::Solid(ColorSpec::Srgb("1F77B4".to_owned()));
+    workbook
+        .set_chart_series_fill(0, anchor, 0, &blue)
+        .expect("fill");
+    assert_eq!(
+        workbook.chart_series_fill(0, anchor, 0).expect("fill"),
+        Some(blue.clone())
+    );
+    workbook
+        .set_chart_series_line(0, anchor, 0, &LineSpec::default())
+        .expect("line");
+
+    workbook
+        .set_chart_data_labels(
+            0,
+            anchor,
+            ChartLabelScope::Series { series_idx: 0 },
+            &DataLabelSpec::new().value(true),
+        )
+        .expect("labels");
+    assert!(
+        workbook
+            .chart_data_labels(0, anchor, 0, None)
+            .expect("labels")
+            .shows_value
+            == Some(true)
+    );
+    assert!(workbook
+        .chart_data_label_tier(0, anchor, ChartLabelScope::Series { series_idx: 0 })
+        .expect("tier")
+        .is_some());
+    assert_eq!(
+        workbook
+            .chart_point_label_text(0, anchor, 0, 0)
+            .expect("text"),
+        None
+    );
+
+    workbook
+        .set_chart_point_fill(0, anchor, 0, 1, &blue)
+        .expect("point fill");
+    workbook
+        .set_chart_point_line(0, anchor, 0, 1, &LineSpec::default())
+        .expect("point line");
+    workbook
+        .set_chart_point_explosion(0, anchor, 0, 1, Some(25))
+        .expect("explosion");
+    assert_eq!(
+        workbook
+            .chart_point_formats(0, anchor, 0)
+            .expect("formats")
+            .len(),
+        1
+    );
+
+    workbook
+        .add_chart_trendline(0, anchor, 0, &TrendlineSpec::new(TrendlineKind::Linear))
+        .expect("trendline");
+    workbook
+        .set_chart_trendline(
+            0,
+            anchor,
+            0,
+            0,
+            &TrendlineSpec::new(TrendlineKind::Logarithmic),
+        )
+        .expect("trendline");
+    assert_eq!(
+        workbook.chart_trendlines(0, anchor, 0).expect("trendlines")[0].kind,
+        Some(TrendlineKind::Logarithmic)
+    );
+    assert_eq!(
+        workbook
+            .remove_chart_trendlines(0, anchor, 0)
+            .expect("removed"),
+        1
+    );
+
+    workbook
+        .set_chart_error_bars(
+            0,
+            anchor,
+            0,
+            &ErrorBarSpec::fixed(ErrorBarType::Both, ErrorValueType::FixedValue, 1.5),
+        )
+        .expect("error bars");
+    assert_eq!(
+        workbook.chart_error_bars(0, anchor, 0).expect("bars").len(),
+        1
+    );
+    assert_eq!(
+        workbook
+            .remove_chart_error_bars(0, anchor, 0)
+            .expect("removed"),
+        1
+    );
+
+    assert!(workbook
+        .chart_dangling_decoration(0, anchor, 0)
+        .expect("dangling")
+        .is_empty());
+    assert_eq!(
+        workbook
+            .drop_chart_dangling_decoration(0, anchor, 0)
+            .expect("dropped"),
+        0
+    );
+    assert!(workbook
+        .remove_chart_point_format(0, anchor, 0, 1)
+        .expect("removed"));
+    workbook
+        .suppress_chart_data_labels(0, anchor, ChartLabelScope::Series { series_idx: 1 })
+        .expect("suppressed");
+    assert!(workbook
+        .remove_chart_data_labels(0, anchor, ChartLabelScope::Series { series_idx: 0 })
+        .expect("removed"));
+    assert_eq!(workbook.chart_style_id(0, anchor).expect("style"), None);
+
+    // Detaching the workbook leaves the chart drawing from its caches, and `refresh` then declines.
+    workbook.detach_chart_workbook(0, anchor).expect("detached");
+    assert!(!workbook
+        .refresh_chart_workbook(0, anchor)
+        .expect("nothing to refresh"));
+
+    workbook
+        .save()
+        .expect("the edited workbook still validates");
+}
+
+#[test]
+fn a_live_range_chart_and_its_resolver_are_reachable_naming_only_the_facade() {
+    // The half of the chart family only this surface has. Every value here is read back from the
+    // *cells*, so a resolver wired to the caches would answer the seeded numbers rather than the
+    // edited ones.
+    let mut workbook = filled();
+    // `filled()` puts an error code in `B3`, so the chart's range names two cells written here — a
+    // series whose second cell is `#DIV/0!` would make every number below ambiguous.
+    workbook
+        .write_cells(
+            0,
+            &[
+                CellWrite::new("B4", CellInput::Number(7.25)),
+                CellWrite::new("B5", CellInput::Number(9.5)),
+            ],
+        )
+        .expect("two more numbers");
+    let anchor = workbook
+        .add_range_chart(
+            0,
+            ChartKind::Line,
+            Some("Sheet1!$A$1:$A$3"),
+            &[ChartRangeSeries::new("Growth", "Sheet1!$B$4:$B$5").named_by_cell("Sheet1!$B$1")],
+            4,
+            1,
+            10,
+            16,
+            "Live",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a live-range chart");
+
+    // No embedded workbook, and none is fabricated by asking for one.
+    assert!(!workbook
+        .refresh_chart_workbook(0, anchor)
+        .expect("nothing to refresh"));
+    assert!(workbook.chart_workbooks().expect("workbooks").is_empty());
+
+    // The series took its name from the header cell rather than from the literal fallback.
+    let series = workbook.chart_series(0, anchor).expect("series");
+    assert_eq!(series[0].name.as_deref(), Some("Growth"));
+
+    let references = workbook
+        .chart_series_references(0, anchor)
+        .expect("references");
+    assert_eq!(references[0].values.as_deref(), Some("Sheet1!$B$4:$B$5"));
+    assert_eq!(references[0].name.as_deref(), Some("Sheet1!$B$1"));
+
+    // The resolver, reached directly.
+    let resolved = workbook
+        .resolve_range_reference(0, "Sheet1!$B$2:$B$5")
+        .expect("resolves");
+    assert!(resolved.fully_resolved);
+    assert_eq!(resolved.problem, None);
+    assert_eq!(resolved.addressed_cells, 4);
+    assert_eq!(resolved.cells.len(), 4);
+    assert_eq!(resolved.cells[0].reference, "B2");
+    assert_eq!(resolved.cells[0].number, Some(12.5));
+    assert_eq!(resolved.cells[0].sheet, 0);
+    assert_eq!(resolved.cells[0].offset, 0);
+    // An error code is reported as itself, not turned into a blank — a chart draws a gap for one,
+    // and a caller cannot tell that from an empty cell unless it is told.
+    assert_eq!(resolved.cells[1].number, None);
+    assert_eq!(resolved.cells[1].label, "#DIV/0!");
+    assert_eq!(resolved.cells[3].label, "9.5");
+
+    // A reference that names nothing is a report, not an error.
+    let missing = workbook
+        .resolve_range_reference(0, "Ghost!$A$1")
+        .expect("resolving never fails on the reference itself");
+    assert!(!missing.fully_resolved);
+    assert!(missing
+        .problem
+        .as_deref()
+        .expect("a reason")
+        .contains("Ghost"));
+
+    // A cell edit leaves the cache alone and the freshness report says so.
+    assert_eq!(
+        workbook
+            .chart_series_freshness(0, anchor)
+            .expect("freshness")[0]
+            .values_agree,
+        Some(true)
+    );
+    workbook
+        .write_cells(0, &[CellWrite::new("B4", CellInput::Number(99.0))])
+        .expect("one cell");
+    let freshness = workbook
+        .chart_series_freshness(0, anchor)
+        .expect("freshness");
+    assert_eq!(freshness[0].values_agree, Some(false));
+    assert_eq!(freshness[0].cached.values, [7.25, 9.5]);
+    assert_eq!(freshness[0].from_cells.values, [99.0, 9.5]);
+    assert_eq!(freshness[0].values_problem, None);
+    assert_eq!(
+        workbook.chart_series_from_cells(0, anchor).expect("cells")[0].values,
+        [99.0, 9.5]
+    );
+
+    // …and the opt-in repair brings the two back into step.
+    assert_eq!(
+        workbook
+            .refresh_chart_cache_from_cells(0, anchor)
+            .expect("refresh"),
+        1
+    );
+    assert_eq!(
+        workbook.chart_series(0, anchor).expect("series")[0].values,
+        [99.0, 9.5]
+    );
+
+    workbook
+        .save()
+        .expect("the edited workbook still validates");
 }

@@ -46,9 +46,9 @@
 use mjx_chart::{
     chart_ops, embedded_workbook_for_chart_data, embedded_workbook_for_chart_space,
     AxisOrientation, ChartAxisData, ChartData, ChartDataError, ChartErrorBarData, ChartKind,
-    ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartSpace,
-    ChartTrendlineData, DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec,
-    LegendPosition, TrendlineSpec,
+    ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartSeriesReferences,
+    ChartSpace, ChartTrendlineData, DanglingPointReference, DataLabelSettings, DataLabelSpec,
+    ErrorBarSpec, LegendPosition, TrendlineSpec,
 };
 use mjx_dml::{FillSpec, LineSpec};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawNode, ToXml};
@@ -564,6 +564,24 @@ impl Document {
     /// As [`chart_series`](Self::chart_series).
     pub fn chart_kinds(&mut self, drawing_id: u32) -> Result<Vec<ChartKind>, DocxError> {
         self.with_chart(drawing_id, |space, _interner| Ok(chart_ops::kinds(space)))
+    }
+
+    /// Where every series of the chart says its data lives — the `c:f` beside each cache, as the
+    /// file wrote it. Reading does not dirty the part.
+    ///
+    /// The companion of [`chart_series`](Self::chart_series): that answers what the **caches** hold,
+    /// this answers what the references **name**. A field is `None` where the source is a literal
+    /// and so has no cells behind it at all.
+    ///
+    /// # Errors
+    /// As [`chart_series`](Self::chart_series).
+    pub fn chart_series_references(
+        &mut self,
+        drawing_id: u32,
+    ) -> Result<Vec<ChartSeriesReferences>, DocxError> {
+        self.with_chart(drawing_id, |space, _interner| {
+            Ok(chart_ops::series_references(space))
+        })
     }
 
     /// The axes of the chart, in document order. Reading does not dirty the part.

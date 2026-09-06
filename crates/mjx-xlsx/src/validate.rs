@@ -1037,7 +1037,7 @@ mod tests {
     /// descriptions against each other.
     ///
     /// `.all()` on an empty slice is `true`, and no kind has an empty content-type list — every one
-    /// of the twenty-seven declares at least one, which `every_kind_round_trips_through_its_own_content_types`
+    /// of the twenty-eight declares at least one, which `every_kind_round_trips_through_its_own_content_types`
     /// asserts — so there is no kind this quietly answers `true` for by vacuity.
     fn is_spreadsheetml_part_kind(kind: PartKind) -> bool {
         kind.content_types()
@@ -1291,12 +1291,13 @@ mod tests {
     }
 
     /// Every SpreadsheetML [`PartKind`] is inside the content-type family the reachability check
-    /// uses, and the four outside it are outside it.
+    /// uses, and the five outside it are outside it — the theme, the two kinds of drawing, the
+    /// chart, and the XML map.
     ///
     /// Pins the prefix against the constants rather than restating it: a content type that drifted
     /// out of the family would silently stop being covered.
     ///
-    /// [`PartKind::CustomXmlMappings`] is the fourth, and it is outside the family for a reason
+    /// [`PartKind::CustomXmlMappings`] is the last, and it is outside the family for a reason
     /// worth stating rather than patching around: §12.3.6 gives that part the content type
     /// `application/xml`, which is not a SpreadsheetML content type at all. So `xl/xmlMaps.xml` is
     /// **not** covered by [`SpreadsheetDefect::UnreachableSpreadsheetPart`] — an unreferenced one is
@@ -1310,6 +1311,7 @@ mod tests {
                 kind,
                 PartKind::Theme
                     | PartKind::Drawing
+                    | PartKind::Chart
                     | PartKind::VmlDrawing
                     | PartKind::CustomXmlMappings
             );

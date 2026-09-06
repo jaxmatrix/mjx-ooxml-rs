@@ -62,6 +62,26 @@ pub const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[
                  schema-valid",
     },
     ToleratedDeviation {
+        fixture: "chart_in_sheet.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The same producer-wide divergence `sample.xlsx` carries, in the workbook MJXOFF-111 \
+                 (E4) had LibreOffice 25.8.7.3 author so that a chart on a sheet could be read from \
+                 a file this project did not write. Nothing here is ours to fix: the chart part and \
+                 the drawing part of this fixture both validate, and it is the string table — a \
+                 part LibreOffice writes the same way in every workbook it saves — that the \
+                 Transitional `sml.xsd` refuses. **A third-party file is not necessarily \
+                 schema-valid**, and preserving what it wrote is the contract",
+    },
+    ToleratedDeviation {
+        fixture: "chart_stale_cache.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "As `chart_in_sheet.xlsx`, which this fixture is built from: every part of it was \
+                 written by LibreOffice 25.8.7.3, and its string table carries the same \
+                 `xml:space` the producer writes on every `s:t`",
+    },
+    ToleratedDeviation {
         fixture: "sample.xlsx",
         part: "/xl/workbook.xml",
         error_contains: "The attribute 'dateCompatibility' is not allowed",

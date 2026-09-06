@@ -56,6 +56,93 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.125] - 2026-09-06
+
+**Charts on the Excel surface** (MJXOFF-111, Phase E position 4): the third host for one body of
+chart logic, and the one chart case that exists nowhere else in this library — a chart whose data
+source is a **live range in the same workbook** rather than an embedded copy.
+
+### Added
+
+- **The chart family on `mjx_xlsx::Workbook`** — fifty methods, every one of which resolves
+  `(sheet, anchor)` to a chart part and then calls the identically-named function in
+  `mjx_chart::chart_ops`. MJXOFF-103 moved that body down for Word; Excel is the third wrapper
+  around it and adds no Excel-local chart path. The address is MJXOFF-107's anchor index, so
+  `add_chart`'s return value is accepted by `remove_sheet_drawing_object` exactly as
+  `add_two_cell_anchored_picture`'s is.
+- **`Workbook::resolve_range_reference`** and the `ResolvedRange` / `ResolvedArea` /
+  `ResolvedRangeCell` / `RangeCellValue` / `RangeProblem` report — a chart's `c:f`, resolved against
+  this workbook's cells. It resolves a **reference** and does not evaluate a formula; a cell holding
+  one answers with its cached value, as `cell_text` does. A quoted sheet name, absolute markers, a
+  multi-area union, a 3-D span and a defined name (sheet-scoped winning over workbook-scoped, as
+  §18.2.6 says) all resolve; every unresolvable case is a typed `RangeProblem` on the area it came
+  from rather than a failure of the whole call.
+- **`Workbook::chart_series_freshness`** — each series' cache set beside what its cells actually
+  say, with **each named**. `values_agree` has three answers: `Some(true)`, `Some(false)`, and
+  `None` for *cannot say* — the values are a literal, or the reference resolved to nothing. "The
+  cells disagree" and "there are no cells" are different facts.
+- **`Workbook::refresh_chart_cache_from_cells`** — the opt-in repair, and the exact counterpart of
+  `refresh_chart_workbook` pointing the other way. Writing a cell deliberately leaves a chart's
+  caches alone (this library recalculates nothing), so this is how a caller makes the chart draw
+  what the sheet now says.
+- **`Workbook::add_range_chart`** with `SheetChartSource` / `SheetChartSeries` — a chart whose `c:f`
+  name cells in this workbook, whose caches are seeded from those cells, and which carries **no
+  embedded workbook at all**. `Workbook::add_chart` writes the other kind, taking the same
+  `ChartData` a slide and a document take.
+- **`mjx_chart::ChartData::ranges`**, `ChartRanges` and `ChartSeriesRange` — where a chart's data
+  lives, when it is not the companion embedded workbook. A source no range names is written as a
+  **literal** (`c:numLit` / `c:strLit`) rather than falling back to `Sheet1!$A$2:$A$N`, which would
+  name a part that is not in the package.
+- **`mjx_chart::chart_ops::series_references`** and `ChartSeriesReferences` — where each series says
+  its data lives, as against what its cache holds. On **all three** surfaces: `Deck`, `Document` and
+  `Workbook` each gained `chart_series_references`.
+- **`mjx_dml::spreadsheet_drawing::new_anchored_graphic_frame`** — the frame a chart sits in on a
+  sheet. `CT_GraphicalObjectFrame` declares `xdr:xfrm` `minOccurs="1"`, unlike the `a:xfrm` a picture
+  may omit, so it is written (all-zero, as Excel and LibreOffice both write for a two-cell anchor).
+- **`mjx_sml::ReferenceAreas`** — the areas of a reference that names more than one, split on the
+  commas that are not inside a quoted sheet name or an external-book bracket. `Copy` and
+  allocation-free, like the rest of that module.
+- **`PartKind::Chart`**, with `REL_CHART`, `REL_PACKAGE` and `CONTENT_TYPE_CHART`. The part
+  inventory names a chart part instead of leaving it unclassified; twenty-seven part kinds became
+  twenty-eight.
+- **`tests/fixtures/chart_in_sheet.xlsx` and `chart_stale_cache.xlsx`** — two workbooks **written by
+  LibreOffice 25.8.7.3**, not by this project. The first carries a chart over a live range with no
+  `c:externalData` at all; the second is the same package with the sheet and string table of a
+  second run spliced in, so its **caches and its cells disagree on every point**. A fixture whose
+  cached values equalled its cell values would prove nothing about which source a reader used.
+- **The Excel guide's chart page** (`crates/mjx-xlsx/docs/guide/charts.md`), four compiled
+  doctests, and `examples/chart_range_cost.rs`, which asserts with the counting allocator that a
+  resolution is bounded by the range rather than by the sheet: on a 30,000-cell sheet a three-cell
+  range costs **2,109 bytes** beyond the sheet's own read, and four areas in one call cost one sheet
+  parse where four calls cost four.
+- **Both bindings** gain the family: `workbook.add_range_chart(...)` in Python,
+  `workbook.addRangeChart(...)` in TypeScript, with `ChartRangeSeries`, `ChartSeriesReferences`,
+  `ChartSeriesFreshnessInfo`, `SheetChartWorkbookInfo`, `ResolvedRangeInfo` and `RangeCellInfo`
+  projected alongside.
+
+### Fixed
+
+- **`crates/mjx-ooxml/tests/chart_surface_parity.rs`'s strongest assertion was vacuous.** It compared
+  `deck.chart_part_bytes(...)` against `document.chart_part_bytes(...)` after twelve edits, and
+  `mjx_opc::Package::part_bytes` answers `None` for a part whose body is `Edited` — so the comparison
+  had been `None == None` since MJXOFF-103 wrote it, and a chart part wired to the wrong bytes would
+  have satisfied it. It now compares the parts of the **saved** packages and asserts all three are
+  really there. The three surfaces do agree, byte for byte.
+
+### Changed
+
+- **`Workbook::detach_chart_workbook` removes the embedded workbook part**, unless another chart
+  still names it. `mjx_docx::Document::detach_chart_workbook` leaves it in the package and says so;
+  this surface cannot, because `Workbook::save` runs `Package::validate`, which refuses a package
+  holding a SpreadsheetML part no relationship chain reaches — so a detach that left it behind would
+  hand back a workbook this library then declines to write.
+- **`XlsxError` gains five variants**: `ChartAccess` (wrapping `mjx_chart::ChartAccessError` whole,
+  the `mjx-docx` shape rather than `mjx-pptx`'s eight restated variants), `ChartData`,
+  `InvalidChartData`, `AnchorIsNotAChart` and `ChartHasNoExternalData`. The facade's `classify_xlsx`
+  routes the first through the *same* `chart_access_code` `DocxError::ChartAccess` goes through, so
+  the same index refused from a workbook, a document and a presentation answers the same
+  `ErrorCode`.
+
 ## [0.0.124] - 2026-09-06
 
 **Worksheet drawings** (MJXOFF-107, Phase E position 3): the `xl/drawings` part, the three anchor

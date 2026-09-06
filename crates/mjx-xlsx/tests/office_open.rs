@@ -424,3 +424,72 @@ fn a_workbook_with_an_authored_drawing_opens() {
 
     let _ = convert_opens(&workbook.save().expect("saves"), "authored_drawing");
 }
+
+#[test]
+fn a_workbook_with_authored_charts_opens() {
+    // MJXOFF-111's equivalent of the drawing case above, and a different question again. A chart is
+    // **five** things that have to agree and three of them are packaging: the chart part's own
+    // content-type override, the `chart` relationship written from the *drawing* part rather than
+    // from the sheet, and — for the embedded-workbook case — the `package` relationship from the
+    // chart part to a whole `.xlsx` inside this one. Every one of those produces markup
+    // `dml-chart.xsd` accepts and a renderer draws nothing for.
+    //
+    // Both authoring calls, because they write genuinely different files: `add_chart` writes a chart
+    // whose `c:f` name an embedded workbook, `add_range_chart` one whose `c:f` name cells in *this*
+    // workbook and which carries no `c:externalData` at all. A renderer that resolved only the first
+    // shape would otherwise go unnoticed.
+    use mjx_chart::{ChartData, ChartKind, LegendPosition};
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+    use mjx_xlsx::{SheetChartSeries, SheetChartSource};
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let mut workbook = Workbook::blank().expect("authored");
+    workbook.rename_sheet(0, "Data").expect("renamed");
+    workbook
+        .set_cell_value(0, at("A1"), CellValue::InlineString("Revenue"))
+        .expect("the store accepts the header");
+    for (address, value) in [("A2", 10.0), ("A3", 20.0), ("A4", 30.0)] {
+        workbook
+            .set_cell_value(0, at(address), CellValue::Number(value))
+            .expect("the store accepts the value");
+    }
+
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Plan", [10.0, 20.0, 30.0])
+        .title("Quarterly plan")
+        .legend(LegendPosition::Bottom);
+    workbook
+        .add_chart(
+            0,
+            &chart,
+            CellMarker::new(2, 0, 1, 0),
+            CellMarker::new(9, 0, 16, 0),
+            "Plan",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart with an embedded workbook");
+
+    let source = SheetChartSource {
+        categories: None,
+        series: vec![SheetChartSeries {
+            name_cell: Some("Data!$A$1".to_owned()),
+            name: "Actual".to_owned(),
+            values: "Data!$A$2:$A$4".to_owned(),
+        }],
+    };
+    workbook
+        .add_range_chart(
+            0,
+            ChartKind::Line,
+            &source,
+            CellMarker::new(2, 0, 18, 0),
+            CellMarker::new(9, 0, 33, 0),
+            "Actual",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a live-range chart");
+
+    let _ = convert_opens(&workbook.save().expect("saves"), "authored_charts");
+}

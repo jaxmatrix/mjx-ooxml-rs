@@ -988,6 +988,267 @@ fn an_authored_worksheet_drawing_is_schema_valid_under_the_xdr_arm() {
     );
 }
 
+/// The DrawingML-chart namespace, as `dml-chart.xsd` declares it.
+const CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+/// A workbook with two authored charts on one sheet — one with an embedded workbook, one over a
+/// live range (MJXOFF-111, E4).
+///
+/// Both, deliberately. They are different markup: the first writes a `c:externalData` and a whole
+/// `.xlsx` beside it, the second writes `c:f` formulas naming this workbook's own cells and no
+/// `c:externalData` at all. A gate that validated one would say nothing about the other.
+fn a_workbook_with_authored_charts() -> Vec<u8> {
+    use mjx_chart::{ChartData, ChartKind, LegendPosition};
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+    use mjx_sml::{CellReference, CellValue};
+    use mjx_xlsx::{SheetChartSeries, SheetChartSource};
+
+    let mut workbook = mjx_xlsx::Workbook::blank().expect("a blank workbook");
+    workbook.rename_sheet(0, "Data").expect("renamed");
+    for (address, value) in [("A1", 10.0), ("A2", 20.0), ("A3", 30.0)] {
+        workbook
+            .set_cell_value(
+                0,
+                CellReference::parse(address).expect("a literal address"),
+                CellValue::Number(value),
+            )
+            .expect("the store accepts the value");
+    }
+
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Revenue", [10.0, 20.0, 30.0])
+        .title("Quarterly revenue")
+        .legend(LegendPosition::Bottom);
+    workbook
+        .add_chart(
+            0,
+            &chart,
+            CellMarker::new(2, 0, 1, 0),
+            CellMarker::new(8, 0, 15, 0),
+            "Embedded",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart with an embedded workbook");
+
+    let source = SheetChartSource {
+        categories: None,
+        series: vec![SheetChartSeries {
+            name_cell: None,
+            name: "Live".to_owned(),
+            values: "Data!$A$1:$A$3".to_owned(),
+        }],
+    };
+    workbook
+        .add_range_chart(
+            0,
+            ChartKind::Line,
+            &source,
+            CellMarker::new(2, 0, 17, 0),
+            CellMarker::new(8, 0, 31, 0),
+            "Live",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a live-range chart");
+
+    workbook.save().expect("it validates and saves")
+}
+
+#[test]
+fn the_authored_charts_and_the_frames_that_hold_them_are_schema_valid() {
+    // MJXOFF-111's own *Done when* clause: the authored workbook is schema-valid **including the
+    // chart part and the drawing part**. Both are named by hand rather than left to the sweep,
+    // because a chart part that were skipped as foreign would satisfy "the workbook is valid" while
+    // proving nothing about the markup this child writes.
+    let bytes = a_workbook_with_authored_charts();
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("authored charts", &bytes);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "authored charts", &bytes, &[]);
+    println!("{}", outcome_table("authored charts", &rows));
+
+    for part in ["/xl/charts/chart1.xml", "/xl/charts/chart2.xml"] {
+        let row = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep"));
+        assert_eq!(row.namespace.as_deref(), Some(CHART_NS));
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated("dml-chart.xsd")),
+            "{part} must be validated against dml-chart.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    }
+    let drawing = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing part that frames both charts is in the sweep");
+    assert_eq!(drawing.namespace.as_deref(), Some(XDR_NS));
+    assert!(
+        matches!(
+            drawing.outcome,
+            PartOutcome::Validated("dml-spreadsheetDrawing.xsd")
+        ),
+        "the frames must be validated against dml-spreadsheetDrawing.xsd; it reported: {}",
+        drawing.outcome.describe()
+    );
+}
+
+/// The authored workbook with a `c:ser` planted directly inside `c:chartSpace` — a series where
+/// `CT_ChartSpace`'s own `xsd:sequence` allows only `c:date1904`, `c:lang`, `c:roundedCorners`,
+/// `c:style`, `c:clrMapOvr`, `c:pivotSource`, `c:protection`, `c:chart`, `c:spPr`, `c:txPr`,
+/// `c:externalData`, `c:printSettings` and `c:userShapes`.
+fn a_chart_with_a_series_outside_its_plot() -> Vec<u8> {
+    let mut package = Package::open(&a_workbook_with_authored_charts()).expect("open");
+    let part = PartName::new("/xl/charts/chart1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } = package.part_tree_mut(&part).expect("edit the chart");
+    let stray = RawElement::new(
+        RawName {
+            prefix: Some(interner.intern("c")),
+            local: interner.intern("ser"),
+            namespace: Some(interner.intern(CHART_NS)),
+        },
+        Vec::new(),
+        Vec::new(),
+        true,
+    );
+    root.children.push(RawNode::Element(stray));
+    root.empty = false;
+    package.save().expect("save the corrupted chart")
+}
+
+/// The authored workbook with an `xdr:graphicFrame` stripped of its required `xdr:xfrm`.
+///
+/// The trap MJXOFF-111 found in the schema and had to write around:
+/// `CT_GraphicalObjectFrame` declares `xfrm` `minOccurs="1"`, unlike the `a:xfrm` a picture may
+/// omit, so a frame that leaves it out is invalid however it is anchored — and a `twoCellAnchor`'s
+/// markers make the transform look redundant, which is exactly why it would be dropped by accident.
+fn a_chart_frame_without_its_required_transform() -> Vec<u8> {
+    let mut package = Package::open(&a_workbook_with_authored_charts()).expect("open");
+    let part = PartName::new("/xl/drawings/drawing1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } =
+        package.part_tree_mut(&part).expect("edit the drawing");
+    let removed = remove_first_xfrm(root, interner);
+    assert!(removed, "the drawing has no xdr:xfrm to remove");
+    package.save().expect("save the corrupted drawing")
+}
+
+/// Removes the first `xdr:xfrm` found anywhere under `element`, depth first. Answers whether one
+/// went.
+fn remove_first_xfrm(element: &mut RawElement, interner: &mut Interner) -> bool {
+    let at = element.children.iter().position(|node| {
+        matches!(node, RawNode::Element(child)
+            if child.name.namespace.map(|ns| interner.resolve(ns)) == Some(XDR_NS)
+                && interner.resolve(child.name.local) == "xfrm")
+    });
+    if let Some(at) = at {
+        element.children.remove(at);
+        return true;
+    }
+    for node in &mut element.children {
+        if let RawNode::Element(child) = node {
+            if remove_first_xfrm(child, interner) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[test]
+fn invalid_chart_markup_is_caught_and_names_the_chart_part() {
+    // The `dml-chart` arm, proved live on a `.xlsx` rather than assumed from PowerPoint's use of it:
+    // markup the schema rejects turns this case red, and the failure names the part.
+    let Some(harness) = harness() else { return };
+    let corrupted = a_chart_with_a_series_outside_its_plot();
+    let rows = inspect_deck(&harness, "a chart with a stray c:ser", &corrupted, &[]);
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/charts/chart1.xml")
+        .expect("the chart part is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a stray c:ser must fail against dml-chart.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "dml-chart.xsd");
+    assert!(
+        report.contains("/xl/charts/chart1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("ser"),
+        "the failure must name the element that broke the sequence:\n{report}"
+    );
+
+    // The discriminating half: only that part broke. The *other* chart and the drawing that frames
+    // both are still valid, so this cannot pass because the corruption broke everything.
+    for (part, schema) in [
+        ("/xl/charts/chart2.xml", "dml-chart.xsd"),
+        ("/xl/drawings/drawing1.xml", "dml-spreadsheetDrawing.xsd"),
+    ] {
+        let other = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep"));
+        assert!(
+            matches!(other.outcome, PartOutcome::Validated(s) if s == schema),
+            "{part} must be unaffected; it reported: {}",
+            other.outcome.describe()
+        );
+    }
+    println!("the dml-chart arm, proved live:\n{report}");
+}
+
+#[test]
+fn a_chart_frame_missing_its_required_transform_is_caught_and_names_the_drawing_part() {
+    // The other half of MJXOFF-111's schema clause, on the *drawing* part rather than the chart:
+    // `xdr:xfrm` is `minOccurs="1"` inside `CT_GraphicalObjectFrame`, and a frame written without
+    // one is markup `dml-spreadsheetDrawing.xsd` rejects. This is the mutation that proves the
+    // authored frame's transform is load-bearing rather than decorative.
+    let Some(harness) = harness() else { return };
+    let corrupted = a_chart_frame_without_its_required_transform();
+    let rows = inspect_deck(&harness, "a chart frame with no xdr:xfrm", &corrupted, &[]);
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing part is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a graphicFrame with no xfrm must fail against dml-spreadsheetDrawing.xsd; it \
+             reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "dml-spreadsheetDrawing.xsd");
+    assert!(
+        report.contains("/xl/drawings/drawing1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("xfrm") || report.contains("graphic"),
+        "the failure must name what the sequence was missing:\n{report}"
+    );
+
+    // …and both chart parts are untouched, so the corruption really was local to the frame.
+    for part in ["/xl/charts/chart1.xml", "/xl/charts/chart2.xml"] {
+        let other = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep"));
+        assert!(
+            matches!(other.outcome, PartOutcome::Validated("dml-chart.xsd")),
+            "{part} must be unaffected; it reported: {}",
+            other.outcome.describe()
+        );
+    }
+    println!("the required-transform rule, proved live:\n{report}");
+}
+
 /// `worksheet_drawings.xlsx` with an `xdr:col` planted directly inside `xdr:twoCellAnchor` — a
 /// marker child where the anchor's own `xsd:sequence` allows only `from`, `to`, one object and
 /// `clientData`.

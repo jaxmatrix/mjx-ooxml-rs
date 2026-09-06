@@ -111,8 +111,8 @@ pub mod write;
 
 pub use address::{
     AddressError, AddressText, Anchoring, CellRange, CellRangeList, CellReference, CellSpan,
-    CellSpans, ColumnBound, GridBounds, R1C1Coordinate, R1C1Range, R1C1Reference, ReferenceMode,
-    RowBound, SheetName, SheetQualifiedReference,
+    CellSpans, ColumnBound, GridBounds, R1C1Coordinate, R1C1Range, R1C1Reference, ReferenceAreas,
+    ReferenceMode, RowBound, SheetName, SheetQualifiedReference,
 };
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
 pub use error::SmlError;

@@ -1564,6 +1564,150 @@ impl fmt::Display for SheetQualifiedReference<'_> {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Multi-area references
+// ---------------------------------------------------------------------------------------------
+
+/// The areas of a reference that names more than one: `Sheet1!$A$1:$A$3,Sheet1!$C$1:$C$3`, or the
+/// parenthesised form `(Sheet1!$A$1,Sheet1!$B$2)` a producer writes when the reference is a union.
+///
+/// # What this splits, and what it deliberately does not parse
+///
+/// Excel's union operator is a comma, and a chart's `c:f`, a defined name's definition and a print
+/// area are all allowed to carry one. Splitting on it is a *lexical* job — find the commas that are
+/// not inside a quoted sheet name or an external-book bracket — and this does exactly that, handing
+/// each area back as a borrowed slice for [`SheetQualifiedReference::parse`] or [`CellRange::parse`]
+/// to make sense of. **Nothing here is a formula parser**: an area that is not a reference at all
+/// comes back as the text it was, and the caller's own parse is what refuses it.
+///
+/// A `;` is **not** a separator. Some Excel user interfaces show one, but the stored form is a
+/// comma in every file this project has read, and treating `;` as a union would be inventing a
+/// grammar rule the specification does not state.
+///
+/// `Copy` and allocation-free: the iterator carries a cursor into the source text and nothing else.
+///
+/// ```
+/// use mjx_sml::ReferenceAreas;
+/// let areas: Vec<&str> = ReferenceAreas::parse("(Data!$A$2:$A$4,Data!$C$2:$C$4)")
+///     .expect("two areas")
+///     .collect();
+/// assert_eq!(areas, ["Data!$A$2:$A$4", "Data!$C$2:$C$4"]);
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ReferenceAreas<'a> {
+    /// What is left to yield, or `None` once the last area has been handed over.
+    rest: Option<&'a str>,
+}
+
+impl<'a> ReferenceAreas<'a> {
+    /// Splits `text` into its areas, stripping one enclosing pair of parentheses if it has them.
+    ///
+    /// # Errors
+    ///
+    /// [`AddressError::Empty`] for text that is blank or has a blank area (`"A1,,B2"`),
+    /// [`AddressError::UnterminatedSheetName`] for an unclosed apostrophe, and
+    /// [`AddressError::UnexpectedCharacter`] for an unbalanced parenthesis — carrying the `'('` or
+    /// `')'` that had no partner.
+    pub fn parse(text: &'a str) -> Result<Self, AddressError> {
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            return Err(AddressError::Empty);
+        }
+        let inner = match trimmed.strip_prefix('(') {
+            None => {
+                if closing_parenthesis(trimmed)?.is_some() {
+                    return Err(AddressError::UnexpectedCharacter(')'));
+                }
+                trimmed
+            }
+            Some(after) => {
+                let close =
+                    closing_parenthesis(after)?.ok_or(AddressError::UnexpectedCharacter('('))?;
+                if close + 1 != after.len() {
+                    return Err(AddressError::UnexpectedCharacter(')'));
+                }
+                after.get(..close).unwrap_or("")
+            }
+        };
+        // A blank area is rejected here rather than on the first `next()`, so a caller that never
+        // iterates still learns the reference is malformed.
+        let mut scan = Self { rest: Some(inner) };
+        let unchanged = scan;
+        for area in scan.by_ref() {
+            if area.is_empty() {
+                return Err(AddressError::Empty);
+            }
+        }
+        Ok(unchanged)
+    }
+
+    /// The next comma that separates two areas, or `None` when `rest` is a single area.
+    fn separator(rest: &str) -> Option<usize> {
+        let bytes = rest.as_bytes();
+        let mut position = 0;
+        let mut inside_quotes = false;
+        let mut inside_brackets = false;
+        while let Some(byte) = bytes.get(position) {
+            match byte {
+                b'\'' => inside_quotes = !inside_quotes,
+                b'[' if !inside_quotes => inside_brackets = true,
+                b']' if !inside_quotes => inside_brackets = false,
+                b',' if !inside_quotes && !inside_brackets => return Some(position),
+                _ => {}
+            }
+            position += 1;
+        }
+        None
+    }
+}
+
+impl<'a> Iterator for ReferenceAreas<'a> {
+    type Item = &'a str;
+
+    fn next(&mut self) -> Option<&'a str> {
+        let rest = self.rest?;
+        match Self::separator(rest) {
+            Some(at) => {
+                self.rest = rest.get(at + 1..);
+                Some(rest.get(..at).unwrap_or("").trim())
+            }
+            None => {
+                self.rest = None;
+                Some(rest.trim())
+            }
+        }
+    }
+}
+
+/// The offset of the `)` that closes a parenthesis run opened before `text`, ignoring apostrophes.
+///
+/// `Ok(None)` when the run is never closed; an unclosed apostrophe is
+/// [`AddressError::UnterminatedSheetName`], because a `)` inside a sheet name is part of the name.
+fn closing_parenthesis(text: &str) -> Result<Option<usize>, AddressError> {
+    let bytes = text.as_bytes();
+    let mut position = 0;
+    let mut inside_quotes = false;
+    let mut depth = 0usize;
+    while let Some(byte) = bytes.get(position) {
+        match byte {
+            b'\'' => inside_quotes = !inside_quotes,
+            b'(' if !inside_quotes => depth += 1,
+            b')' if !inside_quotes => {
+                if depth == 0 {
+                    return Ok(Some(position));
+                }
+                depth -= 1;
+            }
+            _ => {}
+        }
+        position += 1;
+    }
+    if inside_quotes {
+        return Err(AddressError::UnterminatedSheetName);
+    }
+    Ok(None)
+}
+
 /// The byte offset of the first `!` that is not inside apostrophes.
 fn unquoted_separator(text: &str) -> Result<usize, AddressError> {
     let bytes = text.as_bytes();
@@ -2552,6 +2696,88 @@ mod tests {
                 "parsing {text:?}"
             );
         }
+    }
+
+    // -- multi-area references ------------------------------------------------------------------
+
+    #[test]
+    fn a_single_area_reference_yields_itself() {
+        for text in ["Data!$A$2:$A$4", "A1", "'My Sheet'!$B$1", "[1]Sheet1!A1"] {
+            let areas: Vec<&str> = ReferenceAreas::parse(text).expect("one area").collect();
+            assert_eq!(areas, [text], "splitting {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_union_splits_on_the_commas_that_are_not_inside_a_name_or_a_bracket() {
+        const CASES: [(&str, &[&str]); 6] = [
+            (
+                "Data!$A$2:$A$4,Data!$C$2:$C$4",
+                &["Data!$A$2:$A$4", "Data!$C$2:$C$4"],
+            ),
+            (
+                "(Data!$A$2:$A$4,Data!$C$2:$C$4)",
+                &["Data!$A$2:$A$4", "Data!$C$2:$C$4"],
+            ),
+            // A comma inside a quoted sheet name is part of the name, not a union operator.
+            ("'Q1,Q2'!A1,Sheet2!B2", &["'Q1,Q2'!A1", "Sheet2!B2"]),
+            // …and one inside an external-book bracket is part of the bracket.
+            (
+                "[1]Sheet1!A1,[2]Sheet1!A1",
+                &["[1]Sheet1!A1", "[2]Sheet1!A1"],
+            ),
+            // Whitespace around an area is not part of it.
+            (" A1:B2 , C3:D4 ", &["A1:B2", "C3:D4"]),
+            ("A1,B2,C3", &["A1", "B2", "C3"]),
+        ];
+        for (text, expected) in CASES {
+            let areas: Vec<&str> = ReferenceAreas::parse(text).expect("areas").collect();
+            assert_eq!(areas, expected, "splitting {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_malformed_multi_area_reference_is_a_typed_error_and_never_panics() {
+        const CASES: [(&str, AddressError); 7] = [
+            ("", AddressError::Empty),
+            ("   ", AddressError::Empty),
+            ("A1,,B2", AddressError::Empty),
+            ("A1,", AddressError::Empty),
+            ("(A1:B2", AddressError::UnexpectedCharacter('(')),
+            ("A1:B2)", AddressError::UnexpectedCharacter(')')),
+            ("'unclosed!A1", AddressError::UnterminatedSheetName),
+        ];
+        for (text, expected) in CASES {
+            assert_eq!(
+                ReferenceAreas::parse(text).err(),
+                Some(expected),
+                "splitting {text:?}"
+            );
+        }
+        // `(A1,B2)C3` closes its parenthesis before the end, which is not a reference this splitter
+        // will pretend to understand.
+        assert_eq!(
+            ReferenceAreas::parse("(A1,B2)C3").err(),
+            Some(AddressError::UnexpectedCharacter(')'))
+        );
+    }
+
+    #[test]
+    fn splitting_a_reference_allocates_nothing_and_borrows_the_source() {
+        // `ReferenceAreas` is `Copy`, so it can own no heap allocation — the compiler is the proof,
+        // as it is for `CellReference`. What this pins is the *borrowing*: each area is a slice of
+        // the caller's own text, at the offset it sits at.
+        let text = String::from("Data!$A$2:$A$4,Data!$C$2:$C$4");
+        let areas: Vec<&str> = ReferenceAreas::parse(&text).expect("areas").collect();
+        for area in &areas {
+            let offset = area.as_ptr() as usize - text.as_ptr() as usize;
+            assert!(
+                offset < text.len(),
+                "{area:?} is not a slice of the source text"
+            );
+        }
+        fn assert_copy<T: Copy>(_: T) {}
+        assert_copy(ReferenceAreas::parse(&text).expect("areas"));
     }
 
     // -- R1C1 -----------------------------------------------------------------------------------

@@ -57,6 +57,12 @@
 //! that PowerPoint's Edit Data opens ([`embedded_workbook_for_chart_data`]) — and, with
 //! [`ChartData::data_labels`], a chart that labels itself. That workbook is a real `.xlsx` package
 //! written by `mjx-sml`; this crate lays out the grid and nothing else.
+//!
+//! A chart does **not** have to have one. [`ChartData::ranges`] points the `c:f` formulas at cells
+//! in a host workbook instead ([`ChartRanges`], [`ChartSeriesRange`]), which is what a chart on a
+//! worksheet does: there is no embedded copy, the formulas name the sheets the chart lives among,
+//! and the cells are the source. Resolving such a reference against a package is `mjx-xlsx`'s —
+//! this crate writes the text and reads it back, and has never resolved a reference in its life.
 
 mod author;
 mod axis;
@@ -69,7 +75,7 @@ mod plot;
 mod space;
 mod view;
 
-pub use author::{ChartData, ChartDataError};
+pub use author::{ChartData, ChartDataError, ChartRanges, ChartSeriesRange};
 pub use axis::{
     Axis, AxisContent, AxisKind, AxisOrientation, AxisPosition, BlankDisplay, ChartTitle,
     ChartTitleContent, Gridlines, Legend, LegendPosition, Scaling, TickLabelPosition, TickMark,
@@ -100,7 +106,7 @@ pub use plot::{
 pub use space::{Chart, ChartContent, ChartSpace, ChartSpaceContent, PlotArea, PlotAreaContent};
 pub use view::{
     ChartAxisData, ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData,
-    ChartSeriesData, ChartTrendlineData,
+    ChartSeriesData, ChartSeriesReferences, ChartTrendlineData,
 };
 
 /// Every read and every edit a host surface performs on a chart, stated once over a [`ChartSpace`].
@@ -114,10 +120,10 @@ pub mod chart_ops {
         add_trendline, axes, dangling_decoration, data_label_tier, data_labels,
         drop_dangling_decoration, error_bars, kinds, legend, point_formats, point_label_text,
         remove_data_labels, remove_error_bars, remove_point_format, remove_trendlines, series,
-        series_at, series_fill, set_axis_gridlines, set_axis_orientation, set_axis_scale,
-        set_axis_title, set_data_labels, set_error_bars, set_legend, set_point_explosion,
-        set_point_fill, set_point_line, set_series_categories, set_series_fill, set_series_line,
-        set_series_values, set_title, set_trendline, style_id, suppress_data_labels, title,
-        trendlines,
+        series_at, series_fill, series_references, set_axis_gridlines, set_axis_orientation,
+        set_axis_scale, set_axis_title, set_data_labels, set_error_bars, set_legend,
+        set_point_explosion, set_point_fill, set_point_line, set_series_categories,
+        set_series_fill, set_series_line, set_series_values, set_title, set_trendline, style_id,
+        suppress_data_labels, title, trendlines,
     };
 }

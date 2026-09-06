@@ -8,7 +8,8 @@
 use crate::index::{count, index};
 use crate::{
     AxisOrientation, ChartAxisData, ChartData, ChartKind, ChartLegendData, ChartSeriesData,
-    ChartWorkbook, Deck, Error, LegendPosition, ShapeBounds, ShapePath, Surface,
+    ChartSeriesReferences, ChartWorkbook, Deck, Error, LegendPosition, ShapeBounds, ShapePath,
+    Surface,
 };
 
 impl Deck {
@@ -188,6 +189,27 @@ impl Deck {
         Ok(self
             .presentation
             .chart_kinds(surface.to_model(), shape_idx.to_model())?)
+    }
+
+    /// Where every series of the chart says its data lives — the formula beside each cache, as the
+    /// file wrote it. Reading does not dirty the part.
+    ///
+    /// The companion of [`chart_series`](Self::chart_series): that answers what the **caches** hold,
+    /// this answers what the references **name**.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::chart_series_references`](mjx_pptx::Presentation::chart_series_references).
+    pub fn chart_series_references(
+        &mut self,
+        surface: Surface,
+        shape_idx: ShapePath,
+    ) -> Result<Vec<ChartSeriesReferences>, Error> {
+        Ok(self
+            .presentation
+            .chart_series_references(surface.to_model(), shape_idx.to_model())?)
     }
 
     /// The axes of the chart the frame `shape_idx` on `surface` references, in document order. Reading

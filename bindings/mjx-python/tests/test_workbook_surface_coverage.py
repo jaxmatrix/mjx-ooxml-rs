@@ -317,3 +317,190 @@ def test_bytes_that_are_not_an_image_are_refused(filled: Workbook) -> None:
     with pytest.raises(mjx_ooxml.InvalidArgumentError):
         filled.add_absolute_anchored_picture(0, b"not an image", "nope", 0, 0, 1, 1)
     assert filled.sheet_drawing(0) is None
+
+
+def _sample_chart() -> mjx_ooxml.ChartData:
+    """The two-series chart every chart case below adds."""
+    return (
+        mjx_ooxml.ChartData(mjx_ooxml.ChartKind.Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("North", [12.5, 18.0, 21.5])
+        .series("South", [9.0, 11.5, 14.0])
+    )
+
+
+def test_the_whole_excel_chart_family_is_bound_and_reads_back(filled: Workbook) -> None:
+    """Every chart method on the Excel surface, driven once, with the value read back.
+
+    MJXOFF-111 (E4). The Excel counterpart of `test_document_surface_coverage.py`'s Word chart
+    case, and half of MJXOFF-80's own gate: the same names, taking the same vocabulary, from a
+    third surface. What differs is only the address — `(sheet, anchor)` where a document takes a
+    drawing id — and every assertion below reads back the value it just set, so a method wired to
+    the wrong `chart_ops` function answers something else rather than succeeding quietly.
+    """
+    anchor = filled.add_chart(
+        0,
+        _sample_chart(),
+        4,
+        1,
+        10,
+        16,
+        "Revenue",
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+    )
+    assert filled.chart_anchor_indices(0) == [anchor]
+    assert filled.chart_rel_id(0, anchor) is not None
+    assert filled.chart_part_bytes(0, anchor) is not None
+    assert filled.chart_kinds(0, anchor) == [mjx_ooxml.ChartKind.Bar]
+
+    series = filled.chart_series(0, anchor)
+    assert [entry.name for entry in series] == ["North", "South"]
+    assert list(series[1].values) == [9.0, 11.5, 14.0]
+
+    workbooks = filled.chart_workbooks()
+    assert len(workbooks) == 1
+    assert (workbooks[0].sheet, workbooks[0].anchor) == (0, anchor)
+    assert workbooks[0].external is False
+    assert filled.refresh_chart_workbook(0, anchor) is True
+
+    filled.set_chart_title(0, anchor, "Regional revenue")
+    assert filled.chart_title(0, anchor) == "Regional revenue"
+
+    filled.set_chart_legend(0, anchor, mjx_ooxml.LegendPosition.Right)
+    legend = filled.chart_legend(0, anchor)
+    assert legend is not None and legend.position == mjx_ooxml.LegendPosition.Right
+
+    filled.set_chart_series_values(0, anchor, 0, [40.0, 41.0, 42.0])
+    assert list(filled.chart_series(0, anchor)[0].values) == [40.0, 41.0, 42.0]
+    filled.set_chart_series_categories(0, anchor, 1, ["A", "B", "C"])
+    assert list(filled.chart_series(0, anchor)[1].categories) == ["A", "B", "C"]
+
+    filled.set_chart_axis_scale(0, anchor, 1, 0.0, 50.0)
+    filled.set_chart_axis_title(0, anchor, 1, "Millions")
+    filled.set_chart_axis_gridlines(0, anchor, 1, True, False)
+    filled.set_chart_axis_orientation(0, anchor, 1, mjx_ooxml.AxisOrientation.MaximumToMinimum)
+    axis = filled.chart_axes(0, anchor)[1]
+    assert (axis.minimum, axis.maximum) == (0.0, 50.0)
+    assert axis.title == "Millions"
+
+    blue = mjx_ooxml.FillSpec.solid(mjx_ooxml.ColorSpec.srgb("1F77B4"))
+    filled.set_chart_series_fill(0, anchor, 0, blue)
+    assert filled.chart_series_fill(0, anchor, 0) == blue
+    filled.set_chart_series_line(0, anchor, 0, _thin_black_outline())
+
+    filled.set_chart_data_labels(
+        0,
+        anchor,
+        mjx_ooxml.ChartLabelScope.series(0),
+        mjx_ooxml.DataLabelSpec().value(True),
+    )
+    assert filled.chart_data_labels(0, anchor, 0).shows_value is True
+    assert filled.chart_data_label_tier(0, anchor, mjx_ooxml.ChartLabelScope.series(0)) is not None
+    assert filled.chart_point_label_text(0, anchor, 0, 0) is None
+
+    filled.set_chart_point_fill(0, anchor, 0, 1, blue)
+    filled.set_chart_point_explosion(0, anchor, 0, 1, 25)
+    filled.set_chart_point_line(0, anchor, 0, 1, _thin_black_outline())
+    assert len(filled.chart_point_formats(0, anchor, 0)) == 1
+
+    filled.add_chart_trendline(0, anchor, 0, mjx_ooxml.TrendlineSpec(mjx_ooxml.TrendlineKind.Linear))
+    assert len(filled.chart_trendlines(0, anchor, 0)) == 1
+    filled.set_chart_trendline(
+        0, anchor, 0, 0, mjx_ooxml.TrendlineSpec(mjx_ooxml.TrendlineKind.Logarithmic)
+    )
+    assert filled.chart_trendlines(0, anchor, 0)[0].kind == mjx_ooxml.TrendlineKind.Logarithmic
+    assert filled.remove_chart_trendlines(0, anchor, 0) == 1
+
+    filled.set_chart_error_bars(
+        0,
+        anchor,
+        0,
+        mjx_ooxml.ErrorBarSpec.fixed(
+            mjx_ooxml.ErrorBarType.Both, mjx_ooxml.ErrorValueType.FixedValue, 1.5
+        ),
+    )
+    assert len(filled.chart_error_bars(0, anchor, 0)) == 1
+    assert filled.remove_chart_error_bars(0, anchor, 0) == 1
+
+    assert filled.chart_dangling_decoration(0, anchor, 0) == []
+    assert filled.drop_chart_dangling_decoration(0, anchor, 0) == 0
+    assert filled.remove_chart_point_format(0, anchor, 0, 1) is True
+    filled.suppress_chart_data_labels(0, anchor, mjx_ooxml.ChartLabelScope.series(1))
+    assert filled.remove_chart_data_labels(0, anchor, mjx_ooxml.ChartLabelScope.series(0)) is True
+    assert filled.chart_style_id(0, anchor) is None
+
+    filled.detach_chart_workbook(0, anchor)
+    assert filled.refresh_chart_workbook(0, anchor) is False
+    filled.save()
+
+
+def _thin_black_outline() -> mjx_ooxml.LineSpec:
+    """A one-point black outline — the same one the Word chart case builds."""
+    return mjx_ooxml.LineSpec.solid(
+        mjx_ooxml.LineWidth.from_points(1.0), mjx_ooxml.ColorSpec.srgb("000000")
+    )
+
+
+def test_a_chart_over_a_live_range_reads_the_cells_and_reports_a_stale_cache(
+    filled: Workbook,
+) -> None:
+    """The half of the chart family only the Excel surface has, and the trap MJXOFF-111 names.
+
+    The cache and the cells are made to **disagree** before anything is asserted about which one a
+    reader answered: a chart whose cached values equalled its cell values would let a reader wired
+    to either source pass.
+    """
+    filled.write_cells(0, [CellWrite.number("B4", 7.25), CellWrite.number("B5", 9.5)])
+    anchor = filled.add_range_chart(
+        0,
+        mjx_ooxml.ChartKind.Line,
+        "Sheet1!$A$1:$A$3",
+        [mjx_ooxml.ChartRangeSeries("Growth", "Sheet1!$B$4:$B$5").named_by_cell("Sheet1!$B$1")],
+        4,
+        1,
+        10,
+        16,
+        "Live",
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+    )
+
+    # No embedded workbook, and asking for one does not make one.
+    assert filled.refresh_chart_workbook(0, anchor) is False
+    assert filled.chart_workbooks() == []
+
+    # The series took its name from the header cell rather than from the literal fallback, and its
+    # caches were seeded from the cells.
+    series = filled.chart_series(0, anchor)
+    assert series[0].name == "Growth"
+    assert list(series[0].values) == [7.25, 9.5]
+    references = filled.chart_series_references(0, anchor)
+    assert references[0].values == "Sheet1!$B$4:$B$5"
+    assert references[0].name == "Sheet1!$B$1"
+
+    # The resolver, reached directly. A blank cell is absent rather than zero.
+    resolved = filled.resolve_range_reference(0, "Sheet1!$B$2:$B$5")
+    assert resolved.fully_resolved is True
+    assert resolved.problem is None
+    assert resolved.addressed_cells == 4
+    assert [cell.reference for cell in resolved.cells] == ["B2", "B3", "B4", "B5"]
+    assert resolved.cells[0].number == 12.5
+    assert resolved.cells[1].number is None and resolved.cells[1].label == "#DIV/0!"
+
+    missing = filled.resolve_range_reference(0, "Ghost!$A$1")
+    assert missing.fully_resolved is False
+    assert "Ghost" in (missing.problem or "")
+
+    # Writing a cell leaves the cache alone — and the freshness report is how a caller finds out.
+    assert filled.chart_series_freshness(0, anchor)[0].values_agree is True
+    filled.write_cells(0, [CellWrite.number("B4", 99.0)])
+    assert list(filled.chart_series(0, anchor)[0].values) == [7.25, 9.5]
+    freshness = filled.chart_series_freshness(0, anchor)
+    assert freshness[0].values_agree is False
+    assert list(freshness[0].cached.values) == [7.25, 9.5]
+    assert list(freshness[0].from_cells.values) == [99.0, 9.5]
+    assert list(filled.chart_series_from_cells(0, anchor)[0].values) == [99.0, 9.5]
+
+    # …and the opt-in repair brings the two back into step.
+    assert filled.refresh_chart_cache_from_cells(0, anchor) == 1
+    assert list(filled.chart_series(0, anchor)[0].values) == [99.0, 9.5]
+    filled.save()

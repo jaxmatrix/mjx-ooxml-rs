@@ -66,7 +66,7 @@ MEMBER_COUNTS = {
     "CalculationMode": 3,
     "ReferenceMode": 2,
     "SheetKind": 3,
-    "PartKind": 27,
+    "PartKind": 28,
     "HyperlinkKind": 4,
     "DateSystem": 2,
     "TableStyleOrigin": 3,

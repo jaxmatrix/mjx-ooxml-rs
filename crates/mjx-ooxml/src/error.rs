@@ -652,6 +652,25 @@ fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
         // --- an index argument is outside the workbook -------------------------------------
         XlsxError::NoSuchSheet { index, .. } => (C::IndexOutOfRange, nth(*index)),
 
+        // --- a chart-level refusal, classified by `chart_access_code` -----------------------
+        //
+        // The same road `DocxError::ChartAccess` takes, through the *same* function: `mjx-chart`'s
+        // `ChartAccessError` is a whole enum of its own reached from all three host surfaces
+        // (MJXOFF-103, MJXOFF-111), and collapsing it to one code here would be a wildcard arm
+        // wearing a variant name. Because both go through `chart_access_code`, the same index
+        // refused from a workbook and from a document answers the same code — which is what makes
+        // the three surfaces interchangeable to a binding caller.
+        XlsxError::ChartAccess(problem) => chart_access_code(problem),
+
+        // --- the anchor frames something else, or nothing --------------------------------------
+        //
+        // `NotFound` rather than `WrongKind`: the two arguments together are an *address*, and an
+        // address that reaches no chart is the same shape of failure as a shape index that reaches
+        // no chart on a slide. `ChartHasNoExternalData` is the same reading `DocxError`'s own
+        // variant gets — there is nothing there to detach.
+        XlsxError::AnchorIsNotAChart { anchor_index, .. } => (C::NotFound, nth(*anchor_index)),
+        XlsxError::ChartHasNoExternalData => (C::NothingToRead, none()),
+
         // --- the caller asked to follow a reference that leaves the package ------------------
         //
         // The same reading `PptxError::ExternalTarget` and `DocxError::ExternalTarget` get: an
@@ -662,7 +681,11 @@ fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
         //
         // The same reading `PptxError::UnrecognizedImageFormat` gets, for the same call: the bytes
         // the caller handed over are the argument, and they are not an image this build knows.
-        XlsxError::UnrecognizedImageFormat => (C::InvalidArgument, none()),
+        // `InvalidChartData` and `ChartData` are the split the other two surfaces already make: a
+        // description with nothing to draw, and one whose plot type constrains its series count.
+        XlsxError::UnrecognizedImageFormat
+        | XlsxError::InvalidChartData
+        | XlsxError::ChartData(_) => (C::InvalidArgument, none()),
     }
 }
 

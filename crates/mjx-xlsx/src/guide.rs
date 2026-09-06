@@ -9,9 +9,12 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            HyperlinkKind, HyperlinkTarget, PartClassification, PartInventoryEntry, PartKind,
-            Sheet, SheetHyperlink, SheetKind, SheetMarkup, SheetTable, SheetTableColumn,
-            SpreadsheetDefect, Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
+            ChartSeriesFreshness, HyperlinkKind, HyperlinkTarget, PartClassification,
+            PartInventoryEntry, PartKind, RangeCellValue, RangeProblem, ResolvedArea,
+            ResolvedRange, ResolvedRangeCell, Sheet, SheetChartSeries, SheetChartSource,
+            SheetChartWorkbook, SheetHyperlink, SheetKind, SheetMarkup, SheetTable,
+            SheetTableColumn, SpreadsheetDefect, Workbook, WorkbookParts, Worksheet,
+            WorksheetParts, XlsxError,
         };
     };
 }
@@ -66,6 +69,13 @@ pub mod filters_and_data_validation {
 /// moves, and which half of an anchor's resolved rectangle is a measurement.
 pub mod worksheet_drawings {
     #![doc = include_str!("../docs/guide/worksheet_drawings.md")]
+    guide_vocabulary!();
+}
+
+/// A chart on a sheet — the one chart in this library whose data is a live range, and what happens
+/// when its cache and its cells disagree.
+pub mod charts {
+    #![doc = include_str!("../docs/guide/charts.md")]
     guide_vocabulary!();
 }
 
