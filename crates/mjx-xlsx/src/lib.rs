@@ -91,6 +91,7 @@ pub use worksheet::chart_ranges::{
 pub use worksheet::charts::{
     ChartSeriesFreshness, SheetChartSeries, SheetChartSource, SheetChartWorkbook,
 };
+pub use worksheet::comments::{CommentBox, SheetComment};
 pub use worksheet::drawings::{SheetDrawing, SheetDrawingObject};
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};
