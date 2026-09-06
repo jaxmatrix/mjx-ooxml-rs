@@ -603,7 +603,7 @@ impl Workbook {
     }
 
     /// `{prefix}{N}{suffix}` for the smallest `N` no part in the package already uses.
-    fn free_numbered_part_name(&self, prefix: &str, suffix: &str) -> String {
+    pub(crate) fn free_numbered_part_name(&self, prefix: &str, suffix: &str) -> String {
         let taken: Vec<String> = self
             .package()
             .part_names()

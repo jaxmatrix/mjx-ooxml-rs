@@ -183,6 +183,14 @@ pub enum XlsxError {
     /// decodes a pixel.
     #[error("the bytes match no image format this build recognises")]
     UnrecognizedImageFormat,
+
+    /// A part reached as a legacy VML drawing whose content type says it is not one (MJXOFF-114).
+    ///
+    /// Refused rather than parsed: a `v:shape` model over a worksheet would answer plausible
+    /// nonsense, because [`mjx_vml::Drawing`] does not check the root element's own name — it is the
+    /// same type that reads a `w:pict` inside a Word body.
+    #[error("{0} is not a legacy VML drawing part")]
+    PartIsNotVmlDrawing(String),
 }
 
 impl From<mjx_ooxml_core::AttributeError> for XlsxError {

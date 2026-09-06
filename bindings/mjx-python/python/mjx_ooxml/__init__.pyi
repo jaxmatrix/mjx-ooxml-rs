@@ -6455,6 +6455,40 @@ class SheetHyperlinkInfo:
     """`@display` — never kept in step with the cell's own value."""
 
 @final
+class SheetCommentInfo:
+    """One cell comment, resolved across both of the parts it lives in."""
+    cell: str
+    """The cell the comment is attached to, as A1 text."""
+    author_index: int
+    """`@authorId` — an index into the part's author list, not a name."""
+    author: str | None
+    """The name at that index, or `None`."""
+    text: str
+    """The displayed text: the plain `t`, then each formatted run's `t`, concatenated."""
+    shape_id: int | None
+    """`@shapeId`, when the file states one."""
+    comment_box: CommentBoxInfo | None
+    """The box that draws it, or `None`."""
+
+@final
+class CommentBoxInfo:
+    """The `v:shape` that draws one comment's pop-up box."""
+    identifier: str | None
+    """The shape's own `@id`, as the file wrote it."""
+    application_identifier: str | None
+    """`@o:spid`, the application's identifier for the shape."""
+    is_visible: bool
+    """Whether the box is showing without the pointer over the cell."""
+    anchor_text: str | None
+    """`x:ClientData/x:Anchor` exactly as written. Never decoded."""
+    row: int | None
+    """`x:ClientData/x:Row` — the zero-based row the box states."""
+    column: int | None
+    """`x:ClientData/x:Column` — the zero-based column."""
+    style: str | None
+    """The shape's CSS2 `@style`, verbatim."""
+
+@final
 class SheetTableInfo:
     """One table on a sheet, resolved to its part."""
     part: str
@@ -7160,6 +7194,30 @@ class Workbook:
         ...
     def remove_cell_hyperlink(self, sheet: int, reference: str) -> bool:
         """Removes the hyperlink covering `reference`, and the relationship it named."""
+        ...
+    def sheet_comments(self, sheet: int) -> list[SheetCommentInfo]:
+        """Every comment on one sheet, in the order the comments part lists them."""
+        ...
+    def cell_comment(self, sheet: int, reference: str) -> SheetCommentInfo | None:
+        """The comment attached to `reference`, or `None`."""
+        ...
+    def add_cell_comment(self, sheet: int, reference: str, author: str, text: str) -> int:
+        """Attaches a comment to `reference`, writing both halves, and answers its shape identifier."""
+        ...
+    def set_cell_comment_text(self, sheet: int, reference: str, text: str) -> bool:
+        """Replaces the text of the comment on `reference`, leaving its box as it was."""
+        ...
+    def remove_cell_comment(self, sheet: int, reference: str) -> bool:
+        """Removes the comment on `reference` — both halves."""
+        ...
+    def vml_shape_id_for_ole_object(self, sheet: int, object: int) -> str | None:
+        """The `@id` of the legacy VML shape an OLE object on a sheet is drawn as, or `None`."""
+        ...
+    def vml_shape_id_for_form_control(self, sheet: int, control: int) -> str | None:
+        """The `@id` of the legacy VML shape a form control on a sheet is drawn as, or `None`."""
+        ...
+    def sheet_vml_part_bytes(self, sheet: int) -> bytes | None:
+        """The verbatim bytes of the legacy VML drawing part behind one sheet, or `None`."""
         ...
     def sheet_drawing(self, sheet: int) -> SheetDrawingInfo | None:
         """The drawing part behind one sheet, and everything anchored in it."""

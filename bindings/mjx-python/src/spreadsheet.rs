@@ -55,6 +55,12 @@ value_class! {
     /// One `x:hyperlink` on a sheet, resolved against the sheet's relationships.
     SheetHyperlinkInfo(ooxml::SheetHyperlinkInfo), derive(PartialEq, Eq);
 
+    /// One cell comment, resolved across both of the parts it lives in.
+    SheetCommentInfo(ooxml::SheetCommentInfo), derive(PartialEq, Eq);
+
+    /// The `v:shape` that draws one comment's pop-up box.
+    CommentBoxInfo(ooxml::CommentBoxInfo), derive(PartialEq, Eq);
+
     /// One table on a sheet, resolved to its part.
     SheetTableInfo(ooxml::SheetTableInfo), derive(PartialEq, Eq);
 
@@ -635,6 +641,98 @@ impl SheetHyperlinkInfo {
 
     fn __repr__(&self) -> String {
         format!("SheetHyperlinkInfo({:?})", self.0.range)
+    }
+}
+
+#[pymethods]
+impl SheetCommentInfo {
+    /// The cell the comment is attached to, as A1 text.
+    #[getter]
+    fn cell(&self) -> &str {
+        &self.0.cell
+    }
+
+    /// `@authorId` — an index into the part's author list, not a name.
+    #[getter]
+    fn author_index(&self) -> u32 {
+        self.0.author_index
+    }
+
+    /// The name at that index, or `None`.
+    #[getter]
+    fn author(&self) -> Option<&str> {
+        self.0.author.as_deref()
+    }
+
+    /// The displayed text: the plain `t`, then each formatted run's `t`, concatenated.
+    #[getter]
+    fn text(&self) -> &str {
+        &self.0.text
+    }
+
+    /// `@shapeId`, when the file states one.
+    #[getter]
+    fn shape_id(&self) -> Option<u32> {
+        self.0.shape_id
+    }
+
+    /// The box that draws it, or `None`.
+    #[getter]
+    fn comment_box(&self) -> Option<CommentBoxInfo> {
+        self.0.comment_box.clone().map(CommentBoxInfo)
+    }
+
+    fn __repr__(&self) -> String {
+        format!("SheetCommentInfo({:?})", self.0.cell)
+    }
+}
+
+#[pymethods]
+impl CommentBoxInfo {
+    /// The shape's own `@id`, as the file wrote it.
+    #[getter]
+    fn identifier(&self) -> Option<&str> {
+        self.0.identifier.as_deref()
+    }
+
+    /// `@o:spid`, the application's identifier for the shape.
+    #[getter]
+    fn application_identifier(&self) -> Option<&str> {
+        self.0.application_identifier.as_deref()
+    }
+
+    /// Whether the box is showing without the pointer over the cell.
+    #[getter]
+    fn is_visible(&self) -> bool {
+        self.0.is_visible
+    }
+
+    /// `x:ClientData/x:Anchor` exactly as written. Never decoded.
+    #[getter]
+    fn anchor_text(&self) -> Option<&str> {
+        self.0.anchor_text.as_deref()
+    }
+
+    /// `x:ClientData/x:Row` — the zero-based row the box states.
+    #[getter]
+    fn row(&self) -> Option<u32> {
+        self.0.row
+    }
+
+    /// `x:ClientData/x:Column` — the zero-based column.
+    #[getter]
+    fn column(&self) -> Option<u32> {
+        self.0.column
+    }
+
+    /// The shape's CSS2 `@style`, verbatim.
+    #[getter]
+    fn style(&self) -> Option<&str> {
+        self.0.style.as_deref()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("CommentBoxInfo({:?})", self.0.identifier)
     }
 }
 
@@ -2037,6 +2135,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<DefinedName>()?;
     module.add_class::<CalculationSettings>()?;
     module.add_class::<SheetHyperlinkInfo>()?;
+    module.add_class::<SheetCommentInfo>()?;
+    module.add_class::<CommentBoxInfo>()?;
     module.add_class::<SheetTableInfo>()?;
     module.add_class::<SheetTableColumnInfo>()?;
     module.add_class::<GridAnomalyInfo>()?;

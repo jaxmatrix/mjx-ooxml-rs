@@ -1008,8 +1008,18 @@ impl Package {
 /// The suffix is the general rule, and every ECMA-376 markup part follows it. This is the exception
 /// list: a VML drawing part is XML — it carries relationship references of its own — and Office types
 /// it `application/vnd.openxmlformats-officedocument.vmlDrawing`, with no suffix to notice.
+///
+/// **Every entry is spelled in lower case, and that is load-bearing.**
+/// [`is_xml_content_type`] folds its argument to lower case first, because ECMA-376 Part 2
+/// §10.1.2.3 compares a media type case-insensitively; an entry written with Office's own
+/// capitalisation therefore matches nothing at all. The one entry here *was* written that way
+/// (`vmlDrawing`), so an edited VML part silently sat outside
+/// [`authored_xml_parts`](Package::authored_xml_parts) — outside `Package::validate`'s relationship
+/// checks and outside every format layer's markup checks — from the day the list was written until
+/// MJXOFF-114 needed a validator that could see one. `every_exception_is_spelled_in_lower_case`
+/// is the guard that keeps the next entry honest.
 const XML_CONTENT_TYPES_WITHOUT_SUFFIX: &[&str] =
-    &["application/vnd.openxmlformats-officedocument.vmlDrawing"];
+    &["application/vnd.openxmlformats-officedocument.vmldrawing"];
 
 /// Whether a content type names XML markup: the RFC 3023 `+xml` suffix (allowing for parameters after
 /// a `;`), the two generic XML types, or one of the suffix-less Office exceptions.
@@ -1229,5 +1239,48 @@ fn retarget_relationship_element(
                 .retain(|a| interner.resolve(a.name.local) != "TargetMode"),
         }
         return;
+    }
+}
+
+#[cfg(test)]
+mod xml_content_type_tests {
+    use super::{is_xml_content_type, XML_CONTENT_TYPES_WITHOUT_SUFFIX};
+
+    /// Every exception is spelled in lower case, so that [`is_xml_content_type`]'s fold can match it.
+    ///
+    /// The entry it guards was written with Office's own capitalisation (`…vmlDrawing`) and matched
+    /// nothing for as long as it stood — see the list's own documentation. A list whose comparison
+    /// is case-insensitive and whose entries are not is a list that silently does nothing, which is
+    /// this project's signature failure in miniature.
+    #[test]
+    fn every_exception_is_spelled_in_lower_case() {
+        for content_type in XML_CONTENT_TYPES_WITHOUT_SUFFIX {
+            assert_eq!(
+                *content_type,
+                content_type.to_ascii_lowercase(),
+                "{content_type} is on the exception list in a spelling is_xml_content_type folds \
+                 away, so it matches nothing"
+            );
+        }
+    }
+
+    /// A VML drawing part is XML however the file spells its content type.
+    #[test]
+    fn a_vml_drawing_is_recognised_in_every_casing_a_producer_writes() {
+        for spelling in [
+            "application/vnd.openxmlformats-officedocument.vmlDrawing",
+            "application/vnd.openxmlformats-officedocument.vmldrawing",
+            "APPLICATION/VND.OPENXMLFORMATS-OFFICEDOCUMENT.VMLDRAWING",
+            "application/vnd.openxmlformats-officedocument.vmlDrawing; charset=utf-8",
+        ] {
+            assert!(
+                is_xml_content_type(spelling),
+                "{spelling} names a VML drawing part, which is XML"
+            );
+        }
+        assert!(!is_xml_content_type("image/png"));
+        assert!(!is_xml_content_type(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings"
+        ));
     }
 }

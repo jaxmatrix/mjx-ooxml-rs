@@ -63,18 +63,21 @@
 
 use std::collections::{HashMap, HashSet};
 
-use mjx_ooxml_core::RawDocument;
+use mjx_ooxml_core::{FromXml, RawDocument};
 use mjx_ooxml_types::namespaces::{SHARED_RELATIONSHIP_REFERENCE, SML};
 use mjx_opc::{Package, PartName, TargetMode};
+use mjx_sml::{CommentList, Comments};
+use mjx_vml::Drawing;
 use mjx_xml::fidelity;
 
 use crate::error::XlsxError;
 use crate::nav;
 use crate::parts::{
     SheetKind, CONTENT_TYPE_CHARTSHEET, CONTENT_TYPE_DIALOGSHEET, CONTENT_TYPE_EXTERNAL_LINK,
-    CONTENT_TYPE_PIVOT_CACHE_DEFINITION, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_HYPERLINK,
-    REL_IMAGE, REL_OFFICE_DOCUMENT, REL_PRINTER_SETTINGS,
+    CONTENT_TYPE_PIVOT_CACHE_DEFINITION, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_COMMENTS,
+    REL_HYPERLINK, REL_IMAGE, REL_OFFICE_DOCUMENT, REL_PRINTER_SETTINGS, REL_VML_DRAWING,
 };
+use crate::worksheet::comments;
 
 /// The content-type prefix every SpreadsheetML part shares.
 ///
@@ -314,6 +317,55 @@ pub enum SpreadsheetDefect {
         display_name: String,
     },
 
+    /// A comment whose box the sheet's legacy VML drawing does not hold (MJXOFF-114).
+    ///
+    /// Half a comment. In the Transitional flavour a cell comment is two parts — the text in
+    /// `xl/commentsN.xml`, the pop-up box as a `v:shape` in `xl/drawings/vmlDrawingN.vml` — and
+    /// neither half means anything alone. Excel opens a workbook with a comment and no box, reports
+    /// it as damaged and repairs it by dropping the comment.
+    ///
+    /// This is the direction packaging cannot see at all: `mjx-opc` checks that a named relationship
+    /// is declared, and *neither* half of a comment names the other by relationship. A box is
+    /// matched to its comment by the comment's own `@shapeId`, or failing that by the `x:Row` and
+    /// `x:Column` the shape states — both things the file says, neither inferred. See
+    /// [`Workbook::with_vml_shape_for_comment`](crate::Workbook::with_vml_shape_for_comment).
+    #[error(
+        "{sheet_part}: the comment on {cell} in {comments_part} has no box — the sheet's legacy VML \
+         drawing holds no shape for it"
+    )]
+    CommentWithoutABox {
+        /// The worksheet both halves hang off.
+        sheet_part: String,
+        /// The comments part holding the text.
+        comments_part: String,
+        /// The cell the comment claims, from `x:comment@ref`.
+        cell: String,
+    },
+
+    /// A comment box in the sheet's legacy VML drawing that no comment claims (MJXOFF-114).
+    ///
+    /// The other half of [`CommentWithoutABox`](Self::CommentWithoutABox), and the one a careless
+    /// delete leaves behind: a `v:shape` whose `x:ClientData` says `ObjectType="Note"` is a comment's
+    /// pop-up box and is drawn as one, so a box with no text is an empty tooltip on a cell nobody
+    /// commented on.
+    ///
+    /// Only `Note` shapes are faulted. A `v:shape` drawing a form control or an OLE fallback lives in
+    /// the same part and is claimed from a different list entirely.
+    #[error(
+        "{vml_part}: the comment box for {cell} (shape {shape}) is claimed by no comment in \
+         {sheet_part}'s comments part"
+    )]
+    CommentBoxWithoutAComment {
+        /// The worksheet both halves hang off.
+        sheet_part: String,
+        /// The legacy VML drawing part holding the box.
+        vml_part: String,
+        /// The shape's `@id`, exactly as the file wrote it.
+        shape: String,
+        /// The cell the box states it is attached to, or `?` when it states none.
+        cell: String,
+    },
+
     /// A sheet's `x:pageSetup` or `x:picture` naming a relationship of the wrong **type**.
     ///
     /// `CT_PageSetup`'s and `CT_CsPageSetup`'s `r:id` reaches a **printer settings** part
@@ -368,6 +420,7 @@ pub(crate) fn check(package: &Package, workbook_part: &PartName) -> Result<(), X
     check_table_identity(package)?;
     check_hyperlink_relationships(package)?;
     check_sheet_print_references(package)?;
+    check_comment_halves(package)?;
     Ok(())
 }
 
@@ -880,6 +933,140 @@ fn check_spreadsheet_parts_are_reachable(package: &Package) -> Result<(), XlsxEr
             content_type: content_type.to_owned(),
         }
         .into());
+    }
+    Ok(())
+}
+
+/// A cell comment's two halves are both present, in both directions — MJXOFF-114's two-halves rule.
+///
+/// # Why this needs a validator at all
+///
+/// A worksheet table's four things agree because the sheet's `x:tableParts` names the part; a
+/// drawing's six agree because `x:drawing@r:id` does. **A comment names nothing.** `CT_Worksheet`
+/// has no `comments` slot: the comments part is found by relationship *type* alone, and this
+/// module's own header records the consequence — a general "unreferenced relationship" rule "would
+/// fault every commented worksheet in existence". So the only thing that can notice half a comment
+/// is a rule that opens both parts and matches them, which is this.
+///
+/// # Scope: either half authored, not both
+///
+/// Every other markup check here is scoped to
+/// [`Package::authored_xml_parts`](mjx_opc::Package::authored_xml_parts). This one asks whether
+/// **any** of the three parts involved — the worksheet, its comments part, its VML drawing — is
+/// authored, because that is what "we touched this comment" means. Deleting a box from a producer's
+/// VML while leaving its producer-written comments part alone authors exactly one of the three, and
+/// scoping to the comments part alone would let that pass. A workbook opened and saved with nothing
+/// touched is still never faulted: none of the three is authored then.
+///
+/// The `.vml` content type is in `mjx-opc`'s `XML_CONTENT_TYPES_WITHOUT_SUFFIX`, so an edited VML
+/// part really does appear in that set — which is what makes the widened scope work rather than
+/// merely sound good.
+///
+/// # One implementation of the pairing rule
+///
+/// The comment-to-box match is [`crate::worksheet::comments::comment_box_shape`], the same function
+/// `Workbook::sheet_comments` and `Workbook::with_vml_shape_for_comment` call. A second copy here
+/// would be free to agree with itself while disagreeing with the reader — the shape of false green
+/// this project keeps finding.
+fn check_comment_halves(package: &Package) -> Result<(), XlsxError> {
+    let authored: HashSet<String> = package
+        .authored_xml_parts()
+        .map(|(part, _)| part.as_str().to_owned())
+        .collect();
+    if authored.is_empty() {
+        return Ok(());
+    }
+    let worksheets: Vec<PartName> = package
+        .part_names()
+        .filter(|part| package.content_type_of(part) == Some(CONTENT_TYPE_WORKSHEET))
+        .collect();
+
+    for sheet_part in worksheets {
+        let Some(relationships) = package.relationships_for(Some(&sheet_part)) else {
+            continue;
+        };
+        let related = |rel_type: &str| -> Option<PartName> {
+            relationships
+                .iter()
+                .find(|relationship| relationship.rel_type == rel_type)
+                .and_then(|relationship| {
+                    nav::resolve_target(&sheet_part, &relationship.target).ok()
+                })
+        };
+        let Some(comments_part) = related(REL_COMMENTS) else {
+            continue;
+        };
+        let vml_part = related(REL_VML_DRAWING);
+        let touched = authored.contains(sheet_part.as_str())
+            || authored.contains(comments_part.as_str())
+            || vml_part
+                .as_ref()
+                .is_some_and(|part| authored.contains(part.as_str()));
+        if !touched {
+            continue;
+        }
+
+        let Some(comments_tree) = part_tree(package, &comments_part) else {
+            continue;
+        };
+        let comments_tree = comments_tree.get();
+        let Ok(comments) = Comments::from_xml(&comments_tree.root, &comments_tree.interner) else {
+            continue;
+        };
+        // A sheet with a comments part and no VML drawing at all: every comment in it is boxless,
+        // and the first one names the defect.
+        let vml_tree = vml_part.as_ref().and_then(|part| part_tree(package, part));
+        let drawing = vml_tree.as_ref().and_then(|tree| {
+            let tree = tree.get();
+            Drawing::from_xml(&tree.root, &tree.interner)
+                .ok()
+                .map(|drawing| (drawing, &tree.interner))
+        });
+
+        let mut claimed: Vec<String> = Vec::new();
+        for comment in comments.list().into_iter().flat_map(CommentList::comments) {
+            let Ok(cell) = comment.cell(&comments_tree.interner) else {
+                continue;
+            };
+            let shape_id = comment.shape_id(&comments_tree.interner).ok().flatten();
+            let found = drawing.as_ref().and_then(|(drawing, interner)| {
+                comments::comment_box_shape(drawing, interner, cell, shape_id)
+                    .map(|shape| shape.identifier(interner).unwrap_or_default())
+            });
+            match found {
+                Some(identifier) => claimed.push(identifier),
+                None => {
+                    return Err(SpreadsheetDefect::CommentWithoutABox {
+                        sheet_part: sheet_part.as_str().to_owned(),
+                        comments_part: comments_part.as_str().to_owned(),
+                        cell: cell.to_string(),
+                    }
+                    .into())
+                }
+            }
+        }
+
+        let (Some((drawing, interner)), Some(vml_part)) = (drawing.as_ref(), vml_part.as_ref())
+        else {
+            continue;
+        };
+        for shape in drawing.all_shapes() {
+            if !comments::is_comment_shape(shape, interner) {
+                continue;
+            }
+            let identifier = shape.identifier(interner).unwrap_or_default();
+            if claimed.contains(&identifier) {
+                continue;
+            }
+            return Err(SpreadsheetDefect::CommentBoxWithoutAComment {
+                sheet_part: sheet_part.as_str().to_owned(),
+                vml_part: vml_part.as_str().to_owned(),
+                shape: identifier,
+                cell: comments::comment_box_cell(shape, interner)
+                    .map_or_else(|| "?".to_owned(), |cell| cell.to_string()),
+            }
+            .into());
+        }
     }
     Ok(())
 }

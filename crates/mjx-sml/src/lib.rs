@@ -97,6 +97,7 @@ pub(crate) mod leaf;
 
 pub mod address;
 pub mod cells;
+pub mod comments;
 pub mod error;
 pub mod features;
 pub mod font;
@@ -115,6 +116,11 @@ pub use address::{
     ReferenceMode, RowBound, SheetName, SheetQualifiedReference,
 };
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
+pub use comments::{
+    parse_comments, Comment, CommentAuthor, CommentAuthors, CommentAuthorsContent, CommentContent,
+    CommentList, CommentListContent, CommentProperties, CommentPropertiesContent, CommentText,
+    Comments, CommentsContent, LegacyDrawing,
+};
 pub use error::SmlError;
 pub use features::{
     AppliedConditionalRule, AutoFilter, AutoFilterContent, AutoFilterSpec, CellSmartTag,

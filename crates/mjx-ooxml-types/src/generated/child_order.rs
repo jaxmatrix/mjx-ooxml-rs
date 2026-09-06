@@ -59501,3 +59501,12 @@ pub static SHEET_DRAWING_GRAPHIC_FRAME: &ChildOrder = &DML_SPREADSHEET_DRAWING_T
 
 /// An anchored group's children: `nvGrpSpPr`, `grpSpPr`, then any number of member shapes (`xdr:grpSp`) (`CT_GroupShape`, `dml-spreadsheetDrawing.xsd`).
 pub static SHEET_DRAWING_GROUP_SHAPE: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[7];
+
+/// The comments part's three children: the author list, the comment list, then `extLst` (`x:comments`) (`CT_Comments`, `sml.xsd`).
+pub static COMMENTS: &ChildOrder = &SML_TYPES[56];
+
+/// One comment's two children: its rich text, then the properties of the box that draws it (`x:comment`) (`CT_Comment`, `sml.xsd`).
+pub static COMMENT: &ChildOrder = &SML_TYPES[53];
+
+/// A comment box's one child, its anchor (`x:commentPr`) (`CT_CommentPr`, `sml.xsd`).
+pub static COMMENT_PROPERTIES: &ChildOrder = &SML_TYPES[55];

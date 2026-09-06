@@ -9,10 +9,10 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            ChartSeriesFreshness, HyperlinkKind, HyperlinkTarget, PartClassification,
+            ChartSeriesFreshness, CommentBox, HyperlinkKind, HyperlinkTarget, PartClassification,
             PartInventoryEntry, PartKind, RangeCellValue, RangeProblem, ResolvedArea,
             ResolvedRange, ResolvedRangeCell, Sheet, SheetChartSeries, SheetChartSource,
-            SheetChartWorkbook, SheetHyperlink, SheetKind, SheetMarkup, SheetTable,
+            SheetChartWorkbook, SheetComment, SheetHyperlink, SheetKind, SheetMarkup, SheetTable,
             SheetTableColumn, SpreadsheetDefect, Workbook, WorkbookParts, Worksheet,
             WorksheetParts, XlsxError,
         };
@@ -90,6 +90,12 @@ pub mod worksheet_tables {
 /// has no cells at all.
 pub mod print_setup_and_sheet_kinds {
     #![doc = include_str!("../docs/guide/print_setup_and_sheet_kinds.md")]
+    guide_vocabulary!();
+}
+
+/// A cell comment is two parts in two vocabularies — and half of one is a file Excel repairs.
+pub mod cell_comments_and_legacy_content {
+    #![doc = include_str!("../docs/guide/cell_comments_and_legacy_content.md")]
     guide_vocabulary!();
 }
 

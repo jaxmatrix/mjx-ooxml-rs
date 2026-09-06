@@ -13,6 +13,7 @@ use crate::build;
 use crate::error::VmlError;
 use crate::office::{EmbeddedOleObject, ShapeLayout};
 use crate::shape::{Shape, ShapeGroup, ShapeGroupContent, ShapeTemplate};
+use crate::shape_identifier_for_number;
 
 /// One ordered child of a [`Drawing`].
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -186,6 +187,48 @@ impl Drawing {
         self.all_shapes()
             .into_iter()
             .find(|shape| shape.identifier(interner).as_deref() == Some(identifier))
+    }
+
+    /// The shape a **numeric** application shape identifier names — SpreadsheetML's spelling of the
+    /// hop [`shape_by_identifier`](Self::shape_by_identifier) makes for PresentationML.
+    ///
+    /// `x:oleObject@shapeId`, `x:control@shapeId` and `x:comment@shapeId` are `xsd:unsignedInt`,
+    /// where `p:oleObj@spid`, `p:control@spid` and `o:OLEObject@ShapeID` are strings. The number is
+    /// the **shape id** half of the identifier Office generates for a VML shape, whose full spelling
+    /// is `_x0000_s` followed by that number (ECMA-376 Part 4 §19.1.2.19 *id (Unique Identifier)* —
+    /// `_x0000_s1025`, `_x0000_s1026`, …); [`shape_identifier_for_number`] is that spelling stated
+    /// once.
+    ///
+    /// Three lookups, because producers disagree about which attribute carries it and only the first
+    /// is what Excel itself writes:
+    ///
+    /// 1. `@id` equal to `_x0000_s<number>` — Excel, and every file written to match it;
+    /// 2. `@o:spid` equal to `_x0000_s<number>` — LibreOffice, which puts the *control's name* in
+    ///    `@id` (`id="AcceptTerms"`) and the generated identifier in `o:spid`;
+    /// 3. `@id` equal to the bare number, for a producer that writes the number and nothing else.
+    ///
+    /// The order is the order of confidence, and the *first* match wins: a drawing in which two
+    /// shapes disagree is a file, not a question this resolves by preference.
+    #[must_use]
+    pub fn shape_by_numeric_identifier(&self, interner: &Interner, number: u32) -> Option<&Shape> {
+        let generated = shape_identifier_for_number(number);
+        let bare = number.to_string();
+        let shapes = self.all_shapes();
+        shapes
+            .iter()
+            .find(|shape| shape.identifier(interner).as_deref() == Some(generated.as_str()))
+            .or_else(|| {
+                shapes.iter().find(|shape| {
+                    shape.application_shape_identifier(interner).as_deref()
+                        == Some(generated.as_str())
+                })
+            })
+            .or_else(|| {
+                shapes
+                    .iter()
+                    .find(|shape| shape.identifier(interner).as_deref() == Some(bare.as_str()))
+            })
+            .copied()
     }
 
     /// The shape whose identifier is `identifier`, mutably.

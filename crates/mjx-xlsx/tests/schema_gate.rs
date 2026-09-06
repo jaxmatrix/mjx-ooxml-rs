@@ -511,6 +511,86 @@ const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
     ),
 ];
 
+/// The **preserved-foreign** parts under `xl/` that are admitted, each keyed on *two* facts and each
+/// with the reason it is not a skip anybody should worry about.
+///
+/// # Why this list exists, and why widening the category would have been wrong
+///
+/// `account_for_part_under_xl` rejects `SkippedPreservedForeign` outright, and that is the guard
+/// that closes MJXOFF-88 §7's signature failure: a part in a namespace with no schema arm reports a
+/// *skip*, and a gate that tolerates skips is green **precisely when** the parts are not being
+/// validated at all. MJXOFF-129 kept it rejected on purpose; MJXOFF-133 then found a hole in the
+/// guard beside it by mutating, seeing green, and instrumenting the arm to `panic!`.
+///
+/// MJXOFF-114 (E5) is the first child to put such a part under `xl/`, and it puts two there at once:
+/// an Excel cell comment's box is a **VML drawing** at `xl/drawings/vmlDrawingN.vml`, and a form
+/// control's properties are an **`x14:formControlPr`** at `xl/ctrlPropsN.xml`. Both are legitimate —
+/// Word and PowerPoint carry the first routinely, which is exactly why *they* cannot adopt Excel's
+/// stricter rule — and neither will ever be validatable here: a `.vml` root is a bare `<xml>` in no
+/// namespace, and `x14` is a Microsoft extension ECMA-376 does not define.
+///
+/// So the admission is a **named list**, not a category-wide relaxation, and each row carries a
+/// second key the category alone does not give:
+///
+/// * `label` — the category-2 entry `mjx_schema_gate::categories` matched, so a *different*
+///   preserved-foreign namespace appearing under `xl/` is still rejected;
+/// * `directory` and `extension` — where a part with that label is allowed to sit. **This half is
+///   load-bearing.** A `.xml` part under `xl/` that failed to declare its namespace at all reports
+///   `SkippedPreservedForeign` with the *VML* label, because `ForeignMarkupKey::NoNamespace` matches
+///   on the absence of a namespace and nothing else. Without the path key, a worksheet that lost its
+///   `xmlns` would sail through this gate as "a VML drawing part" — the exact false green the rule
+///   exists to catch, re-opened by the fix for it.
+///
+/// Every row is proved live by `every_preserved_foreign_part_on_the_allowlist_is_exercised`, and
+/// `the_rule_still_rejects_every_shape_of_false_green` feeds the rule both halves of each key
+/// separately, so a row that stopped discriminating fails rather than rotting.
+const PRESERVED_FOREIGN_PARTS_UNDER_XL: &[PreservedForeignUnderXl] = &[
+    PreservedForeignUnderXl {
+        label: "a VML drawing part",
+        directory: "/xl/drawings/",
+        extension: ".vml",
+        reason: "the legacy VML drawing that draws a sheet's cell-comment boxes, form controls and \
+                 OLE fallbacks (MJXOFF-114). Its root is a bare `<xml>` wrapper in **no namespace**, \
+                 which the VML schemas declare no global element for and which `vml-main.xsd` could \
+                 not validate anyway without an `xml.xsd` the Transitional set does not ship — see \
+                 `mjx_schema_gate::categories`' own entry. PowerPoint has carried one since \
+                 MJXOFF-110 at `ppt/drawings/`, outside this rule's reach; Excel's lives under `xl/` \
+                 and there is nowhere else to put it, because a worksheet's `legacyDrawing@r:id` \
+                 resolves relative to the sheet",
+    },
+    PreservedForeignUnderXl {
+        label: "a form control's properties part",
+        directory: "/xl/ctrlProps/",
+        extension: ".xml",
+        reason: "`x14:formControlPr` (MJXOFF-114) — Excel 2010's SpreadsheetML extension namespace, \
+                 which ECMA-376 does not define and no schema in `References/` declares. Every \
+                 `x:control` names one through a required `@r:id`, so a workbook with a form \
+                 control cannot avoid carrying it, and `mjx-sml` holds the identifier without ever \
+                 opening the part",
+    },
+];
+
+/// One row of [`PRESERVED_FOREIGN_PARTS_UNDER_XL`].
+struct PreservedForeignUnderXl {
+    /// The category-2 label `mjx_schema_gate::categories` gives this markup.
+    label: &'static str,
+    /// The directory a part with that label is allowed to sit in, with both slashes.
+    directory: &'static str,
+    /// The file extension it is allowed to carry, with the dot.
+    extension: &'static str,
+    /// Why skipping it is the correct verdict and always will be.
+    reason: &'static str,
+}
+
+impl PreservedForeignUnderXl {
+    /// Whether this row admits `row` — the label **and** the path, never one alone.
+    fn admits(&self, row: &PartRow, label: &str) -> bool {
+        label == self.label
+            && row.name.starts_with(self.directory)
+            && row.name.ends_with(self.extension)
+    }
+}
+
 /// The rule `no_part_under_xl_is_skipped_as_foreign_or_uncategorised` applies to one part: `Ok(())`,
 /// or the reason it fails.
 ///
@@ -535,6 +615,24 @@ fn account_for_part_under_xl(row: &PartRow) -> Result<(), String> {
              and why: add a row to NON_XML_CONTENT_TYPES_UNDER_XL",
             row.name
         )),
+        // The second widening, and the whole of it: a preserved-foreign part whose *label* and
+        // whose *path* are both on the named list. Never the label alone — see that list's own
+        // documentation for the false green the path key closes.
+        PartOutcome::SkippedPreservedForeign { label, .. }
+            if PRESERVED_FOREIGN_PARTS_UNDER_XL
+                .iter()
+                .any(|known| known.admits(row, label)) =>
+        {
+            Ok(())
+        }
+        PartOutcome::SkippedPreservedForeign { label, namespace, .. } => Err(format!(
+            "{} is under xl/ and was not validated at all — it is preserved foreign markup ({label}, \
+             namespace {namespace:?}) sitting where no row of PRESERVED_FOREIGN_PARTS_UNDER_XL \
+             admits it. A part in a namespace with no schema arm reports a *skip*, which is the \
+             false green this rule exists to catch; if this part really is unvalidatable, add a row \
+             naming its label, its directory and its extension, and say why",
+            row.name
+        )),
         other => Err(format!(
             "{} is under xl/ and was not validated at all — it reported: {}",
             row.name,
@@ -552,10 +650,12 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
     // This is the exact false-green MJXOFF-110 exists to close: a part in a namespace with no arm
     // reports a *skip*, and `assert_outcomes_are_valid` fails on neither a skip nor a tolerance. So
     // "schema validity covers the .xlsx fixtures and is green" is satisfied precisely when the Excel
-    // parts are not being validated at all. **That guard is untouched by MJXOFF-129's widening** —
-    // see `account_for_part_under_xl`, which still rejects `SkippedPreservedForeign` and
-    // `Uncategorised` outright, and `the_rule_still_rejects_every_shape_of_false_green`, which
-    // proves it rather than asserting it.
+    // parts are not being validated at all. **The guard survives both widenings** — MJXOFF-129's
+    // named binary content types and MJXOFF-114's named preserved-foreign parts. See
+    // `account_for_part_under_xl`, which still rejects every `Uncategorised` and every
+    // `SkippedPreservedForeign` no row admits, and
+    // `the_rule_still_rejects_every_shape_of_false_green`, which proves it rather than asserting
+    // it.
     // Swept over **every** committed `.xlsx`, not over `sample.xlsx` alone (MJXOFF-102). A later
     // child adding a fixture with a new kind of part under `xl/` is exactly the case this rule is
     // for, and pinning one fixture would have let `worksheet_spine.xlsx`'s `/xl/tables/table1.xml`
@@ -684,6 +784,131 @@ fn the_rule_still_rejects_every_shape_of_false_green() {
             );
         }
     }
+}
+
+/// MJXOFF-114's widening did not open the door it was widened beside, on **either** of its keys.
+///
+/// [`PRESERVED_FOREIGN_PARTS_UNDER_XL`] admits a `SkippedPreservedForeign` only when its category-2
+/// label *and* its path both match a named row. This case feeds the rule each key on its own, which
+/// is the discipline MJXOFF-133 established after finding that a guard whose witnesses all wear one
+/// costume tests one costume:
+///
+/// * the **right label at the wrong path** — the load-bearing half. A `.xml` part under `xl/` that
+///   declared no namespace at all reports the *VML* label, because `ForeignMarkupKey::NoNamespace`
+///   matches the absence of a namespace and nothing else. A worksheet that lost its `xmlns` is the
+///   concrete case, and it must still fail;
+/// * the **wrong label at the right path** — a preserved-foreign namespace nobody has written a
+///   reason for, sitting where an admitted one sits;
+/// * a row's directory without its extension, and its extension without its directory.
+///
+/// The accepting half is asserted too, so the case cannot pass by rejecting everything — and the
+/// arm it exercises was proved to execute by instrumenting it to `panic!` and watching this case
+/// fail.
+#[test]
+fn the_preserved_foreign_rows_admit_on_both_keys_and_neither_alone() {
+    let row = |name: &str, outcome| PartRow {
+        name: name.to_owned(),
+        root_element: Some("xml".to_owned()),
+        namespace: None,
+        outcome,
+    };
+    let foreign = |label: &'static str| PartOutcome::SkippedPreservedForeign {
+        namespace: None,
+        label,
+        reason: "authored by this test",
+    };
+
+    for known in PRESERVED_FOREIGN_PARTS_UNDER_XL {
+        let good = format!("{}part{}", known.directory, known.extension);
+        assert!(
+            account_for_part_under_xl(&row(&good, foreign(known.label))).is_ok(),
+            "{good} carries {}'s label at {}'s path and must be admitted",
+            known.label,
+            known.label
+        );
+
+        // The right label, the wrong path — in three disguises, one of them the worksheet that
+        // lost its `xmlns`.
+        for wrong_path in [
+            "/xl/worksheets/sheet1.xml".to_owned(),
+            format!("/xl/elsewhere/part{}", known.extension),
+            format!("{}part.bin", known.directory),
+        ] {
+            if wrong_path.starts_with(known.directory) && wrong_path.ends_with(known.extension) {
+                continue;
+            }
+            let reason = account_for_part_under_xl(&row(&wrong_path, foreign(known.label)))
+                .expect_err("the label alone must not admit a part");
+            assert!(
+                reason.contains("PRESERVED_FOREIGN_PARTS_UNDER_XL"),
+                "{wrong_path}: the rejection must say how to fix it: {reason}"
+            );
+        }
+
+        // The right path, a label nobody has written a reason for.
+        for wrong_label in ["InkML", "ActiveX control markup", "a made-up vocabulary"] {
+            assert!(
+                account_for_part_under_xl(&row(&good, foreign(wrong_label))).is_err(),
+                "{good}: {wrong_label} is on no row and the path alone must not admit it"
+            );
+        }
+    }
+}
+
+/// Every row of [`PRESERVED_FOREIGN_PARTS_UNDER_XL`] matches a part in the committed corpus.
+///
+/// The same rule [`every_non_xml_content_type_on_the_allowlist_is_exercised`] applies to the other
+/// list: an entry is a claim that a part really is carried under `xl/` by a file this project keeps,
+/// and a claim nothing witnesses is a claim that can quietly become false.
+#[test]
+fn every_preserved_foreign_part_on_the_allowlist_is_exercised() {
+    let fixtures = package_fixtures_with_extension("xlsx");
+    let mut seen: Vec<&str> = Vec::new();
+    for name in &fixtures {
+        let rows = inspect_fixture(name);
+        if rows.is_empty() {
+            return;
+        }
+        for row in &rows {
+            if !row.name.starts_with("/xl/") {
+                continue;
+            }
+            if let PartOutcome::SkippedPreservedForeign { label, .. } = &row.outcome {
+                if let Some(known) = PRESERVED_FOREIGN_PARTS_UNDER_XL
+                    .iter()
+                    .find(|known| known.admits(row, label))
+                {
+                    if !seen.contains(&known.label) {
+                        seen.push(known.label);
+                    }
+                }
+            }
+        }
+    }
+    for known in PRESERVED_FOREIGN_PARTS_UNDER_XL {
+        // Printed, not merely stored: the reason a part under `xl/` is allowed to go unvalidated is
+        // the whole content of the admission, and a gate that swallowed it would be back to
+        // reporting a bare "skipped".
+        println!(
+            "admitted under xl/: {} at {}*{} — {}",
+            known.label, known.directory, known.extension, known.reason
+        );
+        assert!(
+            !known.reason.is_empty(),
+            "{}: an admission with no written reason is a category-wide relaxation wearing a row",
+            known.label
+        );
+    }
+    let dead: Vec<&str> = PRESERVED_FOREIGN_PARTS_UNDER_XL
+        .iter()
+        .map(|known| known.label)
+        .filter(|label| !seen.contains(label))
+        .collect();
+    assert!(
+        dead.is_empty(),
+        "no committed .xlsx carries a part under xl/ matching {dead:?}; an allowlist entry nothing \
+         witnesses is one that can quietly become false"
+    );
 }
 
 /// Every row of [`NON_XML_CONTENT_TYPES_UNDER_XL`] matches a part in the committed corpus.
