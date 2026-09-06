@@ -1,4 +1,4 @@
-//! The seventy-one value enumerations, projected one variant at a time.
+//! The ninety-eight value enumerations, projected one variant at a time.
 //!
 //! Every enumeration in the [`mjx_ooxml`] vocabulary that carries no payload becomes a TypeScript
 //! `enum` of the same name with the same members — `TextAlignment.Center`, not the string `"ctr"`.
@@ -307,6 +307,13 @@ sealed_enums! {
         EastAsian,
         ComplexScript,
         Symbol,
+    }
+    /// The projection of [`mjx_ooxml::WrapText`], whose documentation is authoritative.
+    WrapText {
+        BothSides,
+        Left,
+        Right,
+        Largest,
     }
     /// The projection of [`mjx_ooxml::LegendPosition`], whose documentation is authoritative.
     LegendPosition {

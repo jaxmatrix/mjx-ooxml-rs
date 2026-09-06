@@ -12,6 +12,7 @@ use mjx_ooxml as ooxml;
 use crate::enums::{
     AxisKind, AxisOrientation, AxisPosition, ChartKind, DataLabelPosition, ErrorBarDirection,
     ErrorBarType, ErrorValueType, LegendPosition, TickLabelPosition, TickMark, TrendlineKind,
+    WrapText,
 };
 use crate::errors::to_py_err;
 use crate::paint::{FillSpec, LineSpec};
@@ -59,6 +60,14 @@ value_class! {
 
     /// A decoration that names a data point the series no longer has.
     DanglingPointReference(ooxml::DanglingPointReference), derive(Copy, PartialEq, Eq);
+
+    /// A Word chart's backing workbook: which drawing holds the chart, where the workbook is, and
+    /// whether it lies outside the package. The Word counterpart of [`ChartWorkbook`], which names
+    /// a slide shape instead of a drawing id.
+    DocumentChartWorkbook(ooxml::DocumentChartWorkbook), derive(PartialEq, Eq);
+
+    /// How text flows around a floating Word chart (`Document.add_floating_chart`).
+    ChartWrap(ooxml::ChartWrap), derive(Copy, PartialEq, Eq);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -898,6 +907,84 @@ impl DanglingPointReference {
 }
 
 /// Adds every class in this module to the extension module.
+#[pymethods]
+impl DocumentChartWorkbook {
+    /// The `wp:docPr` id of the drawing that frames the chart.
+    #[getter]
+    fn drawing_id(&self) -> u32 {
+        self.0.drawing_id
+    }
+
+    /// Where the workbook is — a part name inside the package, or a URI outside it.
+    #[getter]
+    fn target(&self) -> &str {
+        &self.0.target
+    }
+
+    /// Whether the workbook lies outside the package.
+    #[getter]
+    fn external(&self) -> bool {
+        self.0.external
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[pymethods]
+impl ChartWrap {
+    /// The chart floats over or under the text and nothing reflows around it (`wp:wrapNone`).
+    #[staticmethod]
+    fn none() -> Self {
+        Self(ooxml::ChartWrap::None)
+    }
+
+    /// Text wraps around the chart's bounding box, on the sides `wrap_text` names
+    /// (`wp:wrapSquare`).
+    #[staticmethod]
+    fn square(wrap_text: WrapText) -> Self {
+        Self(ooxml::ChartWrap::Square(wrap_text.into()))
+    }
+
+    /// Text wraps above and below the chart only, never beside it (`wp:wrapTopAndBottom`).
+    #[staticmethod]
+    fn top_and_bottom() -> Self {
+        Self(ooxml::ChartWrap::TopAndBottom)
+    }
+
+    /// Which wrap this is: `"none"`, `"square"` or `"top_and_bottom"`.
+    #[getter]
+    fn kind(&self) -> &'static str {
+        match self.0 {
+            ooxml::ChartWrap::None => "none",
+            ooxml::ChartWrap::Square(_) => "square",
+            ooxml::ChartWrap::TopAndBottom => "top_and_bottom",
+        }
+    }
+
+    /// Which sides text flows down, when this is a square wrap.
+    #[getter]
+    fn wrap_text(&self) -> PyResult<Option<WrapText>> {
+        match self.0 {
+            ooxml::ChartWrap::Square(text) => WrapText::from_model(text).map(Some),
+            _ => Ok(None),
+        }
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ChartData>()?;
     module.add_class::<DataLabelSpec>()?;
@@ -912,5 +999,7 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ChartTrendlineData>()?;
     module.add_class::<ChartErrorBarData>()?;
     module.add_class::<ChartWorkbook>()?;
-    module.add_class::<DanglingPointReference>()
+    module.add_class::<DanglingPointReference>()?;
+    module.add_class::<DocumentChartWorkbook>()?;
+    module.add_class::<ChartWrap>()
 }
