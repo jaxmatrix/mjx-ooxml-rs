@@ -110,6 +110,8 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 1.0  Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
 1.5  Typography       mjx-text    (fonts, substitution, shaping, bidi, line breaking)
 1.6  Box model        mjx-layout  (the BoxModel contract, FragmentTree, Checkpoint, spatial index)
+1.7  Display list    mjx-scene   (the display-list IR and its flat binary encoding — below
+                                  mjx-dml on purpose, so mjx-scene -> mjx-dml stays illegal)
 2.0  Shared markup    mjx-dml
 2.1  Shared markup    mjx-sml     (SpreadsheetML markup — an embedded workbook is not Excel's alone)
 2.2  Shared markup    mjx-chart  ·  mjx-omml  ·  mjx-vml

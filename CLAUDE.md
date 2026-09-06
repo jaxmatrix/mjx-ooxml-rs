@@ -36,6 +36,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 1.0 — packaging / compatibility | `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` |
   | 1.5 — typography | `mjx-text` |
   | 1.6 — box model contract | `mjx-layout` |
+  | 1.7 — display list | `mjx-scene` |
   | 2.0 — shared markup, base | `mjx-dml` |
   | 2.1 — shared markup, spreadsheet | `mjx-sml` |
   | 2.2 — shared markup, upper | `mjx-chart`, `mjx-omml`, `mjx-vml` |
@@ -63,7 +64,16 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   painting, hit-testing, selection and export have never heard of OOXML, so the crate that defines it
   must sit where it cannot reach a format crate. That is what makes the box model swappable, and
   `crates/mjx-layout/tests/the_seam_holds.rs` names the identifiers as well as the layering test
-  refusing the edge. `mjx-sml` sits between
+  refusing the edge. `mjx-scene` (MJXOFF-161) is one step above it again at **1.7** and depends on
+  `mjx-ooxml-core`, `mjx-tokens`, `mjx-text` and `mjx-layout` alone: it is the **display list** —
+  nine commands, the paint and effect vocabularies, the resource tables and the flat binary encoding
+  a `FragmentTree` becomes. Its rank looks wrong at first reading, because its consumers are painters
+  and they sit far above; `docs/UI_PLATFORM_PLAN.md` §7 first wrote it at 2.6 for that reason and
+  **that number was a defect**. The layering gate only refuses an edge that points up or sideways, so
+  a `mjx-scene` above shared markup would make `mjx-scene → mjx-dml` a legal *downward* edge and the
+  guarantee the crate exists to hold — below a display list, nothing has heard of a font, a layout
+  algorithm or a document — would be enforced by nothing. At 1.7 the edge is refused by name. Do not
+  raise it. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be

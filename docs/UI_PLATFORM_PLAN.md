@@ -466,7 +466,7 @@ that changes, which also keeps every platform's behaviour identical while the en
 | 1.5 | `mjx-text` | core, tokens | fonts, shaping, bidi, breaking, glyph raster |
 | 1.6 | `mjx-layout` | core, `mjx-text` | **the box model contract**: `BoxModel`, `FragmentTree` |
 | 2.3 | `mjx-calc` | `mjx-sml` | the calculation engine (§9) |
-| 2.6 | `mjx-scene` | `mjx-layout` | display-list IR, `lyon` tessellation, atlas planning |
+| 1.7 | `mjx-scene` | `mjx-layout` | display-list IR, `lyon` tessellation, atlas planning |
 | 3.5 | `mjx-session` | the three format crates | resident document, edit journal, invalidation |
 | 3.6 | `mjx-layout-pptx` / `-docx` / `-xlsx` | format crate + `mjx-layout` | the OOXML box models |
 | 3.6 | `mjx-layout-html` | `mjx-layout`, `html5ever`, `taffy` | the HTML box model — `w:altChunk`, clipboard paste, and the proof the contract is not OOXML-shaped ([HTML_BOX_MODEL.md](client-platform/HTML_BOX_MODEL.md)) |
@@ -475,7 +475,16 @@ that changes, which also keeps every platform's behaviour identical while the en
 | 5.5 | `mjx-paint` | `mjx-scene` | **the platform boundary** — `wgpu`, `tiny-skia`, exporters |
 | 6.0 | `apps/mjx-studio` | the facade with `render` | the Tauri application |
 
-Two deliberate choices in that table. **`mjx-paint` sits at 5.5, above the facade**, because it is the
+**`mjx-scene` is at 1.7 and not at 2.6.** This table said 2.6 until MJXOFF-161, and that was a
+defect rather than a preference. The layering gate refuses an edge only when it points *up or
+sideways*, so a `mjx-scene` above `mjx-dml` (2.0) makes `mjx-scene → mjx-dml` a legal **downward**
+edge — and the guarantee the display list exists to hold, that below it nothing has heard of a font,
+a layout algorithm or a document, would then be enforced by nothing at all. `mjx-layout` was put at
+1.6 for exactly this reason and the second seam gets the same treatment. Everything `mjx-scene`
+depends on sits below 1.7, and nothing below 2.0 will ever depend on it, so the rank costs nothing
+and buys the rule.
+
+Two more deliberate choices in that table. **`mjx-paint` sits at 5.5, above the facade**, because it is the
 only crate that links the platform's graphics stack; putting it there keeps every graphics dependency
 out of the document graph and out of the Python binding, which must never grow a GPU dependency.
 And **`mjx-view` is re-exported through `mjx-ooxml` behind a non-default `render` feature**, so the
