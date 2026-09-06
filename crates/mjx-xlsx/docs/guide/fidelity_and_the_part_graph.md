@@ -74,25 +74,54 @@ assert_eq!(core_properties.classification, PartClassification::Unclassified);
 
 ## What is deliberately not modelled
 
-Most of it. `mjx-sml` now models cells (MJXOFF-95), shared strings (MJXOFF-97), the workbook part
-(MJXOFF-100) and the worksheet's own thirty-nine slot frame (MJXOFF-102) — but **fourteen of those
-thirty-nine slots are held as the markup the file wrote, not modelled**: print setup, headers and
-footers, custom sheet views, drawings, OLE objects and the rest. MJXOFF-129 (D17) through MJXOFF-133
-(D18) fill most of them, and `crates/mjx-sml/src/worksheet/frame.rs` now names the owner of every
-one — including the three (`phoneticPr`, `legacyDrawingHF`, `drawingHF`) that have none. Styles are
-modelled as of MJXOFF-105 and MJXOFF-108; formulas as of MJXOFF-115 — as **text**, which is the whole
-of what this workspace ever does with one (see the section below); and the sheet grid — merged
-ranges, row and column geometry, outline levels, page breaks, sheet protection and scenarios — as of
-MJXOFF-117.
+### Inside a worksheet: eight of thirty-nine slots
+
+`mjx-sml` models cells (MJXOFF-95), shared strings (MJXOFF-97), the workbook part (MJXOFF-100) and
+thirty-one of the worksheet's thirty-nine slots. **Eight are held as the markup the file wrote, not
+modelled**: `phoneticPr`, the drawing family (`drawing`, `legacyDrawing`, `legacyDrawingHF`,
+`drawingHF`, `oleObjects`, `controls`) and `extLst`.
+`crates/mjx-sml/src/worksheet/frame.rs` names the disposition of every one — including the three
+(`phoneticPr`, `legacyDrawingHF`, `drawingHF`) that belong to no ticket at all, each with the reason
+it does not.
 
 Held is not dropped. A worksheet whose `pageSetup` survives a save is proof the frame works, not
 proof `pageSetup` was modelled, and that is exactly what the round-trip suites check.
 
-Two things are not modelled *and will not be*, and are recorded rather than left to be discovered:
-the macro-enabled content types (`macroEnabled` appears nowhere in ECMA-376, so this crate declines
-to guess the string — the workbook part is found by its root element instead), and the shared-workbook
-revision parts, which MJXOFF-133 (D18) writes down as deliberately out of scope. Both are still
-preserved byte for byte.
+### Whole parts: half of `sml.xsd`
+
+`sml.xsd` declares **367** complex types. Nine clusters of them — **184 types, half the schema** —
+describe features this library recognises, preserves and does not model. That is a decision, written
+down here so that nobody has to re-derive it and so that a validation pass can look each one up
+rather than file it.
+
+| Cluster | Types | Parts | Why it is not modelled | What you can still ask |
+|---|---|---|---|---|
+| **Pivot tables and caches** | **97** | `pivotTableDefinition`, `pivotCacheDefinition`, `pivotCacheRecords` | It is **derived data of a calculation model this library does not have**. A cache is a snapshot of a source range and a table is an aggregation over that snapshot; a model that held all ninety-seven types and could not say what one data field aggregated to would be decoration over bytes that already round-trip. **If it is ever modelled it is a phase of its own**, with a calculation model beneath it — not a gap for a later child to close | [`Workbook::pivot_tables`]: the name, the sheet, the `CT_Location@ref` range, the cache and every part |
+| **Shared-workbook revisions** | 22 | `headers`, `revisions`, `users` | A revision log is a list of undo records; replaying one means recomputing every cell it touches. **This library never writes a revision either** — editing a cell appends nothing to a log, so a workbook saved after an edit has a history that no longer describes it. The logs' bytes survive; their meaning is the file's | [`Workbook::revision_state`]: whether the workbook is shared, its sessions, and who shares it |
+| **External workbook references** | 18 | `externalLink` | Resolving one means **opening another workbook** — I/O, and a programme non-goal | [`Workbook::external_links`]: which book, its cached sheet names, the URI, and the `[n]` index a formula uses |
+| **Cell metadata** | 16 | `metadata` | OLAP cell provenance, meaningful only to a consumer that can evaluate the MDX it names | Presence and part name, through [`Workbook::preserved_parts`] |
+| **Data connections** | 12 | `connections` | Refreshing one means running a query against a database, a web page or a cube. Credentials the part carries are **deliberately not surfaced** | [`Workbook::connections`]: each connection's id, name, description and stated source |
+| **Query tables** | 6 | `queryTable` | The same, on behalf of a connection. `refreshOnLoad` is **reported, never obeyed** | [`Workbook::query_tables`]: the name, the connection it reads, and its refresh flag |
+| **Volatile dependencies** | 5 | `volTypes` | A real-time-data dependency graph, which only a calculation engine can evaluate | Presence and part name |
+| **Single-cell XML tables** | 4 | `singleXmlCells` | The cell end of an XML map; modellable, and simply not worth its weight against what a caller asks for | Presence and part name |
+| **Custom XML mappings** | 4 | `MapInfo` | A `Schema` entry's body is **an XML Schema document in another language**; modelling it means modelling XSD | [`Workbook::xml_maps`]: the selection namespaces, the schema ids, and each map's name and root element |
+
+Two more parts are recognised and never opened, for reasons the specification gives rather than this
+library: a **Custom Property** part (§12.3.5) carries *"any content, support for which is
+application-defined"*, and a **printer settings** part (§15.2.13) carries a blob on which the
+specification places no requirement at all.
+
+**Preserved is not ignored.** Every one of these part kinds has a named test proving its bytes
+survive an edit — `crates/mjx-xlsx/tests/preserved_parts.rs`, which edits a cell on the very sheet a
+pivot table sits on and then compares all fourteen preserved parts of
+`tests/fixtures/preserved_parts.xlsx` against the bytes they went in with, byte for byte.
+
+**A documented gap is not a validation failure.** Nothing on this table is a defect to be filed; each
+row is a scope decision with its reason beside it.
+
+One further thing is not modelled and will not be: the macro-enabled content types. `macroEnabled`
+appears nowhere in ECMA-376, so this crate declines to guess the string — a `.xlsm` still opens,
+because the workbook part is found by its root element instead.
 
 ## A cached value goes stale, and that is deliberate
 
@@ -138,8 +167,9 @@ this crate checks what only SpreadsheetML knows:
 | A `x:sheet` entry whose relationship leads to a part that is not a sheet | §12.3.24: the `r:id` "shall reference the desired worksheet part" |
 | A sheet part the workbook relates to that `x:sheets` never lists | A tab no consumer will ever show |
 | Two `x:sheet` entries sharing an `@sheetId`, a `@name`, or an `r:id` | §18.2.19: both identifiers "shall be unique", and one part is one tab |
+| A `x:pivotCache` or `x:externalReference` whose relationship leads to the wrong kind of part | §12.3.12 and §12.3.9 say what each edge reaches; the parts are preserved and unmodelled, which is exactly why nothing else here would notice one going stale |
 
-The last four are checked only over the markup **this library will write** — `mjx-opc` defines that
+The last five are checked only over the markup **this library will write** — `mjx-opc` defines that
 set and this crate does not get to disagree with it — so a workbook opened and saved untouched is
 never faulted for markup it arrived with. The first two are graph invariants and are checked over the
 whole package, exactly as `mjx-opc`'s own relationship checks are.

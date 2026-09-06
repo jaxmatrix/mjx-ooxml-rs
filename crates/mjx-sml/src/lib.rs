@@ -88,6 +88,7 @@ pub mod error;
 pub mod features;
 pub mod font;
 pub mod formula;
+pub mod preserved;
 pub mod sheets;
 pub mod strings;
 pub mod styles;
@@ -135,6 +136,12 @@ pub use formula::{
     CachedValue, CalculationChain, CalculationChainCell, CalculationChainContent, CellFormula,
     FormulaElement, FormulaKind, ResolvedCalculationChainCell, SharedFormulaGroup,
     SharedFormulaGroups,
+};
+pub use preserved::{
+    relationship_prefix, ConnectionIdentity, ExternalLinkIdentity, ExternalLinkTarget,
+    PivotCacheIdentity, PivotCacheSource, PivotTableIdentity, QueryTableIdentity,
+    RevisionHeadersIdentity, RevisionSession, SharedWorkbookUser, SharedWorkbookUsersIdentity,
+    XmlMapIdentity, XmlMapsIdentity,
 };
 pub use sheets::{
     ChartSheetContent, ChartSheetPart, ChartSheetProperties, ChartSheetPropertiesContent,

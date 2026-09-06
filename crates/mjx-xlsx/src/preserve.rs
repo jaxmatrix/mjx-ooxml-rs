@@ -16,14 +16,35 @@
 //!
 //! # Classification is not a gate
 //!
-//! [`PartKind`] names the twenty-one part kinds this crate can *identify*. A part it cannot is not
-//! an error and is not rejected: [`classify`] reports it as [`PartClassification::Unclassified`],
-//! and it is carried through a save untouched. That is why a `.xlsm`'s macro-enabled workbook, a
-//! custom XML mapping and an embedded image all round-trip through a crate that knows nothing about
-//! any of them.
+//! [`PartKind`] names the twenty-seven part kinds this crate can *identify* — every part type
+//! ECMA-376 Part 1 §12.3 defines, plus a theme, a printer settings part and a legacy VML drawing. A
+//! part it cannot identify is not an error and is not rejected: [`classify`] reports it as
+//! [`PartClassification::Unclassified`], and it is carried through a save untouched. That is why a
+//! `.xlsm`'s macro-enabled workbook and an embedded image both round-trip through a crate that
+//! knows nothing about either.
+//!
+//! **Identifying a part is not modelling it.** MJXOFF-133 (D18) names the six §12.3 part types
+//! MJXOFF-91 left out and resolves the edges that reach them, and models not one of them: a pivot
+//! cache, an external link, a revision log and an XML map are all still bytes this crate carries and
+//! never rewrites. What changes is that the guarantee is now *stated* and *tested* per kind rather
+//! than falling out of a package layer that happens not to touch them. See
+//! `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md` for the cluster-by-cluster table and
+//! [`crate::Workbook::preserved_parts`] for the surface that reports them.
+//!
+//! # Two kinds are identified by the edge, not the content type
+//!
+//! §12.3 identifies each of its part types by the relationship a package reaches it through, and for
+//! two of them that is the *only* thing available: a Custom Property part carries "any content", and
+//! a Custom XML Mappings part carries `application/xml`, which in a real package is also the
+//! `Default` for every `.xml` part with no `Override`. So [`classify`] asks the content type first
+//! and the relationship graph second, and answers [`Unclassified`](PartClassification::Unclassified)
+//! only when neither knows.
 
-use mjx_opc::{Package, PartName};
+use std::collections::HashMap;
 
+use mjx_opc::{Package, PartName, TargetMode};
+
+use crate::nav;
 use crate::parts::PartKind;
 
 /// What this crate could work out about one part of a workbook package.
@@ -66,15 +87,59 @@ pub struct PartInventoryEntry<'a> {
     pub classification: PartClassification,
 }
 
-/// Classifies one part by the content type the package gives it.
+/// Classifies one part: by the content type the package gives it, or — when that says nothing — by
+/// the type of a relationship that reaches it.
+///
+/// The second step is what identifies a Custom Property part and the Custom XML Mappings part; see
+/// this module's own documentation. It costs one pass over the package's relationship items, which
+/// is why [`crate::Workbook::part_inventory`] builds the same answer for every part at once
+/// instead of calling this in a loop.
 #[must_use]
 pub fn classify(package: &Package, part: &PartName) -> PartClassification {
-    package
+    if let Some(kind) = package
         .content_type_of(part)
         .and_then(PartKind::from_content_type)
+    {
+        return PartClassification::Classified(kind);
+    }
+    kinds_by_incoming_relationship(package)
+        .remove(part)
         .map_or(PartClassification::Unclassified, |kind| {
             PartClassification::Classified(kind)
         })
+}
+
+/// Every part some relationship in the package reaches, mapped to the kind that relationship's type
+/// names.
+///
+/// One pass over every relationship item, so `O(relationships)` with one small map allocated. A part
+/// reached by two relationships of different classified types keeps the **first** in iteration
+/// order: that is a package defect (`mjx-opc` does not fault it, because an unreferenced part is
+/// legal and a doubly-referenced one is merely odd), and picking a winner silently is better than
+/// reporting a kind that flips between runs.
+fn kinds_by_incoming_relationship(package: &Package) -> HashMap<PartName, PartKind> {
+    let mut kinds = HashMap::new();
+    for item in package.relationships() {
+        let source = &item.source;
+        for rel in item.relationships.iter() {
+            if rel.mode == TargetMode::External {
+                continue;
+            }
+            let Some(kind) = PartKind::from_relationship_type(&rel.rel_type) else {
+                continue;
+            };
+            let resolved = match source {
+                Some(part) => nav::resolve_target(part, &rel.target),
+                None => nav::resolve_from_root(&rel.target),
+            };
+            // An unresolvable target reaches nothing; `mjx_opc::Package::validate` is what reports
+            // it, and classifying around it here would be repairing it.
+            if let Ok(target) = resolved {
+                kinds.entry(target).or_insert(kind);
+            }
+        }
+    }
+    kinds
 }
 
 /// Every addressable part of `package`, in container order, with its content type and
@@ -83,12 +148,14 @@ pub fn classify(package: &Package, part: &PartName) -> PartClassification {
 /// `[Content_Types].xml` itself is not a part and is not listed, for the same reason
 /// [`mjx_opc::Package::part_names`] skips it.
 pub(crate) fn inventory(package: &Package) -> Vec<PartInventoryEntry<'_>> {
+    let by_relationship = kinds_by_incoming_relationship(package);
     package
         .part_names()
         .map(|part| {
             let content_type = package.content_type_of(&part);
             let classification = content_type
                 .and_then(PartKind::from_content_type)
+                .or_else(|| by_relationship.get(&part).copied())
                 .map_or(PartClassification::Unclassified, |kind| {
                     PartClassification::Classified(kind)
                 });

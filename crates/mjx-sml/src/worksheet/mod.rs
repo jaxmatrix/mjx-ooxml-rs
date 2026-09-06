@@ -36,8 +36,8 @@
 //!
 //! # What is *held* and what is *modelled* are different claims
 //!
-//! Twenty-one of the thirty-nine slots — `hyperlinks`, `pageSetup`, `headerFooter`, `drawing`,
-//! `oleObjects`, `extLst` and the rest — are held as
+//! Eight of the thirty-nine slots — `phoneticPr`, the drawing family (`drawing`, `legacyDrawing`,
+//! `legacyDrawingHF`, `drawingHF`, `oleObjects`, `controls`) and `extLst` — are held as
 //! [`WorksheetContent::Raw`], the markup the producer wrote, in the position it wrote it. **A
 //! worksheet whose `pageSetup` survives is proof the frame works, not proof `pageSetup` was
 //! modelled.**

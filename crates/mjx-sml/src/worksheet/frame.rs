@@ -1,9 +1,9 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, twenty-five modelled, fourteen held
+//! # Thirty-nine slots, thirty-one modelled, eight held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Fourteen of those slots belong to later children or to no ticket at all,
+//! twice `CT_Workbook`'s. Eight of those slots belong to later children or to no ticket at all,
 //! and this type holds every one of them **in its schema position**, as the markup
 //! the file wrote. A worksheet
 //! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
@@ -24,45 +24,52 @@
 //! | 10 | `autoFilter` | [`AutoFilter`] |
 //! | 11 | `sortState` | [`SortState`] — the sheet-level one, beside the autofilter's own |
 //! | 12 | `dataConsolidate` | [`DataConsolidation`] |
-//! | 13 | `customSheetViews` | [`WorksheetContent::Raw`] — **explicitly preserved**, and MJXOFF-129's; see below |
+//! | 13 | `customSheetViews` | [`CustomSheetViews`] — MJXOFF-129 (D17) |
 //! | 14 | `mergeCells` | [`MergedCells`] |
 //! | 15 | `phoneticPr` | [`WorksheetContent::Raw`] — **unowned**; see below |
 //! | 16 | `conditionalFormatting` | [`ConditionalFormatting`] — **`maxOccurs="unbounded"`**, so a list |
 //! | 17 | `dataValidations` | [`DataValidations`] |
 //! | 18 | `hyperlinks` | [`Hyperlinks`] |
-//! | 19–22 | `printOptions` … `headerFooter` | [`WorksheetContent::Raw`] — MJXOFF-129's (D17) print block |
+//! | 19 | `printOptions` | [`PrintOptions`] — MJXOFF-129 (D17) |
+//! | 20 | `pageMargins` | [`PageMargins`] — MJXOFF-129 (D17) |
+//! | 21 | `pageSetup` | [`PageSetup`] — MJXOFF-129 (D17) |
+//! | 22 | `headerFooter` | [`HeaderFooter`] — MJXOFF-129 (D17) |
 //! | 23 | `rowBreaks` | [`PageBreaks`] |
 //! | 24 | `colBreaks` | [`PageBreaks`] — the same complex type, the other axis |
 //! | 25 | `customProperties` | [`CustomProperties`] |
 //! | 26 | `cellWatches` | [`CellWatches`] |
 //! | 27 | `ignoredErrors` | [`IgnoredErrors`] |
 //! | 28 | `smartTags` | [`SmartTags`] — the *worksheet* cluster, not the workbook's `smartTagTypes` |
-//! | 29–35 | `drawing` … `controls` | [`WorksheetContent::Raw`] — the drawing family; see below |
+//! | 29 | `drawing` | [`WorksheetContent::Raw`] — **MJXOFF-107 (E3)** |
+//! | 30 | `legacyDrawing` | [`WorksheetContent::Raw`] — **MJXOFF-114 (E5)** |
+//! | 31 | `legacyDrawingHF` | [`WorksheetContent::Raw`] — **unowned**; see below |
+//! | 32 | `drawingHF` | [`WorksheetContent::Raw`] — **unowned**; see below |
+//! | 33 | `picture` | [`SheetBackgroundPicture`] — MJXOFF-129 (D17) |
+//! | 34 | `oleObjects` | [`WorksheetContent::Raw`] — **MJXOFF-107 (E3)** |
+//! | 35 | `controls` | [`WorksheetContent::Raw`] — **MJXOFF-107 (E3)** |
 //! | 36 | `webPublishItems` | [`WebPublishItems`] |
 //! | 37 | `tableParts` | [`TableParts`] — the sheet's edges to its table parts, held as raw `r:id`s |
-//! | 38 | `extLst` | [`WorksheetContent::Raw`] |
+//! | 38 | `extLst` | [`WorksheetContent::Raw`] — the unknown bucket, by design |
 //!
 //! **The modelled slots are no longer a prefix**, and that changed what placement has to do: see
 //! [`Slot::rank`], which is the one thing MJXOFF-117 had to fix in MJXOFF-102's frame rather than
 //! add beside it.
 //!
-//! # Who owns the fourteen slots this type still holds raw
+//! # Who owns the eight slots this type still holds raw
 //!
-//! MJXOFF-127 (D16) modelled seven of them and the table above names each new type. The rest are
-//! **held on purpose and by somebody**, and the point of writing the owners down is that
-//! MJXOFF-133 (D18) audits this list rather than re-deriving it:
+//! MJXOFF-127 (D16) modelled seven of what were then fourteen and MJXOFF-129 (D17) six more; this
+//! is what is left. MJXOFF-133 (D18) re-derived the table above from the enum rather than trusting
+//! it, and found the previous version stale on six rows — D17 filled ranks 13, 19–22 and 33 and
+//! did not come back to say so.
 //!
 //! | Slot(s) | Held for |
 //! |---|---|
-//! | 13 `customSheetViews` | **MJXOFF-129 (D17)**, which names `CT_CustomSheetViews`/`CT_CustomSheetView` in its own work list and requires them to reuse D12's breaks, D14's autofilter and its own print block. `CT_CustomSheetView` embeds `pageMargins`, `printOptions`, `pageSetup` and `headerFooter` — four types that do not exist yet — so modelling it here would have meant either a second copy of D17's print block or a model that holds it raw twice over |
-//! | 19–22 `printOptions`, `pageMargins`, `pageSetup`, `headerFooter` | **MJXOFF-129 (D17)** |
 //! | 29 `drawing`, 34 `oleObjects`, 35 `controls` | **MJXOFF-107 (E3)** |
 //! | 30 `legacyDrawing` | **MJXOFF-114 (E5)** |
-//! | 33 `picture` | **MJXOFF-129 (D17)**, which names `CT_SheetBackgroundPicture` |
 //! | 38 `extLst` | the unknown bucket, by design — an `extLst` is markup no schema in this workspace types |
-//! | **15 `phoneticPr`, 31 `legacyDrawingHF`, 32 `drawingHF`** | **nobody.** Recorded here rather than closed by MJXOFF-127, and each for a stated reason: `CT_PhoneticPr` is *already* modelled once, as [`PhoneticProperties`](crate::PhoneticProperties) — a value decoded from the shared-string store's packed bytes rather than a `RawElement`-backed slot — so giving this slot a type means unifying the two call sites, which is a design question and not a slot to fill. `legacyDrawingHF` and `drawingHF` are the header/footer half of the drawing family, and splitting that family between D16 and E3/E5 would put two children in one file |
+//! | **15 `phoneticPr`, 31 `legacyDrawingHF`, 32 `drawingHF`** | **nobody**, and MJXOFF-133 confirmed it rather than closing it. `CT_PhoneticPr` is *already* modelled once, as [`PhoneticProperties`](crate::PhoneticProperties) — a value decoded from the shared-string store's packed bytes rather than a `RawElement`-backed slot — so giving this slot a type means unifying the two call sites, which is a design question and not a slot to fill. `legacyDrawingHF` and `drawingHF` are the header/footer half of the drawing family: their types are `CT_LegacyDrawing` and `CT_Drawing`, the same two ranks 30 and 29 carry, so modelling them here would model E3's and E5's types in a file that is neither |
 //!
-//! Every one of the fourteen still round-trips byte-for-byte, in position: that is what
+//! Every one of the eight still round-trips byte-for-byte, in position: that is what
 //! [`WorksheetContent::Raw`] is for, and it is unrelated to whether a slot is typed.
 //!
 //! The ranks are never written down. Every placement goes through
@@ -83,8 +90,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the twenty-five slots it knows, keeps the other
-//! fourteen as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the thirty-one slots it knows, keeps the other
+//! eight as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -136,7 +143,7 @@ use super::protection::{ProtectedRanges, SheetProtection};
 use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: twenty-five modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: thirty-one modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -223,7 +230,7 @@ pub enum WorksheetContent {
     /// relationship identifier this crate holds as the string the file wrote. Resolving one to a
     /// part is `mjx-xlsx`'s; see [`crate::features::tables`].
     TableParts(TableParts),
-    /// Everything this type does not model: the fourteen remaining slots, any foreign element, any
+    /// Everything this type does not model: the eight remaining slots, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -389,7 +396,7 @@ impl Slot {
 ///
 /// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
 /// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// fourteen unmodelled children cost nothing.
+/// eight unmodelled children cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -698,7 +705,7 @@ impl WorksheetPart {
         self.content.iter().map(|slot| &slot.value)
     }
 
-    /// The local name of every **element** child, in document order — the fourteen unmodelled
+    /// The local name of every **element** child, in document order — the eight unmodelled
     /// slots included.
     ///
     /// This is what an ordering assertion is written against: it says what the part *will emit*,
@@ -1433,7 +1440,7 @@ fn range_between(bounds: (u16, u32, u16, u32)) -> Option<CellRange> {
 /// Reads one child node of `x:worksheet` into a slot.
 ///
 /// A node is modelled only when it is an element **in the SpreadsheetML namespace** with one of the
-/// twenty-five local names this frame knows. An element merely *named* `sheetData` in somebody else's
+/// thirty-one local names this frame knows. An element merely *named* `sheetData` in somebody else's
 /// namespace is unmodelled markup, and goes into the bucket with its prefix intact.
 fn read_slot(
     node: RawNode,

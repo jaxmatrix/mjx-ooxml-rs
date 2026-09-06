@@ -48,6 +48,28 @@
 //! `sml.xsd` itself; MJXOFF-89 (A7c) deleted fourteen hand-rolled ordering tables and this crate is
 //! not going to add a fifteenth.
 //!
+//! # Every slot is owned — the audit, re-derived rather than trusted
+//!
+//! MJXOFF-133 (D18) swept `CT_Workbook`'s nineteen slots against the enum below, as it swept
+//! `CT_Worksheet`'s thirty-nine against
+//! [`WorksheetContent`](crate::WorksheetContent). **Eighteen were modelled in one go by MJXOFF-100
+//! (D06)**, which is why this table has one owner and `CT_Worksheet`'s has eight: a workbook part is
+//! nineteen small slots and a worksheet is thirty-nine large ones. The nineteenth, `extLst`, is the
+//! unknown bucket by design — see the section above.
+//!
+//! Two of the eighteen point *outward*, at parts:
+//!
+//! | rank | element | modelled here as | the parts it names |
+//! |---|---|---|---|
+//! | 7 | `externalReferences` | [`ExternalReferences`] | **MJXOFF-133 (D18)** — `mjx_xlsx::Workbook::external_links` resolves each `r:id` to an external-link part and reads what it points at |
+//! | 12 | `pivotCaches` | [`PivotCaches`] | **MJXOFF-133 (D18)** — `mjx_xlsx::Workbook::pivot_tables` resolves each to a cache definition, and `mjx_xlsx::SpreadsheetDefect::WorkbookReferenceTargetIsWrongKind` refuses to save a workbook whose edge leads to the wrong kind of part |
+//!
+//! Neither *part* is modelled and neither ever will be by this crate; see
+//! [`crate::preserved`] for the whole of that decision. What matters here is that the
+//! two elements sit in the workbook's own `xsd:sequence`, so a writer that dropped them would
+//! produce a file that had quietly lost its pivot tables — which is why they are modelled and why
+//! `crates/mjx-sml/src/workbook/references.rs` says so at length.
+//!
 //! # Why `extLst` is not modelled, and why that is the strongest option
 //!
 //! `CT_ExtensionList` is a bag of `ext` elements, each identified by a GUID `uri` and holding markup
