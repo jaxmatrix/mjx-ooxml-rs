@@ -255,13 +255,17 @@ fn editing_a_chart_dirties_only_the_chart_xml_and_its_workbook() {
     assert_eq!(before, after, "editing chart data must add no parts");
 }
 
+/// Editing a series' **values** refreshes the workbook, on its own.
+///
+/// Deliberately edits nothing else. This case used to set the categories in the same test, and
+/// `set_chart_series_categories` refreshes too — so it rescued the values path and stayed green with
+/// this setter's refresh removed entirely (found by mutation while MJXOFF-99 rerouted the writer).
+/// One setter per test is what makes each one's refresh provable.
 #[test]
 fn the_refreshed_workbook_holds_the_edited_values() {
     let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
     pres.set_chart_series_values(CHART_SURFACE, 0, 0, &[41.5, 42.5, 43.5])
         .expect("set values");
-    pres.set_chart_series_categories(CHART_SURFACE, 0, 0, &["Alpha", "Beta", "Gamma"])
-        .expect("set categories");
 
     let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
     let sheet = workbook_sheet(
@@ -281,6 +285,17 @@ fn the_refreshed_workbook_holds_the_edited_values() {
             "the stale value {stale} must not survive the refresh: {sheet}"
         );
     }
+}
+
+/// Editing a series' **categories** refreshes the workbook, on its own — the other half of the pair
+/// above, for the same reason.
+#[test]
+fn the_refreshed_workbook_holds_the_edited_categories() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    pres.set_chart_series_categories(CHART_SURFACE, 0, 0, &["Alpha", "Beta", "Gamma"])
+        .expect("set categories");
+
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
     let strings = workbook_part(
         pkg.part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
             .expect("the workbook part survives"),
@@ -290,6 +305,13 @@ fn the_refreshed_workbook_holds_the_edited_values() {
         assert!(
             strings.contains(&format!("<t>{label}</t>")),
             "the refreshed shared strings should hold {label}: {strings}"
+        );
+    }
+    // And the labels the fixture carried are gone, so this cannot pass on a workbook nobody rewrote.
+    for stale in ["North", "South", "West"] {
+        assert!(
+            !strings.contains(&format!("<t>{stale}</t>")),
+            "the stale label {stale} must not survive the refresh: {strings}"
         );
     }
 }

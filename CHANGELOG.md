@@ -96,6 +96,16 @@ for another. It is the row above. A grep in CI now keeps the spelling from drift
   `Sheet1!$A$2:$A$3`. `AuthoredWorksheet::appended_row_count` is the new cursor, public and
   documented, and `set_cell_value` still counts, so mixing the two doors never overwrites.
 
+### Fixed
+
+- **`the_refreshed_workbook_holds_the_edited_values` could not fail for the thing it names.** It set
+  a series' values *and* its categories, and `set_chart_series_categories` refreshes the workbook
+  too — so removing `set_chart_series_values`'s refresh entirely left it green. Found by mutation
+  while rerouting the writer. It is now one test per setter, each asserting that the labels or the
+  numbers the fixture carried are *gone*, and each independently red when its own refresh is removed.
+  A11's R4 (`editing_a_chart_dirties_only_the_chart_xml_and_its_workbook`) always caught the values
+  case, so nothing was unguarded; one of the two guards was simply not the guard it read as.
+
 ### Documentation
 
 - **The gaps page's standing paragraph is a closed *What used to be here* row**, naming `mjx-sml`
