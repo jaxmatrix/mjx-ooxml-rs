@@ -295,7 +295,13 @@ fn eviction_runs_holds_the_ceiling_and_spares_the_frame_being_drawn() {
         .collect();
 
     let evicted_before = atlas.statistics().pages_evicted;
-    for step in 0..3 {
+    // Twelve filler runs, not three, and the difference is the whole strength of the survival
+    // assertion below. With three, an atlas that had *not* pinned the frame it was drawing happened
+    // to evict around the working set and the assertion stayed green against a broken cache. Twelve
+    // asks for several times the whole ceiling inside one frame; deleting the current-frame guard
+    // from `GlyphAtlas::evict_one_page` then loses a working-set glyph and turns this red, which is
+    // how it was checked.
+    for step in 0..12 {
         let filler = fixture.place(ALPHABET, 41.0 + f64::from(step), 0.0);
         // The filler is expected to run the atlas out of pages part way through, which is the point:
         // once every page belongs to this frame there is nothing left to evict, and the refusal is

@@ -58,8 +58,19 @@ static ALLOCATOR: mjx_allocation_counter::Counting = mjx_allocation_counter::Cou
 /// figure; the running time does.
 const PAGE: u16 = 128;
 
-/// The ceiling case one holds, in bytes: six coverage pages of [`PAGE`] square.
-const CEILING: usize = (PAGE as usize) * (PAGE as usize) * 6;
+/// The ceiling case one holds, in bytes: ten coverage pages of [`PAGE`] square.
+///
+/// Ten, with a working set of three of them, so that a broad eviction cannot avoid the working set
+/// by chance. **This is not enough to make case one's survival clause catch every broken eviction
+/// policy, and the honest account is worth writing down**: deleting the current-frame guard from
+/// `GlyphAtlas::evict_one_page` makes every live page equally old, and the tie-break then drops the
+/// lowest page index each time — which, because a freed slot is reused immediately, churns one slot
+/// over and over rather than sweeping the atlas. The working set survives that particular mutation
+/// whatever the ratio. What catches it is **case two**, where the atlas holds one page and every
+/// refusal disappears, and `tests/glyph_atlas.rs`'s own survival case, whose ceiling is small enough
+/// that the churned slot is the working set's. The clause below still earns its place — it is what
+/// would catch an eviction that swept — but it is not the instrument for this one.
+const CEILING: usize = (PAGE as usize) * (PAGE as usize) * 10;
 
 /// What the atlas is allowed to cost *beyond* its pages, in bytes.
 ///
@@ -141,7 +152,7 @@ fn draw_many_frames(atlas: &mut GlyphAtlas, frames: &mut Frames) -> Vec<GlyphRas
     }
 
     atlas.begin_frame();
-    let working_set = frames.place(40.0);
+    let working_set = frames.place(60.0);
     atlas
         .prepare_run(&mut frames.rasteriser, &working_set)
         .expect("the working set fits, because the pages before it are all older frames'");
@@ -151,8 +162,12 @@ fn draw_many_frames(atlas: &mut GlyphAtlas, frames: &mut Frames) -> Vec<GlyphRas
         .map(|placed| placed.key)
         .collect();
 
-    for step in 0..3 {
-        let filler = frames.place(41.0 + f64::from(step));
+    // Twelve, not three: three runs asked the atlas for a little more than it had left, which is not
+    // enough pressure to be worth calling a crowd. Twelve asks for several times the whole ceiling
+    // inside one frame, so every page that may be evicted is, and the refusal in case two is reached
+    // rather than merely available. See [`CEILING`] for what this does and does not prove.
+    for step in 0..12 {
+        let filler = frames.place(61.0 + f64::from(step));
         match atlas.prepare_run(&mut frames.rasteriser, &filler) {
             Ok(_) | Err(FontError::GlyphAtlasExhausted { .. }) => {}
             Err(other) => panic!("an unexpected failure while crowding the atlas: {other}"),
