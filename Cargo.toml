@@ -51,9 +51,20 @@ members = [
 
 [workspace.package]
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
-# PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
-# this one line. See CHANGELOG.md.
-version = "0.0.123"
+# PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so no member crate's
+# manifest has to move with this line. See CHANGELOG.md.
+#
+# ⚠ THREE FILES CARRY THIS VERSION, NOT ONE. A bump is not finished until all three say the same
+# thing:
+#   1. this line;
+#   2. `CHANGELOG.md`, a new entry;
+#   3. `bindings/mjx-wasm/npm/package.json`'s `"version"` — the npm package states its own, and
+#      `bindings/mjx-wasm/build-npm.sh` **refuses to build** when the two disagree, on purpose: a
+#      package that cannot be traced back to a commit is worse than one that will not build.
+# This is written here rather than only in `build-npm.sh` because that is where it was written
+# before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
+# children. `CLAUDE.md`'s versioning note says the same three things.
+version = "0.0.124"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -87,6 +98,21 @@ criterion = "0.8"
 # `variable-fonts` and the layout tables are read metrics, not extras.
 ttf-parser = "0.25"
 fontdb = { version = "0.24", default-features = false }
+# Shaping (MJXOFF-158), used only by `mjx-text`. A pure-Rust port of HarfBuzz, which is what Office
+# itself shapes with, so it is the one crate whose *behaviour* — not merely whose output format — is
+# the thing being matched. It parses fonts through the same `ttf-parser` 0.25 declared above, so the
+# two never disagree about a face. `Parley` is deliberately not adopted: see `mjx-text`'s `shaping`
+# module documentation.
+rustybuzz = "0.20"
+# UAX #9, the bidirectional algorithm. Pure Rust, `no_std`-capable, and it is the reference
+# implementation the CSS writing-modes specification is written against.
+unicode-bidi = "0.3"
+# UAX #14, line breaking. `mjx-text` layers Office's East Asian rules (JIS X 4051 *kinsoku* and
+# hanging punctuation) on top of it; see that crate's `line_breaking` module.
+unicode-linebreak = "0.1"
+# The character-to-script table (ISO 15924), for itemising a run so that each shaping call sees one
+# script. Data only — no algorithm this crate would have to trust.
+unicode-script = "0.5"
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }

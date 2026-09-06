@@ -6,7 +6,7 @@ rust-version.workspace = true
 license.workspace = true
 authors.workspace = true
 repository.workspace = true
-description = "Typography for the client platform: face parsing and metrics, the system font database, the metric-compatible substitution table, and the per-document substitution manifest."
+description = "Typography for the client platform: face parsing and metrics, the system font database, the metric-compatible substitution table, shaping, bidirectional resolution, itemisation, line breaking and hyphenation."
 
 # The bundled tier-2 faces and their licences ship with the crate: an application that vendors
 # `mjx-text` and points `BundledFonts::from_directory` at this path gets a working tier 2 without
@@ -41,3 +41,15 @@ ttf-parser.workspace = true
 #   * `fs` and `fontconfig` are pure Rust and are what makes tier 1 real on desktop and Android.
 # Tier 1 being *absent* is a supported configuration (iOS), so nothing here is load-bearing.
 fontdb = { workspace = true, default-features = false, features = ["std", "fs", "fontconfig"] }
+# The shaper (MJXOFF-158). Pure Rust, and a port of the engine Office itself shapes with, so what it
+# does with an Arabic joining form or a Devanagari cluster is what Word does with one. It reads faces
+# through the same `ttf-parser` version declared above, so a face this crate parsed and a face the
+# shaper parsed can never disagree.
+rustybuzz.workspace = true
+# UAX #9 (bidirectional), UAX #14 (line breaking), UAX #29 (grapheme and word boundaries), and the
+# ISO 15924 script table. All four are data plus a documented algorithm, all pure Rust, and none of
+# them allocates on a path this crate takes per glyph.
+unicode-bidi.workspace = true
+unicode-linebreak.workspace = true
+unicode-script.workspace = true
+unicode-segmentation.workspace = true

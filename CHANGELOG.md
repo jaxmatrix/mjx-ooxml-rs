@@ -54,6 +54,103 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.124] - 2026-09-06
+
+**Shaping, bidirectional resolution, itemisation, line breaking and hyphenation** (MJXOFF-158,
+Phase R position 3).
+
+`mjx-text` could say which face a run is drawn in and what its numbers are. It can now say what
+glyphs the run becomes, in what order, at what positions, and where a line may end. A renderer that
+draws one glyph per code point looks approximately right in Latin and visibly broken in half the
+world's scripts; this is the layer where that difference is decided.
+
+### Added
+
+- **`shaping`** — `Shaper`, `ShapingRequest`, `ShapedRun`, `ShapedGlyph`, `FontSize` and
+  `shape_uncached`. Shaping is `rustybuzz`, a pure-Rust port of the engine Office itself shapes
+  with, built over `FontFace::data()` so no `ttf_parser` type crosses the boundary. Output is in the
+  face's own units — never a pixel size — so a shaped run is reusable at any zoom, and
+  `ShapedRun::advance_in_points` is where a size is finally applied. **Parley is deliberately not
+  adopted**, and the reason is recorded in the crate and module documentation so it is not
+  re-opened: it is a layout library, and this project's line and page decisions have to come out
+  where Office's do.
+- **`direction`** — `BidiAnalysis`, `ParagraphDirection`, `TextDirection`, `BidiLevel`,
+  `DirectionalRun`, `DeclaredRunDirection`. UAX #9 through `unicode-bidi`, with the document's own
+  declaration ahead of the content: `w:bidi` and `a:pPr/@rtl` set the base direction outright rather
+  than being inferred by rule P2/P3, which gets a right-to-left paragraph that opens with a Latin
+  word wrong. A run's `w:rtl` is expressed as a UAX #9 **embedding**, not an override, so a number
+  inside it still reads left to right.
+- **`script`** — `TextScript`, `ScriptRun`, `itemise_by_script`, `itemise_range_by_script`. ISO
+  15924 codes rather than an enumeration that would have to grow with Unicode; `Zyyy`/`Zinh`
+  characters extend the run they touch rather than splitting it.
+- **`itemisation`** — `itemise`, `TextItem`. The three cuts a shaping call needs — embedding level,
+  then script, then face — in that order, and the first caller of `FontRequest::requiring`, which is
+  what makes R02's third tier answerable.
+- **`line_breaking`** — `LineBreaker`, `break_opportunities`, `KinsokuRules`, `LineBreakOptions`,
+  `LineBreak`. UAX #14 through `unicode-linebreak`, plus the East Asian rules Office applies on top:
+  JIS X 4051's 行頭禁則 and 行末禁則 sets (`w:kinsoku`), a document's own sets
+  (`w:noLineBreaksBefore` / `w:noLineBreaksAfter`), and hanging punctuation (`w:overflowPunct`).
+- **`segmentation`** — grapheme-cluster and UAX #29 word boundaries, the granularity R11's caret and
+  every selection extension will move by.
+- **`hyphenation`** — the `Hyphenator` trait with `NoHyphenation`, `SoftHyphenHyphenator` (complete,
+  and needing no language data) and `PatternHyphenator`, a full implementation of Liang's algorithm
+  with a TeX pattern reader and an exception dictionary. **No language's patterns are shipped**: a
+  pattern set is licensed data, and which to commit is the same kind of repository-owner decision as
+  the bundled font faces.
+- **`feature`** — `TypographyOptions`, `FeatureSet`, `FeatureTag` and the vocabulary a document's own
+  properties map onto. The set is canonical (sorted, one entry per tag) because the shaped-run cache
+  keys on it.
+- **`cache`** — `ShapedRunCache`, `CacheStatistics`. Keyed on face identity, size, direction,
+  script, language, features and text — the plan's `(font, size, features, text)` plus the three
+  additions without which a hit would draw the wrong glyphs. Faces are compared by `Arc` identity and
+  retained, which is what keeps the pointer sound. Least-recently-used, evicted in batches.
+- **`FontError::ShapedRunTooWide`** — a run whose advances sum past what an `AdvanceWidth` carries is
+  refused rather than wrapping into a negative width.
+
+### Fixed
+
+- **`AdvanceWidth::equals` has a caller and coverage.** It shipped in 0.0.123 as public API with
+  neither, and its documented cross-em property was unverified — found by MJXOFF-157's review, when
+  replacing its body with `std::process::abort()` stopped no test. `ShapedRun::occupies_the_same_width_as`
+  is the caller, and three tests cover the case a naive `font_units == font_units` gets wrong.
+- **The `wasm-pack` CI job, red since 0.0.122** (origin MJXOFF-156). `bindings/mjx-wasm/npm/package.json`
+  still said `0.0.121` while the workspace had moved twice, and `build-npm.sh` refuses to build on the
+  mismatch by design. The number is now correct **and the hole is closed**: the rule that three files
+  carry the version — the workspace manifest, this file, and the npm package — is now written in
+  `CLAUDE.md` and beside the version itself, not only inside the build script the person doing the
+  bump never opens.
+- **The `naming (suppress, not delete)` CI job, red since 0.0.122** (origin MJXOFF-156).
+  `crates/mjx-tokens/src/generated.rs` spells `tracked_change_delete` / `trackedChangeDelete`, and
+  the gate forbids `delete` as an identifier. The rule is not wrong and the token is not wrong: the
+  gate exists because a *chart* element is suppressed rather than deleted, and a tracked change that
+  removed text genuinely is a deletion — the same judgement already recorded for `mjx-docx`'s
+  `RevisionKind::Deleted`. The name is also not this repository's to choose: it is generated from
+  allr.work's own `--color-tracked-change-delete`. Allow-listed by exact token and exact file, with
+  its reasoning, and probed both ways — an unrelated `delete_token` planted in that very file still
+  fails the gate.
+- **`the_parse_path_contains_no_unwrap_expect_or_panic` walked only the top level of `src/`** and
+  asserted a floor of nine files against a crate that had ten. A crate laid out as
+  `src/shaping/mod.rs` would have been green over code the walk never opened. The walk is now
+  recursive and the floor is the crate's real file count, so a module added or removed without
+  updating it fails.
+
+### Changed
+
+- `LineBreaker::next_line` reports the end of the text as `LineBreakKind::EndOfText` rather than
+  `Mandatory`. UAX #14 calls it a mandatory break because there is nothing after it to break before;
+  a caller that treated it as a hard break would draw a paragraph mark that is not there.
+- An empty paragraph declared right-to-left keeps its direction. `unicode-bidi` reports no paragraph
+  for an empty string, and the base direction fell back to left-to-right — which is what an author
+  sees after pressing Return in a Hebrew document.
+
+### Dependencies
+
+`rustybuzz` 0.20, `unicode-bidi` 0.3, `unicode-linebreak` 0.1 and `unicode-script` 0.5, all used only
+by `mjx-text`, all pure Rust, none of them adding a C dependency or an `unsafe` block to the shipped
+graph. `rustybuzz` reads faces through the same `ttf-parser` 0.25 the crate already declared, so the
+two can never disagree about a face. `mjx-text` cross-compiles for `wasm32-unknown-unknown` and
+`aarch64-linux-android` unchanged.
+
 ## [0.0.123] - 2026-09-06
 
 **The font engine: three tiers, a metric-compatible substitution table, and a substitution manifest

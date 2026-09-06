@@ -231,6 +231,21 @@ fn an_embedded_face_with_a_broken_key_or_broken_bytes_is_refused() {
 /// The behavioural suites above can only see the corruptions they happened to generate. This one
 /// sees every line, and it is what stops the next person adding a convenient `.unwrap()` to a path
 /// that reads a stranger's font.
+///
+/// # It proves the absence of a token, not the absence of a panic
+///
+/// A source grep cannot see a panic reached through a callee, an arithmetic overflow, or a slice
+/// index. Where a panic is genuinely possible — and shaping does real arithmetic over tables that
+/// came out of an untrusted file — the instrument is execution over hostile input, which is
+/// `tests/untrusted_text.rs`. This test is the cheap half, not the whole of the rule.
+///
+/// # The walk is recursive on purpose (MJXOFF-158)
+///
+/// It used to read only the top level of `src/`, and the floor below it was `>= 9` against a crate
+/// that had ten flat files. A crate laid out as `src/shaping/mod.rs` would therefore have been
+/// green over code the walk never opened, and the floor would still have passed on the files it
+/// could see. That is a gate that reports success for work it did not check, so the walk descends
+/// and the floor is the crate's real file count.
 #[test]
 fn the_parse_path_contains_no_unwrap_expect_or_panic() {
     const FORBIDDEN: &[&str] = &[
@@ -246,13 +261,13 @@ fn the_parse_path_contains_no_unwrap_expect_or_panic() {
     ];
 
     let source_directory = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let mut sources = Vec::new();
+    collect_rust_sources(&source_directory, &mut sources);
+    sources.sort();
+
     let mut files_scanned = 0_usize;
-    for entry in std::fs::read_dir(&source_directory).expect("the crate has a `src` directory") {
-        let path = entry.expect("the directory listing is readable").path();
-        if path.extension().and_then(std::ffi::OsStr::to_str) != Some("rs") {
-            continue;
-        }
-        let text = std::fs::read_to_string(&path).expect("a source file is readable");
+    for path in &sources {
+        let text = std::fs::read_to_string(path).expect("a source file is readable");
         // Test modules are the last item in each file by convention, and they are allowed to
         // assert — that is what a test is. Everything above the marker is library code.
         let library = match text.find("#[cfg(test)]") {
@@ -278,11 +293,33 @@ fn the_parse_path_contains_no_unwrap_expect_or_panic() {
             }
         }
     }
-    assert!(
-        files_scanned >= 9,
-        "only {files_scanned} source files were scanned, which is fewer than this crate has — the \
-         walk is not reaching them"
+    // The crate's real file count, raised with the crate. A floor lower than the truth is a floor
+    // nobody is standing on: it stays green when the walk stops reaching files, which is exactly
+    // the failure this number exists to catch. Nineteen at MJXOFF-158; raise it when a module is
+    // added, and do not lower it when one is removed without saying why.
+    const SOURCE_FILE_COUNT: usize = 19;
+    assert_eq!(
+        files_scanned, SOURCE_FILE_COUNT,
+        "{files_scanned} source files were scanned and this crate has {SOURCE_FILE_COUNT} — either \
+         the walk is not reaching them all, or a module was added or removed and this number was \
+         not"
     );
+}
+
+/// Every `.rs` file under `directory`, at any depth.
+///
+/// Recursive so that the grep above is not a constraint on how the crate is organised: a module in
+/// `src/shaping/mod.rs` must be read like one in `src/shaping.rs`.
+fn collect_rust_sources(directory: &std::path::Path, into: &mut Vec<std::path::PathBuf>) {
+    let listing = std::fs::read_dir(directory).expect("a source directory is readable");
+    for entry in listing {
+        let path = entry.expect("the directory listing is readable").path();
+        if path.is_dir() {
+            collect_rust_sources(&path, into);
+        } else if path.extension().and_then(std::ffi::OsStr::to_str) == Some("rs") {
+            into.push(path);
+        }
+    }
 }
 
 /// Find a table's offset in an sfnt file, so the tests above can damage a specific field.

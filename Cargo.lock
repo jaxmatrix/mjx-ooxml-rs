@@ -71,10 +71,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 
 [[package]]
+name = "bitflags"
+version = "2.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b588b76d00fde79687d7646a9b5bdf3cc0f655e0bbd080335a95d7e96f3587da"
+
+[[package]]
 name = "bumpalo"
 version = "3.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
+
+[[package]]
+name = "bytemuck"
+version = "1.25.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
 
 [[package]]
 name = "cast"
@@ -149,6 +161,15 @@ name = "clap_lex"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
+
+[[package]]
+name = "core_maths"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77745e017f5edba1a9c1d854f6f3a52dac8a12dd5af5d2f54aecf61e43d80d30"
+dependencies = [
+ "libm",
+]
 
 [[package]]
 name = "crc32fast"
@@ -425,11 +446,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-allocation-counter"
-version = "0.0.123"
+version = "0.0.124"
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -443,7 +464,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -455,7 +476,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-derive",
  "mjx-fixtures",
@@ -469,7 +490,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "anyhow",
  "criterion",
@@ -489,11 +510,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-fixtures"
-version = "0.0.123"
+version = "0.0.124"
 
 [[package]]
 name = "mjx-mce"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -502,7 +523,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -512,7 +533,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "criterion",
  "mjx-allocation-counter",
@@ -531,18 +552,18 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.123"
+version = "0.0.124"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -553,7 +574,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "anyhow",
  "criterion",
@@ -574,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
@@ -582,7 +603,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-schema-gate"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-fixtures",
  "mjx-mce",
@@ -594,7 +615,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-sml"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-derive",
@@ -610,25 +631,30 @@ dependencies = [
 
 [[package]]
 name = "mjx-text"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "fontdb",
  "mjx-ooxml-core",
  "mjx-tokens",
+ "rustybuzz",
  "thiserror",
  "ttf-parser",
+ "unicode-bidi",
+ "unicode-linebreak",
+ "unicode-script",
+ "unicode-segmentation",
 ]
 
 [[package]]
 name = "mjx-tokens"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mjx-vml"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -639,7 +665,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -649,7 +675,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "anyhow",
  "criterion",
@@ -669,7 +695,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -904,6 +930,24 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
+name = "rustybuzz"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd3c7c96f8a08ee34eff8857b11b49b07d71d1c3f4e88f8a88d4c9e9f90b1702"
+dependencies = [
+ "bitflags",
+ "bytemuck",
+ "core_maths",
+ "log",
+ "smallvec",
+ "ttf-parser",
+ "unicode-bidi-mirroring",
+ "unicode-ccc",
+ "unicode-properties",
+ "unicode-script",
+]
+
+[[package]]
 name = "same-file"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -983,6 +1027,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "smallvec"
+version = "1.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9be42f50aa861c555654aa3a37f52f4b1074bacf4e48fe0ef7fa584e80f1f0f"
+
+[[package]]
 name = "syn"
 version = "2.0.118"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1060,12 +1110,51 @@ name = "ttf-parser"
 version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2df906b07856748fa3f6e0ad0cbaa047052d4a7dd609e231c4f72cee8c36f31"
+dependencies = [
+ "core_maths",
+]
+
+[[package]]
+name = "unicode-bidi"
+version = "0.3.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
+
+[[package]]
+name = "unicode-bidi-mirroring"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5dfa6e8c60bb66d49db113e0125ee8711b7647b5579dc7f5f19c42357ed039fe"
+
+[[package]]
+name = "unicode-ccc"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce61d488bcdc9bc8b5d1772c404828b17fc481c0a582b5581e95fb233aef503e"
 
 [[package]]
 name = "unicode-ident"
 version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e6e4313cd5fcd3dad5cafa179702e2b244f760991f45397d14d4ebf38247da75"
+
+[[package]]
+name = "unicode-linebreak"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b09c83c3c29d37506a3e260c08c03743a6bb66a9cd432c6934ab501a190571f"
+
+[[package]]
+name = "unicode-properties"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7df058c713841ad818f1dc5d3fd88063241cc61f49f5fbea4b951e8cf5a8d71d"
+
+[[package]]
+name = "unicode-script"
+version = "0.5.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "383ad40bb927465ec0ce7720e033cb4ca06912855fc35db31b5755d0de75b1ee"
 
 [[package]]
 name = "unicode-segmentation"
@@ -1241,7 +1330,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.123"
+version = "0.0.124"
 dependencies = [
  "anyhow",
  "mjx-allocation-counter",

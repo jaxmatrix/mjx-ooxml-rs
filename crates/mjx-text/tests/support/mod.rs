@@ -6,6 +6,8 @@
 //! it is one of several crates sharing a file.
 #![allow(dead_code)]
 
+pub(crate) mod synthetic_font;
+
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
