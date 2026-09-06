@@ -83,7 +83,9 @@ targets a **display list**; SVG and PDF become exporters *from* that IR, not sta
 | [`client-platform/OFFICE_FEATURE_INVENTORY.md`](client-platform/OFFICE_FEATURE_INVENTORY.md) | The implementation surface, derived from Microsoft's published control identifiers and the ECMA-376 schemas — 11,869 in-scope commands and 3,404 declared elements |
 | [`client-platform/DESIGN_TOKENS.md`](client-platform/DESIGN_TOKENS.md) | The Allr token system as measured, plus the dark theme, document palette and contrast rules an editor needs |
 | [`client-platform/HTML_BOX_MODEL.md`](client-platform/HTML_BOX_MODEL.md) | Whether HTML can render in the canvas — yes, as a fourth `BoxModel`, staged |
-| [`client-platform/BUILD_PLAN_LOOP_1.md`](client-platform/BUILD_PLAN_LOOP_1.md) | **What this loop builds:** the renderer for all three formats, and every UI element in Storybook for audit — with application integration deferred to loop 2 |
+| [`client-platform/BUILD_PLAN_LOOP_1.md`](client-platform/BUILD_PLAN_LOOP_1.md) | **What this loop builds:** the renderer for all three formats, and every UI element audited in isolation — with application integration deferred to loop 2 |
+| [`client-platform/CANVAS_UI_INVENTORY.md`](client-platform/CANVAS_UI_INVENTORY.md) | The 61 in-canvas UI elements, and the standalone manual runtime harness that exercises them on desktop and mobile |
+| [`client-platform/SESSION_AND_PERSISTENCE.md`](client-platform/SESSION_AND_PERSISTENCE.md) | The operation journal, coalescing, and time-batched commit — record immediately, apply immediately, serialise on a schedule |
 
 ---
 
@@ -191,7 +193,11 @@ fixes it without touching the core's contract.
 - **Invalidation**: a command reports the addresses it dirtied (`part`, block path, cell range).
   Layout, scene and paint caches subscribe. This is what makes a keystroke reflow one paragraph
   rather than a document.
-- **Autosave and crash recovery** ride on the journal.
+- **Batched commit**: operations are recorded and applied immediately, but the document is
+  **serialised on a schedule**, not on every operation — coalescing turns twenty keystrokes into one
+  part serialisation. The journal is flushed frequently and cheaply; the document is committed
+  infrequently; recovery is the last commit plus the journal tail. Full policy, triggers and budgets
+  in [`client-platform/SESSION_AND_PERSISTENCE.md`](client-platform/SESSION_AND_PERSISTENCE.md).
 
 ### L1 · `mjx-text` — typography
 

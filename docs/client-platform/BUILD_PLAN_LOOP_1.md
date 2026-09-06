@@ -28,22 +28,30 @@ indicators · touch handles at their larger hit sizes
 These are the *most* design-sensitive elements in an editor and exactly the ones the audit needs to
 cover. Left as-is, "audit every UI element" would silently miss all of them.
 
-**Resolution: Storybook is the audit surface for both, with two kinds of story.**
+**Resolution: two audit surfaces, because they answer different questions.**
 
-| Story kind | Source | Covers |
+| Surface | Covers | Kind |
 |---|---|---|
-| Live web component | TypeScript custom element | ribbon, panels, menus, dialogs, all chrome |
-| **Generated image plate** | Rust `tiny-skia` painter → PNG + manifest | every in-canvas UI element, in every state, theme and DPI |
+| **Storybook** | ribbon, panels, menus, dialogs — all web-component chrome | live components |
+| **The canvas harness** — a separate task | every in-canvas UI element | a standalone runnable application, driven by hand |
 
-The Rust side gains a `catalogue` binary that renders each in-canvas element across its state matrix
-(default / hover / active / focused / disabled × light / dark × 1× / 2× / touch) into
-`ui/catalogue/` with a JSON manifest; a Storybook loader turns the manifest into stories. The plates
-sit beside the live components in the same navigation, so an audit pass covers the whole surface in
-one place.
+Static image plates were the first proposal and they are not sufficient: they prove **appearance** and
+nothing else, while almost everything on the canvas is only correct **in motion and under the
+pointer** — a handle you cannot drag says nothing about its grab tolerance, a snap guide has to
+*engage* to be judged, marching ants and a caret are animations, and touch targets are only real on a
+touch device.
 
-This costs almost nothing extra, because **the plate generator is the fidelity oracle's harness**.
-The same code that lets you look at a selection handle is the code that snapshots it for regression.
-Building it early serves both tracks.
+So the canvas gets its own **manual runtime harness**, exhaustive with respect to an enumerated
+inventory of **61 elements**, specified in
+[`CANVAS_UI_INVENTORY.md`](CANVAS_UI_INVENTORY.md). Golden plates are kept, demoted to their proper
+role: **regression only**, locking appearance once a design is approved. Both enumerate from the same
+inventory, and an element with neither a harness scene nor a plate fails the harness's own
+completeness check — the inventory is the test.
+
+The plate generator still costs almost nothing, because it **is** the fidelity oracle's harness. The
+same mechanism carries a **document plate gallery** — each fixture rendered per format, beside its
+LibreOffice reference and a perceptual diff — which is how "does it render properly" becomes
+something you can look at rather than take on trust.
 
 The same mechanism carries the renderer itself: a **document plate gallery** — each fixture rendered
 per format, beside its LibreOffice reference and a perceptual diff. That is how "does it render
@@ -67,8 +75,9 @@ tracks between children is fine and useful — it keeps the token pipeline hones
 | A3 | `mjx-layout` — `BoxModel`, `FragmentTree`, `Checkpoint`, spatial index | contract compiles with a trivial second implementation, proving it is not OOXML-shaped |
 | A4 | `mjx-scene` — display list, `lyon` tessellation, `GeometryProvider` **returning the placeholder shape** | a scene round-trips through the binary encoding; tessellation is deterministic across platforms |
 | A5 | `mjx-paint` — `wgpu` and `tiny-skia` painters, PDF and SVG exporters | the same display list renders identically on both painters within tolerance |
-| A6 | The fidelity oracle + the plate generator | golden images run headless in CI; the in-canvas catalogue generates |
-| A7 | `mjx-session` — resident document, edit journal, invalidation | a mutation dirties exactly the pages it should, and no more |
+| A6 | The fidelity oracle + the golden-plate generator | golden images run headless in CI; the document plate gallery generates |
+| **A6b** | **The canvas UI harness** — a standalone runnable app covering all 61 in-canvas elements, on desktop **and** the mobile surface ([`CANVAS_UI_INVENTORY.md`](CANVAS_UI_INVENTORY.md)) | every inventory entry has a live scene and a state matrix; the completeness check passes; audited by hand at 1×/2×/3×, pointer and touch |
+| A7 | `mjx-session` — resident document, operation journal, coalescing, **batched commit** ([`SESSION_AND_PERSISTENCE.md`](SESSION_AND_PERSISTENCE.md)) | a mutation dirties exactly the pages it should; 20 keystrokes produce one part serialisation; a kill mid-edit recovers to the last flushed operation |
 | A8 | `mjx-layout-pptx` + `mjx-view` — slide layout, text bodies, autofit, tables, groups, effects, images | a real deck renders at parity within frame and memory budget |
 | A9 | `mjx-layout-xlsx` — grid, **number-format engine**, conditional formatting, panes, drawings | a real workbook renders at parity; the format engine passes its own conformance suite |
 | A10 | `mjx-layout-docx` — reflow, pagination, tables, floats and wrapping, footnotes, fields, OMML | a real document paginates identically to the reference for its full length |
@@ -108,7 +117,8 @@ Those become **B1–B16**. The rest of the catalogue is the surfaces the ribbon 
 - **B25 Iconography** — the Fluent set, sized 16/20/24/32/48, tinted from tokens
 - **B26 Mobile forms** — bottom sheet, contextual action bar, compact command bar with overflow,
   touch-sized hit targets
-- **B27 In-canvas plates** — the generated gallery from Track A's A6
+In-canvas UI is **not** a Track B item. It is A6b, a separate task with its own harness — see
+[`CANVAS_UI_INVENTORY.md`](CANVAS_UI_INVENTORY.md).
 
 ---
 
