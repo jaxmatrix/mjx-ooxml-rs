@@ -12,7 +12,7 @@
 //! MJXOFF-97 (D05) needs the run half and MJXOFF-105 (D08) needs the font-table half. Modelling it
 //! inside `strings` would have made D08 either reach into another subject's module or copy it, and
 //! **a copy would arrive with no executioner**: this workspace already has a scheduled child
-//! (MJXOFF-99) whose whole job is to delete one duplicated SpreadsheetML writer, and a second
+//! (MJXOFF-99) whose whole job was to delete one duplicated SpreadsheetML writer, and a second
 //! duplicate is not a thing to create knowingly. So the family sits in a module of its own that
 //! belongs to neither subject and is below both.
 //!

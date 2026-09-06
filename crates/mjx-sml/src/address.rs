@@ -401,8 +401,8 @@ pub fn column_index_from_letters(letters: &str) -> Result<u16, AddressError> {
 /// `16383` → `XFD`.
 ///
 /// Allocation-free — the answer is an [`AddressText`], a `Copy` stack buffer. This supersedes
-/// `mjx_chart::workbook::column_letters`, which returns a `String` per call; MJXOFF-112 (D10)
-/// switches `mjx-chart` over and MJXOFF-99 (E1) retires the copy.
+/// `mjx_chart::workbook::column_letters`, which returned a `String` per call; MJXOFF-99 (E1)
+/// retired that copy, and `mjx-chart`'s `c:f` formulas now name their columns through this.
 ///
 /// # Errors
 ///

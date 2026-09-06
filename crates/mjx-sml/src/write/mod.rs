@@ -3,8 +3,8 @@
 //! # What this is
 //!
 //! The package writer that replaces
-//! [`mjx_chart::EmbeddedWorkbook`](https://docs.rs/mjx-chart) — the workspace's one deliberate
-//! duplicate, which exists only because this crate did not. It authors `[Content_Types].xml`,
+//! `mjx_chart::EmbeddedWorkbook` — the workspace's one deliberate duplicate, which existed only
+//! because this crate did not, and which MJXOFF-99 deleted. It authors `[Content_Types].xml`,
 //! `_rels/.rels`, `xl/workbook.xml`, `xl/_rels/workbook.xml.rels`, `xl/worksheets/sheetN.xml`,
 //! `xl/sharedStrings.xml` and `xl/styles.xml`, and optionally `docProps/core.xml` and
 //! `docProps/app.xml`.
