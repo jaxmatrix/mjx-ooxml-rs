@@ -40,9 +40,10 @@ use mjx_dml::spreadsheet_drawing::{
     AnchorShift, AnchoredObject, CellMarker, WorksheetDrawing,
 };
 use mjx_dml::{Position, Size};
-use mjx_ooxml_core::{Interner, RawDocument, ToXml};
+use mjx_ooxml_core::{Interner, RawDocument, RawNode, ToXml};
 use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
 use mjx_opc::{ImageFormat, PartName, Relationship, TargetMode};
+use mjx_sml::write::constants::XML_DECLARATION;
 use mjx_sml::{ColumnMetrics, ResolvedAnchorBounds, SheetAnchors};
 
 use crate::error::XlsxError;
@@ -107,10 +108,10 @@ impl Workbook {
         let Some((part, relationship_id)) = self.sheet_drawing_part(index)? else {
             return Ok(None);
         };
-        let Some((drawing, interner)) = self.read_drawing_part(&part)? else {
+        let Some((document, drawing)) = self.read_drawing_document(&part)? else {
             return Ok(None);
         };
-        let objects = self.decode_objects(&part, &drawing, &interner);
+        let objects = self.decode_objects(&part, &drawing, &document.interner);
         Ok(Some(SheetDrawing {
             part,
             relationship_id,
@@ -134,10 +135,10 @@ impl Workbook {
         let Some((part, _)) = self.sheet_drawing_part(index)? else {
             return Ok(None);
         };
-        let Some((drawing, interner)) = self.read_drawing_part(&part)? else {
+        let Some((document, drawing)) = self.read_drawing_document(&part)? else {
             return Ok(None);
         };
-        Ok(Some(read(&drawing, &interner)))
+        Ok(Some(read(&drawing, &document.interner)))
     }
 
     /// Hands the drawing part behind the tab at `index` to `edit`, then writes it back.
@@ -159,12 +160,17 @@ impl Workbook {
         let Some((part, _)) = self.sheet_drawing_part(index)? else {
             return Ok(None);
         };
-        let Some((mut drawing, mut interner)) = self.read_drawing_part(&part)? else {
+        let Some((mut document, mut drawing)) = self.read_drawing_document(&part)? else {
             return Ok(None);
         };
-        let answer = edit(&mut drawing, &mut interner);
-        let bytes = drawing_part_bytes(&drawing, interner);
-        self.package_mut().replace_part_bytes(&part, bytes)?;
+        let answer = {
+            let RawDocument { interner, root, .. } = &mut document;
+            let answer = edit(&mut drawing, interner);
+            drawing.write_back(root, interner);
+            answer
+        };
+        self.package_mut()
+            .replace_part_bytes(&part, mjx_xml::fidelity::serialize_to_vec(&document))?;
         Ok(Some(answer))
     }
 
@@ -191,13 +197,13 @@ impl Workbook {
         let Some((part, _)) = self.sheet_drawing_part(index)? else {
             return Ok(None);
         };
-        let Some((drawing, interner)) = self.read_drawing_part(&part)? else {
+        let Some((document, drawing)) = self.read_drawing_document(&part)? else {
             return Ok(None);
         };
-        let Some(anchor) = drawing.anchor(&interner, anchor_index) else {
+        let Some(anchor) = drawing.anchor(&document.interner, anchor_index) else {
             return Ok(None);
         };
-        Ok(SheetAnchors::new(&sheet, metrics).resolve(&anchor, &interner))
+        Ok(SheetAnchors::new(&sheet, metrics).resolve(&anchor, &document.interner))
     }
 
     /// Moves every anchor on the tab at `index` for `count` rows inserted at the zero-based `at`.
@@ -419,19 +425,25 @@ impl Workbook {
             }
         };
 
-        let Some((mut drawing, mut interner)) = self.read_drawing_part(&drawing_part)? else {
+        let Some((mut document, mut drawing)) = self.read_drawing_document(&drawing_part)? else {
             return Err(XlsxError::MissingWorkbookPart(
                 drawing_part.as_str().to_owned(),
             ));
         };
-        let id = next_drawing_id(&drawing, &interner);
-        let picture = new_anchored_picture(&mut interner, id, name, &relationship_id);
-        let anchor = build(&mut interner, &AnchoredObject::Picture(picture));
-        drawing.push_anchor(&mut interner, &anchor);
-        let at = drawing.anchor_count(&interner).saturating_sub(1);
-        let payload = drawing_part_bytes(&drawing, interner);
-        self.package_mut()
-            .replace_part_bytes(&drawing_part, payload)?;
+        let at = {
+            let RawDocument { interner, root, .. } = &mut document;
+            let id = next_drawing_id(&drawing, interner);
+            let picture = new_anchored_picture(interner, id, name, &relationship_id);
+            let anchor = build(interner, &AnchoredObject::Picture(picture));
+            drawing.push_anchor(interner, &anchor);
+            let at = drawing.anchor_count(interner).saturating_sub(1);
+            drawing.write_back(root, interner);
+            at
+        };
+        self.package_mut().replace_part_bytes(
+            &drawing_part,
+            mjx_xml::fidelity::serialize_to_vec(&document),
+        )?;
         Ok(at)
     }
 
@@ -490,9 +502,7 @@ impl Workbook {
         let prefix = markup.bind_relationship_prefix();
 
         let part = PartName::new(&self.free_drawing_part_name())?;
-        let mut interner = Interner::default();
-        let empty = WorksheetDrawing::new(&mut interner);
-        let bytes = drawing_part_bytes(&empty, interner);
+        let bytes = new_drawing_part_bytes();
 
         let relationship_id = self.next_sheet_relationship_id(&sheet_part);
         let target = crate::worksheet::tables::relative_target(&sheet_part, &part);
@@ -519,21 +529,29 @@ impl Workbook {
         Ok(part)
     }
 
-    /// Parses one drawing part into a model and the interner its names live in.
-    fn read_drawing_part(
+    /// Parses one drawing part into **the document it came from** and a model over its root.
+    ///
+    /// The whole document, not just the model, because that is what an edit has to go back through:
+    /// [`ToXml::write_back`] restores the source range of every node a rebuild reproduced unchanged,
+    /// and serializing the original document keeps the part's own XML declaration, its byte-order
+    /// mark and anything beside its root. Building a fresh document around a rebuilt root would
+    /// re-flow the part and rewrite its prologue — Apache POI writes
+    /// `<?xml version="1.0" encoding="UTF-8"?>` where this project writes `standalone="yes"`, so
+    /// *edit one anchor* would otherwise change the first line of somebody else's file.
+    fn read_drawing_document(
         &self,
         part: &PartName,
-    ) -> Result<Option<(WorksheetDrawing, Interner)>, XlsxError> {
+    ) -> Result<Option<(RawDocument, WorksheetDrawing)>, XlsxError> {
         let Some(bytes) = self.package().part_bytes(part) else {
             return Ok(None);
         };
         let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
-        let Some(drawing) =
-            WorksheetDrawing::read_part(&document).map_err(mjx_sml::SmlError::Model)?
+        let Some(drawing) = WorksheetDrawing::read_root(&document.root, &document.interner)
+            .map_err(mjx_sml::SmlError::Model)?
         else {
             return Ok(None);
         };
-        Ok(Some((drawing, document.interner)))
+        Ok(Some((document, drawing)))
     }
 
     /// Every anchored object of `drawing`, with its image relationship resolved against `part`.
@@ -665,12 +683,26 @@ fn next_drawing_id(drawing: &WorksheetDrawing, interner: &Interner) -> u32 {
     highest.saturating_add(1)
 }
 
-/// Serializes a drawing part, prologue and all.
-fn drawing_part_bytes(drawing: &WorksheetDrawing, mut interner: Interner) -> Vec<u8> {
-    let root = drawing.to_xml(&mut interner);
-    let declaration = mjx_ooxml_core::RawNode::Declaration(Box::from(
-        &b"xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\""[..],
-    ));
-    let document = RawDocument::new(interner, false, vec![declaration], root, Vec::new());
+/// An empty drawing part, prologue and all.
+///
+/// Built through [`WorksheetDrawing::new`] rather than from a string template, so the three
+/// namespace declarations a drawing part needs are stated once, in the crate that owns the schema.
+/// The prologue is [`XML_DECLARATION`] exactly — the same first line `mjx-sml`'s package writer and
+/// `mjx-pptx`'s and `mjx-docx`'s `blank` constructors emit — because a part this library authors
+/// should be indistinguishable from every other part this library authors.
+fn new_drawing_part_bytes() -> Vec<u8> {
+    let mut interner = Interner::default();
+    let root = WorksheetDrawing::new(&mut interner).to_xml(&mut interner);
+    let declaration = XML_DECLARATION.trim_end_matches('\n');
+    let prologue = vec![
+        RawNode::Declaration(Box::from(
+            declaration
+                .trim_start_matches("<?")
+                .trim_end_matches("?>")
+                .as_bytes(),
+        )),
+        RawNode::Text(Box::from(&b"\n"[..])),
+    ];
+    let document = RawDocument::new(interner, false, prologue, root, Vec::new());
     mjx_xml::fidelity::serialize_to_vec(&document)
 }

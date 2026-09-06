@@ -597,6 +597,77 @@ fn a_row_inserted_inside_a_two_cell_anchor_reports_a_promise_the_markers_could_n
 }
 
 #[test]
+fn an_edit_that_moves_nothing_leaves_the_drawing_part_byte_identical() {
+    // The write-back goes through `ToXml::write_back` and the document the part was parsed from,
+    // not through a fresh document around a rebuilt root. So a shift that reaches every anchor and
+    // moves none of them re-emits the part exactly — **including its prologue**, which is POI's
+    // `<?xml version="1.0" encoding="UTF-8"?>` and not the `standalone="yes"` this project writes
+    // for parts of its own.
+    let bytes = fixture("worksheet_drawings.xlsx");
+    let before = Package::open(&bytes).expect("open");
+    let drawing_part = part("/xl/drawings/drawing1.xml");
+    let original = before
+        .part_bytes(&drawing_part)
+        .expect("the fixture has a drawing")
+        .to_vec();
+    assert!(
+        original.starts_with(br#"<?xml version="1.0" encoding="UTF-8"?>"#),
+        "the fixture's own declaration is what this case is about"
+    );
+
+    let mut workbook = producer_workbook();
+    // Row 999,999 is below every anchor, so every one of the four is visited and none moves.
+    let report = workbook
+        .insert_rows_into_drawing(0, 999_999, 1)
+        .expect("the drawing is edited");
+    assert_eq!(report.len(), 4);
+    assert!(report.iter().all(|shift| !shift.moved && !shift.resized));
+
+    let saved = workbook.save().expect("save");
+    let after = Package::open(&saved).expect("reopen");
+    assert_eq!(
+        after.part_bytes(&drawing_part),
+        Some(original.as_slice()),
+        "an edit that changed nothing must not re-flow the part or rewrite its declaration"
+    );
+}
+
+#[test]
+fn an_edit_that_moves_one_anchor_leaves_the_others_bytes_alone() {
+    let mut workbook = producer_workbook();
+    let drawing_part = part("/xl/drawings/drawing1.xml");
+
+    // Row 3 is at or below the first anchor's `from` (row 2) and its `to` (row 5), and below the
+    // one-cell anchor's `from` (row 1) — so exactly one of the four anchors is left untouched by
+    // its own markers, and the absolute anchor by having none.
+    workbook
+        .insert_rows_into_drawing(0, 3, 1)
+        .expect("the drawing is edited");
+    let saved = workbook.save().expect("save");
+    let after = Package::open(&saved).expect("reopen");
+    let payload = after
+        .part_bytes(&drawing_part)
+        .expect("the drawing survives")
+        .to_vec();
+    let text = String::from_utf8(payload).expect("utf-8");
+
+    // The prologue is still the file's own.
+    assert!(text.starts_with(r#"<?xml version="1.0" encoding="UTF-8"?>"#));
+    // The absolute anchor names no cell, so its whole subtree comes back verbatim — the exact
+    // spelling POI wrote, whitespace and self-closing tags included.
+    assert!(
+        text.contains(r#"<xdr:pos x="1905000" y="952500"/>"#)
+            && text.contains(r#"<xdr:ext cx="685800" cy="342900"/>"#),
+        "the absolute anchor must be untouched:\n{text}"
+    );
+    // …and the anchor that did move says so.
+    assert!(
+        text.contains("<xdr:row>6</xdr:row>"),
+        "the `to` marker moved"
+    );
+}
+
+#[test]
 fn editing_a_cell_never_opens_the_drawing_part() {
     let bytes = fixture("worksheet_drawings.xlsx");
     let before = Package::open(&bytes).expect("open");
