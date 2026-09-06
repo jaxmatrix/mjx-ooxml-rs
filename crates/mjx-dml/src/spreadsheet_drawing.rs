@@ -320,13 +320,18 @@ impl AnchorClientData {
 
     /// Whether selection of this object is disabled while the sheet is protected
     /// (`@fLocksWithSheet`). **`true` when the attribute is absent.**
+    ///
+    /// The absent case is answered by the `default = true` on the declaration above, not by the
+    /// `unwrap_or` here — which covers only a value that will not decode, and answers the schema
+    /// default for that too rather than inventing a `false` the file never wrote.
     #[must_use]
     pub fn locks_with_sheet(&self, interner: &Interner) -> bool {
         self.locks_with_sheet_attribute(interner).unwrap_or(true)
     }
 
     /// Whether this object is printed with the sheet (`@fPrintsWithSheet`). **`true` when the
-    /// attribute is absent.**
+    /// attribute is absent** — see [`locks_with_sheet`](Self::locks_with_sheet) for which half of
+    /// this method answers that.
     #[must_use]
     pub fn prints_with_sheet(&self, interner: &Interner) -> bool {
         self.prints_with_sheet_attribute(interner).unwrap_or(true)
@@ -481,7 +486,9 @@ anchored_object! {
 
 impl DrawingShape {
     /// Whether text inside this shape can still be edited while the sheet is protected
-    /// (`@fLocksText`). **`true` when the attribute is absent** — see this type's own documentation.
+    /// (`@fLocksText`). **`true` when the attribute is absent** — see this type's own documentation,
+    /// and [`AnchorClientData::locks_with_sheet`] for which half of a call like this one answers
+    /// the absent case.
     #[must_use]
     pub fn locks_text(&self, interner: &Interner) -> bool {
         self.locks_text_attribute(interner).unwrap_or(true)
