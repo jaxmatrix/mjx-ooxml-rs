@@ -156,17 +156,23 @@ pub struct ResolvedRangeCell {
 /// Every variant is a fact about the file rather than a failure of this crate, which is why an area
 /// carrying one is *reported* alongside the areas that did resolve rather than failing the whole
 /// call.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// Every variant carries a message, because this is a value a caller shows a user: a chart drawing
+/// nothing because its `c:f` names a deleted tab is a question somebody has to answer, and "the
+/// reference did not resolve" is not the answer.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RangeProblem {
     /// The text is not a reference this grammar admits.
+    #[error("the reference is not one this grammar admits: {0}")]
     Malformed(AddressError),
     /// The reference names a sheet this workbook does not have — a tab deleted or renamed after the
     /// chart was written.
+    #[error("the reference names a sheet this workbook does not have: {name}")]
     UnknownSheet {
         /// The name the file wrote, with its quoting undone.
         name: String,
     },
     /// The far end of a 3-D span (`Sheet1:Sheet3!A1`) names no tab of this workbook.
+    #[error("the far end of a three-dimensional span names no sheet of this workbook: {name}")]
     UnknownSpanEnd {
         /// The end that names no tab.
         name: String,
@@ -175,27 +181,32 @@ pub enum RangeProblem {
     ///
     /// This library performs no external I/O by design, so those cells are not here to be read. The
     /// chart's cache is the only answer, and it is reported beside this one.
+    #[error("the reference names external workbook {index}, which this library never opens")]
     ExternalBook {
         /// The index into the workbook's external-link list the file wrote.
         index: u32,
     },
     /// The reference names a tab whose part is a chartsheet or a dialogsheet — which has no cells —
     /// or one whose relationship reaches no part at all.
+    #[error("sheet {sheet_index} has no cells to read")]
     SheetHasNoCells {
         /// The tab the reference named.
         sheet_index: usize,
     },
     /// The area is a defined name this workbook does not define, in either scope.
+    #[error("this workbook defines no name {name}, in either scope")]
     UnknownDefinedName {
         /// The name the file wrote.
         name: String,
     },
     /// A defined name is defined in terms of itself, directly or through a chain.
+    #[error("the defined name {name} is defined in terms of itself")]
     DefinedNameCycle {
         /// The name the chain came back to.
         name: String,
     },
     /// A chain of defined names ran deeper than this resolver follows (sixteen).
+    #[error("the chain of defined names reaching {name} runs deeper than this resolver follows")]
     DefinedNameTooDeep {
         /// The name the chain was following when it stopped.
         name: String,

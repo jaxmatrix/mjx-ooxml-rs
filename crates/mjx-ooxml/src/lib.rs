@@ -186,12 +186,14 @@ pub use error::{Error, ErrorCode, ErrorDetail};
 pub use format::{detect_format, Format, FormatFamily};
 pub use references::{DiagramParts, ExternalLink, InkReference};
 pub use workbook::{
-    AnchorBoundsInfo, AnchorShiftInfo, CellBlock, CellData, CellInput, CellWrite, DefinedName,
-    GridAnomalyInfo, GridAnomalyKind, PreservedPart, PreservedPartsSummary, RevisionSessionInfo,
-    SharedWorkbookUserInfo, SheetDrawingInfo, SheetDrawingObjectInfo, SheetHyperlinkInfo,
-    SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableColumnInfo, SheetTableInfo,
-    Workbook, WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState,
-    WorkbookWindowInfo, WorkbookXmlMapsInfo, XmlMapInfo,
+    AnchorBoundsInfo, AnchorShiftInfo, CellBlock, CellData, CellInput, CellWrite, ChartRangeSeries,
+    ChartSeriesFreshnessInfo, DefinedName, GridAnomalyInfo, GridAnomalyKind, PreservedPart,
+    PreservedPartsSummary, RangeCellInfo, ResolvedRangeInfo, RevisionSessionInfo,
+    SharedWorkbookUserInfo, SheetChartWorkbookInfo, SheetDrawingInfo, SheetDrawingObjectInfo,
+    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary,
+    SheetTableColumnInfo, SheetTableInfo, Workbook, WorkbookConnectionInfo,
+    WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
+    XmlMapInfo,
 };
 
 // -----------------------------------------------------------------------------------------------
@@ -265,10 +267,11 @@ pub use mjx_dml::{
 pub use mjx_chart::{
     AxisKind, AxisOrientation, AxisPosition, BarDirection, BarGrouping, BlankDisplay,
     ChartAccessError, ChartAxisData, ChartData, ChartDataError, ChartErrorBarData, ChartKind,
-    ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartTrendlineData,
-    DanglingPointReference, DataLabelPosition, DataLabelSettings, DataLabelSpec, ErrorBarDirection,
-    ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition, OfPieType, RadarStyle,
-    ScatterStyle, SeriesGrouping, TickLabelPosition, TickMark, TrendlineKind, TrendlineSpec,
+    ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartSeriesReferences,
+    ChartTrendlineData, DanglingPointReference, DataLabelPosition, DataLabelSettings,
+    DataLabelSpec, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition,
+    OfPieType, RadarStyle, ScatterStyle, SeriesGrouping, TickLabelPosition, TickMark,
+    TrendlineKind, TrendlineSpec,
 };
 
 // --- WordprocessingML: the interner-free authoring/reading types the Document surface names -------

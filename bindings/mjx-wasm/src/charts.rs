@@ -37,6 +37,25 @@ value_class! {
     /// How text flows around a floating Word chart (`Document.addFloatingChart`).
     ChartWrap(ooxml::ChartWrap), derive(Copy, PartialEq, Eq);
 
+    /// Where one series says its data lives — the formula beside each cache, as the file wrote it.
+    ChartSeriesReferences(ooxml::ChartSeriesReferences), derive(PartialEq, Eq);
+
+    /// Where one series of an Excel range chart takes its data from (`Workbook.addRangeChart`).
+    ChartRangeSeries(ooxml::ChartRangeSeries), derive(PartialEq, Eq);
+
+    /// An Excel chart's backing workbook: which anchor on which tab holds the chart, where the
+    /// workbook is, and whether it lies outside the package.
+    SheetChartWorkbookInfo(ooxml::SheetChartWorkbookInfo), derive(PartialEq, Eq);
+
+    /// One series' cache set beside what its cells actually say, with each named.
+    ChartSeriesFreshnessInfo(ooxml::ChartSeriesFreshnessInfo), derive(PartialEq);
+
+    /// One cell a chart's formula reaches, and where it sits in that reference.
+    RangeCellInfo(ooxml::RangeCellInfo), derive(PartialEq);
+
+    /// A chart's formula, resolved against a workbook's cells.
+    ResolvedRangeInfo(ooxml::ResolvedRangeInfo), derive(PartialEq);
+
     /// A trendline to add to a series.
     TrendlineSpec(ooxml::TrendlineSpec), derive(PartialEq);
 
@@ -886,5 +905,214 @@ impl Default for DataLabelSpec {
     /// The same value the no-argument constructor builds.
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Excel chart surface (MJXOFF-111)
+// ---------------------------------------------------------------------------------------------
+
+#[wasm_bindgen]
+impl ChartSeriesReferences {
+    /// The cell the series' name comes from, or `undefined` when the name is a literal.
+    #[wasm_bindgen(getter, js_name = "name")]
+    pub fn name(&self) -> Option<String> {
+        self.0.name.clone()
+    }
+
+    /// The cells its category labels come from, or `undefined` when they are a literal.
+    #[wasm_bindgen(getter, js_name = "categories")]
+    pub fn categories(&self) -> Option<String> {
+        self.0.categories.clone()
+    }
+
+    /// The cells its values come from, or `undefined` when they are a literal.
+    #[wasm_bindgen(getter, js_name = "values")]
+    pub fn values(&self) -> Option<String> {
+        self.0.values.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ChartRangeSeries {
+    /// A series taking its values from `values` and its name from the literal `name`.
+    #[wasm_bindgen(constructor)]
+    pub fn new(name: &str, values: &str) -> Self {
+        Self(ooxml::ChartRangeSeries::new(name, values))
+    }
+
+    /// The same series, taking its name from the cell `reference` names instead.
+    #[wasm_bindgen(js_name = "namedByCell")]
+    #[must_use]
+    pub fn named_by_cell(&self, reference: &str) -> Self {
+        Self(self.0.clone().named_by_cell(reference))
+    }
+
+    /// The cell the series takes its name from, or `undefined` for a literal name.
+    #[wasm_bindgen(getter, js_name = "nameCell")]
+    pub fn name_cell(&self) -> Option<String> {
+        self.0.name_cell.clone()
+    }
+
+    /// The name to use when no cell names it, or when the cell it names holds nothing.
+    #[wasm_bindgen(getter, js_name = "name")]
+    pub fn name(&self) -> String {
+        self.0.name.clone()
+    }
+
+    /// The cells the series' values come from.
+    #[wasm_bindgen(getter, js_name = "values")]
+    pub fn values(&self) -> String {
+        self.0.values.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl SheetChartWorkbookInfo {
+    /// The tab the chart is anchored on.
+    #[wasm_bindgen(getter, js_name = "sheet")]
+    pub fn sheet(&self) -> u32 {
+        self.0.sheet
+    }
+
+    /// The anchor that frames it, in the drawing part's paint order.
+    #[wasm_bindgen(getter, js_name = "anchor")]
+    pub fn anchor(&self) -> u32 {
+        self.0.anchor
+    }
+
+    /// Where the workbook is — a part name inside the package, or a URI outside it.
+    #[wasm_bindgen(getter, js_name = "target")]
+    pub fn target(&self) -> String {
+        self.0.target.clone()
+    }
+
+    /// Whether the workbook lies outside the package.
+    #[wasm_bindgen(getter, js_name = "external")]
+    pub fn external(&self) -> bool {
+        self.0.external
+    }
+}
+
+#[wasm_bindgen]
+impl ChartSeriesFreshnessInfo {
+    /// Which series this is, in the order `Workbook.chartSeries` reports them.
+    #[wasm_bindgen(getter, js_name = "seriesIndex")]
+    pub fn series_index(&self) -> u32 {
+        self.0.series_index
+    }
+
+    /// What the chart draws today — its caches.
+    #[wasm_bindgen(getter, js_name = "cached")]
+    pub fn cached(&self) -> ChartSeriesData {
+        ChartSeriesData(self.0.cached.clone())
+    }
+
+    /// The formula of each of the series' sources, as the file wrote them.
+    #[wasm_bindgen(getter, js_name = "references")]
+    pub fn references(&self) -> ChartSeriesReferences {
+        ChartSeriesReferences(self.0.references.clone())
+    }
+
+    /// What the cells say, for the sources that are references and resolved.
+    ///
+    /// `clippy::wrong_self_convention` reads `from_*` as a constructor; this is the identity
+    /// projection of `mjx_ooxml::ChartSeriesFreshnessInfo::from_cells`, and renaming it would put a
+    /// third spelling of one field in front of a TypeScript caller.
+    #[allow(clippy::wrong_self_convention)]
+    #[wasm_bindgen(getter, js_name = "fromCells")]
+    pub fn from_cells(&self) -> ChartSeriesData {
+        ChartSeriesData(self.0.from_cells.clone())
+    }
+
+    /// Why the values reference did not resolve, in words, or `undefined` when it did.
+    #[wasm_bindgen(getter, js_name = "valuesProblem")]
+    pub fn values_problem(&self) -> Option<String> {
+        self.0.values_problem.clone()
+    }
+
+    /// Why the categories reference did not resolve, in words, or `undefined`.
+    #[wasm_bindgen(getter, js_name = "categoriesProblem")]
+    pub fn categories_problem(&self) -> Option<String> {
+        self.0.categories_problem.clone()
+    }
+
+    /// Whether the cached values and the cells agree. `undefined` means *cannot say* — the values
+    /// are a literal, or the reference did not resolve.
+    #[wasm_bindgen(getter, js_name = "valuesAgree")]
+    pub fn values_agree(&self) -> Option<bool> {
+        self.0.values_agree
+    }
+
+    /// Whether the cached category labels and the cells agree. `undefined` as above.
+    #[wasm_bindgen(getter, js_name = "categoriesAgree")]
+    pub fn categories_agree(&self) -> Option<bool> {
+        self.0.categories_agree
+    }
+}
+
+#[wasm_bindgen]
+impl RangeCellInfo {
+    /// The cell's zero-based position within the whole reference — the index a cache uses.
+    #[wasm_bindgen(getter, js_name = "offset")]
+    pub fn offset(&self) -> u64 {
+        self.0.offset
+    }
+
+    /// The tab the cell is on.
+    #[wasm_bindgen(getter, js_name = "sheet")]
+    pub fn sheet(&self) -> u32 {
+        self.0.sheet
+    }
+
+    /// Where on that tab, in A1 text.
+    #[wasm_bindgen(getter, js_name = "reference")]
+    pub fn reference(&self) -> String {
+        self.0.reference.clone()
+    }
+
+    /// The cell's value as a number, or `undefined` for one that is not a number.
+    #[wasm_bindgen(getter, js_name = "number")]
+    pub fn number(&self) -> Option<f64> {
+        self.0.number
+    }
+
+    /// What a category axis would show for the cell.
+    #[wasm_bindgen(getter, js_name = "label")]
+    pub fn label(&self) -> String {
+        self.0.label.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl ResolvedRangeInfo {
+    /// The reference exactly as the chart wrote it.
+    #[wasm_bindgen(getter, js_name = "reference")]
+    pub fn reference(&self) -> String {
+        self.0.reference.clone()
+    }
+
+    /// How many cells the reference addresses, blanks included.
+    #[wasm_bindgen(getter, js_name = "addressedCells")]
+    pub fn addressed_cells(&self) -> u64 {
+        self.0.addressed_cells
+    }
+
+    /// Whether every area of the reference resolved.
+    #[wasm_bindgen(getter, js_name = "fullyResolved")]
+    pub fn fully_resolved(&self) -> bool {
+        self.0.fully_resolved
+    }
+
+    /// Why the first area that failed did, in words, or `undefined` when none did.
+    #[wasm_bindgen(getter, js_name = "problem")]
+    pub fn problem(&self) -> Option<String> {
+        self.0.problem.clone()
+    }
+
+    /// The cells that hold something, in reference order. A blank cell is absent rather than zero.
+    #[wasm_bindgen(getter, js_name = "cells")]
+    pub fn cells(&self) -> Vec<RangeCellInfo> {
+        self.0.cells.iter().cloned().map(RangeCellInfo).collect()
     }
 }

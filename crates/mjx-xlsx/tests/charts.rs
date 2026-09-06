@@ -364,10 +364,89 @@ fn a_sheet_chart_that_carries_a_workbook_refreshes_normally() {
     // …and the live-range chart already in the file still declines, in the same package.
     assert!(!workbook.refresh_chart_workbook(0, 0).expect("refresh"));
 
-    // Detaching removes the reference and the relationship, and the chart then declines too.
+    // Detaching removes the reference, the relationship **and the workbook part**, and the chart
+    // then declines too. The part removal is not a courtesy: `save` runs `Package::validate`, which
+    // refuses a SpreadsheetML part no relationship chain reaches — so a detach that left the
+    // embedded workbook behind would hand back a workbook this library then declines to write, and
+    // the caller would meet that on the next save rather than here.
     workbook.detach_chart_workbook(0, anchor).expect("detach");
     assert!(!workbook.refresh_chart_workbook(0, anchor).expect("refresh"));
     assert!(workbook.chart_workbooks().expect("workbooks").is_empty());
+    assert!(
+        !workbook
+            .package()
+            .part_names()
+            .any(|part| part.as_str().starts_with("/xl/embeddings/")),
+        "the detached workbook part must go with its relationship"
+    );
+    workbook.save().expect("and the package still validates");
+}
+
+#[test]
+fn detaching_one_chart_of_two_that_share_a_workbook_leaves_the_part_where_it_is() {
+    // The other half of the sweep, and the reason it is conditional rather than unconditional: a
+    // second chart naming the same workbook keeps it alive. Removing it on the first detach would
+    // leave the second chart pointing at a part that is not there — the defect `Package::validate`
+    // exists to catch, planted by the code that was avoiding it.
+    let mut workbook = Workbook::open(&producer_workbook()).expect("opens");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["A"])
+        .series("S", [1.0]);
+    for (name, row) in [("First", 10), ("Second", 30)] {
+        workbook
+            .add_chart(
+                0,
+                &chart,
+                CellMarker::new(0, 0, row, 0),
+                CellMarker::new(5, 0, row + 15, 0),
+                name,
+                ResizingBehavior::MoveWithCellsButDoNotResize,
+            )
+            .expect("a chart");
+    }
+
+    // Each chart got a workbook of its own; point the second at the first's and drop the spare.
+    // Through `mjx-opc` directly, because nothing on this surface makes two charts share a workbook
+    // — which is the point: the file being tested is one this library would not author, and a file
+    // it did not author is exactly what the conditional exists for.
+    let mut package = Package::open(&workbook.save().expect("saves")).expect("reopens");
+    let second_chart = PartName::new("/xl/charts/chart3.xml").expect("a part name");
+    package
+        .remove_relationship(Some(&second_chart), "rId1")
+        .expect("the second chart's own workbook relationship goes");
+    package
+        .add_relationship(
+            Some(&second_chart),
+            mjx_opc::Relationship {
+                id: "rId1".to_owned(),
+                rel_type:
+                    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"
+                        .to_owned(),
+                target: "../embeddings/Microsoft_Excel_Sheet1.xlsx".to_owned(),
+                mode: mjx_opc::TargetMode::Internal,
+            },
+        )
+        .expect("and it names the first chart's instead");
+    package
+        .remove_part(&PartName::new("/xl/embeddings/Microsoft_Excel_Sheet2.xlsx").expect("a part"))
+        .expect("the now-unreferenced second workbook goes");
+    let mut workbook = Workbook::open(&package.save().expect("saves")).expect("reopens");
+
+    assert_eq!(
+        workbook.chart_workbooks().expect("workbooks").len(),
+        2,
+        "both charts name the one workbook"
+    );
+    workbook.detach_chart_workbook(0, 1).expect("detach");
+    assert!(
+        workbook
+            .package()
+            .part_names()
+            .any(|part| part.as_str() == "/xl/embeddings/Microsoft_Excel_Sheet1.xlsx"),
+        "the second chart still names it, so it must stay"
+    );
+    assert!(workbook.refresh_chart_workbook(0, 2).expect("refresh"));
+    workbook.save().expect("and the package still validates");
 }
 
 // =================================================================================================

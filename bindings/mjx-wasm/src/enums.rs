@@ -1191,6 +1191,7 @@ sealed_enums! {
         Table,
         Comments,
         Drawing,
+        Chart,
         VmlDrawing,
         PrinterSettings,
         Theme,

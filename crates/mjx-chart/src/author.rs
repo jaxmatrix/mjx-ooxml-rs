@@ -186,12 +186,13 @@ pub struct ChartSeriesRange {
     pub values: String,
 }
 
-/// Where a whole chart's data lives — the categories, and each series
-/// (MJXOFF-111).
+/// Where a whole chart's data lives — the categories, and each series (MJXOFF-111).
 ///
-/// Handed to [`ChartData::ranges`]. A series with no entry here, and a chart with no
-/// `categories`, falls back to the formulas naming the companion embedded workbook, so a partial
-/// description is still coherent rather than half-written.
+/// Handed to [`ChartData::ranges`]. **A source this does not name is written as a literal**
+/// (`c:numLit` / `c:strLit`) rather than falling back to the companion workbook's own
+/// `Sheet1!$A$2:$A$N`: a chart that names its host's cells has no companion workbook, so that
+/// formula would point at a part which is not in the package. A literal is the honest shape for
+/// data with no cells behind it, and it is what the caller described by giving values and no range.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ChartRanges {
     /// The cells holding the shared category labels (`c:cat`, or `c:xVal` for a scatter or bubble
@@ -251,31 +252,35 @@ impl ChartData {
     /// written — a cache is what draws until a consumer recalculates — but they now describe cells
     /// that exist, so a consumer can refresh them.
     ///
-    /// A series `ranges` says nothing about keeps the default formula naming the embedded workbook,
-    /// which is coherent for a caller filling one series in and wrong to silently *drop* the rest.
+    /// A source `ranges` does not name is written as a **literal** rather than as a reference to the
+    /// companion workbook — see [`ChartRanges`] for why. So a chart given ranges is coherent whether
+    /// the description is complete or partial, and in neither case does it name a part that is not
+    /// there.
     #[must_use]
     pub fn ranges(mut self, ranges: ChartRanges) -> Self {
         self.ranges = Some(ranges);
         self
     }
 
-    /// The `c:f` for the category cells: what [`ranges`](Self::ranges) said, or the companion
-    /// workbook's own `Sheet1!$A$2:$A$N`.
-    fn category_reference(&self, count: usize) -> String {
-        self.ranges
-            .as_ref()
-            .and_then(|ranges| ranges.categories.clone())
-            .unwrap_or_else(|| category_formula(count))
+    /// The `c:f` for the category cells, or `None` for a chart whose categories are a literal.
+    ///
+    /// A chart with no [`ranges`](Self::ranges) at all names the companion workbook this crate
+    /// writes beside it; one with ranges names what it was given, and writes a literal where it was
+    /// given nothing.
+    fn category_reference(&self, count: usize) -> Option<String> {
+        match &self.ranges {
+            None => Some(category_formula(count)),
+            Some(ranges) => ranges.categories.clone(),
+        }
     }
 
-    /// The `c:f` for series `index`'s value cells: what [`ranges`](Self::ranges) said, or the
-    /// companion workbook's own `Sheet1!$B$2:$B$N`.
-    fn value_reference(&self, index: usize, count: usize) -> String {
-        self.ranges
-            .as_ref()
-            .and_then(|ranges| ranges.series.get(index))
-            .map(|series| series.values.clone())
-            .unwrap_or_else(|| value_formula(index, count))
+    /// The `c:f` for series `index`'s value cells, or `None` for a series whose values are a
+    /// literal.
+    fn value_reference(&self, index: usize, count: usize) -> Option<String> {
+        match &self.ranges {
+            None => Some(value_formula(index, count)),
+            Some(ranges) => ranges.series.get(index).map(|series| series.values.clone()),
+        }
     }
 
     /// The `c:f` naming the cell series `index` takes its name from, when there is one.
@@ -664,13 +669,13 @@ impl ChartData {
             children.push(el(build_num_data(
                 interner,
                 "xVal",
-                &self.category_reference(count),
+                self.category_reference(count).as_deref(),
                 &x_values,
             )));
             children.push(el(build_num_data(
                 interner,
                 "yVal",
-                &self.value_reference(index, count),
+                self.value_reference(index, count).as_deref(),
                 &series.values,
             )));
             // `c:bubbleSize` is optional and this description carries no third channel: emitting a
@@ -680,23 +685,32 @@ impl ChartData {
             children.push(el(build_num_data(
                 interner,
                 "val",
-                &self.value_reference(index, count),
+                self.value_reference(index, count).as_deref(),
                 &series.values,
             )));
         }
         chart_element(interner, "ser", Vec::new(), children)
     }
 
-    /// Builds `c:cat` — a `c:strRef` naming the category cells and caching their labels.
+    /// Builds `c:cat` — a `c:strRef` naming the category cells and caching their labels, or a
+    /// `c:strLit` when the chart names no cells for them.
+    ///
+    /// `CT_AxDataSource` admits either, and the choice is not cosmetic: a literal is data with no
+    /// cells behind it, which is exactly what a chart given values and no range has.
     fn build_categories(&self, interner: &mut Interner) -> RawElement {
-        let formula = chart_text_leaf(
-            interner,
-            "f",
-            &self.category_reference(self.categories.len()),
-        );
         let cache = build_str_cache(interner, &self.categories);
-        let reference = chart_element(interner, "strRef", Vec::new(), vec![el(formula), el(cache)]);
-        chart_element(interner, "cat", Vec::new(), vec![el(reference)])
+        let source = match self.category_reference(self.categories.len()) {
+            Some(reference) => {
+                let formula = chart_text_leaf(interner, "f", &reference);
+                chart_element(interner, "strRef", Vec::new(), vec![el(formula), el(cache)])
+            }
+            None => {
+                let mut literal = cache;
+                literal.name = crate::build::chart_name(interner, "strLit");
+                literal
+            }
+        };
+        chart_element(interner, "cat", Vec::new(), vec![el(source)])
     }
 }
 
@@ -746,18 +760,30 @@ fn build_referenced_series_name(
     chart_element(interner, "tx", Vec::new(), vec![el(string_reference)])
 }
 
-/// Builds a numeric data source `<c:local><c:numRef><c:f>…</c:f><c:numCache>…</c:numCache></c:numRef>
-/// </c:local>` — the shape of `c:val`, `c:xVal` and `c:yVal`.
+/// Builds a numeric data source — the shape of `c:val`, `c:xVal` and `c:yVal`.
+///
+/// `<c:numRef><c:f>…</c:f><c:numCache>…</c:numCache></c:numRef>` when `formula` names cells, and a
+/// bare `<c:numLit>` when it does not. `CT_NumDataSource` admits either, and the choice says whether
+/// there are cells behind the numbers — see [`ChartRanges`].
 fn build_num_data(
     interner: &mut Interner,
     local: &str,
-    formula: &str,
+    formula: Option<&str>,
     values: &[f64],
 ) -> RawElement {
-    let f = chart_text_leaf(interner, "f", formula);
     let cache = build_num_cache(interner, values);
-    let reference = chart_element(interner, "numRef", Vec::new(), vec![el(f), el(cache)]);
-    chart_element(interner, local, Vec::new(), vec![el(reference)])
+    let source = match formula {
+        Some(formula) => {
+            let f = chart_text_leaf(interner, "f", formula);
+            chart_element(interner, "numRef", Vec::new(), vec![el(f), el(cache)])
+        }
+        None => {
+            let mut literal = cache;
+            literal.name = crate::build::chart_name(interner, "numLit");
+            literal
+        }
+    };
+    chart_element(interner, local, Vec::new(), vec![el(source)])
 }
 
 /// Builds `c:numCache` — a `General` format, a `c:ptCount`, and one `c:pt` per value. A non-finite

@@ -19,9 +19,9 @@ use crate::error::Error;
 use crate::index::{count, index};
 use crate::{
     AxisOrientation, ChartAxisData, ChartData, ChartErrorBarData, ChartKind, ChartLabelScope,
-    ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartTrendlineData,
-    DanglingPointReference, DataLabelSettings, DataLabelSpec, DocumentChartWorkbook, ErrorBarSpec,
-    FillSpec, LegendPosition, LineSpec, TrendlineSpec,
+    ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartSeriesReferences,
+    ChartTrendlineData, DanglingPointReference, DataLabelSettings, DataLabelSpec,
+    DocumentChartWorkbook, ErrorBarSpec, FillSpec, LegendPosition, LineSpec, TrendlineSpec,
 };
 
 use super::BlockPath;
@@ -185,6 +185,23 @@ impl super::Document {
     /// See [`Document::chart_kinds`](mjx_docx::Document::chart_kinds).
     pub fn chart_kinds(&mut self, drawing_id: u32) -> Result<Vec<ChartKind>, Error> {
         Ok(self.document.chart_kinds(drawing_id)?)
+    }
+
+    /// Where every series of the chart says its data lives — the formula beside each cache, as the
+    /// file wrote it.
+    ///
+    /// The companion of [`chart_series`](Self::chart_series): that answers what the **caches** hold,
+    /// this answers what the references **name**.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure.
+    ///
+    /// See [`Document::chart_series_references`](mjx_docx::Document::chart_series_references).
+    pub fn chart_series_references(
+        &mut self,
+        drawing_id: u32,
+    ) -> Result<Vec<ChartSeriesReferences>, Error> {
+        Ok(self.document.chart_series_references(drawing_id)?)
     }
 
     /// The axes of the chart, in document order.

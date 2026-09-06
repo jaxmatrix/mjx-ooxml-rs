@@ -46,9 +46,19 @@ use wasm_bindgen::prelude::*;
 
 use mjx_ooxml as ooxml;
 
-use crate::enums::{CellFormatTarget, DateSystem, ResizingBehavior, TableStyleOrigin};
+use crate::charts::{
+    ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
+    ChartPointFormatData, ChartRangeSeries, ChartSeriesData, ChartSeriesFreshnessInfo,
+    ChartSeriesReferences, ChartTrendlineData, DanglingPointReference, DataLabelSettings,
+    DataLabelSpec, ErrorBarSpec, ResolvedRangeInfo, SheetChartWorkbookInfo, TrendlineSpec,
+};
+use crate::enums::{
+    AxisOrientation, CellFormatTarget, ChartKind, DateSystem, LegendPosition, ResizingBehavior,
+    TableStyleOrigin,
+};
 use crate::errors::map_error;
 use crate::format::Format;
+use crate::paint::{FillSpec, LineSpec};
 use crate::spreadsheet::{
     AnchorBoundsInfo, AnchorShiftInfo, BorderSpec, CalculationSettings, CellBlock, CellFormatSpec,
     CellWrite, DefinedName, EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec,
@@ -873,5 +883,668 @@ impl Workbook {
     #[wasm_bindgen(js_name = "partBytes")]
     pub fn part_bytes(&self, part: &str) -> Result<Vec<u8>, JsValue> {
         map_error(self.inner.part_bytes(part))
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Charts (MJXOFF-111)
+    // -----------------------------------------------------------------------------------------
+
+    /// The index of every anchor on `sheet` that frames a chart, in paint order.
+    #[wasm_bindgen(js_name = "chartAnchorIndices")]
+    pub fn chart_anchor_indices(&mut self, sheet: u32) -> Result<Vec<u32>, JsValue> {
+        map_error(self.inner.chart_anchor_indices(sheet))
+    }
+
+    /// The relationship id the anchor names as its chart part, or `undefined` when it frames no
+    /// chart.
+    #[wasm_bindgen(js_name = "chartRelId")]
+    pub fn chart_rel_id(&mut self, sheet: u32, anchor: u32) -> Result<Option<String>, JsValue> {
+        map_error(self.inner.chart_rel_id(sheet, anchor))
+    }
+
+    /// The raw XML of the chart part the anchor frames, or `undefined` when it frames no chart.
+    #[wasm_bindgen(js_name = "chartPartBytes")]
+    pub fn chart_part_bytes(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<Option<Vec<u8>>, JsValue> {
+        map_error(self.inner.chart_part_bytes(sheet, anchor))
+    }
+
+    /// Anchors `chart` between two cells, with the embedded workbook Office's *Edit Data* opens.
+    /// Answers its position in the paint order.
+    #[wasm_bindgen(js_name = "addChart")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_chart(
+        &mut self,
+        sheet: u32,
+        chart: &ChartData,
+        from_column: u32,
+        from_row: u32,
+        to_column: u32,
+        to_row: u32,
+        name: &str,
+        resizing: ResizingBehavior,
+    ) -> Result<u32, JsValue> {
+        map_error(self.inner.add_chart(
+            sheet,
+            &chart.0,
+            from_column,
+            from_row,
+            to_column,
+            to_row,
+            name,
+            resizing.into(),
+        ))
+    }
+
+    /// Anchors a chart taking its data from cells in this workbook — no embedded copy at all.
+    /// Answers its position in the paint order.
+    #[wasm_bindgen(js_name = "addRangeChart")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_range_chart(
+        &mut self,
+        sheet: u32,
+        kind: ChartKind,
+        categories: Option<String>,
+        series: Vec<ChartRangeSeries>,
+        from_column: u32,
+        from_row: u32,
+        to_column: u32,
+        to_row: u32,
+        name: &str,
+        resizing: ResizingBehavior,
+    ) -> Result<u32, JsValue> {
+        let series: Vec<ooxml::ChartRangeSeries> =
+            series.into_iter().map(|entry| entry.0).collect();
+        map_error(self.inner.add_range_chart(
+            sheet,
+            kind.into(),
+            categories.as_deref(),
+            &series,
+            from_column,
+            from_row,
+            to_column,
+            to_row,
+            name,
+            resizing.into(),
+        ))
+    }
+
+    /// Every chart in the workbook that references a backing workbook. A chart whose data is a live
+    /// range has none, and is absent from this list.
+    #[wasm_bindgen(js_name = "chartWorkbooks")]
+    pub fn chart_workbooks(&mut self) -> Result<Vec<SheetChartWorkbookInfo>, JsValue> {
+        map_error(self.inner.chart_workbooks())
+            .map(|values| values.into_iter().map(SheetChartWorkbookInfo).collect())
+    }
+
+    /// Rewrites the embedded workbook of the chart. Answers `false` — changing nothing — when there
+    /// is none, which is the ordinary state of a chart on a sheet.
+    #[wasm_bindgen(js_name = "refreshChartWorkbook")]
+    pub fn refresh_chart_workbook(&mut self, sheet: u32, anchor: u32) -> Result<bool, JsValue> {
+        map_error(self.inner.refresh_chart_workbook(sheet, anchor))
+    }
+
+    /// Detaches the backing workbook, leaving the chart to render from its cached values. The
+    /// workbook part goes with it unless another chart still names it.
+    #[wasm_bindgen(js_name = "detachChartWorkbook")]
+    pub fn detach_chart_workbook(&mut self, sheet: u32, anchor: u32) -> Result<(), JsValue> {
+        map_error(self.inner.detach_chart_workbook(sheet, anchor))
+    }
+
+    /// Where every series says its data lives — the formula beside each cache, as written.
+    #[wasm_bindgen(js_name = "chartSeriesReferences")]
+    pub fn chart_series_references(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<Vec<ChartSeriesReferences>, JsValue> {
+        map_error(self.inner.chart_series_references(sheet, anchor))
+            .map(|values| values.into_iter().map(ChartSeriesReferences).collect())
+    }
+
+    /// Every series of the chart, read from the cells its formulas name rather than from its
+    /// caches.
+    #[wasm_bindgen(js_name = "chartSeriesFromCells")]
+    pub fn chart_series_from_cells(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<Vec<ChartSeriesData>, JsValue> {
+        map_error(self.inner.chart_series_from_cells(sheet, anchor))
+            .map(|values| values.into_iter().map(ChartSeriesData).collect())
+    }
+
+    /// Every series' cache set beside what its cells say, with each named. The cache is what draws
+    /// until a consumer recalculates; neither is silently preferred.
+    #[wasm_bindgen(js_name = "chartSeriesFreshness")]
+    pub fn chart_series_freshness(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<Vec<ChartSeriesFreshnessInfo>, JsValue> {
+        map_error(self.inner.chart_series_freshness(sheet, anchor))
+            .map(|values| values.into_iter().map(ChartSeriesFreshnessInfo).collect())
+    }
+
+    /// Rewrites the chart's caches from the cells its formulas name, answering how many series
+    /// changed. The opt-in repair — writing a cell never does this for you.
+    #[wasm_bindgen(js_name = "refreshChartCacheFromCells")]
+    pub fn refresh_chart_cache_from_cells(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<u32, JsValue> {
+        map_error(self.inner.refresh_chart_cache_from_cells(sheet, anchor))
+    }
+
+    /// Resolves a reference — a chart's formula, a defined name — against this workbook's cells,
+    /// with `sheet` as the tab an area that names none means.
+    #[wasm_bindgen(js_name = "resolveRangeReference")]
+    pub fn resolve_range_reference(
+        &mut self,
+        sheet: u32,
+        reference: &str,
+    ) -> Result<ResolvedRangeInfo, JsValue> {
+        map_error(self.inner.resolve_range_reference(sheet, reference)).map(ResolvedRangeInfo)
+    }
+
+    /// The series of the chart, from its caches.
+    #[wasm_bindgen(js_name = "chartSeries")]
+    pub fn chart_series(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<Vec<ChartSeriesData>, JsValue> {
+        map_error(self.inner.chart_series(sheet, anchor))
+            .map(|values| values.into_iter().map(ChartSeriesData).collect())
+    }
+
+    /// The kind of every plot the chart draws, in document order.
+    #[wasm_bindgen(js_name = "chartKinds")]
+    pub fn chart_kinds(&mut self, sheet: u32, anchor: u32) -> Result<Vec<ChartKind>, JsValue> {
+        map_error(self.inner.chart_kinds(sheet, anchor))?
+            .into_iter()
+            .map(ChartKind::from_model)
+            .collect()
+    }
+
+    /// The axes of the chart, in document order.
+    #[wasm_bindgen(js_name = "chartAxes")]
+    pub fn chart_axes(&mut self, sheet: u32, anchor: u32) -> Result<Vec<ChartAxisData>, JsValue> {
+        map_error(self.inner.chart_axes(sheet, anchor))
+            .map(|values| values.into_iter().map(ChartAxisData).collect())
+    }
+
+    /// The heading of the chart, or `undefined` when it has none.
+    #[wasm_bindgen(js_name = "chartTitle")]
+    pub fn chart_title(&mut self, sheet: u32, anchor: u32) -> Result<Option<String>, JsValue> {
+        map_error(self.inner.chart_title(sheet, anchor))
+    }
+
+    /// The legend of the chart, or `undefined` when it has none.
+    #[wasm_bindgen(js_name = "chartLegend")]
+    pub fn chart_legend(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<Option<ChartLegendData>, JsValue> {
+        map_error(self.inner.chart_legend(sheet, anchor)).map(|value| value.map(ChartLegendData))
+    }
+
+    /// The built-in style id the chart names, or `undefined`.
+    #[wasm_bindgen(js_name = "chartStyleId")]
+    pub fn chart_style_id(&mut self, sheet: u32, anchor: u32) -> Result<Option<u32>, JsValue> {
+        map_error(self.inner.chart_style_id(sheet, anchor))
+    }
+
+    /// The fill of series `seriesIdx`, or `undefined` when it takes its colour from the chart style.
+    #[wasm_bindgen(js_name = "chartSeriesFill")]
+    pub fn chart_series_fill(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<Option<FillSpec>, JsValue> {
+        map_error(self.inner.chart_series_fill(sheet, anchor, series_idx))
+            .map(|value| value.map(FillSpec))
+    }
+
+    /// The data-label settings in force for one point of series `seriesIdx`.
+    #[wasm_bindgen(js_name = "chartDataLabels")]
+    pub fn chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: Option<u32>,
+    ) -> Result<DataLabelSettings, JsValue> {
+        map_error(
+            self.inner
+                .chart_data_labels(sheet, anchor, series_idx, point_idx),
+        )
+        .map(DataLabelSettings)
+    }
+
+    /// The data-label settings one tier states in its own right.
+    #[wasm_bindgen(js_name = "chartDataLabelTier")]
+    pub fn chart_data_label_tier(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+    ) -> Result<Option<DataLabelSettings>, JsValue> {
+        map_error(self.inner.chart_data_label_tier(sheet, anchor, scope.0))
+            .map(|value| value.map(DataLabelSettings))
+    }
+
+    /// The words one point's label shows in place of its value, or `undefined`.
+    #[wasm_bindgen(js_name = "chartPointLabelText")]
+    pub fn chart_point_label_text(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+    ) -> Result<Option<String>, JsValue> {
+        map_error(
+            self.inner
+                .chart_point_label_text(sheet, anchor, series_idx, point_idx),
+        )
+    }
+
+    /// Every point of series `seriesIdx` that carries its own formatting.
+    #[wasm_bindgen(js_name = "chartPointFormats")]
+    pub fn chart_point_formats(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<Vec<ChartPointFormatData>, JsValue> {
+        map_error(self.inner.chart_point_formats(sheet, anchor, series_idx))
+            .map(|values| values.into_iter().map(ChartPointFormatData).collect())
+    }
+
+    /// Every trendline fitted through series `seriesIdx`.
+    #[wasm_bindgen(js_name = "chartTrendlines")]
+    pub fn chart_trendlines(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<Vec<ChartTrendlineData>, JsValue> {
+        map_error(self.inner.chart_trendlines(sheet, anchor, series_idx))
+            .map(|values| values.into_iter().map(ChartTrendlineData).collect())
+    }
+
+    /// Every set of error bars series `seriesIdx` carries.
+    #[wasm_bindgen(js_name = "chartErrorBars")]
+    pub fn chart_error_bars(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<Vec<ChartErrorBarData>, JsValue> {
+        map_error(self.inner.chart_error_bars(sheet, anchor, series_idx))
+            .map(|values| values.into_iter().map(ChartErrorBarData).collect())
+    }
+
+    /// Every decoration of series `seriesIdx` naming a point the series no longer has.
+    #[wasm_bindgen(js_name = "chartDanglingDecoration")]
+    pub fn chart_dangling_decoration(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<Vec<DanglingPointReference>, JsValue> {
+        map_error(
+            self.inner
+                .chart_dangling_decoration(sheet, anchor, series_idx),
+        )
+        .map(|values| values.into_iter().map(DanglingPointReference).collect())
+    }
+
+    /// Rewrites the values of series `seriesIdx`, refreshing the embedded workbook in the same call.
+    #[wasm_bindgen(js_name = "setChartSeriesValues")]
+    pub fn set_chart_series_values(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        values: Vec<f64>,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_series_values(sheet, anchor, series_idx, &values),
+        )
+    }
+
+    /// Rewrites the category labels of series `seriesIdx`, refreshing the workbook alongside.
+    #[wasm_bindgen(js_name = "setChartSeriesCategories")]
+    pub fn set_chart_series_categories(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        labels: Vec<String>,
+    ) -> Result<(), JsValue> {
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        map_error(
+            self.inner
+                .set_chart_series_categories(sheet, anchor, series_idx, &labels),
+        )
+    }
+
+    /// Sets or clears the explicit bounds of axis `axisIdx`.
+    #[wasm_bindgen(js_name = "setChartAxisScale")]
+    pub fn set_chart_axis_scale(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        minimum: Option<f64>,
+        maximum: Option<f64>,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_axis_scale(sheet, anchor, axis_idx, minimum, maximum),
+        )
+    }
+
+    /// Sets the direction of axis `axisIdx`.
+    #[wasm_bindgen(js_name = "setChartAxisOrientation")]
+    pub fn set_chart_axis_orientation(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        orientation: AxisOrientation,
+    ) -> Result<(), JsValue> {
+        map_error(self.inner.set_chart_axis_orientation(
+            sheet,
+            anchor,
+            axis_idx,
+            orientation.into(),
+        ))
+    }
+
+    /// Sets or removes the title of axis `axisIdx`.
+    #[wasm_bindgen(js_name = "setChartAxisTitle")]
+    pub fn set_chart_axis_title(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        text: Option<String>,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_axis_title(sheet, anchor, axis_idx, text.as_deref()),
+        )
+    }
+
+    /// Turns the gridlines of axis `axisIdx` on or off.
+    #[wasm_bindgen(js_name = "setChartAxisGridlines")]
+    pub fn set_chart_axis_gridlines(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        major: bool,
+        minor: bool,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_axis_gridlines(sheet, anchor, axis_idx, major, minor),
+        )
+    }
+
+    /// Sets or removes the chart's heading.
+    #[wasm_bindgen(js_name = "setChartTitle")]
+    pub fn set_chart_title(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        text: Option<String>,
+    ) -> Result<(), JsValue> {
+        map_error(self.inner.set_chart_title(sheet, anchor, text.as_deref()))
+    }
+
+    /// Places the chart's legend at `position`, or removes it.
+    #[wasm_bindgen(js_name = "setChartLegend")]
+    pub fn set_chart_legend(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        position: Option<LegendPosition>,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_legend(sheet, anchor, position.map(Into::into)),
+        )
+    }
+
+    /// Sets the fill of series `seriesIdx`.
+    #[wasm_bindgen(js_name = "setChartSeriesFill")]
+    pub fn set_chart_series_fill(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        fill: &FillSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_series_fill(sheet, anchor, series_idx, &fill.0),
+        )
+    }
+
+    /// Sets the outline of series `seriesIdx`.
+    #[wasm_bindgen(js_name = "setChartSeriesLine")]
+    pub fn set_chart_series_line(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        line: &LineSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_series_line(sheet, anchor, series_idx, &line.0),
+        )
+    }
+
+    /// Applies `spec` at one tier of the chart's data labels.
+    #[wasm_bindgen(js_name = "setChartDataLabels")]
+    pub fn set_chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+        spec: &DataLabelSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_data_labels(sheet, anchor, scope.0, &spec.0),
+        )
+    }
+
+    /// Suppresses the labels at one tier.
+    #[wasm_bindgen(js_name = "suppressChartDataLabels")]
+    pub fn suppress_chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .suppress_chart_data_labels(sheet, anchor, scope.0),
+        )
+    }
+
+    /// Removes the labels at one tier entirely. Answers whether one was there.
+    #[wasm_bindgen(js_name = "removeChartDataLabels")]
+    pub fn remove_chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+    ) -> Result<bool, JsValue> {
+        map_error(self.inner.remove_chart_data_labels(sheet, anchor, scope.0))
+    }
+
+    /// Colours point `pointIdx` of series `seriesIdx` differently from the rest of its series.
+    #[wasm_bindgen(js_name = "setChartPointFill")]
+    pub fn set_chart_point_fill(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+        fill: &FillSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_point_fill(sheet, anchor, series_idx, point_idx, &fill.0),
+        )
+    }
+
+    /// Outlines point `pointIdx` of series `seriesIdx` differently from the rest of its series.
+    #[wasm_bindgen(js_name = "setChartPointLine")]
+    pub fn set_chart_point_line(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+        line: &LineSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_point_line(sheet, anchor, series_idx, point_idx, &line.0),
+        )
+    }
+
+    /// Pulls slice `pointIdx` of series `seriesIdx` out of its pie or doughnut, or puts it back.
+    #[wasm_bindgen(js_name = "setChartPointExplosion")]
+    pub fn set_chart_point_explosion(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+        percent: Option<u32>,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_point_explosion(sheet, anchor, series_idx, point_idx, percent),
+        )
+    }
+
+    /// Removes the formatting of point `pointIdx` of series `seriesIdx`.
+    #[wasm_bindgen(js_name = "removeChartPointFormat")]
+    pub fn remove_chart_point_format(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+    ) -> Result<bool, JsValue> {
+        map_error(
+            self.inner
+                .remove_chart_point_format(sheet, anchor, series_idx, point_idx),
+        )
+    }
+
+    /// Fits a trendline through series `seriesIdx`, appending to any it already carries.
+    #[wasm_bindgen(js_name = "addChartTrendline")]
+    pub fn add_chart_trendline(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        spec: &TrendlineSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .add_chart_trendline(sheet, anchor, series_idx, &spec.0),
+        )
+    }
+
+    /// Rewrites trendline `trendlineIdx` of series `seriesIdx` from `spec`, in place.
+    #[wasm_bindgen(js_name = "setChartTrendline")]
+    pub fn set_chart_trendline(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        trendline_idx: u32,
+        spec: &TrendlineSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_trendline(sheet, anchor, series_idx, trendline_idx, &spec.0),
+        )
+    }
+
+    /// Removes every trendline from series `seriesIdx`, answering how many went.
+    #[wasm_bindgen(js_name = "removeChartTrendlines")]
+    pub fn remove_chart_trendlines(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<u32, JsValue> {
+        map_error(
+            self.inner
+                .remove_chart_trendlines(sheet, anchor, series_idx),
+        )
+    }
+
+    /// Gives series `seriesIdx` error bars, replacing an existing set along the same axis.
+    #[wasm_bindgen(js_name = "setChartErrorBars")]
+    pub fn set_chart_error_bars(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        spec: &ErrorBarSpec,
+    ) -> Result<(), JsValue> {
+        map_error(
+            self.inner
+                .set_chart_error_bars(sheet, anchor, series_idx, &spec.0),
+        )
+    }
+
+    /// Removes every set of error bars from series `seriesIdx`, answering how many went.
+    #[wasm_bindgen(js_name = "removeChartErrorBars")]
+    pub fn remove_chart_error_bars(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<u32, JsValue> {
+        map_error(
+            self.inner
+                .remove_chart_error_bars(sheet, anchor, series_idx),
+        )
+    }
+
+    /// Removes every decoration of series `seriesIdx` past the end of its data, answering how many
+    /// went.
+    #[wasm_bindgen(js_name = "dropChartDanglingDecoration")]
+    pub fn drop_chart_dangling_decoration(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> Result<u32, JsValue> {
+        map_error(
+            self.inner
+                .drop_chart_dangling_decoration(sheet, anchor, series_idx),
+        )
     }
 }
