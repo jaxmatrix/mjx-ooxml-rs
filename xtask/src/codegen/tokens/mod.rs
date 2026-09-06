@@ -29,6 +29,8 @@
 mod emit;
 mod model;
 
+use std::path::PathBuf;
+
 use anyhow::{bail, Context, Result};
 
 /// The one hand-edited file in the pipeline.
@@ -58,16 +60,43 @@ pub(crate) fn generate(source: &str) -> Result<Artefacts> {
 
 /// Regenerates the three artefacts, or — with `--check` — refuses if the committed ones are not
 /// exactly what the source produces.
+///
+/// # `--out-dir`
+///
+/// The source is always read from the workspace, because it is the one committed input. Where the
+/// artefacts are *written* — and, with `--check`, which copies are compared — is the **output
+/// root**, the workspace unless `--out-dir` names somewhere else.
+///
+/// That option exists for one reason, and it is worth stating plainly because a flag whose only
+/// caller is a test is otherwise a smell: **`xtask/tests/tokens.rs` must be able to exercise the
+/// write path without writing into the repository.** A test that regenerates in place truncates
+/// `ui/tokens/tokens.css` while `crates/mjx-tokens/tests/artefacts_agree.rs` — a *different test
+/// binary*, which `cargo test --workspace` runs as a concurrent process — is reading it. No
+/// in-process lock can order two processes, so the only fix that actually closes the hole is for
+/// the writer to write somewhere else. See that test's module documentation.
 pub fn run(arguments: &[String]) -> Result<()> {
-    let check = match arguments {
-        [] => false,
-        [flag] if flag == "--check" => true,
-        other => {
-            bail!("unknown arguments {other:?}; usage: `cargo run -p xtask -- tokens [--check]`")
+    let mut check = false;
+    let mut output_root: Option<PathBuf> = None;
+    let mut remaining = arguments.iter();
+    while let Some(argument) = remaining.next() {
+        match argument.as_str() {
+            "--check" => check = true,
+            "--out-dir" => {
+                let path = remaining.next().with_context(|| {
+                    "`--out-dir` needs a directory; usage: `cargo run -p xtask -- tokens \
+                     [--check] [--out-dir <directory>]`"
+                })?;
+                output_root = Some(PathBuf::from(path));
+            }
+            _ => bail!(
+                "unknown arguments {arguments:?}; usage: `cargo run -p xtask -- tokens [--check] \
+                 [--out-dir <directory>]`"
+            ),
         }
-    };
+    }
 
     let root = super::workspace_root();
+    let output_root = output_root.unwrap_or_else(|| root.clone());
     let source_path = root.join(SOURCE);
     let source = std::fs::read_to_string(&source_path)
         .with_context(|| format!("reading {}", source_path.display()))?;
@@ -85,7 +114,7 @@ pub fn run(arguments: &[String]) -> Result<()> {
     if check {
         let mut divergences = Vec::new();
         for (relative, expected) in &files {
-            let path = root.join(relative);
+            let path = output_root.join(relative);
             let actual = std::fs::read_to_string(&path).unwrap_or_default();
             if let Some(report) = first_difference(&actual, expected) {
                 divergences.push(format!("{relative}: {report}"));
@@ -104,7 +133,7 @@ pub fn run(arguments: &[String]) -> Result<()> {
     }
 
     for (relative, contents) in &files {
-        let path = root.join(relative);
+        let path = output_root.join(relative);
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)
                 .with_context(|| format!("creating {}", parent.display()))?;
