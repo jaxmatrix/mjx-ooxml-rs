@@ -64,7 +64,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.124"
+version = "0.0.125"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -104,6 +104,17 @@ fontdb = { version = "0.24", default-features = false }
 # two never disagree about a face. `Parley` is deliberately not adopted: see `mjx-text`'s `shaping`
 # module documentation.
 rustybuzz = "0.20"
+# Glyph rasterisation (MJXOFF-159), used only by `mjx-text`. Pure Rust — its own dependencies are
+# `skrifa` (font tables), `zeno` (path rasterisation) and `yazi` (the `inflate` a `CBDT` strike's PNG
+# needs), none of which links a C library — so the cross-compile matrix is unaffected and the
+# platform boundary stays where `docs/UI_PLATFORM_PLAN.md` §7 puts it. It is taken for the three
+# things this crate would otherwise have to write against untrusted glyph tables itself: the
+# TrueType hinting interpreter, the scan converter, and the compositor that turns a `COLR`/`CPAL`
+# layer stack into one RGBA image. It reads faces through `skrifa` rather than the `ttf-parser` the
+# rest of this crate uses, which is why `FontFace` hands out **bytes plus an index** and never a
+# parsed type: the two parsers each read the file for themselves and neither can be handed the
+# other's view.
+swash = "0.2"
 # UAX #9, the bidirectional algorithm. Pure Rust, `no_std`-capable, and it is the reference
 # implementation the CSS writing-modes specification is written against.
 unicode-bidi = "0.3"

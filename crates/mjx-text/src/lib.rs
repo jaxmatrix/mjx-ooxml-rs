@@ -7,9 +7,13 @@
 //! become, in what order, at what positions, and where may a line end?* — shaping, bidirectional
 //! resolution, script and face itemisation, line breaking, grapheme segmentation and hyphenation.
 //!
-//! Rasterisation and the glyph atlas are **R04**. **Nothing here lays anything out**: this crate
-//! says where a line *may* end, never where the line goes, how tall it is or what flows around it.
-//! Those are the box model's, from R05 onward.
+//! *And what does one of those glyphs look like at this zoom?* — rasterisation, scale bucketing,
+//! quantised subpixel positioning, and a byte-bounded glyph atlas with a per-frame upload delta.
+//!
+//! **Nothing here lays anything out**: this crate says where a line *may* end and where a glyph sits
+//! relative to the run's own origin, never where the line goes, how tall it is or what flows around
+//! it. Those are the box model's, from R05 onward. It also draws nothing — the atlas produces
+//! **bytes**, and putting them on a surface is R08's.
 //!
 //! # Why not Parley
 //!
@@ -63,6 +67,7 @@
 //! slice index or arithmetic overflow sits on any path that reads one; every failure is a
 //! [`FontError`].
 
+pub mod atlas;
 pub mod cache;
 pub mod compatibility;
 pub mod direction;
@@ -75,6 +80,8 @@ pub mod index;
 pub mod itemisation;
 pub mod line_breaking;
 pub mod manifest;
+pub mod placement;
+pub mod raster;
 pub mod reference;
 pub mod resolver;
 pub mod script;
@@ -82,6 +89,11 @@ pub mod segmentation;
 pub mod shaping;
 pub mod substitution;
 
+pub use atlas::{
+    AtlasDelta, AtlasEntry, AtlasPageCreation, AtlasPageIndex, AtlasStatistics, AtlasUpload,
+    GlyphAtlas, PreparedGlyph, PreparedImage, PreparedRun, ATLAS_GUTTER_PIXELS,
+    ATLAS_PAGE_SIZE_PIXELS, DESKTOP_GLYPH_ATLAS_BYTE_CEILING, MOBILE_GLYPH_ATLAS_BYTE_CEILING,
+};
 pub use cache::{CacheStatistics, ShapedRunCache, DEFAULT_CACHE_CAPACITY};
 pub use compatibility::{verify_metric_compatibility, MetricCompatibility, UnverifiedReason};
 pub use direction::{
@@ -109,6 +121,14 @@ pub use line_breaking::{
     LineBreakOptions, LineBreaker,
 };
 pub use manifest::{SubstitutionManifest, SubstitutionRecord};
+pub use placement::{place_run, DeviceScale, PlacedGlyph, RunPlacement};
+pub use raster::{
+    BitmapFormat, FaceId, GlyphBitmap, GlyphOutline, GlyphRasterKey, GlyphRasteriser, GlyphRender,
+    GlyphRoute, Hinting, OutlineCommand, OutlinePoint, RasterStatistics, ScaleBucket,
+    SubpixelPosition, DEFAULT_OUTLINE_CACHE_CAPACITY, MAXIMUM_PIXELS_PER_EM,
+    MAXIMUM_RASTERISED_PIXELS_PER_EM, OUTLINE_PIXELS_PER_EM_THRESHOLD,
+    SCALE_BUCKET_STEP_PIXELS_PER_EM, SUBPIXEL_POSITION_COUNT,
+};
 pub use reference::{
     reference_for_family, ReferenceAuthority, ReferenceMetrics, ReferenceVerticalMetrics,
     ADVANCE_TOLERANCE_PER_MILLE,
