@@ -22,6 +22,7 @@
 //! | [`features`](self::features) | **MJXOFF-120 (D13) — done**: conditional formatting, which spans the worksheet and `xl/styles.xml`; **MJXOFF-123 (D14) — done**: autofilters, sort state and data validation, all recorded and none applied |
 //! | [`hyperlinks`](self::hyperlinks) | **MJXOFF-127 (D16) — done**: hyperlinks — the entry, the relationship, and the rule that they are one thing |
 //! | [`print`](self::print) | **MJXOFF-129 (D17) — done**: the other three sheet kinds as [`crate::SheetMarkup`], and the two `r:id`s a print block reaches |
+//! | [`drawings`](self::drawings) | **MJXOFF-107 (E3) — done**: `xl/drawings/drawingN.xml`, the six things a drawing is, the image parts an anchored picture names, and the anchor-to-EMU surface |
 //!
 //! # What this is not
 //!

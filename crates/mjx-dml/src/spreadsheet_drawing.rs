@@ -229,7 +229,7 @@ impl CellMarker {
     /// `None` when any of the four children is absent or does not parse. All four are
     /// `minOccurs="1"` with no default, so a marker missing one names no cell at all, and inventing
     /// a zero for it would be inventing a position — the same reason
-    /// [`Transform2D`](crate::geometry::Transform2D) answers `None` for a partial transform.
+    /// [`Transform2D`] answers `None` for a partial transform.
     #[must_use]
     pub fn read(element: &RawElement, interner: &Interner) -> Option<Self> {
         let number = |local: &str| -> Option<i64> {

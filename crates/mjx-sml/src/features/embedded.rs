@@ -13,13 +13,13 @@
 //! # Why these are here rather than in the drawing part
 //!
 //! An OLE object and a form control are drawn on the sheet like a picture, but they are not anchored
-//! through `xdr:wsDr`: each carries its **own** [`ObjectAnchor`](crate::ObjectAnchor), and each
+//! through `xdr:wsDr`: each carries its **own** [`ObjectAnchor`], and each
 //! reaches its appearance through a `shapeId` that names a shape in the sheet's *legacy VML*
 //! drawing rather than in the DrawingML one. So they sit in `CT_Worksheet` beside the `drawing`
 //! slot, not inside it — which is why MJXOFF-107 owns all three ranks and models them together.
 //!
 //! **The anchor vocabulary is not re-modelled here.** MJXOFF-127 (D16) put
-//! [`ObjectAnchor`](crate::ObjectAnchor) and [`ObjectProperties`](crate::ObjectProperties) in
+//! [`ObjectAnchor`] and [`ObjectProperties`] in
 //! [`crate::features::objects`] precisely so that this file, and MJXOFF-114's comments, consume one
 //! model instead of three; `CT_ObjectPr` is already there and is used unchanged.
 //! [`FormControlProperties`] is the one type that had to be added, because `CT_ControlPr` is

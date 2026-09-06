@@ -56,6 +56,72 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.124] - 2026-09-06
+
+**Worksheet drawings** (MJXOFF-107, Phase E position 3): the `xl/drawings` part, the three anchor
+modes, and the last place DrawingML reaches that this workspace had not.
+
+### Added
+
+- **`mjx_dml::spreadsheet_drawing`** — all seventeen complex types of
+  `dml-spreadsheetDrawing.xsd`, as fidelity wrappers: `WorksheetDrawing` (`xdr:wsDr`), the three
+  anchors, `CellMarker` (`xdr:from`/`xdr:to`), `AnchorClientData`, and the six things an anchor can
+  hold. It sits in `mjx-dml` for the reason `wordprocessing_drawing` does — `xdr` is a DrawingML
+  satellite schema whose content is DrawingML — and knows nothing about packages.
+- **`WorksheetDrawing::insert_rows` and its three axis siblings** — each anchor mode does what it
+  promises: a two-cell anchor moves *and* sizes, a one-cell anchor moves and keeps its size, an
+  absolute anchor does neither. The returned `AnchorShift` per anchor includes `promise_kept`, which
+  is `false` in exactly one case — a two-cell anchor resized while its own `@editAs` forbids it —
+  rather than leaving that anchor silently wrong.
+- **`mjx_sml::SheetAnchors`, `ColumnMetrics`, `GeometrySource` and `ResolvedAnchorBounds`** — an
+  anchor resolved to a rectangle in EMU against a sheet's own column widths and row heights, and the
+  honesty half of that answer. A row height is exact (points are 12,700 EMU); **a column width is a
+  character count and cannot be a length** without a font measurement this library never makes, so
+  the metrics are the caller's and every answer carries them. Where the sheet states nothing that
+  could place the object — no `x:sheetFormatPr`, so no `@defaultRowHeight` — the answer is `None`.
+- **`CT_Worksheet`'s last three owned slots**: rank 29 `drawing` (reusing MJXOFF-129's
+  `SheetDrawing`), rank 34 `oleObjects` and rank 35 `controls`, with `EmbeddedObjects`,
+  `EmbeddedObject`, `FormControls`, `FormControl` and `FormControlProperties`. Thirty-nine slots,
+  **thirty-four modelled, five held**. `CT_ControlPr` repeats MJXOFF-127's trap exactly: six of its
+  booleans default to `true`.
+- **`mjx_xlsx::Workbook`'s drawing surface** — `sheet_drawing`, `drawing_markup`,
+  `edit_drawing_markup`, `sheet_anchor_bounds`, the three `add_*_anchored_picture` calls,
+  `remove_sheet_drawing_object` and the four axis shifts. Adding a picture writes six things
+  together, including the image relationship **from the drawing part** rather than from the sheet:
+  an `a:blip@r:embed` is resolved against the part that contains it.
+- **The whole of it on `mjx_ooxml::Workbook` and both bindings** (A10's rule) — twelve methods, four
+  value types and two enumerations, with the committed `.pyi` stub extended.
+- **`mjx_ooxml_types::spreadsheetdrawing`** — `ResizingBehavior`, `ColumnIdentifier` and
+  `RowIdentifier`, generated. `ST_EditAs`'s members are named from §20.5.3.2's own enumeration-value
+  titles (`MoveAndResizeWithAnchorCells`, `MoveWithCellsButDoNotResize`,
+  `DoNotMoveOrResizeWithRowsOrColumns`), which say what happens to the object rather than naming the
+  anchor shape the wire token is spelled after.
+- **`tests/fixtures/worksheet_drawings.xlsx`** — a workbook with all three anchor modes, **written
+  by Apache POI 5.5.1**, not by this project. Its `twoCellAnchor` carries `editAs="oneCell"`, a value
+  that disagrees with the element's own name; its columns are 3.5, 20.75 and 12 characters wide and
+  it states no `defaultColWidth`; its picture starts mid-cell; and it anchors a PNG on two anchors
+  and a JPEG on the third. The extent POI computed for that first anchor — `cx="2085975"
+  cy="885825"` — is what this project's own resolver is asserted against.
+- **A guide page**, `Worksheet drawings`, whose every snippet is a compiled doctest.
+
+### Changed
+
+- **`dml-spreadsheetDrawing` moved from `CHILD_ORDER_SCHEMA_DEPENDENCIES` to
+  `CHILD_ORDER_SCHEMAS`** — the third schema to make that move, after `dml-wordprocessingDrawing`
+  and `shared-math` — and its `UNCOVERED_SCHEMAS` row is gone, because a schema covered in both
+  tables has no row there.
+- **`mjx-schema-gate` gains the `xdr` arm.** Without it a drawing part reports `Uncategorised`,
+  which reads like a pass; that is how `mjx-vml` sat unvalidated. Both halves are proved live: a
+  stray `xdr:col` inside a `twoCellAnchor` fails validation naming the part, and moving
+  `xdr:clientData` to the front of an anchor turns the ordering audit red naming
+  `CT_TwoCellAnchor`.
+- **`NON_XML_CONTENT_TYPES_UNDER_XL` gains `image/jpeg`**, and `image/png`'s reason now names two
+  kinds of part rather than one. The list is keyed on the content type rather than on where the part
+  sits, so a PNG under `xl/media/` needed no row of its own — the fixture carries a JPEG so that the
+  media path is not proved by one format and assumed for the rest.
+- **`XlsxError::UnrecognizedImageFormat`** is new; A9's exhaustive `classify_xlsx` refused to compile
+  without an arm for it.
+
 ## [0.0.123] - 2026-09-06
 
 **Charts reach the Word surface** (MJXOFF-103, Phase E position 2): a `c:chart` inside a
