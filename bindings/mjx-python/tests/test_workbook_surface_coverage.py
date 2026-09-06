@@ -14,7 +14,7 @@ import pathlib
 import pytest
 
 import mjx_ooxml
-from mjx_ooxml import CellWrite, SheetKind, Workbook
+from mjx_ooxml import CellWrite, GeometrySource, ResizingBehavior, SheetKind, Workbook
 
 
 @pytest.fixture
@@ -188,3 +188,132 @@ def test_the_workbook_metadata_and_part_graph_are_reachable(fixtures: pathlib.Pa
         workbook.part_bytes("/xl/nothing.xml")
 
     workbook.validate()
+
+
+# A 1x1 PNG — the smallest thing the image sniffer calls a PNG.
+PNG = bytes(
+    [
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D,
+        0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01,
+        0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53, 0xDE, 0x00, 0x00, 0x00,
+        0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+        0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00,
+        0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ]
+)
+
+
+def test_the_three_anchor_modes_are_not_each_other(filled: Workbook) -> None:
+    """Every number differs from every other, so a wrapper that crossed a column with a row, or a
+    `from` offset with a `to` offset, fails here rather than in markup nobody reads."""
+    two = filled.add_two_cell_anchored_picture(
+        0,
+        PNG,
+        "two-cell",
+        1,
+        190_500,
+        2,
+        47_625,
+        3,
+        95_250,
+        5,
+        19_050,
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+    )
+    one = filled.add_one_cell_anchored_picture(
+        0, PNG, "one-cell", 4, 76_200, 1, 38_100, 914_400, 457_200
+    )
+    absolute = filled.add_absolute_anchored_picture(
+        0, PNG, "absolute", 1_905_000, 952_500, 685_800, 342_900
+    )
+    assert (two, one, absolute) == (0, 1, 2)
+
+    drawing = filled.sheet_drawing(0)
+    assert drawing is not None
+    assert drawing.part.endswith("drawing1.xml")
+    assert [item.anchor for item in drawing.objects] == [
+        "twoCellAnchor",
+        "oneCellAnchor",
+        "absoluteAnchor",
+    ]
+    assert [item.name for item in drawing.objects] == ["two-cell", "one-cell", "absolute"]
+    assert [item.object for item in drawing.objects] == ["pic", "pic", "pic"]
+    # The `@editAs` the caller asked for, read back off the file — and the two anchors that carry
+    # none answer from what they are, so the three do not agree.
+    assert [item.resizing for item in drawing.objects] == [
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+        ResizingBehavior.DoNotMoveOrResizeWithRowsOrColumns,
+    ]
+    # One image, stored once, shown by all three.
+    assert {item.image for item in drawing.objects} == {"/xl/media/image1.png"}
+    assert all(item.prints_with_sheet for item in drawing.objects)
+
+    filled.save()
+
+
+def test_an_anchor_a_blank_sheet_cannot_place_and_one_it_can_are_different_answers(
+    filled: Workbook,
+) -> None:
+    filled.add_one_cell_anchored_picture(0, PNG, "one-cell", 4, 76_200, 1, 38_100, 914_400, 457_200)
+    filled.add_absolute_anchored_picture(0, PNG, "absolute", 1_905_000, 952_500, 685_800, 342_900)
+
+    # `Workbook.blank` writes no `x:sheetFormatPr`, so `@defaultRowHeight` is stated nowhere and a
+    # cell-anchored object cannot be placed. The honest answer is `None`, not Excel's own 15 points.
+    assert filled.sheet_anchor_bounds(0, 0, 7.0, 96.0) is None
+
+    # The absolute anchor names no cell, so it is placeable on the very same sheet.
+    bounds = filled.sheet_anchor_bounds(0, 1, 7.0, 96.0)
+    assert bounds is not None
+    assert (bounds.x_emu, bounds.y_emu) == (1_905_000, 952_500)
+    assert (bounds.width_emu, bounds.height_emu) == (685_800, 342_900)
+    assert bounds.row_source == GeometrySource.Stated
+    assert bounds.column_source == GeometrySource.Stated
+    assert bounds.maximum_digit_width_pixels == 7.0
+    assert bounds.pixels_per_inch == 96.0
+
+
+def test_a_producer_drawing_resolves_and_the_three_modes_shift_differently(
+    fixtures: pathlib.Path,
+) -> None:
+    workbook = Workbook.open((fixtures / "worksheet_drawings.xlsx").read_bytes())
+
+    # The extent Apache POI computed for the same column widths, reached through the binding alone.
+    bounds = workbook.sheet_anchor_bounds(0, 0, 7.0, 96.0)
+    assert bounds is not None
+    assert (bounds.width_emu, bounds.height_emu) == (2_085_975, 885_825)
+    assert bounds.row_source == GeometrySource.SheetDefault
+    assert bounds.column_source == GeometrySource.Stated
+
+    report = workbook.insert_rows_into_drawing(0, 0, 3)
+    assert len(report) == 4
+    assert report[0].moved and not report[0].resized
+    assert report[2].moved and not report[2].resized
+    assert not report[3].moved and not report[3].resized
+    assert report[3].promise == ResizingBehavior.DoNotMoveOrResizeWithRowsOrColumns
+    assert all(shift.promise_kept for shift in report)
+
+    # A row inserted *inside* the first anchor resizes it against its own `@editAs`, which the report
+    # says rather than silently leaving wrong.
+    inside = workbook.insert_rows_into_drawing(0, 7, 1)
+    assert inside[0].resized and not inside[0].promise_kept
+    assert inside[1].promise_kept
+
+    for shifted in (
+        workbook.remove_rows_from_drawing(0, 0, 1),
+        workbook.insert_columns_into_drawing(0, 0, 1),
+        workbook.remove_columns_from_drawing(0, 0, 1),
+    ):
+        assert len(shifted) == 4
+
+    assert workbook.remove_sheet_drawing_object(0, 3)
+    assert not workbook.remove_sheet_drawing_object(0, 9)
+    drawing = workbook.sheet_drawing(0)
+    assert drawing is not None and len(drawing.objects) == 3
+    workbook.save()
+
+
+def test_bytes_that_are_not_an_image_are_refused(filled: Workbook) -> None:
+    with pytest.raises(mjx_ooxml.InvalidArgumentError):
+        filled.add_absolute_anchored_picture(0, b"not an image", "nope", 0, 0, 1, 1)
+    assert filled.sheet_drawing(0) is None
