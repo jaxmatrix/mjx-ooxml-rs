@@ -3043,6 +3043,15 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "OBJECT_PROPERTIES", "sml", "CT_ObjectPr",
         "An embedded object's one child, its anchor (`x:objectPr`)",
     ),
+    // MJXOFF-107 (E3) fills `CT_Worksheet`'s ranks 34 and 35, and `CT_ControlPr` is the one type
+    // that cluster needs which MJXOFF-127 did not model: it is `CT_ObjectPr` plus `@recalcAlways`,
+    // `@linkedCell`, `@listFillRange` and `@cf`, a different complex type with its own sequence.
+    // Exported for the same reason `OBJECT_PROPERTIES` is — `mjx_sml::FormControlProperties` places
+    // its `anchor` child through it rather than at a hand-written index.
+    (
+        "CONTROL_PROPERTIES", "sml", "CT_ControlPr",
+        "A form control's one child, its anchor (`x:controlPr`)",
+    ),
     (
         "DATA_CONSOLIDATION", "sml", "CT_DataConsolidate",
         "A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`)",
