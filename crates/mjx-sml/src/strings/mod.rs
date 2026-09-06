@@ -62,6 +62,10 @@
 
 mod inline;
 mod items;
+
+// The one `t`-element writer in this crate. `crate::comments` authors a comment's `CT_Rst`
+// through it rather than through a second copy of the `xml:space="preserve"` rule.
+pub(crate) use items::write_text_element;
 mod read;
 mod record;
 mod table;

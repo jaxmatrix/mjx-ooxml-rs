@@ -298,7 +298,7 @@ impl StringItems {
 /// from a schema every producer diverges from**, so it is written — and written *only* where its
 /// absence would change the value, so that a table of ordinary strings is schema-valid markup and
 /// byte-identical to what `mjx-chart`'s writer produces.
-pub(super) fn write_text_element(out: &mut Vec<u8>, prefix: Option<&str>, text: &str) {
+pub(crate) fn write_text_element(out: &mut Vec<u8>, prefix: Option<&str>, text: &str) {
     let preserve = needs_space_preservation(text);
     out.push(b'<');
     crate::font::value::write_qualified_name(out, prefix, "t");

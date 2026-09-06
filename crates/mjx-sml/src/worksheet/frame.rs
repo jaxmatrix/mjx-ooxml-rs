@@ -41,7 +41,7 @@
 //! | 27 | `ignoredErrors` | [`IgnoredErrors`] |
 //! | 28 | `smartTags` | [`SmartTags`] — the *worksheet* cluster, not the workbook's `smartTagTypes` |
 //! | 29 | `drawing` | [`SheetDrawing`](crate::SheetDrawing) — MJXOFF-107 (E3) |
-//! | 30 | `legacyDrawing` | [`WorksheetContent::Raw`] — **MJXOFF-114 (E5)** |
+//! | 30 | `legacyDrawing` | [`LegacyDrawing`](crate::LegacyDrawing) — MJXOFF-114 (E5) |
 //! | 31 | `legacyDrawingHF` | [`WorksheetContent::Raw`] — **unowned**; see below |
 //! | 32 | `drawingHF` | [`WorksheetContent::Raw`] — **unowned**; see below |
 //! | 33 | `picture` | [`SheetBackgroundPicture`] — MJXOFF-129 (D17) |
@@ -57,14 +57,14 @@
 //!
 //! # Who owns the five slots this type still holds raw
 //!
-//! MJXOFF-127 (D16) modelled seven of what were then fourteen, MJXOFF-129 (D17) six more and
-//! MJXOFF-107 (E3) the last three that had an owner; this is what is left. MJXOFF-133 (D18)
+//! MJXOFF-127 (D16) modelled seven of what were then fourteen, MJXOFF-129 (D17) six more,
+//! MJXOFF-107 (E3) three and MJXOFF-114 (E5) the last one that had an owner; this is what is
+//! left. MJXOFF-133 (D18)
 //! re-derived the table above from the enum rather than trusting it, and found the previous version
 //! stale on six rows — D17 filled ranks 13, 19–22 and 33 and did not come back to say so.
 //!
 //! | Slot(s) | Held for |
 //! |---|---|
-//! | 30 `legacyDrawing` | **MJXOFF-114 (E5)** |
 //! | 38 `extLst` | the unknown bucket, by design — an `extLst` is markup no schema in this workspace types |
 //! | **15 `phoneticPr`, 31 `legacyDrawingHF`, 32 `drawingHF`** | **nobody**, and MJXOFF-133 confirmed it rather than closing it. `CT_PhoneticPr` is *already* modelled once, as [`PhoneticProperties`](crate::PhoneticProperties) — a value decoded from the shared-string store's packed bytes rather than a `RawElement`-backed slot — so giving this slot a type means unifying the two call sites, which is a design question and not a slot to fill. `legacyDrawingHF` and `drawingHF` are the header/footer half of the drawing family: their types are `CT_LegacyDrawing` and `CT_Drawing`, the same two ranks 30 and 29 carry, so modelling them here would model E3's and E5's types in a file that is neither |
 //!
@@ -126,6 +126,7 @@ use mjx_ooxml_types::namespaces::SML;
 
 use crate::address::{CellRange, CellReference};
 use crate::cells::{Cell, CellValue, Row, SheetData};
+use crate::comments::LegacyDrawing;
 use crate::error::SmlError;
 use crate::features::{
     AutoFilter, CellWatches, ConditionalFormatting, CustomProperties, CustomSheetViews,
@@ -227,6 +228,10 @@ pub enum WorksheetContent {
     /// **An `r:id` and nothing else.** Resolving it to a part is `mjx-xlsx`'s, and the markup inside
     /// that part is `mjx_dml::spreadsheet_drawing`'s.
     Drawing(SheetDrawing),
+    /// `x:legacyDrawing` (rank 30) — the relationship to the sheet's **legacy VML** drawing part,
+    /// the one that draws every comment box, form control and OLE fallback on it. An `r:id` and
+    /// nothing else; resolving it, and reading the `.vml` behind it, is `mjx-xlsx`'s.
+    LegacyDrawing(LegacyDrawing),
     /// `x:picture` (rank 33) — the image drawn behind the cells, named by an `r:id`. **Not** the
     /// `drawing` slot at rank 29, which is a different thing entirely: a background picture is
     /// tiled behind the grid and is anchored to nothing.
@@ -287,6 +292,7 @@ impl WorksheetContent {
             Self::IgnoredErrors(_) => "ignoredErrors",
             Self::SmartTags(_) => "smartTags",
             Self::Drawing(_) => "drawing",
+            Self::LegacyDrawing(_) => "legacyDrawing",
             Self::BackgroundPicture(_) => "picture",
             Self::EmbeddedObjects(_) => "oleObjects",
             Self::FormControls(_) => "controls",
@@ -331,6 +337,7 @@ impl WorksheetContent {
             Self::IgnoredErrors(value) => value.as_raw_element(),
             Self::SmartTags(value) => value.as_raw_element(),
             Self::Drawing(value) => value.as_raw_element(),
+            Self::LegacyDrawing(value) => value.as_raw_element(),
             Self::BackgroundPicture(value) => value.as_raw_element(),
             Self::EmbeddedObjects(value) => value.as_raw_element(),
             Self::FormControls(value) => value.as_raw_element(),
@@ -1044,6 +1051,19 @@ impl WorksheetPart {
          for the resolved side."
     );
     singleton_slot!(
+        legacy_drawing,
+        legacy_drawing_mut,
+        set_legacy_drawing,
+        LegacyDrawing,
+        LegacyDrawing,
+        "legacyDrawing",
+        "`x:legacyDrawing` — the relationship to this sheet's **legacy VML** drawing part, at rank \
+         30. That part holds the `v:shape` that draws every comment box, form control and OLE \
+         fallback on the sheet; an `r:id` is all this element is, and **this crate never resolves \
+         one**. See `mjx_xlsx::Workbook::sheet_comments` for the resolved side, and \
+         [`crate::comments`] for why a comment is two parts."
+    );
+    singleton_slot!(
         embedded_objects,
         embedded_objects_mut,
         set_embedded_objects,
@@ -1580,6 +1600,9 @@ fn read_slot(
         }
         "smartTags" => WorksheetContent::SmartTags(SmartTags::from_xml(&element, interner)?),
         "drawing" => WorksheetContent::Drawing(SheetDrawing::from_xml(&element, interner)?),
+        "legacyDrawing" => {
+            WorksheetContent::LegacyDrawing(LegacyDrawing::from_xml(&element, interner)?)
+        }
         "picture" => WorksheetContent::BackgroundPicture(SheetBackgroundPicture::from_xml(
             &element, interner,
         )?),
