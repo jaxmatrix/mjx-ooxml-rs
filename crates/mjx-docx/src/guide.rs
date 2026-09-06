@@ -9,11 +9,11 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            AbstractNumbering, BlockPath, BookmarkResolution, Document, DocxError, FieldForm,
-            GridDiscrepancy, HeaderFooterType, HyperlinkTarget, MergedCellType, NumberingInstance,
-            NumberingLevel, NumberingLookup, PageMargins, PageOrientation, PageSize, Paragraph,
-            Run, RunInnerContent, RunPath, SectionLocation, SectionSpan, StyleDefinition,
-            StyleIndex, StyleSheet,
+            AbstractNumbering, BlockPath, BookmarkResolution, ChartPlacement, ChartWrap, Document,
+            DocxError, FieldForm, GridDiscrepancy, HeaderFooterType, HyperlinkTarget,
+            MergedCellType, NumberingInstance, NumberingLevel, NumberingLookup, PageMargins,
+            PageOrientation, PageSize, Paragraph, Run, RunInnerContent, RunPath, SectionLocation,
+            SectionSpan, StyleDefinition, StyleIndex, StyleSheet,
         };
     };
 }
@@ -35,6 +35,12 @@ pub mod text_and_formatting {
 /// Placing structured content, and the sections and headers it sits inside.
 pub mod tables_sections_and_headers {
     #![doc = include_str!("../docs/guide/tables_sections_and_headers.md")]
+    guide_vocabulary!();
+}
+
+/// A chart inside a `w:drawing`: adding one, reading it, and editing its data and its styling.
+pub mod charts {
+    #![doc = include_str!("../docs/guide/charts.md")]
     guide_vocabulary!();
 }
 
