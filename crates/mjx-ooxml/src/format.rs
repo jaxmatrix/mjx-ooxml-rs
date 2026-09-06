@@ -36,9 +36,10 @@ const REL_OFFICE_DOCUMENT: &str =
 pub enum FormatFamily {
     /// PresentationML — PowerPoint. Editable: this is what [`Deck`](crate::Deck) opens.
     Presentation,
-    /// WordprocessingML — Word. Detected, not yet editable.
+    /// WordprocessingML — Word. Editable: this is what [`Document`](crate::Document) opens.
     WordProcessing,
-    /// SpreadsheetML — Excel. Detected, not yet editable.
+    /// SpreadsheetML — Excel. Detected here, and edited through `mjx_xlsx::Workbook`, which this
+    /// facade does not project yet.
     Spreadsheet,
 }
 

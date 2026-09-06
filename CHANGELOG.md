@@ -54,6 +54,70 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.120] - 2026-09-06
+
+The Excel usage guide and its runnable examples — every snippet compiled, every example asserting
+(MJXOFF-135, Phase D position 19).
+
+### Added
+
+- **Two guide pages**, bringing `crates/mjx-xlsx/docs/guide/` to thirteen. The other eleven were
+  written by the children that shipped the features they describe; these two had no owner:
+  - **[Large workbooks](crates/mjx-xlsx/docs/guide/large_workbooks.md)** — the memory model in a
+    caller's terms. What a sparse sheet costs (nothing proportional to the grid), what a populated
+    cell costs (**36.8 B**, or **76.8 B** with a formula, against a `RawElement` tree's **802 B**),
+    and the awkward figure: on the 300,000-cell corpus workbook, `Workbook::open` is **14.8 ms and
+    16.8 MB**, while **the first `worksheet_markup` is 507 ms with a 269 MB allocation peak — and it
+    is paid again on every subsequent per-sheet call**, because `Workbook` holds no parsed worksheet.
+    Filling a sheet through `set_cell_value` is therefore quadratic: 4,000 cells one at a time is
+    **18.39 s** against **1.12 ms** for one read, N edits and one write, a measured 16,427×. The page
+    says so, states the shape to reach for, and names the one `Arc` copy that cannot be avoided
+    because `mjx_opc::Package::part_bytes` answers `&[u8]` rather than shared bytes.
+  - **[Deliberate limitations](crates/mjx-xlsx/docs/guide/deliberate_limitations.md)** — the page to
+    read before filing a bug. The two-crate split (which of `mjx-sml` and `mjx-xlsx` to reach for,
+    and why the split is what makes `mjx-chart → mjx-sml` legal), the three standing refusals that
+    all follow from having no calculation engine (stale cached values, unevaluated
+    conditional-formatting conditions, unapplied filters/sorts/validation), the half of `sml.xsd`
+    preserved rather than modelled, and a closing list of what is genuinely **absent and unowned**
+    rather than deliberately refused.
+- **Six runnable examples** under `crates/mjx-xlsx/examples/`, which had none at all. Each reopens
+  its own output and asserts on it, and CI's `examples` job picks them up by directory:
+  `build_a_workbook` (two tabs, shared strings, a format, resolved back through the reopened
+  stylesheet), `edit_a_workbook` (**exactly two part payloads may differ** after one cell edit and
+  one rename, checked part by part), `read_formulas` (eleven formula cells, the five-member shared
+  group whose text lives on one of them, and the cached value that is **still 2** after its
+  dependency became 50), `style_a_range` (one `xf`, nine cells, and a tenth outside that must not
+  wear it), `table_and_autofilter` (a table part, its relationship, its `tablePart` entry, and a
+  filter that hides no row) and `large_sparse_sheet` (a counting global allocator, one cell at
+  `XFD1048576` under a 32 KiB bound, and 30,000 cells under the 48 B/cell bound).
+
+### Changed
+
+- **`README.md`, `PLAN.md` and the `mjx-ooxml` docs hub** point at the Excel guide. The README's
+  guide and example sections had been left at PowerPoint's alone — Word's five pages and nine
+  examples shipped in MJXOFF-150 without being linked — so all three formats are now listed, and the
+  format-support table no longer calls Word and Excel *planned*.
+- **`mjx-sml`'s crate documentation** gains a pointer to the two guide pages that explain it to a
+  caller, and its rank table is corrected: it listed `mjx-xml` at rank 0.0 beside `mjx-ooxml-core`
+  and `mjx-derive`, where `CLAUDE.md` and `xtask/tests/layering.rs` both put it at **0.1** in a row
+  of its own.
+
+### Fixed
+
+- **Four stale prose counts and one stale forward reference**, all documentation:
+  - the Excel guide README said *"Ten pages"* over a table of eleven, and its arc stopped at
+    MJXOFF-127 (D16) although D17 and D18 had shipped;
+  - `the_sheet_grid.md` said **eighteen** of `CT_Worksheet`'s thirty-nine slots were modelled and
+    twenty-one held, a figure last true at MJXOFF-125; MJXOFF-127 and MJXOFF-129 have since taken it
+    to **thirty-one modelled, eight held**, which is what `crates/mjx-sml/src/worksheet/frame.rs`
+    itself says;
+  - `authoring_a_workbook.md` said *"Setting a formula is MJXOFF-115's"*. MJXOFF-115 shipped, and
+    modelled formulas for **reading and preservation only** — there is no `set_cell_formula` on
+    `Workbook` or on `mjx_sml::SheetData`, and no later child owns adding one. The page now says that
+    plainly and the limitations page lists it as an unowned gap;
+  - `mjx_ooxml::FormatFamily::WordProcessing` was documented *"Detected, not yet editable"* after
+    Word became fully editable, and `Spreadsheet` said the same of Excel.
+
 ## [0.0.119] - 2026-09-06
 
 The half of `sml.xsd` this project deliberately does not model — recognised, reported and proved to

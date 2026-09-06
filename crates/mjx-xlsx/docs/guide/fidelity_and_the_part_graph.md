@@ -155,6 +155,35 @@ Excel recalculates on open when it needs to. The same rule covers `xl/calcChain.
 exactly as found, and `x:dimension`, which is reported as written rather than recomputed on a read.
 [The formulas page](formulas_and_cached_values) has the whole of it, shared groups included.
 
+### The same boundary, twice more
+
+**A conditional-formatting rule is reported, never resolved (MJXOFF-120).**
+[`Workbook::conditional_rules_for`] answers *which* rules apply to a cell, merged across blocks and
+in priority order, and [`Workbook::conditional_cell_format`] reports the `dxf` each would impose —
+beside the base format, never folded into it. Whether a rule's condition is **true** is not answered,
+because a `cfRule/formula` is a formula on exactly the terms above. `stopIfTrue` is reported as a
+position in the chain rather than applied as a truncation, for the same reason: applying it means
+knowing which earlier rule fired. `@priority` is preserved exactly — gaps and duplicates included,
+never renumbered — and `dxfs` is appended to, never reordered.
+
+**A filter, a sort and a validation rule are recorded, never applied (MJXOFF-123).** Setting an
+autofilter hides no row; removing one unhides none. Row visibility is `row@hidden`, which is the
+file's own statement, and writing it because a filter was added would edit cells nobody named. A
+recorded `sortState` is the sort a producer last performed, not an instruction to perform it, and a
+data-validation rule is a constraint this library never enforces against a value you write.
+`@filterVal` on a `top10` and `@val`/`@maxVal` on a `dynamicFilter` are Excel's caches of bounds it
+derived — reported, never recomputed, exactly as a cached value is.
+
+| Deliberate limitation | Child | Where it is documented in full |
+|---|---|---|
+| No calculation engine: a cached `<v>` goes stale after an edit | MJXOFF-115 (D11) | [Formulas and cached values](formulas_and_cached_values) |
+| Conditional-formatting conditions are never evaluated | MJXOFF-120 (D13) | [Conditional formatting](conditional_formatting) |
+| Filters, sorts and validation rules are never applied | MJXOFF-123 (D14) | [Filters and data validation](filters_and_data_validation) |
+| Half of `sml.xsd` preserved rather than modelled | MJXOFF-133 (D18) | the table above |
+
+All four are gathered, with their reasons and their workarounds, on
+[Deliberate limitations](deliberate_limitations) — the page to read before filing a bug.
+
 ## What a save refuses
 
 [`Workbook::save`] runs [`Workbook::validate`] first. On top of `mjx-opc`'s packaging invariants,

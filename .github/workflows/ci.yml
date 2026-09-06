@@ -188,6 +188,15 @@ jobs:
           soffice --headless --convert-to pdf --outdir . guide_deck.pptx
           test -s guide_deck.pdf
 
+      # The same gate for Excel (MJXOFF-135). `office_open.rs` already proves an authored-and-filled
+      # workbook opens; this proves the workbook the *guide's example* actually writes does, which is
+      # the artefact a reader will copy. Calc is installed above for exactly this.
+      - name: the guide's workbook opens
+        run: |
+          cargo run -p mjx-xlsx --example build_a_workbook -- guide_workbook.xlsx
+          soffice --headless --convert-to pdf --outdir . guide_workbook.xlsx
+          test -s guide_workbook.pdf
+
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
   examples:

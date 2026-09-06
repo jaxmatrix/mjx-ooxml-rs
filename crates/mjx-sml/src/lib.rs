@@ -29,7 +29,8 @@
 //!
 //! | Rank | Crates |
 //! |---|---|
-//! | 0.0 — foundations | `mjx-ooxml-core`, `mjx-xml`, `mjx-derive` |
+//! | 0.0 — foundations, core | `mjx-ooxml-core`, `mjx-derive` |
+//! | 0.1 — foundations, XML | `mjx-xml` |
 //! | 1.0 — packaging / compatibility | `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` |
 //! | 2.0 — shared markup, base | `mjx-dml` |
 //! | **2.1 — shared markup, spreadsheet** | **`mjx-sml`** |
@@ -67,9 +68,19 @@
 //! | [`error`] | MJXOFF-132 (D01) — this child; every later one adds its variants |
 //!
 //! The half of `sml.xsd` this workspace deliberately does **not** model — pivot tables, external
-//! links, metadata, connections and revisions — is MJXOFF-133's (D18) to write down. Everything
+//! links, metadata, connections and revisions — is written down by MJXOFF-133 (D18) in
+//! [`preserved`] and in `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md`. Everything
 //! unmodelled is still preserved, by the unknown bucket and by `mjx-opc`'s copy-on-write, exactly as
 //! it is for every other schema here.
+//!
+//! # The prose that explains this crate to a caller
+//!
+//! `crates/mjx-xlsx/docs/guide/` is where Excel is documented for someone using it rather than
+//! extending it, and two of its pages are about this crate specifically:
+//! **Deliberate limitations** says which of the two crates to reach for and why the split exists,
+//! and **Large workbooks** is the memory model of [`cells`] in a caller's terms — what a sparse
+//! sheet costs, what a populated cell costs, and what the parse behind
+//! [`WorksheetPart::read_part`] costs at three hundred thousand cells.
 //!
 //! # Ordering
 //!
