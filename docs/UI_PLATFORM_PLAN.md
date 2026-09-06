@@ -83,6 +83,7 @@ targets a **display list**; SVG and PDF become exporters *from* that IR, not sta
 | [`client-platform/OFFICE_FEATURE_INVENTORY.md`](client-platform/OFFICE_FEATURE_INVENTORY.md) | The implementation surface, derived from Microsoft's published control identifiers and the ECMA-376 schemas — 11,869 in-scope commands and 3,404 declared elements |
 | [`client-platform/DESIGN_TOKENS.md`](client-platform/DESIGN_TOKENS.md) | The Allr token system as measured, plus the dark theme, document palette and contrast rules an editor needs |
 | [`client-platform/HTML_BOX_MODEL.md`](client-platform/HTML_BOX_MODEL.md) | Whether HTML can render in the canvas — yes, as a fourth `BoxModel`, staged |
+| [`client-platform/BUILD_PLAN_LOOP_1.md`](client-platform/BUILD_PLAN_LOOP_1.md) | **What this loop builds:** the renderer for all three formats, and every UI element in Storybook for audit — with application integration deferred to loop 2 |
 
 ---
 
@@ -612,6 +613,13 @@ this well in `deliberate_limitations.md`, and this generalises that discipline t
 Ordered by what cannot be built without what — not by what would ship soonest. Editing requires
 selection; selection requires hit-testing; hit-testing requires a fragment tree; a fragment tree
 requires layout. That chain, not a release date, is what fixes the order.
+
+> **Loop structure.** The phases below are the programme. The *current* loop takes a deliberate cut
+> across them: **the renderer for all three formats, plus every UI element in Storybook for design
+> audit, with no application integration.** Chrome is validated in isolation before anything is wired
+> to anything. See [`client-platform/BUILD_PLAN_LOOP_1.md`](client-platform/BUILD_PLAN_LOOP_1.md) for
+> that cut and its unit-level gates — including the catch that in-canvas UI (handles, guides, caret,
+> marching ants) cannot be a web component and is audited as generated image plates instead.
 
 **Phase R0 — Foundations, built independently of geometry.** `mjx-tokens` and its codegen, seeded
 from the Allr token source. `mjx-text` through to shaped, rasterised glyphs. `mjx-layout`'s contract
