@@ -122,8 +122,11 @@ displays the same characters and is not the same value.
 
 ## What it does not do
 
-* **No formulas.** Setting a formula is MJXOFF-115's; a formula's *text* round-trips today because
-  nothing rewrites a cell it was not asked to.
+* **No formulas.** A formula's *text* round-trips because nothing rewrites a cell it was not asked
+  to, and [`mjx_sml::CellFormula`] reads one — but there is **no call anywhere that writes one**.
+  MJXOFF-115 (D11) modelled formulas for reading and preservation and did not add an authoring path,
+  and no later child owns adding one. See
+  [Deliberate limitations](deliberate_limitations#gaps-rather-than-decisions).
 * **No theme part.** See above.
 * **No `calcChain.xml`.** There is no calculation engine here, and a stale chain is worse than none —
   Excel rebuilds it.

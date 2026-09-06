@@ -130,11 +130,31 @@
 //! [`mjx_docx::effective_properties`] is Word's own deep reference on the ladders
 //! [`Document::effective_run_properties`]/[`Document::effective_paragraph_properties`] walk.
 //!
+//! For Excel, [`mjx_xlsx::guide`] carries thirteen pages. It is written against
+//! [`mjx_xlsx::Workbook`] and **has no facade counterpart yet** — [`Format::Workbook`] is detected here,
+//! and the [`Workbook`](mjx_xlsx::Workbook) surface the guide describes is reached through
+//! `mjx-xlsx` directly. The four to start with:
+//!
+//! - [Opening and saving a workbook](mjx_xlsx::guide::opening_and_saving) — the whole of the current
+//!   surface, once, and which of the two Excel crates is which.
+//! - [Reading and editing cells](mjx_xlsx::guide::reading_and_editing_cells) — a value out of a
+//!   sheet, and one into it.
+//! - [Fidelity and the part graph](mjx_xlsx::guide::fidelity_and_the_part_graph) — the round-trip
+//!   guarantee, and the nine `sml.xsd` clusters this project preserves rather than models.
+//! - [Deliberate limitations](mjx_xlsx::guide::deliberate_limitations) — the page to read before
+//!   filing a bug: no calculation engine, no rule evaluation, no filter application, and what to do
+//!   instead.
+//!
+//! Beside them, [Large workbooks](mjx_xlsx::guide::large_workbooks) is the one to read before
+//! writing a loop that touches a lot of cells.
+//!
 //! # Status
 //!
-//! Pre-release (`v0.0.x`). PowerPoint and Word are implemented and tested; Excel is detected but not
-//! yet editable. See the repository `PLAN.md` and `CHANGELOG.md` for the roadmap and version
-//! milestones (`v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel).
+//! Pre-release (`v0.0.x`). PowerPoint and Word are implemented, tested and projected through this
+//! facade. **Excel is implemented in `mjx-xlsx` and is not projected here yet**: [`detect_format`]
+//! answers [`Format::Workbook`], and a caller reaches [`mjx_xlsx::Workbook`] directly until the facade
+//! grows its counterpart. See the repository `PLAN.md` and `CHANGELOG.md` for the roadmap and
+//! version milestones (`v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel).
 
 mod address;
 pub mod deck;

@@ -102,6 +102,15 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   `.pptx` or a `.docx`, so `mjx-chart` needs SpreadsheetML and may only point *downward*: with one
   Excel crate, retiring `mjx-chart`'s duplicate workbook writer would need `mjx-chart → mjx-xlsx`,
   which points up. See `CLAUDE.md`'s rank table and `xtask/tests/layering.rs`.
+  ✅ **usage documentation** — [`crates/mjx-xlsx/docs/guide/`](crates/mjx-xlsx/docs/guide/README.md),
+  thirteen pages of compiled doctests, plus six runnable examples under `crates/mjx-xlsx/examples/`
+  each of which reopens its own output and asserts on it. Two of the pages are the ones a user needs
+  before they meet a surprise:
+  [Large workbooks](crates/mjx-xlsx/docs/guide/large_workbooks.md) — the memory model, and the fact
+  that every per-sheet accessor re-parses the worksheet part — and
+  [Deliberate limitations](crates/mjx-xlsx/docs/guide/deliberate_limitations.md), which gathers the
+  standing refusals (no calculation engine, no rule evaluation, no filter application, half of
+  `sml.xsd` preserved rather than modelled) in one place with a workaround beside each.
 - **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (a typed drawing model with shape-level
   references, re-exposed from `mjx-pptx` behind the `vml` feature).
 - **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF).
