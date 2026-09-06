@@ -34,6 +34,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 0.1 — foundations, XML | `mjx-xml` |
   | 0.2 — foundations, design tokens | `mjx-tokens` |
   | 1.0 — packaging / compatibility | `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` |
+  | 1.5 — typography | `mjx-text` |
   | 2.0 — shared markup, base | `mjx-dml` |
   | 2.1 — shared markup, spreadsheet | `mjx-sml` |
   | 2.2 — shared markup, upper | `mjx-chart`, `mjx-omml`, `mjx-vml` |
@@ -47,7 +48,13 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   design-token table and its runtime resolver, with **no workspace dependency at all** and
   `mjx-ooxml-core` as its ceiling. Its rank says who may reach **it** — the client platform's
   renderer crates, all of which sit above the whole document graph — and it is below
-  `mjx-ooxml-types` so every one of them can, without an upward edge. `mjx-sml` sits between
+  `mjx-ooxml-types` so every one of them can, without an upward edge. `mjx-text` (MJXOFF-157) is at
+  1.5, above the packaging tier and below shared markup, and depends on `mjx-ooxml-core` and
+  `mjx-tokens` alone: it is the font engine — faces, metrics, the three resolution tiers, the
+  metric-compatible substitution table and the per-document substitution manifest — and **it has
+  never heard of OOXML**. A document's font *reference* is `mjx-dml`'s model of `<a:latin>`; a font
+  *engine* is this; the two meet above both, which is why an edge from `mjx-text` to a format crate
+  or to `mjx-dml` is a layering violation rather than a convenience. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be

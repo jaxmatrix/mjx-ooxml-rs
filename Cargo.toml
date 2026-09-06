@@ -12,6 +12,11 @@ members = [
     "crates/mjx-ooxml-types",
     "crates/mjx-opc",
     "crates/mjx-mce",
+    # Typography — rank 1.5 (MJXOFF-157). Face parsing and metrics, the system font database, the
+    # metric-compatible substitution table and the per-document substitution manifest. It sits above
+    # the packaging tier and below shared markup because it has never heard of OOXML: it answers
+    # "which face, and what are its numbers", and a `.pptx` is not one of its inputs.
+    "crates/mjx-text",
     "crates/mjx-dml",
     # `mjx-sml` sits *beside* `mjx-dml` and *beneath* `mjx-chart` — shared markup, rank 2.1. An
     # embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx`, so the markup is shared even
@@ -48,7 +53,7 @@ members = [
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
 # PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
 # this one line. See CHANGELOG.md.
-version = "0.0.122"
+version = "0.0.123"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -75,6 +80,13 @@ unicode-segmentation = "1"
 # Benchmarking only (MJXOFF-147): dev-dependency of the three format crates' `benches/`, never of a
 # shipped target. Pure Rust, no `unsafe` of its own.
 criterion = "0.8"
+# Typography (MJXOFF-157), used only by `mjx-text`. Both are pure Rust with no C dependency, which is
+# what lets a font engine live inside the shipped graph at all; `fontdb` is declared without default
+# features here so no member can pick up `memmap2` or a fontconfig C library by accident, and
+# `mjx-text` re-states the exact feature set it wants. `ttf-parser` keeps its defaults because
+# `variable-fonts` and the layout tables are read metrics, not extras.
+ttf-parser = "0.25"
+fontdb = { version = "0.24", default-features = false }
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
@@ -84,6 +96,7 @@ mjx-tokens = { path = "crates/mjx-tokens" }
 mjx-ooxml-types = { path = "crates/mjx-ooxml-types" }
 mjx-opc = { path = "crates/mjx-opc" }
 mjx-mce = { path = "crates/mjx-mce" }
+mjx-text = { path = "crates/mjx-text" }
 mjx-dml = { path = "crates/mjx-dml" }
 mjx-sml = { path = "crates/mjx-sml" }
 mjx-omml = { path = "crates/mjx-omml" }

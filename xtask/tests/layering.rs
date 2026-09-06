@@ -30,7 +30,11 @@
 //! 1. [`every_workspace_member_has_a_declared_tier`] fails on a member with no entry **and** on an
 //!    entry naming no member, so the table cannot drift away from the workspace.
 //! 2. [`every_dependency_points_strictly_downward`] counts the edges it checked and refuses to pass
-//!    on none — a vacuous run is a failure, not a green.
+//!    on none — a vacuous run is a failure, not a green. It counts them **from both ends**, because
+//!    the floor of the graph and the data crates declare no dependency at all and so can only ever
+//!    be exercised as an edge's *target*; a list that only counted outgoing edges would leave
+//!    `mjx-ooxml-core`, `mjx-derive` and `mjx-tokens` unchecked in a workspace that is exactly
+//!    right, and would go on saying nothing if something later reached one of them upwards.
 //! 3. It was proved by mutation, each red naming both crates and both ranks:
 //!    `mjx-omml -> mjx-pptx` (upward, 2.2 -> 3.0), `mjx-sml -> mjx-chart` (an inversion inside the
 //!    shared-markup tier, 2.1 -> 2.2) and `mjx-chart -> mjx-vml` (equal rank, 2.2 -> 2.2, which is
@@ -70,6 +74,13 @@ enum Tier {
     FoundationsTokens,
     /// `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` — rank 1.0.
     Packaging,
+    /// `mjx-text` — rank 1.5 (MJXOFF-157). Typography: face parsing and metrics, the system font
+    /// database, the metric-compatible substitution table and the per-document substitution
+    /// manifest. It sits *above* the packaging tier and *below* shared markup because it has never
+    /// heard of OOXML — a document's font *reference* is `mjx-dml`'s model of `<a:latin>`, and a
+    /// font *engine* is this, and the two meet above both. Its edges are what first exercise
+    /// `mjx-tokens`'s tier.
+    Typography,
     /// `mjx-dml` — rank 2.0, the base of shared markup: every other markup crate may reach it.
     SharedMarkupBase,
     /// `mjx-sml` — rank 2.1. SpreadsheetML is shared markup because an embedded workbook is
@@ -118,6 +129,7 @@ impl Tier {
             Self::FoundationsXml => Rank(0, 1),
             Self::FoundationsTokens => Rank(0, 2),
             Self::Packaging => Rank(1, 0),
+            Self::Typography => Rank(1, 5),
             Self::SharedMarkupBase => Rank(2, 0),
             Self::SharedMarkupSpreadsheet => Rank(2, 1),
             Self::SharedMarkupUpper => Rank(2, 2),
@@ -137,6 +149,7 @@ impl Tier {
             Self::FoundationsXml => "foundations, XML",
             Self::FoundationsTokens => "foundations, design tokens",
             Self::Packaging => "packaging/compatibility",
+            Self::Typography => "typography",
             Self::SharedMarkupBase => "shared markup, base",
             Self::SharedMarkupSpreadsheet => "shared markup, spreadsheet",
             Self::SharedMarkupUpper => "shared markup, upper",
@@ -170,6 +183,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-ooxml-types", Tier::Packaging),
     ("mjx-opc", Tier::Packaging),
     ("mjx-mce", Tier::Packaging),
+    ("mjx-text", Tier::Typography),
     ("mjx-dml", Tier::SharedMarkupBase),
     ("mjx-sml", Tier::SharedMarkupSpreadsheet),
     ("mjx-chart", Tier::SharedMarkupUpper),
@@ -321,7 +335,8 @@ fn every_workspace_member_has_a_declared_tier() {
 fn every_dependency_points_strictly_downward() {
     let members = workspace();
     let mut checked = 0usize;
-    let mut per_tier: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut per_source_tier: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut per_target_tier: BTreeMap<&str, usize> = BTreeMap::new();
 
     for member in &members {
         let Some(tier) = tier_of(&member.name) else {
@@ -367,13 +382,23 @@ fn every_dependency_points_strictly_downward() {
                 },
             );
             checked += 1;
-            *per_tier.entry(tier.label()).or_default() += 1;
+            *per_source_tier.entry(tier.label()).or_default() += 1;
+            *per_target_tier.entry(target_tier.label()).or_default() += 1;
         }
     }
 
     // A tier table no edge exercises is satisfied by a graph that never had a violation. These
     // floors are not a guess about workspace size: they are what the shipped graph carries today,
     // and a change that empties one of them is a change worth failing on.
+    //
+    // The check has **two** halves, because a tier can be exercised from either end and three of
+    // them can only ever be exercised from one. `mjx-ooxml-core`, `mjx-derive` and `mjx-tokens`
+    // declare no workspace dependency at all — they are the floor and the data crate — so no edge
+    // ever leaves their tiers, and listing them below would fail on a workspace that is exactly
+    // right. What *can* be asserted about them is that something reaches them, which is what the
+    // second list does. MJXOFF-156 left a note asking MJXOFF-157 to add `foundations, design
+    // tokens` to "the exercised-tier list"; `mjx-text -> mjx-tokens` is that edge, and this is the
+    // list it belongs in.
     assert!(
         checked >= 50,
         "only {checked} edges were checked, which is fewer than the shipped graph has — the walk \
@@ -382,6 +407,7 @@ fn every_dependency_points_strictly_downward() {
     for tier in [
         "foundations, XML",
         "packaging/compatibility",
+        "typography",
         "shared markup, base",
         "shared markup, spreadsheet",
         "shared markup, upper",
@@ -390,11 +416,30 @@ fn every_dependency_points_strictly_downward() {
         "bindings",
     ] {
         assert!(
-            per_tier.get(tier).copied().unwrap_or_default() > 0,
+            per_source_tier.get(tier).copied().unwrap_or_default() > 0,
             "not one edge out of the `{tier}` tier was checked; the rule is unexercised there"
         );
     }
-    println!("layering: {checked} workspace edges checked, all downward: {per_tier:?}");
+    for tier in [
+        "foundations, core",
+        "foundations, XML",
+        "foundations, design tokens",
+        "packaging/compatibility",
+        "shared markup, base",
+        "shared markup, spreadsheet",
+        "shared markup, upper",
+        "formats",
+    ] {
+        assert!(
+            per_target_tier.get(tier).copied().unwrap_or_default() > 0,
+            "not one edge *into* the `{tier}` tier was checked; nothing in the workspace reaches \
+             it, so its rank constrains nothing"
+        );
+    }
+    println!(
+        "layering: {checked} workspace edges checked, all downward. Out of: {per_source_tier:?}. \
+         Into: {per_target_tier:?}."
+    );
 }
 
 #[test]
