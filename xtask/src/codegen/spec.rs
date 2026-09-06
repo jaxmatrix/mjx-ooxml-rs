@@ -3170,6 +3170,32 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "An anchored group's children: `nvGrpSpPr`, `grpSpPr`, then any number of member shapes \
          (`xdr:grpSp`)",
     ),
+
+    // ---- The comments part (MJXOFF-114, E5) --------------------------------------------------
+    //
+    // Three of this child's five types place children rather than append them, and only those three
+    // are here — the rule `CT_TableParts` and `CT_NumFmts` are left out under. `CT_Authors` declares
+    // a single repeating `author` and `CT_CommentList` a single repeating `comment`, so appending
+    // *is* placing for both.
+    //
+    // `CT_Comment` is the one whose table earns its keep in this cluster: `commentPr` follows `text`
+    // and is `minOccurs="0"`, so a comment that gains a box's properties after it already has text
+    // has exactly one legal insertion point, and it is not "the end" for any comment that also
+    // carries markup this crate does not model.
+    (
+        "COMMENTS", "sml", "CT_Comments",
+        "The comments part's three children: the author list, the comment list, then `extLst` \
+         (`x:comments`)",
+    ),
+    (
+        "COMMENT", "sml", "CT_Comment",
+        "One comment's two children: its rich text, then the properties of the box that draws it \
+         (`x:comment`)",
+    ),
+    (
+        "COMMENT_PROPERTIES", "sml", "CT_CommentPr",
+        "A comment box's one child, its anchor (`x:commentPr`)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.
