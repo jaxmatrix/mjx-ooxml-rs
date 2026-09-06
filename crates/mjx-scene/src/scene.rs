@@ -33,7 +33,7 @@
 //! the geometry table. A fragment tree survives a zoom; a display list is rebuilt by it, and this
 //! function is the rebuild.
 //!
-//! # The one interpretation this builder makes
+//! # The one interpretation this builder makes, and the three claims it is made of
 //!
 //! A fragment's clip is *absolute*: each node states the clip it is drawn under, and the contract
 //! does not say what a child that states none is drawn under. A display list's clips **nest** — a
@@ -42,6 +42,29 @@
 //! the text inside it need, and it can only ever narrow, never widen. It is written down here rather
 //! than assumed because it is a choice, and `docs/UI_PLATFORM_PLAN.md`'s contract owner may want it
 //! stated in `mjx-layout` instead.
+//!
+//! **That paragraph was once the only thing asserting any of it.** MJXOFF-161's review deleted
+//! `node.clip().or(enclosing.clip)` outright and the crate stayed green at 53 passed, 0 failed; a
+//! probe that aborted the process whenever an ancestor clipped and a descendant did not **never
+//! fired**, so the rule was not weakly covered — nothing in the crate constructed the case at all.
+//!
+//! It is three claims, and they fail independently. Each is now gated against the emitted command
+//! stream in `tests/fragments_alone_drive_the_builder.rs`, and each was proved by its own mutation:
+//!
+//! 1. **Inheritance is honoured** — a descendant naming no clip is drawn inside its ancestor's.
+//!    Structural: it follows from the `Pop` below being emitted after the subtree rather than after
+//!    the node. Popping early makes `a_descendant_that_states_no_clip_is_drawn_inside_its_ancestors`
+//!    red.
+//! 2. **An inherited clip is not re-installed** — `enclosing.clip` is read *only* by the
+//!    `Some(clip_id) != enclosing.clip` comparison below, so `.or(enclosing.clip)` is observable
+//!    only when a descendant **re-states** the ancestor's clip through an intervening node that
+//!    states none. That needs a tree three deep, which is exactly why the review's mutation was
+//!    green; it now makes `a_descendant_that_restates_an_inherited_clip_does_not_install_it_twice`
+//!    red.
+//! 3. **A clip is re-installed when the transform changes** — the `|| transform_changed` below. The
+//!    same rectangle in a new space is a different region on the page, and a clip that silently
+//!    failed to re-install would cut against the wrong rectangle, which is invisible until
+//!    something is actually clipped away.
 
 use mjx_layout::{
     DecorationRef, Fragment, FragmentId, FragmentTree, GeometryRef, ImageRef, LayoutSize,

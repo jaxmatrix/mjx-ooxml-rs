@@ -781,3 +781,280 @@ fn an_effect_that_names_an_input_above_itself_is_refused() {
         "expected a malformed-effect-chain error, got {error}"
     );
 }
+
+// -------------------------------------------------------------------------------------------
+// The clip interpretation — the one place this builder reads the fragment contract twice
+// -------------------------------------------------------------------------------------------
+//
+// `scene.rs`'s module documentation says a fragment's clip is *absolute*, that a display list's
+// clips *nest*, and that the builder resolves the difference by installing a clip for a node and
+// its whole subtree. Until MJXOFF-161's review that paragraph was the only thing asserting any of
+// it: deleting `node.clip().or(enclosing.clip)` outright left the crate at 53 passed, 0 failed, and
+// a probe that aborted the process when an ancestor clipped and a descendant did not **never
+// fired**. The rule was not weakly covered; it was entirely unexercised.
+//
+// Read closely, that paragraph is **three** claims, not one, and they fail independently:
+//
+// 1. *Inheritance is honoured.* A descendant that names no clip is drawn inside its ancestor's.
+//    This one is **structural** — it follows from `PushClip … Pop` bracketing the whole subtree —
+//    and it is what breaks if the `Pop` is emitted too early.
+// 2. *An inherited clip is not re-installed.* `enclosing.clip` is read **only** by the
+//    `Some(clip_id) != enclosing.clip` comparison, so `.or(enclosing.clip)` is observable only when
+//    a descendant *re-states* the ancestor's clip through an intervening node that states none.
+//    This is the claim the review's mutation actually breaks, and the tree it needs is three deep —
+//    which is why a two-deep tree could never have caught it.
+// 3. *A clip is re-installed when the transform changes*, because the same rectangle in a new space
+//    is a different region on the page.
+//
+// Each is gated below against the **emitted command stream** — the seam is the public output, not
+// an internal helper — and each was proved to fail by its own mutation.
+
+/// The commands of a scene built from `builder` with the decorating resolver.
+fn commands_of(builder: FragmentTreeBuilder) -> Vec<Command> {
+    scene_of(builder).commands().collect()
+}
+
+/// A square, 72 points on a side, which every node in these trees uses.
+fn a_square() -> LayoutRect {
+    LayoutRect::from_edges(
+        Emu::ZERO,
+        Emu::ZERO,
+        Emu::from_points(72.0),
+        Emu::from_points(72.0),
+    )
+}
+
+/// Where `wanted` sits in the stream, for an assertion that talks about ordering.
+#[track_caller]
+fn position_of(commands: &[Command], wanted: &Command) -> usize {
+    commands
+        .iter()
+        .position(|command| command == wanted)
+        .unwrap_or_else(|| panic!("no {wanted:?} in {commands:?}"))
+}
+
+/// The paint index whose solid colour has `red` in its red channel.
+///
+/// [`Decorated`] makes a decoration's red channel its handle, so this turns "handle 2's fill" into
+/// the index a command names, without the test having to know how the builder interned it.
+#[track_caller]
+fn paint_with_red(list: &DisplayList, red: u8) -> ResourceIndex {
+    for index in 0..list.record_count(SectionKind::Paints) {
+        let candidate = ResourceIndex::new(index);
+        if let Some(Paint::Solid(color)) = list.paint(candidate) {
+            if color.red == red && color.green == 0 && color.blue == 0 {
+                return candidate;
+            }
+        }
+    }
+    panic!("no paint in the list has red == {red}");
+}
+
+#[test]
+fn a_descendant_that_states_no_clip_is_drawn_inside_its_ancestors() {
+    // An ancestor that clips, and a child that says nothing about clipping at all. The contract
+    // does not say what the child is drawn under; this builder says *the ancestor's clip*, and this
+    // is where that stops being a paragraph and becomes an assertion.
+    let mut builder = FragmentTreeBuilder::new();
+    let clip = builder.clip(a_square()).expect("a non-empty clip");
+    let ancestor = builder
+        .push(
+            None,
+            an_address(),
+            a_square(),
+            mjx_layout::TransformId::IDENTITY,
+            Some(clip),
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(1)),
+                cell: None,
+            }),
+        )
+        .expect("the clipped ancestor");
+    builder
+        .push(
+            Some(ancestor),
+            an_address(),
+            a_square(),
+            mjx_layout::TransformId::IDENTITY,
+            // **No clip.** This is the case the review's probe proved nothing constructed.
+            None,
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(2)),
+                cell: None,
+            }),
+        )
+        .expect("the unclipped descendant");
+    let list = scene_of(builder);
+    let commands: Vec<Command> = list.commands().collect();
+
+    let descendant_fill = Command::FillPath {
+        geometry: ResourceIndex::new(0),
+        paint: paint_with_red(&list, 2),
+    };
+    let push = position_of(&commands, &Command::PushClip(ResourceIndex::new(0)));
+    let pop = position_of(&commands, &Command::Pop);
+    let drawn = position_of(&commands, &descendant_fill);
+    assert!(
+        push < drawn && drawn < pop,
+        "the descendant states no clip, so it must be drawn *inside* the clip its ancestor states \
+         — the `PushClip` is at {push}, the descendant's fill at {drawn} and the `Pop` at {pop}: \
+         {commands:?}"
+    );
+    assert_eq!(
+        commands
+            .iter()
+            .filter(|command| **command == Command::Pop)
+            .count(),
+        1,
+        "one clip was installed, so exactly one `Pop` closes it: {commands:?}"
+    );
+}
+
+#[test]
+fn a_descendant_that_restates_an_inherited_clip_does_not_install_it_twice() {
+    // Three deep, and it has to be: `enclosing.clip` is read only by the comparison that decides
+    // whether to push, so the inheritance is observable only when a descendant *re-states* the
+    // ancestor's clip across a node that states none.
+    let mut builder = FragmentTreeBuilder::new();
+    let clip = builder.clip(a_square()).expect("a non-empty clip");
+    let ancestor = builder
+        .push(
+            None,
+            an_address(),
+            a_square(),
+            mjx_layout::TransformId::IDENTITY,
+            Some(clip),
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(1)),
+                cell: None,
+            }),
+        )
+        .expect("the clipped ancestor");
+    let middle = builder
+        .push(
+            Some(ancestor),
+            an_address(),
+            a_square(),
+            mjx_layout::TransformId::IDENTITY,
+            None,
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(2)),
+                cell: None,
+            }),
+        )
+        .expect("an intervening node that states no clip");
+    builder
+        .push(
+            Some(middle),
+            an_address(),
+            a_square(),
+            mjx_layout::TransformId::IDENTITY,
+            // The **same** clip the ancestor stated, two levels up.
+            Some(clip),
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(3)),
+                cell: None,
+            }),
+        )
+        .expect("a grandchild restating the ancestor's clip");
+    let commands = commands_of(builder);
+
+    assert_eq!(
+        commands
+            .iter()
+            .filter(|command| matches!(command, Command::PushClip(_)))
+            .count(),
+        1,
+        "the grandchild names the clip its ancestor already installed, and a display list's clips \
+         *intersect* — installing it again would narrow the region to itself for nothing and cost \
+         a `Pop` the painter has to balance: {commands:?}"
+    );
+    assert_eq!(
+        commands
+            .iter()
+            .filter(|command| **command == Command::Pop)
+            .count(),
+        1,
+        "one push, one pop: {commands:?}"
+    );
+}
+
+#[test]
+fn a_clip_is_reinstalled_when_the_transform_beneath_it_changes() {
+    // The same clip identifier, in two different coordinate spaces. A `ClipId` names a rectangle in
+    // the space of the node that states it, so the *same* identifier under a rotation is a
+    // **different region** on the page. A builder that compared identifiers alone would install it
+    // once, in the parent's space, and everything under the rotation would be clipped against the
+    // wrong rectangle — invisible until something is actually cut off.
+    let mut builder = FragmentTreeBuilder::new();
+    let clip = builder.clip(a_square()).expect("a non-empty clip");
+    let rotation = builder.transform(Transform::rotation(Angle::from_degrees(90.0)));
+    let parent = builder
+        .push(
+            None,
+            an_address(),
+            a_square(),
+            mjx_layout::TransformId::IDENTITY,
+            Some(clip),
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(1)),
+                cell: None,
+            }),
+        )
+        .expect("the clipped parent, in page space");
+    builder
+        .push(
+            Some(parent),
+            an_address(),
+            a_square(),
+            rotation,
+            Some(clip),
+            Fragment::Box(BoxFragment {
+                decoration: Some(DecorationRef::new(2)),
+                cell: None,
+            }),
+        )
+        .expect("a child under the same clip but a quarter turn round");
+    let commands = commands_of(builder);
+
+    let pushes: Vec<&Command> = commands
+        .iter()
+        .filter(|command| matches!(command, Command::PushClip(_)))
+        .collect();
+    assert_eq!(
+        pushes.len(),
+        2,
+        "the child names the same clip *in a rotated space*, which is a different region on the \
+         page, so it has to be installed again: {commands:?}"
+    );
+    assert!(
+        pushes
+            .iter()
+            .all(|command| **command == Command::PushClip(ResourceIndex::new(0))),
+        "both installations name the same clip record — the rectangle is identical and only the \
+         space it is read in differs, so the table holds one entry: {commands:?}"
+    );
+    assert_eq!(
+        commands
+            .iter()
+            .filter(|command| matches!(command, Command::PushTransform(_)))
+            .count(),
+        1,
+        "one rotation, installed once: {commands:?}"
+    );
+
+    // And the second installation sits *inside* the transform, or it would be a rectangle in page
+    // space wearing the child's coordinates.
+    let transform_at = position_of(&commands, &Command::PushTransform(ResourceIndex::new(0)));
+    let second_clip_at = commands
+        .iter()
+        .enumerate()
+        .filter(|(_, command)| matches!(command, Command::PushClip(_)))
+        .map(|(at, _)| at)
+        .nth(1)
+        .unwrap_or_default();
+    assert!(
+        transform_at < second_clip_at,
+        "the re-installed clip must sit inside the transform that made it necessary: {commands:?}"
+    );
+}
