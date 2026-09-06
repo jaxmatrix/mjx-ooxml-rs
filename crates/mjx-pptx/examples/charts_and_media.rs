@@ -51,7 +51,7 @@ fn main() -> Result<()> {
     deck.set_chart_data_labels(
         slide,
         chart,
-        ChartLabelScope::Plot { plot_idx: 0 },
+        ChartLabelScope::Plot { plot_index: 0 },
         &DataLabelSpec::new()
             .value(true)
             .position(DataLabelPosition::OutsideEnd)
@@ -61,7 +61,7 @@ fn main() -> Result<()> {
     deck.set_chart_data_labels(
         slide,
         chart,
-        ChartLabelScope::Series { series_idx: 1 },
+        ChartLabelScope::Series { series_index: 1 },
         &DataLabelSpec::new().position(DataLabelPosition::InsideEnd),
     )?;
     // ...and one point of that series overrides that.
@@ -69,8 +69,8 @@ fn main() -> Result<()> {
         slide,
         chart,
         ChartLabelScope::Point {
-            series_idx: 1,
-            point_idx: 3,
+            series_index: 1,
+            point_index: 3,
         },
         &DataLabelSpec::new().category_name(true),
     )?;

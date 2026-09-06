@@ -565,25 +565,21 @@ impl ChartLabelScope {
     /// One plot of the chart — the widest tier.
     #[staticmethod]
     fn plot(plot_index: u32) -> Self {
-        Self(ooxml::ChartLabelScope::Plot {
-            plot_idx: plot_index as usize,
-        })
+        Self(ooxml::ChartLabelScope::Plot { plot_index })
     }
 
     /// One series.
     #[staticmethod]
     fn series(series_index: u32) -> Self {
-        Self(ooxml::ChartLabelScope::Series {
-            series_idx: series_index as usize,
-        })
+        Self(ooxml::ChartLabelScope::Series { series_index })
     }
 
     /// One data point — the narrowest tier.
     #[staticmethod]
     fn point(series_index: u32, point_index: u32) -> Self {
         Self(ooxml::ChartLabelScope::Point {
-            series_idx: series_index as usize,
-            point_idx: point_index,
+            series_index,
+            point_index,
         })
     }
 
@@ -601,7 +597,7 @@ impl ChartLabelScope {
     #[getter]
     fn plot_index(&self) -> Option<u32> {
         match self.0 {
-            ooxml::ChartLabelScope::Plot { plot_idx } => Some(plot_idx as u32),
+            ooxml::ChartLabelScope::Plot { plot_index } => Some(plot_index),
             _ => None,
         }
     }
@@ -610,8 +606,8 @@ impl ChartLabelScope {
     #[getter]
     fn series_index(&self) -> Option<u32> {
         match self.0 {
-            ooxml::ChartLabelScope::Series { series_idx }
-            | ooxml::ChartLabelScope::Point { series_idx, .. } => Some(series_idx as u32),
+            ooxml::ChartLabelScope::Series { series_index }
+            | ooxml::ChartLabelScope::Point { series_index, .. } => Some(series_index),
             ooxml::ChartLabelScope::Plot { .. } => None,
         }
     }
@@ -620,7 +616,7 @@ impl ChartLabelScope {
     #[getter]
     fn point_index(&self) -> Option<u32> {
         match self.0 {
-            ooxml::ChartLabelScope::Point { point_idx, .. } => Some(point_idx),
+            ooxml::ChartLabelScope::Point { point_index, .. } => Some(point_index),
             _ => None,
         }
     }

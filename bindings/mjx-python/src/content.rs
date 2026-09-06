@@ -66,13 +66,13 @@ impl LayoutInfo {
     /// The layout's index in the deck's one flat layout space.
     #[getter]
     fn index(&self) -> u32 {
-        self.0.index as u32
+        self.0.index
     }
 
     /// The index of the master this layout belongs to.
     #[getter]
     fn master_index(&self) -> u32 {
-        self.0.master_index as u32
+        self.0.master_index
     }
 
     /// The layout's name, when it states one.
@@ -101,7 +101,7 @@ impl ShapeInfo {
     /// The shape's top-level index on its surface.
     #[getter]
     fn index(&self) -> u32 {
-        self.0.index as u32
+        self.0.index
     }
 
     /// Which kind of shape this is.

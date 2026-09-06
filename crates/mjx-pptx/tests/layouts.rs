@@ -190,9 +190,14 @@ fn layouts_answers_exactly_what_the_per_index_readers_do() {
     assert_eq!(listed.len(), pres.layout_count());
 
     for (index, entry) in listed.iter().enumerate() {
-        assert_eq!(entry.index, index);
+        // As `ShapeInfo::index`: `LayoutInfo`'s two indices are `u32` because the struct is
+        // re-exported verbatim by `mjx-ooxml` and by both bindings.
         assert_eq!(
-            entry.master_index,
+            usize::try_from(entry.index).expect("a layout index fits"),
+            index
+        );
+        assert_eq!(
+            usize::try_from(entry.master_index).expect("a master index fits"),
             pres.layout_master(index).expect("master")
         );
         assert_eq!(entry.name, pres.layout_name(index).expect("name"));

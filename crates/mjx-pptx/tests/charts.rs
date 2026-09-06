@@ -1133,7 +1133,7 @@ fn the_three_label_tiers_are_addressed_and_merged_separately() {
     pres.set_chart_data_labels(
         0,
         frame,
-        ChartLabelScope::Series { series_idx: 0 },
+        ChartLabelScope::Series { series_index: 0 },
         &DataLabelSpec::new()
             .category_name(true)
             .position(DataLabelPosition::OutsideEnd),
@@ -1144,8 +1144,8 @@ fn the_three_label_tiers_are_addressed_and_merged_separately() {
         0,
         frame,
         ChartLabelScope::Point {
-            series_idx: 0,
-            point_idx: 1,
+            series_index: 0,
+            point_index: 1,
         },
         &DataLabelSpec::new()
             .value(false)
@@ -1159,12 +1159,12 @@ fn the_three_label_tiers_are_addressed_and_merged_separately() {
 
     // Each tier states only what it was given.
     let plot = pres
-        .chart_data_label_tier(0, frame, ChartLabelScope::Plot { plot_idx: 0 })
+        .chart_data_label_tier(0, frame, ChartLabelScope::Plot { plot_index: 0 })
         .expect("read the plot tier")
         .expect("the plot states settings");
     assert_eq!(plot.position, Some(DataLabelPosition::Center));
     let series = pres
-        .chart_data_label_tier(0, frame, ChartLabelScope::Series { series_idx: 0 })
+        .chart_data_label_tier(0, frame, ChartLabelScope::Series { series_index: 0 })
         .expect("read the series tier")
         .expect("series 0 states settings");
     assert_eq!(series.position, Some(DataLabelPosition::OutsideEnd));
@@ -1173,7 +1173,7 @@ fn the_three_label_tiers_are_addressed_and_merged_separately() {
         "the series says nothing about the value"
     );
     assert!(
-        pres.chart_data_label_tier(0, frame, ChartLabelScope::Series { series_idx: 1 })
+        pres.chart_data_label_tier(0, frame, ChartLabelScope::Series { series_index: 1 })
             .expect("read the series tier")
             .is_none(),
         "series 1 carries no c:dLbls at all"
@@ -1230,8 +1230,8 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
         0,
         frame,
         ChartLabelScope::Point {
-            series_idx: 0,
-            point_idx: 2,
+            series_index: 0,
+            point_index: 2,
         },
         &DataLabelSpec::new().category_name(true),
     )
@@ -1240,8 +1240,8 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
         0,
         frame,
         ChartLabelScope::Point {
-            series_idx: 0,
-            point_idx: 1,
+            series_index: 0,
+            point_index: 1,
         },
     )
     .expect("silence point 1");
@@ -1273,8 +1273,8 @@ fn one_point_can_carry_its_own_words_and_be_silenced() {
             0,
             frame,
             ChartLabelScope::Point {
-                series_idx: 0,
-                point_idx: 1
+                series_index: 0,
+                point_index: 1
             }
         )
         .expect("remove"));
@@ -1349,8 +1349,8 @@ fn a_series_length_edit_never_re_points_its_per_point_formatting() {
         0,
         frame,
         ChartLabelScope::Point {
-            series_idx: 0,
-            point_idx: 2,
+            series_index: 0,
+            point_index: 2,
         },
         &DataLabelSpec::new().value(true),
     )
@@ -1506,7 +1506,7 @@ fn decorating_a_chart_dirties_only_the_chart_part() {
     pres.set_chart_data_labels(
         CHART_SURFACE,
         0,
-        ChartLabelScope::Plot { plot_idx: 0 },
+        ChartLabelScope::Plot { plot_index: 0 },
         &DataLabelSpec::new()
             .value(true)
             .position(DataLabelPosition::OutsideEnd),
@@ -1572,7 +1572,7 @@ fn reading_chart_decoration_leaves_every_part_byte_identical() {
         .chart_data_labels(CHART_SURFACE, 0, 0, Some(0))
         .expect("read");
     let _ = pres
-        .chart_data_label_tier(CHART_SURFACE, 0, ChartLabelScope::Plot { plot_idx: 0 })
+        .chart_data_label_tier(CHART_SURFACE, 0, ChartLabelScope::Plot { plot_index: 0 })
         .expect("read");
     let _ = pres.chart_point_formats(CHART_SURFACE, 0, 0).expect("read");
     let _ = pres.chart_trendlines(CHART_SURFACE, 0, 0).expect("read");
@@ -1620,7 +1620,7 @@ fn the_decoration_surfaces_reject_the_wrong_shapes_indices_and_plot_types() {
 
     // A plot past the last.
     assert!(matches!(
-        pres.chart_data_label_tier(0, frame, ChartLabelScope::Plot { plot_idx: 4 }),
+        pres.chart_data_label_tier(0, frame, ChartLabelScope::Plot { plot_index: 4 }),
         Err(PptxError::ChartPlotOutOfRange { index: 4, count: 1 })
     ));
 
@@ -1693,7 +1693,7 @@ fn the_decoration_surfaces_reject_the_wrong_shapes_indices_and_plot_types() {
         .set_chart_data_labels(
             0,
             pie_frame,
-            ChartLabelScope::Series { series_idx: 0 },
+            ChartLabelScope::Series { series_index: 0 },
             &DataLabelSpec::new().percentage(true)
         )
         .is_ok());
