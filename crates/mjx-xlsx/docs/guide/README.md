@@ -25,6 +25,7 @@ more, so that nobody plans around a surface that is not here.
 | [Filters and data validation](filters_and_data_validation) | You want to read or write an autofilter, a sort state or a validation rule — and to know what none of them will do |
 | [Worksheet tables](worksheet_tables) | You want to read or create a table, and to know why a preset style name is not a missing style |
 | [Hyperlinks](hyperlinks) | You want to read, add or remove a link — and to know what this library will never do to a target |
+| [Print setup and sheet kinds](print_setup_and_sheet_kinds) | You want a sheet's margins, page setup or header/footer, or a tab that is not a grid of cells |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a

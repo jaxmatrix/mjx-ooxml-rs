@@ -71,7 +71,8 @@ use mjx_xml::fidelity;
 use crate::error::XlsxError;
 use crate::nav;
 use crate::parts::{
-    SheetKind, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_HYPERLINK, REL_OFFICE_DOCUMENT,
+    SheetKind, CONTENT_TYPE_CHARTSHEET, CONTENT_TYPE_DIALOGSHEET, CONTENT_TYPE_TABLE,
+    CONTENT_TYPE_WORKSHEET, REL_HYPERLINK, REL_IMAGE, REL_OFFICE_DOCUMENT, REL_PRINTER_SETTINGS,
 };
 
 /// The content-type prefix every SpreadsheetML part shares.
@@ -276,6 +277,45 @@ pub enum SpreadsheetDefect {
         /// The repeated `@displayName`.
         display_name: String,
     },
+
+    /// A sheet's `x:pageSetup` or `x:picture` naming a relationship of the wrong **type**.
+    ///
+    /// `CT_PageSetup`'s and `CT_CsPageSetup`'s `r:id` reaches a **printer settings** part
+    /// (ECMA-376 Part 1 §15.2.13) and `CT_SheetBackgroundPicture`'s reaches an **image** part
+    /// (§15.2.14). An `r:id` naming a declared relationship of some other type resolves to a part
+    /// that is not the one the element means, and every consumer of it — including
+    /// [`Workbook::sheet_printer_settings`](crate::Workbook::sheet_printer_settings) — is then
+    /// answering with the wrong part rather than with nothing.
+    ///
+    /// # What this is *not*
+    ///
+    /// It is not the dangling reference. An `r:id` naming a relationship the `.rels` does not
+    /// declare at all is `mjx_opc`'s
+    /// [`UndeclaredRelationshipReference`](mjx_opc::PackageDefect::UndeclaredRelationshipReference),
+    /// which covers every attribute in the relationship-reference namespace and needs no help from
+    /// this crate. **This is the case that check cannot see**: the id is declared, so the package is
+    /// internally consistent, and only a reader that knows what a `pageSetup` means can tell that it
+    /// points at the wrong kind of thing.
+    ///
+    /// Reported only for a sheet part **this library will write** — the same scope
+    /// [`OrphanedHyperlinkRelationship`](Self::OrphanedHyperlinkRelationship) has, and for the same
+    /// reason: a workbook somebody else wrote is preserved, not corrected.
+    #[error(
+        "{part}: x:{element}/@r:id names relationship {relationship_id}, whose type is \
+         {found_type:?} rather than {expected_type:?}"
+    )]
+    SheetReferenceHasTheWrongRelationshipType {
+        /// The sheet part whose markup names it.
+        part: String,
+        /// The element carrying the reference: `pageSetup` or `picture`.
+        element: &'static str,
+        /// The relationship the element names.
+        relationship_id: String,
+        /// The relationship type the element requires.
+        expected_type: &'static str,
+        /// The type the `.rels` actually declares for it.
+        found_type: String,
+    },
 }
 
 /// Checks every SpreadsheetML invariant, in a deterministic order: the workbook edge, then
@@ -290,6 +330,7 @@ pub(crate) fn check(package: &Package, workbook_part: &PartName) -> Result<(), X
     check_table_part_targets(package)?;
     check_table_identity(package)?;
     check_hyperlink_relationships(package)?;
+    check_sheet_print_references(package)?;
     Ok(())
 }
 
@@ -474,6 +515,86 @@ fn check_hyperlink_relationships(package: &Package) -> Result<(), XlsxError> {
                 target,
             }
             .into());
+        }
+    }
+    Ok(())
+}
+
+/// Every `x:pageSetup` and `x:picture` on a sheet **this library will write** names a relationship
+/// of the right type.
+///
+/// The half of "the reference and the part it names are one thing" that `mjx-opc` cannot answer: it
+/// checks that a named relationship is *declared*, and this checks that the declared one is the
+/// *kind* the element means. See
+/// [`SpreadsheetDefect::SheetReferenceHasTheWrongRelationshipType`].
+///
+/// Walks the same [`RawDocument`] every other check in this file walks, through [`crate::nav`], for
+/// the reason [`check_hyperlink_relationships`] states: reading a `WorksheetPart` would build
+/// MJXOFF-95's packed cell store, and a check that needs two attributes must not pay for that.
+///
+/// All three sheet content types are swept, because all three declare a `pageSetup` — the
+/// chartsheet's is `CT_CsPageSetup`, whose `r:id` means exactly the same thing.
+fn check_sheet_print_references(package: &Package) -> Result<(), XlsxError> {
+    const SHEET_CONTENT_TYPES: [&str; 3] = [
+        CONTENT_TYPE_WORKSHEET,
+        CONTENT_TYPE_CHARTSHEET,
+        CONTENT_TYPE_DIALOGSHEET,
+    ];
+    // The two slots that carry an `r:id`, and the relationship type each one means.
+    const REFERENCES: [(&str, &str); 2] =
+        [("pageSetup", REL_PRINTER_SETTINGS), ("picture", REL_IMAGE)];
+
+    let sheets: Vec<PartName> = package
+        .authored_xml_parts()
+        .map(|(part, _)| part)
+        .filter(|part| {
+            package
+                .content_type_of(part)
+                .is_some_and(|content_type| SHEET_CONTENT_TYPES.contains(&content_type))
+        })
+        .collect();
+
+    for part in sheets {
+        let Some(relationships) = package.relationships_for(Some(&part)) else {
+            continue;
+        };
+        let Some(tree) = part_tree(package, &part) else {
+            continue;
+        };
+        let tree = tree.get();
+        let interner = &tree.interner;
+        // A part that binds the relationship-reference namespace nowhere can spell no `r:id` at all.
+        let Some(prefix) =
+            nav::namespace_prefix(&tree.root, interner, SHARED_RELATIONSHIP_REFERENCE)
+        else {
+            continue;
+        };
+        for (element, expected_type) in REFERENCES {
+            let Some(node) = nav::child(&tree.root, interner, SML, element) else {
+                continue;
+            };
+            let Some(reference) = nav::prefixed_attr_value(node, interner, prefix, "id") else {
+                continue;
+            };
+            let relationship_id = reference?;
+            // An id that is declared nowhere is `mjx_opc`'s to report, not this check's: saying so
+            // twice would make one defect two.
+            let Some(relationship) = relationships.by_id(&relationship_id) else {
+                continue;
+            };
+            if relationship.rel_type == expected_type {
+                continue;
+            }
+            return Err(
+                SpreadsheetDefect::SheetReferenceHasTheWrongRelationshipType {
+                    part: part.as_str().to_owned(),
+                    element,
+                    relationship_id,
+                    expected_type,
+                    found_type: relationship.rel_type.clone(),
+                }
+                .into(),
+            );
         }
     }
     Ok(())

@@ -72,6 +72,7 @@ pub use workbook::{
 };
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};
+pub use worksheet::print::SheetMarkup;
 pub use worksheet::tables::{SheetTable, SheetTableColumn};
 pub use worksheet::Worksheet;
 
