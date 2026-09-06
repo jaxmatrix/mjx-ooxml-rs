@@ -820,6 +820,44 @@ fn a_blank_cell_is_absent_rather_than_zero_and_the_offsets_still_line_up() {
 }
 
 #[test]
+fn a_whole_column_reference_costs_the_sheet_rather_than_the_grid() {
+    // The bulk-data discipline, in the shape a test can hold: `Data!$B:$B` addresses **1,048,576**
+    // cells and answers with the four that hold something. A resolver that materialised what a
+    // reference addresses rather than what it reaches would not finish this case at all.
+    //
+    // What it does **not** pin is the row-walk branch in `gather`, and that is worth stating rather
+    // than implying. The two arms — address the range's rows, or filter the sheet's — provably
+    // agree: forcing either one leaves all forty-six cases in this crate and the facade green.
+    // The branch is a *time* optimisation, and neither this case nor
+    // `examples/chart_range_cost.rs` can see it: walking a row allocates nothing, so the counter
+    // reports the same bytes both ways, and a row lookup on a four-row store is too cheap for a
+    // million of them to show. Measured where it does show — a whole-column reference on a
+    // 30,000-cell sheet, debug build — the branch is 15 ms against 197 ms, both of them under the
+    // ~340 ms the sheet's own parse costs (MJXOFF-153). It is kept for the shape rather than for a
+    // figure this suite could defend.
+    let mut workbook = Workbook::open(&producer_workbook()).expect("opens");
+    let resolved = workbook
+        .resolve_range_reference(0, "Data!$B:$B")
+        .expect("resolves");
+    assert!(resolved.is_fully_resolved());
+    assert_eq!(
+        resolved.addressed_cells, 1_048_576,
+        "the reference really does address a whole column"
+    );
+    // …and it answers with the four cells column B actually holds: the header, then the numbers.
+    assert_eq!(resolved.cells.len(), 4);
+    assert_eq!(
+        resolved
+            .cells
+            .iter()
+            .filter_map(|cell| cell.value.number())
+            .collect::<Vec<_>>(),
+        [10.0, 20.0, 30.0]
+    );
+    assert_eq!(resolved.cells[0].value.text(), Some("Revenue"));
+}
+
+#[test]
 fn a_reference_that_names_several_areas_resolves_each_in_the_order_it_wrote_them() {
     let mut workbook = Workbook::open(&producer_workbook()).expect("opens");
     for text in [
