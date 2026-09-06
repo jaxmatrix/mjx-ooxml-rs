@@ -1,6 +1,6 @@
 # Guide
 
-Five pages, in reading order. Each is written to be read start to finish once, then returned to as a
+Six pages, in reading order. Each is written to be read start to finish once, then returned to as a
 reference.
 
 | Page | Read it when |
@@ -9,6 +9,7 @@ reference.
 | [Text, runs and annotations](text_and_formatting) | You need to address a particular run, edit text precisely, or attach a comment, a note or a bookmark |
 | [Tables, sections, headers and structured content](tables_sections_and_headers) | You are placing structured content, or a property is not where a section put it |
 | [Styles, numbering and inheritance](styles_and_inheritance) | A run renders in a way nothing in the paragraph explains |
+| [Charts](charts) | You are putting a chart in a document, or editing one that is already there |
 | [Fidelity and the known gaps](fidelity_and_gaps) | Before you rely on something in production |
 
 The [effective-properties guide](crate::effective_properties) is the deep reference behind page 4 —
