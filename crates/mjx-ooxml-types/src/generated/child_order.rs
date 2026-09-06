@@ -57909,6 +57909,830 @@ pub static SML_TYPES: [ChildOrder; 367] = [
     },
 ];
 
+/// Every complex type of `dml-spreadsheetDrawing.xsd`, sorted by XSD symbol.
+pub static DML_SPREADSHEET_DRAWING_TYPES: [ChildOrder; 17] = [
+    ChildOrder {
+        symbol: "CT_AbsoluteAnchor",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "pos",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Point2D",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "ext",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_PositiveSize2D",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "contentPart",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Rel",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cxnSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Connector",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "graphicFrame",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GraphicalObjectFrame",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "grpSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GroupShape",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "pic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Picture",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "sp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Shape",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "clientData",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_AnchorClientData",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_AnchorClientData",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Connector",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "nvCxnSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_ConnectorNonVisual",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "spPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "style",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeStyle",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_ConnectorNonVisual",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvCxnSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualConnectorProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Drawing",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "absoluteAnchor",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_AbsoluteAnchor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "oneCellAnchor",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_OneCellAnchor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "twoCellAnchor",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_TwoCellAnchor",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_GraphicalObjectFrame",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "nvGraphicFramePr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GraphicalObjectFrameNonVisual",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "xfrm",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_Transform2D",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_MAIN,
+                local: "graphic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_GraphicalObject",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_GraphicalObjectFrameNonVisual",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvGraphicFramePr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualGraphicFrameProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_GroupShape",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "nvGrpSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GroupShapeNonVisual",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "grpSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_GroupShapeProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cxnSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Connector",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "graphicFrame",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GraphicalObjectFrame",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "grpSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GroupShape",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "pic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Picture",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "sp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Shape",
+                }),
+                rank: 2,
+                repeatable: true,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_GroupShapeNonVisual",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvGrpSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualGroupDrawingShapeProps",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Marker",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "col",
+                complex_type: None,
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "colOff",
+                complex_type: None,
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "row",
+                complex_type: None,
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "rowOff",
+                complex_type: None,
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_OneCellAnchor",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "from",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Marker",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "ext",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_PositiveSize2D",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "contentPart",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Rel",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cxnSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Connector",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "graphicFrame",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GraphicalObjectFrame",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "grpSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GroupShape",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "pic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Picture",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "sp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Shape",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "clientData",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_AnchorClientData",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Picture",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "nvPicPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_PictureNonVisual",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "blipFill",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_BlipFillProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "spPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeProperties",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "style",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeStyle",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_PictureNonVisual",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvPicPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualPictureProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_Rel",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Empty,
+        slots: &[],
+    },
+    ChildOrder {
+        symbol: "CT_Shape",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "nvSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_ShapeNonVisual",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "spPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeProperties",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "style",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_ShapeStyle",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "txBody",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_TextBody",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_ShapeNonVisual",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingProps",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cNvSpPr",
+                complex_type: Some(TypeReference {
+                    namespace: DML_MAIN,
+                    symbol: "CT_NonVisualDrawingShapeProps",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+    ChildOrder {
+        symbol: "CT_TwoCellAnchor",
+        namespace: DML_SPREADSHEET_DRAWING,
+        model: ContentModel::Sequence,
+        slots: &[
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "from",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Marker",
+                }),
+                rank: 0,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "to",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Marker",
+                }),
+                rank: 1,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "contentPart",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Rel",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "cxnSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Connector",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "graphicFrame",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GraphicalObjectFrame",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "grpSp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_GroupShape",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "pic",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Picture",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "sp",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_Shape",
+                }),
+                rank: 2,
+                repeatable: false,
+                ambiguous: false,
+            },
+            ChildSlot {
+                namespace: DML_SPREADSHEET_DRAWING,
+                local: "clientData",
+                complex_type: Some(TypeReference {
+                    namespace: DML_SPREADSHEET_DRAWING,
+                    symbol: "CT_AnchorClientData",
+                }),
+                rank: 3,
+                repeatable: false,
+                ambiguous: false,
+            },
+        ],
+    },
+];
+
 /// The child order of the complex type `symbol` declared in `namespace`, or `None` if the
 /// tables do not cover it.
 ///
@@ -57933,6 +58757,8 @@ pub fn find(namespace: &str, symbol: &str) -> Option<&'static ChildOrder> {
         &SHARED_MATH_TYPES
     } else if in_namespace(namespace, SML) {
         &SML_TYPES
+    } else if in_namespace(namespace, DML_SPREADSHEET_DRAWING) {
+        &DML_SPREADSHEET_DRAWING_TYPES
     } else {
         return None;
     };
@@ -58055,6 +58881,13 @@ pub fn root_element(namespace: &str, local: &str) -> Option<&'static ChildOrder>
             "volTypes" => "CT_VolTypes",
             "workbook" => "CT_Workbook",
             "worksheet" => "CT_Worksheet",
+            _ => return None,
+        }
+    } else if in_namespace(namespace, DML_SPREADSHEET_DRAWING) {
+        match local {
+            "from" => "CT_Marker",
+            "to" => "CT_Marker",
+            "wsDr" => "CT_Drawing",
             _ => return None,
         }
     } else {
@@ -58638,3 +59471,30 @@ pub static DIALOGSHEET: &ChildOrder = &SML_TYPES[97];
 
 /// A macrosheet's 27 children, from `sheetPr` to `extLst` (`CT_Macrosheet` — a complex type ECMA-376 declares no global element for) (`CT_Macrosheet`, `sml.xsd`).
 pub static MACROSHEET: &ChildOrder = &SML_TYPES[171];
+
+/// A two-cell anchor's four children: its `from` marker, its `to` marker, the one object it anchors, then `clientData` (`xdr:twoCellAnchor`) (`CT_TwoCellAnchor`, `dml-spreadsheetDrawing.xsd`).
+pub static TWO_CELL_ANCHOR: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[16];
+
+/// A one-cell anchor's four children: its `from` marker, its `ext`, the one object it anchors, then `clientData` (`xdr:oneCellAnchor`) (`CT_OneCellAnchor`, `dml-spreadsheetDrawing.xsd`).
+pub static ONE_CELL_ANCHOR: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[10];
+
+/// An absolute anchor's four children: its `pos`, its `ext`, the one object it anchors, then `clientData` (`xdr:absoluteAnchor`) (`CT_AbsoluteAnchor`, `dml-spreadsheetDrawing.xsd`).
+pub static ABSOLUTE_ANCHOR: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[0];
+
+/// One anchor point's four children, in order: `col`, `colOff`, `row`, `rowOff` (`xdr:from` and `xdr:to`) (`CT_Marker`, `dml-spreadsheetDrawing.xsd`).
+pub static CELL_MARKER: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[9];
+
+/// An anchored shape's four children: `nvSpPr`, `spPr`, `style`, then `txBody` (`xdr:sp`) (`CT_Shape`, `dml-spreadsheetDrawing.xsd`).
+pub static SHEET_DRAWING_SHAPE: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[14];
+
+/// An anchored picture's four children: `nvPicPr`, `blipFill`, `spPr`, then `style` (`xdr:pic`) (`CT_Picture`, `dml-spreadsheetDrawing.xsd`).
+pub static SHEET_DRAWING_PICTURE: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[11];
+
+/// An anchored connector's three children: `nvCxnSpPr`, `spPr`, then `style` (`xdr:cxnSp`) (`CT_Connector`, `dml-spreadsheetDrawing.xsd`).
+pub static SHEET_DRAWING_CONNECTOR: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[2];
+
+/// An anchored graphic frame's three children: `nvGraphicFramePr`, `xfrm`, then `a:graphic` — the last in another schema's namespace (`xdr:graphicFrame`) (`CT_GraphicalObjectFrame`, `dml-spreadsheetDrawing.xsd`).
+pub static SHEET_DRAWING_GRAPHIC_FRAME: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[5];
+
+/// An anchored group's children: `nvGrpSpPr`, `grpSpPr`, then any number of member shapes (`xdr:grpSp`) (`CT_GroupShape`, `dml-spreadsheetDrawing.xsd`).
+pub static SHEET_DRAWING_GROUP_SHAPE: &ChildOrder = &DML_SPREADSHEET_DRAWING_TYPES[7];

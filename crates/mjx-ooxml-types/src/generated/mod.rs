@@ -11,6 +11,7 @@ pub mod namespaces;
 pub mod officemath;
 pub(crate) mod presentationml;
 pub mod shared;
+pub mod spreadsheetdrawing;
 pub mod spreadsheetml;
 pub mod wordprocessingdrawing;
 pub mod wordprocessingml;

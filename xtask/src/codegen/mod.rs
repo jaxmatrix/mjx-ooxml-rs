@@ -214,6 +214,14 @@ const SIMPLE_TYPE_MODULES: &[SimpleTypeModule] = &[
         engine: &spec::ENGINE,
         selection: emit::Selection::Everything,
     },
+    SimpleTypeModule {
+        stem: "dml-spreadsheetDrawing",
+        module: "spreadsheetdrawing",
+        visibility: "pub",
+        module_doc: emit::SPREADSHEETDRAWING_MODULE_DOC,
+        engine: &spec::ENGINE,
+        selection: emit::Selection::Everything,
+    },
 ];
 
 /// Fails if any naming-override row matched nothing across the modules its engine names.
@@ -278,6 +286,15 @@ fn generated_module_root() -> String {
 /// an equation is now ordered by construction too. It **left**
 /// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to get a table of its own here — exactly the move that
 /// list's own doc comment describes for `dml-wordprocessingDrawing`.
+///
+/// `dml-spreadsheetDrawing` joined with MJXOFF-107 (E3), and **left**
+/// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to do it — the third schema to make that move, after
+/// `dml-wordprocessingDrawing` and `shared-math`. It was parsed as a dependency from MJXOFF-132
+/// onward because `sml.xsd`'s `CT_ObjectAnchor` places `xdr:from`/`xdr:to` by element `ref`; it now
+/// has a table of its own because `mjx-dml::spreadsheet_drawing` writes `xdr:wsDr` and all three
+/// anchor modes from a typed model, and `CT_TwoCellAnchor`'s own sequence
+/// (`from`, `to`, the object choice, `clientData`) is an ordering no writer should be spelling out
+/// by hand.
 const CHILD_ORDER_SCHEMAS: &[&str] = &[
     "dml-main",
     "pml",
@@ -287,6 +304,7 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
     "dml-wordprocessingDrawing",
     "shared-math",
     "sml",
+    "dml-spreadsheetDrawing",
 ];
 
 /// Schemas parsed *only* to resolve a cross-schema `xsd:group`/`xsd:element` reference reached
@@ -300,23 +318,19 @@ const CHILD_ORDER_SCHEMAS: &[&str] = &[
 ///   `sl:schemaLibrary` by element `ref`.
 /// - `dml-picture` — `dml-wordprocessingDrawing`'s own `CT_WordprocessingGroup`/
 ///   `CT_WordprocessingCanvas` reference `dpct:pic` by element `ref` (MJXOFF-131).
-/// - `dml-spreadsheetDrawing` — `sml.xsd`'s `CT_ObjectAnchor` places `xdr:from`/`xdr:to` by element
-///   `ref`, so flattening SpreadsheetML walks into the spreadsheet-drawing namespace (MJXOFF-132).
-///   Its own table is MJXOFF-107's (E3), which owns `xl/drawings` and the three anchor modes; this
-///   child cedes it and only needs the schema *parsed*.
 ///
-/// `dml-wordprocessingDrawing` **left** this list with MJXOFF-131 (C16), and `shared-math` left it
-/// with MJXOFF-134 (C17) — both now have a table of their own in `CHILD_ORDER_SCHEMAS` instead,
-/// which is what a schema graduating out of "referenced only" looks like.
+/// `dml-wordprocessingDrawing` **left** this list with MJXOFF-131 (C16), `shared-math` left it with
+/// MJXOFF-134 (C17), and `dml-spreadsheetDrawing` left it with MJXOFF-107 (E3) — all three now have
+/// a table of their own in `CHILD_ORDER_SCHEMAS` instead, which is what a schema graduating out of
+/// "referenced only" looks like. `dml-spreadsheetDrawing` was here from MJXOFF-132 because
+/// `sml.xsd`'s `CT_ObjectAnchor` places `xdr:from`/`xdr:to` by element `ref`; it is now parsed for
+/// its own sake, and `sml`'s cross-schema reference resolves out of the same set either way.
 ///
 /// Adding a schema here does **not** generate its own child-order table or flip its `COVERAGE.md`
 /// status — that stays the decision of the child that starts authoring *its* markup, by adding it
 /// to `CHILD_ORDER_SCHEMAS` instead.
-const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] = &[
-    "shared-customXmlSchemaProperties",
-    "dml-picture",
-    "dml-spreadsheetDrawing",
-];
+const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] =
+    &["shared-customXmlSchemaProperties", "dml-picture"];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
 ///
@@ -567,11 +581,6 @@ const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
          order every time; the schema gives this type no choice, no optional member and no repeated \
          member to rank, so there is no placement decision a generated table could inform that the \
          hand-written order does not already get right",
-    ),
-    (
-        "dml-spreadsheetDrawing",
-        "pending, owned by MJXOFF-107 — the SpreadsheetML drawing surface",
-        "pending, owned by MJXOFF-107",
     ),
     ("pml", "", "generated — every complex type"),
     (
