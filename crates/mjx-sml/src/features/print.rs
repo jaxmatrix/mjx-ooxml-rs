@@ -761,6 +761,23 @@ impl HeaderFooterContent {
         }
     }
 
+    /// This child rebuilt as a node.
+    ///
+    /// One `match` over all seven variants rather than a `value()`/`Raw` pair, so the "every
+    /// non-`Raw` child holds a string" step is made by the compiler instead of by a `panic!`.
+    #[must_use]
+    fn as_raw_node(&self) -> RawNode {
+        match self {
+            Self::OddHeader(value)
+            | Self::OddFooter(value)
+            | Self::EvenHeader(value)
+            | Self::EvenFooter(value)
+            | Self::FirstHeader(value)
+            | Self::FirstFooter(value) => RawNode::Element(value.as_raw_element()),
+            Self::Raw(node) => node.clone(),
+        }
+    }
+
     /// Wraps `value` in the variant `slot` names.
     #[must_use]
     fn wrap(slot: HeaderFooterSlot, value: HeaderFooterText) -> Self {
@@ -856,15 +873,7 @@ impl HeaderFooter {
         let children = self
             .content
             .iter()
-            .map(|child| match child {
-                HeaderFooterContent::Raw(node) => node.clone(),
-                modelled => RawNode::Element(
-                    modelled
-                        .value()
-                        .expect("every non-`Raw` child holds a string")
-                        .as_raw_element(),
-                ),
-            })
+            .map(HeaderFooterContent::as_raw_node)
             .collect();
         rebuild_element(self.name, &self.attributes, children, self.empty)
     }
