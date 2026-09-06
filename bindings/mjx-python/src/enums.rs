@@ -1,4 +1,4 @@
-//! The ninety value enumerations, projected one variant at a time.
+//! The ninety-eight value enumerations, projected one variant at a time.
 //!
 //! Every enumeration in the [`mjx_ooxml`] vocabulary that carries no payload becomes a Python class
 //! of the same name with the same members — `mjx_ooxml.TextAlignment.Center`, not the string
@@ -138,6 +138,13 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 sealed_enums! {
+    /// The projection of [`mjx_ooxml::WrapText`], whose documentation is authoritative.
+    WrapText {
+        BothSides,
+        Left,
+        Right,
+        Largest,
+    }
     /// The projection of [`mjx_ooxml::AdjustmentAxis`], whose documentation is authoritative.
     AdjustmentAxis {
         Horizontal,
