@@ -64,8 +64,10 @@ mod build;
 mod data;
 mod decoration;
 mod embedding;
+mod ops;
 mod plot;
 mod space;
+mod view;
 
 pub use author::{ChartData, ChartDataError};
 pub use axis::{
@@ -87,6 +89,7 @@ pub use decoration::{
     Trendline, TrendlineContent, TrendlineKind, TrendlineSpec,
 };
 pub use embedding::{embedded_workbook_for_chart_data, embedded_workbook_for_chart_space};
+pub use ops::ChartAccessError;
 pub use plot::{
     Area3DChart, AreaChart, Bar3DChart, BarChart, BarDirection, BarGrouping, BubbleChart,
     ChartKind, DoughnutChart, Line3DChart, LineChart, OfPieChart, OfPieType, Pie3DChart, PieChart,
@@ -95,3 +98,26 @@ pub use plot::{
     SurfaceChart,
 };
 pub use space::{Chart, ChartContent, ChartSpace, ChartSpaceContent, PlotArea, PlotAreaContent};
+pub use view::{
+    ChartAxisData, ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData,
+    ChartSeriesData, ChartTrendlineData,
+};
+
+/// Every read and every edit a host surface performs on a chart, stated once over a [`ChartSpace`].
+///
+/// `mjx-pptx`'s `Presentation` chart family and `mjx-docx`'s `Document` chart family are both thin
+/// wrappers around this module: each resolves its own kind of address to a chart part, then calls
+/// the identically-named function here. See the module documentation for why the shared body sits
+/// in this crate rather than in either format crate.
+pub mod chart_ops {
+    pub use crate::ops::{
+        add_trendline, axes, dangling_decoration, data_label_tier, data_labels,
+        drop_dangling_decoration, error_bars, kinds, legend, point_formats, point_label_text,
+        remove_data_labels, remove_error_bars, remove_point_format, remove_trendlines, series,
+        series_at, series_fill, set_axis_gridlines, set_axis_orientation, set_axis_scale,
+        set_axis_title, set_data_labels, set_error_bars, set_legend, set_point_explosion,
+        set_point_fill, set_point_line, set_series_categories, set_series_fill, set_series_line,
+        set_series_values, set_title, set_trendline, style_id, suppress_data_labels, title,
+        trendlines,
+    };
+}

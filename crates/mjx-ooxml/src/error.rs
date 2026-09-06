@@ -465,6 +465,41 @@ fn classify(error: &PptxError) -> (ErrorCode, ErrorDetail) {
     }
 }
 
+/// Classifies a [`ChartAccessError`](mjx_chart::ChartAccessError) — the failures that are about the
+/// chart itself rather than about reaching it.
+///
+/// **Exhaustive, with no wildcard**, for A9's reason: `ChartAccessError` is deliberately not
+/// `#[non_exhaustive]` precisely so that a variant added to it stops this file compiling until
+/// someone decides which stable code it answers.
+///
+/// `mjx-pptx` reaches these same verdicts through its own pre-existing `PptxError` variants, and
+/// this function gives each the *same* code `classify` gives that variant — so a Word chart and a
+/// PowerPoint chart refusing the same index answer the same [`ErrorCode`], which is what makes the
+/// two surfaces interchangeable to a binding caller.
+fn chart_access_code(error: &mjx_chart::ChartAccessError) -> (ErrorCode, ErrorDetail) {
+    use mjx_chart::ChartAccessError as Chart;
+    use ErrorCode as C;
+
+    let none = ErrorDetail::default;
+    /// The coordinates of a failure that names one index (a series, an axis, a plot, a trendline).
+    fn nth(index: usize) -> ErrorDetail {
+        ErrorDetail {
+            index: Some(count(index)),
+            ..ErrorDetail::default()
+        }
+    }
+    match error {
+        Chart::SeriesOutOfRange { index, .. }
+        | Chart::TrendlineOutOfRange { index, .. }
+        | Chart::PlotOutOfRange { index, .. }
+        | Chart::AxisOutOfRange { index, .. } => (C::IndexOutOfRange, nth(*index)),
+        Chart::SeriesNotEditable { index, .. } => (C::WrongKind, nth(*index)),
+        Chart::NoChartElement => (C::MalformedDocument, none()),
+        Chart::FillNotSupported => (C::UnsupportedContent, none()),
+        Chart::Data(_) => (C::InvalidArgument, none()),
+    }
+}
+
 /// Classifies an [`OpcError`]. Exhaustive for the same reason [`classify`] is.
 fn opc_code(error: &OpcError) -> ErrorCode {
     match error {
@@ -530,6 +565,7 @@ fn classify_docx(error: &DocxError) -> (ErrorCode, ErrorDetail) {
         // --- the document is there, but states nothing for this call -----------------------
         DocxError::NoBody
         | DocxError::FieldHasNoCachedResult
+        | DocxError::ChartHasNoExternalData
         | DocxError::NumberingStyleLinkHasNoNumbering { .. } => (C::NothingToRead, none()),
 
         // --- an address or an index argument is outside the document -----------------------
@@ -540,7 +576,9 @@ fn classify_docx(error: &DocxError) -> (ErrorCode, ErrorDetail) {
         }
 
         // --- the addressed thing is of a kind that cannot answer ---------------------------
-        DocxError::NumberingStyleLinkWrongKind { .. } => (C::WrongKind, none()),
+        DocxError::NumberingStyleLinkWrongKind { .. } | DocxError::DrawingIsNotAChart { .. } => {
+            (C::WrongKind, none())
+        }
 
         // --- a name resolved to nothing ------------------------------------------------------
         DocxError::UnknownStyleId(_)
@@ -556,7 +594,19 @@ fn classify_docx(error: &DocxError) -> (ErrorCode, ErrorDetail) {
         DocxError::InvalidPageSize { .. }
         | DocxError::InvalidTableSize { .. }
         | DocxError::ValueTooLong { .. }
+        | DocxError::InvalidChartData
+        | DocxError::ChartData(_)
         | DocxError::MalformedDateTime(_) => (C::InvalidArgument, none()),
+
+        // --- a chart-level refusal, classified by `chart_access_code` -----------------------
+        //
+        // `mjx-chart`'s `ChartAccessError` is a whole enum of its own, and it is reached from both
+        // host surfaces (MJXOFF-103). Collapsing it to one code here would be a wildcard arm wearing
+        // a variant name — an axis index past the end and an image fill on a series would answer the
+        // same thing — so it is classified exhaustively in its own function, the way `sml_code`
+        // already is for `XlsxError::Sml`.
+        DocxError::ChartAccess(problem) => chart_access_code(problem),
+        DocxError::Sml(problem) => sml_code(problem),
 
         // --- the edit conflicts with the structure already there ----------------------------
         DocxError::FieldHasNestedContent { .. } | DocxError::BookmarkNameInUse(_) => {

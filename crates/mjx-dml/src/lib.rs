@@ -57,7 +57,9 @@ pub use geometry::{
     ResolvedConnectionSite, ResolvedCustomGeometry, ResolvedDrawCommand, ResolvedGuides,
     ResolvedPath, ResolvedPoint, ResolvedRectangle, ShapeGeometry, Size, TextPoint, Transform2D,
 };
-pub use graphic::{Graphic, GraphicData, GraphicDataContent, PICTURE_GRAPHIC_URI};
+pub use graphic::{
+    Graphic, GraphicData, GraphicDataContent, CHART_GRAPHIC_URI, PICTURE_GRAPHIC_URI,
+};
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
     LineProperties, LineSpec, PenAlignment, PresetLineDash,

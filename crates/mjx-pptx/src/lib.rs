@@ -106,16 +106,18 @@ pub use legacy::{
 // has to depend on `mjx-opc` to state a parameter type this crate chose.
 pub use mjx_opc::{ExternalRelationship, OpcError, Package, PartName, TargetMode};
 // Chart types, re-exported so a caller of the chart methods need not depend on `mjx-chart`.
+// The seven read summaries were declared in this crate until MJXOFF-103 moved them down to
+// `mjx-chart`, so that `mjx-docx` could reach the identical types without a sideways edge. They are
+// re-exported here unchanged: `mjx_pptx::ChartAxisData` is the same path it always was.
 pub use mjx_chart::{
-    AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind,
-    DanglingPointReference, DataLabelPosition, DataLabelSettings, DataLabelSpec, ErrorBarDirection,
-    ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition, TickLabelPosition, TickMark,
-    TrendlineKind, TrendlineSpec,
+    AxisKind, AxisOrientation, AxisPosition, ChartAccessError, ChartAxisData, ChartData,
+    ChartDataError, ChartErrorBarData, ChartKind, ChartLabelScope, ChartLegendData,
+    ChartPointFormatData, ChartSeriesData, ChartTrendlineData, DanglingPointReference,
+    DataLabelPosition, DataLabelSettings, DataLabelSpec, ErrorBarDirection, ErrorBarSpec,
+    ErrorBarType, ErrorValueType, LegendPosition, TickLabelPosition, TickMark, TrendlineKind,
+    TrendlineSpec,
 };
-pub use presentation::{
-    ChartAxisData, ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData,
-    ChartSeriesData, ChartTrendlineData, LayoutInfo, Presentation,
-};
+pub use presentation::{LayoutInfo, Presentation};
 pub use slide::{GraphicFrameKind, PlaceholderInfo, ShapeInfo, ShapeKind};
 pub use surface::Surface;
 pub use table::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};

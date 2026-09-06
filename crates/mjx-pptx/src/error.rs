@@ -552,3 +552,36 @@ impl From<crate::validate::PresentationDefect> for PptxError {
         Self::InvalidPresentation(Box::new(defect))
     }
 }
+
+impl From<mjx_chart::ChartAccessError> for PptxError {
+    /// Lifts a chart-level failure into this crate's own error type.
+    ///
+    /// `mjx-chart`'s [`ChartAccessError`](mjx_chart::ChartAccessError) names the failures that are
+    /// about the *chart* — an index past the end, a series with nothing editable, a part with no
+    /// `c:chart` — and MJXOFF-103 made it the single source of those verdicts for both host
+    /// surfaces. Every one of them already had a `PptxError` variant, because this crate wrote them
+    /// first, so the mapping is a rename and no caller sees a change.
+    ///
+    /// The `match` is **exhaustive with no wildcard**, per A9's rule: a variant added to
+    /// `ChartAccessError` must break this build rather than collapse into a catch-all that says
+    /// less than it knows.
+    fn from(error: mjx_chart::ChartAccessError) -> Self {
+        use mjx_chart::ChartAccessError as Chart;
+        match error {
+            Chart::SeriesOutOfRange { index, count } => {
+                Self::ChartSeriesOutOfRange { index, count }
+            }
+            Chart::SeriesNotEditable { index, kind } => {
+                Self::ChartSeriesNotEditable { index, kind }
+            }
+            Chart::TrendlineOutOfRange { index, count } => {
+                Self::ChartTrendlineOutOfRange { index, count }
+            }
+            Chart::PlotOutOfRange { index, count } => Self::ChartPlotOutOfRange { index, count },
+            Chart::AxisOutOfRange { index, count } => Self::ChartAxisOutOfRange { index, count },
+            Chart::NoChartElement => Self::ChartHasNoChartElement,
+            Chart::FillNotSupported => Self::ChartFillNotSupported,
+            Chart::Data(problem) => Self::ChartData(problem),
+        }
+    }
+}

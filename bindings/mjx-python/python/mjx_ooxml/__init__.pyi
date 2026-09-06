@@ -1191,6 +1191,15 @@ class ShapeKind:
     def __int__(self) -> int: ...
 
 @final
+class WrapText:
+    """The projection of [`mjx_ooxml::WrapText`], whose documentation is authoritative."""
+    BothSides: WrapText
+    Left: WrapText
+    Right: WrapText
+    Largest: WrapText
+    def __int__(self) -> int: ...
+
+@final
 class TablePart:
     """The projection of [`mjx_ooxml::TablePart`], whose documentation is authoritative."""
     FirstRow: TablePart
@@ -1602,6 +1611,49 @@ class ChartWorkbook:
     """Where the workbook is — a part name inside the package, or a URI outside it."""
     external: bool
     """Whether the workbook lies outside the package."""
+
+@final
+class DocumentChartWorkbook:
+    """A Word chart's backing workbook: which drawing holds the chart, where the workbook is, and
+    whether it lies outside the package. The Word counterpart of `ChartWorkbook`, which names a
+    slide shape instead of a drawing id.
+    """
+    drawing_id: int
+    """The `wp:docPr` id of the drawing that frames the chart."""
+    target: str
+    """Where the workbook is — a part name inside the package, or a URI outside it."""
+    external: bool
+    """Whether the workbook lies outside the package."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class ChartWrap:
+    """How text flows around a floating Word chart (`Document.add_floating_chart`)."""
+    @staticmethod
+    def none() -> ChartWrap:
+        """The chart floats over or under the text and nothing reflows around it
+        (`wp:wrapNone`).
+        """
+        ...
+    @staticmethod
+    def square(wrap_text: WrapText) -> ChartWrap:
+        """Text wraps around the chart's bounding box, on the sides `wrap_text` names
+        (`wp:wrapSquare`).
+        """
+        ...
+    @staticmethod
+    def top_and_bottom() -> ChartWrap:
+        """Text wraps above and below the chart only, never beside it
+        (`wp:wrapTopAndBottom`).
+        """
+        ...
+    kind: str
+    """Which wrap this is: `"none"`, `"square"` or `"top_and_bottom"`."""
+    wrap_text: WrapText | None
+    """Which sides text flows down, when this is a square wrap."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
 
 @final
 class DanglingPointReference:
@@ -3856,6 +3908,165 @@ class Document:
     def remove_drawing(self, doc_pr_id: int) -> bool:
         """Removes the drawing whose `wp:docPr@id` is `doc_pr_id`. Returns whether one was
         removed.
+        """
+        ...
+    def chart_drawing_ids(self) -> list[int]:
+        """The `wp:docPr` id of every drawing in the document body that frames a chart, in
+        document order.
+        """
+        ...
+    def chart_rel_id(self, drawing_id: int) -> str | None:
+        """The relationship id the drawing `drawing_id` names as its chart part, or `None` when
+        that drawing frames no chart.
+        """
+        ...
+    def chart_part_bytes(self, drawing_id: int) -> bytes | None:
+        """The raw XML bytes of the chart part the drawing `drawing_id` references, or `None`."""
+        ...
+    def add_chart(self, paragraph: int | Sequence[int] | BlockPath, chart: ChartData, width_emu: int, height_emu: int, name: str) -> int:
+        """Adds `chart` as a new inline chart at the end of `paragraph`. Returns its `wp:docPr`
+        id.
+        """
+        ...
+    def add_floating_chart(self, paragraph: int | Sequence[int] | BlockPath, chart: ChartData, offset_x_emu: int, offset_y_emu: int, width_emu: int, height_emu: int, wrap: ChartWrap, name: str) -> int:
+        """Adds `chart` as a floating chart, offset from the paragraph's own origin, with the
+        text wrapping around it as `wrap` says. Returns its `wp:docPr` id.
+        """
+        ...
+    def chart_workbooks(self) -> list[DocumentChartWorkbook]:
+        """Every chart in the document that references a backing workbook."""
+        ...
+    def refresh_chart_workbook(self, drawing_id: int) -> bool:
+        """Rewrites the embedded workbook of the chart `drawing_id` frames. Answers whether it
+        rewrote one.
+        """
+        ...
+    def detach_chart_workbook(self, drawing_id: int) -> None:
+        """Detaches the backing workbook, leaving the chart to render from its cached values."""
+        ...
+    def chart_series(self, drawing_id: int) -> list[ChartSeriesData]:
+        """The series of the chart the drawing `drawing_id` frames."""
+        ...
+    def chart_kinds(self, drawing_id: int) -> list[ChartKind]:
+        """The kind of every plot the chart draws, in document order."""
+        ...
+    def chart_axes(self, drawing_id: int) -> list[ChartAxisData]:
+        """The axes of the chart, in document order."""
+        ...
+    def chart_title(self, drawing_id: int) -> str | None:
+        """The heading of the chart, or `None` when it has none."""
+        ...
+    def chart_legend(self, drawing_id: int) -> ChartLegendData | None:
+        """The legend of the chart, or `None` when it has none."""
+        ...
+    def chart_style_id(self, drawing_id: int) -> int | None:
+        """The built-in style id the chart names, or `None`."""
+        ...
+    def chart_series_fill(self, drawing_id: int, series_idx: int) -> FillSpec | None:
+        """The fill of series `series_idx`, or `None` when it takes its colour from the chart
+        style.
+        """
+        ...
+    def chart_data_labels(self, drawing_id: int, series_idx: int, point_idx: int | None = None) -> DataLabelSettings:
+        """The data-label settings in force for one point of series `series_idx`."""
+        ...
+    def chart_data_label_tier(self, drawing_id: int, scope: ChartLabelScope) -> DataLabelSettings | None:
+        """The data-label settings one tier states in its own right."""
+        ...
+    def chart_point_label_text(self, drawing_id: int, series_idx: int, point_idx: int) -> str | None:
+        """The words one point's label shows in place of its value, or `None`."""
+        ...
+    def chart_point_formats(self, drawing_id: int, series_idx: int) -> list[ChartPointFormatData]:
+        """Every point of series `series_idx` that carries its own formatting."""
+        ...
+    def chart_trendlines(self, drawing_id: int, series_idx: int) -> list[ChartTrendlineData]:
+        """Every trendline fitted through series `series_idx`."""
+        ...
+    def chart_error_bars(self, drawing_id: int, series_idx: int) -> list[ChartErrorBarData]:
+        """Every set of error bars series `series_idx` carries."""
+        ...
+    def chart_dangling_decoration(self, drawing_id: int, series_idx: int) -> list[DanglingPointReference]:
+        """Every decoration of series `series_idx` naming a point the series no longer has."""
+        ...
+    def set_chart_series_values(self, drawing_id: int, series_idx: int, values: Sequence[float]) -> None:
+        """Rewrites the values of series `series_idx`, refreshing the embedded workbook in the
+        same call.
+        """
+        ...
+    def set_chart_series_categories(self, drawing_id: int, series_idx: int, labels: Sequence[str]) -> None:
+        """Rewrites the category labels of series `series_idx`, refreshing the workbook
+        alongside.
+        """
+        ...
+    def set_chart_axis_scale(self, drawing_id: int, axis_idx: int, minimum: float | None = None, maximum: float | None = None) -> None:
+        """Sets or clears the explicit bounds of axis `axis_idx`."""
+        ...
+    def set_chart_axis_orientation(self, drawing_id: int, axis_idx: int, orientation: AxisOrientation) -> None:
+        """Sets the direction of axis `axis_idx`."""
+        ...
+    def set_chart_axis_title(self, drawing_id: int, axis_idx: int, text: str | None = None) -> None:
+        """Sets or removes the title of axis `axis_idx`."""
+        ...
+    def set_chart_axis_gridlines(self, drawing_id: int, axis_idx: int, major: bool, minor: bool) -> None:
+        """Turns the gridlines of axis `axis_idx` on or off."""
+        ...
+    def set_chart_title(self, drawing_id: int, text: str | None = None) -> None:
+        """Sets or removes the chart's heading."""
+        ...
+    def set_chart_legend(self, drawing_id: int, position: LegendPosition | None = None) -> None:
+        """Places the chart's legend at `position`, or removes it."""
+        ...
+    def set_chart_series_fill(self, drawing_id: int, series_idx: int, fill: FillSpec) -> None:
+        """Sets the fill of series `series_idx`."""
+        ...
+    def set_chart_series_line(self, drawing_id: int, series_idx: int, line: LineSpec) -> None:
+        """Sets the outline of series `series_idx`."""
+        ...
+    def set_chart_data_labels(self, drawing_id: int, scope: ChartLabelScope, spec: DataLabelSpec) -> None:
+        """Applies `spec` at one tier of the chart's data labels."""
+        ...
+    def suppress_chart_data_labels(self, drawing_id: int, scope: ChartLabelScope) -> None:
+        """Suppresses the labels at one tier."""
+        ...
+    def remove_chart_data_labels(self, drawing_id: int, scope: ChartLabelScope) -> bool:
+        """Removes the labels at one tier entirely. Answers whether one was there."""
+        ...
+    def set_chart_point_fill(self, drawing_id: int, series_idx: int, point_idx: int, fill: FillSpec) -> None:
+        """Colours point `point_idx` of series `series_idx` differently from the rest of its
+        series.
+        """
+        ...
+    def set_chart_point_line(self, drawing_id: int, series_idx: int, point_idx: int, line: LineSpec) -> None:
+        """Outlines point `point_idx` of series `series_idx` differently from the rest of its
+        series.
+        """
+        ...
+    def set_chart_point_explosion(self, drawing_id: int, series_idx: int, point_idx: int, percent: int | None = None) -> None:
+        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it
+        back.
+        """
+        ...
+    def remove_chart_point_format(self, drawing_id: int, series_idx: int, point_idx: int) -> bool:
+        """Removes the formatting of point `point_idx` of series `series_idx`."""
+        ...
+    def add_chart_trendline(self, drawing_id: int, series_idx: int, spec: TrendlineSpec) -> None:
+        """Fits a trendline through series `series_idx`, appending to any it already carries."""
+        ...
+    def set_chart_trendline(self, drawing_id: int, series_idx: int, trendline_idx: int, spec: TrendlineSpec) -> None:
+        """Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, in place."""
+        ...
+    def remove_chart_trendlines(self, drawing_id: int, series_idx: int) -> int:
+        """Removes every trendline from series `series_idx`, answering how many went."""
+        ...
+    def set_chart_error_bars(self, drawing_id: int, series_idx: int, spec: ErrorBarSpec) -> None:
+        """Gives series `series_idx` error bars, replacing an existing set along the same axis."""
+        ...
+    def remove_chart_error_bars(self, drawing_id: int, series_idx: int) -> int:
+        """Removes every set of error bars from series `series_idx`, answering how many went."""
+        ...
+    def drop_chart_dangling_decoration(self, drawing_id: int, series_idx: int) -> int:
+        """Removes every decoration of series `series_idx` past the end of its data, answering
+        how many went.
         """
         ...
 

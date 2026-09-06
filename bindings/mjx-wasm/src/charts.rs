@@ -11,6 +11,7 @@ use mjx_ooxml as ooxml;
 use crate::enums::{
     AxisKind, AxisOrientation, AxisPosition, ChartKind, DataLabelPosition, ErrorBarDirection,
     ErrorBarType, ErrorValueType, LegendPosition, TickLabelPosition, TickMark, TrendlineKind,
+    WrapText,
 };
 use crate::errors::map_error;
 use crate::paint::{FillSpec, LineSpec};
@@ -27,6 +28,14 @@ value_class! {
 
     /// Which tier of a chart's data-label hierarchy a call is about.
     ChartLabelScope(ooxml::ChartLabelScope), derive(Copy, PartialEq, Eq);
+
+    /// A Word chart's backing workbook: which drawing holds the chart, where the workbook is, and
+    /// whether it lies outside the package. The Word counterpart of `ChartWorkbook`, which names a
+    /// slide shape instead of a drawing id.
+    DocumentChartWorkbook(ooxml::DocumentChartWorkbook), derive(PartialEq, Eq);
+
+    /// How text flows around a floating Word chart (`Document.addFloatingChart`).
+    ChartWrap(ooxml::ChartWrap), derive(Copy, PartialEq, Eq);
 
     /// A trendline to add to a series.
     TrendlineSpec(ooxml::TrendlineSpec), derive(PartialEq);
@@ -792,6 +801,69 @@ impl ChartWorkbook {
     #[wasm_bindgen(getter, js_name = "external")]
     pub fn external(&self) -> bool {
         self.0.external
+    }
+}
+
+#[wasm_bindgen]
+impl DocumentChartWorkbook {
+    /// The `wp:docPr` id of the drawing that frames the chart.
+    #[wasm_bindgen(getter, js_name = "drawingId")]
+    pub fn drawing_id(&self) -> u32 {
+        self.0.drawing_id
+    }
+
+    /// Where the workbook is — a part name inside the package, or a URI outside it.
+    #[wasm_bindgen(getter, js_name = "target")]
+    pub fn target(&self) -> String {
+        self.0.target.clone()
+    }
+
+    /// Whether the workbook lies outside the package.
+    #[wasm_bindgen(getter, js_name = "external")]
+    pub fn external(&self) -> bool {
+        self.0.external
+    }
+}
+
+#[wasm_bindgen]
+impl ChartWrap {
+    /// The chart floats over or under the text and nothing reflows around it (`wp:wrapNone`).
+    #[wasm_bindgen(js_name = "none")]
+    pub fn none() -> Self {
+        Self(ooxml::ChartWrap::None)
+    }
+
+    /// Text wraps around the chart's bounding box, on the sides `wrapText` names
+    /// (`wp:wrapSquare`).
+    #[wasm_bindgen(js_name = "square")]
+    pub fn square(wrap_text: WrapText) -> Self {
+        Self(ooxml::ChartWrap::Square(wrap_text.into()))
+    }
+
+    /// Text wraps above and below the chart only, never beside it (`wp:wrapTopAndBottom`).
+    #[wasm_bindgen(js_name = "topAndBottom")]
+    pub fn top_and_bottom() -> Self {
+        Self(ooxml::ChartWrap::TopAndBottom)
+    }
+
+    /// Which wrap this is: `"none"`, `"square"` or `"topAndBottom"`.
+    #[wasm_bindgen(getter, js_name = "kind")]
+    pub fn kind(&self) -> String {
+        match self.0 {
+            ooxml::ChartWrap::None => "none",
+            ooxml::ChartWrap::Square(_) => "square",
+            ooxml::ChartWrap::TopAndBottom => "topAndBottom",
+        }
+        .to_owned()
+    }
+
+    /// Which sides text flows down, when this is a square wrap.
+    #[wasm_bindgen(getter, js_name = "wrapText")]
+    pub fn wrap_text(&self) -> Result<Option<WrapText>, JsValue> {
+        match self.0 {
+            ooxml::ChartWrap::Square(text) => WrapText::from_model(text).map(Some),
+            _ => Ok(None),
+        }
     }
 }
 

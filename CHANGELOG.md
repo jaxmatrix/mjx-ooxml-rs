@@ -56,6 +56,74 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.123] - 2026-09-06
+
+**Charts reach the Word surface** (MJXOFF-103, Phase E position 2): a `c:chart` inside a
+`w:drawing`, read, authored and edited, under the method names `mjx-pptx` already uses.
+
+### Added
+
+- **`Document`'s chart family — 42 methods**, in `crates/mjx-docx/src/document/charts.rs`. Reading
+  (`chart_series`, `chart_kinds`, `chart_axes`, `chart_title`, `chart_legend`, `chart_style_id`,
+  `chart_data_labels`, `chart_point_formats`, `chart_trendlines`, `chart_error_bars`,
+  `chart_dangling_decoration`), authoring (`add_chart`, `add_chart_placed`), the embedded workbook
+  (`chart_workbooks`, `refresh_chart_workbook`, `detach_chart_workbook`) and the whole edit and
+  decoration tier. A chart is addressed by its drawing's own `wp:docPr` id — the address MJXOFF-131
+  already gave every Word drawing — rather than by a second scheme.
+- **`mjx_chart::chart_ops`** — every read and every edit a host surface performs on a chart, stated
+  **once**, over a `ChartSpace`. `mjx-pptx` and `mjx-docx` are both rank 3.0, so neither may reach
+  the other; the shared body had to move *down* to the crate that owns `c:chartSpace` or be written
+  twice and kept in step by hand. Both surfaces are now thin wrappers around it: resolve an address
+  to a chart part, call the identically-named function, refresh the workbook. `ChartAccessError` is
+  its error type, deliberately **not** `#[non_exhaustive]` so both hosts must map it exhaustively.
+- **`mjx_dml::GraphicData::for_chart` / `chart_relationship_id`, and `CHART_GRAPHIC_URI`** — the
+  DrawingML envelope a chart reference sits in, which is the same envelope in every format.
+- **`ChartPlacement` / `ChartWrap`** — inline or floating, with three of `EG_WrapType`'s five wrap
+  modes. `wrapTight`/`wrapThrough` are left off the authoring surface deliberately: both need a
+  `wp:wrapPolygon` whose coordinate space ECMA-376 does not state for `CT_WrapPath`, and guessing one
+  would put a wrong polygon in every document. Reading either is unaffected.
+- **`mjx_dml::wordprocessing_drawing::WrapSquare::new` and `WrapTopAndBottom::new`** — MJXOFF-131
+  modelled all five wrap modes and gave constructors to two of them; `Anchor::new` had no caller at
+  all until this child became its first.
+- **`tests/fixtures/chart_in_word.docx`** — a `.docx` carrying a chart, **written by Apache POI
+  5.5.1**, not by this project. It numbers its drawing `0`, ships no `word/styles.xml`, spells
+  booleans `false` where this library writes `0`, and names its workbook
+  `Microsoft_Excel_Worksheet1.xlsx` where this library writes `Microsoft_Excel_Sheet1.xlsx`.
+- **The Word guide's chart page** (`crates/mjx-docx/docs/guide/charts.md`), three compiled doctests.
+- **Both bindings** gain the family: `document.add_chart(...)` in Python,
+  `document.addChart(...)` in TypeScript, with `ChartWrap`, `DocumentChartWorkbook` and `WrapText`
+  projected alongside.
+
+### Fixed
+
+- **`Document::remove_drawing` left a chart's relationship dangling.** It looked only for a
+  *picture's* image relationship, so removing a chart drawing left `word/_rels/document.xml.rels`
+  pointing at a chart part nothing referenced — which `Package::validate` reports as a defect on the
+  next `save`. It now sweeps a chart's relationship, and with it the workbook that chart part alone
+  referenced.
+- **The child-order audit never descended into an embedded workbook, in any format.** The validation
+  half of the schema gate has opened a chart's `.xlsx` since A5; the ordering half walked the outer
+  package only. `sml` has been in `CHILD_ORDER_SCHEMAS` since MJXOFF-132 and `mjx-sml`'s writer
+  composes those parts, so nothing was checking the order of markup this project writes.
+  `audit_deck_order` now descends, under the same `…xlsx!/…` naming the validation half uses — which
+  closes the hole for `mjx-pptx` in the same commit that found it from Word.
+
+### Changed
+
+- **`ChartSeriesData`, `ChartAxisData`, `ChartLegendData`, `ChartLabelScope`,
+  `ChartPointFormatData`, `ChartTrendlineData` and `ChartErrorBarData` moved from `mjx-pptx` to
+  `mjx-chart`** (`mjx_chart::view`). They were declared in `mjx-pptx` because a chart was reachable
+  from one surface; two surfaces at the same rank cannot share a type that lives in either. **No
+  public path changed**: `mjx-pptx` re-exports all seven, and `mjx-ooxml` now names them from
+  `mjx-chart` instead.
+- **`mjx-pptx`'s chart methods are delegations.** Every one keeps its signature, its error variants
+  and its documentation, and calls `mjx_chart::chart_ops` for the body. `PptxError` gains an
+  exhaustive `From<ChartAccessError>`.
+- **A7d's chart-part re-flow limitation is gone, and the Word path inherits that.** MJXOFF-143
+  carried the source span through `FromXml`/`ToXml`; measured here on a producer-written part,
+  moving a chart's legend changes the one attribute and leaves the other 2,962 bytes identical.
+  `crates/mjx-docx/tests/charts.rs` asserts it rather than the CHANGELOG claiming it.
+
 ## [0.0.122] - 2026-09-06
 
 **The workspace's one sanctioned duplicate is deleted: a chart's embedded workbook is written by
