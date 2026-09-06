@@ -88,7 +88,10 @@ modes, and the last place DrawingML reaches that this workspace had not.
   `edit_drawing_markup`, `sheet_anchor_bounds`, the three `add_*_anchored_picture` calls,
   `remove_sheet_drawing_object` and the four axis shifts. Adding a picture writes six things
   together, including the image relationship **from the drawing part** rather than from the sheet:
-  an `a:blip@r:embed` is resolved against the part that contains it.
+  an `a:blip@r:embed` is resolved against the part that contains it. Every edit goes back through
+  `ToXml::write_back` and the document the part was parsed from, so a shift that moves nothing
+  re-emits the part byte for byte — prologue included, which for a file Apache POI wrote is
+  `<?xml version="1.0" encoding="UTF-8"?>` and not this project's own declaration.
 - **The whole of it on `mjx_ooxml::Workbook` and both bindings** (A10's rule) — twelve methods, four
   value types and two enumerations, with the committed `.pyi` stub extended.
 - **`mjx_ooxml_types::spreadsheetdrawing`** — `ResizingBehavior`, `ColumnIdentifier` and
