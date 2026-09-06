@@ -1,18 +1,17 @@
 //! Chart decoration: data labels, per-point formatting, trendlines and error bars — the
 //! parts of a chart that describe individual data rather than the plot as a whole.
 
+use mjx_chart::chart_ops;
 use mjx_chart::{
-    DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarDirection, ErrorBarSpec,
-    ErrorBarType, ErrorValueType, TrendlineKind, TrendlineSpec,
+    ChartErrorBarData, ChartLabelScope, ChartPointFormatData, ChartTrendlineData,
+    DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec, TrendlineSpec,
 };
 use mjx_dml::{FillSpec, LineSpec};
-use mjx_ooxml_core::Interner;
 
 use crate::address::ShapePath;
 use crate::error::PptxError;
 use crate::surface::Surface;
 
-use super::charts::chart_series_at;
 use super::Presentation;
 
 impl Presentation {
@@ -31,15 +30,7 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<Option<FillSpec>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let count = space.series_count();
-            let series = space
-                .plot_area()
-                .and_then(|area| area.all_series().nth(series_idx))
-                .ok_or(PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                })?;
-            Ok(series.fill(interner))
+            Ok(chart_ops::series_fill(space, interner, series_idx)?)
         })
     }
 
@@ -60,20 +51,10 @@ impl Presentation {
         series_idx: usize,
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
-        if matches!(fill, FillSpec::Picture { .. }) {
-            return Err(PptxError::ChartFillNotSupported);
-        }
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            space.ensure_drawingml_namespace(interner);
-            let count = space.series_count();
-            let series = space
-                .series_mut(series_idx)
-                .ok_or(PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                })?;
-            series.set_fill(interner, fill);
-            Ok(())
+            Ok(chart_ops::set_series_fill(
+                space, interner, series_idx, fill,
+            )?)
         })
     }
 
@@ -91,16 +72,9 @@ impl Presentation {
         line: &LineSpec,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            space.ensure_drawingml_namespace(interner);
-            let count = space.series_count();
-            let series = space
-                .series_mut(series_idx)
-                .ok_or(PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                })?;
-            series.set_line(interner, line);
-            Ok(())
+            Ok(chart_ops::set_series_line(
+                space, interner, series_idx, line,
+            )?)
         })
     }
 
@@ -129,13 +103,9 @@ impl Presentation {
         point_idx: Option<u32>,
     ) -> Result<DataLabelSettings, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let count = space.series_count();
-            space
-                .resolved_data_labels(interner, series_idx, point_idx)
-                .ok_or(PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                })
+            Ok(chart_ops::data_labels(
+                space, interner, series_idx, point_idx,
+            )?)
         })
     }
 
@@ -155,35 +125,7 @@ impl Presentation {
         scope: ChartLabelScope,
     ) -> Result<Option<DataLabelSettings>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let area = space.plot_area().ok_or(PptxError::ChartHasNoChartElement)?;
-            match scope {
-                ChartLabelScope::Plot { plot_idx } => {
-                    let count = area.chart_kinds().len();
-                    if plot_idx >= count {
-                        return Err(PptxError::ChartPlotOutOfRange {
-                            index: plot_idx,
-                            count,
-                        });
-                    }
-                    Ok(area
-                        .plot_data_labels(plot_idx)
-                        .map(|labels| labels.settings(interner)))
-                }
-                ChartLabelScope::Series { series_idx } => {
-                    let series = chart_series_at(space, series_idx)?;
-                    Ok(series.data_labels().map(|labels| labels.settings(interner)))
-                }
-                ChartLabelScope::Point {
-                    series_idx,
-                    point_idx,
-                } => {
-                    let series = chart_series_at(space, series_idx)?;
-                    Ok(series
-                        .data_labels()
-                        .and_then(|labels| labels.label_for_point(interner, point_idx))
-                        .map(|label| label.settings(interner)))
-                }
-            }
+            Ok(chart_ops::data_label_tier(space, interner, scope)?)
         })
     }
 
@@ -200,11 +142,9 @@ impl Presentation {
         point_idx: u32,
     ) -> Result<Option<String>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let series = chart_series_at(space, series_idx)?;
-            Ok(series
-                .data_labels()
-                .and_then(|labels| labels.label_for_point(interner, point_idx))
-                .and_then(mjx_chart::DataLabel::text))
+            Ok(chart_ops::point_label_text(
+                space, interner, series_idx, point_idx,
+            )?)
         })
     }
 
@@ -230,49 +170,7 @@ impl Presentation {
         spec: &DataLabelSpec,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            // A label may carry `c:spPr`/`c:txPr`, which are DrawingML; a part that never declared
-            // the prefix would otherwise gain unbound markup the moment one is written.
-            space.ensure_drawingml_namespace(interner);
-            match scope {
-                ChartLabelScope::Plot { plot_idx } => {
-                    let area = space
-                        .plot_area_mut()
-                        .ok_or(PptxError::ChartHasNoChartElement)?;
-                    let count = area.chart_kinds().len();
-                    if !area.set_plot_data_labels(interner, plot_idx, spec)? {
-                        return Err(PptxError::ChartPlotOutOfRange {
-                            index: plot_idx,
-                            count,
-                        });
-                    }
-                    Ok(())
-                }
-                ChartLabelScope::Series { series_idx } => {
-                    let count = space.series_count();
-                    let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                        PptxError::ChartSeriesOutOfRange {
-                            index: series_idx,
-                            count,
-                        },
-                    )?;
-                    decoration.set_data_labels(interner, spec)?;
-                    Ok(())
-                }
-                ChartLabelScope::Point {
-                    series_idx,
-                    point_idx,
-                } => {
-                    let count = space.series_count();
-                    let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                        PptxError::ChartSeriesOutOfRange {
-                            index: series_idx,
-                            count,
-                        },
-                    )?;
-                    decoration.set_point_label(interner, point_idx, spec)?;
-                    Ok(())
-                }
-            }
+            Ok(chart_ops::set_data_labels(space, interner, scope, spec)?)
         })
     }
 
@@ -288,45 +186,8 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
         scope: ChartLabelScope,
     ) -> Result<(), PptxError> {
-        self.edit_chart(surface.into(), shape_idx, |space, interner| match scope {
-            ChartLabelScope::Plot { plot_idx } => {
-                let area = space
-                    .plot_area_mut()
-                    .ok_or(PptxError::ChartHasNoChartElement)?;
-                let count = area.chart_kinds().len();
-                if !area.suppress_plot_data_labels(interner, plot_idx)? {
-                    return Err(PptxError::ChartPlotOutOfRange {
-                        index: plot_idx,
-                        count,
-                    });
-                }
-                Ok(())
-            }
-            ChartLabelScope::Series { series_idx } => {
-                let count = space.series_count();
-                let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                    PptxError::ChartSeriesOutOfRange {
-                        index: series_idx,
-                        count,
-                    },
-                )?;
-                decoration.suppress_data_labels(interner)?;
-                Ok(())
-            }
-            ChartLabelScope::Point {
-                series_idx,
-                point_idx,
-            } => {
-                let count = space.series_count();
-                let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                    PptxError::ChartSeriesOutOfRange {
-                        index: series_idx,
-                        count,
-                    },
-                )?;
-                decoration.suppress_point_label(interner, point_idx)?;
-                Ok(())
-            }
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::suppress_data_labels(space, interner, scope)?)
         })
     }
 
@@ -346,44 +207,7 @@ impl Presentation {
     ) -> Result<bool, PptxError> {
         let mut removed = false;
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            removed = match scope {
-                ChartLabelScope::Plot { plot_idx } => {
-                    let area = space
-                        .plot_area_mut()
-                        .ok_or(PptxError::ChartHasNoChartElement)?;
-                    let count = area.chart_kinds().len();
-                    if plot_idx >= count {
-                        return Err(PptxError::ChartPlotOutOfRange {
-                            index: plot_idx,
-                            count,
-                        });
-                    }
-                    area.remove_plot_data_labels(plot_idx)
-                }
-                ChartLabelScope::Series { series_idx } => {
-                    let count = space.series_count();
-                    let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                        PptxError::ChartSeriesOutOfRange {
-                            index: series_idx,
-                            count,
-                        },
-                    )?;
-                    decoration.remove_data_labels()
-                }
-                ChartLabelScope::Point {
-                    series_idx,
-                    point_idx,
-                } => {
-                    let count = space.series_count();
-                    let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                        PptxError::ChartSeriesOutOfRange {
-                            index: series_idx,
-                            count,
-                        },
-                    )?;
-                    decoration.remove_point_label(interner, point_idx)
-                }
-            };
+            removed = chart_ops::remove_data_labels(space, interner, scope)?;
             Ok(())
         })?;
         Ok(removed)
@@ -404,17 +228,7 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<Vec<ChartPointFormatData>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let series = chart_series_at(space, series_idx)?;
-            Ok(series
-                .point_formats()
-                .map(|format| ChartPointFormatData {
-                    index: format.index(interner),
-                    fill: format.fill(interner),
-                    line: format.line(interner),
-                    explosion: format.explosion(interner),
-                    inverts_if_negative: format.inverts_if_negative(interner),
-                })
-                .collect())
+            Ok(chart_ops::point_formats(space, interner, series_idx)?)
         })
     }
 
@@ -438,12 +252,10 @@ impl Presentation {
         point_idx: u32,
         fill: &FillSpec,
     ) -> Result<(), PptxError> {
-        if matches!(fill, FillSpec::Picture { .. }) {
-            return Err(PptxError::ChartFillNotSupported);
-        }
-        self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
-            decoration.set_point_fill(i, point_idx, fill)?;
-            Ok(())
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::set_point_fill(
+                space, interner, series_idx, point_idx, fill,
+            )?)
         })
     }
 
@@ -460,9 +272,10 @@ impl Presentation {
         point_idx: u32,
         line: &LineSpec,
     ) -> Result<(), PptxError> {
-        self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
-            decoration.set_point_line(i, point_idx, line)?;
-            Ok(())
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::set_point_line(
+                space, interner, series_idx, point_idx, line,
+            )?)
         })
     }
 
@@ -480,11 +293,10 @@ impl Presentation {
         point_idx: u32,
         percent: Option<u32>,
     ) -> Result<(), PptxError> {
-        self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
-            decoration
-                .point_format_mut(i, point_idx)?
-                .set_explosion(i, percent);
-            Ok(())
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::set_point_explosion(
+                space, interner, series_idx, point_idx, percent,
+            )?)
         })
     }
 
@@ -501,15 +313,10 @@ impl Presentation {
         point_idx: u32,
     ) -> Result<bool, PptxError> {
         let mut removed = false;
-        self.edit_chart_series_decoration(
-            surface.into(),
-            shape_idx,
-            series_idx,
-            |decoration, i| {
-                removed = decoration.remove_point_format(i, point_idx);
-                Ok(())
-            },
-        )?;
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            removed = chart_ops::remove_point_format(space, interner, series_idx, point_idx)?;
+            Ok(())
+        })?;
         Ok(removed)
     }
 
@@ -525,21 +332,7 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<Vec<ChartTrendlineData>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let series = chart_series_at(space, series_idx)?;
-            Ok(series
-                .trendlines()
-                .map(|trendline| ChartTrendlineData {
-                    kind: trendline.kind(interner),
-                    name: trendline.name(interner),
-                    polynomial_order: trendline.order(interner),
-                    moving_average_period: trendline.period(interner),
-                    forward_periods: trendline.forward_periods(interner),
-                    backward_periods: trendline.backward_periods(interner),
-                    intercept: trendline.intercept(interner),
-                    displays_equation: trendline.displays_equation(interner),
-                    displays_r_squared: trendline.displays_r_squared(interner),
-                })
-                .collect())
+            Ok(chart_ops::trendlines(space, interner, series_idx)?)
         })
     }
 
@@ -558,9 +351,8 @@ impl Presentation {
         series_idx: usize,
         spec: &TrendlineSpec,
     ) -> Result<(), PptxError> {
-        self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
-            decoration.add_trendline(i, spec)?;
-            Ok(())
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::add_trendline(space, interner, series_idx, spec)?)
         })
     }
 
@@ -579,15 +371,14 @@ impl Presentation {
         trendline_idx: usize,
         spec: &TrendlineSpec,
     ) -> Result<(), PptxError> {
-        self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
-            let count = decoration.series().trendlines().count();
-            if !decoration.set_trendline(i, trendline_idx, spec)? {
-                return Err(PptxError::ChartTrendlineOutOfRange {
-                    index: trendline_idx,
-                    count,
-                });
-            }
-            Ok(())
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::set_trendline(
+                space,
+                interner,
+                series_idx,
+                trendline_idx,
+                spec,
+            )?)
         })
     }
 
@@ -603,15 +394,10 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<usize, PptxError> {
         let mut removed = 0;
-        self.edit_chart_series_decoration(
-            surface.into(),
-            shape_idx,
-            series_idx,
-            |decoration, _| {
-                removed = decoration.remove_trendlines();
-                Ok(())
-            },
-        )?;
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            removed = chart_ops::remove_trendlines(space, interner, series_idx)?;
+            Ok(())
+        })?;
         Ok(removed)
     }
 
@@ -627,19 +413,7 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<Vec<ChartErrorBarData>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let series = chart_series_at(space, series_idx)?;
-            Ok(series
-                .error_bars()
-                .map(|bars| ChartErrorBarData {
-                    direction: bars.direction(interner),
-                    bar_type: bars.bar_type(interner),
-                    value_type: bars.value_type(interner),
-                    no_end_cap: bars.no_end_cap(interner),
-                    value: bars.value(interner),
-                    plus_values: bars.plus_values(),
-                    minus_values: bars.minus_values(),
-                })
-                .collect())
+            Ok(chart_ops::error_bars(space, interner, series_idx)?)
         })
     }
 
@@ -658,9 +432,10 @@ impl Presentation {
         series_idx: usize,
         spec: &ErrorBarSpec,
     ) -> Result<(), PptxError> {
-        self.edit_chart_series_decoration(surface.into(), shape_idx, series_idx, |decoration, i| {
-            decoration.set_error_bars(i, spec)?;
-            Ok(())
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            Ok(chart_ops::set_error_bars(
+                space, interner, series_idx, spec,
+            )?)
         })
     }
 
@@ -676,15 +451,10 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<usize, PptxError> {
         let mut removed = 0;
-        self.edit_chart_series_decoration(
-            surface.into(),
-            shape_idx,
-            series_idx,
-            |decoration, _| {
-                removed = decoration.remove_error_bars();
-                Ok(())
-            },
-        )?;
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            removed = chart_ops::remove_error_bars(space, interner, series_idx)?;
+            Ok(())
+        })?;
         Ok(removed)
     }
 
@@ -706,7 +476,7 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<Vec<DanglingPointReference>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            Ok(chart_series_at(space, series_idx)?.decoration_beyond_data(interner))
+            Ok(chart_ops::dangling_decoration(space, interner, series_idx)?)
         })
     }
 
@@ -722,129 +492,10 @@ impl Presentation {
         series_idx: usize,
     ) -> Result<usize, PptxError> {
         let mut removed = 0;
-        self.edit_chart_series_decoration(
-            surface.into(),
-            shape_idx,
-            series_idx,
-            |decoration, i| {
-                removed = decoration.drop_decoration_beyond_data(i);
-                Ok(())
-            },
-        )?;
+        self.edit_chart(surface.into(), shape_idx, |space, interner| {
+            removed = chart_ops::drop_dangling_decoration(space, interner, series_idx)?;
+            Ok(())
+        })?;
         Ok(removed)
     }
-
-    /// Runs `edit` against series `series_idx` of the chart the frame `shape_idx` on `surface`
-    /// references, bound to the kind of plot that holds it — the shared body of every decoration
-    /// write above.
-    fn edit_chart_series_decoration(
-        &mut self,
-        surface: Surface,
-        shape_idx: impl Into<ShapePath>,
-        series_idx: usize,
-        edit: impl FnOnce(&mut mjx_chart::SeriesDecoration<'_>, &mut Interner) -> Result<(), PptxError>,
-    ) -> Result<(), PptxError> {
-        self.edit_chart(surface, shape_idx, |space, interner| {
-            // Decoration may carry `c:spPr`, which is DrawingML.
-            space.ensure_drawingml_namespace(interner);
-            let count = space.series_count();
-            let mut decoration = space.series_decoration_mut(series_idx).ok_or(
-                PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                },
-            )?;
-            edit(&mut decoration, interner)
-        })
-    }
-}
-
-/// Which of the three tiers of a chart's data labels an edit or a read addresses.
-///
-/// `c:dLbls` is the same element at the plot tier and the series tier (ECMA-376 Part 1 §21.2.2.49),
-/// and a `c:dLbl` inside a series' container overrides it for one point. Naming the tier explicitly
-/// is what keeps "label this series" and "label this point" from being the same call.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ChartLabelScope {
-    /// The plot's own settings — the default every series of it takes. Plots are numbered as
-    /// `chart_kinds` numbers them, so a combo chart's two plots are 0 and 1.
-    Plot {
-        /// Which plot of the plot area.
-        plot_idx: usize,
-    },
-    /// One series' settings, overriding its plot's.
-    Series {
-        /// Which series, counted across every plot.
-        series_idx: usize,
-    },
-    /// One point's settings, overriding its series'.
-    Point {
-        /// Which series, counted across every plot.
-        series_idx: usize,
-        /// Which point of that series — the `c:idx` the override is anchored by.
-        point_idx: u32,
-    },
-}
-
-/// One point of a series drawn differently from the rest (`c:dPt`), as read.
-#[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
-pub struct ChartPointFormatData {
-    /// The 0-based index of the point this formats (`c:idx@val`) — **the anchor**, not this entry's
-    /// position in the list. `None` for a `c:idx` the schema requires but the file omits or
-    /// mis-spells; such an element addresses no point and is never renumbered.
-    pub index: Option<u32>,
-    /// The point's fill — the colour that makes it stand out — or `None` when it takes its series'.
-    pub fill: Option<FillSpec>,
-    /// The point's outline, or `None` when it takes its series'.
-    pub line: Option<LineSpec>,
-    /// How far a pie or doughnut slice is pulled out of the centre (`c:explosion`), as a percentage.
-    pub explosion: Option<u32>,
-    /// Whether the point's fill is inverted when its value is negative (`c:invertIfNegative`).
-    pub inverts_if_negative: Option<bool>,
-}
-
-/// A curve fitted through a series (`c:trendline`), as read.
-#[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
-pub struct ChartTrendlineData {
-    /// The curve the trendline fits (`c:trendlineType`).
-    pub kind: Option<TrendlineKind>,
-    /// The trendline's name, shown in the legend (`c:name`).
-    pub name: Option<String>,
-    /// The order of a polynomial curve (`c:order`), which defaults to 2.
-    pub polynomial_order: Option<u32>,
-    /// The window of a moving average (`c:period`), which defaults to 2.
-    pub moving_average_period: Option<u32>,
-    /// How far past the last point the curve is extended, in categories (`c:forward`).
-    pub forward_periods: Option<f64>,
-    /// How far before the first point the curve is extended (`c:backward`).
-    pub backward_periods: Option<f64>,
-    /// The value the curve is forced through (`c:intercept`).
-    pub intercept: Option<f64>,
-    /// Whether the curve's equation is drawn on the chart (`c:dispEq`).
-    pub displays_equation: Option<bool>,
-    /// Whether the curve's R² is drawn on the chart (`c:dispRSqr`).
-    pub displays_r_squared: Option<bool>,
-}
-
-/// The uncertainty drawn around a series' points (`c:errBars`), as read.
-#[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
-pub struct ChartErrorBarData {
-    /// Which axis the bars run along (`c:errDir`).
-    pub direction: Option<ErrorBarDirection>,
-    /// Which side(s) of the point the bars are drawn on (`c:errBarType`).
-    pub bar_type: Option<ErrorBarType>,
-    /// How the bars' length is arrived at (`c:errValType`).
-    pub value_type: Option<ErrorValueType>,
-    /// Whether the bars are drawn without their end caps (`c:noEndCap`).
-    pub no_end_cap: Option<bool>,
-    /// The single length every bar takes, read as [`value_type`](Self::value_type) says (`c:val`).
-    pub value: Option<f64>,
-    /// The per-point lengths in the positive direction (`c:plus`), empty when the bars are not
-    /// custom.
-    pub plus_values: Vec<f64>,
-    /// The per-point lengths in the negative direction (`c:minus`).
-    pub minus_values: Vec<f64>,
 }

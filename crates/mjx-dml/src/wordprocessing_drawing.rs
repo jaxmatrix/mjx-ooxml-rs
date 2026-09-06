@@ -650,6 +650,22 @@ pub struct WrapSquare {
 crate::build::fidelity_element_impls!(WrapSquare);
 
 impl WrapSquare {
+    /// Builds `<wp:wrapSquare wrapText="{wrap_text}"/>` — the wrap Word applies by default to a
+    /// floating drawing. `@wrapText` is the one attribute the schema requires; the four `dist*`
+    /// insets are optional and are left unwritten so the consumer applies its own defaults rather
+    /// than being pinned to a guess made here.
+    #[must_use]
+    pub fn new(interner: &mut Interner, wrap_text: WrapText) -> Self {
+        let mut value = Self {
+            name: wp_name(interner, "wrapSquare"),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: true,
+        };
+        value.set_wrap_text(interner, wrap_text);
+        value
+    }
+
     /// The extra space this wrap's own effects need (`wp:effectExtent`), or `None` if it declares
     /// none.
     #[must_use]
@@ -672,6 +688,18 @@ pub struct WrapTopAndBottom {
 crate::build::fidelity_element_impls!(WrapTopAndBottom);
 
 impl WrapTopAndBottom {
+    /// Builds a self-closing `<wp:wrapTopAndBottom/>`. `CT_WrapTopBottom` requires no attribute at
+    /// all — `@distT`/`@distB` are optional and left unwritten, as for [`WrapSquare::new`].
+    #[must_use]
+    pub fn new(interner: &mut Interner) -> Self {
+        Self {
+            name: wp_name(interner, "wrapTopAndBottom"),
+            attributes: Vec::new(),
+            children: Vec::new(),
+            empty: true,
+        }
+    }
+
     /// The extra space this wrap's own effects need (`wp:effectExtent`), or `None` if it declares
     /// none.
     #[must_use]
