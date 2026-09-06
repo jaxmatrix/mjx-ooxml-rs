@@ -99,10 +99,12 @@ pub mod format;
 pub mod geometry;
 pub mod measures;
 pub mod paint;
+pub mod spreadsheet;
 pub mod tables;
 pub mod text;
 pub mod three_d;
 pub mod word;
+pub mod workbook;
 
 /// The version of `mjx-ooxml` this package was built from.
 #[wasm_bindgen::prelude::wasm_bindgen(js_name = "version")]

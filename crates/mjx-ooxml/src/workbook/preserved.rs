@@ -66,13 +66,28 @@ pub struct PreservedPartsSummary {
     pub custom_properties: Vec<String>,
 }
 
+/// One entry of [`PreservedPartsSummary::all`]: a part, and which kind of part it is.
+///
+/// A named pair rather than a tuple, because a tuple has no field names in Python or TypeScript and
+/// both bindings project this.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreservedPart {
+    /// Which SpreadsheetML part this is.
+    pub kind: PartKind,
+    /// Its part name.
+    pub part: String,
+}
+
 impl PreservedPartsSummary {
     /// Every preserved part with the kind it is, flattened.
     #[must_use]
-    pub fn all(&self) -> Vec<(PartKind, String)> {
+    pub fn all(&self) -> Vec<PreservedPart> {
         let mut all = Vec::new();
         let mut many = |kind: PartKind, parts: &[String]| {
-            all.extend(parts.iter().map(|part| (kind, part.clone())));
+            all.extend(parts.iter().map(|part| PreservedPart {
+                kind,
+                part: part.clone(),
+            }));
         };
         many(PartKind::PivotTable, &self.pivot_tables);
         many(
@@ -100,7 +115,10 @@ impl PreservedPartsSummary {
             ),
         ] {
             if let Some(part) = part {
-                all.push((kind, part.clone()));
+                all.push(PreservedPart {
+                    kind,
+                    part: part.clone(),
+                });
             }
         }
         all

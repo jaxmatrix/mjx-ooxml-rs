@@ -202,3 +202,48 @@ fn a_chart_survives_the_round_trip() {
     assert_eq!(series[0].name().as_deref(), Some("2026"));
     assert_eq!(series[0].values(), vec![12.0, 15.5]);
 }
+
+/// The Excel surface, in the runtime this binding exists for.
+///
+/// One case rather than a suite: `tests/node/build_a_workbook.mjs` and
+/// `tests/node/workbook_surface.mjs` cover the surface against the *published* package, and this
+/// proves the same calls work when the module is loaded by a browser rather than by Node — which is
+/// the only thing running here adds.
+///
+/// The cell door is a **range** in both directions, and that is the whole point of the Excel
+/// binding's shape: see `mjx_wasm::workbook`'s own documentation for the measurements.
+#[wasm_bindgen_test]
+fn a_blank_workbook_is_built_read_back_and_saved() {
+    let mut workbook = mjx_wasm::workbook::Workbook::blank().expect("a blank workbook");
+    workbook.rename_sheet(0, "Summary").expect("renaming");
+
+    workbook
+        .write_cells(
+            0,
+            vec![
+                mjx_wasm::spreadsheet::CellWrite::shared_text("A1", "Region"),
+                mjx_wasm::spreadsheet::CellWrite::number("B1", 12.5),
+                mjx_wasm::spreadsheet::CellWrite::boolean("C1", true),
+            ],
+        )
+        .expect("one batched write");
+
+    let saved = workbook.save().expect("saving");
+    assert!(!saved.is_empty());
+
+    let reopened = mjx_wasm::workbook::Workbook::open(&saved).expect("reopening");
+    assert_eq!(reopened.sheet_count(), 1);
+    assert_eq!(
+        reopened.used_range(0).expect("a used range").as_deref(),
+        Some("A1:C1")
+    );
+
+    let block = reopened.read_range(0, "A1:C1").expect("the block");
+    assert_eq!(block.row_count(), 1);
+    assert_eq!(block.column_count(), 3);
+    let kinds = block.kinds();
+    let first = js_sys::Array::from(&kinds.get(0));
+    assert_eq!(first.get(0).as_string().as_deref(), Some("text"));
+    assert_eq!(first.get(1).as_string().as_deref(), Some("number"));
+    assert_eq!(first.get(2).as_string().as_deref(), Some("boolean"));
+}

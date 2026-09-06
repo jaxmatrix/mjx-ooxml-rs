@@ -34,7 +34,7 @@ impl Workbook {
     /// The content type of one part, or `None` when the package holds no such part.
     ///
     /// # Errors
-    /// [`ErrorCode::MalformedDocument`](crate::ErrorCode::MalformedDocument) if `part` is not a
+    /// [`ErrorCode::MalformedDocument`] if `part` is not a
     /// well-formed part name.
     pub fn content_type_of(&self, part: &str) -> Result<Option<String>, Error> {
         let part = part_name(part)?;
@@ -52,7 +52,7 @@ impl Workbook {
     /// byte-identically afterwards.
     ///
     /// # Errors
-    /// [`ErrorCode::MalformedDocument`](crate::ErrorCode::MalformedDocument) if `part` is not a
+    /// [`ErrorCode::MalformedDocument`] if `part` is not a
     /// well-formed part name, or [`ErrorCode::NotFound`] if the package holds no such part.
     pub fn part_bytes(&self, part: &str) -> Result<Vec<u8>, Error> {
         let name = part_name(part)?;

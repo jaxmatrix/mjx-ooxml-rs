@@ -1067,8 +1067,215 @@ sealed_enums! {
         Simple,
         Complex,
     }
-}
 
+    // -----------------------------------------------------------------------------------------
+    // SpreadsheetML (MJXOFF-137)
+    //
+    // Every one of these nineteen upstream enumerations is closed, so all nineteen belong here: a
+    // variant added to any of them stops this file compiling until it is projected. `None` keeps its
+    // Rust spelling, unlike in the Python binding — it is a legal member name in TypeScript.
+    // -----------------------------------------------------------------------------------------
+
+    /// The projection of [`mjx_ooxml::Anchoring`] — whether an address component carries a `$`. Its documentation is authoritative.
+    Anchoring {
+        Relative,
+        Absolute,
+    }
+
+    /// The projection of [`mjx_ooxml::ApplyFlag`] — what an `x:xf`'s `apply*` attribute says about one aspect. Its documentation is authoritative.
+    ApplyFlag {
+        Unstated,
+        Applied,
+        Suppressed,
+    }
+
+    /// The projection of [`mjx_ooxml::BorderStyle`] — the style of one cell-border edge. Its documentation is authoritative.
+    BorderStyle {
+        None,
+        Thin,
+        Medium,
+        Dashed,
+        Dotted,
+        Thick,
+        Double,
+        Hair,
+        MediumDashed,
+        DashDot,
+        MediumDashDot,
+        DashDotDot,
+        MediumDashDotDot,
+        SlantDashDot,
+    }
+
+    /// The projection of [`mjx_ooxml::CalculationMode`] — when the producer's engine recalculated. Its documentation is authoritative.
+    CalculationMode {
+        Manual,
+        Auto,
+        AutoNoTable,
+    }
+
+    /// The projection of [`mjx_ooxml::CellFormatTarget`] — which of `styles.xml`'s two `x:xf` tables to append to. Its documentation is authoritative.
+    CellFormatTarget {
+        CellFormats,
+        CellStyleFormats,
+    }
+
+    /// The projection of [`mjx_ooxml::DateSystem`] — which epoch a workbook's date serials count from. Its documentation is authoritative.
+    DateSystem {
+        Windows1900,
+        Macintosh1904,
+    }
+
+    /// The projection of [`mjx_ooxml::FormatAspect`] — one of the six things an `x:xf` states. Its documentation is authoritative.
+    FormatAspect {
+        NumberFormat,
+        Font,
+        Fill,
+        Border,
+        Alignment,
+        Protection,
+    }
+
+    /// The projection of [`mjx_ooxml::FormatLayer`] — which record supplied one aspect of a resolved format. Its documentation is authoritative.
+    FormatLayer {
+        Direct,
+        CellStyle,
+        Neither,
+    }
+
+    /// The projection of [`mjx_ooxml::GridAnomalyKind`] — which of the nine things a sheet's grid can say that a well-formed one would not. Its documentation is authoritative.
+    GridAnomalyKind {
+        MergeReferenceUnreadable,
+        MergesOverlap,
+        DegenerateMerge,
+        MergeInteriorCellHasValue,
+        MergeCountDisagrees,
+        ColumnRunBoundsInverted,
+        ColumnRunsOverlap,
+        RowOutlineLevelPastDeclaredMaximum,
+        ColumnOutlineLevelPastDeclaredMaximum,
+    }
+
+    /// The projection of [`mjx_ooxml::HyperlinkKind`] — which of `CT_Hyperlink`'s four shapes an entry is. Its documentation is authoritative.
+    HyperlinkKind {
+        External,
+        Internal,
+        ExternalWithLocation,
+        Unresolved,
+    }
+
+    /// The projection of [`mjx_ooxml::PartKind`] — which SpreadsheetML part a package member is. Its documentation is authoritative.
+    PartKind {
+        Workbook,
+        Worksheet,
+        Chartsheet,
+        Dialogsheet,
+        SharedStrings,
+        Styles,
+        CalculationChain,
+        Connections,
+        Metadata,
+        VolatileDependencies,
+        ExternalLink,
+        PivotCacheDefinition,
+        PivotCacheRecords,
+        PivotTable,
+        QueryTable,
+        Table,
+        Comments,
+        Drawing,
+        VmlDrawing,
+        PrinterSettings,
+        Theme,
+        CustomProperty,
+        CustomXmlMappings,
+        RevisionHeaders,
+        RevisionLog,
+        SharedWorkbookUserData,
+        SingleCellTableDefinitions,
+    }
+
+    /// The projection of [`mjx_ooxml::ReferenceMode`] — whether formulas are written A1 or R1C1. Its documentation is authoritative.
+    ReferenceMode {
+        A1,
+        R1C1,
+    }
+
+    /// The projection of [`mjx_ooxml::SheetKind`] — which of the three sheet kinds a tab's part is. Its documentation is authoritative.
+    SheetKind {
+        Worksheet,
+        Chartsheet,
+        Dialogsheet,
+    }
+
+    /// The projection of [`mjx_ooxml::SpreadsheetFontScheme`] — which theme slot a cell font is, if it is one. Its documentation is authoritative.
+    SpreadsheetFontScheme {
+        None,
+        Major,
+        Minor,
+    }
+
+    /// The projection of [`mjx_ooxml::SpreadsheetPatternType`] — a cell fill's pattern (`ST_PatternType`), which is **not** DrawingML's `PatternType`. Its documentation is authoritative.
+    SpreadsheetPatternType {
+        None,
+        Solid,
+        MediumGray,
+        DarkGray,
+        LightGray,
+        DarkHorizontal,
+        DarkVertical,
+        DarkDown,
+        DarkUp,
+        DarkGrid,
+        DarkTrellis,
+        LightHorizontal,
+        LightVertical,
+        LightDown,
+        LightUp,
+        LightGrid,
+        LightTrellis,
+        Gray12Point5Percent,
+        Gray6Point25Percent,
+    }
+
+    /// The projection of [`mjx_ooxml::StyleIndexSource`] — which layer supplied a cell's `cellXfs` index. Its documentation is authoritative.
+    StyleIndexSource {
+        Cell,
+        Row,
+        Column,
+        Default,
+    }
+
+    /// The projection of [`mjx_ooxml::TableStyleOrigin`] — where a table style comes from. Its documentation is authoritative.
+    TableStyleOrigin {
+        LocallyDefined,
+        BuiltIn,
+        Undefined,
+    }
+
+    /// The projection of [`mjx_ooxml::TotalsRowFunction`] — the aggregate a table column's totals row shows. Its documentation is authoritative.
+    TotalsRowFunction {
+        None,
+        Sum,
+        Minimum,
+        Maximum,
+        Average,
+        CountNonEmpty,
+        CountNumbers,
+        EstimatedStandardDeviation,
+        EstimatedVariance,
+        CustomFormula,
+    }
+
+    /// The projection of [`mjx_ooxml::UnderlineType`] — how a cell font underlines. Its documentation is authoritative.
+    UnderlineType {
+        Single,
+        Double,
+        SingleAccounting,
+        DoubleAccounting,
+        None,
+    }
+}
 open_enums! {
     /// The projection of [`mjx_ooxml::ActiveXPersistence`], whose documentation is authoritative.
     ActiveXPersistence {

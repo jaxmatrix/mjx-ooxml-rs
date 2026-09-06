@@ -112,9 +112,9 @@ pub use grid::{GridAnomalyInfo, GridAnomalyKind};
 pub use hyperlinks::SheetHyperlinkInfo;
 pub use names::DefinedName;
 pub use preserved::{
-    PreservedPartsSummary, RevisionSessionInfo, SharedWorkbookUserInfo, SheetPivotTableInfo,
-    SheetQueryTableInfo, WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState,
-    WorkbookXmlMapsInfo, XmlMapInfo,
+    PreservedPart, PreservedPartsSummary, RevisionSessionInfo, SharedWorkbookUserInfo,
+    SheetPivotTableInfo, SheetQueryTableInfo, WorkbookConnectionInfo, WorkbookExternalLinkInfo,
+    WorkbookRevisionState, WorkbookXmlMapsInfo, XmlMapInfo,
 };
 pub use sheets::{SheetSummary, WorkbookWindowInfo};
 pub use tables::{SheetTableColumnInfo, SheetTableInfo};

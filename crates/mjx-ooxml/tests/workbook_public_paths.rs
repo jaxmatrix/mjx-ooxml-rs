@@ -421,7 +421,13 @@ fn the_workbook_metadata_surface_is_reachable() {
         .expect("a style origin");
 
     let preserved = workbook.preserved_parts().expect("the preserved parts");
-    let _ = preserved.all();
+    for entry in preserved.all() {
+        assert!(
+            !entry.part.is_empty(),
+            "{:?} named an empty part",
+            entry.kind
+        );
+    }
     let _ = workbook.pivot_tables().expect("the pivot tables");
     let _ = workbook.external_links().expect("the external links");
     let _ = workbook.connections().expect("the connections");

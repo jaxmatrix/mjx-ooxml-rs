@@ -208,8 +208,10 @@ impl Workbook {
 /// A flat enumeration rather than [`mjx_sml::GridAnomaly`]'s payload-carrying one, because the
 /// coordinates each variant carries are the fields of [`GridAnomalyInfo`] beside it — the shape a
 /// binding can project, and the shape a caller filtering by kind wants either way.
+/// **Deliberately exhaustive**, for the reason [`mjx_sml::GridAnomaly`]'s own documentation gives:
+/// both bindings project every member, and a tenth finding must be a compile error there rather than
+/// a value one of them quietly drops.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub enum GridAnomalyKind {
     /// A `mergeCell@ref` that is absent or does not parse.
     MergeReferenceUnreadable,

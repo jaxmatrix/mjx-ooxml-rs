@@ -313,9 +313,14 @@ mod spreadsheetml {
 
         let preserved: PreservedPartsSummary =
             workbook.preserved_parts().expect("the preserved parts");
-        let all: Vec<(PartKind, String)> = preserved.all();
-        for (kind, part) in &all {
-            assert!(!part.is_empty(), "{kind:?} named an empty part");
+        let all: Vec<mjx_ooxml::PreservedPart> = preserved.all();
+        for entry in &all {
+            let _: PartKind = entry.kind;
+            assert!(
+                !entry.part.is_empty(),
+                "{:?} named an empty part",
+                entry.kind
+            );
         }
 
         workbook

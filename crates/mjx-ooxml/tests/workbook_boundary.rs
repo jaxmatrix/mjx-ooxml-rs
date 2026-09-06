@@ -76,14 +76,14 @@ const MINIMUM_READ_RATIO: usize = 20;
 
 fn main() {
     let seeded = seeded_workbook();
-    let batched = batched_write_allocates(&seeded);
-    let per_cell = per_cell_write_allocates(&seeded);
-    report("write", batched, per_cell, MINIMUM_WRITE_RATIO);
-
     let filled = filled_workbook(&seeded);
     let batched = batched_read_allocates(&filled);
     let per_cell = per_cell_read_allocates(&filled);
     report("read", batched, per_cell, MINIMUM_READ_RATIO);
+
+    let batched = batched_write_allocates(&seeded);
+    let per_cell = per_cell_write_allocates(&seeded);
+    report("write", batched, per_cell, MINIMUM_WRITE_RATIO);
 
     the_two_write_shapes_produce_the_same_bytes(&seeded);
     println!("workbook_boundary: all cases passed");
@@ -232,15 +232,25 @@ fn the_two_write_shapes_produce_the_same_bytes(seeded: &[u8]) {
 
 /// Prints both figures and enforces the ratio, naming what a failure means.
 fn report(what: &str, batched: usize, per_cell: usize, minimum: usize) {
-    let ratio = per_cell / batched.max(1);
+    // Reported to one decimal, not as an integer: a fallback to per-cell lands at *almost exactly*
+    // 1.0, and integer division would print that as `0x` — a number that reads like a measurement
+    // failure rather than like the finding it is.
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a byte count of this size is exact in f64, and this figure is printed rather than \
+                  compared — the assertion below uses the integer ratio"
+    )]
+    let ratio = per_cell as f64 / batched.max(1) as f64;
+    let integer_ratio = per_cell / batched.max(1);
     println!(
         "  {what}: batched {batched} B, per-cell {per_cell} B over {CELLS} cells on a \
-         {SEED_CELLS}-cell sheet — {ratio}x"
+         {SEED_CELLS}-cell sheet — {ratio:.1}x"
     );
     assert!(
-        ratio >= minimum,
+        integer_ratio >= minimum,
         "the batched {what} allocated {batched} B against the per-cell shape's {per_cell} B, a \
-         ratio of {ratio}x where at least {minimum}x is required. A ratio near 1 means the batched \
+         ratio of {ratio:.1}x where at least {minimum}x is required. A ratio near 1 means the \
+         batched \
          path is parsing the worksheet once per cell — which produces the same file and is four \
          orders of magnitude slower at real workbook sizes (see \
          `crates/mjx-ooxml/src/workbook/cells.rs`)."

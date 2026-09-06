@@ -5833,3 +5833,1018 @@ def default_placeholder_ole() -> bytes:
 def detect_format(data: bytes) -> Format:
     """What these bytes are, read from the package's main part rather than from a filename."""
     ...
+
+# ---------------------------------------------------------------------------------------------
+# SpreadsheetML — the curated Excel surface (MJXOFF-137)
+#
+# `Workbook` has no per-cell reader or writer, here or in Rust: cells cross a **range** at a time,
+# because `mjx_xlsx::Workbook` holds no parsed worksheet and a per-cell call therefore costs a whole
+# worksheet parse every time it is made. `read_range`, `read_sheet` and `write_cells` each parse
+# once, whatever they are asked for.
+# ---------------------------------------------------------------------------------------------
+
+@final
+class Anchoring:
+    """The projection of `mjx_ooxml::Anchoring`, whose documentation is authoritative."""
+    Relative: Anchoring
+    Absolute: Anchoring
+    def __int__(self) -> int: ...
+
+@final
+class ApplyFlag:
+    """The projection of `mjx_ooxml::ApplyFlag`, whose documentation is authoritative."""
+    Unstated: ApplyFlag
+    Applied: ApplyFlag
+    Suppressed: ApplyFlag
+    def __int__(self) -> int: ...
+
+@final
+class BorderStyle:
+    """The projection of `mjx_ooxml::BorderStyle`, whose documentation is authoritative."""
+    NONE: BorderStyle
+    Thin: BorderStyle
+    Medium: BorderStyle
+    Dashed: BorderStyle
+    Dotted: BorderStyle
+    Thick: BorderStyle
+    Double: BorderStyle
+    Hair: BorderStyle
+    MediumDashed: BorderStyle
+    DashDot: BorderStyle
+    MediumDashDot: BorderStyle
+    DashDotDot: BorderStyle
+    MediumDashDotDot: BorderStyle
+    SlantDashDot: BorderStyle
+    def __int__(self) -> int: ...
+
+@final
+class CalculationMode:
+    """The projection of `mjx_ooxml::CalculationMode`, whose documentation is authoritative."""
+    Manual: CalculationMode
+    Auto: CalculationMode
+    AutoNoTable: CalculationMode
+    def __int__(self) -> int: ...
+
+@final
+class CellFormatTarget:
+    """The projection of `mjx_ooxml::CellFormatTarget`, whose documentation is authoritative."""
+    CellFormats: CellFormatTarget
+    CellStyleFormats: CellFormatTarget
+    def __int__(self) -> int: ...
+
+@final
+class DateSystem:
+    """The projection of `mjx_ooxml::DateSystem`, whose documentation is authoritative."""
+    Windows1900: DateSystem
+    Macintosh1904: DateSystem
+    def __int__(self) -> int: ...
+
+@final
+class FormatAspect:
+    """The projection of `mjx_ooxml::FormatAspect`, whose documentation is authoritative."""
+    NumberFormat: FormatAspect
+    Font: FormatAspect
+    Fill: FormatAspect
+    Border: FormatAspect
+    Alignment: FormatAspect
+    Protection: FormatAspect
+    def __int__(self) -> int: ...
+
+@final
+class FormatLayer:
+    """The projection of `mjx_ooxml::FormatLayer`, whose documentation is authoritative."""
+    Direct: FormatLayer
+    CellStyle: FormatLayer
+    Neither: FormatLayer
+    def __int__(self) -> int: ...
+
+@final
+class GridAnomalyKind:
+    """The projection of `mjx_ooxml::GridAnomalyKind`, whose documentation is authoritative."""
+    MergeReferenceUnreadable: GridAnomalyKind
+    MergesOverlap: GridAnomalyKind
+    DegenerateMerge: GridAnomalyKind
+    MergeInteriorCellHasValue: GridAnomalyKind
+    MergeCountDisagrees: GridAnomalyKind
+    ColumnRunBoundsInverted: GridAnomalyKind
+    ColumnRunsOverlap: GridAnomalyKind
+    RowOutlineLevelPastDeclaredMaximum: GridAnomalyKind
+    ColumnOutlineLevelPastDeclaredMaximum: GridAnomalyKind
+    def __int__(self) -> int: ...
+
+@final
+class HyperlinkKind:
+    """The projection of `mjx_ooxml::HyperlinkKind`, whose documentation is authoritative."""
+    External: HyperlinkKind
+    Internal: HyperlinkKind
+    ExternalWithLocation: HyperlinkKind
+    Unresolved: HyperlinkKind
+    def __int__(self) -> int: ...
+
+@final
+class PartKind:
+    """The projection of `mjx_ooxml::PartKind`, whose documentation is authoritative."""
+    Workbook: PartKind
+    Worksheet: PartKind
+    Chartsheet: PartKind
+    Dialogsheet: PartKind
+    SharedStrings: PartKind
+    Styles: PartKind
+    CalculationChain: PartKind
+    Connections: PartKind
+    Metadata: PartKind
+    VolatileDependencies: PartKind
+    ExternalLink: PartKind
+    PivotCacheDefinition: PartKind
+    PivotCacheRecords: PartKind
+    PivotTable: PartKind
+    QueryTable: PartKind
+    Table: PartKind
+    Comments: PartKind
+    Drawing: PartKind
+    VmlDrawing: PartKind
+    PrinterSettings: PartKind
+    Theme: PartKind
+    CustomProperty: PartKind
+    CustomXmlMappings: PartKind
+    RevisionHeaders: PartKind
+    RevisionLog: PartKind
+    SharedWorkbookUserData: PartKind
+    SingleCellTableDefinitions: PartKind
+    def __int__(self) -> int: ...
+
+@final
+class ReferenceMode:
+    """The projection of `mjx_ooxml::ReferenceMode`, whose documentation is authoritative."""
+    A1: ReferenceMode
+    R1C1: ReferenceMode
+    def __int__(self) -> int: ...
+
+@final
+class SheetKind:
+    """The projection of `mjx_ooxml::SheetKind`, whose documentation is authoritative."""
+    Worksheet: SheetKind
+    Chartsheet: SheetKind
+    Dialogsheet: SheetKind
+    def __int__(self) -> int: ...
+
+@final
+class SpreadsheetFontScheme:
+    """The projection of `mjx_ooxml::SpreadsheetFontScheme`, whose documentation is authoritative."""
+    NONE: SpreadsheetFontScheme
+    Major: SpreadsheetFontScheme
+    Minor: SpreadsheetFontScheme
+    def __int__(self) -> int: ...
+
+@final
+class SpreadsheetPatternType:
+    """The projection of `mjx_ooxml::SpreadsheetPatternType`, whose documentation is authoritative."""
+    NONE: SpreadsheetPatternType
+    Solid: SpreadsheetPatternType
+    MediumGray: SpreadsheetPatternType
+    DarkGray: SpreadsheetPatternType
+    LightGray: SpreadsheetPatternType
+    DarkHorizontal: SpreadsheetPatternType
+    DarkVertical: SpreadsheetPatternType
+    DarkDown: SpreadsheetPatternType
+    DarkUp: SpreadsheetPatternType
+    DarkGrid: SpreadsheetPatternType
+    DarkTrellis: SpreadsheetPatternType
+    LightHorizontal: SpreadsheetPatternType
+    LightVertical: SpreadsheetPatternType
+    LightDown: SpreadsheetPatternType
+    LightUp: SpreadsheetPatternType
+    LightGrid: SpreadsheetPatternType
+    LightTrellis: SpreadsheetPatternType
+    Gray12Point5Percent: SpreadsheetPatternType
+    Gray6Point25Percent: SpreadsheetPatternType
+    def __int__(self) -> int: ...
+
+@final
+class StyleIndexSource:
+    """The projection of `mjx_ooxml::StyleIndexSource`, whose documentation is authoritative."""
+    Cell: StyleIndexSource
+    Row: StyleIndexSource
+    Column: StyleIndexSource
+    Default: StyleIndexSource
+    def __int__(self) -> int: ...
+
+@final
+class TableStyleOrigin:
+    """The projection of `mjx_ooxml::TableStyleOrigin`, whose documentation is authoritative."""
+    LocallyDefined: TableStyleOrigin
+    BuiltIn: TableStyleOrigin
+    Undefined: TableStyleOrigin
+    def __int__(self) -> int: ...
+
+@final
+class TotalsRowFunction:
+    """The projection of `mjx_ooxml::TotalsRowFunction`, whose documentation is authoritative."""
+    NONE: TotalsRowFunction
+    Sum: TotalsRowFunction
+    Minimum: TotalsRowFunction
+    Maximum: TotalsRowFunction
+    Average: TotalsRowFunction
+    CountNonEmpty: TotalsRowFunction
+    CountNumbers: TotalsRowFunction
+    EstimatedStandardDeviation: TotalsRowFunction
+    EstimatedVariance: TotalsRowFunction
+    CustomFormula: TotalsRowFunction
+    def __int__(self) -> int: ...
+
+@final
+class UnderlineType:
+    """The projection of `mjx_ooxml::UnderlineType`, whose documentation is authoritative."""
+    Single: UnderlineType
+    Double: UnderlineType
+    SingleAccounting: UnderlineType
+    DoubleAccounting: UnderlineType
+    NONE: UnderlineType
+    def __int__(self) -> int: ...
+
+@final
+class CellData:
+    """One cell's value, as the file states it — **stored, not displayed**."""
+    kind: str
+    """`"blank"`, `"number"`, `"text"`, `"boolean"` or `"error"`."""
+    is_blank: bool
+    """Whether the cell is not populated, or holds no value element."""
+    number: float | None
+    """The number this cell holds, or `None` for every other kind."""
+    text: str | None
+    """The string this cell holds, or `None` for every other kind. An error code is **not** a string here."""
+    boolean: bool | None
+    """The boolean this cell holds, or `None` for every other kind."""
+    error_code: str | None
+    """The error code this cell holds, or `None` for every other kind."""
+    value: object
+    """The value as one of Python's own types: `None`, `float`, `str` or `bool`."""
+
+@final
+class CellWrite:
+    """One entry of a `Workbook.write_cells` batch: where, and what."""
+    reference: str
+    """The cell this write addresses, in A1 text."""
+    kind: str
+    """`"blank"`, `"number"`, `"shared_text"`, `"inline_text"`, `"boolean"` or `"error"`."""
+    @staticmethod
+    def blank(reference: str) -> "CellWrite":
+        """Remove the value, keeping the cell — and therefore its style."""
+        ...
+    @staticmethod
+    def number(reference: str, value: float) -> "CellWrite":
+        """A number. `nan` and the infinities are refused: SpreadsheetML has no spelling for them."""
+        ...
+    @staticmethod
+    def shared_text(reference: str, text: str) -> "CellWrite":
+        """A string interned into `xl/sharedStrings.xml` — **what Excel itself writes**, and what to reach for when the same text appears in many cells."""
+        ...
+    @staticmethod
+    def inline_text(reference: str, text: str) -> "CellWrite":
+        """A string stored in the cell itself as an `inlineStr`. No other part is touched."""
+        ...
+    @staticmethod
+    def boolean(reference: str, value: bool) -> "CellWrite":
+        """A boolean, written `1` or `0`."""
+        ...
+    @staticmethod
+    def error(reference: str, code: str) -> "CellWrite":
+        """An error code — `"#DIV/0!"`, `"#N/A"`. Carried verbatim."""
+        ...
+
+@final
+class CellBlock:
+    """A rectangular block of cell values, read in one pass over one parse of the worksheet."""
+    first_row: int
+    """The zero-based sheet row the block's first row is: `0` is the row a file spells `1`."""
+    first_column: int
+    """The zero-based sheet column the block's first column is: `0` is `A`."""
+    row_count: int
+    """How many rows the block covers."""
+    column_count: int
+    """How many columns the block covers."""
+    is_empty: bool
+    """Whether the block covers no cells at all."""
+    range: str | None
+    """The A1 text of the range this block covers, or `None` when it covers nothing."""
+    def value(self, row: int, column: int) -> CellData:
+        """The value at `row`/`column`, **as offsets into the block**."""
+        ...
+    def formula(self, row: int, column: int) -> str | None:
+        """The formula text at `row`/`column`, or `None` when that cell carries none. Exactly as the file wrote it, never expanded and never evaluated."""
+        ...
+    def rows(self) -> list[list[object]]:
+        """The whole block as rows of Python's own types — `None`, `float`, `str`, `bool` — top to bottom, left to right.  **The shape to reach for.** One call converts the whole block; `value` per cell converts one at a time, which is cheap for a handful and needless for a table."""
+        ...
+    def kinds(self) -> list[list[str]]:
+        """The whole block as rows of kind names — `"blank"`, `"number"`, `"text"`, `"boolean"`, `"error"`.  The disambiguator for [`rows`](Self::rows), which cannot tell a text cell from an error cell because both arrive as `str`. Built only when asked."""
+        ...
+
+@final
+class SheetSummary:
+    """One tab of a workbook, as the file states it."""
+    name: str
+    """The tab's name (`@name`), with XML entities decoded."""
+    sheet_id: int | None
+    """`@sheetId`, or `None` when the attribute is absent or is not an `xsd:unsignedInt`."""
+    is_visible: bool
+    """Whether the tab is shown in a consumer's tab strip."""
+    kind: SheetKind | None
+    """Which of the three sheet kinds the tab's target is, or `None`."""
+    part: str | None
+    """The part the tab's `r:id` reaches, or `None`."""
+
+@final
+class WorkbookWindowInfo:
+    """One `x:workbookView`: where the producer's window sat and what it showed."""
+    active_tab_index: int
+    """`@activeTab` — the index of the tab that was selected."""
+    first_visible_tab_index: int
+    """`@firstSheet` — the index of the leftmost tab shown in the tab strip."""
+    window_left: int | None
+    """`@xWindow`, or `None` if the file wrote neither coordinate."""
+    window_top: int | None
+    """`@yWindow`, on the same terms."""
+    window_width: int | None
+    """`@windowWidth`, or `None` if the file wrote neither dimension."""
+    window_height: int | None
+    """`@windowHeight`, on the same terms."""
+    tab_strip_ratio: int
+    """`@tabRatio`, in thousandths."""
+    show_sheet_tabs: bool
+    """`@showSheetTabs`."""
+
+@final
+class DefinedName:
+    """One `x:definedName`, with its scope resolved against the tab list."""
+    name: str
+    """`@name`, as a consumer's name manager shows it."""
+    sheet: int | None
+    """The index of the tab this name is local to, or `None` for a workbook-scoped name."""
+    sheet_name: str | None
+    """The name of the tab `sheet` indexes, when there is one there."""
+    definition: str
+    """The formula this name stands for, **as text**. Nothing here parses or evaluates it."""
+    hidden: bool
+    """`@hidden`."""
+
+@final
+class CalculationSettings:
+    """`x:calcPr` — what the producer's calculation engine was told. Reported, never acted on."""
+    engine_id: int | None
+    """`@calcId`, or `None`. Never derived and never bumped."""
+    mode: CalculationMode
+    """`@calcMode`."""
+    reference_mode: ReferenceMode
+    """`@refMode` — A1 or R1C1."""
+    iterates_on_circular_references: bool
+    """`@iterate`."""
+    iteration_limit: int
+    """`@iterateCount`."""
+    iteration_convergence_delta: float
+    """`@iterateDelta`."""
+    full_calculation_on_load: bool
+    """`@fullCalcOnLoad`."""
+
+@final
+class SheetHyperlinkInfo:
+    """One `x:hyperlink` on a sheet, resolved against the sheet's relationships."""
+    range: str
+    """`@ref` — the range the link covers, as A1 text."""
+    kind: HyperlinkKind
+    """Which of `CT_Hyperlink`'s four shapes this entry is."""
+    relationship_id: str | None
+    """`@r:id`, or `None` when the entry names no relationship."""
+    target: str | None
+    """The relationship's `Target`, exactly as the `.rels` wrote it."""
+    target_is_external: bool | None
+    """Whether that relationship's `TargetMode` is `External`."""
+    location: str | None
+    """`@location` — a cell reference or a defined name inside this workbook."""
+    tooltip: str | None
+    """`@tooltip`."""
+    display: str | None
+    """`@display` — never kept in step with the cell's own value."""
+
+@final
+class SheetTableInfo:
+    """One table on a sheet, resolved to its part."""
+    part: str
+    """The part the table lives in."""
+    relationship_id: str
+    """The `tablePart@r:id` the sheet reached it through."""
+    id: int
+    """`@id` — workbook-unique, never renumbered here."""
+    display_name: str
+    """`@displayName` — what a formula references the table by."""
+    name: str | None
+    """`@name`, or `None` when the table writes none."""
+    range: str
+    """`@ref` as A1 text, header and totals rows included."""
+    header_row_count: int
+    """`@headerRowCount`."""
+    totals_row_count: int
+    """`@totalsRowCount`."""
+    data_row_count: int | None
+    """How many rows of `range` are data rows, or `None` when the counts do not fit inside it."""
+    style_name: str | None
+    """`tableStyleInfo@name`, or `None`."""
+    columns: list[SheetTableColumnInfo]
+    """The columns, left to right."""
+
+@final
+class SheetTableColumnInfo:
+    """One column of a `SheetTableInfo`."""
+    id: int
+    """`@id`, unique within the table."""
+    name: str
+    """`@name` — the heading text."""
+    totals_row_function: TotalsRowFunction | None
+    """`@totalsRowFunction`, or `None`."""
+    totals_row_label: str | None
+    """`@totalsRowLabel`."""
+    calculated_column_formula: str | None
+    """`x:calculatedColumnFormula`, exactly as the file wrote it."""
+    totals_row_formula: str | None
+    """`x:totalsRowFormula`, on the same terms."""
+
+@final
+class GridAnomalyInfo:
+    """One thing a sheet's grid says that a well-formed one would not."""
+    kind: GridAnomalyKind
+    """Which finding this is."""
+    range: str | None
+    """The range at fault, as A1 text."""
+    other_range: str | None
+    """The second range of an overlapping pair."""
+    cell: str | None
+    """The cell at fault, as A1 text."""
+    first_column: int | None
+    """The first column of a `col` run at fault, zero-based."""
+    last_column: int | None
+    """The last column of that run, zero-based."""
+    other_first_column: int | None
+    """The second run's first column, for an overlap."""
+    other_last_column: int | None
+    """The second run's last column, for an overlap."""
+    declared: int | None
+    """What the file declared — a merge count, or an outline maximum."""
+    actual: int | None
+    """What is actually there."""
+    index: int | None
+    """The index of the `mergeCell` whose `@ref` could not be read."""
+
+@final
+class PreservedPartsSummary:
+    """Every part this project preserves rather than models, by cluster."""
+    pivot_tables: list[str]
+    """`x:pivotTableDefinition` parts."""
+    pivot_cache_definitions: list[str]
+    """`x:pivotCacheDefinition` parts."""
+    pivot_cache_records: list[str]
+    """`x:pivotCacheRecords` parts."""
+    external_links: list[str]
+    """`x:externalLink` parts."""
+    connections: str | None
+    """The `x:connections` part, if there is one."""
+    query_tables: list[str]
+    """`x:queryTable` parts."""
+    metadata: str | None
+    """The `x:metadata` part, if there is one."""
+    volatile_dependencies: str | None
+    """The `x:volTypes` part, if there is one."""
+    custom_xml_mappings: str | None
+    """The `x:MapInfo` part, if there is one."""
+    single_cell_table_definitions: list[str]
+    """`x:singleXmlCell` table-definition parts."""
+    revision_headers: str | None
+    """The `x:headers` revision-headers part, if there is one."""
+    revision_logs: list[str]
+    """`x:revisions` revision-log parts."""
+    shared_workbook_user_data: str | None
+    """The shared-workbook user-data part, if there is one."""
+    custom_properties: list[str]
+    """Custom Property parts."""
+    is_empty: bool
+    """Whether the workbook carries none of these at all."""
+    def all(self) -> list[PreservedPart]:
+        """Every preserved part with the kind it is."""
+        ...
+
+@final
+class PreservedPart:
+    """One entry of `PreservedPartsSummary.all()`: a part, and which kind of part it is."""
+    kind: PartKind
+    """Which SpreadsheetML part this is."""
+    part: str
+    """Its part name."""
+
+@final
+class SheetPivotTableInfo:
+    """One pivot table, resolved to its part and its cache."""
+    part: str
+    """The `x:pivotTableDefinition` part."""
+    sheet: int
+    """The index of the tab the table sits on."""
+    sheet_name: str
+    """That tab's name."""
+    sheet_part: str
+    """That tab's own part."""
+    relationship_id: str
+    """The `r:id` the sheet reached the table through."""
+    name: str
+    """`@name`."""
+    cache_id: int
+    """`@cacheId`."""
+    data_caption: str
+    """`@dataCaption`."""
+    location: str
+    """`x:location/@ref`, exactly as the file wrote it."""
+    cache_definition_part: str | None
+    """The cache-definition part `@cacheId` resolves to."""
+    cache_records_part: str | None
+    """The cache-records part that definition names."""
+    cache_record_count: int | None
+    """`pivotCacheDefinition@recordCount` — the producer's cached number."""
+    cache_refreshed_by: str | None
+    """`pivotCacheDefinition@refreshedBy`."""
+
+@final
+class WorkbookExternalLinkInfo:
+    """One external workbook reference, resolved to its part."""
+    part: str
+    """The `x:externalLink` part."""
+    relationship_id: str | None
+    """The `r:id` `xl/workbook.xml` reached it through."""
+    reference_index: int | None
+    """The position in `x:externalReferences` this link is."""
+    target: str | None
+    """The relationship target, carried verbatim and never resolved or fetched."""
+    kind: str
+    """`"workbook"`, `"dde"`, `"oleObject"` or `"none"`."""
+    sheet_names: list[str]
+    """The names of the linked workbook's sheets, as this file cached them."""
+
+@final
+class WorkbookConnectionInfo:
+    """One data connection the workbook declares."""
+    part: str
+    """The `x:connections` part."""
+    id: int
+    """`@id` — what a query table's `@connectionId` names."""
+    name: str | None
+    """`@name`."""
+    description: str | None
+    """`@description`."""
+    source_file: str | None
+    """`@sourceFile` — carried verbatim, never resolved or opened."""
+    odc_file: str | None
+    """`@odcFile`, on the same terms."""
+
+@final
+class SheetQueryTableInfo:
+    """One query table, resolved to its part and the sheet it feeds."""
+    part: str
+    """The `x:queryTable` part."""
+    sheet: int
+    """The index of the tab the query table sits on."""
+    sheet_name: str
+    """That tab's name."""
+    sheet_part: str
+    """That tab's own part."""
+    relationship_id: str
+    """The `r:id` the sheet reached it through."""
+    name: str
+    """`@name`."""
+    connection_id: int
+    """`@connectionId`."""
+    refresh_on_load: bool
+    """`@refreshOnLoad`."""
+
+@final
+class WorkbookXmlMapsInfo:
+    """The workbook's XML maps — how a custom XML schema is mapped into cells."""
+    part: str
+    """The `x:MapInfo` part."""
+    selection_namespaces: str
+    """`@SelectionNamespaces`."""
+    schema_ids: list[str]
+    """The schema ids declared in the part."""
+    maps: list[XmlMapInfo]
+    """The maps themselves."""
+
+@final
+class XmlMapInfo:
+    """One `x:Map` of a `WorkbookXmlMapsInfo`."""
+    id: int
+    """`@ID`."""
+    name: str
+    """`@Name`."""
+    root_element: str
+    """`@RootElement`."""
+    schema_id: str
+    """`@SchemaID`."""
+
+@final
+class WorkbookRevisionState:
+    """What the workbook says about shared-workbook change tracking."""
+    is_shared: bool
+    """Whether `xl/workbook.xml` declares the workbook shared."""
+    headers_part: str | None
+    """The `x:headers` part, if there is one."""
+    guid: str | None
+    """`headers@guid`."""
+    log_parts: list[str]
+    """The revision-log parts, in the order the headers name them."""
+    user_data_part: str | None
+    """The shared-workbook user-data part, if there is one."""
+    sessions: list[RevisionSessionInfo]
+    """The recorded editing sessions."""
+    users: list[SharedWorkbookUserInfo]
+    """The recorded users."""
+
+@final
+class RevisionSessionInfo:
+    """One recorded editing session of a shared workbook."""
+    guid: str
+    """`@guid`."""
+    date_time: str
+    """`@dateTime`, exactly as the file wrote it."""
+    user_name: str
+    """`@userName`."""
+
+@final
+class SharedWorkbookUserInfo:
+    """One recorded user of a shared workbook."""
+    id: int
+    """`@id`."""
+    name: str
+    """`@name`."""
+    date_time: str
+    """`@dateTime`, exactly as the file wrote it."""
+
+@final
+class Color:
+    """A SpreadsheetML colour: automatic, an indexed-palette row, an `AARRGGBB` value, or a theme slot with an optional tint."""
+    is_automatic: bool | None
+    """`@auto`."""
+    indexed_value: int | None
+    """`@indexed`."""
+    rgb: str | None
+    """`@rgb` — eight hex digits, **alpha first**, as the file's own text."""
+    theme: int | None
+    """`@theme` — a zero-based index into the theme's colour scheme."""
+    tint: float | None
+    """`@tint`, in `-1.0 ..= 1.0`."""
+    @staticmethod
+    def from_opaque_rgb(hex: str) -> "Color":
+        """An opaque sRGB colour, written `rgb="FFRRGGBB"`. `hex` is the six-digit `RRGGBB` form; the opaque alpha is prefixed for you, because a six-digit `@rgb` is read as transparent."""
+        ...
+    @staticmethod
+    def from_theme(index: int, tint: float | None = None) -> "Color":
+        """A theme colour by index, optionally tinted towards white (positive) or black (negative)."""
+        ...
+    @staticmethod
+    def automatic() -> "Color":
+        """The system foreground/background colour, whatever that is at render time."""
+        ...
+    @staticmethod
+    def indexed(index: int) -> "Color":
+        """A row of the legacy 56-entry indexed palette."""
+        ...
+
+@final
+class FontProperties:
+    """The fifteen font-property children of `CT_Font`/`CT_RPrElt`."""
+    font_name: str | None
+    """`rFont`/`name` — the typeface name."""
+    bold: bool | None
+    """`b`."""
+    italic: bool | None
+    """`i`."""
+    strikethrough: bool | None
+    """`strike`."""
+    size_in_points: float | None
+    """`sz` — the point size."""
+    color: Color | None
+    """`color`."""
+    underline: UnderlineType | None
+    """`u`."""
+    scheme: SpreadsheetFontScheme | None
+    """`scheme` — whether this is the theme's major or minor font rather than a named one."""
+    def __init__(self, font_name: str | None = None, bold: bool | None = None, italic: bool | None = None, strikethrough: bool | None = None, underline: UnderlineType | None = None, size_in_points: float | None = None, color: Color | None = None, scheme: SpreadsheetFontScheme | None = None, family: int | None = None, character_set: int | None = None, outline: bool | None = None, shadow: bool | None = None, condensed: bool | None = None, extended: bool | None = None) -> None:
+        """A font, stated one property at a time. Every argument is optional, and an argument left out writes **no element at all** — which is a third state beside present-and-false."""
+        ...
+
+@final
+class PatternFillSpec:
+    """A cell fill: a pattern and its two colours."""
+    pattern: SpreadsheetPatternType | None
+    """`@patternType`."""
+    foreground: Color | None
+    """`fgColor`."""
+    background: Color | None
+    """`bgColor`."""
+    def __init__(self, pattern: SpreadsheetPatternType | None = None, foreground: Color | None = None, background: Color | None = None) -> None:
+        """A pattern fill. `foreground` is the colour a **solid** fill actually shows."""
+        ...
+    @staticmethod
+    def solid(hex: str) -> "PatternFillSpec":
+        """A solid fill in one opaque colour — the shape a caller filling a cell almost always wants."""
+        ...
+
+@final
+class BorderEdgeSpec:
+    """One border edge: a style and an optional colour."""
+    style: BorderStyle | None
+    """`@style`."""
+    color: Color | None
+    """`color`."""
+    def __init__(self, style: BorderStyle | None = None, color: Color | None = None) -> None:
+        """One edge: a style, and optionally a colour. No colour means *automatic*."""
+        ...
+
+@final
+class BorderSpec:
+    """A cell border: up to nine edges, plus the two diagonal flags."""
+    left: BorderEdgeSpec | None
+    """`left`."""
+    right: BorderEdgeSpec | None
+    """`right`."""
+    top: BorderEdgeSpec | None
+    """`top`."""
+    bottom: BorderEdgeSpec | None
+    """`bottom`."""
+    diagonal: BorderEdgeSpec | None
+    """`diagonal`."""
+    def __init__(self, left: BorderEdgeSpec | None = None, right: BorderEdgeSpec | None = None, top: BorderEdgeSpec | None = None, bottom: BorderEdgeSpec | None = None, diagonal: BorderEdgeSpec | None = None, leading: BorderEdgeSpec | None = None, trailing: BorderEdgeSpec | None = None, vertical_inner: BorderEdgeSpec | None = None, horizontal_inner: BorderEdgeSpec | None = None, diagonal_up: bool | None = None, diagonal_down: bool | None = None) -> None:
+        """A border, stated one edge at a time. `left`/`right` are the physical edges; `leading`/`trailing` are the reading-direction ones (`start`/`end`)."""
+        ...
+
+@final
+class CellFormatSpec:
+    """One `x:xf`: the four resource indices and the six `apply*` flags."""
+    number_format_id: int | None
+    """`@numFmtId`."""
+    font_index: int | None
+    """`@fontId`."""
+    fill_index: int | None
+    """`@fillId`."""
+    border_index: int | None
+    """`@borderId`."""
+    def __init__(self, number_format_id: int | None = None, font_index: int | None = None, fill_index: int | None = None, border_index: int | None = None, cell_style_format_index: int | None = None, applies_number_format: bool | None = None, applies_font: bool | None = None, applies_fill: bool | None = None, applies_border: bool | None = None, applies_alignment: bool | None = None, applies_protection: bool | None = None, text_is_quote_prefixed: bool | None = None) -> None:
+        """An `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, and the six `apply*` flags."""
+        ...
+    @staticmethod
+    def skeleton_cell_format() -> "CellFormatSpec":
+        """The record every workbook's `cellXfs[0]` is: `numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"`. The base to build a real format on."""
+        ...
+    @staticmethod
+    def skeleton_cell_style_format() -> "CellFormatSpec":
+        """The same record without `@xfId` — a `cellStyleXfs` entry, which has nothing beneath it."""
+        ...
+    def with_resources(self, font_index: int | None = None, fill_index: int | None = None, border_index: int | None = None, number_format_id: int | None = None) -> "CellFormatSpec":
+        """A copy of this record with the resource indices replaced. Values left `None` are kept."""
+        ...
+
+@final
+class EffectiveCellFormat:
+    """What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder."""
+    style_index: int
+    """The `cellXfs` index this cell resolved to."""
+    style_index_source: StyleIndexSource
+    """Which of the four layers supplied that index — the cell, its row, its column, or the default."""
+    cell_style_format_index: int | None
+    """The `cellStyleXfs` record beneath the resolved `x:xf`, when it names one."""
+    def aspect(self, aspect: FormatAspect) -> ResolvedAspect:
+        """One aspect's resolution: the number format, the font, the fill, the border, the alignment or the protection."""
+        ...
+
+@final
+class ResolvedAspect:
+    """One aspect of an `EffectiveCellFormat`: which layer supplied it, and which resource."""
+    apply_flag: ApplyFlag
+    """Whether the resolved `x:xf` applies this aspect, suppresses it, or says nothing."""
+    supplying_apply_flag: ApplyFlag
+    """The same, for the record that supplied the value."""
+    layer: FormatLayer
+    """Which layer supplied it: the direct `cellXfs` record, the `cellStyleXfs` one beneath it, or neither."""
+    format_index: int | None
+    """The index of the `x:xf` that supplied the value."""
+    resource_index: int | None
+    """The index into the resource table this aspect names — a font, a fill, a border."""
+    is_stated: bool
+    """Whether anything stated this aspect at all."""
+
+@final
+class Workbook:
+    """An open Excel workbook."""
+    @staticmethod
+    def blank() -> "Workbook":
+        """A new workbook with nothing in it: one empty worksheet named `Sheet1`, a styles part, and the package around them."""
+        ...
+    @staticmethod
+    def open(data: bytes) -> "Workbook":
+        """Opens a workbook from the bytes of a `.xlsx`, `.xlsm`, `.xltx` or `.xltm`.  The interpreter lock is released for the parse. Raises `IoError` for bytes that are not a readable container, `MalformedDocumentError` for a package whose markup is not SpreadsheetML, and `UnsupportedFormatError` — naming the format — for a PowerPoint or Word document, **and for a `.xlsb`**, whose main part is the MS-XLSB binary record stream rather than SpreadsheetML. That last refusal is permanent by design, not a not-yet."""
+        ...
+    def format(self) -> Format:
+        """What this workbook's main part says it is."""
+        ...
+    def save(self) -> bytes:
+        """The workbook as the bytes of a `.xlsx`, **validated first**. The interpreter lock is released for the write."""
+        ...
+    def save_unchecked(self) -> bytes:
+        """The workbook as bytes, **without** the validation pass."""
+        ...
+    def validate(self) -> None:
+        """Checks every invariant `save` enforces, without writing anything."""
+        ...
+    def sheet_count(self) -> int:
+        """How many tabs the workbook lists."""
+        ...
+    def sheets(self) -> list[SheetSummary]:
+        """Every tab, in tab order."""
+        ...
+    def sheet(self, sheet: int) -> SheetSummary:
+        """One tab."""
+        ...
+    def sheet_index(self, name: str) -> int | None:
+        """The index of the tab named `name`, or `None` when no tab has that name."""
+        ...
+    def add_sheet(self, name: str) -> int:
+        """Appends a new, empty worksheet and answers its index."""
+        ...
+    def rename_sheet(self, sheet: int, name: str) -> None:
+        """Renames one tab. Formulas that reference the old name are **not** rewritten."""
+        ...
+    def active_sheet(self) -> int | None:
+        """The index of the tab a consumer opens the workbook on, or `None`."""
+        ...
+    def window_views(self) -> list[WorkbookWindowInfo]:
+        """Every `x:workbookView`, in document order."""
+        ...
+    def read_range(self, sheet: int, range: str) -> CellBlock:
+        """Reads every cell of one rectangle, parsing the worksheet **once**.  `range` is A1 text: `"A1"` for one cell, `"A1:C3"` for a rectangle, `"A:C"` for whole columns, `"1:3"` for whole rows. The two open-ended forms are clamped to the sheet's populated extent, so `"A:A"` costs the rows the file actually has.  **This is the way to read cells**, and there is deliberately no per-cell call beside it: see this module's own documentation for the measurements that decided that."""
+        ...
+    def read_sheet(self, sheet: int) -> CellBlock:
+        """Reads every populated cell of one sheet, parsing the worksheet **once**."""
+        ...
+    def used_range(self, sheet: int) -> str | None:
+        """The A1 range of one sheet's populated extent, or `None` when nothing is populated."""
+        ...
+    def write_cells(self, sheet: int, cells: list[CellWrite]) -> None:
+        """Writes every entry of `cells` into one sheet, parsing **once** and serializing **once**.  Entries are applied in the order given. Prefer top-to-bottom, left-to-right: that is append-only in the cell arena. A batch with a bad address writes **nothing**."""
+        ...
+    def merged_ranges(self, sheet: int) -> list[str]:
+        """Every merged range on one sheet, as A1 text."""
+        ...
+    def merged_range_containing(self, sheet: int, reference: str) -> str | None:
+        """The merged range covering `reference`, or `None` when that cell is not merged."""
+        ...
+    def merge_cells(self, sheet: int, range: str) -> None:
+        """Merges `range`. Nothing is cleared: a merge is a display statement, not a destructive edit."""
+        ...
+    def unmerge_cells(self, sheet: int, range: str) -> bool:
+        """Removes the merge whose `@ref` is exactly `range`, answering whether one was there."""
+        ...
+    def set_row_height(self, sheet: int, row: int, points: float | None, custom: bool = True) -> None:
+        """Sets a row's height in points. `row` is **one-based**, as `row@r` is. `custom=True` is the height a person set (Excel keeps it); `False` is one a consumer computed and may recompute."""
+        ...
+    def set_row_hidden(self, sheet: int, row: int, hidden: bool) -> None:
+        """Hides or shows a row. `row` is **one-based**."""
+        ...
+    def set_row_outline_level(self, sheet: int, row: int, level: int) -> None:
+        """Sets a row's outline (grouping) depth. `row` is **one-based**."""
+        ...
+    def set_column_width(self, sheet: int, first_column: int, last_column: int, characters: float | None, custom: bool = True) -> None:
+        """Sets the width of the columns `first_column..=last_column`, both **zero-based**, in characters of the maximum digit width."""
+        ...
+    def set_column_hidden(self, sheet: int, first_column: int, last_column: int, hidden: bool) -> None:
+        """Hides or shows the columns `first_column..=last_column`, both **zero-based**."""
+        ...
+    def set_column_outline_level(self, sheet: int, first_column: int, last_column: int, level: int) -> None:
+        """Sets the outline depth of the columns `first_column..=last_column`, both **zero-based**."""
+        ...
+    def grid_anomalies(self, sheet: int) -> list[GridAnomalyInfo]:
+        """Everything one sheet's grid says that a well-formed one would not. A report, never a repair."""
+        ...
+    def append_font(self, properties: FontProperties) -> int:
+        """Appends a font to `xl/styles.xml`'s `fonts` table and answers its index."""
+        ...
+    def append_pattern_fill(self, spec: PatternFillSpec) -> int:
+        """Appends a pattern fill to the `fills` table and answers its index."""
+        ...
+    def append_border(self, spec: BorderSpec) -> int:
+        """Appends a border to the `borders` table and answers its index."""
+        ...
+    def append_cell_format(self, target: CellFormatTarget, spec: CellFormatSpec) -> int:
+        """Appends an `x:xf` to `cellXfs` or `cellStyleXfs` and answers its index."""
+        ...
+    def set_cell_style(self, sheet: int, reference: str, style: int | None = None) -> None:
+        """Points one cell at `cellXfs[style]`, or removes its `@s` with `None`. The cell must already exist — write the value first."""
+        ...
+    def intern_shared_string(self, text: str) -> int:
+        """Interns `text` into `xl/sharedStrings.xml` and answers its index."""
+        ...
+    def effective_cell_format(self, sheet: int, reference: str) -> EffectiveCellFormat | None:
+        """What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder and the column and row defaults above it. **What the file states, not what a renderer shows.**"""
+        ...
+    def effective_merged_cell_format(self, sheet: int, reference: str) -> EffectiveCellFormat | None:
+        """The same ladder, answered for the **anchor** of the merged region `reference` falls in."""
+        ...
+    def sheet_hyperlinks(self, sheet: int) -> list[SheetHyperlinkInfo]:
+        """Every hyperlink on one sheet, in document order."""
+        ...
+    def cell_hyperlink(self, sheet: int, reference: str) -> SheetHyperlinkInfo | None:
+        """The hyperlink whose range covers `reference`, or `None`."""
+        ...
+    def set_cell_hyperlink_url(self, sheet: int, range: str, url: str) -> None:
+        """Points `range` at an external URL, writing the entry **and** its `External` relationship."""
+        ...
+    def set_cell_hyperlink_location(self, sheet: int, range: str, location: str) -> None:
+        """Points `range` at a location inside this workbook — `"Sheet2!A1"`, or a defined name."""
+        ...
+    def remove_cell_hyperlink(self, sheet: int, reference: str) -> bool:
+        """Removes the hyperlink covering `reference`, and the relationship it named."""
+        ...
+    def sheet_tables(self, sheet: int) -> list[SheetTableInfo]:
+        """Every table on one sheet."""
+        ...
+    def table_style_origin(self, name: str) -> TableStyleOrigin:
+        """Where the table style `name` comes from: this workbook, Excel's built-in set, or nowhere."""
+        ...
+    def next_table_id(self) -> int:
+        """The lowest `@id` no table in the workbook uses."""
+        ...
+    def auto_filter_range(self, sheet: int) -> str | None:
+        """The range one sheet's autofilter covers, or `None`."""
+        ...
+    def remove_auto_filter(self, sheet: int) -> bool:
+        """Removes one sheet's autofilter, answering whether there was one. Rows it hid stay hidden."""
+        ...
+    def data_validation_ranges(self, sheet: int) -> list[str]:
+        """The ranges every data-validation rule on one sheet claims, one entry per rule."""
+        ...
+    def remove_data_validation(self, sheet: int, rule: int) -> bool:
+        """Removes the `rule`-th data-validation rule of one sheet."""
+        ...
+    def conditional_formatting_ranges(self, sheet: int) -> list[str]:
+        """The ranges every conditional-formatting block on one sheet claims, one entry per block."""
+        ...
+    def conditional_formatting_rule_count(self, sheet: int, block: int) -> int | None:
+        """How many rules the conditional-formatting block at `block` holds, or `None`."""
+        ...
+    def defined_names(self) -> list[DefinedName]:
+        """Every defined name, with its scope resolved against the tab list."""
+        ...
+    def defined_name(self, name: str) -> DefinedName | None:
+        """One defined name by its `@name`, or `None`."""
+        ...
+    def print_area(self, sheet: int) -> str | None:
+        """The print area of one tab, as the text the file wrote, or `None`."""
+        ...
+    def date_system(self) -> DateSystem:
+        """Which epoch this workbook's date serials count from. The two are 1,462 days apart."""
+        ...
+    def calculation_settings(self) -> CalculationSettings:
+        """`x:calcPr` — what the producer's calculation engine was told. Reported, never acted on."""
+        ...
+    def sheet_printer_settings(self, sheet: int) -> str | None:
+        """The printer-settings part one sheet reaches, or `None`. Opaque bytes, never XML."""
+        ...
+    def sheet_background_image(self, sheet: int) -> str | None:
+        """The background-picture part one sheet reaches, or `None`."""
+        ...
+    def preserved_parts(self) -> PreservedPartsSummary:
+        """Every part this project preserves rather than models. Resolved from the part graph alone."""
+        ...
+    def pivot_tables(self) -> list[SheetPivotTableInfo]:
+        """Every pivot table in the workbook, with its cache resolved."""
+        ...
+    def external_links(self) -> list[WorkbookExternalLinkInfo]:
+        """Every external workbook reference, with the target it names carried verbatim."""
+        ...
+    def connections(self) -> list[WorkbookConnectionInfo]:
+        """Every data connection the workbook declares."""
+        ...
+    def query_tables(self) -> list[SheetQueryTableInfo]:
+        """Every query table, sheet by sheet."""
+        ...
+    def xml_maps(self) -> WorkbookXmlMapsInfo | None:
+        """The workbook's XML maps, or `None` when it declares none."""
+        ...
+    def revision_state(self) -> WorkbookRevisionState:
+        """What the workbook says about shared-workbook change tracking."""
+        ...
+    def workbook_part(self) -> str:
+        """The workbook part the package's `officeDocument` relationship names."""
+        ...
+    def part_names(self) -> list[str]:
+        """Every part in the package, in the order the container holds them."""
+        ...
+    def content_type_of(self, part: str) -> str | None:
+        """The content type of one part, or `None` when the package holds no such part."""
+        ...
+    def part_bytes(self, part: str) -> bytes:
+        """The bytes of one part, exactly as the package holds them. Reading never dirties a part."""
+        ...
