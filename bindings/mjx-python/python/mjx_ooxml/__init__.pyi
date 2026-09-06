@@ -2362,6 +2362,12 @@ class Deck:
         flattened across the chart's plots. Reading does not dirty the part.
         """
         ...
+    def chart_series_references(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartSeriesReferences]:
+        """Where every series of that chart says its data lives — the formula beside each cache, as
+        the file wrote it. The companion of `chart_series`: that answers what the caches *hold*,
+        this answers what the references *name*. Reading does not dirty the part.
+        """
+        ...
     def set_chart_series_values(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, values: Sequence[float]) -> None:
         """Rewrites the values of series `series_idx` (0-based across the chart's plots) of the
         chart the frame `shape_idx` on `surface` references — whichever source the series names:
@@ -3946,6 +3952,12 @@ class Document:
         ...
     def chart_series(self, drawing_id: int) -> list[ChartSeriesData]:
         """The series of the chart the drawing `drawing_id` frames."""
+        ...
+    def chart_series_references(self, drawing_id: int) -> list[ChartSeriesReferences]:
+        """Where every series says its data lives — the formula beside each cache, as written. The
+        companion of `chart_series`: that answers what the caches *hold*, this answers what the
+        references *name*.
+        """
         ...
     def chart_kinds(self, drawing_id: int) -> list[ChartKind]:
         """The kind of every plot the chart draws, in document order."""

@@ -291,7 +291,7 @@ impl Presentation {
             .enumerate()
             .map(|(index, shape)| {
                 Ok(ShapeInfo {
-                    index,
+                    index: crate::index::count(index),
                     kind: slide::shape_kind(shape, &doc.interner)
                         .ok_or(PptxError::MalformedSlide("shape tree child is not a shape"))?,
                     placeholder: slide::shape_placeholder_info(shape, &doc.interner),
@@ -320,7 +320,7 @@ impl Presentation {
             shape
                 .placeholder
                 .filter(|placeholder| placeholder.kind == kind)
-                .map(|_| shape.index)
+                .map(|_| crate::index::index(shape.index))
         }))
     }
 

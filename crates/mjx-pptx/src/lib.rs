@@ -78,6 +78,7 @@ mod geometry;
 mod group;
 pub mod guide;
 mod hyperlink;
+mod index;
 mod legacy;
 mod nav;
 mod placement;

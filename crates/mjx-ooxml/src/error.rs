@@ -1,12 +1,18 @@
 //! [`Error`] — one error type, shaped so a foreign-function binding can act on it.
 //!
-//! `mjx-pptx` reports failures as [`PptxError`], sixty-six variants each carrying exactly the
-//! context its own call site had; `mjx-docx` reports its own as [`DocxError`], thirty-five more; and
-//! `mjx-xlsx` reports its own as [`XlsxError`], eleven that in turn open onto [`SmlError`]'s fifteen
-//! and [`AddressError`]'s sixteen. That is the right shape for Rust and the wrong shape for a
-//! binding: neither PyO3 nor wasm-bindgen can project a hundred-odd variants with as many payload
-//! shapes into an exception hierarchy anyone would want to catch, and pinning a stable ABI to a
-//! variant list that grows every release is a promise this library cannot keep.
+//! `mjx-pptx` reports failures as [`PptxError`], one variant per refusal, each carrying exactly the
+//! context its own call site had; `mjx-docx` reports its own as [`DocxError`]; and `mjx-xlsx` reports
+//! its own as [`XlsxError`], which in turn opens onto [`SmlError`] and [`AddressError`]. Together
+//! that is **well over a hundred variants** with as many payload shapes — the right shape for Rust
+//! and the wrong shape for a binding: neither PyO3 nor wasm-bindgen can project them into an
+//! exception hierarchy anyone would want to catch, and pinning a stable ABI to a variant list that
+//! grows every release is a promise this library cannot keep.
+//!
+//! (No exact per-enum count is quoted here on purpose. Three were, and by MJXOFF-118 two of the
+//! three had rotted — `DocxError` had grown from thirty-five to forty-one and `XlsxError` from
+//! eleven to eighteen — while the sentence they were in went on reading as though it had been
+//! checked. The claim that matters is *"too many to project one-for-one"*, and that one cannot
+//! expire. The exhaustive `match`es below are what actually keep the mapping honest.)
 //!
 //! So the facade collapses them into **eleven stable [`ErrorCode`]s**, a human [`message`](Error::message),
 //! and the machine-readable indices in [`ErrorDetail`] — the surface, shape, row, column and index a
@@ -23,9 +29,8 @@
 //! `SmlError` and `AddressError` is `#[non_exhaustive]`. Adding a variant to any of them fails to
 //! compile here until someone decides which code it belongs to. A catch-all arm would instead file
 //! every future failure under whichever code happened to be the fallback — and no test would notice.
-//! Every one of `DocxError`'s thirty-five variants, and every one of Excel's forty-two across the
-//! three enumerations, fits an existing code from the PresentationML mapping; none needed a
-//! twelfth.
+//! Every `DocxError` variant, and every one of Excel's across the three enumerations, fits an
+//! existing code from the PresentationML mapping; none has needed a twelfth.
 
 use std::fmt;
 
@@ -125,23 +130,60 @@ impl fmt::Display for ErrorCode {
 /// Every field is `None` when the failure carried no such coordinate — an unreadable ZIP names no
 /// shape. A binding turns these into attributes on its exception; Rust code that wants the rest
 /// downcasts [`Error::source`](std::error::Error::source) to a
-/// [`PptxError`](mjx_pptx::PptxError).
+/// [`PptxError`](mjx_pptx::PptxError), a [`DocxError`] or an [`XlsxError`].
+///
+/// # One meaning per field, across all three surfaces
+///
+/// The five fields are *coordinates*, and each one means the same thing whichever format raised it.
+/// What differs is which of them a format can populate at all, because the three languages address
+/// different things — so the table below is the contract, and
+/// `crates/mjx-ooxml/docs/shared_markup_reachability.md` is the sibling table for the surface
+/// itself.
+///
+/// | field | [`Deck`](crate::Deck) | [`Document`](crate::Document) | [`Workbook`](crate::Workbook) |
+/// |---|---|---|---|
+/// | [`surface`](Self::surface) | the slide, layout, master, notes slide or notes master | never — WordprocessingML has no shape-bearing surface | never — a sheet is reported through [`index`](Self::index), see below |
+/// | [`shape`](Self::shape) | the shape path, `[2]` top-level, `[2, 1]` inside a group | never | never — a sheet has no shape tree; a drawing object is reported through [`index`](Self::index) |
+/// | [`row`](Self::row) | a `a:tbl` table row | a `w:tbl` table row | never — see the note below |
+/// | [`column`](Self::column) | a `a:tbl` table column | a `w:tbl` table column | never — see the note below |
+/// | [`index`](Self::index) | slide, layout, master, paragraph, run, field, chart series, axis, plot, trendline, ActiveX control, the start of a text range | section, paragraph, run, comment, footnote, endnote, chart series, axis, plot, trendline | **sheet**, anchor, chart series, axis, plot, trendline, `cellXfs` record |
+///
+/// **Why Excel populates [`index`](Self::index) rather than [`surface`](Self::surface) for a sheet.**
+/// [`Surface`] is PresentationML's own vocabulary — its variants *are* `p:sld`, `p:sldLayout`,
+/// `p:sldMaster`, `p:notesSlide` and `p:notesMaster`. A sheet is none of those, so reporting a tab
+/// through it would mean either inventing a sixth variant that only Excel ever sets or letting
+/// `Surface::Slide(3)` mean "sheet 3" — a coordinate that lies about which language it came from.
+/// The tab is an ordinal into a flat list, which is exactly what [`index`](Self::index) is for, and
+/// it is the field every Excel index failure sets.
+///
+/// **Why an Excel *cell* address populates neither [`row`](Self::row) nor
+/// [`column`](Self::column).** Every failure that could name one is an
+/// [`AddressError`] — a `"B7"`/`"A1:C3"` string that did not parse, or that parsed and named a
+/// position past the grid — and it is raised while reading the text, before there is a row or a
+/// column to report. Those two fields carry the *(row, column)* of a table cell, 0-based, and an
+/// address that never resolved has neither. The one place a `Workbook` failure does carry them is
+/// [`CellBlock`](crate::CellBlock)'s own offsets, which are already 0-based coordinates into a block
+/// the caller holds. This is a known asymmetry, written down rather than papered over: see
+/// MJXOFF-118's report.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ErrorDetail {
     /// The surface addressed — a slide, layout, master, notes slide, or the notes master.
-    /// `None` for every Word failure: WordprocessingML has no equivalent of a shape-bearing surface,
-    /// so a `Document` error never populates this field.
+    /// `None` for every Word and every Excel failure; see the type's own table for why.
     pub surface: Option<Surface>,
     /// The shape addressed, as the path a caller passed: `[2]` top-level, `[2, 1]` inside a group.
-    /// `None` for every Word failure, for the same reason as [`surface`](Self::surface).
+    /// `None` for every Word and every Excel failure, for the same reason as
+    /// [`surface`](Self::surface).
     pub shape: Option<ShapePath>,
-    /// The table row addressed — a `mjx_pptx` table cell, or a `mjx_docx` one (`w:tbl`'s own
-    /// `(row, column)` addressing).
+    /// The 0-based table row addressed — a `mjx_pptx` table cell, a `mjx_docx` one (`w:tbl`'s own
+    /// `(row, column)` addressing), or a `(row, column)` offset into a
+    /// [`CellBlock`](crate::CellBlock).
     pub row: Option<u32>,
-    /// The table column addressed.
+    /// The 0-based table column addressed, paired with [`row`](Self::row) and never set without it.
     pub column: Option<u32>,
-    /// Whatever else was indexed — a slide, layout, master, paragraph, run, field, chart series,
-    /// axis, plot, trendline, ActiveX control, the start of a text range, or (for Word) a section.
+    /// Whatever else was indexed, as a 0-based ordinal into a flat list — for PowerPoint a slide,
+    /// layout, master, paragraph, run, field, chart series, axis, plot, trendline, ActiveX control
+    /// or the start of a text range; for Word a section, paragraph, run, comment or note; for Excel
+    /// **the sheet**, an anchor, or a `cellXfs` record.
     pub index: Option<u32>,
 }
 

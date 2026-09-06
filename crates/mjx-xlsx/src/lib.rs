@@ -64,6 +64,7 @@
 
 mod authoring;
 mod blank;
+pub mod effective_properties;
 mod error;
 pub mod guide;
 mod nav;

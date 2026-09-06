@@ -1187,7 +1187,7 @@ pub struct PlaceholderInfo {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeInfo {
     /// The shape's address on the surface's top-level index space.
-    pub index: usize,
+    pub index: u32,
     /// What kind of shape it is.
     pub kind: ShapeKind,
     /// The placeholder slot the shape fills, or `None` if it is not a placeholder.

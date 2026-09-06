@@ -1,6 +1,9 @@
 # Guide
 
-Fifteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+One page per feature area, listed in the table below — a count is not written here because three
+places in this workspace once carried three different ones for this guide (fifteen, fourteen and
+thirteen) and none of them was right. Excel is the last of the three formats this workspace takes
+on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
@@ -42,6 +45,11 @@ and no more, so that nobody plans around a surface that is not here.
 | [Large workbooks](large_workbooks) | Before you write a loop that touches a lot of cells |
 | [Deliberate limitations](deliberate_limitations) | **Before you file a bug** — every standing refusal, its reason and its workaround |
 | [Through the facade and the bindings](through_the_facade) | You are calling this from `mjx-ooxml`, Python or TypeScript rather than from here |
+
+Beside the pages above, [the effective-properties guide](crate::effective_properties) is the deep
+reference on what a cell *states* versus what Excel *shows* — the two-level `xf` indirection every
+`effective_*` reader walks — and it is the third of three pages in one shape, alongside
+`mjx_pptx::effective_properties` and `mjx_docx::effective_properties`.
 
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a
 value it computed — the same rule `mjx-pptx`'s and `mjx-docx`'s guides are held to, and what keeps a

@@ -339,6 +339,46 @@ test("a chart round-trips through the binding", () => {
 
     deck.setChartTitle(0, frame, "Trend");
     assert.equal(deck.chartTitle(0, frame), "Trend");
+
+    // What the caches hold versus what the references name — the second half of the pair, and the
+    // one MJXOFF-118 found bound on `Workbook` alone.
+    const references = deck.chartSeriesReferences(0, frame);
+    assert.equal(references.length, 1);
+    assert.notEqual(references[0].values, undefined);
+    references.forEach((entry) => entry.free());
+
     deck.validate();
+  });
+});
+
+test("removing a deck chart binding is caught by this suite", () => {
+  // The parity clause's own guard: **remove one binding and this case goes red.** The `Document`
+  // and `Workbook` suites have carried this guard since their own children; MJXOFF-118 found the
+  // `Deck` pair — the one the ticket names — had none, which is how `Deck.chartSeriesReferences`
+  // came to be missing from both bindings while the chart case above stayed green. Delete
+  // `Deck::chart_series_references` from `bindings/mjx-wasm/src/deck.rs` and this fails.
+  withDeck((deck) => {
+    for (const method of [
+      "addChart",
+      "chartPartBytes",
+      "chartKinds",
+      "chartSeries",
+      "chartSeriesReferences",
+      "chartAxes",
+      "chartTitle",
+      "chartLegend",
+      "chartWorkbooks",
+      "refreshChartWorkbook",
+      "detachChartWorkbook",
+      "setChartSeriesValues",
+      "setChartSeriesCategories",
+      "setChartDataLabels",
+      "addChartTrendline",
+      "setChartErrorBars",
+      "setChartPointFill",
+      "chartDanglingDecoration",
+    ]) {
+      assert.equal(typeof deck[method], "function", `Deck.${method} is not bound`);
+    }
   });
 });

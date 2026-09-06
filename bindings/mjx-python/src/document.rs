@@ -31,8 +31,9 @@ use mjx_ooxml as ooxml;
 
 use crate::charts::{
     ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
-    ChartPointFormatData, ChartSeriesData, ChartTrendlineData, ChartWrap, DanglingPointReference,
-    DataLabelSettings, DataLabelSpec, DocumentChartWorkbook, ErrorBarSpec, TrendlineSpec,
+    ChartPointFormatData, ChartSeriesData, ChartSeriesReferences, ChartTrendlineData, ChartWrap,
+    DanglingPointReference, DataLabelSettings, DataLabelSpec, DocumentChartWorkbook, ErrorBarSpec,
+    TrendlineSpec,
 };
 use crate::enums::{
     AxisOrientation, CellBorderEdge, ChartKind, HeaderFooterType, LegendPosition, MergedCellType,
@@ -1064,6 +1065,19 @@ impl Document {
             .map_err(to_py_err)?
             .into_iter()
             .map(ChartSeriesData)
+            .collect())
+    }
+
+    /// Where every series says its data lives — the formula beside each cache, as written. The
+    /// companion of `chart_series`: that answers what the caches *hold*, this answers what the
+    /// references *name*.
+    fn chart_series_references(&mut self, drawing_id: u32) -> PyResult<Vec<ChartSeriesReferences>> {
+        Ok(self
+            .inner
+            .chart_series_references(drawing_id)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesReferences)
             .collect())
     }
 

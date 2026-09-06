@@ -465,6 +465,28 @@ fn write_column_letters(column: u16, out: &mut AddressText) {
 /// assert_eq!(cell.column_anchoring(), Anchoring::Absolute);
 /// assert_eq!(cell.text().as_str(), "$B$7"); // exactly what was read
 /// ```
+///
+/// # The constructors take `(column, row)`, and everything else in the workspace takes `(row, column)`
+///
+/// That is deliberate, and it is worth stating because the asymmetry is real. Thirty-odd methods
+/// across `mjx-pptx`, `mjx-docx` and the facade address a table cell or a block offset as
+/// `(row, column)` — `Presentation::cell_text`, `Document::set_cell_text`, `CellBlock::value`,
+/// [`ErrorDetail`]'s own two fields — because each of those indexes a two-dimensional *body* of
+/// cells, where row-major is the ordinary convention.
+///
+/// [`new`](Self::new), [`relative`](Self::relative) and [`absolute`](Self::absolute) do not index a
+/// body. They construct **the address itself**, whose only rendering is `A1` — column letters, then
+/// row number, in that order, in every file this library reads or writes. Taking the row first would
+/// mean [`CellReference::relative(6, 1)`](Self::relative) spelled `B7`, which reverses the very
+/// string the value exists to carry.
+///
+/// The two idioms never meet at a call site: nothing on the [`Workbook`] facade takes a
+/// `CellReference` — every address argument there is A1 *text* — so this constructor is reached only
+/// by a caller already thinking in column letters. [`parse`](Self::parse) is the constructor that
+/// caller usually wants.
+///
+/// [`ErrorDetail`]: https://docs.rs/mjx-ooxml/latest/mjx_ooxml/struct.ErrorDetail.html
+/// [`Workbook`]: https://docs.rs/mjx-ooxml/latest/mjx_ooxml/struct.Workbook.html
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct CellReference {
     /// Zero-based row index: `0` is the row a file spells `1`.

@@ -27,9 +27,9 @@ use super::Presentation;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LayoutInfo {
     /// The layout's index — the address [`Presentation::add_slide_from_layout`] takes.
-    pub index: usize,
+    pub index: u32,
     /// The index of the master that lists this layout.
-    pub master_index: usize,
+    pub master_index: u32,
     /// The layout's name (`p:cSld@name`), or `None` if it declares none.
     pub name: Option<String>,
     /// What the layout declares itself for (`p:sldLayout@type`), `Custom` when it declares nothing.
@@ -100,13 +100,13 @@ impl Presentation {
         (0..self.layout_count())
             .map(|index| {
                 Ok(LayoutInfo {
-                    index,
-                    master_index: self.layout_master(index).ok_or(
+                    index: crate::index::count(index),
+                    master_index: crate::index::count(self.layout_master(index).ok_or(
                         PptxError::LayoutIndexOutOfRange {
                             index,
                             count: self.layout_count(),
                         },
-                    )?,
+                    )?),
                     name: self.layout_name(index)?,
                     kind: self.layout_kind(index)?,
                 })

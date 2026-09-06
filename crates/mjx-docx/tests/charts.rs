@@ -735,7 +735,7 @@ fn every_edit_reads_back_through_the_word_surface() {
     document
         .set_chart_data_labels(
             chart,
-            ChartLabelScope::Series { series_idx: 0 },
+            ChartLabelScope::Series { series_index: 0 },
             &DataLabelSpec::new().value(true),
         )
         .expect("data labels");
@@ -795,7 +795,7 @@ fn every_edit_reads_back_through_the_word_surface() {
 
     assert!(
         document
-            .remove_chart_data_labels(chart, ChartLabelScope::Series { series_idx: 0 })
+            .remove_chart_data_labels(chart, ChartLabelScope::Series { series_index: 0 })
             .expect("removed"),
         "the labels set above were there to remove"
     );
