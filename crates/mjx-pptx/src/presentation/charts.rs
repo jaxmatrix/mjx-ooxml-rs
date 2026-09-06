@@ -1,8 +1,9 @@
 //! Charts: adding one, its embedded workbook, and the series, axes, title and legend it draws.
 
 use mjx_chart::{
-    Axis, AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind,
-    ChartSpace, EmbeddedWorkbook, LegendPosition, Series, TickLabelPosition, TickMark,
+    embedded_workbook_for_chart_data, embedded_workbook_for_chart_space, Axis, AxisKind,
+    AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind, ChartSpace,
+    LegendPosition, Series, TickLabelPosition, TickMark,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN, PML};
@@ -56,7 +57,7 @@ impl Presentation {
 
         // Everything fallible that does not touch the package happens first, so a failure here
         // leaves the document exactly as it was.
-        let workbook = EmbeddedWorkbook::for_chart_data(chart).to_package_bytes()?;
+        let workbook = embedded_workbook_for_chart_data(chart)?;
         let chart_part = self.next_chart_part()?;
         let workbook_part = self.next_chart_workbook_part()?;
 
@@ -70,7 +71,7 @@ impl Presentation {
         )?;
         self.package.insert_part(
             &workbook_part,
-            mjx_chart::CONTENT_TYPE_WORKBOOK_PACKAGE,
+            mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE,
             workbook,
         )?;
         self.package.add_relationship(
@@ -478,7 +479,7 @@ impl Presentation {
         let Some(rel_id) = space.external_data_rel_id(&doc.interner).map(str::to_owned) else {
             return Ok(false);
         };
-        let workbook = EmbeddedWorkbook::for_chart_space(&space).to_package_bytes()?;
+        let workbook = embedded_workbook_for_chart_space(&space)?;
 
         // An external workbook is not ours to rewrite; a relationship we cannot resolve is not
         // either. Neither is an error — there is simply no embedded workbook to refresh.

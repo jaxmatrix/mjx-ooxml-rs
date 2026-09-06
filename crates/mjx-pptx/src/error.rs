@@ -3,6 +3,7 @@
 use mjx_dml::GuideError;
 use mjx_ooxml_core::FromXmlError;
 use mjx_opc::OpcError;
+use mjx_sml::SmlError;
 use mjx_xml::XmlError;
 
 use crate::legacy::DiagramPartKind;
@@ -35,6 +36,16 @@ pub enum PptxError {
     /// A modeled element (e.g. a text body) was malformed.
     #[error(transparent)]
     Model(#[from] FromXmlError),
+
+    /// The embedded workbook behind a chart could not be written.
+    ///
+    /// A chart carries a whole `.xlsx` package at `/ppt/embeddings/*.xlsx`, and `mjx-sml` is what
+    /// writes it (MJXOFF-99 retired this workspace's second SpreadsheetML writer). The reachable
+    /// failure is a grid that does not fit a sheet — more series than SpreadsheetML has columns,
+    /// more categories than it has rows; the rest of [`SmlError`] is packaging, which cannot fail
+    /// for part names that are constants.
+    #[error(transparent)]
+    Sml(#[from] SmlError),
 
     /// A shape's geometry guide (`a:gd@fmla`) could not be evaluated — a malformed formula, a name
     /// nothing defines, or arithmetic that leaves the reals (a degenerate shape size divides by

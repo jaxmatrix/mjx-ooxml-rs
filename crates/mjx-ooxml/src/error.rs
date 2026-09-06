@@ -1,6 +1,6 @@
 //! [`Error`] — one error type, shaped so a foreign-function binding can act on it.
 //!
-//! `mjx-pptx` reports failures as [`PptxError`], sixty-five variants each carrying exactly the
+//! `mjx-pptx` reports failures as [`PptxError`], sixty-six variants each carrying exactly the
 //! context its own call site had; `mjx-docx` reports its own as [`DocxError`], thirty-five more; and
 //! `mjx-xlsx` reports its own as [`XlsxError`], eleven that in turn open onto [`SmlError`]'s fifteen
 //! and [`AddressError`]'s sixteen. That is the right shape for Rust and the wrong shape for a
@@ -351,6 +351,11 @@ fn classify(error: &PptxError) -> (ErrorCode, ErrorDetail) {
     match error {
         // --- the layers below, classified by what they mean here ---------------------------
         PptxError::Opc(opc) => (opc_code(opc), none()),
+        // A chart's embedded workbook is written by `mjx-sml`, so a failure there is an `SmlError`
+        // reaching this crate through PresentationML rather than through `mjx-xlsx`. It is classified
+        // by what it says, not by which format carried it — `sml_code` is the same function
+        // `classify_xlsx` delegates to.
+        PptxError::Sml(sml) => sml_code(sml),
         PptxError::Xml(_) | PptxError::Model(_) | PptxError::GuideFormula(_) => {
             (C::MalformedDocument, none())
         }
