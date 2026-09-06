@@ -33,6 +33,7 @@
 //! The division is the crate split restated: `mjx-sml` answers *what a row is*, and this module
 //! answers *which part in this package holds row 7*.
 
+pub(crate) mod drawings;
 pub(crate) mod features;
 pub(crate) mod formatting;
 pub(crate) mod geometry;

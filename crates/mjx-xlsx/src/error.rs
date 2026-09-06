@@ -105,6 +105,17 @@ pub enum XlsxError {
         /// The external target.
         target: String,
     },
+
+    /// The bytes handed to an image-adding call match no format this build recognises
+    /// (MJXOFF-107).
+    ///
+    /// [`ImageFormat::sniff`](mjx_opc::ImageFormat::sniff) reads a magic-byte signature and nothing
+    /// else, so this says *these leading bytes are not a PNG, JPEG, GIF, BMP, TIFF, EMF, WMF or
+    /// SVG* — not that the payload is a corrupt image. Refusing here is what keeps a caller from
+    /// registering a content type for a file Excel will not draw; nothing in this library ever
+    /// decodes a pixel.
+    #[error("the bytes match no image format this build recognises")]
+    UnrecognizedImageFormat,
 }
 
 impl From<mjx_ooxml_core::AttributeError> for XlsxError {

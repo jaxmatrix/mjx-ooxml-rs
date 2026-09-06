@@ -429,7 +429,7 @@ impl Workbook {
 
     /// Resolves one of a sheet part's own relationships by id, or `None` when it declares none with
     /// that id.
-    fn resolve_sheet_relationship(
+    pub(crate) fn resolve_sheet_relationship(
         &self,
         sheet_part: &PartName,
         relationship_id: &str,
@@ -512,7 +512,7 @@ fn origin_without_a_styles_part(name: &str) -> TableStyleOrigin {
 /// Excel writes. Computed rather than hard-coded because nothing in OPC requires a worksheet to live
 /// in `/xl/worksheets/`, and a package that puts one elsewhere would otherwise get a target that
 /// resolves to a part that is not there.
-fn relative_target(from: &PartName, to: &PartName) -> String {
+pub(crate) fn relative_target(from: &PartName, to: &PartName) -> String {
     let from_segments: Vec<&str> = from.as_str().trim_start_matches('/').split('/').collect();
     let to_segments: Vec<&str> = to.as_str().trim_start_matches('/').split('/').collect();
     // The last segment of each is the file name, so only the directories are compared.

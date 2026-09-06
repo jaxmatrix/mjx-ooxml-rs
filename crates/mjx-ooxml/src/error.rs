@@ -657,6 +657,12 @@ fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
         // The same reading `PptxError::ExternalTarget` and `DocxError::ExternalTarget` get: an
         // external relationship is legitimate markup, and this library does no external I/O.
         XlsxError::ExternalTarget { .. } => (C::UnsupportedContent, none()),
+
+        // --- refused before anything was written --------------------------------------------
+        //
+        // The same reading `PptxError::UnrecognizedImageFormat` gets, for the same call: the bytes
+        // the caller handed over are the argument, and they are not an image this build knows.
+        XlsxError::UnrecognizedImageFormat => (C::InvalidArgument, none()),
     }
 }
 
