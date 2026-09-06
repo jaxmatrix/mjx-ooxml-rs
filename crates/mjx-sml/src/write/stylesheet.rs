@@ -28,7 +28,7 @@
 //! | `cellXfs` | 1 — the same, plus `xfId="0"` | the record `c@s="0"` resolves to, and the format of every cell that states none |
 //! | `cellStyles` | 1 — `Normal`, `builtinId="0"` | the name Excel shows in the style gallery for `cellStyleXfs[0]` |
 //!
-//! This is the same skeleton `mjx_chart::EmbeddedWorkbook`'s `build_styles()` emits — MJXOFF-112's
+//! This is the same skeleton `mjx-chart`'s retired `build_styles()` emitted — MJXOFF-112's
 //! parity gate compares them table by table — except that it is built out of MJXOFF-105's and
 //! MJXOFF-108's models rather than out of hand-assembled [`RawElement`](mjx_ooxml_core::RawElement)s.
 //!
