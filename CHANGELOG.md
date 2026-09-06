@@ -58,6 +58,91 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.127] - 2026-09-07
+
+### The cross-format consistency pass — one reading of the whole public surface (MJXOFF-118, E6)
+
+**Phase E's last child, and the last cheap moment to rename anything.** Three formats were built in
+three phases, months apart, by different agents following the same rules; rules produce consistency
+locally, and only a deliberate cross-cutting read produces it globally. This is that read. Nothing
+here changes a byte any file receives.
+
+#### The shared-markup reachability table, and the test that keeps it true
+
+The gate MJXOFF-82 named: **nothing in `mjx-dml`, `mjx-sml`, `mjx-chart`, `mjx-vml` or `mjx-omml` is
+reachable from one format's facade surface but not another's without a written reason.**
+`crates/mjx-ooxml/docs/shared_markup_reachability.md` (rendered as
+`mjx_ooxml::shared_markup_reachability`) is that table, and
+`crates/mjx-ooxml/tests/shared_markup_reachability.rs` re-derives it from the workspace on every
+`cargo test` — the crate-level grid out of three `Cargo.toml`s, the 102-capability grid out of the
+facade's own `src/`. A method added to one surface and not the others, a note no row cites, a format
+crate that starts modelling a shared markup: each fails naming the row it is about.
+
+What the derivation found:
+
+- **`mjx-chart` came out symmetric.** 25 of 28 chart capabilities are on all three surfaces — and
+  read the other way, *every* capability on all three surfaces is a chart capability. The three that
+  are not each have a reason in the file format, not in this library.
+- **Sixty-seven DrawingML capabilities reach `Deck` alone**, in four groups with four different
+  reasons. The shape-properties one names an open seam rather than hiding it: `mjx-docx` already
+  models `wp:spPr` as `mjx_dml::ShapeProperties`, but that type is interner-bound and the facade's
+  boundary is not, and only `mjx-pptx` built the interner-free spec layer that crosses it.
+- **`theme`/`color_map` reaching `Deck` alone is the clearest gap.** `mjx-sml` resolves
+  `<color theme="N"/>` to a slot number and says the theme part is `mjx-xlsx`'s to fetch;
+  `mjx-xlsx` does not fetch it, so an Excel theme colour comes back as a position where the same
+  colour in a `.pptx` comes back as `RRGGBB`. No ticket owned this before the table did.
+- **`mjx-vml` and `mjx-omml` reach no surface as types** — both interner-bound trees with no
+  binding-friendly projection — and the bytes-and-identifiers surface that does exist is not
+  symmetric either: `Deck` and `Workbook` have one, `Document` has none.
+
+#### Excel's effective-properties guide — the third page, in one shape
+
+`crates/mjx-xlsx/docs/effective_properties.md` joins `mjx-pptx`'s and `mjx-docx`'s, wired the same
+way (a documentation-only module over `include_str!`, so its three examples are doctests and its
+links are checked). It says the thing that makes Excel different rather than restating the others:
+**Excel inherits nothing** — a cell carries an index, that index names a record, and that record
+carries four more plus a fifth into a second table of the same records — which is why an
+`EffectiveCellFormat` reports *which layer* answered where the other two report only a value.
+
+`crates/mjx-ooxml/tests/effective_properties_shape.rs` is what keeps the three one shape: same
+opening sentence, the same four load-bearing sections in the same order, real compiled examples on
+each, each wired into its crate. Two `mjx-docx` headings were renamed to the shared spelling.
+
+#### Binding parity, in both directions
+
+`chart_series_references` was bound for `Workbook` and for neither `Deck` nor `Document` — a facade
+method two languages could not reach. Both bindings grow it, the `.pyi` grows two entries, and with
+those four **every `pub fn` on all three facade surfaces is bound in both languages**, the escape
+hatches excepted.
+
+The reason nothing caught it is the more useful finding: three of the six coverage suites carried an
+explicit *"remove one binding and this goes red"* case and three did not — including **both halves
+of the `Deck` pair**, which is the pair the specification names. The two missing guards are added.
+
+#### Naming and shape
+
+- `ChartLabelScope`'s `plot_idx`/`series_idx`/`point_idx` are spelled out and are `u32`; so are
+  `ShapeInfo::index` and `LayoutInfo::{index, master_index}`. Both rows are in the *Unreleased —
+  0.1.0* ledger. Python and TypeScript are unchanged: **both bindings already published these
+  names and this width**, and five conversions are gone.
+- `ErrorDetail` now states, as a table, what each of its five fields means for a slide, a paragraph
+  and a cell — including the two Excel answers a caller would otherwise have to discover by
+  experiment (a sheet is reported through `index`, and an Excel cell address populates neither `row`
+  nor `column`).
+- `mjx_sml::CellReference`'s constructors take `(column, row)` where thirty-odd methods elsewhere
+  take `(row, column)`; the reason is now on the type rather than in a ticket. **Reordering remains
+  the user's call.**
+
+#### Counts that had already expired
+
+Every count this child quotes was measured, and several it found were not: the Excel guide's page
+count was written in three places as thirteen, fourteen and fifteen (it is seventeen — the numeral
+is now in none of the three); `error.rs` under-counted `DocxError` by six variants and `XlsxError`
+by seven; `README.md` still called the project PowerPoint-first and listed two test-only crates
+where there are three; and three rustdoc sites still described
+`crates/mjx-chart/src/workbook.rs`, which MJXOFF-99 deleted, one of them as the live rationale of a
+test.
+
 ## [0.0.126] - 2026-09-07
 
 **Excel's legacy surfaces** (MJXOFF-114, Phase E position 5): a cell comment, the Transitional VML
