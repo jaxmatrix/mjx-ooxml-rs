@@ -17,8 +17,8 @@
 //! `mjx_chart::EmbeddedWorkbook`, the writer this one replaces, lives in
 //! `crates/mjx-chart/tests/workbook_parity.rs`, because only `mjx-chart` may see both.
 //!
-//! MJXOFF-99 deletes that file along with the writer it compares against; everything here survives
-//! it, which is the point of the split.
+//! MJXOFF-99 has since deleted that file along with the writer it compared against; everything here
+//! survived it, which was the point of the split.
 
 use std::collections::BTreeSet;
 
@@ -27,8 +27,8 @@ use mjx_opc::Package;
 use mjx_sml::write::{
     AuthoredCellValue, CellFormatSpec, CellFormatTarget, PatternFillSpec, WorkbookPackage,
     CONTENT_TYPE_SHARED_STRINGS, CONTENT_TYPE_STYLES, CONTENT_TYPE_WORKBOOK,
-    CONTENT_TYPE_WORKSHEET, DEFAULT_SHEET_NAME, REL_OFFICE_DOCUMENT, REL_SHARED_STRINGS,
-    REL_STYLES, REL_WORKSHEET,
+    CONTENT_TYPE_WORKBOOK_PACKAGE, CONTENT_TYPE_WORKSHEET, DEFAULT_SHEET_NAME, REL_OFFICE_DOCUMENT,
+    REL_SHARED_STRINGS, REL_STYLES, REL_WORKSHEET,
 };
 use mjx_sml::{
     CellReference, CellValue, FontProperties, SharedStringTable, SheetList, StylesheetPart,
@@ -38,7 +38,7 @@ use mjx_sml::{
 /// The SpreadsheetML namespace, as `sml.xsd` declares it.
 const SML_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-/// The grid `mjx_chart::EmbeddedWorkbook::for_chart_data` lays out for a two-series bar chart: a
+/// The grid `mjx_chart::embedded_workbook_for_chart_data` lays out for a two-series bar chart: a
 /// header row whose first cell is blank, then one row per category.
 ///
 /// Written out here rather than computed, so that the layout the assertions check is stated
@@ -800,4 +800,92 @@ fn renaming_a_tab_moves_the_name_and_nothing_else() {
             sheets: 1
         })
     ));
+}
+
+/// A row that writes no cell still spends its row number, so the row after it lands where the
+/// caller put it.
+///
+/// The grid door lets a row write nothing — [`AuthoredCellValue::Blank`] and a non-finite number
+/// both do — and the row is still a row. Measuring "the next row" off the *populated* ones instead
+/// would slide every later row up by one and silently mis-address the whole grid.
+///
+/// The case is not contrived: a chart's embedded workbook opens with a header row that is the empty
+/// corner above the category labels followed by the series names, and a chart whose series carry no
+/// `c:tx` name makes that entire row blank. Its `c:f` formulas still say `Sheet1!$A$2:$A$4`.
+///
+/// Asserted against the row numbers in the file, not against the value `push_row` answers, so a
+/// writer that reported one row and wrote another would fail here.
+#[test]
+fn a_row_that_writes_nothing_still_occupies_its_row_number() {
+    let mut workbook = WorkbookPackage::new().expect("the writer's seeds parse");
+
+    let header = workbook
+        .push_row(0, &[AuthoredCellValue::Blank, AuthoredCellValue::Blank])
+        .expect("an all-blank row is a row");
+    let first = workbook
+        .push_row(
+            0,
+            &[
+                AuthoredCellValue::SharedText("Q1".to_owned()),
+                AuthoredCellValue::Number(10.0),
+            ],
+        )
+        .expect("the grid fits the sheet");
+    let skipped = workbook
+        .push_row(0, &[AuthoredCellValue::Number(f64::NAN)])
+        .expect("a non-finite number writes no cell");
+    let last = workbook
+        .push_row(0, &[AuthoredCellValue::SharedText("Q3".to_owned())])
+        .expect("the grid fits the sheet");
+
+    assert_eq!(
+        [header, first, skipped, last],
+        [1, 2, 3, 4],
+        "four appended rows are rows 1 to 4, whatever each of them wrote"
+    );
+
+    workbook.recompute_dimensions();
+    let sheet = part_text(
+        &workbook.to_package().expect("the package assembles"),
+        "/xl/worksheets/sheet1.xml",
+    );
+    assert!(
+        sheet.contains(r#"<row r="2"><c r="A2" t="s"><v>0</v></c><c r="B2"><v>10</v></c></row>"#),
+        "the row after an all-blank one is row 2: {sheet}"
+    );
+    assert!(
+        sheet.contains(r#"<row r="4"><c r="A4" t="s"><v>1</v></c></row>"#),
+        "and the row after a row of unwritable numbers is row 4: {sheet}"
+    );
+    assert!(
+        sheet.contains(r#"<dimension ref="A2:B4"/>"#),
+        "the cached box covers the cells that exist, not the rows that were pushed: {sheet}"
+    );
+    assert_eq!(
+        workbook
+            .sheet(0)
+            .expect("the package has its first tab")
+            .appended_row_count(),
+        4,
+        "the cursor counts rows appended, not rows populated"
+    );
+}
+
+/// The `.xlsx` *file*'s content type — the one a **host** package registers for an embedded workbook
+/// at `/ppt/embeddings/*.xlsx`, spelled out rather than compared to itself.
+///
+/// It is not in `[Content_Types].xml` inside the workbook: it is what the document that carries the
+/// workbook writes as that part's `Override`. `mjx-chart` exported a copy of this string until
+/// MJXOFF-99 deleted its writer, and `crates/mjx-pptx/src/presentation/charts.rs` now registers an
+/// embedded workbook with this one. A literal here is what makes that a rename rather than a change.
+#[test]
+fn the_embedded_package_content_type_is_the_one_a_host_registers() {
+    assert_eq!(
+        CONTENT_TYPE_WORKBOOK_PACKAGE,
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    // The workbook part *inside* the package is a different type, and confusing the two is how an
+    // embedded workbook ends up unopenable.
+    assert_ne!(CONTENT_TYPE_WORKBOOK_PACKAGE, CONTENT_TYPE_WORKBOOK);
+    assert_eq!(DEFAULT_SHEET_NAME, "Sheet1");
 }
