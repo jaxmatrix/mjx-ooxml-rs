@@ -1,0 +1,43 @@
+[package]
+name = "mjx-text"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Typography for the client platform: face parsing and metrics, the system font database, the metric-compatible substitution table, and the per-document substitution manifest."
+
+# The bundled tier-2 faces and their licences ship with the crate: an application that vendors
+# `mjx-text` and points `BundledFonts::from_directory` at this path gets a working tier 2 without
+# hunting for the files, and the OFL's "distribute the licence alongside" obligation travels with
+# them. Everything else a package would otherwise sweep up is excluded.
+include = [
+    "src/**/*.rs",
+    "assets/fonts/*.ttf",
+    "assets/fonts/*.txt",
+    "assets/fonts/README.md",
+    "Cargo.toml",
+]
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. Family names repeat once per run in a document with thousands of runs, which is exactly
+# the string the interner exists for; `Symbol` is what the manifest and the resolver's caches key on.
+mjx-ooxml-core.workspace = true
+# Rank 0.2 (MJXOFF-156). The chrome's own type is named by tokens, and a `FontStack` is a CSS font
+# list; resolving one is this crate's job, so the token table is where the request comes from.
+mjx-tokens.workspace = true
+thiserror.workspace = true
+# The face parser. Pure Rust, no allocation on the parse path, and it returns `Option`/`Result`
+# rather than panicking on malformed input — which is the property that matters here, because a font
+# file inside a `.pptx` is exactly as untrusted as the `.pptx`.
+ttf-parser.workspace = true
+# The system font index. `default-features = false` on purpose:
+#   * `memmap` would pull `memmap2`, whose mapping cannot be made sound on a platform where another
+#     process may truncate the file underneath us, and which does not build for `wasm32`;
+#   * `fs` and `fontconfig` are pure Rust and are what makes tier 1 real on desktop and Android.
+# Tier 1 being *absent* is a supported configuration (iOS), so nothing here is load-bearing.
+fontdb = { workspace = true, default-features = false, features = ["std", "fs", "fontconfig"] }

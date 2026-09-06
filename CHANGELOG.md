@@ -54,6 +54,77 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.123] - 2026-09-06
+
+**The font engine: three tiers, a metric-compatible substitution table, and a substitution manifest
+a user can read** (MJXOFF-157, Phase R position 2).
+
+Fonts are the largest fidelity variable in the renderer, and metric compatibility is a correctness
+requirement rather than a nicety. If a substituted face's advance widths differ from the original's,
+every line breaks in a different place and pagination diverges from Office on page one. Everything
+R19–R22 does with Word's reflow rests on this.
+
+### Added
+
+- **`crates/mjx-text`** — a new crate at **rank 1.5**, depending on `mjx-ooxml-core` and
+  `mjx-tokens` and on no format crate and not on `mjx-dml`. It answers two questions and no others:
+  *which face should this run be drawn in*, and *what are that face's numbers*. Shaping is R03 and
+  rasterisation is R04.
+- **Face loading and metrics** through `ttf-parser`: units per em, the `hhea` and `OS/2` vertical
+  metrics, cap height, x-height, italic angle, underline and strikeout, glyph advances and bounding
+  boxes, variable-font axes, and the colour-glyph formats (`COLR`/`CPAL`, `sbix`, `CBDT`, `SVG `).
+  `FontFace` holds the bytes and the once-per-face values; `FaceReader` is the borrowed view the
+  once-per-glyph lookups go through, so a self-referential struct — and the `unsafe` it would need —
+  never arises.
+- **The system font database** through `fontdb`, taken without default features so neither `memmap2`
+  nor a fontconfig C library is ever linked. **An empty system tier is a supported configuration,
+  not a failure**: iOS exposes no system font files to a sandboxed process, and reaching them would
+  need CoreText, which this crate may not link.
+- **The three tiers, resolved in order** — embedded in the document, installed on the device,
+  bundled with the application, and then the tier-3 *policy*: eleven fetchable Noto subsets with
+  their coverage and their download size. There is no transport in this loop, so a resolution that
+  reaches tier 3 is a `FetchPlan`.
+- **The substitution table**, sourced from `fontconfig`'s `30-metric-aliases.conf` — Calibri →
+  Carlito, Cambria → Caladea, Arial/Times New Roman/Courier New → the Liberation family, plus Arial
+  Narrow, Georgia, Symbol and the PostScript base-35. It is consulted **before** any blind fallback,
+  and the blind fallback runs once after a whole font stack rather than once per entry.
+- **Published reference metrics** for the originals, in `mjx_text::reference`, every number
+  transcribed from outside this repository and carrying its citation and an authority flag: the
+  (URW)++ base-35 AFM widths for Arial, Times New Roman and Courier New, `@capsizecss/metrics`
+  4.2.0's measurements of Microsoft's own faces for their vertical metrics, and ECMA-376 Part 1
+  §18.3.1.13's Maximum Digit Width for Calibri.
+- **Metric compatibility measured at resolution time**, not only in a test: every substitution the
+  table makes is compared against those references and the verdict — verified, divergent with the
+  worst character named, or unverified with the reason — is written into the manifest.
+- **The substitution manifest**, per document, queryable: what was asked for, what was used, which
+  tier answered, whether the line breaks survive, and how many runs it affects. U08's font picker
+  renders it.
+- **Embedded fonts**, including the ECMA-376 / XPS obfuscation the `.docx` form uses: the key is a
+  GUID whose sixteen bytes, reversed, mask the face's first thirty-two.
+- **`crates/mjx-text/assets/fonts/`** — the five regular metric-compatible faces (Carlito, Caladea,
+  Liberation Sans, Liberation Serif, Liberation Mono), 1.8 MB, each under the SIL Open Font License
+  1.1 with the licence text committed beside it and a `README.md` recording every file's source
+  version and SHA-256.
+
+### Changed
+
+- **`CLAUDE.md`'s rank table and `xtask/tests/layering.rs` both gain rank 1.5**, as they must.
+- **The layering gate now counts exercised tiers from both ends.** `mjx-ooxml-core`, `mjx-derive`
+  and `mjx-tokens` declare no workspace dependency at all, so no edge ever *leaves* their tiers and
+  a list of outgoing edges could never cover them. `mjx-text -> mjx-tokens` and
+  `mjx-text -> mjx-ooxml-core` are the first edges to reach two of them, and the gate now fails if
+  nothing reaches a tier that ought to be reachable.
+
+### Known limitation
+
+- **Cambria → Caladea is recorded as unverified, deliberately.** Microsoft publishes no width table
+  for Cambria and it is absent from the metric collections that carry Arial, Times New Roman and
+  Courier New, so there is no independent reference to measure Caladea against. The pair resolves,
+  and the manifest says the substitution is unproven rather than claiming a verification nothing
+  stands behind. Filling it in needs one measurement of the real face on a licensed Windows
+  machine — advance widths are facts about a font rather than the font program, so what that
+  produces is numbers.
+
 ## [0.0.122] - 2026-09-06
 
 **One design-token source, three generated consumers — and the contrast rule enforced rather than
