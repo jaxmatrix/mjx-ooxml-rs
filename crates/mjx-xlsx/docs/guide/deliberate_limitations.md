@@ -123,9 +123,10 @@ is on [Fidelity and the part graph](fidelity_and_the_part_graph). **A documented
 validation failure**: nothing on that table is a defect to be filed.
 
 Inside a worksheet the same rule applies at slot level: `CT_Worksheet` has **thirty-nine** slots,
-**thirty-four** are modelled and **five** are held as the markup the file wrote — `phoneticPr`, the
-legacy and header/footer halves of the drawing family (`legacyDrawing`, `legacyDrawingHF`,
-`drawingHF`), and `extLst`.
+**thirty-five** are modelled and **four** are held as the markup the file wrote — `phoneticPr`, the
+header/footer halves of the drawing family (`legacyDrawingHF`, `drawingHF`), and `extLst`.
+`legacyDrawing` at rank 30 joined the modelled set with cell comments; see
+[Cell comments and legacy content](cell_comments_and_legacy_content).
 
 ## Two more standing refusals
 
