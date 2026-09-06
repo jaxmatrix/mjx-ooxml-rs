@@ -45,7 +45,17 @@ mjx-sml.workspace = true
 # in one process, so a figure measured under a harness is the figure of whatever else was running.
 # A plain `main` gives the boundary gate the process to itself — the same arrangement
 # `crates/mjx-sml/tests/cell_store_allocation.rs` makes.
+# `criterion`, for the Excel boundary bench. Dev-only; nothing on a `cargo test` path runs it.
+criterion.workspace = true
+
 [[test]]
+name = "workbook_boundary"
+harness = false
+
+# What a range read and a batched write cost through the facade on the MJXOFF-147 corpus, against
+# the per-cell shape this facade does not offer. MJXOFF-135 measured those figures and left no
+# instrument that reproduces them; this is it.
+[[bench]]
 name = "workbook_boundary"
 harness = false
 

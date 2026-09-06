@@ -47,8 +47,12 @@ use super::Workbook;
 /// resolved through `xl/sharedStrings.xml`, because that is a reference inside the package rather
 /// than a rendering decision. See
 /// [*Deliberate limitations*](mjx_xlsx::guide::deliberate_limitations).
+///
+/// **Deliberately exhaustive**, like the error enumerations below it and for the same reason: both
+/// bindings map every variant onto their own language's values with a `match` that has no wildcard
+/// arm, so a sixth kind of cell would be a compile error there rather than a value that silently
+/// arrives as a blank.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum CellData {
     /// The cell is not populated, or holds no value element. It may still carry a style.
     Blank,
@@ -116,8 +120,9 @@ impl CellData {
 /// A file stores a string either in the shared-string table or in the cell, and the two are
 /// different bytes with different consequences — so the caller says which, rather than this library
 /// picking one and calling it the default.
+///
+/// **Deliberately exhaustive**, for the reason [`CellData`] states.
 #[derive(Debug, Clone, PartialEq)]
-#[non_exhaustive]
 pub enum CellInput {
     /// Remove the value, keeping the cell (and therefore its style).
     Blank,
@@ -169,7 +174,7 @@ pub struct CellBlock {
     row_count: u32,
     column_count: u32,
     values: Vec<CellData>,
-    /// `(offset into `values`, the `<f>` text)` for every cell that carries a formula, in offset
+    /// The offset into `values`, and the `<f>` text, for every cell that carries a formula, in offset
     /// order. Sparse, because most cells in most sheets carry none, and a parallel dense `Vec` would
     /// double a block's cost to say "no" a hundred thousand times.
     formulas: Vec<(u32, String)>,

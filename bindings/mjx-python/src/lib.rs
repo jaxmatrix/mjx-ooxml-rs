@@ -10,9 +10,9 @@
 //!
 //! # What this crate is
 //!
-//! A thin, complete projection of [`mjx_ooxml`] — the whole `Deck` surface (PowerPoint) and the
-//! curated `Document` surface (Word, MJXOFF-139), and the classes their arguments and results are
-//! made of. It adds no behaviour: every method calls exactly one method one layer down, and every
+//! A thin, complete projection of [`mjx_ooxml`] — the whole `Deck` surface (PowerPoint), the
+//! curated `Document` surface (Word, MJXOFF-139) and the curated `Workbook` surface (Excel,
+//! MJXOFF-137), and the classes their arguments and results are made of. It adds no behaviour: every method calls exactly one method one layer down, and every
 //! class wraps exactly one value. What it *does* add is the shape a Python caller expects — an
 //! exception hierarchy, keyword arguments, `bytes`, `list`, `dict`, and a bare `int` where Rust
 //! would take an `impl Into<Surface>`/`impl Into<BlockPath>`.
@@ -28,7 +28,14 @@
 //!   See [`enums`].
 //! * `Deck.presentation`, `Deck.presentation_mut` and `Deck.into_presentation` are absent, because
 //!   all three hand back a `Presentation` — the Rust-only escape hatch whose value is precisely the
-//!   `ShapeCursor` and closure-taking readers a binding cannot carry.
+//!   `ShapeCursor` and closure-taking readers a binding cannot carry. `Document.document_mut` and
+//!   `Workbook.workbook`/`Workbook.workbook_mut`/`Workbook.into_workbook` are absent for the same
+//!   reason.
+//!
+//! ## Excel's own shape
+//!
+//! `Workbook` has no per-cell reader or writer, in Rust or here — cells cross a **range** at a time,
+//! because a per-cell call costs a whole-worksheet parse every time it is made. See [`workbook`].
 //!
 //! The WebAssembly binding diverges on purpose: it is `camelCase`, because a `snake_case` API is an
 //! immediate smell to a TypeScript consumer, while Python's own standard library is `snake_case`.
@@ -80,10 +87,12 @@ pub mod format;
 pub mod geometry;
 pub mod measures;
 pub mod paint;
+pub mod spreadsheet;
 pub mod tables;
 pub mod text;
 pub mod three_d;
 pub mod word;
+pub mod workbook;
 
 /// The `mjx_ooxml` extension module.
 ///
@@ -109,6 +118,8 @@ fn _mjx_ooxml(module: &Bound<'_, PyModule>) -> PyResult<()> {
     deck::register(module)?;
     word::register(module)?;
     document::register(module)?;
+    spreadsheet::register(module)?;
+    workbook::register(module)?;
 
     // `__all__` is derived from what was actually registered, so it cannot drift from the module:
     // a class added above appears here, and one removed disappears. `from mjx_ooxml import *`

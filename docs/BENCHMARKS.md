@@ -318,6 +318,71 @@ next to the rest of this baseline.)*
    store's own cases instead of building a parallel one; the methodology notes above (especially the
    `iter_batched` drop-timing trap) apply to any new benchmark added there too.
 
+## The Excel boundary, through the facade (MJXOFF-137)
+
+`cargo bench -p mjx-ooxml` (`crates/mjx-ooxml/benches/workbook_boundary.rs`), same corpus, same
+machine, same release profile as everything above.
+
+**This harness exists because the one above could not answer the question.** Every figure in the
+tables further up drives `Package::part_tree_mut` — the generic fidelity materialisation — and
+`mjx-xlsx` **never calls it**. The cost a caller of `mjx_ooxml::Workbook` actually pays goes through
+`WorksheetPart::read_part`, a different path building a different structure, and no committed
+instrument measured it until this one. MJXOFF-135 measured it by hand and wrote the figures into
+[*Large workbooks*](../crates/mjx-xlsx/docs/guide/large_workbooks.md); MJXOFF-137 needed them to be
+true before designing a public API around them, so it built the thing that checks.
+
+| Operation, through `mjx_ooxml::Workbook` | Time | MJXOFF-135's hand figure |
+|---|---:|---:|
+| `open` | **11.99 ms** | 14.8 ms |
+| `read_range(0, "A1")` — **one cell** | **404.9 ms** | 387 ms (`cell_text`) |
+| `read_sheet(0)` — all 300,000 cells | **438.3 ms** | — |
+| `write_cells`, 4,000 cells in one call | **410.4 ms** | 1.12 ms *(on a blank sheet, not this one)* |
+| `save`, nothing edited | **350.6 ms** | 314 ms |
+
+**MJXOFF-135's figures reproduce.** `open` and `save` are within 20%, and the one that matters —
+**reaching a single cell costs a whole-worksheet parse** — reproduces at 404.9 ms against its
+387 ms. The one row that is not comparable is marked: MJXOFF-135's 1.12 ms batched figure is 4,000
+cells written into a *blank* sheet, where the parse it pays for is nearly free; the 410.4 ms here is
+4,000 cells written into the 300,000-cell sheet, where the parse is the whole cost. Both are true and
+they measure different things.
+
+### The like-for-like pair, and why the facade has no per-cell call
+
+The same **hundred** cells, into the same 300,000-cell sheet, batched and one at a time:
+
+| Shape | Time | Per cell |
+|---|---:|---:|
+| `Workbook::write_cells`, one call | **358.7 ms** | 3.6 ms |
+| `mjx_xlsx::Workbook::set_cell_value`, a hundred calls | **38.83 s** | 388 ms |
+
+**108×**, and the ratio grows with the batch: a hundred writes is a hundred whole-worksheet parses,
+where the batch is one. A hundred rather than four thousand only because four thousand of them is
+half an hour per criterion iteration — which is itself the finding.
+
+That is why `mjx_ooxml::Workbook` has **no per-cell reader or writer**, and neither binding has one:
+the Rust escape hatch that makes the per-cell shape avoidable (hold the `WorksheetPart` yourself)
+cannot cross a foreign function boundary, so a facade offering `cell_value(sheet, "A1")` would ship
+the 388 ms-per-cell loop as the natural idiom in the one place a caller cannot reach past it.
+
+`crates/mjx-ooxml/tests/workbook_boundary.rs` pins the property this table measures, but as a
+**deterministic allocation ratio** rather than a time: on a 2,000-cell sheet, 200 cells written
+batched allocate **209×** less than 200 written one at a time, and 200 read batched **199×** less.
+The same reasoning as the `iter_batched` note above — a wall-clock threshold loose enough for a
+loaded CI runner stops discriminating — and `mjx_allocation_counter::total_allocated` (added by
+MJXOFF-137, monotonic and never decremented by a free) is the counter that can see repeated work
+where `peak` and `live` cannot.
+
+### Filed, not fixed, here
+
+- **Building the cell store straight from the part's bytes** would remove the parse this whole
+  section is about. It needs a streaming reader in `mjx-xml` (`quick-xml` is allowed behind that
+  crate and nowhere else), which is a phase of its own and is nobody's ticket today. `MJXOFF-151`
+  covers the adjacent per-element overhead; this is the *time*, not the memory.
+- **A `Workbook` that cached one parsed worksheet** would remove it for the second and later calls.
+  It would also mean reading a sheet dirties nothing but does allocate, and that a cache has to be
+  invalidated by every writer — a design decision with fidelity consequences, and not one a facade
+  child may take on its own.
+
 ## Filed, not fixed, below
 
 - **MJXOFF-151** — per-element memory overhead in the `RawElement` tree (the ~913 B/cell, ~32×

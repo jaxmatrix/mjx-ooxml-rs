@@ -99,3 +99,10 @@ pub mod deliberate_limitations {
     #![doc = include_str!("../docs/guide/deliberate_limitations.md")]
     guide_vocabulary!();
 }
+
+/// The same workbook through `mjx-ooxml`, Python and TypeScript — and the one place the four
+/// surfaces deliberately do not agree.
+pub mod through_the_facade {
+    #![doc = include_str!("../docs/guide/through_the_facade.md")]
+    guide_vocabulary!();
+}

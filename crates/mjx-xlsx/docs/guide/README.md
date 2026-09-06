@@ -1,6 +1,6 @@
 # Guide
 
-Thirteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+Fourteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
@@ -14,9 +14,10 @@ feature here that lives in a part of its own. MJXOFF-127 (D16) adds hyperlinks, 
 in two parts that this library writes and removes together. MJXOFF-129 (D17) adds print setup, the
 opaque header/footer strings and the three sheet kinds that are not worksheets. MJXOFF-133 (D18)
 writes down the half of `sml.xsd` this project deliberately does not model, and proves it survives.
-MJXOFF-135 (D19) — this child — adds the two pages that were missing and the six runnable examples.
-This guide says exactly that much and no more, so that nobody plans around a surface that is not
-here.
+MJXOFF-135 (D19) adds the two pages that were missing and the six runnable examples. MJXOFF-137
+(D20) — this child — projects the whole of it through `mjx-ooxml` and both bindings, and adds the one
+page about what changes on the way. This guide says exactly that much and no more, so that nobody
+plans around a surface that is not here.
 
 | Page | Read it when |
 |---|---|
@@ -33,6 +34,7 @@ here.
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 | [Large workbooks](large_workbooks) | Before you write a loop that touches a lot of cells |
 | [Deliberate limitations](deliberate_limitations) | **Before you file a bug** — every standing refusal, its reason and its workaround |
+| [Through the facade and the bindings](through_the_facade) | You are calling this from `mjx-ooxml`, Python or TypeScript rather than from here |
 
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a
 value it computed — the same rule `mjx-pptx`'s and `mjx-docx`'s guides are held to, and what keeps a
