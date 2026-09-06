@@ -197,6 +197,16 @@ jobs:
           soffice --headless --convert-to pdf --outdir . guide_workbook.xlsx
           test -s guide_workbook.pdf
 
+      # And the workbook the *facade* writes (MJXOFF-137), which is a different authoring path: the
+      # curated surface, its batched `write_cells`, and its own cell-format vocabulary. One
+      # conversion covers all three languages, because `test_build_a_workbook.py` and
+      # `build_a_workbook.mjs` are each compared against this file part by part, byte for byte.
+      - name: the facade's workbook opens
+        run: |
+          cargo run -p mjx-ooxml --example build_a_workbook -- facade_workbook.xlsx
+          soffice --headless --convert-to pdf --outdir . facade_workbook.xlsx
+          test -s facade_workbook.pdf
+
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
   examples:
