@@ -85,6 +85,7 @@ pub use workbook::{
     RevisionState, Sheet, SheetPivotTable, SheetQueryTable, Workbook, WorkbookConnection,
     WorkbookExternalLink, WorkbookWindow, WorkbookXmlMaps,
 };
+pub use worksheet::drawings::{SheetDrawing, SheetDrawingObject};
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};
 pub use worksheet::print::SheetMarkup;
