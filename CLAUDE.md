@@ -210,3 +210,20 @@ wasm-pack test --node bindings/mjx-wasm              # the Rust side, in a wasm 
   `cargo build` + `cargo test --workspace` are green.
 - **Do NOT add `Co-Authored-By` or any AI-attribution trailer** to commits.
 - `References/` is git-ignored — never stage it; put test inputs under `tests/fixtures/`.
+
+## Versioning — three files move together
+
+The version lives in **three** places, and a bump that misses one leaves CI red:
+
+1. `Cargo.toml`'s `[workspace.package] version` — the patch digit only; the user raises minor and
+   major.
+2. `CHANGELOG.md` — a new entry.
+3. **`bindings/mjx-wasm/npm/package.json`'s `"version"`** — the npm package states its own, and
+   `bindings/mjx-wasm/build-npm.sh` **refuses to build** when it disagrees with the workspace. That
+   refusal is deliberate: a published package that cannot be traced back to a commit is worse than
+   one that will not build.
+
+The third is the one that gets forgotten, because the rule used to be written only inside
+`build-npm.sh` — where the person doing the bump never looks. MJXOFF-156 bumped the workspace, left
+the package at the older number, and the `wasm-pack` job was red for two children before anyone
+asked CI. Move all three, in the same commit.
