@@ -136,7 +136,7 @@
 //! [`mjx_docx::effective_properties`] is Word's own deep reference on the ladders
 //! [`Document::effective_run_properties`]/[`Document::effective_paragraph_properties`] walk.
 //!
-//! For Excel, [`mjx_xlsx::guide`] carries fourteen pages. It is written against
+//! For Excel, [`mjx_xlsx::guide`] carries a page per feature area. It is written against
 //! [`mjx_xlsx::Workbook`]; every call translates to [`Workbook`] — this crate's own facade type,
 //! curated rather than a full re-export — the same way the PowerPoint guide translates to [`Deck`],
 //! except in one place, and the exception is the point:
@@ -157,7 +157,18 @@
 //! Beside them, [Large workbooks](mjx_xlsx::guide::large_workbooks) is the one to read before
 //! writing a loop that touches a lot of cells — and
 //! [Through the facade and the bindings](mjx_xlsx::guide::through_the_facade) is what this crate
-//! does about it.
+//! does about it. [`mjx_xlsx::effective_properties`] is Excel's own deep reference, the third of
+//! three pages in one shape: it is the `xf` indirection [`Workbook::effective_cell_format`] walks,
+//! and it is the page that explains why Excel reports *which layer* an answer came from where the
+//! other two report only a value.
+//!
+//! # Where one idea lives in three formats
+//!
+//! Five crates in this workspace hold markup that is no single format's — `mjx-dml`, `mjx-sml`,
+//! `mjx-chart`, `mjx-vml` and `mjx-omml` — and
+//! [Shared-markup reachability](crate::shared_markup_reachability) is the table of what each of
+//! [`Deck`], [`Document`] and [`Workbook`] can reach of them, with a written reason beside every
+//! asymmetry and a test that fails when the table and the code disagree.
 //!
 //! # Status
 //!
@@ -175,6 +186,7 @@ mod error;
 mod format;
 mod index;
 mod references;
+pub mod shared_markup_reachability;
 pub mod workbook;
 
 pub use address::{ShapePath, Surface};
