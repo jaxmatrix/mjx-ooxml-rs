@@ -59,13 +59,57 @@ pub(crate) struct SingleSubstitution {
     pub(crate) delta: i16,
 }
 
-/// A face to be built: its character map, its advances, and optionally a `GSUB`.
+/// A rectangular outline for one glyph, in font units with y upward from the baseline.
+///
+/// A rectangle rather than a letterform on purpose. Rasterisation is being tested, not typeface
+/// design: a filled box has an exactly predictable coverage, an exactly predictable bounding box and
+/// an exactly predictable command count, so an assertion about what came out of the scan converter
+/// is an assertion rather than a guess.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct GlyphBox {
+    pub(crate) left: i16,
+    pub(crate) bottom: i16,
+    pub(crate) right: i16,
+    pub(crate) top: i16,
+}
+
+impl GlyphBox {
+    /// A box `width` by `height` sitting on the baseline at the origin.
+    pub(crate) fn upright(width: i16, height: i16) -> Self {
+        Self {
+            left: 0,
+            bottom: 0,
+            right: width,
+            top: height,
+        }
+    }
+}
+
+/// One layer of a `COLR` colour glyph: which glyph draws it, and which palette entry colours it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ColourLayer {
+    pub(crate) glyph: u16,
+    pub(crate) palette_entry: u16,
+}
+
+/// A `COLR` base glyph: the glyph a `cmap` maps to, drawn as this stack of layers.
+#[derive(Clone, Debug)]
+pub(crate) struct ColourGlyph {
+    pub(crate) base: u16,
+    pub(crate) layers: Vec<ColourLayer>,
+}
+
+/// A face to be built: its character map, its advances, and optionally outlines, a `GSUB`, and a
+/// `COLR`/`CPAL` pair.
 pub(crate) struct SyntheticFace {
     units_per_em: u16,
     character_map: Vec<(u32, u16)>,
     advances: Vec<u16>,
+    outlines: Vec<Option<GlyphBox>>,
     script: Option<[u8; 4]>,
     lookups: Vec<SingleSubstitution>,
+    palette: Vec<[u8; 4]>,
+    colour_glyphs: Vec<ColourGlyph>,
 }
 
 impl SyntheticFace {
@@ -75,9 +119,33 @@ impl SyntheticFace {
             units_per_em: DEFAULT_UNITS_PER_EM,
             character_map: Vec::new(),
             advances,
+            outlines: Vec::new(),
             script: None,
             lookups: Vec::new(),
+            palette: Vec::new(),
+            colour_glyphs: Vec::new(),
         }
+    }
+
+    /// Give the face `glyf` and `loca` tables, one entry per glyph in glyph order.
+    ///
+    /// A `None` is a glyph with no outline — a space — which is a case the rasteriser has to answer
+    /// for as much as a drawn one.
+    pub(crate) fn with_outlines(mut self, outlines: Vec<Option<GlyphBox>>) -> Self {
+        self.outlines = outlines;
+        self
+    }
+
+    /// Give the face a `COLR`/`CPAL` pair: `palette` in red, green, blue, alpha order, and one
+    /// entry per colour glyph.
+    pub(crate) fn with_colour(
+        mut self,
+        palette: Vec<[u8; 4]>,
+        colour_glyphs: Vec<ColourGlyph>,
+    ) -> Self {
+        self.palette = palette;
+        self.colour_glyphs = colour_glyphs;
+        self
     }
 
     /// The same face at a different em square. Used to prove that two advances which are equal
@@ -127,7 +195,9 @@ impl SyntheticFace {
         push_u16(&mut head, 0); // macStyle
         push_u16(&mut head, 8); // lowestRecPPEM
         push_i16(&mut head, 2); // fontDirectionHint
-        push_i16(&mut head, 0); // indexToLocFormat
+                                // 1 is the long form: `loca` holds byte offsets rather than halves of them, so no glyph
+                                // description has to be padded to an even length for its offset to be expressible.
+        push_i16(&mut head, 1); // indexToLocFormat
         push_i16(&mut head, 0); // glyphDataFormat
 
         let ascender = i16::try_from(i32::from(self.units_per_em) * 4 / 5).unwrap_or(800);
@@ -151,13 +221,44 @@ impl SyntheticFace {
         push_u16(&mut hhea, glyph_count); // numberOfHMetrics
 
         let mut maxp = Vec::new();
-        push_u32(&mut maxp, 0x0000_5000); // version 0.5 — no `glyf`
-        push_u16(&mut maxp, glyph_count);
+        if self.outlines.is_empty() {
+            push_u32(&mut maxp, 0x0000_5000); // version 0.5 — no `glyf`
+            push_u16(&mut maxp, glyph_count);
+        } else {
+            // Version 1.0 is the form a face with `glyf` must use, and every field after the glyph
+            // count is a hint about what a hinting interpreter has to reserve. Nothing here is
+            // hinted by the font's own bytecode, so the generous constants below are simply large
+            // enough that no reader has cause to reject the face.
+            push_u32(&mut maxp, 0x0001_0000);
+            push_u16(&mut maxp, glyph_count);
+            push_u16(&mut maxp, 16); // maxPoints
+            push_u16(&mut maxp, 4); // maxContours
+            push_u16(&mut maxp, 16); // maxCompositePoints
+            push_u16(&mut maxp, 4); // maxCompositeContours
+            push_u16(&mut maxp, 2); // maxZones
+            push_u16(&mut maxp, 0); // maxTwilightPoints
+            push_u16(&mut maxp, 0); // maxStorage
+            push_u16(&mut maxp, 0); // maxFunctionDefs
+            push_u16(&mut maxp, 0); // maxInstructionDefs
+            push_u16(&mut maxp, 0); // maxStackElements
+            push_u16(&mut maxp, 0); // maxSizeOfInstructions
+            push_u16(&mut maxp, 0); // maxComponentElements
+            push_u16(&mut maxp, 0); // maxComponentDepth
+        }
 
+        // The left side bearing is not decoration. A TrueType rasteriser shifts a glyph's outline
+        // by `lsb - xMin`, so a face whose `hmtx` says zero for a glyph whose outline begins at 400
+        // has that outline moved 400 units to the left — which is exactly what a colour glyph's
+        // layers must not have happen to them, since it would stack layers meant to sit side by
+        // side on top of one another. So the bearing is written to match the outline.
         let mut hmtx = Vec::new();
-        for advance in &self.advances {
+        for (index, advance) in self.advances.iter().enumerate() {
             push_u16(&mut hmtx, *advance);
-            push_i16(&mut hmtx, 0);
+            let bearing = match self.outlines.get(index) {
+                Some(Some(outline)) => outline.left,
+                _ => 0,
+            };
+            push_i16(&mut hmtx, bearing);
         }
 
         let mut tables: Vec<([u8; 4], Vec<u8>)> = vec![
@@ -167,8 +268,17 @@ impl SyntheticFace {
             (*b"hmtx", hmtx),
             (*b"maxp", maxp),
         ];
+        if !self.outlines.is_empty() {
+            let (glyf, loca) = build_glyph_outlines(&self.outlines, usize::from(glyph_count));
+            tables.push((*b"glyf", glyf));
+            tables.push((*b"loca", loca));
+        }
         if let Some(script) = self.script {
             tables.push((*b"GSUB", build_glyph_substitution(script, &self.lookups)));
+        }
+        if !self.colour_glyphs.is_empty() {
+            tables.push((*b"COLR", build_colour_layers(&self.colour_glyphs)));
+            tables.push((*b"CPAL", build_colour_palette(&self.palette)));
         }
         tables.sort_by_key(|(tag, _)| *tag);
 
@@ -220,6 +330,129 @@ impl SyntheticFace {
         cmap.extend_from_slice(&subtable);
         cmap
     }
+}
+
+/// A `glyf` of one-contour rectangles and the long-format `loca` that indexes it.
+///
+/// A glyph with no outline is a `loca` entry equal to the one after it, which is how a font says
+/// "this glyph draws nothing" — the form a space takes in every real face.
+fn build_glyph_outlines(outlines: &[Option<GlyphBox>], glyph_count: usize) -> (Vec<u8>, Vec<u8>) {
+    let mut glyf = Vec::new();
+    let mut loca = Vec::new();
+    for index in 0..glyph_count {
+        push_u32(&mut loca, u32::try_from(glyf.len()).unwrap_or(u32::MAX));
+        let Some(Some(box_)) = outlines.get(index) else {
+            continue;
+        };
+        push_i16(&mut glyf, 1); // numberOfContours
+        push_i16(&mut glyf, box_.left); // xMin
+        push_i16(&mut glyf, box_.bottom); // yMin
+        push_i16(&mut glyf, box_.right); // xMax
+        push_i16(&mut glyf, box_.top); // yMax
+        push_u16(&mut glyf, 3); // endPtsOfContours[0] — four points, indices 0..=3
+        push_u16(&mut glyf, 0); // instructionLength
+                                // `0x01` is ON_CURVE_POINT with neither short-vector bit set, so each coordinate below is a
+                                // signed 16-bit delta from the point before it. Four flags, one per corner.
+        glyf.extend_from_slice(&[0x01; 4]);
+        let corners = [
+            (box_.left, box_.bottom),
+            (box_.right, box_.bottom),
+            (box_.right, box_.top),
+            (box_.left, box_.top),
+        ];
+        let mut previous_x = 0_i16;
+        for (x, _) in corners {
+            push_i16(&mut glyf, x.wrapping_sub(previous_x));
+            previous_x = x;
+        }
+        let mut previous_y = 0_i16;
+        for (_, y) in corners {
+            push_i16(&mut glyf, y.wrapping_sub(previous_y));
+            previous_y = y;
+        }
+    }
+    // `loca` holds one more offset than there are glyphs: the end of the last one.
+    push_u32(&mut loca, u32::try_from(glyf.len()).unwrap_or(u32::MAX));
+    (glyf, loca)
+}
+
+/// A `COLR` version 0 table: base glyphs, each naming a run of layer records.
+///
+/// Version 0 rather than version 1 deliberately. Version 1 adds gradients and compositing modes,
+/// which are a paint graph rather than a layer stack; version 0 is the form Windows' own emoji face
+/// ships and the form that proves the *route* — palette lookup, per-layer rasterisation, compositing
+/// into one RGBA image — without also testing a paint interpreter.
+fn build_colour_layers(glyphs: &[ColourGlyph]) -> Vec<u8> {
+    let mut base_records = Vec::new();
+    let mut layer_records = Vec::new();
+    let mut sorted: Vec<&ColourGlyph> = glyphs.iter().collect();
+    // The specification requires the base glyph records to be sorted by glyph id, because a reader
+    // binary-searches them.
+    sorted.sort_by_key(|glyph| glyph.base);
+    for glyph in sorted {
+        push_u16(&mut base_records, glyph.base);
+        push_u16(
+            &mut base_records,
+            u16::try_from(layer_records.len() / 4).unwrap_or(u16::MAX),
+        );
+        push_u16(
+            &mut base_records,
+            u16::try_from(glyph.layers.len()).unwrap_or(u16::MAX),
+        );
+        for layer in &glyph.layers {
+            push_u16(&mut layer_records, layer.glyph);
+            push_u16(&mut layer_records, layer.palette_entry);
+        }
+    }
+
+    const HEADER: usize = 14;
+    let mut colr = Vec::new();
+    push_u16(&mut colr, 0); // version
+    push_u16(
+        &mut colr,
+        u16::try_from(base_records.len() / 6).unwrap_or(u16::MAX),
+    );
+    push_u32(&mut colr, u32::try_from(HEADER).unwrap_or(u32::MAX));
+    push_u32(
+        &mut colr,
+        u32::try_from(HEADER + base_records.len()).unwrap_or(u32::MAX),
+    );
+    push_u16(
+        &mut colr,
+        u16::try_from(layer_records.len() / 4).unwrap_or(u16::MAX),
+    );
+    colr.extend_from_slice(&base_records);
+    colr.extend_from_slice(&layer_records);
+    colr
+}
+
+/// A `CPAL` version 0 table with one palette.
+///
+/// `entries` are given here in red, green, blue, alpha order, which is the order a caller thinks in;
+/// `CPAL` stores blue, green, red, alpha, and the swap happens once, below.
+fn build_colour_palette(entries: &[[u8; 4]]) -> Vec<u8> {
+    // The version 0 header is twelve bytes, and the one `colorRecordIndices` entry for the single
+    // palette below adds two more — so the colour records begin at fourteen.
+    const HEADER: usize = 12;
+    const INDICES: usize = 2;
+    let mut cpal = Vec::new();
+    push_u16(&mut cpal, 0); // version
+    let count = u16::try_from(entries.len()).unwrap_or(u16::MAX);
+    push_u16(&mut cpal, count); // numPaletteEntries
+    push_u16(&mut cpal, 1); // numPalettes
+    push_u16(&mut cpal, count); // numColorRecords
+    push_u32(
+        &mut cpal,
+        u32::try_from(HEADER + INDICES).unwrap_or(u32::MAX), // colorRecordsArrayOffset
+    );
+    push_u16(&mut cpal, 0); // colorRecordIndices[0]
+    for [red, green, blue, alpha] in entries {
+        cpal.push(*blue);
+        cpal.push(*green);
+        cpal.push(*red);
+        cpal.push(*alpha);
+    }
+    cpal
 }
 
 /// A `GSUB` with one `SingleSubstFormat1` lookup per entry, one feature reaching each, and one
@@ -405,4 +638,107 @@ pub(crate) fn proportional_latin_face(units_per_em: u16) -> SyntheticFace {
         .mapping(' ', 1)
         .mapping('A', 3)
         .mapping('B', 4)
+}
+
+/// The letters `A` to `H` at glyphs 2 to 9, each a filled rectangle of its own size, with real
+/// `glyf` outlines so that the face can be rasterised rather than only shaped.
+///
+/// Eight distinct glyphs rather than one, because the questions R04 asks are about a *working set*:
+/// how many distinct images a string produces, which of them survive an eviction, and how few of
+/// them a second frame has to upload. One glyph cannot answer any of those.
+pub(crate) fn outlined_latin_face() -> SyntheticFace {
+    let mut advances = vec![0_u16, 250];
+    let mut outlines: Vec<Option<GlyphBox>> = vec![None, None];
+    let mut mappings: Vec<(char, u16)> = vec![(' ', 1)];
+    for (step, letter) in "ABCDEFGH".chars().enumerate() {
+        // Widths and heights that differ per letter, so the shelf packer is handed genuinely varied
+        // rectangles rather than a grid it could pack correctly by accident.
+        let step = i16::try_from(step).unwrap_or(0);
+        let width = 380 + step * 20;
+        let height = 480 + step * 30;
+        advances.push(u16::try_from(width + 60).unwrap_or(u16::MAX));
+        outlines.push(Some(GlyphBox::upright(width, height)));
+        mappings.push((letter, u16::try_from(step + 2).unwrap_or(2)));
+    }
+
+    let mut face = SyntheticFace::new(advances).with_outlines(outlines);
+    for (character, glyph) in mappings {
+        face = face.mapping(character, glyph);
+    }
+    face
+}
+
+/// A face whose `U+1F600 GRINNING FACE` is a two-layer `COLR` glyph over a two-entry `CPAL`.
+///
+/// The two layers do not overlap and the palette gives them opposite colours, so a rasterisation
+/// that fell back to the plain outline route — or that composited one layer and dropped the other —
+/// produces an image with one colour in it and fails an assertion that counts them. That is the
+/// point: "it returned RGBA" is satisfied by a bitmap that is entirely one colour, and would be
+/// satisfied by a colour path that never ran.
+pub(crate) fn colour_glyph_face() -> SyntheticFace {
+    SyntheticFace::new(vec![0, 250, 800, 0, 0])
+        .mapping(' ', 1)
+        .mapping('\u{1F600}', 2)
+        .with_outlines(vec![
+            None,
+            None,
+            // The base glyph has an outline of its own, which is what a colour face offers a reader
+            // that cannot read `COLR`. A rasteriser that quietly took this route instead of the
+            // colour one would produce a single-colour image, which is exactly what an assertion
+            // counting colours catches.
+            Some(GlyphBox::upright(700, 700)),
+            Some(GlyphBox {
+                left: 0,
+                bottom: 0,
+                right: 300,
+                top: 700,
+            }),
+            Some(GlyphBox {
+                left: 400,
+                bottom: 0,
+                right: 700,
+                top: 700,
+            }),
+        ])
+        .with_colour(
+            vec![[255, 0, 0, 255], [0, 0, 255, 255]],
+            vec![ColourGlyph {
+                base: 2,
+                layers: vec![
+                    ColourLayer {
+                        glyph: 3,
+                        palette_entry: 0,
+                    },
+                    ColourLayer {
+                        glyph: 4,
+                        palette_entry: 1,
+                    },
+                ],
+            }],
+        )
+}
+
+/// `a` at glyph 2 and `U+0301 COMBINING ACUTE ACCENT` at glyph 3, with outlines and **no `GPOS`**.
+///
+/// No `GPOS` on purpose. With no mark-attachment table the shaper falls back to positioning the mark
+/// from the two glyphs' own extents, which is what every face without one relies on and what
+/// produces a non-zero `y_offset`. The accent's own outline sits just above the baseline, so the
+/// offset the shaper produces is the whole of the distance it is lifted by — and a placer that
+/// dropped that offset would draw the accent through the letter rather than over it.
+pub(crate) fn combining_mark_face() -> SyntheticFace {
+    SyntheticFace::new(vec![0, 250, 560, 0])
+        .mapping(' ', 1)
+        .mapping('a', 2)
+        .mapping('\u{0301}', 3)
+        .with_outlines(vec![
+            None,
+            None,
+            Some(GlyphBox::upright(500, 500)),
+            Some(GlyphBox {
+                left: 120,
+                bottom: 0,
+                right: 380,
+                top: 140,
+            }),
+        ])
 }

@@ -54,6 +54,91 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.125] - 2026-09-06
+
+**Glyph rasterisation and the scale-bucketed atlas** (MJXOFF-159, Phase R position 4).
+
+`mjx-text` could say what glyphs a run becomes and where they sit in the face's own units. It can now
+say what one of those glyphs *looks like* at a zoom level, and hold the answer under a byte ceiling
+that a test measures rather than a document asserts. This is the first place in the client-platform
+programme where one of `docs/UI_PLATFORM_PLAN.md` §12's performance budgets becomes a gate.
+
+### Added
+
+- **`raster`** — `GlyphRasteriser`, `GlyphRasterKey`, `FaceId`, `GlyphRender`, `GlyphRoute`,
+  `GlyphBitmap`, `GlyphOutline`, `OutlineCommand`, `OutlinePoint`, `BitmapFormat`, `Hinting`,
+  `ScaleBucket`, `SubpixelPosition`, `RasterStatistics`. Rasterisation is `swash` — pure Rust, built
+  over `FontFace::data()` plus `index()` exactly as the shaper is, because `swash` reads fonts with
+  `skrifa` and this crate reads them with `ttf-parser`: each parser reads the file for itself and
+  neither is ever handed the other's view.
+- **Two routes, and the threshold between them is a named constant.** Below
+  `OUTLINE_PIXELS_PER_EM_THRESHOLD` (96 pixels to the em) a glyph is a coverage bitmap; above it, a
+  path for R07 to tessellate. The constant carries all three reasons it is where it is — a bitmap's
+  area grows with the square of the size, hinting stops mattering once stems are six pixels wide, and
+  a path is correct at every zoom — so moving it moves all three together.
+- **Colour glyphs rasterise to RGBA**, and the face's `colour_formats()` is what decides it: the
+  `COLR`/`CPAL`, `sbix` and `CBDT` tables were probed once when the face was parsed, and the
+  rasteriser asks that answer rather than re-opening them. A face carrying colour glyphs stays on the
+  bitmap route at any size, because a layer stack has no single outline to hand a tessellator, and is
+  bounded instead by `MAXIMUM_RASTERISED_PIXELS_PER_EM`.
+- **Scale buckets.** `SCALE_BUCKET_STEP_PIXELS_PER_EM` quantises the raster scale to a quarter of a
+  pixel per em, and a run is *positioned as well as rasterised* at its bucket's size —
+  `RunPlacement::residual_scale` is the one number a painter applies to the whole run to reach the
+  size that was asked for. Positioning at the bucket rather than at the request is what makes the
+  technique exact (positions and images scale together, so no letter moves relative to another) and
+  is also what makes it work at all: two sizes in one bucket place byte-identically, so the second
+  costs no rasterisation.
+- **Quantised subpixel positioning.** `SUBPIXEL_POSITION_COUNT` horizontal phases per pixel, so text
+  does not snap to the pixel grid as it scrolls. `SubpixelPosition::split` returns the whole pixel
+  and the phase together, because rounding to the nearest phase can carry into the next pixel.
+  Vertical positions are snapped deliberately: a fractional baseline undoes the hinter's work.
+- **`placement`** — `place_run`, `RunPlacement`, `PlacedGlyph`, `DeviceScale`. Walks a `ShapedRun`
+  forwards, applies `ShapedGlyph`'s `x_offset`/`y_offset` — which is what puts a combining mark over
+  its base instead of on the baseline — and produces a raster key and a whole-pixel position per
+  glyph.
+- **`atlas`** — `GlyphAtlas`, `AtlasEntry`, `AtlasPageIndex`, `AtlasDelta`, `AtlasUpload`,
+  `AtlasPageCreation`, `AtlasStatistics`, `PreparedRun`, `PreparedGlyph`, `PreparedImage`. Best-fit
+  shelf packing into `ATLAS_PAGE_SIZE_PIXELS`-square pages, eviction by whole page under
+  `DESKTOP_GLYPH_ATLAS_BYTE_CEILING` / `MOBILE_GLYPH_ATLAS_BYTE_CEILING` (a quarter of §12's texture
+  budgets each), and a per-frame `AtlasDelta` so a painter uploads only what changed. **The atlas
+  never evicts a page holding a glyph the current frame has drawn**; when that leaves nothing to
+  evict it returns `GlyphAtlasExhausted` instead, because a cache that throws its working set away
+  satisfies every byte bound and draws nothing.
+- **The budget, asserted.** `crates/mjx-text/tests/glyph_atlas_allocation.rs` is a harness-free
+  binary installing `mjx-allocation-counter` — the workspace's one counting allocator, now on its
+  third consumer rather than its second implementation. It asserts the ceiling from both sides (the
+  atlas's own accounting *and* the allocator's), that eviction really ran, that the atlas is not
+  empty, and that the frame being drawn survived; and it re-runs the identical workload under half
+  the ceiling to prove the ceiling is what bounds it.
+
+### Fixed
+
+- **A panic on a malformed font, in a dependency, on the untrusted-input path.** The new corruption
+  sweep in `crates/mjx-text/tests/glyph_rasterisation.rs` found that `read-fonts 0.41.0` — which
+  `swash 0.2.10` pins through `skrifa 0.44` — indexes a zero-length slice when a `glyf` entry's
+  `endPtsOfContours` wraps its point count to zero. One flipped byte in an embedded font reaches it.
+  `read-fonts 0.43.3` fixes it upstream and the fix is out of semver reach, so `raster.rs` closes the
+  boundary: the panic is caught, every piece of `swash` state it could have left half-written is
+  thrown away, and the caller gets a typed `FontError::UnreadableGlyphOutline`. The test asserts the
+  boundary actually fires, so it cannot quietly become dead. **The durable fix is a dependency
+  decision and is recorded on MJXOFF-159 for the repository's owner.**
+
+### Notes
+
+- The `synthetic_font` test builder grew `glyf`/`loca` outlines and a `COLR`/`CPAL` pair, so the
+  colour route and the rasterisation route are exercised without committing an emoji binary — which
+  MJXOFF-157 already escalated as a repository owner's decision. It also now writes each glyph's left
+  side bearing to match its outline, because a TrueType rasteriser shifts an outline by `lsb - xMin`
+  and a bearing of zero silently stacked two colour layers meant to sit side by side.
+- Two records that the MJXOFF-155 ledger left for whichever child came next, both corrected here.
+  `cargo run -p xtask -- tokens` grew an **`--out-dir <directory>`** flag in `0.0.123` and shipped
+  with no entry: it moves where the three token artefacts are *written* (and, with `--check`, which
+  copies are compared) without moving where the source is read from, and it exists so that
+  `xtask/tests/tokens.rs` can exercise the write path without truncating a file another test binary
+  is reading in a concurrent process. And `crates/mjx-text/assets/fonts/README.md` cited
+  `docs/UI_PLATFORM_PLAN.md` for a statement that document does not make — §10 names Caladea as a
+  bundled substitute and says nothing at all about its licence.
+
 ## [0.0.124] - 2026-09-06
 
 **Shaping, bidirectional resolution, itemisation, line breaking and hyphenation** (MJXOFF-158,

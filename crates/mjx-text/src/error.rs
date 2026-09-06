@@ -98,6 +98,102 @@ pub enum FontError {
         /// How many characters were in the run.
         characters: usize,
     },
+
+    /// A raster key named a face the rasteriser it was given to has never been shown.
+    ///
+    /// A [`crate::FaceId`] is issued by one [`crate::GlyphRasteriser`] and means nothing to another,
+    /// so this is what a key crossing between two of them comes back as, rather than silently
+    /// drawing whichever face happened to be registered at that number.
+    #[error("no face is registered as {face} in this rasteriser")]
+    UnregisteredFace {
+        /// The identity the key carried.
+        face: u32,
+    },
+
+    /// More than four billion faces were registered with one rasteriser.
+    ///
+    /// Unreachable by a document and reachable by a loop that registers a fresh face per call; it is
+    /// returned rather than wrapped, because a wrapped identity would silently rasterise the wrong
+    /// face.
+    #[error(
+        "this rasteriser already holds {registered} faces, which is all a face identity can name"
+    )]
+    TooManyRegisteredFaces {
+        /// How many were already registered.
+        registered: usize,
+    },
+
+    /// A glyph was asked for at a size whose bitmap would be too large to be worth allocating.
+    ///
+    /// Only a colour glyph can reach this: every other glyph becomes an outline above
+    /// [`crate::OUTLINE_PIXELS_PER_EM_THRESHOLD`], long before the size here. A colour glyph has no
+    /// outline to fall back to, so the request is refused before anything allocates for it — at 4096
+    /// pixels to the em one such glyph would be sixty-four megabytes.
+    #[error(
+        "a colour glyph was asked for at {pixels_per_em} pixels per em, and this rasteriser \
+         rasterises at most {maximum}"
+    )]
+    GlyphTooLargeToRasterise {
+        /// The size that was asked for.
+        pixels_per_em: f32,
+        /// The largest this rasteriser will produce.
+        maximum: f32,
+    },
+
+    /// A glyph's outline could not be read out of the face, because reading it made the underlying
+    /// parser panic.
+    ///
+    /// This is a **defect in a dependency**, caught rather than propagated. `swash` reads fonts
+    /// through `skrifa`, whose pinned `read-fonts 0.41.0` indexes a zero-length slice when a `glyf`
+    /// entry's `endPtsOfContours` wraps its point count to zero; one flipped byte in an embedded
+    /// font reaches it. `crates/mjx-text/src/raster.rs`'s `read_a_glyph_table` has the whole account,
+    /// including where the fix landed upstream and why it is out of reach.
+    ///
+    /// A caller drawing a document may treat this as "draw nothing here". It is an error rather than
+    /// a blank because the face really is broken, and a renderer that silently drew nothing would
+    /// give the reader no way to find out.
+    #[error(
+        "the face's outline for glyph {glyph} at {pixels_per_em} pixels per em could not be read: \
+         the glyph tables are malformed in a way the underlying parser does not survive"
+    )]
+    UnreadableGlyphOutline {
+        /// Which glyph in the face.
+        glyph: u16,
+        /// The size it was asked for at.
+        pixels_per_em: f32,
+    },
+
+    /// A glyph's bitmap will not fit an empty atlas page, so no amount of eviction would help.
+    #[error(
+        "a {width}x{height} pixel glyph cannot be packed into a {page_size}x{page_size} pixel atlas \
+         page"
+    )]
+    GlyphTooLargeForAtlas {
+        /// How wide the bitmap is.
+        width: u16,
+        /// How tall the bitmap is.
+        height: u16,
+        /// How wide and tall a page is.
+        page_size: u16,
+    },
+
+    /// The atlas needs another page and cannot have one: it is at its byte ceiling and every live
+    /// page holds a glyph the frame being drawn has already used.
+    ///
+    /// **The atlas will not evict the frame it is in the middle of**, because a cache that threw its
+    /// working set away would satisfy every byte bound and draw nothing. So this is the honest
+    /// answer, and a caller's recovery is to draw the glyph without the atlas, or to raise the
+    /// ceiling.
+    #[error(
+        "the glyph atlas holds {resident_bytes} bytes against a ceiling of {ceiling_bytes}, and \
+         every page it could drop holds a glyph this frame has already drawn"
+    )]
+    GlyphAtlasExhausted {
+        /// What the live pages currently cost.
+        resident_bytes: usize,
+        /// The ceiling they are held under.
+        ceiling_bytes: usize,
+    },
 }
 
 impl From<ttf_parser::FaceParsingError> for FontError {

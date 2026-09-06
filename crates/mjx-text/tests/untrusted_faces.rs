@@ -295,9 +295,10 @@ fn the_parse_path_contains_no_unwrap_expect_or_panic() {
     }
     // The crate's real file count, raised with the crate. A floor lower than the truth is a floor
     // nobody is standing on: it stays green when the walk stops reaching files, which is exactly
-    // the failure this number exists to catch. Nineteen at MJXOFF-158; raise it when a module is
-    // added, and do not lower it when one is removed without saying why.
-    const SOURCE_FILE_COUNT: usize = 19;
+    // the failure this number exists to catch. Nineteen at MJXOFF-158; twenty-two at MJXOFF-159,
+    // which added `raster.rs`, `placement.rs` and `atlas.rs`. Raise it when a module is added, and
+    // do not lower it when one is removed without saying why.
+    const SOURCE_FILE_COUNT: usize = 22;
     assert_eq!(
         files_scanned, SOURCE_FILE_COUNT,
         "{files_scanned} source files were scanned and this crate has {SOURCE_FILE_COUNT} — either \

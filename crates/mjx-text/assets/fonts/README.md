@@ -24,10 +24,12 @@ Microsoft originals*, sourced outside this repository and cited line by line in
 | `LiberationMono-Regular.ttf` | Liberation Mono | as above | `47ed5b5fcfe6b3c9228937b05de9c769f5fa55b777d539af0f65172f0a24c90b` | as above |
 
 Every file here is under the **SIL Open Font License, Version 1.1**, and each licence text sits
-beside the faces it covers, which is what the OFL requires of a redistribution. Note that
-`docs/UI_PLATFORM_PLAN.md` and the tracker describe Caladea as Apache-2.0; that was true of Google's
-2013 *crosextrafonts* release, and the upstream project has since relicensed to the OFL. The text
-committed here is the one shipped with the file committed here.
+beside the faces it covers, which is what the OFL requires of a redistribution. Note that the tracker
+describes Caladea as Apache-2.0; that was true of Google's 2013 *crosextrafonts* release, and the
+upstream project has since relicensed to the OFL. The text committed here is the one shipped with the
+file committed here. (`docs/UI_PLATFORM_PLAN.md` §10 names Caladea as the bundled substitute for
+Cambria and says nothing about its licence either way; an earlier revision of this file cited it as
+though it did.)
 
 None of these fonts is modified, and none is renamed — the OFL's reserved-font-name clauses are
 therefore not engaged.

@@ -87,6 +87,20 @@ name = "bytemuck"
 version = "1.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95832e849adfb21180ccb6826a99da14e5d266ae5c2e668e1602cf234f153797"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc0e56a716f1e132ff6bf4bdac1c944a3fcdc1cae65f70a4a2a1ac3b401d2d1f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.4",
+]
 
 [[package]]
 name = "cast"
@@ -297,6 +311,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "font-types"
+version = "0.12.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e64eb721ca85a34323425f4041adc5d82704d3782d5f8f03793bc012419dce23"
+dependencies = [
+ "bytemuck",
+]
+
+[[package]]
 name = "fontconfig-parser"
 version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -446,11 +469,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-allocation-counter"
-version = "0.0.124"
+version = "0.0.125"
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -464,7 +487,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -476,7 +499,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-derive",
  "mjx-fixtures",
@@ -490,7 +513,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "anyhow",
  "criterion",
@@ -510,11 +533,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-fixtures"
-version = "0.0.124"
+version = "0.0.125"
 
 [[package]]
 name = "mjx-mce"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -523,7 +546,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -533,7 +556,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "criterion",
  "mjx-allocation-counter",
@@ -552,18 +575,18 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.124"
+version = "0.0.125"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -574,7 +597,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "anyhow",
  "criterion",
@@ -595,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
@@ -603,7 +626,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-schema-gate"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-fixtures",
  "mjx-mce",
@@ -615,7 +638,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-sml"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-derive",
@@ -631,12 +654,14 @@ dependencies = [
 
 [[package]]
 name = "mjx-text"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "fontdb",
+ "mjx-allocation-counter",
  "mjx-ooxml-core",
  "mjx-tokens",
  "rustybuzz",
+ "swash",
  "thiserror",
  "ttf-parser",
  "unicode-bidi",
@@ -647,14 +672,14 @@ dependencies = [
 
 [[package]]
 name = "mjx-tokens"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mjx-vml"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -665,7 +690,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -675,7 +700,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "anyhow",
  "criterion",
@@ -695,7 +720,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -889,6 +914,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "read-fonts"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "046a7d674daf459825b32f5062056d6882db0d2f5a479fbd76ccfc870ac18709"
+dependencies = [
+ "bytemuck",
+ "font-types",
+ "once_cell",
+]
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1012,6 +1048,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a219298ac11a56ea9a6d2120044824d6f01aeb034955e7af7bc16858527deea"
 
 [[package]]
+name = "skrifa"
+version = "0.44.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "819ab7d62b1d3e72d9d9dea5650bac30424f9111364bb94928dbf5ecad1baa68"
+dependencies = [
+ "bytemuck",
+ "read-fonts",
+]
+
+[[package]]
 name = "slab"
 version = "0.4.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1031,6 +1077,17 @@ name = "smallvec"
 version = "1.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9be42f50aa861c555654aa3a37f52f4b1074bacf4e48fe0ef7fa584e80f1f0f"
+
+[[package]]
+name = "swash"
+version = "0.2.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c2499c2d826531388872b2268718aed907a39bd785ab0dcfe57fab26283f92e"
+dependencies = [
+ "skrifa",
+ "yazi",
+ "zeno",
+]
 
 [[package]]
 name = "syn"
@@ -1330,7 +1387,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.124"
+version = "0.0.125"
 dependencies = [
  "anyhow",
  "mjx-allocation-counter",
@@ -1343,6 +1400,18 @@ dependencies = [
  "mjx-sml",
  "mjx-xml",
 ]
+
+[[package]]
+name = "yazi"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e01738255b5a16e78bbb83e7fbba0a1e7dd506905cfc53f4622d89015a03fbb5"
+
+[[package]]
+name = "zeno"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6df3dc4292935e51816d896edcd52aa30bc297907c26167fec31e2b0c6a32524"
 
 [[package]]
 name = "zerocopy"

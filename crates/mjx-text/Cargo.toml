@@ -46,6 +46,13 @@ fontdb = { workspace = true, default-features = false, features = ["std", "fs", 
 # through the same `ttf-parser` version declared above, so a face this crate parsed and a face the
 # shaper parsed can never disagree.
 rustybuzz.workspace = true
+# The rasteriser (MJXOFF-159). Pure Rust, and the one dependency here that is taken for its *output*
+# rather than its behaviour: the TrueType hinting interpreter, the scan converter and the
+# `COLR`/`CPAL` layer compositor are each a body of arithmetic over untrusted tables that this crate
+# would otherwise have to write and defend itself. It parses faces with `skrifa`, not the
+# `ttf-parser` above, which is exactly why `FontFace` hands out bytes plus an index: each parser
+# reads the file for itself, and neither is ever given the other's view of it.
+swash.workspace = true
 # UAX #9 (bidirectional), UAX #14 (line breaking), UAX #29 (grapheme and word boundaries), and the
 # ISO 15924 script table. All four are data plus a documented algorithm, all pure Rust, and none of
 # them allocates on a path this crate takes per glyph.
@@ -53,3 +60,18 @@ unicode-bidi.workspace = true
 unicode-linebreak.workspace = true
 unicode-script.workspace = true
 unicode-segmentation.workspace = true
+
+[dev-dependencies]
+# The counting global allocator, so `tests/glyph_atlas_allocation.rs` asserts the atlas's byte
+# ceiling instead of asserting it by inspection. Dependency-free and outside the shipped graph; it
+# is the allocator `xtask`'s fuzz campaign and `mjx-sml`'s cell-store gate already install, not a
+# second one.
+mjx-allocation-counter.workspace = true
+
+# The byte-ceiling gate is a binary of its own with no test harness, for the reason
+# `crates/mjx-sml/tests/cell_store_allocation.rs` states at length: a `#[global_allocator]` is
+# installed process-wide, and `cargo test` runs a harness's cases on several threads inside one
+# process, so a figure measured under a harness is the figure of whatever else was running.
+[[test]]
+name = "glyph_atlas_allocation"
+harness = false
