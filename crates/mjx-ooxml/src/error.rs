@@ -1,32 +1,38 @@
 //! [`Error`] — one error type, shaped so a foreign-function binding can act on it.
 //!
 //! `mjx-pptx` reports failures as [`PptxError`], sixty-five variants each carrying exactly the
-//! context its own call site had, and `mjx-docx` reports its own as [`DocxError`], thirty-five more.
-//! That is the right shape for Rust and the wrong shape for a binding: neither PyO3 nor wasm-bindgen
-//! can project a hundred-odd variants with as many payload shapes into an exception hierarchy anyone
-//! would want to catch, and pinning a stable ABI to a variant list that grows every release is a
-//! promise this library cannot keep.
+//! context its own call site had; `mjx-docx` reports its own as [`DocxError`], thirty-five more; and
+//! `mjx-xlsx` reports its own as [`XlsxError`], eleven that in turn open onto [`SmlError`]'s fifteen
+//! and [`AddressError`]'s sixteen. That is the right shape for Rust and the wrong shape for a
+//! binding: neither PyO3 nor wasm-bindgen can project a hundred-odd variants with as many payload
+//! shapes into an exception hierarchy anyone would want to catch, and pinning a stable ABI to a
+//! variant list that grows every release is a promise this library cannot keep.
 //!
 //! So the facade collapses them into **eleven stable [`ErrorCode`]s**, a human [`message`](Error::message),
 //! and the machine-readable indices in [`ErrorDetail`] — the surface, shape, row, column and index a
 //! caller needs to say *where*. Bindings switch on the code; Rust callers keep everything by
-//! downcasting [`source`](std::error::Error::source) back to a [`PptxError`] or a [`DocxError`],
-//! whichever the call that failed belongs to.
+//! downcasting [`source`](std::error::Error::source) back to a [`PptxError`], a [`DocxError`] or an
+//! [`XlsxError`], whichever the call that failed belongs to.
 //!
 //! # The mapping is exhaustive on purpose
 //!
-//! [`classify`] matches every `PptxError` and every [`OpcError`] variant, and [`classify_docx`]
-//! matches every [`DocxError`] variant, both with **no wildcard arm** — which is why neither
-//! [`PptxError`] nor [`DocxError`] is `#[non_exhaustive]`. Adding a variant to either fails to
+//! [`classify`] matches every `PptxError` and every [`OpcError`] variant, [`classify_docx`] matches
+//! every [`DocxError`] variant, and [`classify_xlsx`] matches every [`XlsxError`] variant — and,
+//! through [`sml_code`] and [`address_code`], every [`SmlError`] and [`AddressError`] variant too.
+//! All five have **no wildcard arm**, which is why none of `PptxError`, `DocxError`, `XlsxError`,
+//! `SmlError` and `AddressError` is `#[non_exhaustive]`. Adding a variant to any of them fails to
 //! compile here until someone decides which code it belongs to. A catch-all arm would instead file
 //! every future failure under whichever code happened to be the fallback — and no test would notice.
-//! Every one of `DocxError`'s thirty-five variants fits an existing code from the PresentationML
-//! mapping; none needed a twelfth.
+//! Every one of `DocxError`'s thirty-five variants, and every one of Excel's forty-two across the
+//! three enumerations, fits an existing code from the PresentationML mapping; none needed a
+//! twelfth.
 
 use std::fmt;
 
 use mjx_docx::DocxError;
 use mjx_pptx::{OpcError, PptxError};
+use mjx_sml::{AddressError, SmlError};
+use mjx_xlsx::XlsxError;
 
 use crate::address::{ShapePath, Surface};
 
@@ -77,9 +83,13 @@ pub enum ErrorCode {
     /// The document uses a construct this build does not model, or asks for one it cannot write — an
     /// unrecognized preset shape, an image fill on a chart series, an OPC control part.
     UnsupportedContent,
-    /// The file is a valid Office document of a format this build cannot open yet. Word and Excel
-    /// documents are detected — see [`detect_format`](crate::detect_format) — before they can be
-    /// edited, so a caller can say so precisely instead of reporting a parse failure.
+    /// The file is a valid Office document, but not one the call it was handed to opens — a `.docx`
+    /// given to [`Deck::open`](crate::Deck::open), or a `.xlsb`, whose main part is the MS-XLSB
+    /// binary record stream rather than SpreadsheetML and which **no** call here opens.
+    ///
+    /// Every format is detected — see [`detect_format`](crate::detect_format) — before any of it is
+    /// parsed, so a caller is told which format it actually handed over instead of being shown a
+    /// parse failure on markup from another language.
     UnsupportedFormat,
 }
 
@@ -166,6 +176,39 @@ impl Error {
         }
     }
 
+    /// Builds an error the facade itself raises about one `(row, column)` — a block offset outside
+    /// the block it addresses.
+    pub(crate) fn with_cell(
+        code: ErrorCode,
+        message: impl Into<String>,
+        row: u32,
+        column: u32,
+    ) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            detail: ErrorDetail {
+                row: Some(row),
+                column: Some(column),
+                ..ErrorDetail::default()
+            },
+            source: None,
+        }
+    }
+
+    /// Builds an error the facade itself raises about one index — a sheet, above all.
+    pub(crate) fn with_index(code: ErrorCode, message: impl Into<String>, index: u32) -> Self {
+        Self {
+            code,
+            message: message.into(),
+            detail: ErrorDetail {
+                index: Some(index),
+                ..ErrorDetail::default()
+            },
+            source: None,
+        }
+    }
+
     /// The stable classification. This is what a binding switches on.
     #[must_use]
     pub fn code(&self) -> ErrorCode {
@@ -240,6 +283,34 @@ impl From<DocxError> for Error {
             detail,
             source: Some(Box::new(error)),
         }
+    }
+}
+
+impl From<XlsxError> for Error {
+    fn from(error: XlsxError) -> Self {
+        let (code, detail) = classify_xlsx(&error);
+        Self {
+            code,
+            message: error.to_string(),
+            detail,
+            source: Some(Box::new(error)),
+        }
+    }
+}
+
+impl From<SmlError> for Error {
+    /// A markup-layer failure that reached this crate without an [`XlsxError`] around it — which the
+    /// facade's own cell readers produce when they decode a value themselves.
+    fn from(error: SmlError) -> Self {
+        Self::from(XlsxError::from(error))
+    }
+}
+
+impl From<AddressError> for Error {
+    /// A cell reference or range the caller spelled wrong. It never reached a file, so it carries no
+    /// coordinates — the message names the text that would not parse.
+    fn from(error: AddressError) -> Self {
+        Self::from(SmlError::from(error))
     }
 }
 
@@ -487,6 +558,142 @@ fn classify_docx(error: &DocxError) -> (ErrorCode, ErrorDetail) {
             (C::StructureConflict, none())
         }
     }
+}
+
+/// Classifies an [`XlsxError`] into its stable code and the coordinates it carries.
+///
+/// **This match names every variant and has no wildcard arm**, the same discipline [`classify`] and
+/// [`classify_docx`] keep — and it reaches one layer further than either of them has to, because
+/// `mjx-xlsx` delegates most of what can go wrong to the markup tier: [`sml_code`] and
+/// [`address_code`] below are exhaustive over [`SmlError`] and [`AddressError`] for the same reason
+/// this one is over [`XlsxError`]. Collapsing `XlsxError::Sml(_)` to one code would have been a
+/// wildcard arm wearing a variant name: a number a caller mistyped and a worksheet whose bytes
+/// outgrow a `u32` are not the same failure, and only the first is the caller's to fix.
+fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
+    use ErrorCode as C;
+
+    let none = ErrorDetail::default;
+    /// The coordinates of a failure that names one index — a sheet, for Excel.
+    fn nth(index: usize) -> ErrorDetail {
+        ErrorDetail {
+            index: Some(count(index)),
+            ..ErrorDetail::default()
+        }
+    }
+
+    match error {
+        // --- the layers below, classified by what they mean here ---------------------------
+        XlsxError::Opc(opc) => (opc_code(opc), none()),
+        XlsxError::Xml(_) | XlsxError::Model(_) => (C::MalformedDocument, none()),
+        XlsxError::Sml(sml) => sml_code(sml),
+        XlsxError::InvalidWorkbook(_) => (C::InvalidDocument, none()),
+
+        // --- the package or a part is not the markup the schema requires -------------------
+        XlsxError::MissingOfficeDocument
+        | XlsxError::MissingWorkbookPart(_)
+        | XlsxError::MalformedWorkbook(_)
+        | XlsxError::TargetResolution { .. } => (C::MalformedDocument, none()),
+
+        // --- an index argument is outside the workbook -------------------------------------
+        XlsxError::NoSuchSheet { index, .. } => (C::IndexOutOfRange, nth(*index)),
+
+        // --- the caller asked to follow a reference that leaves the package ------------------
+        //
+        // The same reading `PptxError::ExternalTarget` and `DocxError::ExternalTarget` get: an
+        // external relationship is legitimate markup, and this library does no external I/O.
+        XlsxError::ExternalTarget { .. } => (C::UnsupportedContent, none()),
+    }
+}
+
+/// Classifies an [`SmlError`]. Exhaustive for the same reason [`classify_xlsx`] is.
+fn sml_code(error: &SmlError) -> (ErrorCode, ErrorDetail) {
+    use ErrorCode as C;
+
+    let none = ErrorDetail::default;
+    /// The coordinates of a failure that names one index.
+    fn nth(index: usize) -> ErrorDetail {
+        ErrorDetail {
+            index: Some(count(index)),
+            ..ErrorDetail::default()
+        }
+    }
+
+    match error {
+        // --- the layers below ---------------------------------------------------------------
+        SmlError::Opc(opc) => (opc_code(opc), none()),
+        SmlError::Xml(_) | SmlError::Model(_) => (C::MalformedDocument, none()),
+        SmlError::Address(address) => (address_code(address), none()),
+
+        // --- refused before anything was written ---------------------------------------------
+        //
+        // `UnrepresentableNumber` is the caller handing over a `NaN` or an infinity, which
+        // SpreadsheetML has no spelling for. `TableHasNoColumns` and `TableGeometryDoesNotFit` are
+        // the table authoring surface refusing a spec, exactly as `InvalidTableSize` is for the
+        // other two formats.
+        SmlError::UnrepresentableNumber { .. }
+        | SmlError::TableGeometryDoesNotFit { .. }
+        | SmlError::TableHasNoColumns { .. }
+        | SmlError::DegenerateMerge { .. } => (C::InvalidArgument, none()),
+
+        // --- an index argument is outside what the file holds ---------------------------------
+        SmlError::SheetIndexOutOfRange { index, .. } => (C::IndexOutOfRange, nth(*index)),
+        SmlError::CellFormatIndexOutOfRange { index, .. } => {
+            (C::IndexOutOfRange, nth(usize_from(*index)))
+        }
+
+        // --- the edit conflicts with the structure already there ------------------------------
+        SmlError::MergeOverlapsExistingMerge { .. } => (C::StructureConflict, none()),
+
+        // --- the file states nothing this call can work from -----------------------------------
+        //
+        // A conditional-formatting block with no `@sqref`, or a rule with no `@priority`, is markup
+        // that exists and answers nothing — the shape `NothingToRead` names for the other two
+        // formats. Neither is repaired; both are still written back verbatim.
+        SmlError::ConditionalFormattingBlockHasNoRange { .. }
+        | SmlError::ConditionalFormattingRuleHasNoPriority { .. } => (C::NothingToRead, none()),
+
+        // --- this build cannot represent it -----------------------------------------------------
+        //
+        // `PackedStoreTooLarge` is a real ceiling, not a malformed file: a worksheet larger than the
+        // cell store's `u32` byte space is valid SpreadsheetML this build declines to hold.
+        // `AuthoredPartSeedRejected` is this library failing to read back what it just wrote, which
+        // is a bug here rather than anything the caller did — and `UnsupportedContent` is the code
+        // whose documentation already says "report a bug".
+        SmlError::PackedStoreTooLarge { .. } | SmlError::AuthoredPartSeedRejected { .. } => {
+            (C::UnsupportedContent, none())
+        }
+    }
+}
+
+/// Classifies an [`AddressError`]. Exhaustive for the same reason [`sml_code`] is.
+///
+/// Every variant is one code: a cell reference or range that does not parse is an **argument**
+/// fault, whether it came from a caller's `"A0"` or from a file's `sqref`. The two are told apart by
+/// the message, not by the code — and there is no coordinate to carry, because nothing was located.
+fn address_code(error: &AddressError) -> ErrorCode {
+    match error {
+        AddressError::Empty
+        | AddressError::MissingColumnLetters
+        | AddressError::MissingRowNumber
+        | AddressError::UnexpectedCharacter(_)
+        | AddressError::ColumnOutOfGrid
+        | AddressError::RowOutOfGrid { .. }
+        | AddressError::TooManyRangeEnds
+        | AddressError::MismatchedRangeEnds
+        | AddressError::UnterminatedSheetName
+        | AddressError::EmptySheetName
+        | AddressError::MissingSheetSeparator
+        | AddressError::InvalidExternalBookIndex
+        | AddressError::MissingRowColumnMarker
+        | AddressError::UnterminatedOffset
+        | AddressError::InvalidOffset
+        | AddressError::MissingSpanSeparator => ErrorCode::InvalidArgument,
+    }
+}
+
+/// A `u32` index as the `usize` [`ErrorDetail`]'s helpers take, saturating rather than wrapping.
+fn usize_from(index: u32) -> usize {
+    usize::try_from(index).unwrap_or(usize::MAX)
 }
 
 #[cfg(test)]

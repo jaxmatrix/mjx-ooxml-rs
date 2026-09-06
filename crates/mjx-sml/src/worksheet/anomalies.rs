@@ -35,8 +35,15 @@ use super::frame::WorksheetPart;
 ///
 /// Every one is preserved and written back as it stands. None is an error, and none changes what the
 /// worksheet answers.
+/// # Deliberately exhaustive (MJXOFF-137)
+///
+/// This enumeration was `#[non_exhaustive]` until the facade had to classify it. It is not any more,
+/// and for the same reason [`SmlError`](crate::SmlError) is not: `mjx_ooxml::Workbook::grid_anomalies`
+/// maps every variant here onto a flat, bindable report with a `match` that has **no wildcard arm**,
+/// so **adding a variant fails to compile until it is classified there**. A wildcard would instead
+/// file every future finding under whichever kind happened to be the fallback, and no test would
+/// notice — which is exactly what a report about a file's defects must not do.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum GridAnomaly {
     /// A `mergeCell@ref` is absent or does not parse, so that merge cannot be reasoned about at all.
     ///

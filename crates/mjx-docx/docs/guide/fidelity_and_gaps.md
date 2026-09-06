@@ -224,9 +224,14 @@ entry a person with Office works through. **No agent may mark any of it verified
 
 ### Whole formats
 
-`.xlsx` opens and round-trips through the OPC and fidelity layers, and `mjx-xlsx` has no editing
-surface — it is a scaffold. That is a schedule, not a decision: Excel is the `v0.3` slice, with its
-own phase of work. Nothing on this page about `.docx` changes when it lands.
+`.xlsx` is **implemented**, with its own editing surface, its own guide and its own facade type —
+`mjx_ooxml::Workbook` (MJXOFF-137) — projected through the Python and WebAssembly bindings alongside
+this format's. Nothing on this page about `.docx` changed when it landed. See
+[the Excel guide](https://docs.rs/mjx-xlsx/latest/mjx_xlsx/guide/) for what it models and what it
+preserves rather than models.
+
+The one format this build detects and opens nowhere is **`.xlsb`**, whose main part is the MS-XLSB
+binary record stream rather than SpreadsheetML. That refusal is a decision, not a schedule.
 
 `.pptx` is complete and has [its own copy of this
 page](https://docs.rs/mjx-pptx/latest/mjx_pptx/guide/fidelity_and_gaps/).

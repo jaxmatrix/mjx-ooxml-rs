@@ -54,6 +54,77 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.121] - 2026-09-06
+
+**Excel through the facade and both bindings — and one API decision made from a measurement rather
+than from taste** (MJXOFF-137, Phase D position 20; **Phase D complete**).
+
+### Added
+
+- **`mjx_ooxml::Workbook`** — the curated Excel surface, eleven modules mirroring `deck/`'s and
+  `document/`'s split. `detect_format` already answered `Format::Workbook`; it now yields a workbook
+  that opens, reads, edits, validates and saves. Tabs, cells, geometry, cell formats, hyperlinks,
+  tables, defined names, print setup, the preserved-part reports and the part graph, all with
+  concrete types: **A1 text for every address** (`"B7"`, `"A1:C3"`), `u32` for every index, `&str`
+  for every part name.
+- **`mjx_ooxml::Workbook` in Python and TypeScript**, and the classes their arguments and results are
+  made of — twenty-nine value classes and nineteen enumerations each. The walkthrough exists three
+  times (`crates/mjx-ooxml/examples/build_a_workbook.rs`,
+  `bindings/mjx-python/tests/test_build_a_workbook.py`,
+  `bindings/mjx-wasm/tests/node/build_a_workbook.mjs`) and the two bindings are compared against the
+  Rust one **part by part, byte for byte**.
+- **[Through the facade and the bindings](crates/mjx-xlsx/docs/guide/through_the_facade.md)**, the
+  Excel guide's fourteenth page: the translation table, the range decision, and what the facade does
+  not carry.
+- **`crates/mjx-ooxml/benches/workbook_boundary.rs`** — the instrument MJXOFF-135's figures did not
+  have. `docs/BENCHMARKS.md`'s own harness drives `Package::part_tree_mut`, which `mjx-xlsx` never
+  calls, so it could not see this cost at all.
+- **`mjx_allocation_counter::total_allocated`** — a monotonic byte counter. `peak` and `live` cannot
+  tell one parse from two hundred parses that each free before the next; this can, and it is what
+  lets the boundary gate below be deterministic instead of a stopwatch.
+
+### The range decision
+
+**There is no per-cell reader or writer on the facade, or in either binding.** `mjx_xlsx::Workbook`
+holds no parsed worksheet, so every per-sheet accessor re-parses the part: measured on the
+300,000-cell corpus, in release, **405 ms to read one cell** against **12.0 ms to open the whole
+file**, and a 4,000-cell write loop against 410 ms for the same 4,000 cells batched. The Rust answer
+— hold the `WorksheetPart` yourself — cannot cross a foreign function boundary, so a facade with
+`cell_value(sheet, "A1")` would ship the slow loop as the natural idiom in the one place a caller
+cannot reach past it.
+
+So the cell door is a **range** in both directions: `read_range`, `read_sheet` and `write_cells`
+parse once each, whatever they are asked for. `crates/mjx-ooxml/tests/workbook_boundary.rs` holds
+that to a **deterministic allocation ratio** — 209x for the write, 199x for the read — because a
+fallback to per-cell would produce the same file, byte for byte, and no correctness gate could see
+it. The per-cell calls stay reachable from Rust through `Workbook::workbook_mut`.
+
+### Changed
+
+- **`Format::is_editable` is now true for every format but `Format::WorkbookBinary`.** `.xlsb` is
+  refused with its own message — its main part is the MS-XLSB binary record stream, not
+  SpreadsheetML — and that refusal is a design decision rather than a schedule.
+- **`mjx_ooxml::Error`'s mapping reaches three enumerations further.** `classify_xlsx` names every
+  `XlsxError` variant and, through `sml_code` and `address_code`, every `SmlError` and
+  `AddressError` variant, with **no wildcard arm anywhere** — so a new failure mode is a compile
+  error rather than a silent `Unknown`.
+- **`mjx_sml::GridAnomaly` is no longer `#[non_exhaustive]`**, for the reason the error enumerations
+  never were: the facade's flat `GridAnomalyInfo` projection must be a compile-time gate.
+
+### Fixed
+
+- **`crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` and
+  `crates/mjx-docx/docs/guide/fidelity_and_gaps.md` both claimed `mjx-docx`/`mjx-xlsx` "have no
+  editing surface — they are scaffolds", and one promised a removal "once `mjx-xlsx` can write
+  (`v0.3`)".** All false, and they are published docs.rs pages. Corrected to what is true today; the
+  `mjx-chart` embedded-workbook writer's removal condition is now *met*, and the removal itself is
+  MJXOFF-99's work.
+
+### Handed over
+
+- **`docs/EXCEL_FACADE_HANDOFF.md`** — twenty-six checklist entries for MJXOFF-128 (F2), **every one
+  unmarked**, plus what has no runtime coverage anywhere. No agent has Excel.
+
 ## [0.0.120] - 2026-09-06
 
 The Excel usage guide and its runnable examples — every snippet compiled, every example asserting

@@ -111,8 +111,9 @@ Two workspace members project the facade, and neither adds behaviour: every meth
 
 - **`bindings/mjx-python`** — PyO3, abi3-py39 wheels, module `mjx_ooxml`. The mapping is the
   **identity**: `mjx-ooxml`'s names are already `snake_case` and already self-explanatory, so nothing
-  is renamed. The single exception is forced — the `None` *member* of nine enumerations is spelled
-  `NONE`, because `None` is a Python keyword. Committed `.pyi` + `py.typed`, checked by
+  is renamed. The single exception is forced — the `None` *member* of fourteen enumerations is
+  spelled `NONE`, because `None` is a Python keyword. (Nine until MJXOFF-137; Excel's own
+  vocabulary added five more.) Committed `.pyi` + `py.typed`, checked by
   `mypy --strict` and by `tests/test_stub_parity.py`, which compares the stub to the compiled module
   in both directions.
 - **`bindings/mjx-wasm`** — wasm-bindgen, one npm package with conditional exports. Method names are

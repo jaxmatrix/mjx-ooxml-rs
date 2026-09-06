@@ -241,7 +241,10 @@ loses. A deck carrying any of it round-trips unchanged.
 
 The embedded workbook a chart authors is written by a **minimal SpreadsheetML writer inside
 `mjx-chart`** — one sheet, a shared-string table and a styles skeleton, and deliberately nothing else.
-It is scheduled for removal once `mjx-xlsx` can write, which is the Excel slice's job (`v0.3`).
+It is scheduled for removal, and **its condition is now met**: `mjx-sml` writes SpreadsheetML and
+sits beneath `mjx-chart`, so the duplicate writer has somewhere to go. Deleting it is
+[MJXOFF-99](https://github.com/jaxmatrix/mjx-ooxml-rs)'s own unit of work rather than something this
+page can claim; until it lands, the writer above is what a chart's workbook comes from.
 
 ### Built, not yet verified against Office
 
@@ -256,10 +259,15 @@ real PowerPoint, and saying so is the point of this section.
 
 ### Whole formats
 
-`.docx` and `.xlsx` open and round-trip through the OPC and fidelity layers, and `mjx-docx` /
-`mjx-xlsx` have no editing surface — they are scaffolds. That is a schedule, not a decision: Word is
-the `v0.2` slice and Excel the `v0.3` slice, each with its own phase of work. Nothing in this page
-about `.pptx` changes when they land.
+`.docx` and `.xlsx` are **implemented**, each with its own editing surface, its own guide and its
+own facade type — `mjx_ooxml::Document` (MJXOFF-139) and `mjx_ooxml::Workbook` (MJXOFF-137) — and
+both are projected through the Python and WebAssembly bindings. Nothing in this page about `.pptx`
+changed when they landed. See [the Word guide](https://docs.rs/mjx-docx/latest/mjx_docx/guide/) and
+[the Excel guide](https://docs.rs/mjx-xlsx/latest/mjx_xlsx/guide/) for what each of them models and
+what each of them preserves rather than models.
+
+The one format this build detects and opens nowhere is **`.xlsb`**, whose main part is the MS-XLSB
+binary record stream rather than SpreadsheetML. That refusal is a decision, not a schedule.
 
 ### What used to be here
 

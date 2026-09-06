@@ -13,9 +13,10 @@ use mjx_xml::XmlError;
 /// contract [`mjx_pptx::PptxError`](https://docs.rs/mjx-pptx) and
 /// [`mjx_docx::DocxError`](https://docs.rs/mjx-docx) document on themselves: the facade collapses
 /// every variant here into one of its stable error codes through a `match` with no wildcard arm, so
-/// **adding a variant fails to compile until it is classified there**. MJXOFF-137 (D20) writes that
-/// mapping for Excel; until it does, the property is worth keeping rather than losing to a
-/// `#[non_exhaustive]` that would have to come off again.
+/// **adding a variant fails to compile until it is classified there**. MJXOFF-137 (D20) wrote that
+/// mapping — `mjx_ooxml::error::classify_xlsx` — and proved the property by adding a twelfth variant
+/// here and watching the facade fail to compile. It reaches further than this enum: `classify_xlsx`
+/// descends into [`SmlError`] and, through it, `AddressError`, all three with no wildcard arm.
 ///
 /// # Untrusted input
 ///
@@ -146,7 +147,7 @@ mod tests {
     /// The second half is the assertion that earns its keep. `#[error(transparent)]` is what keeps a
     /// packaging failure readable as the packaging failure it is; replacing it with, say,
     /// `#[error("opc error: {0}")]` would still compile, still `Display` plausibly, and silently
-    /// prepend a layer of noise to every error MJXOFF-137 will one day map. The expected text comes
+    /// prepend a layer of noise to every error `mjx_ooxml::Error` maps. The expected text comes
     /// from the wrapped error itself, so this cannot pass by agreeing with a copy of the message.
     #[test]
     fn every_wrapping_variant_is_built_by_question_mark_and_displays_what_it_wraps() {
