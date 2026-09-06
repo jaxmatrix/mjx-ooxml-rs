@@ -12,7 +12,13 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { CellWrite, SheetKind, Workbook } from "../../npm/dist/bundler/mjx_ooxml.js";
+import {
+  CellWrite,
+  GeometrySource,
+  ResizingBehavior,
+  SheetKind,
+  Workbook,
+} from "../../npm/dist/bundler/mjx_ooxml.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURES = join(resolve(HERE, "../../../.."), "tests", "fixtures");
@@ -264,5 +270,156 @@ test("the workbook metadata and part graph are reachable", () => {
     );
 
     workbook.validate();
+  });
+});
+
+// A 1x1 PNG — the smallest thing the image sniffer calls a PNG.
+const PNG = new Uint8Array([
+  0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
+  0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+  0xde, 0x00, 0x00, 0x00, 0x0c, 0x49, 0x44, 0x41, 0x54, 0x08, 0xd7, 0x63, 0xf8, 0xcf, 0xc0, 0x00,
+  0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xdd, 0x8d, 0xb0, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4e,
+  0x44, 0xae, 0x42, 0x60, 0x82,
+]);
+
+test("the three anchor modes are not each other", () => {
+  scope((owned) => {
+    const workbook = filled(owned);
+    // Every number differs from every other, so a wrapper that crossed a column with a row, or a
+    // `from` offset with a `to` offset, fails here rather than in markup nobody reads.
+    const two = workbook.addTwoCellAnchoredPicture(
+      0, PNG, "two-cell", 1, 190500, 2, 47625, 3, 95250, 5, 19050,
+      ResizingBehavior.MoveWithCellsButDoNotResize,
+    );
+    const one = workbook.addOneCellAnchoredPicture(
+      0, PNG, "one-cell", 4, 76200, 1, 38100, 914400, 457200,
+    );
+    const absolute = workbook.addAbsoluteAnchoredPicture(
+      0, PNG, "absolute", 1905000, 952500, 685800, 342900,
+    );
+    assert.deepEqual([two, one, absolute], [0, 1, 2]);
+
+    const drawing = owned.keep(workbook.sheetDrawing(0));
+    assert.ok(drawing.part.endsWith("drawing1.xml"));
+    const objects = drawing.objects;
+    assert.deepEqual(
+      objects.map((object) => object.anchor),
+      ["twoCellAnchor", "oneCellAnchor", "absoluteAnchor"],
+    );
+    assert.deepEqual(
+      objects.map((object) => object.name),
+      ["two-cell", "one-cell", "absolute"],
+    );
+    // The `@editAs` the caller asked for, read back off the file — and the two anchors that carry
+    // none answer from what they are, so the three do not agree.
+    assert.deepEqual(
+      objects.map((object) => object.resizing),
+      [
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+        ResizingBehavior.MoveWithCellsButDoNotResize,
+        ResizingBehavior.DoNotMoveOrResizeWithRowsOrColumns,
+      ],
+    );
+    // One image, stored once, shown by all three.
+    assert.deepEqual(
+      [...new Set(objects.map((object) => object.image))],
+      ["/xl/media/image1.png"],
+    );
+    assert.ok(objects.every((object) => object.printsWithSheet));
+    for (const object of objects) {
+      object.free();
+    }
+
+    workbook.save();
+  });
+});
+
+test("an anchor a blank sheet cannot place and one it can are different answers", () => {
+  scope((owned) => {
+    const workbook = filled(owned);
+    workbook.addOneCellAnchoredPicture(0, PNG, "one-cell", 4, 76200, 1, 38100, 914400, 457200);
+    workbook.addAbsoluteAnchoredPicture(0, PNG, "absolute", 1905000, 952500, 685800, 342900);
+
+    // `Workbook.blank` writes no `x:sheetFormatPr`, so `@defaultRowHeight` is stated nowhere and a
+    // cell-anchored object cannot be placed. The honest answer is `undefined`, not Excel's own 15.
+    assert.equal(workbook.sheetAnchorBounds(0, 0, 7.0, 96.0), undefined);
+
+    // The absolute anchor names no cell, so it is placeable on the very same sheet.
+    const bounds = owned.keep(workbook.sheetAnchorBounds(0, 1, 7.0, 96.0));
+    assert.equal(bounds.xEmu, 1905000n);
+    assert.equal(bounds.yEmu, 952500n);
+    assert.equal(bounds.widthEmu, 685800n);
+    assert.equal(bounds.heightEmu, 342900n);
+    assert.equal(bounds.rowSource, GeometrySource.Stated);
+    assert.equal(bounds.columnSource, GeometrySource.Stated);
+    assert.equal(bounds.maximumDigitWidthPixels, 7.0);
+    assert.equal(bounds.pixelsPerInch, 96.0);
+  });
+});
+
+test("a producer drawing resolves and the three modes shift differently", () => {
+  scope((owned) => {
+    const workbook = owned.keep(
+      Workbook.open(readFileSync(join(FIXTURES, "worksheet_drawings.xlsx"))),
+    );
+
+    // The extent Apache POI computed for the same column widths, reached through the binding alone.
+    const bounds = owned.keep(workbook.sheetAnchorBounds(0, 0, 7.0, 96.0));
+    assert.equal(bounds.widthEmu, 2085975n);
+    assert.equal(bounds.heightEmu, 885825n);
+    assert.equal(bounds.rowSource, GeometrySource.SheetDefault);
+    assert.equal(bounds.columnSource, GeometrySource.Stated);
+
+    const report = workbook.insertRowsIntoDrawing(0, 0, 3);
+    assert.equal(report.length, 4);
+    assert.ok(report[0].moved && !report[0].resized);
+    assert.ok(report[2].moved && !report[2].resized);
+    assert.ok(!report[3].moved && !report[3].resized);
+    assert.equal(report[3].promise, ResizingBehavior.DoNotMoveOrResizeWithRowsOrColumns);
+    assert.ok(report.every((shift) => shift.promiseKept));
+    for (const shift of report) {
+      shift.free();
+    }
+
+    // A row inserted *inside* the first anchor resizes it against its own `@editAs`, which the
+    // report says rather than silently leaving wrong.
+    const inside = workbook.insertRowsIntoDrawing(0, 7, 1);
+    assert.ok(inside[0].resized && !inside[0].promiseKept);
+    assert.ok(inside[1].promiseKept);
+    for (const shift of inside) {
+      shift.free();
+    }
+
+    for (const shifted of [
+      workbook.removeRowsFromDrawing(0, 0, 1),
+      workbook.insertColumnsIntoDrawing(0, 0, 1),
+      workbook.removeColumnsFromDrawing(0, 0, 1),
+    ]) {
+      assert.equal(shifted.length, 4);
+      for (const shift of shifted) {
+        shift.free();
+      }
+    }
+
+    assert.equal(workbook.removeSheetDrawingObject(0, 3), true);
+    assert.equal(workbook.removeSheetDrawingObject(0, 9), false);
+    const drawing = owned.keep(workbook.sheetDrawing(0));
+    const objects = drawing.objects;
+    assert.equal(objects.length, 3);
+    for (const object of objects) {
+      object.free();
+    }
+    workbook.save();
+  });
+});
+
+test("bytes that are not an image are refused", () => {
+  scope((owned) => {
+    const workbook = filled(owned);
+    assert.throws(
+      () => workbook.addAbsoluteAnchoredPicture(0, new Uint8Array([1, 2, 3]), "nope", 0, 0, 1, 1),
+      (failure) => failure.code === "InvalidArgument",
+    );
+    assert.equal(workbook.sheetDrawing(0), undefined);
   });
 });

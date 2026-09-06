@@ -186,12 +186,12 @@ pub use error::{Error, ErrorCode, ErrorDetail};
 pub use format::{detect_format, Format, FormatFamily};
 pub use references::{DiagramParts, ExternalLink, InkReference};
 pub use workbook::{
-    CellBlock, CellData, CellInput, CellWrite, DefinedName, GridAnomalyInfo, GridAnomalyKind,
-    PreservedPart, PreservedPartsSummary, RevisionSessionInfo, SharedWorkbookUserInfo,
-    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary,
-    SheetTableColumnInfo, SheetTableInfo, Workbook, WorkbookConnectionInfo,
-    WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
-    XmlMapInfo,
+    AnchorBoundsInfo, AnchorShiftInfo, CellBlock, CellData, CellInput, CellWrite, DefinedName,
+    GridAnomalyInfo, GridAnomalyKind, PreservedPart, PreservedPartsSummary, RevisionSessionInfo,
+    SharedWorkbookUserInfo, SheetDrawingInfo, SheetDrawingObjectInfo, SheetHyperlinkInfo,
+    SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableColumnInfo, SheetTableInfo,
+    Workbook, WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState,
+    WorkbookWindowInfo, WorkbookXmlMapsInfo, XmlMapInfo,
 };
 
 // -----------------------------------------------------------------------------------------------
@@ -308,7 +308,8 @@ pub use mjx_xlsx::{CalculationSettings, DateSystem, HyperlinkKind, PartKind, She
 pub use mjx_sml::{
     AddressText, Anchoring, ApplyFlag, BorderEdgeSpec, BorderSpec, CellFormatSpec,
     CellFormatTarget, CellRange, CellReference, Color, EffectiveCellFormat, FontProperties,
-    FormatAspect, FormatLayer, PatternFillSpec, ResolvedAspect, StyleIndexSource, TableStyleOrigin,
+    FormatAspect, FormatLayer, GeometrySource, PatternFillSpec, ResolvedAspect, StyleIndexSource,
+    TableStyleOrigin,
 };
 
 // --- Generated schema simple types the signatures above name -------------------------------------
@@ -322,6 +323,7 @@ pub use mjx_ooxml_types::shared::{ConformanceClass, VerticalTextPosition};
 // `ST_WrapText` — which sides of a floating drawing text flows down. It belongs to
 // `dml-wordprocessingDrawing`, not to `wml`, and appears on this surface only as the payload of
 // [`ChartWrap::Square`], which `Document::add_floating_chart` takes (MJXOFF-103).
+pub use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
 pub use mjx_ooxml_types::spreadsheetml::{
     BorderStyle, CalculationMode, ReferenceMode, TotalsRowFunction, UnderlineType,
 };

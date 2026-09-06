@@ -41,15 +41,15 @@ use pyo3::types::{PyBytes, PyModule};
 
 use mjx_ooxml as ooxml;
 
-use crate::enums::{CellFormatTarget, DateSystem, TableStyleOrigin};
+use crate::enums::{CellFormatTarget, DateSystem, ResizingBehavior, TableStyleOrigin};
 use crate::errors::to_py_err;
 use crate::format::Format;
 use crate::spreadsheet::{
-    BorderSpec, CalculationSettings, CellBlock, CellFormatSpec, CellWrite, DefinedName,
-    EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec, PreservedPartsSummary,
-    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableInfo,
-    WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo,
-    WorkbookXmlMapsInfo,
+    AnchorBoundsInfo, AnchorShiftInfo, BorderSpec, CalculationSettings, CellBlock, CellFormatSpec,
+    CellWrite, DefinedName, EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec,
+    PreservedPartsSummary, SheetDrawingInfo, SheetHyperlinkInfo, SheetPivotTableInfo,
+    SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
+    WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
 };
 
 /// An open Excel workbook.
@@ -407,6 +407,179 @@ impl Workbook {
     fn remove_cell_hyperlink(&mut self, sheet: u32, reference: &str) -> PyResult<bool> {
         self.inner
             .remove_cell_hyperlink(sheet, reference)
+            .map_err(to_py_err)
+    }
+
+    // --- drawings ---------------------------------------------------------------------------------
+
+    /// The drawing part behind one sheet, and everything anchored in it.
+    fn sheet_drawing(&self, sheet: u32) -> PyResult<Option<SheetDrawingInfo>> {
+        self.inner
+            .sheet_drawing(sheet)
+            .map(|drawing| drawing.map(SheetDrawingInfo))
+            .map_err(to_py_err)
+    }
+
+    /// Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own
+    /// worked example, for 11-point Calibri.
+    fn sheet_anchor_bounds(
+        &self,
+        sheet: u32,
+        anchor: u32,
+        maximum_digit_width_pixels: f64,
+        pixels_per_inch: f64,
+    ) -> PyResult<Option<AnchorBoundsInfo>> {
+        self.inner
+            .sheet_anchor_bounds(sheet, anchor, maximum_digit_width_pixels, pixels_per_inch)
+            .map(|bounds| bounds.map(AnchorBoundsInfo))
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a picture between two cells, and answers its position in the paint order.
+    #[allow(clippy::too_many_arguments)]
+    fn add_two_cell_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        from_column: u32,
+        from_column_offset_emu: i64,
+        from_row: u32,
+        from_row_offset_emu: i64,
+        to_column: u32,
+        to_column_offset_emu: i64,
+        to_row: u32,
+        to_row_offset_emu: i64,
+        resizing: ResizingBehavior,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_two_cell_anchored_picture(
+                sheet,
+                &image_bytes,
+                name,
+                from_column,
+                from_column_offset_emu,
+                from_row,
+                from_row_offset_emu,
+                to_column,
+                to_column_offset_emu,
+                to_row,
+                to_row_offset_emu,
+                resizing.into(),
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a picture to one cell, at its own size.
+    #[allow(clippy::too_many_arguments)]
+    fn add_one_cell_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        from_column: u32,
+        from_column_offset_emu: i64,
+        from_row: u32,
+        from_row_offset_emu: i64,
+        width_emu: i64,
+        height_emu: i64,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_one_cell_anchored_picture(
+                sheet,
+                &image_bytes,
+                name,
+                from_column,
+                from_column_offset_emu,
+                from_row,
+                from_row_offset_emu,
+                width_emu,
+                height_emu,
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a picture to the sheet, at an absolute position and size in EMU.
+    #[allow(clippy::too_many_arguments)]
+    fn add_absolute_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        x_emu: i64,
+        y_emu: i64,
+        width_emu: i64,
+        height_emu: i64,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_absolute_anchored_picture(
+                sheet,
+                &image_bytes,
+                name,
+                x_emu,
+                y_emu,
+                width_emu,
+                height_emu,
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Removes one anchored object from a sheet, reporting whether there was one.
+    fn remove_sheet_drawing_object(&mut self, sheet: u32, anchor: u32) -> PyResult<bool> {
+        self.inner
+            .remove_sheet_drawing_object(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `rows` inserted at the zero-based `at`.
+    fn insert_rows_into_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        rows: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .insert_rows_into_drawing(sheet, at, rows)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `rows` removed at the zero-based `at`.
+    fn remove_rows_from_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        rows: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .remove_rows_from_drawing(sheet, at, rows)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `columns` inserted at the zero-based `at`.
+    fn insert_columns_into_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        columns: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .insert_columns_into_drawing(sheet, at, columns)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `columns` removed at the zero-based `at`.
+    fn remove_columns_from_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        columns: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .remove_columns_from_drawing(sheet, at, columns)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
             .map_err(to_py_err)
     }
 
