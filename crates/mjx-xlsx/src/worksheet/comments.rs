@@ -732,7 +732,7 @@ impl Workbook {
         self.package_mut()
             .set_content_type_default(mjx_vml::VML_DEFAULT_EXTENSION, CONTENT_TYPE_VML_DRAWING)?;
         self.package_mut()
-            .insert_part(&part, CONTENT_TYPE_VML_DRAWING, new_vml_part_bytes()?)?;
+            .insert_part(&part, CONTENT_TYPE_VML_DRAWING, new_vml_part_bytes())?;
         let relationship_id = self.next_sheet_relationship_id(&sheet_part);
         let target = crate::worksheet::tables::relative_target(&sheet_part, &part);
         self.package_mut().add_relationship(
@@ -1147,11 +1147,11 @@ fn new_comments_part_bytes() -> Vec<u8> {
 ///
 /// The root is built through [`mjx_vml::Drawing::new`], so the namespace declarations a VML part
 /// needs are stated once, in the crate that owns the vocabulary.
-fn new_vml_part_bytes() -> Result<Vec<u8>, XlsxError> {
+fn new_vml_part_bytes() -> Vec<u8> {
     let mut interner = Interner::new();
     let drawing = Drawing::new(&mut interner);
     let root = drawing.to_xml(&mut interner);
     let mut bytes = XML_DECLARATION.as_bytes().to_vec();
     mjx_xml::fidelity::serialize_element(&root, &interner, None, &mut bytes);
-    Ok(bytes)
+    bytes
 }
