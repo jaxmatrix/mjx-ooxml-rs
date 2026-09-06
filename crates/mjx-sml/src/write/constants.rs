@@ -2,12 +2,12 @@
 //!
 //! # Why these live here and not beside the writer that uses them
 //!
-//! They are the workspace's **one** set for authoring a workbook package. `mjx-chart`'s
-//! `crates/mjx-chart/src/workbook.rs` declares its own copies (`workbook.rs:55–80`) because it was
-//! written before this crate existed; MJXOFF-99 removes that module and with it those copies.
-//! `crates/mjx-xlsx/src/parts.rs` re-exports the eight that overlap — four content types and four
-//! relationship types — rather than declaring them a third time, so a producer, a reader and a chart
-//! all name the same `&'static str`.
+//! They are the workspace's **one** set for authoring a workbook package. `mjx-chart` used to
+//! declare its own copies, in a `crates/mjx-chart/src/workbook.rs` written before this crate
+//! existed; MJXOFF-99 deleted that module and with it those copies, and `mjx-chart` now reaches
+//! these. `crates/mjx-xlsx/src/parts.rs` re-exports the eight that overlap — four content types and
+//! four relationship types — rather than declaring them a third time, so a producer, a reader and a
+//! chart all name the same `&'static str`.
 //!
 //! The full relationship-type and content-type vocabulary — pivot caches, query tables, printer
 //! settings and the twenty other part kinds a workbook can relate to — stays in

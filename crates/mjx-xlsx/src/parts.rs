@@ -1109,13 +1109,15 @@ mod tests {
         }
     }
 
-    /// The four constants `tests/fixtures/sample.xlsx` cannot open without are exactly the strings
-    /// `mjx-chart`'s own embedded-workbook writer emits.
+    /// The four constants `tests/fixtures/sample.xlsx` cannot open without, pinned as literals.
     ///
-    /// `mjx_chart::workbook`'s copies are private, so this pins the literals rather than comparing
-    /// symbols — which is the point: MJXOFF-112 removes that module and routes it through here, and
-    /// a drift between the two before then would produce a package PowerPoint refuses to open with
-    /// no test anywhere noticing.
+    /// The original reason is spent: these once had to be compared against a second, private set in
+    /// `mjx_chart::workbook`, and MJXOFF-112 then routed that writer through `mjx-sml` while
+    /// MJXOFF-99 deleted the duplicate — so there is no longer a second set to drift from. What the
+    /// test still buys is the half that was never about the duplicate: these four strings are what
+    /// PowerPoint, Excel and LibreOffice match a chart's embedded workbook on, a typo in any of them
+    /// produces a package all three refuse to open, and nothing else in this crate asserts their
+    /// spelling. Comparing symbols instead would assert only that a constant equals itself.
     #[test]
     fn the_workbook_content_types_match_the_package_powerpoint_and_libreoffice_accept() {
         assert_eq!(

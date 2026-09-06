@@ -344,10 +344,11 @@ impl SharedStringTable {
 
     /// The index of `text` in the table, appending an entry if it is not already there.
     ///
-    /// This is the operation `sharedStrings.xml` exists for, and the one `mjx-chart`'s minimal
-    /// workbook writer has its own copy of (`crates/mjx-chart/src/workbook.rs`) pending MJXOFF-112
-    /// and MJXOFF-99. It reproduces that copy's behaviour exactly for the case it covers — plain
-    /// entries, in first-use order — so the switch is a deletion rather than a rewrite.
+    /// This is the operation `sharedStrings.xml` exists for, and it is the one `mjx-chart`'s own
+    /// minimal workbook writer used to duplicate. MJXOFF-112 routed that writer through this crate
+    /// and MJXOFF-99 deleted the duplicate, so this is now the workspace's only implementation. It
+    /// reproduces the deleted copy's behaviour exactly for the case that copy covered — plain
+    /// entries, in first-use order — which is what made the switch a deletion rather than a rewrite.
     ///
     /// # What may be reused
     ///
