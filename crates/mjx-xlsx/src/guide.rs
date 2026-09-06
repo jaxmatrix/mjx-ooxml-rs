@@ -10,8 +10,8 @@ macro_rules! guide_vocabulary {
         #[allow(unused_imports)]
         use crate::{
             HyperlinkKind, HyperlinkTarget, PartClassification, PartInventoryEntry, PartKind,
-            Sheet, SheetHyperlink, SheetKind, SheetTable, SheetTableColumn, SpreadsheetDefect,
-            Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
+            Sheet, SheetHyperlink, SheetKind, SheetMarkup, SheetTable, SheetTableColumn,
+            SpreadsheetDefect, Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
         };
     };
 }
@@ -66,6 +66,13 @@ pub mod filters_and_data_validation {
 /// is not a missing style.
 pub mod worksheet_tables {
     #![doc = include_str!("../docs/guide/worksheet_tables.md")]
+    guide_vocabulary!();
+}
+
+/// Print setup, opaque header/footer strings, custom views, and the four sheet kinds — one of which
+/// has no cells at all.
+pub mod print_setup_and_sheet_kinds {
+    #![doc = include_str!("../docs/guide/print_setup_and_sheet_kinds.md")]
     guide_vocabulary!();
 }
 

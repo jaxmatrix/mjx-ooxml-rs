@@ -54,6 +54,77 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.118] - 2026-09-06
+
+Print setup, headers and footers, custom views, and the three sheet kinds that are not worksheets
+(MJXOFF-129, Phase D position 17).
+
+### Added
+
+- **`mjx_sml::features::print`** — the markup every sheet *kind* carries. `CT_PrintOptions`
+  (`PrintOptions`), `CT_PageMargins` (`PageMargins`, in inches, all six `use="required"`),
+  `CT_PageSetup` (`PageSetup`), `CT_CsPageSetup` (`ChartSheetPageSetup` — the same element name on a
+  chartsheet and a *different complex type*, without the six attributes that only mean something
+  over a grid), `CT_HeaderFooter` (`HeaderFooter`, `HeaderFooterText`, `HeaderFooterSlot`,
+  `HeaderFooterSection`) and `CT_SheetBackgroundPicture` (`SheetBackgroundPicture`).
+  **Nothing paginates:** `fitToWidth` is reported, and where a page breaks is rendering.
+- **`mjx_sml::features::custom_views`** — `CT_CustomSheetViews`/`CT_CustomSheetView`, filling
+  `CT_Worksheet`'s rank 13. The nine children come from four existing clusters — MJXOFF-102's pane
+  and selection, MJXOFF-117's breaks, MJXOFF-123's autofilter and this child's print block — and not
+  one of them is modelled a second time. **A record, never applied:** a view's `@hiddenRows` is that
+  view's memory, not the sheet's rows.
+- **`mjx_sml::sheets`** — `CT_Chartsheet` (`ChartSheetPart` and its seven-type cluster),
+  `CT_Dialogsheet` (`DialogSheetPart`) and `CT_Macrosheet` (`MacroSheetPart`), over one shared part
+  frame with the same slot-level copy-on-write, generated placement and byte writer `WorksheetPart`
+  has. **A chartsheet has no cell accessor at all** — the absence is in the type, so asking one for
+  its cells does not compile.
+- **Six more `CT_Worksheet` slots are typed** rather than held: `customSheetViews` (13),
+  `printOptions` (19), `pageMargins` (20), `pageSetup` (21), `headerFooter` (22) and `picture` (33).
+  Thirty-one of the thirty-nine are now modelled; `phoneticPr` (15) is the only one left that
+  belongs to nobody.
+- **`mjx_xlsx::SheetMarkup`** and `Workbook::sheet_markup` / `sheet_markup_of` /
+  `write_sheet_markup` — the markup behind any tab, whichever of the four kinds it is. A macrosheet
+  is dispatched on its **root element**, because ECMA-376 declares no content type for one, so
+  `SheetKind` still reports the three kinds §12.3.23 names.
+- **`Workbook::sheet_printer_settings` and `Workbook::sheet_background_image`** — the part a sheet's
+  own `pageSetup@r:id` and `picture@r:id` reach, resolved against that sheet part's `.rels`. Neither
+  part is ever opened: a printer-settings blob is a Windows `DEVMODE` ECMA-376 Part 1 §15.2.13
+  places no requirement on, and an image is bytes.
+- **`mjx_xlsx::REL_IMAGE`** and `WorksheetParts::background_image` — the image relationship a sheet's
+  background picture reaches (Part 1 §15.2.14).
+- **`SpreadsheetDefect::SheetReferenceHasTheWrongRelationshipType`** — a `pageSetup` or `picture`
+  naming a relationship of the wrong *type*. The half `mjx_opc`'s dangling-reference check cannot
+  see: the id is declared, so only a reader that knows what a `pageSetup` means can tell it points
+  at the wrong kind of part. Reported for markup this library will write, never for markup it merely
+  opened.
+- **`tests/fixtures/print_and_sheet_kinds.xlsx`** — a worksheet with the full print block, a
+  `customSheetView` carrying all nine of its children, two printer-settings blobs, a background
+  image and a dialogsheet. Every header/footer string in it is a different shape (a quoted font
+  name, a `&G`, a literal `&&`, a character reference, a CDATA section), because those are the five
+  ways a re-serialising writer changes a file.
+- **`crates/mjx-xlsx/docs/guide/print_setup_and_sheet_kinds.md`** — the guide page, six compiled
+  doctests.
+
+### Changed
+
+- **`mjx-xlsx`'s `no_part_under_xl_is_skipped_as_foreign_or_uncategorised` now distinguishes two
+  kinds of skip.** A part whose *payload is not XML* has nothing a schema could be applied to, so
+  skipping it is correct; a part whose *root namespace has no arm* is the false green MJXOFF-110
+  exists to close. The guard rejected both. It now accepts a `SkippedBinary` whose content type is
+  on a pinned, reasoned allowlist and rejects every other outcome exactly as before — with two new
+  cases proving it: one feeds the rule each shape of false green and asserts it is still rejected,
+  the other fails an allowlist entry no committed fixture witnesses.
+
+### Fixed
+
+- **A header or footer string's own spelling survives an edit elsewhere in the part.** The
+  `#[xml(text)]` escaping gap the epic recorded as latent becomes live here — `&#65;` decodes to
+  `A`, a CDATA section decodes to its contents, and a rebuilt text node that differs from the
+  original denies its element and every ancestor of it the verbatim source range subtree
+  copy-on-write would give it. `HeaderFooterText` therefore has the hand-written `FromXml`/`ToXml`
+  pair `DefinedName` has: it replays the file's own children until `set_text` replaces them. The gap
+  itself is still in the derive, and still owned by no work item.
+
 ## [0.0.117] - 2026-09-06
 
 Hyperlinks, the object-anchor vocabulary three Phase E children share, and the last small worksheet
