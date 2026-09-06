@@ -2722,7 +2722,10 @@ mod tests {
             // A comma inside a quoted sheet name is part of the name, not a union operator.
             ("'Q1,Q2'!A1,Sheet2!B2", &["'Q1,Q2'!A1", "Sheet2!B2"]),
             // …and one inside an external-book bracket is part of the bracket.
-            ("[1]Sheet1!A1,[2]Sheet1!A1", &["[1]Sheet1!A1", "[2]Sheet1!A1"]),
+            (
+                "[1]Sheet1!A1,[2]Sheet1!A1",
+                &["[1]Sheet1!A1", "[2]Sheet1!A1"],
+            ),
             // Whitespace around an area is not part of it.
             (" A1:B2 , C3:D4 ", &["A1:B2", "C3:D4"]),
             ("A1,B2,C3", &["A1", "B2", "C3"]),
