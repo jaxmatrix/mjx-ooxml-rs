@@ -91,6 +91,34 @@ fn is_xml_content_type(content_type: &str) -> bool {
 #[must_use]
 pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
     let mut audited = Vec::new();
+    audit_package_order(label, bytes, "", &mut audited);
+    audited
+}
+
+/// The content type of an embedded Office package — a chart's workbook. Restated from
+/// `inspect.rs`'s own list rather than shared, for the reason that module's copy gives: each half of
+/// the gate states the fact it acts on.
+const EMBEDDED_PACKAGE_CONTENT_TYPES: [&str; 1] =
+    ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+
+/// Audits one package, appending to `audited`, and descends into any package embedded in it.
+///
+/// `prefix` names where the package sits: empty for the document itself, and
+/// `/word/embeddings/Microsoft_Excel_Sheet1.xlsx!` for a chart's workbook — the **same naming the
+/// validation half uses** (`inspect_package`), so a part appears under one name in both halves of
+/// the gate's report.
+///
+/// # Why the descent exists (MJXOFF-103)
+///
+/// Until this child the ordering audit walked the outer package only, while the validation half had
+/// descended into an embedded workbook since A5. That asymmetry meant **no chart's embedded
+/// workbook was ever audited for child order, in any format** — `xmllint` checked its SpreadsheetML
+/// and the generated `sml` tables checked nothing, even though `sml` has been in
+/// `CHILD_ORDER_SCHEMAS` since MJXOFF-132 and `mjx-sml`'s writer is what composes those parts. It
+/// was found by a Word case asserting the nested worksheet was audited and discovering it was not
+/// in the list at all; the hole was never Word-specific, and closing it here closes it for
+/// `mjx-pptx` in the same commit.
+fn audit_package_order(label: &str, bytes: &[u8], prefix: &str, audited: &mut Vec<AuditedPart>) {
     let mut package =
         Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
     let parts: Vec<PartName> = package.part_names().collect();
@@ -98,6 +126,14 @@ pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
         let Some(content_type) = package.content_type_of(&part).map(str::to_owned) else {
             continue;
         };
+        if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
+            let Some(payload) = package.part_bytes(&part).map(<[u8]>::to_vec) else {
+                continue;
+            };
+            let nested = format!("{prefix}{}!", part.as_str());
+            audit_package_order(label, &payload, &nested, audited);
+            continue;
+        }
         if !is_xml_content_type(&content_type) {
             continue;
         }
@@ -119,12 +155,12 @@ pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
         let audit = child_order::audit_tree(order, root, interner);
         if let Some(defect) = audit.defect {
             panic!(
-                "{label}: {} is out of schema order — {defect}",
+                "{label}: {prefix}{} is out of schema order — {defect}",
                 part.as_str()
             );
         }
         audited.push(AuditedPart {
-            name: part.as_str().to_owned(),
+            name: format!("{prefix}{}", part.as_str()),
             elements_visited: audit.elements_visited,
             root_child_elements: root
                 .children
@@ -133,7 +169,6 @@ pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
                 .count(),
         });
     }
-    audited
 }
 
 /// Every part of `bytes` the ordering audit **must** have reached: one whose root namespace is a
