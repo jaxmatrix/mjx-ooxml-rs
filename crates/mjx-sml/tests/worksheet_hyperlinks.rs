@@ -36,6 +36,8 @@
 //!   this library wrote out of `xsd:sequence` order;
 //! * **the sheet carries a `customSheetViews` (rank 13) and a `phoneticPr` (rank 15)**, neither of
 //!   which MJXOFF-127 models, so the modelled and unmodelled slots genuinely interleave.
+//!   MJXOFF-129 (D17) has since typed the first of the two, and the interleaving survives: the
+//!   `phoneticPr` at rank 15 still stands between typed slots on both sides.
 //!
 //! # Why the re-emission tests are not byte-identity tests
 //!
@@ -722,13 +724,22 @@ fn web_publish_items_read_and_the_destination_is_never_resolved() {
 // The slots nobody modelled, and the whole part
 // -------------------------------------------------------------------------------------------
 
-/// The two slots MJXOFF-127 deliberately left held still round-trip, in position.
+/// The slot MJXOFF-127 deliberately left held still round-trips, in position.
 ///
-/// `customSheetViews` (rank 13) is MJXOFF-129 (D17)'s — it embeds a `pageMargins`, which is D17's
-/// own print block — and `phoneticPr` (rank 15) is nobody's yet. Both are *explicitly preserved*,
-/// which is a claim this case checks rather than a hope.
+/// It was **two** when MJXOFF-127 wrote this case: `customSheetViews` (rank 13) and `phoneticPr`
+/// (rank 15). MJXOFF-129 (D17) has since modelled `customSheetViews` — it embeds a `pageMargins`,
+/// a `printOptions`, a `pageSetup` and a `headerFooter`, which is why it waited for D17's print
+/// block — so it is now a typed slot and only `phoneticPr` is still held. `phoneticPr` belongs to
+/// **nobody**: `CT_PhoneticPr` is already modelled once, as
+/// [`PhoneticProperties`](mjx_sml::PhoneticProperties) decoded out of the shared-string store's
+/// packed bytes, so giving this slot a type means unifying two call sites — a design question, not
+/// a slot to fill.
+///
+/// The list of every child, modelled or held, is the load-bearing half: it says what the part
+/// *emits*, so a slot that quietly stopped being written would fail here whichever category it is
+/// in.
 #[test]
-fn the_two_slots_this_child_did_not_model_are_still_held_in_position() {
+fn the_one_slot_nobody_has_modelled_is_still_held_in_position() {
     let sheet = sheet();
     let locals: Vec<&str> = sheet.child_element_locals().collect();
     assert_eq!(
@@ -759,7 +770,11 @@ fn the_two_slots_this_child_did_not_model_are_still_held_in_position() {
             _ => None,
         })
         .collect();
-    assert_eq!(held, vec!["customSheetViews", "phoneticPr"]);
+    assert_eq!(
+        held,
+        vec!["phoneticPr"],
+        "`customSheetViews` is MJXOFF-129's and is now typed; `phoneticPr` is still nobody's"
+    );
 }
 
 /// Every new model survives a rebuild **from the model alone**, with no verbatim range anywhere.

@@ -122,8 +122,10 @@ use crate::address::{CellRange, CellReference};
 use crate::cells::{Cell, CellValue, Row, SheetData};
 use crate::error::SmlError;
 use crate::features::{
-    AutoFilter, CellWatches, ConditionalFormatting, CustomProperties, DataConsolidation,
-    DataValidations, Hyperlinks, IgnoredErrors, SmartTags, SortState, TableParts, WebPublishItems,
+    AutoFilter, CellWatches, ConditionalFormatting, CustomProperties, CustomSheetViews,
+    DataConsolidation, DataValidations, HeaderFooter, Hyperlinks, IgnoredErrors, PageMargins,
+    PageSetup, PrintOptions, SheetBackgroundPicture, SmartTags, SortState, TableParts,
+    WebPublishItems,
 };
 
 use super::breaks::PageBreaks;
@@ -167,6 +169,10 @@ pub enum WorksheetContent {
     /// `x:dataConsolidate` (rank 12) — the consolidation this sheet records. **Recorded, never
     /// performed:** nothing here combines a range or evaluates its function.
     DataConsolidation(DataConsolidation),
+    /// `x:customSheetViews` (rank 13) — the per-user saved views of this sheet, each carrying its
+    /// own pane, selection, breaks, print block and autofilter. **A record, never applied:** no row
+    /// is hidden and no pane is split from one. See [`crate::features::custom_views`].
+    CustomSheetViews(CustomSheetViews),
     /// `x:mergeCells` (rank 14).
     MergedCells(MergedCells),
     /// `x:conditionalFormatting` (rank 16) — one block. The schema declares the slot
@@ -181,6 +187,16 @@ pub enum WorksheetContent {
     /// entry carrying both an `@r:id` and a `@location` is a real shape Excel writes rather than one
     /// this crate tidies away. See [`crate::features::hyperlinks`].
     Hyperlinks(Hyperlinks),
+    /// `x:printOptions` (rank 19) — what a printed sheet shows beside its cells.
+    PrintOptions(PrintOptions),
+    /// `x:pageMargins` (rank 20) — the six margins of a printed page, in inches.
+    PageMargins(PageMargins),
+    /// `x:pageSetup` (rank 21) — paper, orientation, scaling, and the `r:id` of a saved printer
+    /// configuration. **Reported, never paginated:** nothing here computes where a page breaks.
+    PageSetup(PageSetup),
+    /// `x:headerFooter` (rank 22) — six opaque strings in Excel's formatting-code language,
+    /// preserved byte for byte and **never re-serialised**. See [`crate::features::print`].
+    HeaderFooter(HeaderFooter),
     /// `x:rowBreaks` (rank 23) — `CT_PageBreak` in the row axis.
     RowBreaks(PageBreaks),
     /// `x:colBreaks` (rank 24) — the same complex type in the column axis.
@@ -197,6 +213,9 @@ pub enum WorksheetContent {
     /// `xl/workbook.xml`'s near-identically-named `smartTagTypes` is
     /// [`SmartTagTypes`](crate::SmartTagTypes) and a different thing.
     SmartTags(SmartTags),
+    /// `x:picture` (rank 33) — the image drawn behind the cells, named by an `r:id`. **Not** the
+    /// `drawing` slot at rank 29, which is MJXOFF-107's (E3).
+    BackgroundPicture(SheetBackgroundPicture),
     /// `x:webPublishItems` (rank 36) — the fragments of this sheet published as HTML, and the
     /// untrusted destination path each names. Never resolved, never opened.
     WebPublishItems(WebPublishItems),
@@ -230,16 +249,22 @@ impl WorksheetContent {
             Self::AutoFilter(_) => "autoFilter",
             Self::SortState(_) => "sortState",
             Self::DataConsolidation(_) => "dataConsolidate",
+            Self::CustomSheetViews(_) => "customSheetViews",
             Self::MergedCells(_) => "mergeCells",
             Self::ConditionalFormatting(_) => "conditionalFormatting",
             Self::DataValidations(_) => "dataValidations",
             Self::Hyperlinks(_) => "hyperlinks",
+            Self::PrintOptions(_) => "printOptions",
+            Self::PageMargins(_) => "pageMargins",
+            Self::PageSetup(_) => "pageSetup",
+            Self::HeaderFooter(_) => "headerFooter",
             Self::RowBreaks(_) => "rowBreaks",
             Self::ColumnBreaks(_) => "colBreaks",
             Self::CustomProperties(_) => "customProperties",
             Self::CellWatches(_) => "cellWatches",
             Self::IgnoredErrors(_) => "ignoredErrors",
             Self::SmartTags(_) => "smartTags",
+            Self::BackgroundPicture(_) => "picture",
             Self::WebPublishItems(_) => "webPublishItems",
             Self::TableParts(_) => "tableParts",
             Self::Raw(_) => return None,
@@ -266,15 +291,21 @@ impl WorksheetContent {
             Self::AutoFilter(value) => value.as_raw_element(),
             Self::SortState(value) => value.as_raw_element(),
             Self::DataConsolidation(value) => value.as_raw_element(),
+            Self::CustomSheetViews(value) => value.as_raw_element(),
             Self::MergedCells(value) => value.as_raw_element(),
             Self::ConditionalFormatting(value) => value.as_raw_element(),
             Self::DataValidations(value) => value.as_raw_element(),
             Self::Hyperlinks(value) => value.as_raw_element(),
+            Self::PrintOptions(value) => value.as_raw_element(),
+            Self::PageMargins(value) => value.as_raw_element(),
+            Self::PageSetup(value) => value.as_raw_element(),
+            Self::HeaderFooter(value) => value.as_raw_element(),
             Self::RowBreaks(value) | Self::ColumnBreaks(value) => value.as_raw_element(),
             Self::CustomProperties(value) => value.as_raw_element(),
             Self::CellWatches(value) => value.as_raw_element(),
             Self::IgnoredErrors(value) => value.as_raw_element(),
             Self::SmartTags(value) => value.as_raw_element(),
+            Self::BackgroundPicture(value) => value.as_raw_element(),
             Self::WebPublishItems(value) => value.as_raw_element(),
             Self::TableParts(value) => value.as_raw_element(),
             Self::SheetData(_) | Self::Raw(_) => return None,
@@ -852,6 +883,75 @@ impl WorksheetPart {
          element. See [`crate::features::hyperlinks`]."
     );
     singleton_slot!(
+        custom_sheet_views,
+        custom_sheet_views_mut,
+        set_custom_sheet_views,
+        CustomSheetViews,
+        CustomSheetViews,
+        "customSheetViews",
+        "`x:customSheetViews` — the per-user saved views of this sheet (rank 13). Each carries its \
+         own pane, selection, row and column breaks, print block and autofilter, and **none of them \
+         is a second model**: they are MJXOFF-102's pane and selection, MJXOFF-117's breaks, \
+         MJXOFF-123's autofilter and this child's print block. **A record, never applied:** \
+         `@hiddenRows` on a view is that view's memory of what was hidden, not the sheet's rows. \
+         See [`crate::features::custom_views`]."
+    );
+    singleton_slot!(
+        print_options,
+        print_options_mut,
+        set_print_options,
+        PrintOptions,
+        PrintOptions,
+        "printOptions",
+        "`x:printOptions` — what a printed sheet shows beside its cells (rank 19): centring, \
+         headings and grid lines. See [`crate::features::print`]."
+    );
+    singleton_slot!(
+        page_margins,
+        page_margins_mut,
+        set_page_margins,
+        PageMargins,
+        PageMargins,
+        "pageMargins",
+        "`x:pageMargins` — the six margins of a printed page, in **inches** (rank 20). Every one is \
+         `use=\"required\"`, which is why the accessors return `Result` rather than `Option`."
+    );
+    singleton_slot!(
+        page_setup,
+        page_setup_mut,
+        set_page_setup,
+        PageSetup,
+        PageSetup,
+        "pageSetup",
+        "`x:pageSetup` — paper, orientation, scaling and the `r:id` of a saved printer configuration \
+         (rank 21). **Reported, never paginated:** `fitToWidth` is a number this library hands \
+         back, and where a page actually breaks is rendering. Resolving the `r:id` to a \
+         printer-settings part is `mjx-xlsx`'s."
+    );
+    singleton_slot!(
+        header_footer,
+        header_footer_mut,
+        set_header_footer,
+        HeaderFooter,
+        HeaderFooter,
+        "headerFooter",
+        "`x:headerFooter` — up to six strings in Excel's formatting-code language (rank 22), each \
+         **preserved byte for byte and never re-serialised**. See \
+         [`HeaderFooterText`](crate::HeaderFooterText) for why that is a hand-written \
+         `FromXml`/`ToXml` pair rather than the derived one."
+    );
+    singleton_slot!(
+        background_picture,
+        background_picture_mut,
+        set_background_picture,
+        BackgroundPicture,
+        SheetBackgroundPicture,
+        "picture",
+        "`x:picture` — the image drawn behind the cells (rank 33), named by an `r:id` this crate \
+         holds as text. **Not** the `drawing` slot at rank 29: a background picture is not anchored \
+         to cells and has no `xdr:wsDr` part."
+    );
+    singleton_slot!(
         custom_properties,
         custom_properties_mut,
         set_custom_properties,
@@ -1390,6 +1490,9 @@ fn read_slot(
         "dataConsolidate" => {
             WorksheetContent::DataConsolidation(DataConsolidation::from_xml(&element, interner)?)
         }
+        "customSheetViews" => {
+            WorksheetContent::CustomSheetViews(CustomSheetViews::from_xml(&element, interner)?)
+        }
         "mergeCells" => WorksheetContent::MergedCells(MergedCells::from_xml(&element, interner)?),
         "conditionalFormatting" => WorksheetContent::ConditionalFormatting(
             ConditionalFormatting::from_xml(&element, interner)?,
@@ -1398,6 +1501,14 @@ fn read_slot(
             WorksheetContent::DataValidations(DataValidations::from_xml(&element, interner)?)
         }
         "hyperlinks" => WorksheetContent::Hyperlinks(Hyperlinks::from_xml(&element, interner)?),
+        "printOptions" => {
+            WorksheetContent::PrintOptions(PrintOptions::from_xml(&element, interner)?)
+        }
+        "pageMargins" => WorksheetContent::PageMargins(PageMargins::from_xml(&element, interner)?),
+        "pageSetup" => WorksheetContent::PageSetup(PageSetup::from_xml(&element, interner)?),
+        "headerFooter" => {
+            WorksheetContent::HeaderFooter(HeaderFooter::from_xml(&element, interner)?)
+        }
         "rowBreaks" => WorksheetContent::RowBreaks(PageBreaks::from_xml(&element, interner)?),
         "colBreaks" => WorksheetContent::ColumnBreaks(PageBreaks::from_xml(&element, interner)?),
         "customProperties" => {
@@ -1408,6 +1519,9 @@ fn read_slot(
             WorksheetContent::IgnoredErrors(IgnoredErrors::from_xml(&element, interner)?)
         }
         "smartTags" => WorksheetContent::SmartTags(SmartTags::from_xml(&element, interner)?),
+        "picture" => WorksheetContent::BackgroundPicture(SheetBackgroundPicture::from_xml(
+            &element, interner,
+        )?),
         "webPublishItems" => {
             WorksheetContent::WebPublishItems(WebPublishItems::from_xml(&element, interner)?)
         }
