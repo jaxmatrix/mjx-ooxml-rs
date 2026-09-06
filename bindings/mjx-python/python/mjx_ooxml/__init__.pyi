@@ -7443,7 +7443,7 @@ class Workbook:
         sheet: int,
         anchor: int,
         series_idx: int,
-        point_idx: int | None,
+        point_idx: int | None = None,
     ) -> DataLabelSettings:
         """The data-label settings in force for one point of series `series_idx`."""
         ...
@@ -7531,8 +7531,8 @@ class Workbook:
         sheet: int,
         anchor: int,
         axis_idx: int,
-        minimum: float | None,
-        maximum: float | None,
+        minimum: float | None = None,
+        maximum: float | None = None,
     ) -> None:
         """Sets or clears the explicit bounds of axis `axis_idx`."""
         ...
@@ -7552,7 +7552,7 @@ class Workbook:
         sheet: int,
         anchor: int,
         axis_idx: int,
-        text: str | None,
+        text: str | None = None,
     ) -> None:
         """Sets or removes the title of axis `axis_idx`."""
         ...
@@ -7568,11 +7568,11 @@ class Workbook:
         """Turns the gridlines of axis `axis_idx` on or off."""
         ...
 
-    def set_chart_title(self, sheet: int, anchor: int, text: str | None) -> None:
+    def set_chart_title(self, sheet: int, anchor: int, text: str | None = None) -> None:
         """Sets or removes the chart's heading."""
         ...
 
-    def set_chart_legend(self, sheet: int, anchor: int, position: LegendPosition | None) -> None:
+    def set_chart_legend(self, sheet: int, anchor: int, position: LegendPosition | None = None) -> None:
         """Places the chart's legend at `position`, or removes it."""
         ...
 
@@ -7644,7 +7644,7 @@ class Workbook:
         anchor: int,
         series_idx: int,
         point_idx: int,
-        percent: int | None,
+        percent: int | None = None,
     ) -> None:
         """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back.
         """
