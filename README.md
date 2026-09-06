@@ -251,9 +251,10 @@ The five to start with:
 
 ### Examples
 
-Twenty-five runnable programs across four crates. **Each one reopens what it wrote and asserts
-something about it** — an example that only produced a file would prove nothing — and CI runs every
-one on every push.
+Twenty-six runnable programs. Twenty-five of them **reopen what they wrote and assert something about
+it** — an example that only produced a file would prove nothing — and the twenty-sixth
+(`mjx-xml`'s `mjx248_measure`) is the serialization measurement `docs/BENCHMARKS.md` reproduces. CI
+runs every one on every push.
 
 ```sh
 # PowerPoint

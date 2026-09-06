@@ -10,9 +10,8 @@ macro_rules! guide_vocabulary {
         #[allow(unused_imports)]
         use crate::{
             HyperlinkKind, HyperlinkTarget, PartClassification, PartInventoryEntry, PartKind,
-            Sheet, SheetFormatResolver, SheetFormatting, SheetHyperlink, SheetKind, SheetMarkup,
-            SheetTable, SheetTableColumn, SpreadsheetDefect, Workbook, WorkbookParts, Worksheet,
-            WorksheetParts, XlsxError,
+            Sheet, SheetHyperlink, SheetKind, SheetMarkup, SheetTable, SheetTableColumn,
+            SpreadsheetDefect, Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
         };
     };
 }
