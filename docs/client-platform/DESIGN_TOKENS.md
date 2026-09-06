@@ -109,7 +109,27 @@ Measured against white:
 
 So the rule is: **`green` for fills, borders, indicators and icons; `green-deep` for any accent-coloured
 text on a light surface.** Getting this backwards is the most likely accessibility defect in the
-chrome, and it is cheap to prevent with a token-lint rule.
+chrome.
+
+**This is no longer advice — it is a build failure.** Every colour token in the source carries a
+`usage` tag in its `$extensions.mjx` block, and the generator refuses to emit if a token tagged for
+text does not clear 4.5 : 1 against the background it declares. Three values:
+
+| `usage` | Means | Checked against |
+|---|---|---|
+| `on-light-text` | legible as body text on a light surface | ≥ 4.5 : 1 vs its declared light background |
+| `on-dark-text` | legible as body text on a dark surface | ≥ 4.5 : 1 vs its declared dark background |
+| `fill-only` | fills, borders, indicators, icons — **never glyphs** | not contrast-checked as text |
+
+`on-dark-text` exists because §2.1's derived dark palette needs the same guarantee, and measuring only
+the light side would have left half the tokens unchecked.
+
+**⚠ The honey ramp has no text-legal step, and this was not known when §2.2 was first written.**
+`--color-honey-deep` `#b77e1f` measures **3.49 : 1** on white — below the body-text minimum. Unlike
+green, which has `green-deep` at 5.34 : 1, honey has no deeper step in the Allr source. So honey and
+**both tracked-change colours** are `fill-only`: a tracked change may colour its change bar, its
+underline or its margin marker, but **not its glyphs**. Colouring tracked-change *text* requires a
+deeper honey step the source does not define — an open design decision, not one to invent.
 
 ### 2.3 · The document surface is not the app surface
 
@@ -149,11 +169,17 @@ codegen doctrine: an `xtask` generator, output committed, never a `build.rs`.
 
 ```
 docs/client-platform/data/tokens.json          (W3C Design Tokens format — the source)
+        │   cargo run -p xtask -- tokens        (--check verifies; --out-dir writes elsewhere)
         │
-        ├── tokens.css   — custom properties for the Web-Component chrome
-        ├── tokens.ts    — typed constants + the Tokens type for shell logic
-        └── tokens.rs    — a `Tokens` struct and const default table for mjx-tokens
+        ├── ui/tokens/tokens.css               — custom properties for the Web-Component chrome
+        ├── ui/tokens/tokens.ts                — typed constants, the Tokens type, customProperties
+        └── crates/mjx-tokens/src/generated.rs  — a `Tokens` struct and const default table
 ```
+
+All three are **generated and committed**; the source is the only file to edit. Two gates hold them
+together: `xtask/tests/tokens.rs` proves they are *derived* from the source, and `mjx-tokens`'s
+`artefacts_agree` suite proves they *agree with each other* by parsing the emitted CSS and TypeScript
+from disk and comparing every value against the Rust table.
 
 At runtime the shell resolves in this order — **explicit host configuration → CSS custom properties
 read off the host element → built-in defaults** — and pushes the resolved snapshot across the bridge

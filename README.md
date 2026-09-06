@@ -106,15 +106,18 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 ```
 0.0  Foundations      mjx-ooxml-core  ·  mjx-derive
 0.1  Foundations      mjx-xml
+0.2  Foundations      mjx-tokens  (design tokens — generated defaults + the runtime resolver)
 1.0  Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
+1.5  Typography       mjx-text    (fonts, substitution, shaping, bidi, line breaking)
 2.0  Shared markup    mjx-dml
 2.1  Shared markup    mjx-sml     (SpreadsheetML markup — an embedded workbook is not Excel's alone)
 2.2  Shared markup    mjx-chart  ·  mjx-omml  ·  mjx-vml
 3.0  Formats          mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
 4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
 5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
-     Tooling          xtask       (schema codegen)
-     Test-only        mjx-schema-gate  ·  mjx-fixtures   (never published, never a runtime dependency)
+     Tooling          xtask       (schema and token codegen)
+     Test-only        mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
+                                  (never published, never a runtime dependency)
 ```
 
 An edge is legal **iff** it points to a *strictly* lower rank, which makes sideways as illegal as
