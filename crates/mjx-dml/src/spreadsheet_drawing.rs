@@ -457,8 +457,11 @@ anchored_object! {
 
 anchored_object! {
     /// `xdr:graphicFrame` (`CT_GraphicalObjectFrame`, §20.5.2.16) — the frame a chart, a diagram or
-    /// a table is drawn in. **What goes inside it is MJXOFF-111's (E4)**; this reports the frame,
-    /// its transform and the `a:graphic` reference, and decomposes neither.
+    /// a table is drawn in. This reports the frame, its transform and the `a:graphic` reference,
+    /// and decomposes neither: what is *inside* the `a:graphicData` belongs to the crate that owns
+    /// that vocabulary. For a chart that is `mjx-chart`, reached through
+    /// [`GraphicData::chart_relationship_id`](crate::graphic::GraphicData::chart_relationship_id);
+    /// [`new_anchored_graphic_frame`] is what MJXOFF-111 (E4) writes one with.
     DrawingGraphicFrame, "graphicFrame", "nvGraphicFramePr",
     attributes: [
     #[xml(attribute(local = "macro", codec = Text, accessor = macro_reference))]
@@ -605,9 +608,10 @@ impl DrawingGraphicFrame {
     /// The graphical object this frame draws (`a:graphic` — DrawingML-main's own namespace, not
     /// `xdr:`), or `None` when the frame writes none.
     ///
-    /// **What is inside it is not decomposed here**: a chart reference is MJXOFF-111's (E4).
+    /// **What is inside it is not decomposed here.**
     /// [`GraphicData::chart_relationship_id`](crate::graphic::GraphicData::chart_relationship_id)
-    /// is what reads one.
+    /// is what reads a chart reference out of it, and `mjx_xlsx`'s chart surface (MJXOFF-111, E4)
+    /// is what resolves that identifier to a part.
     #[must_use]
     pub fn graphic(&self, interner: &Interner) -> Option<Graphic> {
         dml_main_child(&self.children, interner, "graphic")
@@ -1622,6 +1626,77 @@ pub fn new_anchored_picture(
         .push(RawNode::Element(properties.to_xml(interner)));
 
     picture
+}
+
+/// A fresh, minimally-complete `xdr:graphicFrame` framing the chart part `relationship_id` names
+/// (MJXOFF-111).
+///
+/// `CT_GraphicalObjectFrame` (§20.5.2.16) declares **three required children in this order**, and
+/// this writes all three: `xdr:nvGraphicFramePr` (the identity and the frame's lock list),
+/// `xdr:xfrm`, and `a:graphic`. The `xfrm` is not optional the way a picture's `a:xfrm` is —
+/// `minOccurs="1"` — so a frame that omitted it would fail `dml-spreadsheetDrawing.xsd` however it
+/// were anchored.
+///
+/// It is written **all-zero** (`a:off x="0" y="0"`, `a:ext cx="0" cy="0"`), which is what Excel and
+/// LibreOffice both write for a frame in a `xdr:twoCellAnchor`: the two markers are the geometry, so
+/// a non-zero transform here would be a second, disagreeing statement of where the chart is. A
+/// caller who anchors the frame absolutely and wants the transform to say something can set it
+/// through [`DrawingGraphicFrame::set_transform`].
+///
+/// The `a:graphic`/`a:graphicData` envelope comes from [`crate::graphic`], which is the same
+/// envelope a `p:graphicFrame` and a `w:drawing` put a chart in — one spelling of the chart
+/// reference for all three formats.
+#[must_use]
+pub fn new_anchored_graphic_frame(
+    interner: &mut Interner,
+    id: u32,
+    name: &str,
+    relationship_id: &str,
+) -> DrawingGraphicFrame {
+    let mut frame = DrawingGraphicFrame {
+        name: xdr_name(interner, "graphicFrame"),
+        attributes: Vec::new(),
+        children: Vec::new(),
+        empty: false,
+    };
+
+    // `xdr:nvGraphicFramePr` — `xdr:cNvPr` (the identity) then `xdr:cNvGraphicFramePr`.
+    let non_visual_name = xdr_name(interner, "nvGraphicFramePr");
+    let cnv_pr_name = xdr_name(interner, "cNvPr");
+    let cnv_frame_pr_name = xdr_name(interner, "cNvGraphicFramePr");
+    let identity = NonVisualDrawingProps::with_name(interner, cnv_pr_name, id, name);
+    let identity = RawNode::Element(identity.to_xml(interner));
+    let frame_props = RawNode::Element(RawElement::new(
+        cnv_frame_pr_name,
+        Vec::new(),
+        Vec::new(),
+        true,
+    ));
+    frame.children.push(RawNode::Element(RawElement::new(
+        non_visual_name,
+        Vec::new(),
+        vec![identity, frame_props],
+        false,
+    )));
+
+    // `xdr:xfrm`, required and deliberately zero — see this function's own documentation.
+    frame.set_transform(
+        interner,
+        Transform2D {
+            position: Some(Position::from_emu(0, 0)),
+            size: Some(Size::from_emu(0, 0)),
+            ..Transform2D::default()
+        },
+    );
+
+    // `a:graphic` — DrawingML-main's own namespace, not `xdr:`.
+    let data = crate::graphic::GraphicData::for_chart(interner, relationship_id);
+    let graphic = crate::graphic::Graphic::new(interner, data);
+    frame
+        .children
+        .push(RawNode::Element(graphic.to_xml(interner)));
+
+    frame
 }
 
 /// A fresh `xdr:twoCellAnchor` holding `object`, pinned between `from` and `to`.
