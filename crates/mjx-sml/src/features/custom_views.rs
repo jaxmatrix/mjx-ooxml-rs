@@ -26,15 +26,15 @@
 //!
 //! | rank | element | type | modelled by |
 //! |---|---|---|---|
-//! | 0 | `pane` | `CT_Pane` | [`SheetPane`](crate::SheetPane) — MJXOFF-102 (D07) |
-//! | 1 | `selection` | `CT_Selection` | [`Selection`](crate::Selection) — MJXOFF-102 (D07) |
-//! | 2 | `rowBreaks` | `CT_PageBreak` | [`PageBreaks`](crate::PageBreaks) — MJXOFF-117 (D12) |
-//! | 3 | `colBreaks` | `CT_PageBreak` | [`PageBreaks`](crate::PageBreaks), the other axis |
-//! | 4 | `pageMargins` | `CT_PageMargins` | [`PageMargins`](super::print::PageMargins) |
-//! | 5 | `printOptions` | `CT_PrintOptions` | [`PrintOptions`](super::print::PrintOptions) |
-//! | 6 | `pageSetup` | `CT_PageSetup` | [`PageSetup`](super::print::PageSetup) |
-//! | 7 | `headerFooter` | `CT_HeaderFooter` | [`HeaderFooter`](super::print::HeaderFooter) |
-//! | 8 | `autoFilter` | `CT_AutoFilter` | [`AutoFilter`](crate::AutoFilter) — MJXOFF-123 (D14) |
+//! | 0 | `pane` | `CT_Pane` | [`SheetPane`] — MJXOFF-102 (D07) |
+//! | 1 | `selection` | `CT_Selection` | [`Selection`] — MJXOFF-102 (D07) |
+//! | 2 | `rowBreaks` | `CT_PageBreak` | [`PageBreaks`] — MJXOFF-117 (D12) |
+//! | 3 | `colBreaks` | `CT_PageBreak` | [`PageBreaks`], the other axis |
+//! | 4 | `pageMargins` | `CT_PageMargins` | [`PageMargins`] |
+//! | 5 | `printOptions` | `CT_PrintOptions` | [`PrintOptions`] |
+//! | 6 | `pageSetup` | `CT_PageSetup` | [`PageSetup`] |
+//! | 7 | `headerFooter` | `CT_HeaderFooter` | [`HeaderFooter`] |
+//! | 8 | `autoFilter` | `CT_AutoFilter` | [`AutoFilter`] — MJXOFF-123 (D14) |
 //! | 9 | `extLst` | — | the unknown bucket |
 //!
 //! **Not one of them is re-modelled here.** That is the whole reason this slot was left raw by
@@ -266,7 +266,7 @@ impl CustomSheetView {
         PageBreaks,
         "rowBreaks",
         "`x:rowBreaks` (rank 2) — this view's own page breaks in the row axis, MJXOFF-117's \
-         [`PageBreaks`](crate::PageBreaks) and not a second model of one."
+         [`PageBreaks`] and not a second model of one."
     );
     view_child!(
         column_breaks,
@@ -322,7 +322,7 @@ impl CustomSheetView {
         AutoFilter,
         "autoFilter",
         "`x:autoFilter` (rank 8) — the filter this view remembers, MJXOFF-123's \
-         [`AutoFilter`](crate::AutoFilter). **Recorded, never applied:** no row's `@hidden` is set \
+         [`AutoFilter`]. **Recorded, never applied:** no row's `@hidden` is set \
          from it."
     );
 

@@ -14,11 +14,11 @@
 //!
 //! # Eleven of its sixteen slots are modelled, and none of them is modelled here
 //!
-//! Every one comes from somewhere else in this crate — [`SheetProperties`](crate::SheetProperties),
-//! [`SheetViews`](crate::SheetViews), [`SheetFormatProperties`](crate::SheetFormatProperties) and
-//! [`SheetProtection`](crate::SheetProtection) from MJXOFF-102/117's worksheet spine;
-//! [`CustomSheetViews`](crate::CustomSheetViews) and the four-element print block from this child;
-//! [`SheetDrawing`](crate::sheets::SheetDrawing) from the chartsheet beside it. This file is a
+//! Every one comes from somewhere else in this crate — [`SheetProperties`],
+//! [`SheetViews`], [`SheetFormatProperties`] and
+//! [`SheetProtection`] from MJXOFF-102/117's worksheet spine;
+//! [`CustomSheetViews`] and the four-element print block from this child;
+//! [`SheetDrawing`] from the chartsheet beside it. This file is a
 //! content enum and a set of accessors, which is all a sheet kind whose markup is entirely shared
 //! *should* be.
 //!
