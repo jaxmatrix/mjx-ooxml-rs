@@ -468,6 +468,15 @@ const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
          `mjx-sml` holds the `pageSetup@r:id` that names it and never opens it",
     ),
     (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.customProperty",
+        "a Custom Property part (ECMA-376 Part 1 §12.3.5), whose content the specification leaves \
+         entirely to the application. `mjx-sml` holds the `customPr@r:id` that names it \
+         (MJXOFF-127) and nothing opens it. `hyperlinks.xlsx` carried this part at the *package \
+         root* until MJXOFF-129, because this guard rejected it under `xl/`; a Custom Property \
+         part's target is relative to the workbook, so `xl/` is where it belongs and where it now \
+         is",
+    ),
+    (
         "image/png",
         "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`). `mjx-opc` \
          stores the caller's bytes verbatim and `ImageFormat::sniff` reads a magic-byte signature \

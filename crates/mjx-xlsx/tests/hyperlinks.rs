@@ -563,7 +563,7 @@ fn the_fixture_round_trips_untouched() {
     let after = Package::open(&saved).expect("open");
     let names: Vec<String> = before.part_names().map(|n| n.as_str().to_owned()).collect();
     assert!(
-        names.contains(&"/customProperty1.bin".to_owned()),
+        names.contains(&"/xl/customProperty1.bin".to_owned()),
         "the custom-property part is in the corpus"
     );
     for name in before.part_names() {

@@ -115,6 +115,12 @@ Print setup, headers and footers, custom views, and the three sheet kinds that a
   cases proving it: one feeds the rule each shape of false green and asserts it is still rejected,
   the other fails an allowlist entry no committed fixture witnesses.
 
+- **`tests/fixtures/hyperlinks.xlsx`'s custom-property part moves from `/customProperty1.bin` to
+  `/xl/customProperty1.bin`.** MJXOFF-127 put it at the package root because the guard above
+  rejected a binary part under `xl/`, and said so at the time. A Custom Property part's target is
+  relative to the workbook (ECMA-376 Part 1 §12.3.5), so `xl/` is where it belongs; with the guard
+  fixed, the workaround goes. The part's bytes and the sheet markup that names it are unchanged.
+
 ### Fixed
 
 - **A header or footer string's own spelling survives an edit elsewhere in the part.** The
