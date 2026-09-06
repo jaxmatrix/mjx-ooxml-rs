@@ -1,4 +1,4 @@
-//! The ninety-eight value enumerations, projected one variant at a time.
+//! The hundred value enumerations, projected one variant at a time.
 //!
 //! Every enumeration in the [`mjx_ooxml`] vocabulary that carries no payload becomes a Python class
 //! of the same name with the same members — `mjx_ooxml.TextAlignment.Center`, not the string
@@ -1324,6 +1324,23 @@ sealed_enums! {
         DoubleAccounting,
         #[pyo3(name = "NONE")]
         None,
+    }
+
+    /// The projection of [`mjx_ooxml::ResizingBehavior`] — what an anchored object on a sheet does
+    /// when the rows and columns under it move. Its documentation is authoritative.
+    ResizingBehavior {
+        MoveAndResizeWithAnchorCells,
+        MoveWithCellsButDoNotResize,
+        DoNotMoveOrResizeWithRowsOrColumns,
+    }
+
+    /// The projection of [`mjx_ooxml::GeometrySource`] — where a resolved anchor's number came
+    /// from, and the honesty half of every answer that carries one. Its documentation is
+    /// authoritative.
+    GeometrySource {
+        Stated,
+        SheetDefault,
+        BaseColumnWidth,
     }
 }
 open_enums! {

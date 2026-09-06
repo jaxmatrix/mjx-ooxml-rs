@@ -23,9 +23,10 @@ use pyo3::IntoPyObjectExt;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GridAnomalyKind,
-    HyperlinkKind, PartKind, ReferenceMode, SheetKind, SpreadsheetFontScheme,
-    SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction, UnderlineType,
+    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GeometrySource,
+    GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior, SheetKind,
+    SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
+    UnderlineType,
 };
 use crate::errors::to_py_err;
 
@@ -56,6 +57,18 @@ value_class! {
 
     /// One table on a sheet, resolved to its part.
     SheetTableInfo(ooxml::SheetTableInfo), derive(PartialEq, Eq);
+
+    /// One sheet's drawing part, and what is anchored in it.
+    SheetDrawingInfo(ooxml::SheetDrawingInfo), derive(PartialEq, Eq);
+
+    /// One anchored object on a sheet.
+    SheetDrawingObjectInfo(ooxml::SheetDrawingObjectInfo), derive(PartialEq, Eq);
+
+    /// Where an anchor puts its object, in EMU, and what the answer rests on.
+    AnchorBoundsInfo(ooxml::AnchorBoundsInfo), derive(Copy, PartialEq);
+
+    /// What one anchor did when rows or columns moved under it.
+    AnchorShiftInfo(ooxml::AnchorShiftInfo), derive(Copy, PartialEq, Eq);
 
     /// One column of a `SheetTableInfo`.
     SheetTableColumnInfo(ooxml::SheetTableColumnInfo), derive(PartialEq, Eq);
@@ -622,6 +635,189 @@ impl SheetHyperlinkInfo {
 
     fn __repr__(&self) -> String {
         format!("SheetHyperlinkInfo({:?})", self.0.range)
+    }
+}
+
+#[pymethods]
+impl SheetDrawingInfo {
+    /// The part the anchors live in.
+    #[getter]
+    fn part(&self) -> &str {
+        &self.0.part
+    }
+
+    /// The `x:drawing@r:id` the sheet reached it through.
+    #[getter]
+    fn relationship_id(&self) -> &str {
+        &self.0.relationship_id
+    }
+
+    /// Every anchored object, in paint order.
+    #[getter]
+    fn objects(&self) -> Vec<SheetDrawingObjectInfo> {
+        self.0
+            .objects
+            .iter()
+            .cloned()
+            .map(SheetDrawingObjectInfo)
+            .collect()
+    }
+
+    fn __repr__(&self) -> String {
+        format!("SheetDrawingInfo({:?})", self.0.part)
+    }
+}
+
+#[pymethods]
+impl SheetDrawingObjectInfo {
+    /// The object's position in the drawing part, which is also its paint order.
+    #[getter]
+    fn index(&self) -> u32 {
+        self.0.index
+    }
+
+    /// Which of the three anchor elements pins it.
+    #[getter]
+    fn anchor(&self) -> &str {
+        &self.0.anchor
+    }
+
+    /// Which kind of object it holds, or `None` for an anchor holding none.
+    #[getter]
+    fn object(&self) -> Option<&str> {
+        self.0.object.as_deref()
+    }
+
+    /// What the anchor promises to do when the cells under it move.
+    #[getter]
+    fn resizing(&self) -> PyResult<ResizingBehavior> {
+        ResizingBehavior::from_model(self.0.resizing)
+    }
+
+    /// The object's `cNvPr@id`, or `None`.
+    #[getter]
+    fn id(&self) -> Option<u32> {
+        self.0.id
+    }
+
+    /// The object's `cNvPr@name`, or `None`.
+    #[getter]
+    fn name(&self) -> Option<&str> {
+        self.0.name.as_deref()
+    }
+
+    /// The image part a picture shows, or `None` for every other object kind.
+    #[getter]
+    fn image(&self) -> Option<&str> {
+        self.0.image.as_deref()
+    }
+
+    /// Whether the object prints with the sheet — which **defaults to true**.
+    #[getter]
+    fn prints_with_sheet(&self) -> bool {
+        self.0.prints_with_sheet
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "SheetDrawingObjectInfo({:?}, {:?})",
+            self.0.anchor, self.0.name
+        )
+    }
+}
+
+#[pymethods]
+impl AnchorBoundsInfo {
+    /// The object's left edge, in EMU from the sheet origin.
+    #[getter]
+    fn x_emu(&self) -> i64 {
+        self.0.x_emu
+    }
+
+    /// The object's top edge, in EMU from the sheet origin.
+    #[getter]
+    fn y_emu(&self) -> i64 {
+        self.0.y_emu
+    }
+
+    /// The object's width, in EMU.
+    #[getter]
+    fn width_emu(&self) -> i64 {
+        self.0.width_emu
+    }
+
+    /// The object's height, in EMU.
+    #[getter]
+    fn height_emu(&self) -> i64 {
+        self.0.height_emu
+    }
+
+    /// Where the vertical half of this answer came from.
+    #[getter]
+    fn row_source(&self) -> PyResult<GeometrySource> {
+        GeometrySource::from_model(self.0.row_source)
+    }
+
+    /// Where the horizontal half came from.
+    #[getter]
+    fn column_source(&self) -> PyResult<GeometrySource> {
+        GeometrySource::from_model(self.0.column_source)
+    }
+
+    /// The maximum digit width, in pixels, the horizontal half was computed through.
+    #[getter]
+    fn maximum_digit_width_pixels(&self) -> f64 {
+        self.0.maximum_digit_width_pixels
+    }
+
+    /// The pixels per inch that width was stated at.
+    #[getter]
+    fn pixels_per_inch(&self) -> f64 {
+        self.0.pixels_per_inch
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "AnchorBoundsInfo({}, {}, {}, {})",
+            self.0.x_emu, self.0.y_emu, self.0.width_emu, self.0.height_emu
+        )
+    }
+}
+
+#[pymethods]
+impl AnchorShiftInfo {
+    /// The anchor's position in the drawing part.
+    #[getter]
+    fn index(&self) -> u32 {
+        self.0.index
+    }
+
+    /// What the anchor promises to do when the cells under it move.
+    #[getter]
+    fn promise(&self) -> PyResult<ResizingBehavior> {
+        ResizingBehavior::from_model(self.0.promise)
+    }
+
+    /// Whether the object's top-left corner moved.
+    #[getter]
+    fn moved(&self) -> bool {
+        self.0.moved
+    }
+
+    /// Whether the object's extent changed.
+    #[getter]
+    fn resized(&self) -> bool {
+        self.0.resized
+    }
+
+    /// Whether the markers alone could keep the anchor's own promise.
+    #[getter]
+    fn promise_kept(&self) -> bool {
+        self.0.promise_kept
+    }
+
+    fn __repr__(&self) -> String {
+        format!("AnchorShiftInfo({})", self.0.index)
     }
 }
 
@@ -1862,5 +2058,9 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<BorderSpec>()?;
     module.add_class::<CellFormatSpec>()?;
     module.add_class::<EffectiveCellFormat>()?;
-    module.add_class::<ResolvedAspect>()
+    module.add_class::<ResolvedAspect>()?;
+    module.add_class::<SheetDrawingInfo>()?;
+    module.add_class::<SheetDrawingObjectInfo>()?;
+    module.add_class::<AnchorBoundsInfo>()?;
+    module.add_class::<AnchorShiftInfo>()
 }

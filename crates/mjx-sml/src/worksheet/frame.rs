@@ -1,9 +1,9 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, thirty-one modelled, eight held
+//! # Thirty-nine slots, thirty-four modelled, five held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Eight of those slots belong to later children or to no ticket at all,
+//! twice `CT_Workbook`'s. Five of those slots belong to a later child or to no ticket at all,
 //! and this type holds every one of them **in its schema position**, as the markup
 //! the file wrote. A worksheet
 //! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
@@ -40,13 +40,13 @@
 //! | 26 | `cellWatches` | [`CellWatches`] |
 //! | 27 | `ignoredErrors` | [`IgnoredErrors`] |
 //! | 28 | `smartTags` | [`SmartTags`] — the *worksheet* cluster, not the workbook's `smartTagTypes` |
-//! | 29 | `drawing` | [`WorksheetContent::Raw`] — **MJXOFF-107 (E3)** |
+//! | 29 | `drawing` | [`SheetDrawing`](crate::SheetDrawing) — MJXOFF-107 (E3) |
 //! | 30 | `legacyDrawing` | [`WorksheetContent::Raw`] — **MJXOFF-114 (E5)** |
 //! | 31 | `legacyDrawingHF` | [`WorksheetContent::Raw`] — **unowned**; see below |
 //! | 32 | `drawingHF` | [`WorksheetContent::Raw`] — **unowned**; see below |
 //! | 33 | `picture` | [`SheetBackgroundPicture`] — MJXOFF-129 (D17) |
-//! | 34 | `oleObjects` | [`WorksheetContent::Raw`] — **MJXOFF-107 (E3)** |
-//! | 35 | `controls` | [`WorksheetContent::Raw`] — **MJXOFF-107 (E3)** |
+//! | 34 | `oleObjects` | [`EmbeddedObjects`] — MJXOFF-107 (E3) |
+//! | 35 | `controls` | [`FormControls`] — MJXOFF-107 (E3) |
 //! | 36 | `webPublishItems` | [`WebPublishItems`] |
 //! | 37 | `tableParts` | [`TableParts`] — the sheet's edges to its table parts, held as raw `r:id`s |
 //! | 38 | `extLst` | [`WorksheetContent::Raw`] — the unknown bucket, by design |
@@ -55,21 +55,20 @@
 //! [`Slot::rank`], which is the one thing MJXOFF-117 had to fix in MJXOFF-102's frame rather than
 //! add beside it.
 //!
-//! # Who owns the eight slots this type still holds raw
+//! # Who owns the five slots this type still holds raw
 //!
-//! MJXOFF-127 (D16) modelled seven of what were then fourteen and MJXOFF-129 (D17) six more; this
-//! is what is left. MJXOFF-133 (D18) re-derived the table above from the enum rather than trusting
-//! it, and found the previous version stale on six rows — D17 filled ranks 13, 19–22 and 33 and
-//! did not come back to say so.
+//! MJXOFF-127 (D16) modelled seven of what were then fourteen, MJXOFF-129 (D17) six more and
+//! MJXOFF-107 (E3) the last three that had an owner; this is what is left. MJXOFF-133 (D18)
+//! re-derived the table above from the enum rather than trusting it, and found the previous version
+//! stale on six rows — D17 filled ranks 13, 19–22 and 33 and did not come back to say so.
 //!
 //! | Slot(s) | Held for |
 //! |---|---|
-//! | 29 `drawing`, 34 `oleObjects`, 35 `controls` | **MJXOFF-107 (E3)** |
 //! | 30 `legacyDrawing` | **MJXOFF-114 (E5)** |
 //! | 38 `extLst` | the unknown bucket, by design — an `extLst` is markup no schema in this workspace types |
 //! | **15 `phoneticPr`, 31 `legacyDrawingHF`, 32 `drawingHF`** | **nobody**, and MJXOFF-133 confirmed it rather than closing it. `CT_PhoneticPr` is *already* modelled once, as [`PhoneticProperties`](crate::PhoneticProperties) — a value decoded from the shared-string store's packed bytes rather than a `RawElement`-backed slot — so giving this slot a type means unifying the two call sites, which is a design question and not a slot to fill. `legacyDrawingHF` and `drawingHF` are the header/footer half of the drawing family: their types are `CT_LegacyDrawing` and `CT_Drawing`, the same two ranks 30 and 29 carry, so modelling them here would model E3's and E5's types in a file that is neither |
 //!
-//! Every one of the eight still round-trips byte-for-byte, in position: that is what
+//! Every one of the five still round-trips byte-for-byte, in position: that is what
 //! [`WorksheetContent::Raw`] is for, and it is unrelated to whether a slot is typed.
 //!
 //! The ranks are never written down. Every placement goes through
@@ -90,8 +89,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the thirty-one slots it knows, keeps the other
-//! eight as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the thirty-four slots it knows, keeps the other
+//! five as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -130,10 +129,11 @@ use crate::cells::{Cell, CellValue, Row, SheetData};
 use crate::error::SmlError;
 use crate::features::{
     AutoFilter, CellWatches, ConditionalFormatting, CustomProperties, CustomSheetViews,
-    DataConsolidation, DataValidations, HeaderFooter, Hyperlinks, IgnoredErrors, PageMargins,
-    PageSetup, PrintOptions, SheetBackgroundPicture, SmartTags, SortState, TableParts,
-    WebPublishItems,
+    DataConsolidation, DataValidations, EmbeddedObjects, FormControls, HeaderFooter, Hyperlinks,
+    IgnoredErrors, PageMargins, PageSetup, PrintOptions, SheetBackgroundPicture, SmartTags,
+    SortState, TableParts, WebPublishItems,
 };
+use crate::sheets::SheetDrawing;
 
 use super::breaks::PageBreaks;
 use super::columns::{ColumnBlock, SheetFormatProperties};
@@ -143,7 +143,7 @@ use super::protection::{ProtectedRanges, SheetProtection};
 use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: thirty-one modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: thirty-four modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -220,9 +220,24 @@ pub enum WorksheetContent {
     /// `xl/workbook.xml`'s near-identically-named `smartTagTypes` is
     /// [`SmartTagTypes`](crate::SmartTagTypes) and a different thing.
     SmartTags(SmartTags),
+    /// `x:drawing` (rank 29) — the relationship to `xl/drawings/drawingN.xml`, the part every
+    /// picture, shape, chart frame and comment box on this sheet is anchored in. The same
+    /// `CT_Drawing` a chartsheet carries, modelled once by MJXOFF-129 and used here unchanged.
+    ///
+    /// **An `r:id` and nothing else.** Resolving it to a part is `mjx-xlsx`'s, and the markup inside
+    /// that part is `mjx_dml::spreadsheet_drawing`'s.
+    Drawing(SheetDrawing),
     /// `x:picture` (rank 33) — the image drawn behind the cells, named by an `r:id`. **Not** the
-    /// `drawing` slot at rank 29, which is MJXOFF-107's (E3).
+    /// `drawing` slot at rank 29, which is a different thing entirely: a background picture is
+    /// tiled behind the grid and is anchored to nothing.
     BackgroundPicture(SheetBackgroundPicture),
+    /// `x:oleObjects` (rank 34) — the embedded objects on this sheet, each with its own
+    /// [`ObjectAnchor`](crate::ObjectAnchor) and its own `shapeId` naming a **legacy VML** shape.
+    /// Not part of the drawing at rank 29.
+    EmbeddedObjects(EmbeddedObjects),
+    /// `x:controls` (rank 35) — the form controls on this sheet, anchored the same way and reaching
+    /// an ActiveX part through an `r:id` this crate never resolves.
+    FormControls(FormControls),
     /// `x:webPublishItems` (rank 36) — the fragments of this sheet published as HTML, and the
     /// untrusted destination path each names. Never resolved, never opened.
     WebPublishItems(WebPublishItems),
@@ -230,7 +245,7 @@ pub enum WorksheetContent {
     /// relationship identifier this crate holds as the string the file wrote. Resolving one to a
     /// part is `mjx-xlsx`'s; see [`crate::features::tables`].
     TableParts(TableParts),
-    /// Everything this type does not model: the eight remaining slots, any foreign element, any
+    /// Everything this type does not model: the five remaining slots, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -271,7 +286,10 @@ impl WorksheetContent {
             Self::CellWatches(_) => "cellWatches",
             Self::IgnoredErrors(_) => "ignoredErrors",
             Self::SmartTags(_) => "smartTags",
+            Self::Drawing(_) => "drawing",
             Self::BackgroundPicture(_) => "picture",
+            Self::EmbeddedObjects(_) => "oleObjects",
+            Self::FormControls(_) => "controls",
             Self::WebPublishItems(_) => "webPublishItems",
             Self::TableParts(_) => "tableParts",
             Self::Raw(_) => return None,
@@ -312,7 +330,10 @@ impl WorksheetContent {
             Self::CellWatches(value) => value.as_raw_element(),
             Self::IgnoredErrors(value) => value.as_raw_element(),
             Self::SmartTags(value) => value.as_raw_element(),
+            Self::Drawing(value) => value.as_raw_element(),
             Self::BackgroundPicture(value) => value.as_raw_element(),
+            Self::EmbeddedObjects(value) => value.as_raw_element(),
+            Self::FormControls(value) => value.as_raw_element(),
             Self::WebPublishItems(value) => value.as_raw_element(),
             Self::TableParts(value) => value.as_raw_element(),
             Self::SheetData(_) | Self::Raw(_) => return None,
@@ -396,7 +417,7 @@ impl Slot {
 ///
 /// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
 /// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// eight unmodelled children cost nothing.
+/// five unmodelled children cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -696,8 +717,7 @@ impl WorksheetPart {
         !self.edited && self.source.is_some()
     }
 
-    /// Every child, in document order, including the twenty-two slot kinds this type does not
-    /// model.
+    /// Every child, in document order, including the five slot kinds this type does not model.
     ///
     /// An iterator rather than a slice: each child is stored beside the claim on its original
     /// bytes, and that bookkeeping is this type's own business.
@@ -705,7 +725,7 @@ impl WorksheetPart {
         self.content.iter().map(|slot| &slot.value)
     }
 
-    /// The local name of every **element** child, in document order — the eight unmodelled
+    /// The local name of every **element** child, in document order — the five unmodelled
     /// slots included.
     ///
     /// This is what an ordering assertion is written against: it says what the part *will emit*,
@@ -1010,6 +1030,39 @@ impl WorksheetPart {
         "webPublishItems",
         "`x:webPublishItems` — the fragments of this sheet published as HTML. Each names an \
          untrusted `@destinationFile`, preserved exactly and never resolved, rewritten or opened."
+    );
+    singleton_slot!(
+        drawing,
+        drawing_mut,
+        set_drawing,
+        Drawing,
+        SheetDrawing,
+        "drawing",
+        "`x:drawing` — the relationship to this sheet's drawing part, at rank 29. An `r:id` and \
+         nothing else: **this crate never resolves one to a part**, and the SpreadsheetDrawingML \
+         inside it is `mjx_dml::spreadsheet_drawing`'s. See `mjx_xlsx::Workbook::sheet_drawing` \
+         for the resolved side."
+    );
+    singleton_slot!(
+        embedded_objects,
+        embedded_objects_mut,
+        set_embedded_objects,
+        EmbeddedObjects,
+        EmbeddedObjects,
+        "oleObjects",
+        "`x:oleObjects` — every embedded object on this sheet, at rank 34. Each carries its own \
+         `x:anchor` rather than living in the drawing part, and each names a legacy VML shape by \
+         `@shapeId`. See [`crate::features::embedded`]."
+    );
+    singleton_slot!(
+        form_controls,
+        form_controls_mut,
+        set_form_controls,
+        FormControls,
+        FormControls,
+        "controls",
+        "`x:controls` — every form control on this sheet, at rank 35. Anchored exactly as an \
+         embedded object is, and reaching an ActiveX part through an `r:id` nothing here resolves."
     );
     singleton_slot!(
         table_parts,
@@ -1440,7 +1493,7 @@ fn range_between(bounds: (u16, u32, u16, u32)) -> Option<CellRange> {
 /// Reads one child node of `x:worksheet` into a slot.
 ///
 /// A node is modelled only when it is an element **in the SpreadsheetML namespace** with one of the
-/// thirty-one local names this frame knows. An element merely *named* `sheetData` in somebody else's
+/// thirty-four local names this frame knows. An element merely *named* `sheetData` in somebody else's
 /// namespace is unmodelled markup, and goes into the bucket with its prefix intact.
 fn read_slot(
     node: RawNode,
@@ -1526,9 +1579,14 @@ fn read_slot(
             WorksheetContent::IgnoredErrors(IgnoredErrors::from_xml(&element, interner)?)
         }
         "smartTags" => WorksheetContent::SmartTags(SmartTags::from_xml(&element, interner)?),
+        "drawing" => WorksheetContent::Drawing(SheetDrawing::from_xml(&element, interner)?),
         "picture" => WorksheetContent::BackgroundPicture(SheetBackgroundPicture::from_xml(
             &element, interner,
         )?),
+        "oleObjects" => {
+            WorksheetContent::EmbeddedObjects(EmbeddedObjects::from_xml(&element, interner)?)
+        }
+        "controls" => WorksheetContent::FormControls(FormControls::from_xml(&element, interner)?),
         "webPublishItems" => {
             WorksheetContent::WebPublishItems(WebPublishItems::from_xml(&element, interner)?)
         }

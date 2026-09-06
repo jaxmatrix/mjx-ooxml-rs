@@ -1,6 +1,6 @@
 # Guide
 
-Fourteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+Fifteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
@@ -15,9 +15,11 @@ in two parts that this library writes and removes together. MJXOFF-129 (D17) add
 opaque header/footer strings and the three sheet kinds that are not worksheets. MJXOFF-133 (D18)
 writes down the half of `sml.xsd` this project deliberately does not model, and proves it survives.
 MJXOFF-135 (D19) adds the two pages that were missing and the six runnable examples. MJXOFF-137
-(D20) — this child — projects the whole of it through `mjx-ooxml` and both bindings, and adds the one
-page about what changes on the way. This guide says exactly that much and no more, so that nobody
-plans around a surface that is not here.
+(D20) projects the whole of it through `mjx-ooxml` and both bindings, and adds the one page about
+what changes on the way. MJXOFF-107 (E3) — this child — adds worksheet drawings, the last place
+DrawingML reaches that it had not: the `xl/drawings` part, the three anchor modes, and the one
+answer on this surface that has to say which half of itself was defaulted. This guide says exactly
+that much and no more, so that nobody plans around a surface that is not here.
 
 | Page | Read it when |
 |---|---|
@@ -29,6 +31,7 @@ plans around a surface that is not here.
 | [Conditional formatting](conditional_formatting) | You want to know which rules apply to a cell — and what this library will not tell you about them |
 | [Filters and data validation](filters_and_data_validation) | You want to read or write an autofilter, a sort state or a validation rule — and to know what none of them will do |
 | [Worksheet tables](worksheet_tables) | You want to read or create a table, and to know why a preset style name is not a missing style |
+| [Worksheet drawings](worksheet_drawings) | You want a picture or a shape on a sheet, or you want to know where one already is |
 | [Hyperlinks](hyperlinks) | You want to read, add or remove a link — and to know what this library will never do to a target |
 | [Print setup and sheet kinds](print_setup_and_sheet_kinds) | You want a sheet's margins, page setup or header/footer, or a tab that is not a grid of cells |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |

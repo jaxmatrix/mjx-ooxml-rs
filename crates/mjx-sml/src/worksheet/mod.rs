@@ -57,6 +57,7 @@
 //! `crates/mjx-sml/tests/worksheet_spine.rs` checks it the other way round, reading and re-emitting
 //! whole worksheet parts without naming `mjx_opc` once.
 
+mod anchors;
 mod anomalies;
 mod breaks;
 mod columns;
@@ -70,6 +71,7 @@ mod views;
 
 use mjx_ooxml_core::{RawAttribute, RawElement, RawName, RawNode};
 
+pub use anchors::{ColumnMetrics, GeometrySource, ResolvedAnchorBounds, SheetAnchors};
 pub use anomalies::GridAnomaly;
 pub use breaks::{BreakAxis, PageBreak, PageBreaks, PageBreaksContent};
 pub use columns::{ColumnBlock, ColumnBlockContent, ColumnRun, ColumnWidth, SheetFormatProperties};

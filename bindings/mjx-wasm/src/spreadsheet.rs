@@ -28,9 +28,10 @@ use wasm_bindgen::prelude::*;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GridAnomalyKind,
-    HyperlinkKind, PartKind, ReferenceMode, SheetKind, SpreadsheetFontScheme,
-    SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction, UnderlineType,
+    ApplyFlag, BorderStyle, CalculationMode, FormatAspect, FormatLayer, GeometrySource,
+    GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior, SheetKind,
+    SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
+    UnderlineType,
 };
 use crate::errors::map_error;
 
@@ -68,6 +69,18 @@ value_class! {
 
     /// One column of a `SheetTableInfo`.
     SheetTableColumnInfo(ooxml::SheetTableColumnInfo), derive(PartialEq, Eq);
+
+    /// One sheet's drawing part, and what is anchored in it.
+    SheetDrawingInfo(ooxml::SheetDrawingInfo), derive(PartialEq, Eq);
+
+    /// One anchored object on a sheet.
+    SheetDrawingObjectInfo(ooxml::SheetDrawingObjectInfo), derive(PartialEq, Eq);
+
+    /// Where an anchor puts its object, in EMU, and what the answer rests on.
+    AnchorBoundsInfo(ooxml::AnchorBoundsInfo), derive(Copy, PartialEq);
+
+    /// What one anchor did when rows or columns moved under it.
+    AnchorShiftInfo(ooxml::AnchorShiftInfo), derive(Copy, PartialEq, Eq);
 
     /// One thing a sheet's grid says that a well-formed one would not.
     GridAnomalyInfo(ooxml::GridAnomalyInfo), derive(PartialEq, Eq);
@@ -595,6 +608,167 @@ impl SheetHyperlinkInfo {
     #[wasm_bindgen(getter, js_name = "display")]
     pub fn display(&self) -> Option<String> {
         self.0.display.clone()
+    }
+}
+
+#[wasm_bindgen]
+impl SheetDrawingInfo {
+    /// The part the anchors live in.
+    #[wasm_bindgen(getter, js_name = "part")]
+    pub fn part(&self) -> String {
+        self.0.part.clone()
+    }
+
+    /// The `x:drawing@r:id` the sheet reached it through.
+    #[wasm_bindgen(getter, js_name = "relationshipId")]
+    pub fn relationship_id(&self) -> String {
+        self.0.relationship_id.clone()
+    }
+
+    /// Every anchored object, in paint order.
+    #[wasm_bindgen(getter, js_name = "objects")]
+    pub fn objects(&self) -> Vec<SheetDrawingObjectInfo> {
+        self.0
+            .objects
+            .iter()
+            .cloned()
+            .map(SheetDrawingObjectInfo)
+            .collect()
+    }
+}
+
+#[wasm_bindgen]
+impl SheetDrawingObjectInfo {
+    /// The object's position in the drawing part, which is also its paint order.
+    #[wasm_bindgen(getter, js_name = "index")]
+    pub fn index(&self) -> u32 {
+        self.0.index
+    }
+
+    /// Which of the three anchor elements pins it.
+    #[wasm_bindgen(getter, js_name = "anchor")]
+    pub fn anchor(&self) -> String {
+        self.0.anchor.clone()
+    }
+
+    /// Which kind of object it holds, or `undefined` for an anchor holding none.
+    #[wasm_bindgen(getter, js_name = "object")]
+    pub fn object(&self) -> Option<String> {
+        self.0.object.clone()
+    }
+
+    /// What the anchor promises to do when the cells under it move.
+    #[wasm_bindgen(getter, js_name = "resizing")]
+    pub fn resizing(&self) -> Result<ResizingBehavior, JsValue> {
+        ResizingBehavior::from_model(self.0.resizing)
+    }
+
+    /// The object's `cNvPr@id`, or `undefined`.
+    #[wasm_bindgen(getter, js_name = "id")]
+    pub fn id(&self) -> Option<u32> {
+        self.0.id
+    }
+
+    /// The object's `cNvPr@name`, or `undefined`.
+    #[wasm_bindgen(getter, js_name = "name")]
+    pub fn name(&self) -> Option<String> {
+        self.0.name.clone()
+    }
+
+    /// The image part a picture shows, or `undefined` for every other object kind.
+    #[wasm_bindgen(getter, js_name = "image")]
+    pub fn image(&self) -> Option<String> {
+        self.0.image.clone()
+    }
+
+    /// Whether the object prints with the sheet — which **defaults to true**.
+    #[wasm_bindgen(getter, js_name = "printsWithSheet")]
+    pub fn prints_with_sheet(&self) -> bool {
+        self.0.prints_with_sheet
+    }
+}
+
+#[wasm_bindgen]
+impl AnchorBoundsInfo {
+    /// The object's left edge, in EMU from the sheet origin.
+    #[wasm_bindgen(getter, js_name = "xEmu")]
+    pub fn x_emu(&self) -> i64 {
+        self.0.x_emu
+    }
+
+    /// The object's top edge, in EMU from the sheet origin.
+    #[wasm_bindgen(getter, js_name = "yEmu")]
+    pub fn y_emu(&self) -> i64 {
+        self.0.y_emu
+    }
+
+    /// The object's width, in EMU.
+    #[wasm_bindgen(getter, js_name = "widthEmu")]
+    pub fn width_emu(&self) -> i64 {
+        self.0.width_emu
+    }
+
+    /// The object's height, in EMU.
+    #[wasm_bindgen(getter, js_name = "heightEmu")]
+    pub fn height_emu(&self) -> i64 {
+        self.0.height_emu
+    }
+
+    /// Where the vertical half of this answer came from.
+    #[wasm_bindgen(getter, js_name = "rowSource")]
+    pub fn row_source(&self) -> Result<GeometrySource, JsValue> {
+        GeometrySource::from_model(self.0.row_source)
+    }
+
+    /// Where the horizontal half came from.
+    #[wasm_bindgen(getter, js_name = "columnSource")]
+    pub fn column_source(&self) -> Result<GeometrySource, JsValue> {
+        GeometrySource::from_model(self.0.column_source)
+    }
+
+    /// The maximum digit width, in pixels, the horizontal half was computed through.
+    #[wasm_bindgen(getter, js_name = "maximumDigitWidthPixels")]
+    pub fn maximum_digit_width_pixels(&self) -> f64 {
+        self.0.maximum_digit_width_pixels
+    }
+
+    /// The pixels per inch that width was stated at.
+    #[wasm_bindgen(getter, js_name = "pixelsPerInch")]
+    pub fn pixels_per_inch(&self) -> f64 {
+        self.0.pixels_per_inch
+    }
+}
+
+#[wasm_bindgen]
+impl AnchorShiftInfo {
+    /// The anchor's position in the drawing part.
+    #[wasm_bindgen(getter, js_name = "index")]
+    pub fn index(&self) -> u32 {
+        self.0.index
+    }
+
+    /// What the anchor promises to do when the cells under it move.
+    #[wasm_bindgen(getter, js_name = "promise")]
+    pub fn promise(&self) -> Result<ResizingBehavior, JsValue> {
+        ResizingBehavior::from_model(self.0.promise)
+    }
+
+    /// Whether the object's top-left corner moved.
+    #[wasm_bindgen(getter, js_name = "moved")]
+    pub fn moved(&self) -> bool {
+        self.0.moved
+    }
+
+    /// Whether the object's extent changed.
+    #[wasm_bindgen(getter, js_name = "resized")]
+    pub fn resized(&self) -> bool {
+        self.0.resized
+    }
+
+    /// Whether the markers alone could keep the anchor's own promise.
+    #[wasm_bindgen(getter, js_name = "promiseKept")]
+    pub fn promise_kept(&self) -> bool {
+        self.0.promise_kept
     }
 }
 

@@ -46,16 +46,33 @@ use wasm_bindgen::prelude::*;
 
 use mjx_ooxml as ooxml;
 
-use crate::enums::{CellFormatTarget, DateSystem, TableStyleOrigin};
+use crate::enums::{CellFormatTarget, DateSystem, ResizingBehavior, TableStyleOrigin};
 use crate::errors::map_error;
 use crate::format::Format;
 use crate::spreadsheet::{
-    BorderSpec, CalculationSettings, CellBlock, CellFormatSpec, CellWrite, DefinedName,
-    EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec, PreservedPartsSummary,
-    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableInfo,
-    WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo,
-    WorkbookXmlMapsInfo,
+    AnchorBoundsInfo, AnchorShiftInfo, BorderSpec, CalculationSettings, CellBlock, CellFormatSpec,
+    CellWrite, DefinedName, EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec,
+    PreservedPartsSummary, SheetDrawingInfo, SheetHyperlinkInfo, SheetPivotTableInfo,
+    SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
+    WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
 };
+
+/// A length a JavaScript caller stated as a number, as the EMU the model takes.
+///
+/// See the drawings block below for why the boundary is `f64`. `trunc` rather than a cast alone so
+/// that a caller passing `2.5` gets 2 rather than an implementation-defined answer, and a
+/// non-finite number becomes zero rather than an unspecified integer.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "an EMU length is far inside the range an f64 represents exactly"
+)]
+fn emu(value: f64) -> i64 {
+    if value.is_finite() {
+        value.trunc() as i64
+    } else {
+        0
+    }
+}
 
 /// An open Excel workbook.
 #[wasm_bindgen]
@@ -457,6 +474,197 @@ impl Workbook {
     #[wasm_bindgen(js_name = "removeCellHyperlink")]
     pub fn remove_cell_hyperlink(&mut self, sheet: u32, reference: &str) -> Result<bool, JsValue> {
         map_error(self.inner.remove_cell_hyperlink(sheet, reference))
+    }
+
+    // --- drawings ---------------------------------------------------------------------------------
+    //
+    // Every EMU argument here is an `f64`, not an `i64`. That is the shape MJXOFF-137 settled for
+    // this binding and `Document::addInlinePicture` already follows: a JavaScript number *is* an
+    // `f64`, and taking an `i64` would hand a TypeScript caller a `bigint` for a length that never
+    // needs one — an EMU is 1/914,400 of an inch, so the whole of a sheet fits inside 2^53 with
+    // eleven orders of magnitude to spare.
+
+    /// The drawing part behind one sheet, and everything anchored in it.
+    #[wasm_bindgen(js_name = "sheetDrawing")]
+    pub fn sheet_drawing(&self, sheet: u32) -> Result<Option<SheetDrawingInfo>, JsValue> {
+        map_error(
+            self.inner
+                .sheet_drawing(sheet)
+                .map(|drawing| drawing.map(SheetDrawingInfo)),
+        )
+    }
+
+    /// Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own
+    /// worked example, for 11-point Calibri.
+    #[wasm_bindgen(js_name = "sheetAnchorBounds")]
+    pub fn sheet_anchor_bounds(
+        &self,
+        sheet: u32,
+        anchor: u32,
+        maximum_digit_width_pixels: f64,
+        pixels_per_inch: f64,
+    ) -> Result<Option<AnchorBoundsInfo>, JsValue> {
+        map_error(
+            self.inner
+                .sheet_anchor_bounds(sheet, anchor, maximum_digit_width_pixels, pixels_per_inch)
+                .map(|bounds| bounds.map(AnchorBoundsInfo)),
+        )
+    }
+
+    /// Anchors a picture between two cells, and answers its position in the paint order.
+    #[wasm_bindgen(js_name = "addTwoCellAnchoredPicture")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_two_cell_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        from_column: u32,
+        from_column_offset_emu: f64,
+        from_row: u32,
+        from_row_offset_emu: f64,
+        to_column: u32,
+        to_column_offset_emu: f64,
+        to_row: u32,
+        to_row_offset_emu: f64,
+        resizing: ResizingBehavior,
+    ) -> Result<u32, JsValue> {
+        map_error(self.inner.add_two_cell_anchored_picture(
+            sheet,
+            &image_bytes,
+            name,
+            from_column,
+            emu(from_column_offset_emu),
+            from_row,
+            emu(from_row_offset_emu),
+            to_column,
+            emu(to_column_offset_emu),
+            to_row,
+            emu(to_row_offset_emu),
+            resizing.into(),
+        ))
+    }
+
+    /// Anchors a picture to one cell, at its own size.
+    #[wasm_bindgen(js_name = "addOneCellAnchoredPicture")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_one_cell_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        from_column: u32,
+        from_column_offset_emu: f64,
+        from_row: u32,
+        from_row_offset_emu: f64,
+        width_emu: f64,
+        height_emu: f64,
+    ) -> Result<u32, JsValue> {
+        map_error(self.inner.add_one_cell_anchored_picture(
+            sheet,
+            &image_bytes,
+            name,
+            from_column,
+            emu(from_column_offset_emu),
+            from_row,
+            emu(from_row_offset_emu),
+            emu(width_emu),
+            emu(height_emu),
+        ))
+    }
+
+    /// Anchors a picture to the sheet, at an absolute position and size in EMU.
+    #[wasm_bindgen(js_name = "addAbsoluteAnchoredPicture")]
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_absolute_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        x_emu: f64,
+        y_emu: f64,
+        width_emu: f64,
+        height_emu: f64,
+    ) -> Result<u32, JsValue> {
+        map_error(self.inner.add_absolute_anchored_picture(
+            sheet,
+            &image_bytes,
+            name,
+            emu(x_emu),
+            emu(y_emu),
+            emu(width_emu),
+            emu(height_emu),
+        ))
+    }
+
+    /// Removes one anchored object from a sheet, reporting whether there was one.
+    #[wasm_bindgen(js_name = "removeSheetDrawingObject")]
+    pub fn remove_sheet_drawing_object(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> Result<bool, JsValue> {
+        map_error(self.inner.remove_sheet_drawing_object(sheet, anchor))
+    }
+
+    /// Moves every anchor on a sheet for `rows` inserted at the zero-based `at`.
+    #[wasm_bindgen(js_name = "insertRowsIntoDrawing")]
+    pub fn insert_rows_into_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        rows: u32,
+    ) -> Result<Vec<AnchorShiftInfo>, JsValue> {
+        map_error(
+            self.inner
+                .insert_rows_into_drawing(sheet, at, rows)
+                .map(|report| report.into_iter().map(AnchorShiftInfo).collect()),
+        )
+    }
+
+    /// Moves every anchor on a sheet for `rows` removed at the zero-based `at`.
+    #[wasm_bindgen(js_name = "removeRowsFromDrawing")]
+    pub fn remove_rows_from_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        rows: u32,
+    ) -> Result<Vec<AnchorShiftInfo>, JsValue> {
+        map_error(
+            self.inner
+                .remove_rows_from_drawing(sheet, at, rows)
+                .map(|report| report.into_iter().map(AnchorShiftInfo).collect()),
+        )
+    }
+
+    /// Moves every anchor on a sheet for `columns` inserted at the zero-based `at`.
+    #[wasm_bindgen(js_name = "insertColumnsIntoDrawing")]
+    pub fn insert_columns_into_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        columns: u32,
+    ) -> Result<Vec<AnchorShiftInfo>, JsValue> {
+        map_error(
+            self.inner
+                .insert_columns_into_drawing(sheet, at, columns)
+                .map(|report| report.into_iter().map(AnchorShiftInfo).collect()),
+        )
+    }
+
+    /// Moves every anchor on a sheet for `columns` removed at the zero-based `at`.
+    #[wasm_bindgen(js_name = "removeColumnsFromDrawing")]
+    pub fn remove_columns_from_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        columns: u32,
+    ) -> Result<Vec<AnchorShiftInfo>, JsValue> {
+        map_error(
+            self.inner
+                .remove_columns_from_drawing(sheet, at, columns)
+                .map(|report| report.into_iter().map(AnchorShiftInfo).collect()),
+        )
     }
 
     // --- tables -----------------------------------------------------------------------------------

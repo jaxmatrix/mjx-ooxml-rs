@@ -16,8 +16,8 @@
 
 use mjx_ooxml::{
     BorderEdgeSpec, BorderSpec, BorderStyle, CellFormatSpec, CellFormatTarget, CellInput,
-    CellWrite, Color, ErrorCode, FontProperties, PatternFillSpec, SheetKind,
-    SpreadsheetPatternType, UnderlineType, Workbook,
+    CellWrite, Color, ErrorCode, FontProperties, GeometrySource, PatternFillSpec, ResizingBehavior,
+    SheetKind, SpreadsheetPatternType, UnderlineType, Workbook,
 };
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -560,4 +560,211 @@ fn the_escape_hatch_reaches_the_per_cell_surface_this_facade_does_not_carry() {
     let inner = workbook.into_workbook();
     let round_trip = Workbook::from(inner);
     assert_eq!(round_trip.format(), mjx_ooxml::Format::Workbook);
+}
+
+// -------------------------------------------------------------------------------------------
+// Worksheet drawings (MJXOFF-107)
+// -------------------------------------------------------------------------------------------
+
+/// A 1×1 PNG — the smallest thing the image sniffer calls a PNG.
+const PNG: &[u8] = &[
+    0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D', b'R',
+    0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90, 0x77, 0x53,
+    0xDE, 0x00, 0x00, 0x00, 0x0C, b'I', b'D', b'A', b'T', 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,
+    0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00, 0x00, b'I', b'E', b'N',
+    b'D', 0xAE, 0x42, 0x60, 0x82,
+];
+
+#[test]
+fn the_three_anchor_modes_are_reachable_and_are_not_each_other() {
+    let mut workbook = filled();
+
+    // Deliberately asymmetric: every number differs from every other, so a wrapper that crossed a
+    // column with a row, or a `from` offset with a `to` offset, fails here rather than in the
+    // markup nobody reads.
+    let two = workbook
+        .add_two_cell_anchored_picture(
+            0,
+            PNG,
+            "two-cell",
+            1,
+            190_500,
+            2,
+            47_625,
+            3,
+            95_250,
+            5,
+            19_050,
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a two-cell anchored picture");
+    let one = workbook
+        .add_one_cell_anchored_picture(0, PNG, "one-cell", 4, 76_200, 1, 38_100, 914_400, 457_200)
+        .expect("a one-cell anchored picture");
+    let absolute = workbook
+        .add_absolute_anchored_picture(0, PNG, "absolute", 1_905_000, 952_500, 685_800, 342_900)
+        .expect("an absolute anchored picture");
+    assert_eq!((two, one, absolute), (0, 1, 2));
+
+    let drawing = workbook
+        .sheet_drawing(0)
+        .expect("it reads")
+        .expect("the sheet gained a drawing");
+    assert!(drawing.part.ends_with("drawing1.xml"));
+    assert_eq!(
+        drawing
+            .objects
+            .iter()
+            .map(|object| object.anchor.as_str())
+            .collect::<Vec<_>>(),
+        vec!["twoCellAnchor", "oneCellAnchor", "absoluteAnchor"]
+    );
+    assert_eq!(
+        drawing
+            .objects
+            .iter()
+            .map(|object| object.name.as_deref())
+            .collect::<Vec<_>>(),
+        vec![Some("two-cell"), Some("one-cell"), Some("absolute")]
+    );
+    // The `@editAs` the caller asked for, read back off the file — and the two anchors that carry
+    // none answer from what they are, so the three do not agree.
+    assert_eq!(
+        drawing
+            .objects
+            .iter()
+            .map(|object| object.resizing)
+            .collect::<Vec<_>>(),
+        vec![
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+            ResizingBehavior::DoNotMoveOrResizeWithRowsOrColumns
+        ]
+    );
+    // One image, stored once, shown by all three.
+    assert!(drawing
+        .objects
+        .iter()
+        .all(|object| object.image.as_deref() == Some("/xl/media/image1.png")));
+    assert!(drawing
+        .objects
+        .iter()
+        .all(|object| object.prints_with_sheet));
+
+    workbook.save().expect("the workbook still validates");
+}
+
+#[test]
+fn the_bounds_a_blank_sheet_can_and_cannot_answer_are_different_answers() {
+    let mut workbook = filled();
+    workbook
+        .add_one_cell_anchored_picture(0, PNG, "one-cell", 4, 76_200, 1, 38_100, 914_400, 457_200)
+        .expect("added");
+    workbook
+        .add_absolute_anchored_picture(0, PNG, "absolute", 1_905_000, 952_500, 685_800, 342_900)
+        .expect("added");
+
+    // `Workbook::blank` writes no `x:sheetFormatPr`, so `@defaultRowHeight` — which the schema
+    // declares `use="required"` — is stated nowhere, and a cell-anchored object cannot be placed.
+    assert_eq!(
+        workbook
+            .sheet_anchor_bounds(0, 0, 7.0, 96.0)
+            .expect("it reads"),
+        None
+    );
+    // The absolute anchor names no cell, so it is placeable on the very same sheet — which is what
+    // makes the `None` above a statement about the rows rather than about the workbook.
+    let bounds = workbook
+        .sheet_anchor_bounds(0, 1, 7.0, 96.0)
+        .expect("it reads")
+        .expect("an absolute anchor needs no sheet");
+    assert_eq!((bounds.x_emu, bounds.y_emu), (1_905_000, 952_500));
+    assert_eq!((bounds.width_emu, bounds.height_emu), (685_800, 342_900));
+    assert_eq!(bounds.row_source, GeometrySource::Stated);
+    assert_eq!(bounds.column_source, GeometrySource::Stated);
+    // The metrics the caller passed come back with the answer, so a rectangle can always be read
+    // beside the assumption that produced it.
+    assert!((bounds.maximum_digit_width_pixels - 7.0).abs() < f64::EPSILON);
+    assert!((bounds.pixels_per_inch - 96.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn a_producer_drawing_reports_its_geometry_and_shifts_the_three_modes_differently() {
+    let mut workbook =
+        Workbook::open(&fixture("worksheet_drawings.xlsx")).expect("the producer fixture");
+
+    // The extent Apache POI computed for the same column widths, reached through the facade alone.
+    let bounds = workbook
+        .sheet_anchor_bounds(0, 0, 7.0, 96.0)
+        .expect("it reads")
+        .expect("the sheet places it");
+    assert_eq!((bounds.width_emu, bounds.height_emu), (2_085_975, 885_825));
+    assert_eq!(bounds.row_source, GeometrySource::SheetDefault);
+    assert_eq!(bounds.column_source, GeometrySource::Stated);
+
+    let report = workbook
+        .insert_rows_into_drawing(0, 0, 3)
+        .expect("the drawing is edited");
+    assert_eq!(report.len(), 4);
+    // Three different outcomes from one call: two two-cell anchors moved whole, the one-cell anchor
+    // moved, and the absolute anchor did neither.
+    assert!(report[0].moved && !report[0].resized);
+    assert!(report[2].moved && !report[2].resized);
+    assert!(!report[3].moved && !report[3].resized);
+    assert_eq!(
+        report[3].promise,
+        ResizingBehavior::DoNotMoveOrResizeWithRowsOrColumns
+    );
+    assert!(report.iter().all(|shift| shift.promise_kept));
+
+    // …and a row inserted *inside* the first anchor resizes it against its own `@editAs`, which the
+    // report says rather than silently leaving wrong.
+    let inside = workbook
+        .insert_rows_into_drawing(0, 7, 1)
+        .expect("the drawing is edited");
+    assert!(inside[0].resized && !inside[0].promise_kept);
+    assert!(inside[1].promise_kept);
+
+    // The three remaining axis calls are reachable and answer for every anchor.
+    for report in [
+        workbook.remove_rows_from_drawing(0, 0, 1).expect("rows"),
+        workbook.insert_columns_into_drawing(0, 0, 1).expect("cols"),
+        workbook.remove_columns_from_drawing(0, 0, 1).expect("cols"),
+    ] {
+        assert_eq!(report.len(), 4);
+    }
+
+    // Removing an object leaves its image where it is, and answers `false` for one that is not there.
+    assert!(workbook
+        .remove_sheet_drawing_object(0, 3)
+        .expect("it is removed"));
+    assert!(!workbook
+        .remove_sheet_drawing_object(0, 9)
+        .expect("no such anchor"));
+    assert_eq!(
+        workbook
+            .sheet_drawing(0)
+            .expect("it reads")
+            .expect("a drawing")
+            .objects
+            .len(),
+        3
+    );
+    workbook
+        .save()
+        .expect("the edited workbook still validates");
+}
+
+#[test]
+fn bytes_that_are_not_an_image_are_an_invalid_argument() {
+    let mut workbook = filled();
+    let error = workbook
+        .add_absolute_anchored_picture(0, b"not an image", "nope", 0, 0, 1, 1)
+        .expect_err("the bytes match no image format");
+    assert_eq!(error.code(), ErrorCode::InvalidArgument);
+
+    let missing = workbook
+        .add_absolute_anchored_picture(workbook.sheet_count(), PNG, "nope", 0, 0, 1, 1)
+        .expect_err("no such tab");
+    assert_eq!(missing.code(), ErrorCode::IndexOutOfRange);
 }

@@ -6274,6 +6274,22 @@ class UnderlineType:
     def __int__(self) -> int: ...
 
 @final
+class ResizingBehavior:
+    """The projection of `mjx_ooxml::ResizingBehavior`, whose documentation is authoritative."""
+    MoveAndResizeWithAnchorCells: ResizingBehavior
+    MoveWithCellsButDoNotResize: ResizingBehavior
+    DoNotMoveOrResizeWithRowsOrColumns: ResizingBehavior
+    def __int__(self) -> int: ...
+
+@final
+class GeometrySource:
+    """The projection of `mjx_ooxml::GeometrySource`, whose documentation is authoritative."""
+    Stated: GeometrySource
+    SheetDefault: GeometrySource
+    BaseColumnWidth: GeometrySource
+    def __int__(self) -> int: ...
+
+@final
 class CellData:
     """One cell's value, as the file states it — **stored, not displayed**."""
     kind: str
@@ -6478,6 +6494,70 @@ class SheetTableColumnInfo:
     """`x:calculatedColumnFormula`, exactly as the file wrote it."""
     totals_row_formula: str | None
     """`x:totalsRowFormula`, on the same terms."""
+
+@final
+class SheetDrawingInfo:
+    """One sheet's drawing part, and what is anchored in it."""
+    part: str
+    """The part the anchors live in."""
+    relationship_id: str
+    """The `x:drawing@r:id` the sheet reached it through."""
+    objects: list[SheetDrawingObjectInfo]
+    """Every anchored object, in paint order."""
+
+@final
+class SheetDrawingObjectInfo:
+    """One anchored object on a sheet."""
+    index: int
+    """The object's position in the drawing part, which is also its paint order."""
+    anchor: str
+    """`"twoCellAnchor"`, `"oneCellAnchor"` or `"absoluteAnchor"`."""
+    object: str | None
+    """`"sp"`, `"pic"`, `"graphicFrame"`, `"grpSp"`, `"cxnSp"`, `"contentPart"`, or `None`."""
+    resizing: ResizingBehavior
+    """What the anchor promises to do when the cells under it move."""
+    id: int | None
+    """The object's `cNvPr@id`, or `None`."""
+    name: str | None
+    """The object's `cNvPr@name`, or `None`."""
+    image: str | None
+    """The image part a picture shows, or `None` for every other object kind."""
+    prints_with_sheet: bool
+    """Whether the object prints with the sheet — which **defaults to true**."""
+
+@final
+class AnchorBoundsInfo:
+    """Where an anchor puts its object, in EMU, and what the answer rests on."""
+    x_emu: int
+    """The object's left edge, in EMU from the sheet origin."""
+    y_emu: int
+    """The object's top edge, in EMU from the sheet origin."""
+    width_emu: int
+    """The object's width, in EMU."""
+    height_emu: int
+    """The object's height, in EMU."""
+    row_source: GeometrySource
+    """Where the vertical half of this answer came from."""
+    column_source: GeometrySource
+    """Where the horizontal half came from."""
+    maximum_digit_width_pixels: float
+    """The maximum digit width, in pixels, the horizontal half was computed through."""
+    pixels_per_inch: float
+    """The pixels per inch that width was stated at."""
+
+@final
+class AnchorShiftInfo:
+    """What one anchor did when rows or columns moved under it."""
+    index: int
+    """The anchor's position in the drawing part."""
+    promise: ResizingBehavior
+    """What the anchor promises to do when the cells under it move."""
+    moved: bool
+    """Whether the object's top-left corner moved."""
+    resized: bool
+    """Whether the object's extent changed."""
+    promise_kept: bool
+    """Whether the markers alone could keep the anchor's own promise."""
 
 @final
 class GridAnomalyInfo:
@@ -6977,6 +7057,80 @@ class Workbook:
         ...
     def remove_cell_hyperlink(self, sheet: int, reference: str) -> bool:
         """Removes the hyperlink covering `reference`, and the relationship it named."""
+        ...
+    def sheet_drawing(self, sheet: int) -> SheetDrawingInfo | None:
+        """The drawing part behind one sheet, and everything anchored in it."""
+        ...
+    def sheet_anchor_bounds(
+        self,
+        sheet: int,
+        anchor: int,
+        maximum_digit_width_pixels: float,
+        pixels_per_inch: float,
+    ) -> AnchorBoundsInfo | None:
+        """Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own worked example, for 11-point Calibri."""
+        ...
+    def add_two_cell_anchored_picture(
+        self,
+        sheet: int,
+        image_bytes: bytes,
+        name: str,
+        from_column: int,
+        from_column_offset_emu: int,
+        from_row: int,
+        from_row_offset_emu: int,
+        to_column: int,
+        to_column_offset_emu: int,
+        to_row: int,
+        to_row_offset_emu: int,
+        resizing: ResizingBehavior,
+    ) -> int:
+        """Anchors a picture between two cells, and answers its position in the paint order."""
+        ...
+    def add_one_cell_anchored_picture(
+        self,
+        sheet: int,
+        image_bytes: bytes,
+        name: str,
+        from_column: int,
+        from_column_offset_emu: int,
+        from_row: int,
+        from_row_offset_emu: int,
+        width_emu: int,
+        height_emu: int,
+    ) -> int:
+        """Anchors a picture to one cell, at its own size."""
+        ...
+    def add_absolute_anchored_picture(
+        self,
+        sheet: int,
+        image_bytes: bytes,
+        name: str,
+        x_emu: int,
+        y_emu: int,
+        width_emu: int,
+        height_emu: int,
+    ) -> int:
+        """Anchors a picture to the sheet, at an absolute position and size in EMU."""
+        ...
+    def remove_sheet_drawing_object(self, sheet: int, anchor: int) -> bool:
+        """Removes one anchored object from a sheet, reporting whether there was one."""
+        ...
+    def insert_rows_into_drawing(self, sheet: int, at: int, rows: int) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `rows` inserted at the zero-based `at`."""
+        ...
+    def remove_rows_from_drawing(self, sheet: int, at: int, rows: int) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `rows` removed at the zero-based `at`."""
+        ...
+    def insert_columns_into_drawing(
+        self, sheet: int, at: int, columns: int
+    ) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `columns` inserted at the zero-based `at`."""
+        ...
+    def remove_columns_from_drawing(
+        self, sheet: int, at: int, columns: int
+    ) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `columns` removed at the zero-based `at`."""
         ...
     def sheet_tables(self, sheet: int) -> list[SheetTableInfo]:
         """Every table on one sheet."""

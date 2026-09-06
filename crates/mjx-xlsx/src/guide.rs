@@ -62,6 +62,13 @@ pub mod filters_and_data_validation {
     guide_vocabulary!();
 }
 
+/// Everything on a sheet that is not a cell — the three anchors, what each promises when the grid
+/// moves, and which half of an anchor's resolved rectangle is a measurement.
+pub mod worksheet_drawings {
+    #![doc = include_str!("../docs/guide/worksheet_drawings.md")]
+    guide_vocabulary!();
+}
+
 /// A table is a part of its own — the four things that have to agree, and why a preset style name
 /// is not a missing style.
 pub mod worksheet_tables {

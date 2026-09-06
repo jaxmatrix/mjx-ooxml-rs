@@ -117,17 +117,22 @@ fn sample_xlsx_with_sheet_data_inside_file_version() -> Vec<u8> {
     package.save().expect("save the corrupted workbook")
 }
 
-/// Pushes a copy of `payload` into the first SpreadsheetML element named `local`, depth first.
-fn plant_in_first(
+/// Pushes a copy of `payload` into the first element named `(namespace, local)`, depth first.
+///
+/// The namespace is a parameter rather than `SML_NS` because MJXOFF-107 plants into an
+/// `xdr:twoCellAnchor`, and a corrupting helper that could only reach one schema would have needed a
+/// near-copy of itself to reach the second.
+fn plant_in_first_of(
     element: &mut RawElement,
     interner: &Interner,
+    namespace: &str,
     local: &str,
     payload: &RawElement,
 ) -> bool {
     let matches_target = element
         .name
         .namespace
-        .is_some_and(|ns| interner.resolve(ns) == SML_NS)
+        .is_some_and(|ns| interner.resolve(ns) == namespace)
         && interner.resolve(element.name.local) == local;
     if matches_target {
         element.children.push(RawNode::Element(payload.clone()));
@@ -135,12 +140,22 @@ fn plant_in_first(
     }
     for child in &mut element.children {
         if let RawNode::Element(child) = child {
-            if plant_in_first(child, interner, local, payload) {
+            if plant_in_first_of(child, interner, namespace, local, payload) {
                 return true;
             }
         }
     }
     false
+}
+
+/// [`plant_in_first_of`] in the SpreadsheetML namespace, which is where most of this file plants.
+fn plant_in_first(
+    element: &mut RawElement,
+    interner: &Interner,
+    local: &str,
+    payload: &RawElement,
+) -> bool {
+    plant_in_first_of(element, interner, SML_NS, local, payload)
 }
 
 #[test]
@@ -478,9 +493,21 @@ const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
     ),
     (
         "image/png",
-        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`). `mjx-opc` \
-         stores the caller's bytes verbatim and `ImageFormat::sniff` reads a magic-byte signature \
-         without decoding a pixel",
+        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`) and, since \
+         MJXOFF-107, a picture anchored on a worksheet drawing (`xl/media/imageN.png`, named by an \
+         `xdr:pic`'s `a:blip@r:embed`). `mjx-opc` stores the caller's bytes verbatim and \
+         `ImageFormat::sniff` reads a magic-byte signature without decoding a pixel. **One row, two \
+         kinds of part**: this list is keyed on the content type, not on where the part sits, so a \
+         PNG under `xl/media/` needed no row of its own",
+    ),
+    (
+        "image/jpeg",
+        "a raster image in the other format `xl/media/` actually carries — the one MJXOFF-107 (E3) \
+         did have to add, because no committed fixture held a JPEG before it. \
+         `tests/fixtures/worksheet_drawings.xlsx` anchors a PNG on its two-cell and one-cell \
+         anchors and a JPEG on its absolute anchor, precisely so that the media path is not \
+         proved by one format and assumed for the rest. Nothing here decodes a scan line: \
+         `ImageFormat::sniff` reads the `FF D8 FF` signature and stops",
     ),
 ];
 
@@ -881,4 +908,266 @@ fn an_authored_table_part_is_schema_valid_and_is_not_skipped() {
         "the table part must be validated against sml.xsd; it reported: {}",
         row.outcome.describe()
     );
+}
+
+// -------------------------------------------------------------------------------------------
+// Worksheet drawings (MJXOFF-107) — both halves of the `xdr` gate, proved live
+// -------------------------------------------------------------------------------------------
+
+/// The SpreadsheetDrawingML namespace, as `dml-spreadsheetDrawing.xsd` declares it.
+const XDR_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+
+/// A workbook this library authored, carrying one anchor of each of the three kinds.
+fn an_authored_drawing() -> Vec<u8> {
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_dml::{Position, Size};
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+
+    const PNG: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D',
+        b'R', 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, b'I', b'D', b'A', b'T', 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00,
+        0x00, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82,
+    ];
+
+    let mut workbook = mjx_xlsx::Workbook::blank().expect("a blank workbook");
+    workbook
+        .add_two_cell_anchored_picture(
+            0,
+            PNG,
+            "two-cell",
+            CellMarker::new(1, 190_500, 2, 47_625),
+            CellMarker::new(3, 95_250, 5, 19_050),
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("added");
+    workbook
+        .add_one_cell_anchored_picture(
+            0,
+            PNG,
+            "one-cell",
+            CellMarker::new(4, 76_200, 1, 38_100),
+            Size::from_emu(914_400, 457_200),
+        )
+        .expect("added");
+    workbook
+        .add_absolute_anchored_picture(
+            0,
+            PNG,
+            "absolute",
+            Position::from_emu(1_905_000, 952_500),
+            Size::from_emu(685_800, 342_900),
+        )
+        .expect("added");
+    workbook.save().expect("it validates and saves")
+}
+
+#[test]
+fn an_authored_worksheet_drawing_is_schema_valid_under_the_xdr_arm() {
+    // The first half of MJXOFF-107's gate: markup this library wrote, validated against the schema
+    // the new `MODELED_SCHEMAS` row names — not merely "not skipped".
+    let bytes = an_authored_drawing();
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("an authored drawing", &bytes);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "an authored drawing", &bytes, &[]);
+    println!("{}", outcome_table("an authored drawing", &rows));
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the authored drawing part is in the sweep");
+    assert_eq!(row.namespace.as_deref(), Some(XDR_NS));
+    assert!(
+        matches!(
+            row.outcome,
+            PartOutcome::Validated("dml-spreadsheetDrawing.xsd")
+        ),
+        "the drawing part must be validated against dml-spreadsheetDrawing.xsd; it reported: {}",
+        row.outcome.describe()
+    );
+}
+
+/// `worksheet_drawings.xlsx` with an `xdr:col` planted directly inside `xdr:twoCellAnchor` — a
+/// marker child where the anchor's own `xsd:sequence` allows only `from`, `to`, one object and
+/// `clientData`.
+fn a_drawing_with_a_marker_child_outside_its_marker() -> Vec<u8> {
+    let mut package = Package::open(&fixture("worksheet_drawings.xlsx")).expect("open");
+    let part = PartName::new("/xl/drawings/drawing1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } =
+        package.part_tree_mut(&part).expect("edit the drawing");
+    let stray = RawElement::new(
+        RawName {
+            prefix: Some(interner.intern("xdr")),
+            local: interner.intern("col"),
+            namespace: Some(interner.intern(XDR_NS)),
+        },
+        Vec::new(),
+        Vec::new(),
+        true,
+    );
+    assert!(
+        plant_in_first_of(root, interner, XDR_NS, "twoCellAnchor", &stray),
+        "the fixture has no xdr:twoCellAnchor to corrupt"
+    );
+    package.save().expect("save the corrupted drawing")
+}
+
+#[test]
+fn invalid_drawing_markup_is_caught_and_names_the_drawing_part() {
+    // The `xdr` arm, proved live rather than assumed: markup the schema rejects turns a case red,
+    // and the failure names the part and the element whose content model was broken.
+    let Some(harness) = harness() else { return };
+    let corrupted = a_drawing_with_a_marker_child_outside_its_marker();
+    let rows = inspect_deck(
+        &harness,
+        "worksheet_drawings.xlsx with a stray xdr:col",
+        &corrupted,
+        &[],
+    );
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing part is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a stray xdr:col must fail against dml-spreadsheetDrawing.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "dml-spreadsheetDrawing.xsd");
+    assert!(
+        report.contains("/xl/drawings/drawing1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("col"),
+        "the failure must name the element that broke the sequence:\n{report}"
+    );
+
+    // The discriminating half: only that part broke. The worksheet beside it is still valid, so this
+    // case cannot pass because the corruption happened to break everything.
+    let worksheet = rows
+        .iter()
+        .find(|row| row.name == "/xl/worksheets/sheet1.xml")
+        .expect("the worksheet is in the sweep");
+    assert!(
+        matches!(worksheet.outcome, PartOutcome::Validated("sml.xsd")),
+        "/xl/worksheets/sheet1.xml must be unaffected; it reported: {}",
+        worksheet.outcome.describe()
+    );
+    println!("the xdr arm, proved live:\n{report}");
+}
+
+#[test]
+fn the_generated_xdr_table_is_what_puts_the_drawing_part_under_the_ordering_gate() {
+    // The **second** half of the gate, and the one a schema arm alone leaves open: a table nothing
+    // reads passes every test there is. Asserted from both ends — the category table says the part
+    // is *required* to be audited (which reads `OrderingCoverage::Generated`, itself checked against
+    // the real tables by `the_ordering_gaps_are_exactly_the_declared_ones`), and the walk says it
+    // *was*, having descended into real structure rather than recognising a root and none of its
+    // children.
+    //
+    // Drop `"dml-spreadsheetDrawing"` from `CHILD_ORDER_SCHEMAS` and both halves go red here, on top
+    // of the two reconciliation cases in `mjx-schema-gate` and the hard codegen error the
+    // `TWO_CELL_ANCHOR` export raises.
+    let package = Package::open(&fixture("worksheet_drawings.xlsx")).expect("open");
+    let saved = package.save().expect("save");
+
+    let required = mjx_schema_gate::parts_that_must_be_audited("worksheet_drawings.xlsx", &saved);
+    assert!(
+        required
+            .iter()
+            .any(|name| name == "/xl/drawings/drawing1.xml"),
+        "the drawing is rooted in SpreadsheetDrawingML, so the category table must require it to be \
+         audited; it required {required:?}"
+    );
+
+    let audited = mjx_schema_gate::audit_deck_order("worksheet_drawings.xlsx", &saved);
+    let entry = audited
+        .iter()
+        .find(|entry| entry.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing was required but the ordering walk did not audit it");
+    println!(
+        "/xl/drawings/drawing1.xml — elements_visited = {}, root_child_elements = {}, floor = {}",
+        entry.elements_visited,
+        entry.root_child_elements,
+        entry.floor()
+    );
+    assert!(
+        entry.elements_visited >= mjx_schema_gate::MINIMUM_ELEMENTS_VISITED,
+        "the drawing part visited only {} element(s); the tables knew its root and recognised none \
+         of its children, which is a vacuous audit",
+        entry.elements_visited
+    );
+    assert!(
+        entry.elements_visited > entry.floor(),
+        "elements_visited {} is not past the floor {}",
+        entry.elements_visited,
+        entry.floor()
+    );
+}
+
+#[test]
+fn an_out_of_sequence_anchor_child_turns_the_ordering_audit_red() {
+    // The ordering table made load-bearing, not decorative. `CT_TwoCellAnchor`'s sequence is `from`,
+    // `to`, the object, then `clientData`; this moves `clientData` to the front, which no schema
+    // *validator* would be needed to catch — the audit alone must.
+    let mut package = Package::open(&fixture("worksheet_drawings.xlsx")).expect("open");
+    let part = PartName::new("/xl/drawings/drawing1.xml").expect("a valid part name");
+    {
+        let RawDocument { interner, root, .. } =
+            package.part_tree_mut(&part).expect("edit the drawing");
+        let anchor = root
+            .children
+            .iter_mut()
+            .find_map(|node| match node {
+                RawNode::Element(child)
+                    if interner.resolve(child.name.local) == "twoCellAnchor" =>
+                {
+                    Some(child)
+                }
+                _ => None,
+            })
+            .expect("the fixture has an xdr:twoCellAnchor");
+        let at = anchor
+            .children
+            .iter()
+            .position(|node| match node {
+                RawNode::Element(child) => interner.resolve(child.name.local) == "clientData",
+                _ => false,
+            })
+            .expect("the anchor has an xdr:clientData");
+        let client_data = anchor.children.remove(at);
+        anchor.children.insert(0, client_data);
+    }
+    let saved = package.save().expect("save the reordered drawing");
+
+    // `audit_deck_order` panics on a defect, so the red is caught and read rather than asserted
+    // around. The default hook is silenced first: this panic is the expected result, and letting it
+    // print would make a passing run look like a failing one.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome =
+        std::panic::catch_unwind(|| mjx_schema_gate::audit_deck_order("reordered drawing", &saved));
+    std::panic::set_hook(previous);
+
+    let payload = outcome.expect_err("an out-of-sequence anchor child must turn the audit red");
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("<non-string panic>")
+        .to_owned();
+    assert!(
+        message.contains("/xl/drawings/drawing1.xml"),
+        "the audit must name the part: {message}"
+    );
+    assert!(
+        message.contains("CT_TwoCellAnchor") && message.contains("clientData"),
+        "the audit must name the type whose sequence was broken and the child that broke it: \
+         {message}"
+    );
+    println!("the xdr ordering table, proved load-bearing:\n{message}");
 }
