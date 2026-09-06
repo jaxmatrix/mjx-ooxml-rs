@@ -30,13 +30,13 @@
 //! `pageMargins`, `pageSetup`, `headerFooter` and `picture` come straight from
 //! [`crate::features::print`]; `webPublishItems` from [`crate::features::publishing`]. The one
 //! per-kind difference is `pageSetup`: a chartsheet's is
-//! [`ChartSheetPageSetup`](crate::ChartSheetPageSetup) (`CT_CsPageSetup`), not
-//! [`PageSetup`](crate::PageSetup), because the six grid-only attributes do not apply. See
+//! [`ChartSheetPageSetup`] (`CT_CsPageSetup`), not
+//! [`PageSetup`](crate::features::print::PageSetup), because the six grid-only attributes do not apply. See
 //! [`crate::features::print`] for why that is two types rather than one.
 //!
 //! # `sheetPr@tabColor` is a SpreadsheetML colour
 //!
-//! [`ColorElement`](crate::ColorElement), not `mjx_dml::ColorSpec`. `sml.xsd`'s own `CT_Color`
+//! [`ColorElement`], not `mjx_dml::ColorSpec`. `sml.xsd`'s own `CT_Color`
 //! carries `@indexed` (a slot in the workbook's palette), `@theme` (a slot in the theme) and
 //! `@tint`, and none of those is a DrawingML concept: a colour that says "palette entry 13" cannot
 //! be flattened to an RGB triple without reading `xl/styles.xml`, and flattening it would be
@@ -353,12 +353,12 @@ impl ToXml for ChartSheetProperties {
 /// **`ST_`/`CT_` symbol:** `CT_CustomChartsheetView`. Wire element: `customSheetView`.
 ///
 /// Three children and four attributes, against
-/// [`CustomSheetView`](crate::CustomSheetView)'s nine and twenty. Everything a worksheet's saved
+/// [`CustomSheetView`](crate::features::custom_views::CustomSheetView)'s nine and twenty. Everything a worksheet's saved
 /// view remembers about a grid — the pane, the selection, the breaks, the filter, the hidden rows
 /// and columns — has no meaning here, so the schema declares a second type rather than reusing the
 /// first, and so does this crate.
 ///
-/// Its `pageSetup` is [`ChartSheetPageSetup`](crate::ChartSheetPageSetup) (`CT_CsPageSetup`), which
+/// Its `pageSetup` is [`ChartSheetPageSetup`] (`CT_CsPageSetup`), which
 /// is the one place the two saved-view types differ in a way a caller can trip on.
 #[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::XmlAttributes)]
 #[xml(namespace = SML)]
