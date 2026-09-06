@@ -39,6 +39,14 @@ Everything else is the same call with the same name. `sheets`, `add_sheet`, `ren
 `add_two_cell_anchored_picture`, `insert_rows_into_drawing`, `defined_names`, `preserved_parts` —
 all of them are there, spelled identically in Rust and Python and in `camelCase` in TypeScript.
 
+The whole [chart family](charts) crosses too, and it is the one place where crossing is the *point*
+rather than a courtesy: `chart_series`, `chart_series_freshness`, `add_range_chart`,
+`resolve_range_reference` and the rest are the same names a `Deck` and a `Document` carry, so a
+caller who learned charts on one surface has learned them on all three. `SheetChartSource` /
+`SheetChartSeries` become `ChartRangeSeries` on the way — a two-field description of one series
+reads better than a struct-of-vectors from Python and TypeScript — and the two cell markers become
+four plain numbers, by the row above.
+
 ## ⚠ The one place they do not agree: cells cross a **range** at a time
 
 **There is no per-cell reader or writer on the facade, or in either binding.** This crate has both —
