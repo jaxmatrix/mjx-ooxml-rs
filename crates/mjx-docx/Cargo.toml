@@ -27,6 +27,16 @@ mjx-omml.workspace = true
 # `mjx-mce`. See `crates/mjx-pptx/Cargo.toml`'s own comment above `vml = ["dep:mjx-vml"]` for the
 # reasoning this mirrors (and does not extend).
 mjx-vml.workspace = true
+# DrawingML charts (MJXOFF-103, E2). A chart part is `c:chartSpace` in every format, and since
+# MJXOFF-103 every read and edit a host performs on one is stated once in `mjx_chart::chart_ops`;
+# this crate's `Document` chart family resolves a `wp:docPr` id to a chart part and then calls it.
+# Rank 2.2 against this crate's 3.0, so the edge points down.
+mjx-chart.workspace = true
+# SpreadsheetML (rank 2.1) — reached for exactly two things a chart needs and nothing else: the
+# content type of the `.xlsx` package a chart embeds, and the error type writing one answers with.
+# `mjx-chart::embedded_workbook_for_chart_data` does the writing; this crate never composes a
+# workbook itself, which is MJXOFF-99's settled arrangement.
+mjx-sml.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

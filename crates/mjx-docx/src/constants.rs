@@ -250,3 +250,26 @@ pub const CONTENT_TYPE_ALT_CHUNK_DOCX: &str =
 
 // The relationship type from the main document part to the glossary document part is
 // `REL_GLOSSARY_DOCUMENT`, already declared above — no third `REL_*` constant needed for it.
+
+// =================================================================================================
+// MJXOFF-103 (E2) — charts. A chart part, its embedded workbook and the two relationships that
+// bind them are the same three strings in every format; these restate `mjx-pptx`'s own `REL_CHART`,
+// `REL_PACKAGE` and `CONTENT_TYPE_CHART` for the same sideways-edge reason [`REL_IMAGE`]'s own doc
+// comment gives. `crates/mjx-docx/tests/charts.rs` asserts the two crates' spellings are equal, so
+// the restatement cannot silently drift.
+// =================================================================================================
+
+/// The relationship type from the main document part to a chart part (`word/charts/chartN.xml`) —
+/// the target a `w:drawing`'s `c:chart@r:id` names (§14.2, the same OPC relationship a slide uses).
+pub const REL_CHART: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
+
+/// The relationship type from a chart part to the embedded Office **package** its `c:externalData`
+/// names — the `.xlsx` workbook Word's *Edit Data* opens.
+pub const REL_PACKAGE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
+
+/// The content type of a chart part (`word/charts/chartN.xml`). It shares the `xml` extension with
+/// every other part, so it is registered as a per-part Override, not a Default.
+pub const CONTENT_TYPE_CHART: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";

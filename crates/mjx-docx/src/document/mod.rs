@@ -51,6 +51,11 @@
 //! - `drawing.rs` — `w:drawing`/`w:object`/`w:control` and the WordprocessingML-specific drawing
 //!   types `mjx-dml` cannot host (`CT_TxbxContent` reaches upward into this crate's own paragraph
 //!   model), MJXOFF-131's own file.
+//! - `charts.rs` — a `c:chart` inside that `w:drawing`, MJXOFF-103's own file: the whole chart
+//!   family under the method names `mjx-pptx` already uses, addressed by `wp:docPr@id`. It models
+//!   nothing — `mjx-chart` owns `c:chartSpace` and `mjx_chart::chart_ops` owns every read and edit
+//!   performed on one — so the file is the *reach*: resolve a drawing id to a chart part, call the
+//!   shared operation, refresh the embedded workbook. See its own doc comment.
 //! - `revisions.rs` — the tracked-change wrappers `CT_*Change` and the revision-marker mechanism
 //!   (`w:ins`/`w:del`/`w:moveFrom`/`w:moveTo`), MJXOFF-126's own file — see that module's own doc
 //!   comment for the mutation-path table naming exactly what a tracked edit is and is not.
@@ -84,6 +89,7 @@ use crate::error::DocxError;
 
 mod annotations;
 mod body;
+mod charts;
 mod drawing;
 mod effective;
 mod fields;
@@ -121,6 +127,7 @@ pub use body::{
     RelationshipReference, Run, RunInnerContent, ShortHex, Symbol, Text, Unmodeled,
     WhitespacePreservation,
 };
+pub use charts::{ChartPlacement, ChartWrap, DocumentChartWorkbook};
 pub use drawing::{
     Control, Drawing, DrawingContent, EmbeddedObject, EmbeddedObjectContent, ObjectEmbed,
     ObjectLink, TextBoxContent, TextboxInfo, WordprocessingShape, WordprocessingShapeContent,
@@ -3612,12 +3619,13 @@ impl Document {
         Ok(doc_pr_id)
     }
 
-    /// Removes the drawing whose `wp:docPr@id` is `doc_pr_id` — the run holding it, and, when it is a
-    /// picture, the image part and relationship it alone referenced (via
-    /// [`mjx_opc::Package::remove_unreferenced_parts`], so a picture two drawings share, however
-    /// unusual, is not deleted out from under the other). Returns whether one was found and removed;
-    /// not finding it is a no-op, the same leniency [`Document::remove_footnote`] applies to an
-    /// unknown id.
+    /// Removes the drawing whose `wp:docPr@id` is `doc_pr_id` — the run holding it, and the part and
+    /// relationship it alone referenced: a picture's image part, or (since MJXOFF-103) a chart's
+    /// chart part *and*, through the same sweep, the embedded workbook that chart part alone
+    /// referenced. The sweep is [`mjx_opc::Package::remove_unreferenced_parts`], so a picture two
+    /// drawings share, however unusual, is not deleted out from under the other. Returns whether one
+    /// was found and removed; not finding it is a no-op, the same leniency
+    /// [`Document::remove_footnote`] applies to an unknown id.
     ///
     /// # Errors
     /// Returns [`DocxError::NoBody`] if the document declares no body, or another [`DocxError`] if
@@ -3627,7 +3635,7 @@ impl Document {
             let doc = self.package.part_tree(&self.document_part)?;
             let main = MainDocument::from_xml(&doc.root, &doc.interner)?;
             let body = main.body().ok_or(DocxError::NoBody)?;
-            find_drawing_image_rel_id(body, &doc.interner, doc_pr_id)
+            find_drawing_referenced_rel_id(body, &doc.interner, doc_pr_id)
         };
 
         let removed = {
@@ -4618,10 +4626,11 @@ fn drawing_matches_id(
     })
 }
 
-/// The embedded image relationship id of the drawing whose `wp:docPr@id` is `doc_pr_id`, if it is a
-/// picture and one is found among the body's own top-level paragraphs (the same "top-level only"
-/// scope [`Document::next_drawing_id`]'s own doc comment states).
-fn find_drawing_image_rel_id(
+/// The relationship id the drawing whose `wp:docPr@id` is `doc_pr_id` references — the embedded
+/// image of a picture, or the chart part of a chart — searching only the body's own top-level
+/// paragraphs (the same "top-level only" scope [`Document::next_drawing_id`]'s own doc comment
+/// states). `None` when the drawing references neither, or is not there.
+fn find_drawing_referenced_rel_id(
     body: &Body,
     interner: &mjx_ooxml_core::Interner,
     doc_pr_id: u32,
@@ -4652,6 +4661,13 @@ fn find_drawing_image_rel_id(
                 if let Some(picture) = graphic.data().picture() {
                     return picture.image_rel_id(interner);
                 }
+                // A chart's payload is not a `pic:pic`: it is a `c:chart` naming the chart part by
+                // its own `r:id` (MJXOFF-103). Reading that here is what makes `remove_drawing`
+                // sweep a chart's relationship the way it already swept a picture's — without it,
+                // removing a chart drawing left `word/_rels/document.xml.rels` pointing at a part
+                // nothing referenced, which `Package::validate` reports as a defect on the next
+                // `save`.
+                return graphic.data().chart_relationship_id(interner);
             }
         }
     }
@@ -4659,7 +4675,7 @@ fn find_drawing_image_rel_id(
 }
 
 /// Removes the run-level drawing item(s) whose `wp:docPr@id` is `doc_pr_id` from `body`'s own
-/// top-level paragraphs (the same scope [`find_drawing_image_rel_id`] searches), leaving the run
+/// top-level paragraphs (the same scope [`find_drawing_referenced_rel_id`] searches), leaving the run
 /// itself in place even if this empties its content — the same leniency `ranges::remove_matching`
 /// already applies elsewhere in this crate. Returns whether anything was removed.
 fn remove_drawing_by_id(
