@@ -111,8 +111,12 @@ def test_the_deck_declares_every_bound_method(stub: ast.Module) -> None:
     assert declared == actual
     # Six lifecycle methods plus the delegated surface. The count is stated so that a method
     # silently dropped from the generator is a failure rather than a smaller number nobody reads.
-    assert len(actual) == 253, (
-        f"expected 253 methods on Deck without the `vml` feature, found {len(actual)}"
+    # 253 until MJXOFF-118, which found `chart_series_references` bound on `Workbook` alone and
+    # projected it from `Deck` and `Document` too. This number is a *checked* count — it is
+    # re-derived from the compiled module on every run, which is what separates it from the prose
+    # counts MJXOFF-118 deleted elsewhere for having quietly stopped being true.
+    assert len(actual) == 254, (
+        f"expected 254 methods on Deck without the `vml` feature, found {len(actual)}"
     )
 
 
