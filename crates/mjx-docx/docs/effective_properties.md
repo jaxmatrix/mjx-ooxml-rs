@@ -187,7 +187,7 @@ WordprocessingML's own.
 A theme reference the theme does not define keeps its unresolved form — the file points somewhere the
 theme does not go, and that is the honest answer, not a guess.
 
-## Where this reader stops
+## Where resolution stops
 
 | Rung / concern | Status |
 |---|---|
@@ -200,7 +200,7 @@ theme does not go, and that is the honest answer, not a guess.
 | The paragraph mark's own run properties (`w:pPr/w:rPr`, `CT_ParaRPr`) | Not resolved by either reader — a genuinely different question (the pilcrow's own appearance, not a run's or the paragraph's own layout). |
 | Field results, table-layout-dependent widths, anything needing line breaking | Not modelled anywhere in this workspace; this reader answers what the *properties* resolve to, not what a line-breaking layout engine would place where. |
 
-## Cost and caching
+## Cost
 
 One `effective_*` call reads `word/document.xml`, `word/styles.xml` and, when the paragraph is in a
 list, `word/numbering.xml` — each already parsed once and kept by
