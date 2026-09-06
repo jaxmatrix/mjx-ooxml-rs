@@ -52,6 +52,8 @@ use std::sync::OnceLock;
 static LIVE: AtomicUsize = AtomicUsize::new(0);
 /// The high-water mark since the last [`reset_peak`].
 static PEAK: AtomicUsize = AtomicUsize::new(0);
+/// Bytes handed out since the process started, never decremented. See [`total_allocated`].
+static TOTAL: AtomicUsize = AtomicUsize::new(0);
 /// The hard ceiling, in bytes. `usize::MAX` disables it.
 static HARD_CEILING: AtomicUsize = AtomicUsize::new(usize::MAX);
 /// What the abort message tells the operator to look at. Set by the first [`set_hard_ceiling`].
@@ -74,6 +76,7 @@ impl Counting {
     #[inline]
     fn note_allocation(bytes: usize) {
         let live = LIVE.fetch_add(bytes, Ordering::Relaxed) + bytes;
+        TOTAL.fetch_add(bytes, Ordering::Relaxed);
         PEAK.fetch_max(live, Ordering::Relaxed);
         if live > HARD_CEILING.load(Ordering::Relaxed) && !ABORTING.swap(true, Ordering::Relaxed) {
             // Deliberately terse and allocation-free: we are inside the allocator, past its ceiling,
@@ -164,4 +167,19 @@ pub fn peak() -> usize {
 #[must_use]
 pub fn live() -> usize {
     LIVE.load(Ordering::Relaxed)
+}
+
+/// Bytes handed out since the process started — **monotonic**, never decremented by a free.
+///
+/// The difference between two readings around a call is *how much work that call made the allocator
+/// do*, which is a third question from the two above and the only one that can see repeated work.
+/// A routine that parses one worksheet, and a routine that parses the same worksheet two hundred
+/// times freeing each one before the next, have the same [`live`] and the same [`peak`] and differ
+/// two-hundredfold here. MJXOFF-137's boundary gate
+/// (`crates/mjx-ooxml/tests/workbook_boundary.rs`) asserts exactly that difference, which is why
+/// this counter exists: it is the deterministic stand-in for the stopwatch that would otherwise be
+/// needed, and it reads the same on a debug build, on a release build, and on any machine.
+#[must_use]
+pub fn total_allocated() -> usize {
+    TOTAL.load(Ordering::Relaxed)
 }

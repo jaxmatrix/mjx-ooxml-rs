@@ -266,3 +266,175 @@ fn a_malformed_guide_formula_names_its_own_failure() {
         "the cause must name the token it choked on, got {source:?}"
     );
 }
+
+// ---------------------------------------------------------------------------------------------
+// SpreadsheetML (MJXOFF-137)
+// ---------------------------------------------------------------------------------------------
+
+/// The same claim for the Excel surface: every type a `Workbook` method hands back, or takes inside
+/// one of its arguments, is nameable through `mjx_ooxml` alone.
+///
+/// Written as a *destructuring* pass rather than as a list of `use` lines, for the reason this file
+/// exists: a type can be re-exported and still be unusable if one of its own fields names something
+/// that is not. Reading a field is what proves the closure; importing the outer name is not.
+mod spreadsheetml {
+    use mjx_ooxml::{
+        AddressText, Anchoring, ApplyFlag, BorderEdgeSpec, BorderSpec, BorderStyle,
+        CalculationMode, CellFormatSpec, CellFormatTarget, CellInput, CellRange, CellReference,
+        CellWrite, Color, DateSystem, FormatAspect, FormatLayer, GridAnomalyKind, HyperlinkKind,
+        PartKind, PreservedPartsSummary, ReferenceMode, ResolvedAspect, SheetKind,
+        SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TableStyleOrigin,
+        TotalsRowFunction, UnderlineType, Workbook,
+    };
+
+    fn filled() -> Workbook {
+        let mut workbook = Workbook::blank().expect("a blank workbook");
+        workbook
+            .write_cells(
+                0,
+                &[
+                    CellWrite::new("A1", CellInput::SharedText("Region".into())),
+                    CellWrite::new("B1", CellInput::Number(3.5)),
+                ],
+            )
+            .expect("a batched write");
+        workbook
+    }
+
+    /// `SheetSummary::kind` is a `SheetKind`; `PreservedPartsSummary::all` pairs a `PartKind` with a
+    /// part name; a hyperlink report carries a `HyperlinkKind`; a table style resolves to a
+    /// `TableStyleOrigin`.
+    #[test]
+    fn the_report_enumerations_are_nameable_and_matchable() {
+        let mut workbook = filled();
+
+        let sheet = workbook.sheet(0).expect("the first tab");
+        assert!(matches!(sheet.kind, Some(SheetKind::Worksheet)));
+
+        let preserved: PreservedPartsSummary =
+            workbook.preserved_parts().expect("the preserved parts");
+        let all: Vec<(PartKind, String)> = preserved.all();
+        for (kind, part) in &all {
+            assert!(!part.is_empty(), "{kind:?} named an empty part");
+        }
+
+        workbook
+            .set_cell_hyperlink_url(0, "A1", "https://example.org/")
+            .expect("a link");
+        let link = workbook
+            .cell_hyperlink(0, "A1")
+            .expect("the link")
+            .expect("there is one");
+        assert_eq!(link.kind, HyperlinkKind::External);
+
+        assert_eq!(
+            workbook
+                .table_style_origin("TableStyleMedium2")
+                .expect("an origin"),
+            TableStyleOrigin::BuiltIn
+        );
+
+        assert_eq!(
+            workbook.date_system().expect("the date system"),
+            DateSystem::Windows1900
+        );
+        let settings = workbook
+            .calculation_settings()
+            .expect("the calculation settings");
+        assert_eq!(settings.mode, CalculationMode::Auto);
+        assert_eq!(settings.reference_mode, ReferenceMode::A1);
+
+        // `GridAnomalyKind` is this crate's own flat projection of `mjx_sml::GridAnomaly`; a caller
+        // filtering findings by kind must be able to write the name.
+        let anomalies = workbook.grid_anomalies(0).expect("the anomalies");
+        assert!(!anomalies
+            .iter()
+            .any(|found| found.kind == GridAnomalyKind::MergesOverlap));
+    }
+
+    /// The four cell-format specs and everything inside them.
+    #[test]
+    fn the_cell_format_vocabulary_is_buildable_and_readable() {
+        let mut workbook = filled();
+
+        let font = workbook
+            .append_font(&mjx_ooxml::FontProperties {
+                font_name: Some("Calibri".into()),
+                underline: Some(UnderlineType::Double),
+                scheme: Some(SpreadsheetFontScheme::Minor),
+                color: Some(Color::from_theme(1, Some(-0.25))),
+                ..mjx_ooxml::FontProperties::default()
+            })
+            .expect("a font");
+        let fill = workbook
+            .append_pattern_fill(&mjx_ooxml::PatternFillSpec {
+                pattern: Some(SpreadsheetPatternType::Gray12Point5Percent),
+                foreground: Some(Color::from_opaque_rgb("D9D9D9")),
+                background: None,
+            })
+            .expect("a fill");
+        let border = workbook
+            .append_border(&BorderSpec {
+                top: Some(BorderEdgeSpec {
+                    style: Some(BorderStyle::Double),
+                    color: Some(Color::from_opaque_rgb("000000")),
+                }),
+                ..BorderSpec::default()
+            })
+            .expect("a border");
+        let format = workbook
+            .append_cell_format(
+                CellFormatTarget::CellFormats,
+                &CellFormatSpec {
+                    font_index: Some(font),
+                    fill_index: Some(fill),
+                    border_index: Some(border),
+                    applies_font: Some(true),
+                    ..CellFormatSpec::skeleton_cell_format()
+                },
+            )
+            .expect("a cell format");
+        workbook
+            .set_cell_style(0, "A1", Some(format))
+            .expect("pointing A1 at it");
+
+        let effective = workbook
+            .effective_cell_format(0, "A1")
+            .expect("the effective format")
+            .expect("a styles part");
+        assert_eq!(effective.style_index(), format);
+        assert_eq!(effective.style_index_source(), StyleIndexSource::Cell);
+
+        // `ResolvedAspect`'s own fields name two further enumerations.
+        let aspect: ResolvedAspect = effective.aspect(FormatAspect::Font);
+        let _: ApplyFlag = aspect.apply_flag;
+        let _: FormatLayer = aspect.layer;
+        assert_eq!(aspect.resource_index, Some(font));
+    }
+
+    /// `CellReference` and `CellRange` are the *reading* half of the address vocabulary: nothing on
+    /// the surface takes one, and a caller reaching past the facade builds one from the same A1 text
+    /// the facade itself takes.
+    #[test]
+    fn the_address_vocabulary_is_nameable_without_a_positional_constructor() {
+        let reference = CellReference::parse("$B$7").expect("an address");
+        assert_eq!(reference.row(), 6);
+        assert_eq!(reference.column(), 1);
+        assert_eq!(reference.column_anchoring(), Anchoring::Absolute);
+        let text: AddressText = reference.text();
+        assert_eq!(text.as_str(), "$B$7");
+
+        let range = CellRange::parse("A1:C3").expect("a range");
+        assert!(range.contains(CellReference::parse("B2").expect("an address")));
+        assert!(!range.is_single_cell());
+    }
+
+    /// A table column's `@totalsRowFunction` is a generated enumeration; a caller reading a table
+    /// report must be able to name it.
+    #[test]
+    fn a_table_column_totals_function_is_nameable() {
+        let function: Option<TotalsRowFunction> = None;
+        assert!(function.is_none());
+        assert_eq!(TotalsRowFunction::Sum.to_wire(), "sum");
+    }
+}

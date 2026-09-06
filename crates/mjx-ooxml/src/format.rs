@@ -14,9 +14,9 @@
 //!
 //! # Detection works before editing does
 //!
-//! Every family is recognized here before [`Deck::open`](crate::Deck::open) or
-//! [`Document::open`](crate::Document::open) parses a single element: each refuses a package from
-//! the *other* editable family (and Excel, not yet editable at all) with
+//! Every family is recognized here before [`Deck::open`](crate::Deck::open),
+//! [`Document::open`](crate::Document::open) or [`Workbook::open`](crate::Workbook::open) parses a
+//! single element: each refuses a package from either *other* family with
 //! [`ErrorCode::UnsupportedFormat`](crate::ErrorCode::UnsupportedFormat) rather than failing on some
 //! Word-shaped or Excel-shaped element it does not recognize. That ordering is deliberate: a caller
 //! who hands a `.docx` to `Deck::open` deserves to be told it is a Word document — and pointed at
@@ -38,8 +38,8 @@ pub enum FormatFamily {
     Presentation,
     /// WordprocessingML — Word. Editable: this is what [`Document`](crate::Document) opens.
     WordProcessing,
-    /// SpreadsheetML — Excel. Detected here, and edited through `mjx_xlsx::Workbook`, which this
-    /// facade does not project yet.
+    /// SpreadsheetML — Excel. Editable: this is what [`Workbook`](crate::Workbook) opens, with the
+    /// single exception of [`Format::WorkbookBinary`] (`.xlsb`), whose main part is not XML.
     Spreadsheet,
 }
 
@@ -76,7 +76,12 @@ pub enum Format {
     Workbook,
     /// A macro-enabled Excel workbook (`.xlsm`).
     WorkbookMacroEnabled,
-    /// A binary Excel workbook (`.xlsb`) — an OPC package whose main part is not XML at all.
+    /// A binary Excel workbook (`.xlsb`) — an OPC package whose main part is not XML at all, but
+    /// the MS-XLSB binary record stream.
+    ///
+    /// Detected, and **deliberately never editable**: there is no SpreadsheetML in it to read. This
+    /// is the one format in the table whose refusal is a design decision rather than a schedule, and
+    /// [`Workbook::open`](crate::Workbook::open) says so in as many words.
     WorkbookBinary,
     /// An Excel template (`.xltx`).
     WorkbookTemplate,
@@ -226,15 +231,16 @@ impl Format {
             .unwrap_or("")
     }
 
-    /// Whether this build can open the format for editing — true for the PresentationML and
-    /// WordprocessingML families ([`crate::Deck`] and [`crate::Document`] respectively); Excel is
-    /// detected but not yet editable.
+    /// Whether this build can open the format for editing — true for every PresentationML,
+    /// WordprocessingML and SpreadsheetML format ([`crate::Deck`], [`crate::Document`] and
+    /// [`crate::Workbook`] respectively) **except** [`WorkbookBinary`](Self::WorkbookBinary).
+    ///
+    /// `.xlsb` is the sole `false`, and it is false permanently: its main part is the MS-XLSB
+    /// binary record stream, so there is no markup for a SpreadsheetML reader to read. Every other
+    /// entry in the table is XML this library models.
     #[must_use]
     pub fn is_editable(self) -> bool {
-        matches!(
-            self.family(),
-            FormatFamily::Presentation | FormatFamily::WordProcessing
-        )
+        !matches!(self, Self::WorkbookBinary)
     }
 }
 
@@ -329,17 +335,26 @@ mod tests {
         }
     }
 
+    /// Every format is editable except the one whose main part is not XML.
+    ///
+    /// Asserted over the whole table rather than over a hand-written list, so a format added to
+    /// `CONTENT_TYPES` joins this claim by existing. The `.xlsb` case is named separately because it
+    /// is the assertion that can actually fail: `is_editable` returning a bare `true` would satisfy
+    /// the loop for fourteen of the fifteen rows.
     #[test]
-    fn presentationml_and_wordprocessingml_are_editable_spreadsheetml_is_not() {
+    fn every_format_is_editable_except_the_binary_workbook() {
         for (format, _, _) in CONTENT_TYPES {
             assert_eq!(
                 format.is_editable(),
-                matches!(
-                    format.family(),
-                    FormatFamily::Presentation | FormatFamily::WordProcessing
-                )
+                *format != Format::WorkbookBinary,
+                "{format:?}"
             );
         }
-        assert!(!Format::Workbook.is_editable());
+        assert!(Format::Workbook.is_editable());
+        assert!(Format::WorkbookMacroEnabled.is_editable());
+        assert!(Format::WorkbookTemplate.is_editable());
+        assert!(Format::WorkbookTemplateMacroEnabled.is_editable());
+        assert!(!Format::WorkbookBinary.is_editable());
+        assert_eq!(Format::WorkbookBinary.family(), FormatFamily::Spreadsheet);
     }
 }
