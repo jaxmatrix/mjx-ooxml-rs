@@ -23,6 +23,14 @@ members = [
     # shared markup, because **no OOXML type may appear in its public API**: that is the seam the
     # whole client platform is organised around, and `xtask/tests/layering.rs` is what holds it.
     "crates/mjx-layout",
+    # The display list — rank 1.7 (MJXOFF-161). The command vocabulary, the paint/effect vocabulary,
+    # the resource tables and the flat binary encoding a `FragmentTree` becomes. It sits one step
+    # above the box model contract and **below `mjx-dml`**, which is the whole point: the layering
+    # gate only refuses an edge that points up or sideways, so a display list ranked above shared
+    # markup would make `mjx-scene -> mjx-dml` a legal downward edge and the guarantee this crate
+    # exists to hold — below a display list, nothing has heard of a font, a layout algorithm or a
+    # document — would be enforced by nothing at all.
+    "crates/mjx-scene",
     "crates/mjx-dml",
     # `mjx-sml` sits *beside* `mjx-dml` and *beneath* `mjx-chart` — shared markup, rank 2.1. An
     # embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx`, so the markup is shared even
@@ -70,7 +78,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.126"
+version = "0.0.127"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -141,6 +149,7 @@ mjx-opc = { path = "crates/mjx-opc" }
 mjx-mce = { path = "crates/mjx-mce" }
 mjx-text = { path = "crates/mjx-text" }
 mjx-layout = { path = "crates/mjx-layout" }
+mjx-scene = { path = "crates/mjx-scene" }
 mjx-dml = { path = "crates/mjx-dml" }
 mjx-sml = { path = "crates/mjx-sml" }
 mjx-omml = { path = "crates/mjx-omml" }

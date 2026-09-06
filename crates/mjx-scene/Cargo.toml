@@ -1,0 +1,34 @@
+[package]
+name = "mjx-scene"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The display list: a flat, versioned, typed-record arena a FragmentTree becomes and every painter consumes."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. `Emu` and `Angle` — the unit a `FragmentTree` is positioned in, which this crate reads
+# on the way to device pixels and never writes.
+mjx-ooxml-core.workspace = true
+# Rank 0.2. `mjx_tokens::Color` is the workspace's one sRGB colour, and a display list is full of
+# colours. Defining a second one here would put two eight-bit-per-channel colours in one workspace
+# and make the in-canvas UI (which is themed, and therefore reads tokens) convert between them at
+# every call. The rank ladder says the edge is legal; the alternative is a duplicate type.
+mjx-tokens.workspace = true
+# Rank 1.5. `place_run` decides where each glyph of a shaped run lands once the device scale is
+# known, and the glyph atlas decides what image it is drawn with. Both happen here, at scene-build
+# time, because both are resolution-dependent and a `FragmentTree` deliberately is not.
+mjx-text.workspace = true
+# Rank 1.6. `FragmentTree` is this crate's only input.
+mjx-layout.workspace = true
+thiserror.workspace = true
+
+# `tests/support/` is `mjx-layout`'s own test support, included by path rather than copied — the
+# foreign box model is the whole point of the seam, and a second copy of it would be a second
+# contract. It needs `thiserror`, which is above, and the faces `mjx-text` commits under
+# `assets/fonts/`, which a path relative to this manifest reaches.

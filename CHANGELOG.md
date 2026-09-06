@@ -54,6 +54,53 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.127] - 2026-09-07
+
+**The display list, and its flat binary encoding** (MJXOFF-161, Phase R position 6).
+
+The upper of the architecture's two seams. `mjx-layout`'s `FragmentTree` is the seam above which
+nothing has heard of OOXML; `DisplayList` is the one **below which nothing has heard of a font, a
+layout algorithm or a document either**. That is what lets four painters — GPU, software, PDF, SVG —
+consume one output, and what will later let the same bytes cross a transport boundary without a
+redesign, because they are already bytes.
+
+### Added
+
+- **`crates/mjx-scene`, rank 1.7** — a new crate depending on `mjx-ooxml-core`, `mjx-tokens`,
+  `mjx-text` and `mjx-layout`, and on **no format crate and not on `mjx-dml`**. All four rank tables
+  grew: `xtask/tests/layering.rs`, `CLAUDE.md`, `README.md` and `docs/UI_PLATFORM_PLAN.md` §7.
+- **Nine commands** — `PushTransform`, `PushClip`, `PushOpacity`, `PushEffect`, `Pop`, `FillPath`,
+  `StrokePath`, `DrawGlyphs`, `DrawImage` — and the balanced push/pop stack a malformed stream
+  cannot violate.
+- **The paint vocabulary**: solid; linear, radial and path gradients with DrawingML's full stop, tile
+  and flip semantics; all 54 preset patterns; picture fills with crop, tiling and the image
+  adjustments DrawingML defines (alpha, luminance, greyscale, duotone, colour change). Neutral
+  names, none of `mjx-dml`'s types.
+- **The effect vocabulary**: blur, glow, outer and inner shadow, soft edge, reflection and fill
+  overlay, composed as a **DAG** in topological order. Declared here as data; executed in R08/R09.
+- **The flat binary encoding** — a versioned, typed-record arena in one `Vec<u8>`: a 32-byte header,
+  a section table with a row per non-empty table, and thirteen sections of which ten have a fixed
+  stride so entry *n* is an offset multiply. Readable without deserialisation, cacheable to disk,
+  and diffable frame to frame.
+- **`build_scene`** — a `FragmentTree` in, a `DisplayList` out, driven only by fragments. `place_run`
+  and the glyph atlas are called *here*, because this is the first layer that knows the device scale.
+- **A reachability gate over the public surface** that sees **enum variants** as well as functions
+  and constants. It found three orphans in `mjx-scene` on its first run, all three removed or given
+  a test.
+
+### Changed
+
+- **`crates/mjx-layout/tests/public_surface_is_reachable.rs` now scans enum variants too.** It found
+  three in `mjx-layout` — `ExtentPrecision::Exact`, `LayoutError::PageBeyondContent` and
+  `ChangeKind::Reformatted` — each constructed nowhere in the workspace. They are recorded in a new
+  `VARIANTS_ALLOWED_WITHOUT_A_CALLER` list with the reason, because giving one a producer is a
+  contract decision rather than a gate's to make. `ExtentPrecision::Exact` in particular means the
+  estimated-against-measured distinction R13 was told to depend on has one realisable value today.
+- **`docs/UI_PLATFORM_PLAN.md` §7 corrected `mjx-scene` from rank 2.6 to 1.7.** At 2.6 the crate
+  would sit *above* `mjx-dml`, which makes `mjx-scene → mjx-dml` a legal **downward** edge — so the
+  layering gate, which only refuses an edge that points up or sideways, would have enforced nothing
+  at all. `mjx-layout` was placed at 1.6 for exactly this reason.
+
 ## [0.0.126] - 2026-09-07
 
 **The box model contract** (MJXOFF-160, Phase R position 5).
