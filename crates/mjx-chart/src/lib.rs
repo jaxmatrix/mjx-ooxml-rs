@@ -57,6 +57,12 @@
 //! that PowerPoint's Edit Data opens ([`embedded_workbook_for_chart_data`]) — and, with
 //! [`ChartData::data_labels`], a chart that labels itself. That workbook is a real `.xlsx` package
 //! written by `mjx-sml`; this crate lays out the grid and nothing else.
+//!
+//! A chart does **not** have to have one. [`ChartData::ranges`] points the `c:f` formulas at cells
+//! in a host workbook instead ([`ChartRanges`], [`ChartSeriesRange`]), which is what a chart on a
+//! worksheet does: there is no embedded copy, the formulas name the sheets the chart lives among,
+//! and the cells are the source. Resolving such a reference against a package is `mjx-xlsx`'s —
+//! this crate writes the text and reads it back, and has never resolved a reference in its life.
 
 mod author;
 mod axis;
@@ -69,7 +75,7 @@ mod plot;
 mod space;
 mod view;
 
-pub use author::{ChartData, ChartDataError};
+pub use author::{ChartData, ChartDataError, ChartRanges, ChartSeriesRange};
 pub use axis::{
     Axis, AxisContent, AxisKind, AxisOrientation, AxisPosition, BlankDisplay, ChartTitle,
     ChartTitleContent, Gridlines, Legend, LegendPosition, Scaling, TickLabelPosition, TickMark,
