@@ -29,11 +29,50 @@ RENAMED_NONE = [
     "TextUnderline",
     "TickLabelPosition",
     "TickMark",
+    # MJXOFF-137 added Excel, and five of its enumerations have a `None` member too.
+    "BorderStyle",
+    "SpreadsheetFontScheme",
+    "SpreadsheetPatternType",
+    "TotalsRowFunction",
+    "UnderlineType",
 ]
+
+# Members that are all-capitals **in Rust as well**, so their spelling here is not a rename.
+#
+# `test_no_other_member_was_renamed` finds a rename by its shape — an all-capitals member of more
+# than two characters — because that is what the one real rename looks like. `ST_RefMode`'s `R1C1`
+# has exactly that shape and is not a rename: it is the wire-accurate name of the R1C1 reference
+# style, spelled `R1C1` in the model too. Listing it is how the test keeps meaning "nothing was
+# renamed" rather than "nothing is capitalised".
+ALL_CAPITALS_IN_RUST = {
+    ("ReferenceMode", "R1C1"),
+}
 
 # The member counts that must not silently shrink. Each is the number of variants the model states,
 # so a projection that dropped one would be caught here rather than at a caller's call site.
 MEMBER_COUNTS = {
+    # SpreadsheetML (MJXOFF-137). `PartKind` is the one worth reading twice: it is how a caller
+    # names a part this project preserves rather than models, so a dropped member is a cluster a
+    # caller cannot ask about.
+    "BorderStyle": 14,
+    "SpreadsheetPatternType": 19,
+    "SpreadsheetFontScheme": 3,
+    "TotalsRowFunction": 10,
+    "CalculationMode": 3,
+    "ReferenceMode": 2,
+    "SheetKind": 3,
+    "PartKind": 27,
+    "HyperlinkKind": 4,
+    "DateSystem": 2,
+    "TableStyleOrigin": 3,
+    "StyleIndexSource": 4,
+    "FormatLayer": 3,
+    "FormatAspect": 6,
+    "ApplyFlag": 3,
+    "Anchoring": 2,
+    "CellFormatTarget": 2,
+    "GridAnomalyKind": 9,
+    "UnderlineType": 5,
     "PresetShapeType": 187,
     "AutonumberScheme": 41,
     "PatternType": 54,
@@ -104,7 +143,13 @@ def test_no_other_member_was_renamed() -> None:
         cls = getattr(mjx_ooxml, name)
         if not inspect.isclass(cls):
             continue
-        found = [member for member in members(cls) if member.isupper() and len(member) > 2]
+        found = [
+            member
+            for member in members(cls)
+            if member.isupper()
+            and len(member) > 2
+            and (name, member) not in ALL_CAPITALS_IN_RUST
+        ]
         if found:
             assert name in renamed, f"{name} has an all-capitals member {found}, which is unexpected"
 
@@ -187,7 +232,13 @@ def test_format_reports_what_a_format_is() -> None:
     assert mjx_ooxml.Format.PresentationMacroEnabled.is_macro_enabled
     assert not mjx_ooxml.Format.Presentation.is_macro_enabled
     assert mjx_ooxml.Format.Presentation.is_editable
-    assert not mjx_ooxml.Format.Workbook.is_editable
+    # MJXOFF-137: SpreadsheetML became editable, so this now agrees with the assertion above it
+    # rather than being its opposite. The one format that stays false is `.xlsb`, whose main part is
+    # the MS-XLSB binary record stream rather than SpreadsheetML — a decision, not a schedule.
+    assert mjx_ooxml.Format.Workbook.is_editable
+    assert mjx_ooxml.Format.WorkbookMacroEnabled.is_editable
+    assert not mjx_ooxml.Format.WorkbookBinary.is_editable
+    assert mjx_ooxml.Format.WorkbookBinary.family == mjx_ooxml.FormatFamily.Spreadsheet
     assert mjx_ooxml.Format.Workbook.family == mjx_ooxml.FormatFamily.Spreadsheet
     assert mjx_ooxml.Format.Document.family == mjx_ooxml.FormatFamily.WordProcessing
     assert "presentationml" in mjx_ooxml.Format.Presentation.content_type

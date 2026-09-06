@@ -7,7 +7,7 @@
 //!
 //! **The member names are the Rust names, unchanged.** The Python binding has to spell the `None`
 //! variant `NONE`, because `None` is a Python keyword; `None` is a perfectly ordinary member name in
-//! TypeScript, so nine enumerations read differently in the two bindings and this one reads the same
+//! TypeScript, so fourteen enumerations read differently in the two bindings and this one reads the same
 //! as the Rust.
 //!
 //! # Sealed and open
