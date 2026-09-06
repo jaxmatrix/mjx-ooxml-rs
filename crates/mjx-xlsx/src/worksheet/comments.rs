@@ -916,6 +916,10 @@ impl Workbook {
 
     /// Every comment box on the tab at `index`, read out of its VML drawing.
     fn read_comment_boxes(&self, index: usize) -> Result<Vec<CommentBox>, XlsxError> {
+        // The error is **propagated**, not swallowed into an empty list. A sheet with no VML part
+        // answers `None` here and that is absence; a VML part that will not parse is a malformed
+        // file, and `sheet_comments` says so rather than reporting every comment as boxless — which
+        // would look exactly like the half-a-comment `validate` refuses.
         Ok(self
             .vml_drawing_markup(index, |drawing, interner| {
                 drawing
@@ -924,8 +928,7 @@ impl Workbook {
                     .filter(|shape| is_comment_shape(shape, interner))
                     .map(|shape| read_comment_box(shape, interner))
                     .collect()
-            })
-            .unwrap_or(Some(Vec::new()))
+            })?
             .unwrap_or_default())
     }
 }
