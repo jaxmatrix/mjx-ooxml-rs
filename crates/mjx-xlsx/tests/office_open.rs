@@ -360,3 +360,67 @@ fn a_workbook_with_an_authored_table_opens() {
 
     let _ = convert_opens(&workbook.save().expect("saves"), "authored_table");
 }
+
+#[test]
+fn a_workbook_with_an_authored_drawing_opens() {
+    // MJXOFF-107's equivalent of the table case above, and a genuinely different question from
+    // schema validity for the same reason: a drawing is **six** things that have to agree, and three
+    // of the six are packaging rather than markup. A missing content-type override, a `drawing`
+    // relationship written from the workbook part instead of the sheet, or — the one this project
+    // got wrong in its own first draft — an image relationship written from the *sheet* instead of
+    // from the drawing part, all produce markup `dml-spreadsheetDrawing.xsd` accepts and a renderer
+    // still draws nothing for.
+    //
+    // All three anchor modes, because they are three different elements with three different
+    // content models, and a renderer that rejects one of them would otherwise go unnoticed.
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_dml::{Position, Size};
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+
+    // A 1x1 truecolour PNG: every chunk CRC is correct and its `IDAT` inflates to one filter byte
+    // plus three colour bytes, so a renderer really does get an image rather than a refusal.
+    const PNG: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D',
+        b'R', 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, b'I', b'D', b'A', b'T', 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00,
+        0x00, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82,
+    ];
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let mut workbook = Workbook::blank().expect("authored");
+    workbook
+        .set_cell_value(0, at("A1"), CellValue::InlineString("Region"))
+        .expect("the store accepts the value");
+
+    workbook
+        .add_two_cell_anchored_picture(
+            0,
+            PNG,
+            "two-cell",
+            CellMarker::new(1, 190_500, 2, 47_625),
+            CellMarker::new(3, 95_250, 5, 19_050),
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a two-cell anchored picture");
+    workbook
+        .add_one_cell_anchored_picture(
+            0,
+            PNG,
+            "one-cell",
+            CellMarker::new(4, 76_200, 1, 38_100),
+            Size::from_emu(914_400, 457_200),
+        )
+        .expect("a one-cell anchored picture");
+    workbook
+        .add_absolute_anchored_picture(
+            0,
+            PNG,
+            "absolute",
+            Position::from_emu(1_905_000, 952_500),
+            Size::from_emu(685_800, 342_900),
+        )
+        .expect("an absolute anchored picture");
+
+    let _ = convert_opens(&workbook.save().expect("saves"), "authored_drawing");
+}
