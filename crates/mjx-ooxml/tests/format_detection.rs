@@ -10,7 +10,7 @@
 //! the repository holds no `.pptm` or `.potx` fixture, and detection is not worth proving against a
 //! fixture that was hand-crafted to pass.
 
-use mjx_ooxml::{detect_format, Deck, Document, ErrorCode, Format, FormatFamily};
+use mjx_ooxml::{detect_format, Deck, Document, ErrorCode, Format, FormatFamily, Workbook};
 use mjx_opc::{Package, PartName};
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -122,12 +122,14 @@ fn document_open_refuses_presentation_and_spreadsheet_packages() {
 }
 
 #[test]
-fn an_excel_workbook_is_detected_and_refused() {
+fn an_excel_workbook_is_detected_refused_by_deck_and_opened_by_workbook() {
     let bytes = fixture("sample.xlsx");
     let format = detect_format(&bytes).expect("a format");
     assert_eq!(format, Format::Workbook);
     assert_eq!(format.family(), FormatFamily::Spreadsheet);
-    assert!(!format.is_editable());
+    // MJXOFF-137: SpreadsheetML became editable through `mjx_ooxml::Workbook`, so this now agrees
+    // with the PresentationML and WordprocessingML assertions rather than being the exception.
+    assert!(format.is_editable());
     assert_eq!(format.conventional_extension(), "xlsx");
 
     assert_eq!(
@@ -135,6 +137,91 @@ fn an_excel_workbook_is_detected_and_refused() {
             .expect_err("an Excel workbook is not a deck")
             .code(),
         ErrorCode::UnsupportedFormat
+    );
+
+    let workbook = Workbook::open(&bytes).expect("a SpreadsheetML package opens as a Workbook");
+    assert_eq!(workbook.format(), Format::Workbook);
+    assert!(workbook.sheet_count() >= 1);
+}
+
+/// The other direction of the same refusal, for the surface MJXOFF-137 added.
+#[test]
+fn workbook_open_refuses_presentation_and_word_packages_by_name() {
+    let presentation =
+        Workbook::open(&fixture("sample.pptx")).expect_err("a presentation is not a workbook");
+    assert_eq!(presentation.code(), ErrorCode::UnsupportedFormat);
+    assert!(
+        presentation.to_string().contains("Deck::open"),
+        "the refusal must point at the door that does open it: {presentation}"
+    );
+
+    let document =
+        Workbook::open(&fixture("sample.docx")).expect_err("a Word document is not a workbook");
+    assert_eq!(document.code(), ErrorCode::UnsupportedFormat);
+    assert!(
+        document.to_string().contains("Document::open"),
+        "the refusal must point at the door that does open it: {document}"
+    );
+}
+
+/// **`.xlsb` is the one format detection recognizes and nothing opens**, and its refusal is a
+/// different sentence from every other one: the main part is the MS-XLSB binary record stream, so
+/// there is no SpreadsheetML in it at all. A refusal that read like the generic "wrong family" one
+/// would tell a caller to go and find the right door, and there is not one.
+#[test]
+fn a_binary_workbook_is_detected_and_refused_by_design() {
+    assert_eq!(
+        Format::WorkbookBinary.family(),
+        FormatFamily::Spreadsheet,
+        "a .xlsb is still SpreadsheetML's family"
+    );
+    assert!(!Format::WorkbookBinary.is_editable());
+    assert_eq!(Format::WorkbookBinary.conventional_extension(), "xlsb");
+
+    let bytes = workbook_declared_as(Format::WorkbookBinary.content_type());
+    assert_eq!(
+        detect_format(&bytes).expect("a format"),
+        Format::WorkbookBinary
+    );
+
+    let refused = Workbook::open(&bytes).expect_err("a binary workbook does not open");
+    assert_eq!(refused.code(), ErrorCode::UnsupportedFormat);
+    let message = refused.to_string();
+    assert!(
+        message.contains("MS-XLSB") && message.contains("by design"),
+        "the .xlsb refusal must say why it is permanent, not read as a not-yet: {message}"
+    );
+    assert!(
+        !message.contains("Deck::open") && !message.contains("Document::open"),
+        "there is no other door to point at: {message}"
+    );
+}
+
+/// The same SpreadsheetML package, re-declared under a different main-part content type — the whole
+/// difference between a `.xlsx`, a `.xlsm` and a `.xlsb` on disk. The repository holds no `.xlsb`
+/// fixture and could not hold a real one: a genuine binary workbook's main part is not XML, which is
+/// exactly the fact under test, and detection reads the *content type* rather than the payload.
+fn workbook_declared_as(content_type: &str) -> Vec<u8> {
+    let mut package = Package::open(&fixture("sample.xlsx")).expect("the sample package");
+    let main = PartName::new("/xl/workbook.xml").expect("the main part name");
+    package
+        .set_content_type_override(&main, content_type)
+        .expect("re-declaring the main part");
+    package.save_unchecked().expect("re-saving the package")
+}
+
+/// A workbook remembers what it was opened as, and saving does not silently rewrite it.
+#[test]
+fn a_workbook_template_stays_a_template_across_a_round_trip() {
+    let xltx = workbook_declared_as(Format::WorkbookTemplate.content_type());
+    let workbook = Workbook::open(&xltx).expect("a template opens");
+    assert_eq!(workbook.format(), Format::WorkbookTemplate);
+
+    let saved = workbook.save().expect("saving the template");
+    assert_eq!(
+        detect_format(&saved).expect("a format"),
+        Format::WorkbookTemplate,
+        "saving must not rewrite the main part's content type"
     );
 }
 

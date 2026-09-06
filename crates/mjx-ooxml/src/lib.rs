@@ -7,7 +7,7 @@
 //! corrupting the parts you did not touch** — with a codebase that cross-compiles cleanly to desktop,
 //! Android, iOS, and WebAssembly.
 //!
-//! This crate is where an application starts. Four things live here and nowhere else:
+//! This crate is where an application starts. Five things live here and nowhere else:
 //!
 //! 1. [`detect_format`] — what a package *is*, read from its main part rather than its filename, so
 //!    `.pptm` and `.potx` are recognized and a renamed `.docx` is not mistaken for a deck.
@@ -16,12 +16,16 @@
 //! 3. [`Document`] — the curated Word surface, the same treatment: [`BlockPath`]/[`RunPath`] instead
 //!    of `impl Into<…>`, `u32` instead of `usize`, a concrete return in place of every closure
 //!    `mjx_docx::Document` takes to read or edit a part.
-//! 4. [`Error`] — one error type carrying a stable [`ErrorCode`], a human message, and the indices
+//! 4. [`Workbook`] — the curated Excel surface, the same treatment plus one decision of its own:
+//!    cells cross this boundary a **range** at a time, never a cell at a time, because a per-cell
+//!    call costs a whole-worksheet parse each time it is made. See the [`workbook`] module for the
+//!    measurements.
+//! 5. [`Error`] — one error type carrying a stable [`ErrorCode`], a human message, and the indices
 //!    that say *where*, with the full typed cause still reachable through
 //!    [`source`](std::error::Error::source).
 //!
 //! Everything a caller needs to name is re-exported here, so **nothing downstream ever names
-//! `mjx-dml`, `mjx-chart`, `mjx-opc` or `mjx-pptx`**.
+//! `mjx-dml`, `mjx-chart`, `mjx-sml`, `mjx-opc`, `mjx-pptx` or `mjx-xlsx`**.
 //!
 //! ```no_run
 //! use mjx_ooxml::{CharacterPropertiesSpec, ColorSpec, Deck, FillSpec, ShapeBounds, SlideSize};
@@ -73,8 +77,10 @@
 //! - **Packaging & compatibility** — [`mjx_opc`] (the OPC ZIP container and part graph, e.g.
 //!   [`Package`](mjx_opc::Package)), [`mjx_mce`] (Markup Compatibility [`resolve`](mjx_mce::resolve) /
 //!   preserve), and [`mjx_ooxml_types`] (generated, comprehensively-named simple types + namespaces).
-//! - **Shared markup** — [`mjx_dml`] (DrawingML) and [`mjx_chart`] (ChartML).
-//! - **Formats** — [`mjx_pptx`], then `mjx_docx` and `mjx_xlsx`.
+//! - **Shared markup** — [`mjx_dml`] (DrawingML), then [`mjx_sml`] (SpreadsheetML markup — an
+//!   embedded workbook inside a `.pptx` or a `.docx` is SpreadsheetML too), then [`mjx_chart`]
+//!   (ChartML).
+//! - **Formats** — [`mjx_pptx`], [`mjx_docx`] and [`mjx_xlsx`].
 //! - **Facade** — this crate. Nothing depends on it.
 //!
 //! # Fidelity model
@@ -130,10 +136,13 @@
 //! [`mjx_docx::effective_properties`] is Word's own deep reference on the ladders
 //! [`Document::effective_run_properties`]/[`Document::effective_paragraph_properties`] walk.
 //!
-//! For Excel, [`mjx_xlsx::guide`] carries thirteen pages. It is written against
-//! [`mjx_xlsx::Workbook`] and **has no facade counterpart yet** — [`Format::Workbook`] is detected here,
-//! and the [`Workbook`](mjx_xlsx::Workbook) surface the guide describes is reached through
-//! `mjx-xlsx` directly. The four to start with:
+//! For Excel, [`mjx_xlsx::guide`] carries fourteen pages. It is written against
+//! [`mjx_xlsx::Workbook`]; every call translates to [`Workbook`] — this crate's own facade type,
+//! curated rather than a full re-export — the same way the PowerPoint guide translates to [`Deck`],
+//! except in one place, and the exception is the point:
+//! [*Through the facade and the bindings*](mjx_xlsx::guide::through_the_facade) is the page that
+//! states it. `examples/build_a_workbook.rs` in this crate is the same walkthrough written through
+//! the facade, naming no lower crate. The four guide pages to start with:
 //!
 //! - [Opening and saving a workbook](mjx_xlsx::guide::opening_and_saving) — the whole of the current
 //!   surface, once, and which of the two Excel crates is which.
@@ -146,15 +155,18 @@
 //!   instead.
 //!
 //! Beside them, [Large workbooks](mjx_xlsx::guide::large_workbooks) is the one to read before
-//! writing a loop that touches a lot of cells.
+//! writing a loop that touches a lot of cells — and
+//! [Through the facade and the bindings](mjx_xlsx::guide::through_the_facade) is what this crate
+//! does about it.
 //!
 //! # Status
 //!
-//! Pre-release (`v0.0.x`). PowerPoint and Word are implemented, tested and projected through this
-//! facade. **Excel is implemented in `mjx-xlsx` and is not projected here yet**: [`detect_format`]
-//! answers [`Format::Workbook`], and a caller reaches [`mjx_xlsx::Workbook`] directly until the facade
-//! grows its counterpart. See the repository `PLAN.md` and `CHANGELOG.md` for the roadmap and
-//! version milestones (`v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel).
+//! Pre-release (`v0.0.x`). **All three formats are implemented, tested and projected through this
+//! facade**, and through both bindings. The one format detection recognizes and nothing opens is
+//! [`Format::WorkbookBinary`] (`.xlsb`), whose main part is the MS-XLSB binary record stream rather
+//! than SpreadsheetML — refused by design, not by schedule. See the repository `PLAN.md` and
+//! `CHANGELOG.md` for the roadmap and version milestones (`v0.1` = PowerPoint, `v0.2` = Word,
+//! `v0.3` = Excel).
 
 mod address;
 pub mod deck;
@@ -163,6 +175,7 @@ mod error;
 mod format;
 mod index;
 mod references;
+pub mod workbook;
 
 pub use address::{ShapePath, Surface};
 pub use deck::Deck;
@@ -172,6 +185,13 @@ pub use document::{
 pub use error::{Error, ErrorCode, ErrorDetail};
 pub use format::{detect_format, Format, FormatFamily};
 pub use references::{DiagramParts, ExternalLink, InkReference};
+pub use workbook::{
+    CellBlock, CellData, CellInput, CellWrite, DefinedName, GridAnomalyInfo, GridAnomalyKind,
+    PreservedPartsSummary, RevisionSessionInfo, SharedWorkbookUserInfo, SheetHyperlinkInfo,
+    SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableColumnInfo, SheetTableInfo,
+    Workbook, WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState,
+    WorkbookWindowInfo, WorkbookXmlMapsInfo, XmlMapInfo,
+};
 
 // -----------------------------------------------------------------------------------------------
 // The authoring vocabulary.
@@ -261,6 +281,30 @@ pub use mjx_docx::{
     PageOrientation, PageSize, RevisionInfo, RevisionKind,
 };
 
+// --- SpreadsheetML: the package reports and the interner-free authoring vocabulary ---------------
+//
+// The same reasoning as the DrawingML block above, applied to Excel. A caller destructuring a
+// `SheetSummary`, matching on a `GridAnomaly` or building a `FontProperties` must be able to name
+// every type that appears without declaring `mjx-xlsx` or `mjx-sml` themselves.
+//
+// `mjx_xlsx::Workbook` itself is deliberately **not** re-exported: this crate's own facade type is
+// called `Workbook`, and the escape hatch `Workbook::workbook_mut` hands back a
+// `&mut mjx_xlsx::Workbook` a Rust caller names through that crate — exactly the arrangement
+// `Document::document_mut` already has with `mjx_docx::Document`, whose name clashes the same way.
+pub use mjx_xlsx::{CalculationSettings, DateSystem, HyperlinkKind, PartKind, SheetKind};
+
+// --- SpreadsheetML markup: the addresses a report carries, and the four cell-format specs ---------
+//
+// `CellReference` and `CellRange` are here as a **reading** vocabulary. Nothing on the `Workbook`
+// surface takes one — every address argument is A1 text (`"B7"`, `"A1:C3"`) — but a Rust caller
+// reaching past the facade through `Workbook::workbook_mut` needs to be able to name them, and
+// `CellReference::parse` is how such a caller turns the facade's own A1 text into one.
+pub use mjx_sml::{
+    AddressText, Anchoring, ApplyFlag, BorderEdgeSpec, BorderSpec, CellFormatSpec,
+    CellFormatTarget, CellRange, CellReference, Color, EffectiveCellFormat, FontProperties,
+    FormatAspect, FormatLayer, PatternFillSpec, ResolvedAspect, StyleIndexSource, TableStyleOrigin,
+};
+
 // --- Generated schema simple types the signatures above name -------------------------------------
 pub use mjx_ooxml_types::drawingml::{
     AdjustmentAxis, AdjustmentBound, AdjustmentSpec, PresetShapeType,
@@ -269,6 +313,16 @@ pub use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
 };
 pub use mjx_ooxml_types::shared::{ConformanceClass, VerticalTextPosition};
+pub use mjx_ooxml_types::spreadsheetml::{
+    BorderStyle, CalculationMode, ReferenceMode, TotalsRowFunction, UnderlineType,
+};
+// Two SpreadsheetML simple types share a bare name with a DrawingML one already frozen in this
+// vocabulary — `ST_PatternType` (a cell fill's pattern) against `a:pattFill@prst`, and
+// `ST_FontScheme` (which theme slot a font *is*) against DrawingML's own. They are different
+// vocabularies with different wire tokens, so they are re-exported under the language they belong
+// to rather than one of them displacing the other.
+pub use mjx_ooxml_types::spreadsheetml::FontScheme as SpreadsheetFontScheme;
+pub use mjx_ooxml_types::spreadsheetml::PatternType as SpreadsheetPatternType;
 pub use mjx_ooxml_types::wordprocessingml::{
     EighthPointMeasure, EmphasisMark, FontTypeHint, HalfPointMeasure, HighlightColor,
     Justification, SignedHalfPointMeasure, SignedTwipsMeasure, TabStopLeader, TabStopType,

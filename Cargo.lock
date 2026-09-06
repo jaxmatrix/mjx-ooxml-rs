@@ -493,6 +493,7 @@ dependencies = [
 name = "mjx-ooxml"
 version = "0.0.120"
 dependencies = [
+ "mjx-allocation-counter",
  "mjx-chart",
  "mjx-dml",
  "mjx-docx",
@@ -501,6 +502,7 @@ dependencies = [
  "mjx-ooxml-types",
  "mjx-opc",
  "mjx-pptx",
+ "mjx-sml",
  "mjx-xlsx",
  "mjx-xml",
 ]

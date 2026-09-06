@@ -19,6 +19,7 @@ mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
 mjx-chart.workspace = true
+mjx-sml.workspace = true
 mjx-pptx.workspace = true
 mjx-docx.workspace = true
 mjx-xlsx.workspace = true
@@ -29,6 +30,24 @@ mjx-xlsx.workspace = true
 # than on a filename. The OPC layer is the only way to do that; no other test names a crate below
 # this one.
 mjx-opc.workspace = true
+# The counting global allocator, so `tests/workbook_boundary.rs` can hold the range-crossing
+# contract to a deterministic byte ratio instead of to a stopwatch. Dependency-free and outside the
+# shipped graph; it is the same allocator `xtask`'s fuzz campaign and `mjx-sml`'s cell-store gate
+# install, not a third one.
+mjx-allocation-counter.workspace = true
+
+# `tests/workbook_boundary.rs` measures the facade's batched cell door against the per-cell surface
+# one layer down, which it reaches through `Workbook::workbook_mut` — so it names the markup tier's
+# `CellValue` to build the argument that shape takes.
+mjx-sml.workspace = true
+
+# A `#[global_allocator]` is process-wide and `cargo test` runs a harness's cases on several threads
+# in one process, so a figure measured under a harness is the figure of whatever else was running.
+# A plain `main` gives the boundary gate the process to itself — the same arrangement
+# `crates/mjx-sml/tests/cell_store_allocation.rs` makes.
+[[test]]
+name = "workbook_boundary"
+harness = false
 
 [features]
 # Re-exposes mjx-pptx's legacy VML surface — the typed drawing model and the `spid` resolution an
