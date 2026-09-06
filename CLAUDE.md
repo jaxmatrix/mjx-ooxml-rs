@@ -32,6 +32,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   |---|---|
   | 0.0 — foundations, core | `mjx-ooxml-core`, `mjx-derive` |
   | 0.1 — foundations, XML | `mjx-xml` |
+  | 0.2 — foundations, design tokens | `mjx-tokens` |
   | 1.0 — packaging / compatibility | `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` |
   | 2.0 — shared markup, base | `mjx-dml` |
   | 2.1 — shared markup, spreadsheet | `mjx-sml` |
@@ -42,7 +43,12 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | — outside the graph | `mjx-fixtures`, `mjx-schema-gate`, `mjx-allocation-counter`, `xtask` |
 
   **Shared markup is not flat**, and neither are the foundations. `mjx-xml` is built on
-  `mjx-ooxml-core`. `mjx-sml` sits between `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
+  `mjx-ooxml-core`. `mjx-tokens` (MJXOFF-156) sits above it at 0.2 and is *data*: the generated
+  design-token table and its runtime resolver, with **no workspace dependency at all** and
+  `mjx-ooxml-core` as its ceiling. Its rank says who may reach **it** — the client platform's
+  renderer crates, all of which sit above the whole document graph — and it is below
+  `mjx-ooxml-types` so every one of them can, without an upward edge. `mjx-sml` sits between
+  `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
   deleted. Excel is therefore **two** crates: `mjx-sml` (the markup) and `mjx-xlsx` (the package and
@@ -103,6 +109,15 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 - Hand-written de/serialization via `mjx-derive` (not serde).
 - Generated `mjx-ooxml-types` (simple types + constant tables) via `xtask`; **output is committed**,
   never a `build.rs`. Regenerate with `cargo run -p xtask -- codegen` (needs local `References/`).
+- **One design-token source, three generated consumers** (MJXOFF-156). The chrome is HTML and the
+  document canvas is Rust, and *a canvas cannot inherit a CSS custom property*, so
+  `docs/client-platform/data/tokens.json` is generated into `ui/tokens/tokens.css`,
+  `ui/tokens/tokens.ts` and `crates/mjx-tokens/src/generated.rs` by `cargo run -p xtask -- tokens` —
+  committed output, same doctrine. Two divergence gates hold it together: `xtask/tests/tokens.rs`
+  proves the artefacts are *derived* from the source, and `mjx-tokens`'s `artefacts_agree` suite
+  proves they are *equal to each other*. **The contrast rule of `DESIGN_TOKENS.md` §2.2 is enforced,
+  not documented:** every colour token declares its usage, and the generator refuses a token tagged
+  for text that does not reach 4.5 : 1 against its declared background.
 
 ## Bindings
 
@@ -162,6 +177,9 @@ cargo build  --workspace
 cargo test   --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p xtask -- codegen        # regenerate mjx-ooxml-types from References/ (local only)
+cargo run -p xtask -- tokens         # regenerate the three design-token artefacts from
+                                     #   docs/client-platform/data/tokens.json; `--check` refuses
+                                     #   instead of writing, which is what the tests run
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
 
 # The ECMA-376 gate, one harness over all three formats. Skips without References/; MJX_REQUIRE_SCHEMA=1

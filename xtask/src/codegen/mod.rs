@@ -8,6 +8,9 @@ mod geometry;
 mod namespaces;
 mod naming;
 mod spec;
+/// The design-token pipeline (MJXOFF-156). It shares this module's `rustfmt`, its plain writer and
+/// its committed-output convention, and adds a subcommand rather than a second generator.
+pub(crate) mod tokens;
 mod xsd;
 
 use std::fmt::Write as _;
