@@ -1,0 +1,1110 @@
+app	tab_set	tab	group	controls	in_scope
+Word	None (Backstage View)	TabHelp	GroupBackstagePrivacy	1	1
+Word	None (Backstage View)	TabHelp	GroupOfficeInsider	4	1
+Word	None (Backstage View)	TabHelp	GroupUpdateChannel	1	1
+Word	None (Backstage View)	TabInfo	GroupCheckIn	1	1
+Word	None (Backstage View)	TabInfo	GroupFileConvert	1	1
+Word	None (Backstage View)	TabInfo	GroupPermissions	5	1
+Word	None (Backstage View)	TabInfo	GroupPrepareForSharing	1	1
+Word	None (Backstage View)	TabPrint	GroupPrintSettings	1	1
+Word	None (Backstage View)	TabPublish	PublishGroup	8	1
+Word	None (Backstage View)	TabRecent	GroupModernOpenPlaces	52	1
+Word	None (Backstage View)	TabRecent	GroupOpenPlaces	15	1
+Word	None (Backstage View)	TabSave	ModernSaveGroup	50	1
+Word	None (Backstage View)	TabSave	SaveGroup	10	1
+Word	None (Backstage View)	TabShare	GroupShare	21	1
+Word	None (Context Menu)	ContextMenu3DModel	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuCanvas	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuGraphic	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuObjectsGroup	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuPicture	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuShape	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuShapeConnector	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuShapeFreeform	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuSmartArtBackground	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuSmartArtEditSmartArt	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuSmartArtEditText	InsertLinkGallery	1	1
+Word	None (Context Menu)	ContextMenuTextEdit	InsertLinkGallery	1	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenu3DModel	38	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuBroadcast	5	0
+Word	None (Context Menu)	None (Context Menu)	ContextMenuCanvas	36	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartArea	29	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartAxis	19	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartAxisTitle	18	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartBackWall	10	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDataLabel	22	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDataLabels	12	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDataPoint	17	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDataSeries	19	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDataTable	11	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDisplayUnit	20	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDownBars	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartDropLines	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartErrorBars	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartFloor	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartGridlines	11	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartHighLowLine	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartLeaderLines	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartLegend	11	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartLegendEntry	12	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartParetoLine	1	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartPlotArea	11	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartSeriesLine	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartSideWall	10	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartTitle	19	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartTrendline	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartTrendlineLabel	20	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartUpBars	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuChartWalls	9	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuConflicts	2	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuGraphic	47	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuInk	28	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuLockedReadingMode	17	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuObjectEditPoint	8	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuObjectEditSegment	7	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuObjectsGroup	39	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuPicture	51	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuShape	42	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuShapeConnector	37	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuShapeFreeform	42	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtBackground	37	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtContentPane	15	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEdit1DShape	14	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEdit1DShapeText	22	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEditSmartArt	37	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEditText	37	1
+Word	None (Context Menu)	None (Context Menu)	ContextMenuTextEdit	34	1
+Word	None (Context Menu)	None (Context Menu)	HyperlinkOpenDefaultSettingMenu	2	1
+Word	None (Context Menu)	None (Context Menu)	HyperlinkOpenInMenu	2	1
+Word	None (Context Menu)	None (Context Menu)	InsertLinkGallery	1	1
+Word	None (Context Menu)	None (Context Menu)	ObjectBringToFrontMenu	3	1
+Word	None (Context Menu)	None (Context Menu)	ObjectSendToBackMenu	3	1
+Word	None (Context Menu)	None (Context Menu)	TextWrapGallery	4	1
+Word	None (Core Tab)	HelpTab	GroupHelpAndSupport	6	0
+Word	None (Core Tab)	TabBackgroundRemoval	GroupBackgroundRemovalClose	2	1
+Word	None (Core Tab)	TabBackgroundRemoval	GroupBackgroundRemovalMode	3	1
+Word	None (Core Tab)	TabBlogInsert	GroupBlogInsertLinks	3	0
+Word	None (Core Tab)	TabBlogInsert	GroupBlogInsertText	6	0
+Word	None (Core Tab)	TabBlogInsert	GroupBlogSymbols	2	0
+Word	None (Core Tab)	TabBlogInsert	GroupInsertIllustrations	23	0
+Word	None (Core Tab)	TabBlogInsert	GroupInsertTables	7	0
+Word	None (Core Tab)	TabBlogInsert	GroupOfficeExtension	23	0
+Word	None (Core Tab)	TabBlogPost	GroupBlogBasicText	27	0
+Word	None (Core Tab)	TabBlogPost	GroupBlogProofing	20	0
+Word	None (Core Tab)	TabBlogPost	GroupBlogPublish	8	0
+Word	None (Core Tab)	TabBlogPost	GroupBlogStyles	5	0
+Word	None (Core Tab)	TabBlogPost	GroupClipboard	12	0
+Word	None (Core Tab)	TabBroadcastPresentation	GroupBroadcastBroadcast	8	0
+Word	None (Core Tab)	TabBroadcastPresentation	GroupBroadcastTools	1	0
+Word	None (Core Tab)	TabConflicts	GroupClipboard	12	0
+Word	None (Core Tab)	TabConflicts	GroupComments	16	0
+Word	None (Core Tab)	TabConflicts	GroupConflicts	8	0
+Word	None (Core Tab)	TabConflicts	GroupConflictsClose	1	0
+Word	None (Core Tab)	TabConflicts	GroupInk	4	0
+Word	None (Core Tab)	TabDeveloper	GroupAddins	3	0
+Word	None (Core Tab)	TabDeveloper	GroupCode	5	0
+Word	None (Core Tab)	TabDeveloper	GroupControls	15	0
+Word	None (Core Tab)	TabDeveloper	GroupProtect	4	0
+Word	None (Core Tab)	TabDeveloper	GroupTemplates	1	0
+Word	None (Core Tab)	TabDeveloper	GroupXmlMappingPane	1	0
+Word	None (Core Tab)	TabDrawInk	GroupDrawWithTouch	1	1
+Word	None (Core Tab)	TabDrawInk	GroupDrawingTools	1	1
+Word	None (Core Tab)	TabDrawInk	GroupEditingExcel	6	1
+Word	None (Core Tab)	TabDrawInk	GroupInkClose	1	1
+Word	None (Core Tab)	TabDrawInk	GroupInkConvertOneNote	6	0
+Word	None (Core Tab)	TabDrawInk	GroupInputMode	3	1
+Word	None (Core Tab)	TabDrawInk	GroupInsertDrawingCanvas	1	1
+Word	None (Core Tab)	TabDrawInk	GroupPenAndInkHelp	1	1
+Word	None (Core Tab)	TabDrawInk	GroupPens2	6	1
+Word	None (Core Tab)	TabDrawInk	GroupPensOneNote	1	0
+Word	None (Core Tab)	TabDrawInk	GroupStencils	1	1
+Word	None (Core Tab)	TabDrawInk	GroupWrite	10	1
+Word	None (Core Tab)	TabDrawInk	InkReplay	1	1
+Word	None (Core Tab)	TabHome	GroupAIAssistance	2	0
+Word	None (Core Tab)	TabHome	GroupAIDemo	1	0
+Word	None (Core Tab)	TabHome	GroupActivation	1	0
+Word	None (Core Tab)	TabHome	GroupClassifyLabelProtect	1	0
+Word	None (Core Tab)	TabHome	GroupClipboard	12	1
+Word	None (Core Tab)	TabHome	GroupEditing	23	1
+Word	None (Core Tab)	TabHome	GroupEditor	1	1
+Word	None (Core Tab)	TabHome	GroupFont	43	1
+Word	None (Core Tab)	TabHome	GroupOfficeExtensionsAddinFlyout	2	0
+Word	None (Core Tab)	TabHome	GroupParagraph	56	1
+Word	None (Core Tab)	TabHome	GroupResearch	1	0
+Word	None (Core Tab)	TabHome	GroupStyles	5	1
+Word	None (Core Tab)	TabHome	GroupVoiceTools	4	0
+Word	None (Core Tab)	TabInsert	GroupCollaborate	8	0
+Word	None (Core Tab)	TabInsert	GroupHeaderFooter	32	1
+Word	None (Core Tab)	TabInsert	GroupInsertBarcode	2	0
+Word	None (Core Tab)	TabInsert	GroupInsertComments	1	1
+Word	None (Core Tab)	TabInsert	GroupInsertIllustrations	23	1
+Word	None (Core Tab)	TabInsert	GroupInsertLinks	5	1
+Word	None (Core Tab)	TabInsert	GroupInsertPages	13	1
+Word	None (Core Tab)	TabInsert	GroupInsertSymbols	7	1
+Word	None (Core Tab)	TabInsert	GroupInsertTables	7	1
+Word	None (Core Tab)	TabInsert	GroupInsertText	26	1
+Word	None (Core Tab)	TabInsert	GroupMedia	1	1
+Word	None (Core Tab)	TabInsert	GroupOfficeExtension	23	0
+Word	None (Core Tab)	TabMailings	GroupEnvelopeLabelCreate	10	1
+Word	None (Core Tab)	TabMailings	GroupMailMergeFinish	4	1
+Word	None (Core Tab)	TabMailings	GroupMailMergePreviewResults	8	1
+Word	None (Core Tab)	TabMailings	GroupMailMergeStart	13	1
+Word	None (Core Tab)	TabMailings	GroupMailMergeWriteInsertFields	11	1
+Word	None (Core Tab)	TabOutlining	GroupMasterDocument	8	1
+Word	None (Core Tab)	TabOutlining	GroupOutliningClose	1	1
+Word	None (Core Tab)	TabOutlining	GroupOutliningTools	12	1
+Word	None (Core Tab)	TabPageLayoutWord	GroupArrange	65	1
+Word	None (Core Tab)	TabPageLayoutWord	GroupPageLayoutSetup	23	1
+Word	None (Core Tab)	TabPageLayoutWord	GroupParagraphLayout	7	1
+Word	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPageSetup	6	1
+Word	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPreview	6	1
+Word	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPrint	2	1
+Word	None (Core Tab)	TabPrintPreview	GroupZoom	6	1
+Word	None (Core Tab)	TabReferences	GroupAcronyms	1	1
+Word	None (Core Tab)	TabReferences	GroupCaptions	4	1
+Word	None (Core Tab)	TabReferences	GroupCitationsAndBibliography	8	1
+Word	None (Core Tab)	TabReferences	GroupFootnotes	9	1
+Word	None (Core Tab)	TabReferences	GroupIndex	3	1
+Word	None (Core Tab)	TabReferences	GroupResearch	2	0
+Word	None (Core Tab)	TabReferences	GroupTableOfAuthorities	3	1
+Word	None (Core Tab)	TabReferences	GroupTableOfContents	6	1
+Word	None (Core Tab)	TabReviewWord	GroupAccessibility	6	1
+Word	None (Core Tab)	TabReviewWord	GroupChanges	14	1
+Word	None (Core Tab)	TabReviewWord	GroupChangesTracking	22	1
+Word	None (Core Tab)	TabReviewWord	GroupChineseTranslation	3	0
+Word	None (Core Tab)	TabReviewWord	GroupComments	16	1
+Word	None (Core Tab)	TabReviewWord	GroupCompare	8	1
+Word	None (Core Tab)	TabReviewWord	GroupInk	4	1
+Word	None (Core Tab)	TabReviewWord	GroupLanguage	14	1
+Word	None (Core Tab)	TabReviewWord	GroupProofing	8	1
+Word	None (Core Tab)	TabReviewWord	GroupProtect	4	1
+Word	None (Core Tab)	TabReviewWord	GroupSpeech	1	0
+Word	None (Core Tab)	TabSyntex	GroupAgreements	4	0
+Word	None (Core Tab)	TabView	GroupDocumentViews	5	1
+Word	None (Core Tab)	TabView	GroupMacros	4	0
+Word	None (Core Tab)	TabView	GroupModes	3	1
+Word	None (Core Tab)	TabView	GroupNightMode	1	1
+Word	None (Core Tab)	TabView	GroupPageMovement	2	1
+Word	None (Core Tab)	TabView	GroupSharePointProperties	1	0
+Word	None (Core Tab)	TabView	GroupViewShowHide	4	1
+Word	None (Core Tab)	TabView	GroupWindow	8	1
+Word	None (Core Tab)	TabView	GroupZoom	6	1
+Word	None (Core Tab)	TabWordDesign	GroupPageBackground	9	1
+Word	None (Core Tab)	TabWordDesign	GroupStyleSet	16	1
+Word	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupThemesWord	10	1
+Word	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupXml	1	0
+Word	None (Not in the Ribbon)	None (Not in the Ribbon)	None (Not in the Ribbon)	147	1
+Word	None (Not in the Ribbon)	None (Not in the Ribbon)	TextBoxInsertGallery	3	1
+Word	TabBlogInsert	GroupBlogInsertLinks	InsertLinkGallery	1	1
+Word	TabEquationToolsDesign	GroupEquationTools	EquationInsertGallery	3	1
+Word	TabHeaderAndFooterToolsDesign	GroupHeaderFooter	FooterInsertGallery	3	1
+Word	TabHeaderAndFooterToolsDesign	GroupHeaderFooter	HeaderAndFooterMenuAnchor	6	1
+Word	TabHeaderAndFooterToolsDesign	GroupHeaderFooter	HeaderFooterPageNumberInsert	12	1
+Word	TabHeaderAndFooterToolsDesign	GroupHeaderFooter	HeaderInsertGallery	3	1
+Word	TabHome	GroupClassifyLabelProtect	ClassifyLabelProtect	6	0
+Word	TabInsert	GroupHeaderFooter	FooterInsertGallery	3	1
+Word	TabInsert	GroupHeaderFooter	HeaderAndFooterMenuAnchor	6	1
+Word	TabInsert	GroupHeaderFooter	HeaderFooterPageNumberInsert	12	1
+Word	TabInsert	GroupHeaderFooter	HeaderInsertGallery	3	1
+Word	TabInsert	GroupInsertLinks	InsertLinkGallery	1	1
+Word	TabInsert	GroupInsertPages	CoverPageInsertGallery	3	1
+Word	TabInsert	GroupInsertPages	PagesMenuAnchor	3	1
+Word	TabInsert	GroupInsertSymbols	InsertBuildingBlocksEquationsGallery	3	1
+Word	TabInsert	GroupInsertText	TextBoxInsertGallery	3	1
+Word	TabRecent	GroupModernOpenPlaces	ButtonCategoryCloudServices	5	1
+Word	TabRecent	GroupModernOpenPlaces	ButtonCategoryLocalServices	2	1
+Word	TabRecent	GroupModernOpenPlaces	ButtonTaskDynamicServiceProvider	6	1
+Word	TabRecent	GroupModernOpenPlaces	ButtonTaskRecentDocuments	1	1
+Word	TabRecent	GroupModernOpenPlaces	ButtonTaskSharedWithMe	1	1
+Word	TabRecent	GroupModernOpenPlaces	CloudSkyDriveUpsellGroup	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupCloudGettingStartedOpenMRUPlacesOrNavSlab	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupLocalGettingStartedOpenMRUPlacesOrNavSlab	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupRecentCloudPlaces	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupRecentDocumentsNew	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupRecentLocalPlaces	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupRecentPinnableCloudPlaces	1	1
+Word	TabRecent	GroupModernOpenPlaces	GroupSharedWithMeDocumentsNew	1	1
+Word	TabRecent	GroupModernOpenPlaces	PinnableGroupCloudGettingStartedOpenMRUPlacesOrNavSlab	1	1
+Word	TabRecent	GroupOpenPlaces	ButtonCategoryRecentDocuments	5	1
+Word	TabReferences	GroupTableOfContents	TableOfContentsGallery	3	1
+Word	TabSave	ModernSaveGroup	ButtonTaskDynamicServiceProvider	5	1
+Word	TabSave	ModernSaveGroup	CloudSkyDriveUpsellGroup	1	1
+Word	TabSave	ModernSaveGroup	GroupGettingStartedSaveAsMRUCloudPlacesOrNavSlab	1	1
+Word	TabSave	ModernSaveGroup	GroupGettingStartedSaveAsMRULocalPlacesOrNavSlab	1	1
+Word	TabSave	ModernSaveGroup	GroupPinnableGettingStartedSaveAsMRUCloudPlacesOrNav	1	1
+Word	TabSave	ModernSaveGroup	LocalSave	2	1
+Word	TabSave	ModernSaveGroup	SaveCloudServices	4	1
+Word	TabSave	SaveGroup	Save	4	1
+Word	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelPlay	2	1
+Word	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelSize	4	1
+Word	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelStyles	2	1
+Word	TabSet3DModelTools	Tab3DModelToolsFormat	GroupAdjust3DModel	10	1
+Word	TabSet3DModelTools	Tab3DModelToolsFormat	GroupAltText	1	1
+Word	TabSet3DModelTools	Tab3DModelToolsFormat	GroupArrange	35	1
+Word	TabSetChartTools	TabChartToolsDesign	GroupChartData	6	1
+Word	TabSetChartTools	TabChartToolsDesign	GroupChartStyles	2	1
+Word	TabSetChartTools	TabChartToolsDesignNew	GroupChartData	6	1
+Word	TabSetChartTools	TabChartToolsDesignNew	GroupChartLayouts	23	1
+Word	TabSetChartTools	TabChartToolsDesignNew	GroupChartStyles	2	1
+Word	TabSetChartTools	TabChartToolsDesignNew	GroupChartType	1	1
+Word	TabSetChartTools	TabChartToolsFormat	GroupArrange	65	1
+Word	TabSetChartTools	TabChartToolsFormat	GroupChartCurrentSelection	3	1
+Word	TabSetChartTools	TabChartToolsFormat	GroupShapeStyles	37	1
+Word	TabSetChartTools	TabChartToolsFormat	GroupSize	3	1
+Word	TabSetChartTools	TabChartToolsFormat	GroupWordArtStyles	30	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupAltText	1	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupArrange	65	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupChartCurrentSelection	3	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupChartShapeStyles	35	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupShapesChart	2	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupSize	3	1
+Word	TabSetChartTools	TabChartToolsFormatNew	GroupWordArtStyles	30	1
+Word	TabSetChartTools	TabChartToolsLayout	GroupChartAnalysis	7	1
+Word	TabSetChartTools	TabChartToolsLayout	GroupChartAxes	22	1
+Word	TabSetChartTools	TabChartToolsLayout	GroupChartBackground	7	1
+Word	TabSetChartTools	TabChartToolsLayout	GroupChartCurrentSelection	3	1
+Word	TabSetChartTools	TabChartToolsLayout	GroupChartLabels	19	1
+Word	TabSetChartTools	TabChartToolsLayout	GroupChartShapes	6	1
+Word	TabSetDiagramTools	TabDiagramToolsFormatClassic	Group3DEffects	17	1
+Word	TabSetDiagramTools	TabDiagramToolsFormatClassic	GroupDiagramArrangeClassic	34	1
+Word	TabSetDiagramTools	TabDiagramToolsFormatClassic	GroupDiagramLayoutClassic	8	1
+Word	TabSetDiagramTools	TabDiagramToolsFormatClassic	GroupDiagramStylesClassic	24	1
+Word	TabSetDiagramTools	TabDiagramToolsFormatClassic	GroupShadowEffects	9	1
+Word	TabSetDiagramTools	TabDiagramToolsFormatClassic	GroupSizeClassic	3	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupAltText	1	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupArrangeWith3DEditor	65	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupShapeStyles	37	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupShapes	12	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupSize	3	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupTextbox	5	1
+Word	TabSetDrawingTools	TabDrawingToolsFormat	GroupWordArtStyles	30	1
+Word	TabSetDrawingToolsClassic	TabDrawingToolsFormatClassic	Group3DEffects	17	1
+Word	TabSetDrawingToolsClassic	TabDrawingToolsFormatClassic	GroupArrange	65	1
+Word	TabSetDrawingToolsClassic	TabDrawingToolsFormatClassic	GroupShadowEffects	9	1
+Word	TabSetDrawingToolsClassic	TabDrawingToolsFormatClassic	GroupShapeStylesClassic	20	1
+Word	TabSetDrawingToolsClassic	TabDrawingToolsFormatClassic	GroupShapesClassic	5	1
+Word	TabSetDrawingToolsClassic	TabDrawingToolsFormatClassic	GroupSizeClassic	3	1
+Word	TabSetEquationTools	TabEquationToolsDesign	GroupConversions	10	1
+Word	TabSetEquationTools	TabEquationToolsDesign	GroupEquationStructures	11	1
+Word	TabSetEquationTools	TabEquationToolsDesign	GroupEquationSymbols	1	1
+Word	TabSetEquationTools	TabEquationToolsDesign	GroupEquationTools	3	1
+Word	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooter	32	1
+Word	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterClose	1	1
+Word	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterInsert	17	1
+Word	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterNavigation	5	1
+Word	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterOptions	3	1
+Word	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterPosition	3	1
+Word	TabSetInkTools	TabInkToolsPens	GroupInkClose	1	1
+Word	TabSetInkTools	TabInkToolsPens	GroupInkConvertOneNote	6	0
+Word	TabSetInkTools	TabInkToolsPens	GroupInkFormat	1	1
+Word	TabSetInkTools	TabInkToolsPens	GroupInkPens	1	1
+Word	TabSetInkTools	TabInkToolsPens	GroupInkSelect	1	1
+Word	TabSetInkTools	TabInkToolsPens	GroupPens	6	1
+Word	TabSetInkTools	TabInkToolsPens	GroupPensWrite	4	1
+Word	TabSetLearningTools	TabLearningTools	ChunkLearningTools	19	1
+Word	TabSetLearningTools	TabLearningTools	ChunkLearningToolsClose	1	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	Group3DEffects	17	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupDiagramArrangeClassic	34	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupOrganizationChartLayoutClassic	5	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupOrganizationChartSelect	4	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupOrganizationChartShapeInsert	3	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupOrganizationChartStyleClassic	18	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupShadowEffects	9	1
+Word	TabSetOrganizationChartTools	TabOrganizationChartToolsFormat	GroupSizeClassic	3	1
+Word	TabSetPictureTools	TabPictureToolsFormat	GroupAltText	1	1
+Word	TabSetPictureTools	TabPictureToolsFormat	GroupArrangeWith3DEditor	65	1
+Word	TabSetPictureTools	TabPictureToolsFormat	GroupImagePlay	1	1
+Word	TabSetPictureTools	TabPictureToolsFormat	GroupPictureSize	20	1
+Word	TabSetPictureTools	TabPictureToolsFormat	GroupPictureStyles	28	1
+Word	TabSetPictureTools	TabPictureToolsFormat	GroupPictureTools	29	1
+Word	TabSetPictureToolsClassic	TabPictureToolsFormatClassic	GroupArrange	65	1
+Word	TabSetPictureToolsClassic	TabPictureToolsFormatClassic	GroupBorder	7	1
+Word	TabSetPictureToolsClassic	TabPictureToolsFormatClassic	GroupPictureSizeClassic	4	1
+Word	TabSetPictureToolsClassic	TabPictureToolsFormatClassic	GroupPictureToolsClassic	7	1
+Word	TabSetPictureToolsClassic	TabPictureToolsFormatClassic	GroupShadowEffects	9	1
+Word	TabSetSVGTools	TabGraphicsToolsFormat	GroupAltText	1	1
+Word	TabSetSVGTools	TabGraphicsToolsFormat	GroupArrange	65	1
+Word	TabSetSVGTools	TabGraphicsToolsFormat	GroupGraphicsSize	20	1
+Word	TabSetSVGTools	TabGraphicsToolsFormat	GroupGraphicsStyles	27	1
+Word	TabSetSVGTools	TabGraphicsToolsFormat	GroupIcons	8	1
+Word	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtCreateGraphic	19	1
+Word	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtLayouts	2	1
+Word	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtQuickStyles	3	1
+Word	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtReset	1	1
+Word	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupAltText	1	1
+Word	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupArrangeWith3DEditor	65	1
+Word	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupShapeStyles	37	1
+Word	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupSmartArtShapes	4	1
+Word	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupSmartArtSize	3	1
+Word	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupWordArtStyles	30	1
+Word	TabSetTableTools	TabTableToolsDesign	GroupTableBorders	13	1
+Word	TabSetTableTools	TabTableToolsDesign	GroupTableLayout	13	1
+Word	TabSetTableTools	TabTableToolsDesign	GroupTableStylesWord	6	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTable	7	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTableAlignment	21	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTableCellSize	9	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTableData	4	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTableDraw	2	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTableMerge	3	1
+Word	TabSetTableTools	TabTableToolsLayout	GroupTableRowsAndColumns	10	1
+Word	TabSetTextBoxTools	TabTextBoxToolsFormat	Group3DEffects	17	1
+Word	TabSetTextBoxTools	TabTextBoxToolsFormat	GroupShadowEffects	9	1
+Word	TabSetTextBoxTools	TabTextBoxToolsFormat	GroupSizeClassic	3	1
+Word	TabSetTextBoxTools	TabTextBoxToolsFormat	GroupTextBoxArrange	36	1
+Word	TabSetTextBoxTools	TabTextBoxToolsFormat	GroupTextBoxStyles	20	1
+Word	TabSetTextBoxTools	TabTextBoxToolsFormat	GroupTextBoxText	7	1
+Word	TabSetWordArtTools	TabWordArtToolsFormat	Group3DEffects	17	1
+Word	TabSetWordArtTools	TabWordArtToolsFormat	GroupArrange	65	1
+Word	TabSetWordArtTools	TabWordArtToolsFormat	GroupShadowEffects	9	1
+Word	TabSetWordArtTools	TabWordArtToolsFormat	GroupSizeClassic	3	1
+Word	TabSetWordArtTools	TabWordArtToolsFormat	GroupWordArtStylesClassic	19	1
+Word	TabSetWordArtTools	TabWordArtToolsFormat	GroupWordArtText	17	1
+Word	TabWordDesign	GroupPageBackground	WatermarkGallery	3	1
+Excel	None (Backstage View)	Publish2Tab	Publish2Group	3	1
+Excel	None (Backstage View)	TabHelp	GroupBackstagePrivacy	1	1
+Excel	None (Backstage View)	TabHelp	GroupOfficeInsider	4	1
+Excel	None (Backstage View)	TabHelp	GroupUpdateChannel	1	1
+Excel	None (Backstage View)	TabInfo	GroupCheckIn	1	1
+Excel	None (Backstage View)	TabInfo	GroupFileConvert	1	1
+Excel	None (Backstage View)	TabInfo	GroupPermissions	5	1
+Excel	None (Backstage View)	TabInfo	GroupPrepareForSharing	1	1
+Excel	None (Backstage View)	TabInfo	GroupReadOnlyCachedOffline	1	1
+Excel	None (Backstage View)	TabPublish	PublishGroup	6	1
+Excel	None (Backstage View)	TabRecent	GroupModernOpenPlaces	52	1
+Excel	None (Backstage View)	TabRecent	GroupOpenPlaces	15	1
+Excel	None (Backstage View)	TabSave	ModernSaveGroup	50	1
+Excel	None (Backstage View)	TabSave	SaveGroup	10	1
+Excel	None (Backstage View)	TabShare	GroupShare	19	1
+Excel	None (Context Menu)	ContextMenu3DModel	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuGraphic	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuObjectsGroup	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuPicture	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuShape	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuShapeConnector	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuShapeFreeform	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuSmartArtBackground	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuSmartArtEditSmartArt	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuSmartArtEditText	InsertLinkGallery	1	1
+Excel	None (Context Menu)	ContextMenuTextEdit	InsertLinkGallery	1	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenu3DModel	30	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartArea	29	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartAxis	19	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartAxisLabel	23	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartAxisTitle	18	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartBackWall	10	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDataLabel	22	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDataLabels	12	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDataPoint	24	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDataSeries	27	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDataTable	11	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDisplayUnit	20	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDownBars	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartDropLines	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartErrorBars	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartFloor	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartGridlines	11	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartHighLowLine	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartLeaderLines	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartLegend	11	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartLegendEntry	21	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartParetoLine	1	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartPlotArea	11	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartSeriesLine	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartSideWall	10	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartTitle	19	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartTrendline	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartTrendlineLabel	20	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartUpBars	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuChartWalls	9	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuFormulaDropdown	2	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuGraphic	37	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuGraphicsCompatibility	15	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuInk	20	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuObjectEditPoint	8	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuObjectEditSegment	7	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuObjectsGroup	30	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuOfficeWebExtension	16	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuPicture	40	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuShape	36	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuShapeConnector	35	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuShapeFreeform	34	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSlicer	25	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtBackground	34	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtContentPane	15	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEdit1DShape	14	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEdit1DShapeText	22	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEditSmartArt	36	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEditText	40	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuTextEdit	32	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuTimeSlicer	20	1
+Excel	None (Context Menu)	None (Context Menu)	ContextMenuWorkbookPly	14	1
+Excel	None (Core Tab)	HelpTab	GroupExcelCommunity	2	0
+Excel	None (Core Tab)	HelpTab	GroupHelpAndSupport	6	0
+Excel	None (Core Tab)	TabAutomate	GroupOfficeScripts	4	0
+Excel	None (Core Tab)	TabAutomate	GroupPowerAutomate	1	0
+Excel	None (Core Tab)	TabAutomate	GroupScriptingTools	2	0
+Excel	None (Core Tab)	TabBackgroundRemoval	GroupBackgroundRemovalClose	2	1
+Excel	None (Core Tab)	TabBackgroundRemoval	GroupBackgroundRemovalMode	3	1
+Excel	None (Core Tab)	TabData	GroupConnections	9	1
+Excel	None (Core Tab)	TabData	GroupDataQueriesAndConnections	9	1
+Excel	None (Core Tab)	TabData	GroupDataQueriesAndConnectionsWorkbookLinks	9	1
+Excel	None (Core Tab)	TabData	GroupDataTools	10	1
+Excel	None (Core Tab)	TabData	GroupForecast	5	1
+Excel	None (Core Tab)	TabData	GroupGetExternalData	5	1
+Excel	None (Core Tab)	TabData	GroupLinkedEntityConvert	2	1
+Excel	None (Core Tab)	TabData	GroupOutline	10	1
+Excel	None (Core Tab)	TabData	GroupPowerQueryData	46	0
+Excel	None (Core Tab)	TabData	GroupPowerQueryDataSubscription	53	0
+Excel	None (Core Tab)	TabData	GroupPowerQueryGetTransformData	60	0
+Excel	None (Core Tab)	TabData	GroupPowerQueryGetTransformDataSubscription19	74	0
+Excel	None (Core Tab)	TabData	GroupSortFilter	7	1
+Excel	None (Core Tab)	TabDeveloper	GroupAddins	3	0
+Excel	None (Core Tab)	TabDeveloper	GroupCode	5	0
+Excel	None (Core Tab)	TabDeveloper	GroupControls	5	0
+Excel	None (Core Tab)	TabDeveloper	GroupXml	6	0
+Excel	None (Core Tab)	TabDrawInk	GroupDrawWithTouch	1	1
+Excel	None (Core Tab)	TabDrawInk	GroupDrawingTools	1	1
+Excel	None (Core Tab)	TabDrawInk	GroupInkClose	1	1
+Excel	None (Core Tab)	TabDrawInk	GroupInkConvertOneNote	2	0
+Excel	None (Core Tab)	TabDrawInk	GroupInputMode	3	1
+Excel	None (Core Tab)	TabDrawInk	GroupPenAndInkHelp	1	1
+Excel	None (Core Tab)	TabDrawInk	GroupPens2	6	1
+Excel	None (Core Tab)	TabDrawInk	GroupPensOneNote	1	0
+Excel	None (Core Tab)	TabDrawInk	GroupWrite	5	1
+Excel	None (Core Tab)	TabDrawInk	InkReplay	1	1
+Excel	None (Core Tab)	TabFormulas	GroupCalculation	7	1
+Excel	None (Core Tab)	TabFormulas	GroupFormulaAuditing	13	1
+Excel	None (Core Tab)	TabFormulas	GroupFunctionLibrary	37	1
+Excel	None (Core Tab)	TabFormulas	GroupNamedCells	7	1
+Excel	None (Core Tab)	TabFormulas	GroupPythonChunk	9	0
+Excel	None (Core Tab)	TabFormulas	GroupPythonChunkCommercialPreview	9	0
+Excel	None (Core Tab)	TabFormulas	GroupPythonChunkConsumerPreview	9	0
+Excel	None (Core Tab)	TabFormulas	GroupPythonChunkLFT	9	0
+Excel	None (Core Tab)	TabHome	GroupAIAssistance	3	0
+Excel	None (Core Tab)	TabHome	GroupActivation	1	0
+Excel	None (Core Tab)	TabHome	GroupAlignmentExcel	27	1
+Excel	None (Core Tab)	TabHome	GroupCells	39	1
+Excel	None (Core Tab)	TabHome	GroupClassifyLabelProtect	1	0
+Excel	None (Core Tab)	TabHome	GroupClipboard	12	1
+Excel	None (Core Tab)	TabHome	GroupEditingExcel	45	1
+Excel	None (Core Tab)	TabHome	GroupFont	39	1
+Excel	None (Core Tab)	TabHome	GroupHomePowerOptions	1	1
+Excel	None (Core Tab)	TabHome	GroupIdeas	2	0
+Excel	None (Core Tab)	TabHome	GroupNumber	11	1
+Excel	None (Core Tab)	TabHome	GroupOfficeExtensionsAddinFlyout	2	0
+Excel	None (Core Tab)	TabHome	GroupStyles	37	1
+Excel	None (Core Tab)	TabInsert	GroupCellControls	3	1
+Excel	None (Core Tab)	TabInsert	GroupInsertChartsExcel	25	1
+Excel	None (Core Tab)	TabInsert	GroupInsertComments	1	1
+Excel	None (Core Tab)	TabInsert	GroupInsertIllustrations	28	1
+Excel	None (Core Tab)	TabInsert	GroupInsertLinks	2	1
+Excel	None (Core Tab)	TabInsert	GroupInsertSymbols	4	1
+Excel	None (Core Tab)	TabInsert	GroupInsertTablesExcel	17	1
+Excel	None (Core Tab)	TabInsert	GroupInsertText	10	1
+Excel	None (Core Tab)	TabInsert	GroupOfficeExtension	11	0
+Excel	None (Core Tab)	TabInsert	GroupPowerMap	3	0
+Excel	None (Core Tab)	TabInsert	GroupSlicerInsert	2	1
+Excel	None (Core Tab)	TabInsert	GroupSparklinesInsert	3	1
+Excel	None (Core Tab)	TabPageLayoutExcel	GroupArrange	47	1
+Excel	None (Core Tab)	TabPageLayoutExcel	GroupPageLayoutScaleToFit	6	1
+Excel	None (Core Tab)	TabPageLayoutExcel	GroupPageLayoutSheetOptions	8	1
+Excel	None (Core Tab)	TabPageLayoutExcel	GroupPageSetup	16	1
+Excel	None (Core Tab)	TabPageLayoutExcel	GroupThemesExcel	9	1
+Excel	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPreview	4	1
+Excel	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPrint	2	1
+Excel	None (Core Tab)	TabPrintPreview	GroupPrintPreviewZoom	1	1
+Excel	None (Core Tab)	TabReview	GroupAccessibility	9	1
+Excel	None (Core Tab)	TabReview	GroupChangesExcel	8	1
+Excel	None (Core Tab)	TabReview	GroupComments	6	1
+Excel	None (Core Tab)	TabReview	GroupCommentsLegacy	7	1
+Excel	None (Core Tab)	TabReview	GroupDebug	1	1
+Excel	None (Core Tab)	TabReview	GroupInk	5	1
+Excel	None (Core Tab)	TabReview	GroupInsights	1	0
+Excel	None (Core Tab)	TabReview	GroupLanguage	3	1
+Excel	None (Core Tab)	TabReview	GroupLineage	1	0
+Excel	None (Core Tab)	TabReview	GroupPerformance	1	1
+Excel	None (Core Tab)	TabReview	GroupProofing	3	1
+Excel	None (Core Tab)	TabReview	GroupProtectExcel	4	1
+Excel	None (Core Tab)	TabReview	GroupThreadedComments	5	1
+Excel	None (Core Tab)	TabView	GroupMacros	4	0
+Excel	None (Core Tab)	TabView	GroupNamedSheetView	5	1
+Excel	None (Core Tab)	TabView	GroupNightMode	1	1
+Excel	None (Core Tab)	TabView	GroupViewDebug	1	1
+Excel	None (Core Tab)	TabView	GroupViewShowHide	8	1
+Excel	None (Core Tab)	TabView	GroupWindow	10	1
+Excel	None (Core Tab)	TabView	GroupWorkbookViews	4	1
+Excel	None (Core Tab)	TabView	GroupZoom	3	1
+Excel	None (Not in the Ribbon)	None (Not in the Ribbon)	Group3DEffects	17	1
+Excel	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupDrawBorders	7	1
+Excel	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupInkSelect	1	1
+Excel	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupShadowEffects	9	1
+Excel	None (Not in the Ribbon)	None (Not in the Ribbon)	None (Not in the Ribbon)	126	1
+Excel	Publish2Tab	Publish2Group	Publish2ButtonCategory	1	1
+Excel	TabHome	GroupClassifyLabelProtect	ClassifyLabelProtect	6	0
+Excel	TabInsert	GroupInsertLinks	InsertLinkGallery	1	1
+Excel	TabPivotChartToolsAnalyze	GroupPivotChartActiveField	SelectedItemNavDrillUpSplitButton	1	1
+Excel	TabPivotTableToolsOptions	GroupPivotTableActiveField	SelectedItemNavDrillUpSplitButton	1	1
+Excel	TabRecent	GroupModernOpenPlaces	ButtonCategoryCloudServices	5	1
+Excel	TabRecent	GroupModernOpenPlaces	ButtonCategoryLocalServices	2	1
+Excel	TabRecent	GroupModernOpenPlaces	ButtonTaskDynamicServiceProvider	6	1
+Excel	TabRecent	GroupModernOpenPlaces	ButtonTaskRecentDocuments	1	1
+Excel	TabRecent	GroupModernOpenPlaces	ButtonTaskSharedWithMe	1	1
+Excel	TabRecent	GroupModernOpenPlaces	CloudSkyDriveUpsellGroup	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupCloudGettingStartedOpenMRUPlacesOrNavSlab	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupLocalGettingStartedOpenMRUPlacesOrNavSlab	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupRecentCloudPlaces	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupRecentDocumentsNew	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupRecentLocalPlaces	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupRecentPinnableCloudPlaces	1	1
+Excel	TabRecent	GroupModernOpenPlaces	GroupSharedWithMeDocumentsNew	1	1
+Excel	TabRecent	GroupModernOpenPlaces	PinnableGroupCloudGettingStartedOpenMRUPlacesOrNavSlab	1	1
+Excel	TabRecent	GroupOpenPlaces	ButtonCategoryRecentDocuments	5	1
+Excel	TabSave	ModernSaveGroup	ButtonTaskDynamicServiceProvider	5	1
+Excel	TabSave	ModernSaveGroup	CloudSkyDriveUpsellGroup	1	1
+Excel	TabSave	ModernSaveGroup	GroupGettingStartedSaveAsMRUCloudPlacesOrNavSlab	1	1
+Excel	TabSave	ModernSaveGroup	GroupGettingStartedSaveAsMRULocalPlacesOrNavSlab	1	1
+Excel	TabSave	ModernSaveGroup	GroupPinnableGettingStartedSaveAsMRUCloudPlacesOrNav	1	1
+Excel	TabSave	ModernSaveGroup	LocalSave	2	1
+Excel	TabSave	ModernSaveGroup	SaveCloudServices	4	1
+Excel	TabSave	SaveGroup	Save	4	1
+Excel	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelPlay	2	1
+Excel	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelSize	4	1
+Excel	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelStyles	2	1
+Excel	TabSet3DModelTools	Tab3DModelToolsFormat	GroupAdjust3DModel	10	1
+Excel	TabSet3DModelTools	Tab3DModelToolsFormat	GroupAltText	1	1
+Excel	TabSet3DModelTools	Tab3DModelToolsFormat	GroupArrange	20	1
+Excel	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringColor	4	1
+Excel	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringFormat	4	1
+Excel	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringNames	5	1
+Excel	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringResources	1	1
+Excel	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringReview	3	1
+Excel	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringStyle	8	1
+Excel	TabSetBIVisualTools	TabBIVisualTools	GroupAltText	1	1
+Excel	TabSetBIVisualTools	TabBIVisualTools	GroupBIVisualTools	3	1
+Excel	TabSetChartTools	TabChartToolsDesign	GroupChartData	2	1
+Excel	TabSetChartTools	TabChartToolsDesign	GroupChartLocation	1	1
+Excel	TabSetChartTools	TabChartToolsDesign	GroupChartStyles	3	1
+Excel	TabSetChartTools	TabChartToolsDesignNew	GroupChartData	2	1
+Excel	TabSetChartTools	TabChartToolsDesignNew	GroupChartLayouts	23	1
+Excel	TabSetChartTools	TabChartToolsDesignNew	GroupChartLocation	1	1
+Excel	TabSetChartTools	TabChartToolsDesignNew	GroupChartStyles	3	1
+Excel	TabSetChartTools	TabChartToolsDesignNew	GroupChartType	1	1
+Excel	TabSetChartTools	TabChartToolsFormat	GroupArrange	47	1
+Excel	TabSetChartTools	TabChartToolsFormat	GroupChartCurrentSelection	3	1
+Excel	TabSetChartTools	TabChartToolsFormat	GroupShapeStyles	37	1
+Excel	TabSetChartTools	TabChartToolsFormat	GroupSize	3	1
+Excel	TabSetChartTools	TabChartToolsFormat	GroupWordArtStyles	30	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupAltText	1	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupArrange	47	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupChartCurrentSelection	3	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupChartShapeStyles	35	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupShapesChart	2	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupSize	3	1
+Excel	TabSetChartTools	TabChartToolsFormatNew	GroupWordArtStyles	30	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartAnalysis	7	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartAxes	22	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartBackground	7	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartCurrentSelection	3	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartLabels	19	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartProperties	2	1
+Excel	TabSetChartTools	TabChartToolsLayout	GroupChartShapes	6	1
+Excel	TabSetDrawingTools	TabDrawingToolsFormat	GroupAltText	1	1
+Excel	TabSetDrawingTools	TabDrawingToolsFormat	GroupArrangeWith3DEditor	47	1
+Excel	TabSetDrawingTools	TabDrawingToolsFormat	GroupShapeStyles	37	1
+Excel	TabSetDrawingTools	TabDrawingToolsFormat	GroupShapes	12	1
+Excel	TabSetDrawingTools	TabDrawingToolsFormat	GroupSize	3	1
+Excel	TabSetDrawingTools	TabDrawingToolsFormat	GroupWordArtStyles	30	1
+Excel	TabSetEquationTools	TabEquationToolsDesign	GroupEquationStructures	11	1
+Excel	TabSetEquationTools	TabEquationToolsDesign	GroupEquationSymbols	1	1
+Excel	TabSetEquationTools	TabEquationToolsDesign	GroupEquationTools	6	1
+Excel	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooter	2	1
+Excel	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterElements	9	1
+Excel	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterNavigation	2	1
+Excel	TabSetHeaderAndFooterTools	TabHeaderAndFooterToolsDesign	GroupHeaderFooterOptions	4	1
+Excel	TabSetInkTools	TabInkToolsPens	GroupInkClose	1	1
+Excel	TabSetInkTools	TabInkToolsPens	GroupInkFormat	1	1
+Excel	TabSetInkTools	TabInkToolsPens	GroupInkPens	1	1
+Excel	TabSetInkTools	TabInkToolsPens	GroupInkSelect	1	1
+Excel	TabSetInkTools	TabInkToolsPens	GroupPens	6	1
+Excel	TabSetInkTools	TabInkToolsPens	GroupPensWrite	4	1
+Excel	TabSetPictureTools	TabPictureToolsFormat	GroupAltText	1	1
+Excel	TabSetPictureTools	TabPictureToolsFormat	GroupArrangeWith3DEditor	47	1
+Excel	TabSetPictureTools	TabPictureToolsFormat	GroupImagePlay	1	1
+Excel	TabSetPictureTools	TabPictureToolsFormat	GroupPictureSize	20	1
+Excel	TabSetPictureTools	TabPictureToolsFormat	GroupPictureStyles	28	1
+Excel	TabSetPictureTools	TabPictureToolsFormat	GroupPictureTools	30	1
+Excel	TabSetPivotChartTools	TabChartToolsDesignPivotChart	GroupChartData	2	1
+Excel	TabSetPivotChartTools	TabChartToolsDesignPivotChart	GroupChartLayouts	23	1
+Excel	TabSetPivotChartTools	TabChartToolsDesignPivotChart	GroupChartLocation	1	1
+Excel	TabSetPivotChartTools	TabChartToolsDesignPivotChart	GroupChartStyles	3	1
+Excel	TabSetPivotChartTools	TabChartToolsDesignPivotChart	GroupChartType	1	1
+Excel	TabSetPivotChartTools	TabChartToolsFormatPivotChart	GroupArrange	47	1
+Excel	TabSetPivotChartTools	TabChartToolsFormatPivotChart	GroupChartCurrentSelection	3	1
+Excel	TabSetPivotChartTools	TabChartToolsFormatPivotChart	GroupShapeStyles	37	1
+Excel	TabSetPivotChartTools	TabChartToolsFormatPivotChart	GroupShapesChart	2	1
+Excel	TabSetPivotChartTools	TabChartToolsFormatPivotChart	GroupSize	3	1
+Excel	TabSetPivotChartTools	TabChartToolsFormatPivotChart	GroupWordArtStyles	30	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartActions	4	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartActiveField	8	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartCalculations	15	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartData	9	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartFilter	3	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartOptions	3	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsAnalyze	GroupPivotChartShowOrHide	9	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsDesign	GroupChartData	2	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsDesign	GroupChartLocation	1	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsDesign	GroupChartStyles	3	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsFormat	GroupArrange	47	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsFormat	GroupChartCurrentSelection	3	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsFormat	GroupShapeStyles	37	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsFormat	GroupSize	3	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsFormat	GroupWordArtStyles	30	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartAnalysis	7	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartAxes	22	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartBackground	7	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartCurrentSelection	3	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartLabels	19	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartProperties	2	1
+Excel	TabSetPivotChartTools	TabPivotChartToolsLayout	GroupChartShapes	6	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsDesign	GroupPivotTableLayout	19	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsDesign	GroupPivotTableStyleOptions	4	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsDesign	GroupPivotTableStyles	3	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsDesignDeprecated	GroupPivotTableCalculationsDeprecated	25	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotActions	10	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableActiveField	9	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableCalculations	24	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableData	9	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableGroup	3	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableOptions	6	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableShowHide	3	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableSort	3	1
+Excel	TabSetPivotTableTools	TabPivotTableToolsOptions	GroupPivotTableTools	2	1
+Excel	TabSetPowerQueryEdit	TabPowerQueryQueryEdit	GroupPowerQueryQueryCombine	2	0
+Excel	TabSetPowerQueryEdit	TabPowerQueryQueryEdit	GroupPowerQueryQueryData	3	0
+Excel	TabSetPowerQueryEdit	TabPowerQueryQueryEdit	GroupPowerQueryQueryExport	1	0
+Excel	TabSetPowerQueryEdit	TabPowerQueryQueryEdit	GroupPowerQueryQueryLoad	4	0
+Excel	TabSetPowerQueryEdit	TabPowerQueryQueryEdit	GroupPowerQueryQueryManage	2	0
+Excel	TabSetSVGTools	TabGraphicsToolsFormat	GroupAltText	1	1
+Excel	TabSetSVGTools	TabGraphicsToolsFormat	GroupArrange	47	1
+Excel	TabSetSVGTools	TabGraphicsToolsFormat	GroupGraphicsSize	20	1
+Excel	TabSetSVGTools	TabGraphicsToolsFormat	GroupGraphicsStyles	27	1
+Excel	TabSetSVGTools	TabGraphicsToolsFormat	GroupIcons	8	1
+Excel	TabSetSlicerTools	TabSlicerDesign	GroupArrange	47	1
+Excel	TabSetSlicerTools	TabSlicerDesign	GroupSize	3	1
+Excel	TabSetSlicerTools	TabSlicerDesign	GroupSlicerOptions	4	1
+Excel	TabSetSlicerTools	TabSlicerDesign	GroupSlicerRowColumnSize	3	1
+Excel	TabSetSlicerTools	TabSlicerDesign	GroupSlicerStyles	2	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtCreateGraphic	19	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtLayouts	2	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtQuickStyles	3	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtReset	2	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupAltText	1	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupArrangeWith3DEditor	47	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupShapeStyles	37	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupSmartArtShapes	4	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupSmartArtSize	3	1
+Excel	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupWordArtStyles	30	1
+Excel	TabSetSparkline	TabSparklineDesign	GroupSparklineDataEdit	5	1
+Excel	TabSetSparkline	TabSparklineDesign	GroupSparklineDetailsShow	6	1
+Excel	TabSetSparkline	TabSparklineDesign	GroupSparklineGroup	16	1
+Excel	TabSetSparkline	TabSparklineDesign	GroupSparklineStyle	18	1
+Excel	TabSetSparkline	TabSparklineDesign	GroupSparklineType	3	1
+Excel	TabSetTableToolsExcel	TabTableToolsDesignExcel	GroupTableExternalData	13	1
+Excel	TabSetTableToolsExcel	TabTableToolsDesignExcel	GroupTableProperties	3	1
+Excel	TabSetTableToolsExcel	TabTableToolsDesignExcel	GroupTableStyleOptions	7	1
+Excel	TabSetTableToolsExcel	TabTableToolsDesignExcel	GroupTableStylesExcel	3	1
+Excel	TabSetTableToolsExcel	TabTableToolsDesignExcel	GroupTableTools	4	1
+Excel	TabSetTimeSlicerTools	TabTimeSlicerDesign	GroupArrange	47	1
+Excel	TabSetTimeSlicerTools	TabTimeSlicerDesign	GroupSize	3	1
+Excel	TabSetTimeSlicerTools	TabTimeSlicerDesign	GroupTimeSlicerOptions	3	1
+Excel	TabSetTimeSlicerTools	TabTimeSlicerDesign	GroupTimeSlicerShowOptions	4	1
+Excel	TabSetTimeSlicerTools	TabTimeSlicerDesign	GroupTimelineStyles	2	1
+PowerPoint	None (Backstage View)	TabHelp	GroupBackstagePrivacy	1	1
+PowerPoint	None (Backstage View)	TabHelp	GroupOfficeInsider	4	1
+PowerPoint	None (Backstage View)	TabHelp	GroupUpdateChannel	1	1
+PowerPoint	None (Backstage View)	TabInfo	GroupCheckIn	1	1
+PowerPoint	None (Backstage View)	TabInfo	GroupFileConvert	1	1
+PowerPoint	None (Backstage View)	TabInfo	GroupPermissions	5	1
+PowerPoint	None (Backstage View)	TabInfo	GroupPrepareForSharing	1	1
+PowerPoint	None (Backstage View)	TabPrint	GroupPrintSettings	1	1
+PowerPoint	None (Backstage View)	TabPublish	PublishGroup	16	1
+PowerPoint	None (Backstage View)	TabRecent	GroupModernOpenPlaces	52	1
+PowerPoint	None (Backstage View)	TabRecent	GroupOpenPlaces	15	1
+PowerPoint	None (Backstage View)	TabSave	ModernSaveGroup	50	1
+PowerPoint	None (Backstage View)	TabSave	SaveGroup	10	1
+PowerPoint	None (Backstage View)	TabShare	GroupShare	22	1
+PowerPoint	None (Context Menu)	ContextMenu3DModel	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuAudio	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuGraphic	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuGraphicOleClassic	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuObjectsGroup	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuOverflow	AudioSourceMenu	1	1
+PowerPoint	None (Context Menu)	ContextMenuOverflow	VideoSourceMenu	1	1
+PowerPoint	None (Context Menu)	ContextMenuPicture	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuRPVDeviceSelection	AudioSourceMenu	1	1
+PowerPoint	None (Context Menu)	ContextMenuRPVDeviceSelection	VideoEffectSourceMenu	1	1
+PowerPoint	None (Context Menu)	ContextMenuRPVDeviceSelection	VideoSourceMenu	1	1
+PowerPoint	None (Context Menu)	ContextMenuRPVSettings	AudioSourceMenu	1	1
+PowerPoint	None (Context Menu)	ContextMenuShape	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuShapeConnector	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuShapeFreeform	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuSmartArtBackground	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuSmartArtEdit1DShapeText	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuSmartArtEditSmartArt	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuSmartArtEditText	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuTable	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuTableWhole	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuTextEdit	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	ContextMenuTextEditOutline	InsertLinkGallery	1	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenu3DModel	35	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuActiveXControl	24	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuAudio	41	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartArea	29	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartAxis	17	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartAxisTitle	20	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartBackWall	12	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDataLabel	24	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDataLabels	14	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDataPoint	19	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDataSeries	17	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDataTable	13	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDisplayUnit	22	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDownBars	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartDropLines	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartErrorBars	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartFloor	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartGridlines	13	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartHighLowLine	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartLeaderLines	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartLegend	13	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartLegendEntry	14	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartParetoLine	1	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartPlotArea	13	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartSeriesLine	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartSideWall	12	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartTitle	21	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartTrendline	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartTrendlineLabel	22	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartUpBars	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuChartWalls	11	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuClearRecordings	2	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuGraphic	43	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuGraphicOleClassic	36	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuGraphicsCompatibility	18	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuGuide	6	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuHelp	2	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuInk	27	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuInteractiveIndex	28	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuLabelSection	8	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuNotesEditText	22	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuObjectEditPoint	8	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuObjectEditSegment	7	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuObjectsGroup	36	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuOfficeWebExtension	20	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuOnlineVideo	24	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuOverflow	6	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuPicture	49	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuPodiumMonitorSettings	2	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuPresenterViewNotesEditText	14	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuRPVDeviceSelection	3	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuRPVSettings	2	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuRetake	6	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSectionLink	16	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuShape	48	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuShapeConnector	41	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuShapeFreeform	40	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSlideGap	6	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSlideSorter	17	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtBackground	40	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtContentPane	17	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEdit1DShape	16	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEdit1DShapeText	46	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEditSmartArt	40	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuSmartArtEditText	53	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuTable	47	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuTableWhole	39	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuTextAlternates	1	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuTextEdit	50	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuTextEditOutline	47	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuThumbnail	25	1
+PowerPoint	None (Context Menu)	None (Context Menu)	ContextMenuVideo	28	1
+PowerPoint	None (Context Menu)	None (Context Menu)	CtxPodiumNotesModeSelection	3	1
+PowerPoint	None (Core Tab)	HelpTab	GroupHelpAndSupport	6	0
+PowerPoint	None (Core Tab)	TabAnimations	GroupAnimationCustom	11	1
+PowerPoint	None (Core Tab)	TabAnimations	GroupAnimationTiming	6	1
+PowerPoint	None (Core Tab)	TabAnimations	GroupAnimations	12	1
+PowerPoint	None (Core Tab)	TabAnimations	GroupPreview	3	1
+PowerPoint	None (Core Tab)	TabBackgroundRemoval	GroupBackgroundRemovalClose	2	1
+PowerPoint	None (Core Tab)	TabBackgroundRemoval	GroupBackgroundRemovalMode	3	1
+PowerPoint	None (Core Tab)	TabBlackAndWhite	GroupColorModeClose	1	1
+PowerPoint	None (Core Tab)	TabBlackAndWhite	GroupColorModeSetting	10	1
+PowerPoint	None (Core Tab)	TabBroadcastPresentation	GroupBroadcastBroadcast	6	0
+PowerPoint	None (Core Tab)	TabBroadcastPresentation	GroupBroadcastResume	2	0
+PowerPoint	None (Core Tab)	TabBroadcastPresentation	GroupMonitors	2	0
+PowerPoint	None (Core Tab)	TabDesign	GroupCustomizeThemeOptions	3	1
+PowerPoint	None (Core Tab)	TabDesign	GroupDesignerOptions	1	0
+PowerPoint	None (Core Tab)	TabDesign	GroupSlideThemes	4	1
+PowerPoint	None (Core Tab)	TabDesign	GroupThemeVariants	10	1
+PowerPoint	None (Core Tab)	TabDeveloper	GroupAddins	3	0
+PowerPoint	None (Core Tab)	TabDeveloper	GroupCode	3	0
+PowerPoint	None (Core Tab)	TabDeveloper	GroupControls	14	0
+PowerPoint	None (Core Tab)	TabDrawInk	GroupDrawWithTouch	1	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupDrawingTools	1	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupInkClose	1	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupInkConvertOneNote	10	0
+PowerPoint	None (Core Tab)	TabDrawInk	GroupInputMode	3	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupPenAndInkHelp	1	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupPens2	7	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupPensOneNote	1	0
+PowerPoint	None (Core Tab)	TabDrawInk	GroupStencils	1	1
+PowerPoint	None (Core Tab)	TabDrawInk	GroupWrite	10	1
+PowerPoint	None (Core Tab)	TabDrawInk	InkReplay	1	1
+PowerPoint	None (Core Tab)	TabGrayscale	GroupColorModeClose	1	1
+PowerPoint	None (Core Tab)	TabGrayscale	GroupColorModeSetting	10	1
+PowerPoint	None (Core Tab)	TabHandoutMaster	GroupBackground	11	1
+PowerPoint	None (Core Tab)	TabHandoutMaster	GroupMasterClose	1	1
+PowerPoint	None (Core Tab)	TabHandoutMaster	GroupMasterEditTheme	4	1
+PowerPoint	None (Core Tab)	TabHandoutMaster	GroupPageSetupHandoutMaster	11	1
+PowerPoint	None (Core Tab)	TabHandoutMaster	GroupPlaceholdersHandoutMaster	4	1
+PowerPoint	None (Core Tab)	TabHome	GroupAIAssistance	3	0
+PowerPoint	None (Core Tab)	TabHome	GroupActivation	1	0
+PowerPoint	None (Core Tab)	TabHome	GroupClassifyLabelProtect	1	0
+PowerPoint	None (Core Tab)	TabHome	GroupClipboard	10	1
+PowerPoint	None (Core Tab)	TabHome	GroupDesignerOptions	1	0
+PowerPoint	None (Core Tab)	TabHome	GroupDrawing	63	1
+PowerPoint	None (Core Tab)	TabHome	GroupEditing	8	1
+PowerPoint	None (Core Tab)	TabHome	GroupFont	18	1
+PowerPoint	None (Core Tab)	TabHome	GroupOfficeExtensionsAddinFlyout	2	0
+PowerPoint	None (Core Tab)	TabHome	GroupParagraph	27	1
+PowerPoint	None (Core Tab)	TabHome	GroupSlides	16	1
+PowerPoint	None (Core Tab)	TabHome	GroupVoiceTools	4	0
+PowerPoint	None (Core Tab)	TabInsert	GroupChunkCameoCamera	3	1
+PowerPoint	None (Core Tab)	TabInsert	GroupContent	1	1
+PowerPoint	None (Core Tab)	TabInsert	GroupImages	10	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertComments	1	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertIllustrations	11	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertLinks	7	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertMediaClips	9	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertSymbols	4	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertTables	4	1
+PowerPoint	None (Core Tab)	TabInsert	GroupInsertText	9	1
+PowerPoint	None (Core Tab)	TabInsert	GroupMSForms	1	0
+PowerPoint	None (Core Tab)	TabInsert	GroupOfficeExtension	11	0
+PowerPoint	None (Core Tab)	TabInsert	GroupPowerBI	1	0
+PowerPoint	None (Core Tab)	TabInsert	GroupSlides2	7	1
+PowerPoint	None (Core Tab)	TabMerge	GroupAnimationPreview	1	0
+PowerPoint	None (Core Tab)	TabMerge	GroupMergeViewClose	1	0
+PowerPoint	None (Core Tab)	TabMerge	GroupResolutions	10	0
+PowerPoint	None (Core Tab)	TabMerge	GroupShowHideChanges	4	0
+PowerPoint	None (Core Tab)	TabNotesMaster	GroupBackground	11	1
+PowerPoint	None (Core Tab)	TabNotesMaster	GroupMasterClose	1	1
+PowerPoint	None (Core Tab)	TabNotesMaster	GroupMasterEditTheme	4	1
+PowerPoint	None (Core Tab)	TabNotesMaster	GroupPageSetupNotesMaster	3	1
+PowerPoint	None (Core Tab)	TabNotesMaster	GroupPlaceholdersNotesMaster	6	1
+PowerPoint	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPageSetup	5	1
+PowerPoint	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPreview	3	1
+PowerPoint	None (Core Tab)	TabPrintPreview	GroupPrintPreviewPrint	2	1
+PowerPoint	None (Core Tab)	TabPrintPreview	GroupZoom	2	1
+PowerPoint	None (Core Tab)	TabRecording	GroupAutoPlayMediaRecording	5	1
+PowerPoint	None (Core Tab)	TabRecording	GroupChunkCameoCamera	3	1
+PowerPoint	None (Core Tab)	TabRecording	GroupContentRecording	3	1
+PowerPoint	None (Core Tab)	TabRecording	GroupEditTabRecord	6	1
+PowerPoint	None (Core Tab)	TabRecording	GroupExportTabRecord	2	1
+PowerPoint	None (Core Tab)	TabRecording	GroupHelpTabRecord	1	1
+PowerPoint	None (Core Tab)	TabRecording	GroupPreviewTabRecord	1	1
+PowerPoint	None (Core Tab)	TabRecording	GroupRecord	8	1
+PowerPoint	None (Core Tab)	TabRecording	GroupRecordTabRecord	4	1
+PowerPoint	None (Core Tab)	TabRecording	GroupSaveRecording	3	1
+PowerPoint	None (Core Tab)	TabReview	GroupAccessibility	6	1
+PowerPoint	None (Core Tab)	TabReview	GroupActivity	2	1
+PowerPoint	None (Core Tab)	TabReview	GroupChineseTranslation	3	0
+PowerPoint	None (Core Tab)	TabReview	GroupComments	12	1
+PowerPoint	None (Core Tab)	TabReview	GroupInk	5	1
+PowerPoint	None (Core Tab)	TabReview	GroupInsights	1	0
+PowerPoint	None (Core Tab)	TabReview	GroupLanguage	9	1
+PowerPoint	None (Core Tab)	TabReview	GroupProofing	2	1
+PowerPoint	None (Core Tab)	TabReview	GroupReviewCompare	13	1
+PowerPoint	None (Core Tab)	TabSlideMaster	GroupBackground	11	1
+PowerPoint	None (Core Tab)	TabSlideMaster	GroupMasterClose	1	1
+PowerPoint	None (Core Tab)	TabSlideMaster	GroupMasterEdit	5	1
+PowerPoint	None (Core Tab)	TabSlideMaster	GroupMasterEditTheme	4	1
+PowerPoint	None (Core Tab)	TabSlideMaster	GroupMasterLayout	15	1
+PowerPoint	None (Core Tab)	TabSlideMaster	GroupSlideSize	2	1
+PowerPoint	None (Core Tab)	TabSlideMasterHome	GroupClipboard	10	1
+PowerPoint	None (Core Tab)	TabSlideMasterHome	GroupDrawing	63	1
+PowerPoint	None (Core Tab)	TabSlideMasterHome	GroupEditing	8	1
+PowerPoint	None (Core Tab)	TabSlideMasterHome	GroupFont	18	1
+PowerPoint	None (Core Tab)	TabSlideMasterHome	GroupMasterSlides	9	1
+PowerPoint	None (Core Tab)	TabSlideMasterHome	GroupParagraph	27	1
+PowerPoint	None (Core Tab)	TabSlideShow	GroupLiveSubtitles	10	0
+PowerPoint	None (Core Tab)	TabSlideShow	GroupMonitors	2	1
+PowerPoint	None (Core Tab)	TabSlideShow	GroupRehearse	1	1
+PowerPoint	None (Core Tab)	TabSlideShow	GroupSlideShowSetup	16	1
+PowerPoint	None (Core Tab)	TabSlideShow	GroupSlideShowStart	9	1
+PowerPoint	None (Core Tab)	TabTransitions	GroupPreviewTransitions	1	1
+PowerPoint	None (Core Tab)	TabTransitions	GroupTransitionStyles	8	1
+PowerPoint	None (Core Tab)	TabTransitions	GroupTransitionToThisSlide	2	1
+PowerPoint	None (Core Tab)	TabView	GroupColorGrayscale	4	1
+PowerPoint	None (Core Tab)	TabView	GroupMacros	1	0
+PowerPoint	None (Core Tab)	TabView	GroupMasterViews	3	1
+PowerPoint	None (Core Tab)	TabView	GroupPresentationViews	5	1
+PowerPoint	None (Core Tab)	TabView	GroupViewDirection	3	1
+PowerPoint	None (Core Tab)	TabView	GroupViewShowHide	5	1
+PowerPoint	None (Core Tab)	TabView	GroupWindow	6	1
+PowerPoint	None (Core Tab)	TabView	GroupZoom	2	1
+PowerPoint	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupInsertBarcode	2	0
+PowerPoint	None (Not in the Ribbon)	None (Not in the Ribbon)	GroupPermission	3	1
+PowerPoint	None (Not in the Ribbon)	None (Not in the Ribbon)	None (Not in the Ribbon)	90	1
+PowerPoint	TabHome	GroupClassifyLabelProtect	ClassifyLabelProtect	6	0
+PowerPoint	TabInsert	GroupInsertLinks	InsertLinkGallery	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	ButtonCategoryCloudServices	5	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	ButtonCategoryLocalServices	2	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	ButtonTaskDynamicServiceProvider	6	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	ButtonTaskRecentDocuments	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	ButtonTaskSharedWithMe	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	CloudSkyDriveUpsellGroup	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupCloudGettingStartedOpenMRUPlacesOrNavSlab	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupLocalGettingStartedOpenMRUPlacesOrNavSlab	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupRecentCloudPlaces	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupRecentDocumentsNew	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupRecentLocalPlaces	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupRecentPinnableCloudPlaces	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	GroupSharedWithMeDocumentsNew	1	1
+PowerPoint	TabRecent	GroupModernOpenPlaces	PinnableGroupCloudGettingStartedOpenMRUPlacesOrNavSlab	1	1
+PowerPoint	TabRecent	GroupOpenPlaces	ButtonCategoryRecentDocuments	5	1
+PowerPoint	TabSave	ModernSaveGroup	ButtonTaskDynamicServiceProvider	5	1
+PowerPoint	TabSave	ModernSaveGroup	CloudSkyDriveUpsellGroup	1	1
+PowerPoint	TabSave	ModernSaveGroup	GroupGettingStartedSaveAsMRUCloudPlacesOrNavSlab	1	1
+PowerPoint	TabSave	ModernSaveGroup	GroupGettingStartedSaveAsMRULocalPlacesOrNavSlab	1	1
+PowerPoint	TabSave	ModernSaveGroup	GroupPinnableGettingStartedSaveAsMRUCloudPlacesOrNav	1	1
+PowerPoint	TabSave	ModernSaveGroup	LocalSave	2	1
+PowerPoint	TabSave	ModernSaveGroup	SaveCloudServices	4	1
+PowerPoint	TabSave	SaveGroup	Save	4	1
+PowerPoint	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelPlay	2	1
+PowerPoint	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelSize	4	1
+PowerPoint	TabSet3DModelTools	Tab3DModelToolsFormat	Group3DModelStyles	2	1
+PowerPoint	TabSet3DModelTools	Tab3DModelToolsFormat	GroupAdjust3DModel	10	1
+PowerPoint	TabSet3DModelTools	Tab3DModelToolsFormat	GroupAltText	1	1
+PowerPoint	TabSet3DModelTools	Tab3DModelToolsFormat	GroupArrange	20	1
+PowerPoint	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringResources	1	1
+PowerPoint	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupAccessibleAuthoringReview	1	1
+PowerPoint	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupCaptionsAndSubtitles	14	1
+PowerPoint	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupColorAndContrast	26	1
+PowerPoint	TabSetAccessibleAuthoring	TabAccessibleAuthoring	GroupScreenReader	21	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupAudioBookmark	2	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupAudioEditing	4	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupAudioOptions	6	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupAudioStyles	2	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupClosedCaptions	3	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupMediaPreview	1	1
+PowerPoint	TabSetAudioTools	TabAudioToolsEdit	GroupSaveMedia	1	1
+PowerPoint	TabSetAudioTools	TabAudioToolsFormat	GroupArrange	46	1
+PowerPoint	TabSetAudioTools	TabAudioToolsFormat	GroupAudioToolsAdjust	28	1
+PowerPoint	TabSetAudioTools	TabAudioToolsFormat	GroupPictureSize	20	1
+PowerPoint	TabSetAudioTools	TabAudioToolsFormat	GroupPictureStyles	30	1
+PowerPoint	TabSetCDAudioTools	TabCDAudioToolsOptions	GroupArrange	46	1
+PowerPoint	TabSetCDAudioTools	TabCDAudioToolsOptions	GroupCDAudioSetup	11	1
+PowerPoint	TabSetCDAudioTools	TabCDAudioToolsOptions	GroupPlay	1	1
+PowerPoint	TabSetCDAudioTools	TabCDAudioToolsOptions	GroupSize	3	1
+PowerPoint	TabSetCameoTools	TabDesignCameo	GroupAltText	1	1
+PowerPoint	TabSetCameoTools	TabDesignCameo	GroupArrange	46	1
+PowerPoint	TabSetCameoTools	TabDesignCameo	GroupCameoSize	4	1
+PowerPoint	TabSetCameoTools	TabDesignCameo	GroupCameoStyles	29	1
+PowerPoint	TabSetCameoTools	TabDesignCameo	GroupChunkCameoCamera	3	1
+PowerPoint	TabSetChartTools	TabChartToolsDesign	GroupChartData	6	1
+PowerPoint	TabSetChartTools	TabChartToolsDesign	GroupChartStyles	2	1
+PowerPoint	TabSetChartTools	TabChartToolsDesignNew	GroupChartData	6	1
+PowerPoint	TabSetChartTools	TabChartToolsDesignNew	GroupChartLayouts	23	1
+PowerPoint	TabSetChartTools	TabChartToolsDesignNew	GroupChartStyles	2	1
+PowerPoint	TabSetChartTools	TabChartToolsDesignNew	GroupChartType	1	1
+PowerPoint	TabSetChartTools	TabChartToolsFormat	GroupArrange	46	1
+PowerPoint	TabSetChartTools	TabChartToolsFormat	GroupChartCurrentSelection	3	1
+PowerPoint	TabSetChartTools	TabChartToolsFormat	GroupShapeStyles	40	1
+PowerPoint	TabSetChartTools	TabChartToolsFormat	GroupSize	3	1
+PowerPoint	TabSetChartTools	TabChartToolsFormat	GroupWordArtStyles	33	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupAltText	1	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupArrange	46	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupChartCurrentSelection	3	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupChartShapeStyles	38	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupShapesChart	2	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupSize	3	1
+PowerPoint	TabSetChartTools	TabChartToolsFormatNew	GroupWordArtStyles	33	1
+PowerPoint	TabSetChartTools	TabChartToolsLayout	GroupChartAnalysis	7	1
+PowerPoint	TabSetChartTools	TabChartToolsLayout	GroupChartAxes	22	1
+PowerPoint	TabSetChartTools	TabChartToolsLayout	GroupChartBackground	7	1
+PowerPoint	TabSetChartTools	TabChartToolsLayout	GroupChartCurrentSelection	3	1
+PowerPoint	TabSetChartTools	TabChartToolsLayout	GroupChartLabels	19	1
+PowerPoint	TabSetChartTools	TabChartToolsLayout	GroupChartShapes	6	1
+PowerPoint	TabSetDrawingTools	TabDrawingToolsFormat	GroupAltText	1	1
+PowerPoint	TabSetDrawingTools	TabDrawingToolsFormat	GroupArrangeWith3DEditor	24	1
+PowerPoint	TabSetDrawingTools	TabDrawingToolsFormat	GroupShapeStyles	40	1
+PowerPoint	TabSetDrawingTools	TabDrawingToolsFormat	GroupShapes	13	1
+PowerPoint	TabSetDrawingTools	TabDrawingToolsFormat	GroupSize	3	1
+PowerPoint	TabSetDrawingTools	TabDrawingToolsFormat	GroupWordArtStyles	33	1
+PowerPoint	TabSetEquationTools	TabEquationToolsDesign	GroupEquationStructures	11	1
+PowerPoint	TabSetEquationTools	TabEquationToolsDesign	GroupEquationSymbols	1	1
+PowerPoint	TabSetEquationTools	TabEquationToolsDesign	GroupEquationTools	6	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupDiagramming	1	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupInkClose	1	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupInkFormat	1	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupInkPens	1	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupInkSelect	1	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupPens	7	1
+PowerPoint	TabSetInkTools	TabInkToolsPens	GroupPensWrite	10	1
+PowerPoint	TabSetInteractiveIndexTools	TabInteractiveIndexToolsFormat	GroupAltText	1	1
+PowerPoint	TabSetInteractiveIndexTools	TabInteractiveIndexToolsFormat	GroupArrange	46	1
+PowerPoint	TabSetInteractiveIndexTools	TabInteractiveIndexToolsFormat	GroupIndexOptions	8	1
+PowerPoint	TabSetInteractiveIndexTools	TabInteractiveIndexToolsFormat	GroupIndexStyles	28	1
+PowerPoint	TabSetInteractiveIndexTools	TabInteractiveIndexToolsFormat	GroupSize	3	1
+PowerPoint	TabSetMovieTools	TabMovieToolsOptions	GroupArrange	46	1
+PowerPoint	TabSetMovieTools	TabMovieToolsOptions	GroupMovieOptions	7	1
+PowerPoint	TabSetMovieTools	TabMovieToolsOptions	GroupPlay	1	1
+PowerPoint	TabSetMovieTools	TabMovieToolsOptions	GroupSize	3	1
+PowerPoint	TabSetPictureTools	TabPictureToolsFormat	GroupAltText	1	1
+PowerPoint	TabSetPictureTools	TabPictureToolsFormat	GroupArrangeWith3DEditor	24	1
+PowerPoint	TabSetPictureTools	TabPictureToolsFormat	GroupImagePlay	1	1
+PowerPoint	TabSetPictureTools	TabPictureToolsFormat	GroupPictureSize	20	1
+PowerPoint	TabSetPictureTools	TabPictureToolsFormat	GroupPictureStyles	30	1
+PowerPoint	TabSetPictureTools	TabPictureToolsFormat	GroupPictureTools	31	1
+PowerPoint	TabSetSVGTools	TabGraphicsToolsFormat	GroupAltText	1	1
+PowerPoint	TabSetSVGTools	TabGraphicsToolsFormat	GroupArrange	46	1
+PowerPoint	TabSetSVGTools	TabGraphicsToolsFormat	GroupGraphicsSize	20	1
+PowerPoint	TabSetSVGTools	TabGraphicsToolsFormat	GroupGraphicsStyles	30	1
+PowerPoint	TabSetSVGTools	TabGraphicsToolsFormat	GroupIcons	8	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtCreateGraphic	19	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtLayouts	2	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtQuickStyles	3	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsDesign	GroupSmartArtReset	4	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupAltText	1	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupArrangeWith3DEditor	24	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupShapeStyles	40	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupSmartArtShapes	4	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupSmartArtSize	3	1
+PowerPoint	TabSetSmartArtTools	TabSmartArtToolsFormat	GroupWordArtStyles	33	1
+PowerPoint	TabSetSoundTools	TabSoundToolsOptions	GroupArrange	46	1
+PowerPoint	TabSetSoundTools	TabSoundToolsOptions	GroupPlay	1	1
+PowerPoint	TabSetSoundTools	TabSoundToolsOptions	GroupSize	3	1
+PowerPoint	TabSetSoundTools	TabSoundToolsOptions	GroupSoundOptions	5	1
+PowerPoint	TabSetTableTools	TabTableToolsDesign	GroupDrawBorders	6	1
+PowerPoint	TabSetTableTools	TabTableToolsDesign	GroupTableStyleOptionsPowerPoint	6	1
+PowerPoint	TabSetTableTools	TabTableToolsDesign	GroupTableStylesPowerPoint	33	1
+PowerPoint	TabSetTableTools	TabTableToolsDesign	GroupTextStylesTable	33	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupAlignment	12	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupArrange	46	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupMerge	2	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupTable	5	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupTableCellSize	4	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupTableRowsAndColumns	8	1
+PowerPoint	TabSetTableTools	TabTableToolsLayout	GroupTableSize	3	1
+PowerPoint	TabSetVideoTools	TabVideoToolsDesign	GroupAltText	1	1
+PowerPoint	TabSetVideoTools	TabVideoToolsDesign	GroupArrange	46	1
+PowerPoint	TabSetVideoTools	TabVideoToolsDesign	GroupMediaPreview	1	1
+PowerPoint	TabSetVideoTools	TabVideoToolsDesign	GroupVideoSize	4	1
+PowerPoint	TabSetVideoTools	TabVideoToolsDesign	GroupVideoStyles	28	1
+PowerPoint	TabSetVideoTools	TabVideoToolsDesign	GroupVideoToolsAdjust	16	1
+PowerPoint	TabSetVideoTools	TabVideoToolsEdit	GroupClosedCaptions	3	1
+PowerPoint	TabSetVideoTools	TabVideoToolsEdit	GroupMediaPreview	1	1
+PowerPoint	TabSetVideoTools	TabVideoToolsEdit	GroupSaveMedia	1	1
+PowerPoint	TabSetVideoTools	TabVideoToolsEdit	GroupVideoBookmark	2	1
+PowerPoint	TabSetVideoTools	TabVideoToolsEdit	GroupVideoEditing	4	1
+PowerPoint	TabSetVideoTools	TabVideoToolsEdit	GroupVideoOptions	6	1
