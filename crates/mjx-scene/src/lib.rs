@@ -70,8 +70,11 @@ pub mod error;
 pub mod geometry;
 pub mod glyphs;
 pub mod list;
+pub mod mesh_cache;
 pub mod paint;
+pub mod provider;
 pub mod scene;
+pub mod tessellate;
 
 pub use build::SceneBuilder;
 pub use command::{Clip, Command};
@@ -84,13 +87,23 @@ pub use geometry::{
 };
 pub use glyphs::{AtlasPlacement, GlyphImage, SceneGlyph, SceneGlyphRun};
 pub use list::{Commands, DisplayList};
+pub use mesh_cache::MeshCache;
 pub use paint::{
     CompoundStroke, DashPattern, FillStyle, Gradient, GradientKind, GradientStop, Image,
     ImageAdjustments, ImageFillMode, LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, Paint,
     PathShade, PatternPreset, RectangleAnchor, Stroke, StrokeAlignment, StrokeStyle, TileFlip,
     PATTERN_PRESET_COUNT,
 };
+pub use provider::{
+    GeometryProvider, OutlineProvenance, PlaceholderGeometry, ResolvedOutline,
+    PLACEHOLDER_CORNER_FRACTION, PLACEHOLDER_FRAME_FRACTION,
+};
 pub use scene::{build_scene, Decoration, ResourceResolver, SceneOptions, DEFAULT_TEXT_COLOR};
+pub use tessellate::{
+    page_bucket, tessellate_scene, Mesh, MeshRole, SceneMesh, StrokeGeometry, TessellationOptions,
+    Tessellator, COORDINATE_LIMIT, DASH_SEGMENT_LIMIT, DEFAULT_MESH_CACHE_BYTES,
+    REFERENCE_EM_POINTS, STROKE_WIDTH_LIMIT, TOLERANCE_DEVICE_PIXELS, TRIANGLE_LIMIT,
+};
 
 /// The one sRGB colour in this workspace, re-exported so that a painter written against this crate
 /// does not have to name the design-token crate to say what colour something is.

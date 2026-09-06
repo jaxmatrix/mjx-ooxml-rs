@@ -198,6 +198,31 @@ pub enum SceneError {
     )]
     UnpaintableText,
 
+    /// No [`crate::GeometryProvider`] could resolve a shape's outline handle.
+    ///
+    /// An error rather than an empty path, deliberately. A provider that does not know a handle has
+    /// been paired with a box model that is not its own, and a shape that silently drew nothing is
+    /// a defect a reader reports as *"my slide is missing a box"* and nobody finds. The provider
+    /// that ships today, [`crate::PlaceholderGeometry`], answers every handle, so this is what a
+    /// *wrongly paired* provider says rather than what the normal one ever does.
+    #[error("no geometry provider resolved the outline handle {outline}")]
+    UnresolvedOutline {
+        /// The handle the box model issued.
+        outline: u64,
+    },
+
+    /// A path could not be turned into triangles.
+    ///
+    /// Not what a *degenerate* path produces: a zero-length, self-intersecting or
+    /// impossibly-coordinated path is clamped or comes back empty, because those paths come out of
+    /// real files. This is the bound past which a single path would become more triangles than one
+    /// mesh may hold — see [`crate::tessellate::TRIANGLE_LIMIT`].
+    #[error("tessellating a path: {reason}")]
+    Tessellation {
+        /// What about it.
+        reason: &'static str,
+    },
+
     /// The text engine could not rasterise a glyph.
     #[error("preparing a glyph run: {0}")]
     Text(#[from] mjx_text::FontError),

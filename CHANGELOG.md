@@ -54,6 +54,60 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.128] - 2026-09-07
+
+**`lyon` tessellation and the geometry-provider seam** (MJXOFF-162, Phase R position 7).
+
+Paths become triangles, above the display list and below every painter. Tessellating here rather
+than in a painter is what makes the result deterministic across platforms — R10's golden images rest
+on it — testable without a GPU, and shared by four painters and two exporters. It is also why this
+platform's vector rendering is a *tessellation* pipeline and not a compute-shader one: `wgpu`'s
+WebGL2 backend has no compute stage, and the browser is a target.
+
+Real preset geometry is **deliberately not built here**, by decision: it depends on context the
+concurrent MJXOFF-88 programme supplies. What ships is the seam and a stand-in behind it, and every
+gate above is written against paths that are *not* the stand-in.
+
+### Added
+
+- **`GeometryProvider`** — one method, no OOXML in its signature, taking the shape's box as a
+  `SceneRect` in device pixels. Not `mjx_layout::Extent`, which is a *page count* carrying an
+  `ExtentPrecision`: a signature that took one as a size would compile, read plausibly and mean
+  something else.
+- **`PlaceholderGeometry`** — the first implementation: a framed, crossed rounded rectangle at the
+  shape's own box, deliberately not a shape DrawingML defines, carrying `OutlineProvenance` and a
+  label naming the handle it stands in for, so a placeholder render can never be mistaken for a
+  fidelity render.
+- **`Tessellator`** — fills under both winding rules; strokes with every join, cap, miter limit,
+  preset dash and compound band; beziers flattened to a tolerance derived from the scale bucket the
+  record already carries. Degenerate paths — zero-length, self-intersecting, `NaN`, coordinates past
+  every limit — produce empty or clamped meshes and never panic.
+- **`MeshCache`** — triangles kept per `(path, style, scale bucket)` under a byte budget, keyed on
+  the path's coordinate **bit patterns** rather than on a hash of them, so a collision cannot hand a
+  painter somebody else's shape.
+- **`tessellate_scene`** — every mesh a display list needs, in paint order.
+- **`lyon_tessellation`** as a workspace dependency of `mjx-scene` alone, and **`mjx-dml` as a
+  `dev-dependency` of `mjx-scene`** — never a dependency: rank 2.0 above rank 1.7 is the edge the
+  layering gate exists to refuse, and the exemption buys a seam test satisfied by DrawingML's own
+  resolved `custGeom` rather than by a second invention.
+
+### Fixed
+
+- **A latent panic on untrusted input in the display-list decoder.** `SECTION_SLOTS` was the literal
+  `14` and the decoder wrote `sections[kind_value]` — a direct array index driven by input bytes, in
+  bounds only because the section vocabulary happened to stop at thirteen. A fourteenth section kind
+  would have made a display list *from a file a reader opened* index out of bounds. The slot count is
+  derived from `SectionKind::ALL` now, with a compile-time assertion that every wire value has a
+  slot; the write is a `get_mut`; and the header's section-count bound is expressed against the
+  vocabulary rather than against the array.
+- **The four-byte section alignment was held by arithmetic and asserted nowhere.** The writer pads
+  nothing between sections, so a stride that is not a multiple of `SECTION_ALIGNMENT` makes a table
+  of an odd number of records push the next section onto an offset this crate then rejects. Asserted
+  at compile time and in `tests/the_encoding_is_pinned_to_literals.rs`.
+- **The encoding gate sampled the section vocabulary rather than sweeping it**, so a kind could be
+  added, or renumbered, with no byte literal disagreeing. Every kind's wire value and stride is now
+  pinned to a hand-written table, and a real thirteen-section blob's rows are compared against it.
+
 ## [0.0.127] - 2026-09-07
 
 **The display list, and its flat binary encoding** (MJXOFF-161, Phase R position 6).

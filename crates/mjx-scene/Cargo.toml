@@ -32,3 +32,27 @@ thiserror.workspace = true
 # foreign box model is the whole point of the seam, and a second copy of it would be a second
 # contract. It needs `thiserror`, which is above, and the faces `mjx-text` commits under
 # `assets/fonts/`, which a path relative to this manifest reaches.
+
+# Rank 1.7 → external. The trapezoidation, the stroker and the flattener MJXOFF-162 builds on; see
+# the workspace manifest for why this crate rather than the `lyon` meta-crate, and why a tessellation
+# pipeline rather than a compute shader.
+lyon_tessellation.workspace = true
+
+[dev-dependencies]
+# **A dev-dependency, never a dependency.** `mjx-dml` is rank 2.0 and this crate is rank 1.7, so a
+# real edge to it points *up* and `xtask/tests/layering.rs` refuses it — which is the whole reason
+# `mjx-scene` sits at 1.7 (see `src/lib.rs`). Dev-dependencies are rank-exempt by design
+# (`CLAUDE.md`), and this one exists so that `tests/the_geometry_seam_is_swappable.rs` can satisfy
+# `GeometryProvider` with **DrawingML's own resolved custom geometry** rather than with a second
+# invention: a seam proved only against a shape this crate made up is a seam proved against nothing.
+mjx-dml.workspace = true
+# The counting global allocator, for the mesh cache's byte budget. Test-only, outside the rank graph.
+mjx-allocation-counter.workspace = true
+
+# The mesh cache's byte budget is a binary of its own with **no test harness**, for the reason
+# `mjx-sml`'s allocation gate gives: a `#[global_allocator]` is installed for a whole process, so a
+# measurement taken beside other tests measures them too, and `cargo test` runs a harness's cases on
+# several threads at once. A plain `main` runs the cases one after another.
+[[test]]
+name = "the_mesh_cache_holds_its_budget"
+harness = false
