@@ -55,7 +55,7 @@ fn uax_fourteen_alone_would_begin_a_line_with_a_percent_sign_and_office_would_no
     assert_eq!(&text[13..14], "%");
 
     let unicode_only = allowed(text, &LineBreakOptions::unicode_only());
-    let office = allowed(text, &LineBreakOptions::default());
+    let office = allowed(text, &LineBreakOptions::japanese_typesetting());
 
     // UAX #14 offers a break at byte 13, which would put `%` at the head of the next line.
     assert!(
@@ -100,7 +100,7 @@ fn the_line_office_produces_and_the_line_uax_fourteen_alone_would_are_different_
         "…which begins the next line with a percent sign"
     );
 
-    let office = LineBreaker::new(text, LineBreakOptions::default());
+    let office = LineBreaker::new(text, LineBreakOptions::japanese_typesetting());
     let office_line = office.next_line(0, measure, &mut one_unit_per_character(text));
     assert_eq!(
         office_line.end, 10,
@@ -122,7 +122,7 @@ fn a_small_kana_may_not_begin_a_line_either() {
     assert_eq!(&text[at..at + 3], "ぁ");
 
     assert!(allowed(text, &LineBreakOptions::unicode_only()).contains(&at));
-    assert!(!allowed(text, &LineBreakOptions::default()).contains(&at));
+    assert!(!allowed(text, &LineBreakOptions::japanese_typesetting()).contains(&at));
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn a_line_may_not_end_with_an_opening_bracket() {
     let text = "日本 「東京」";
     let after_bracket = "日本 「".len();
     assert!(!allowed(text, &LineBreakOptions::unicode_only()).contains(&after_bracket));
-    assert!(!allowed(text, &LineBreakOptions::default()).contains(&after_bracket));
+    assert!(!allowed(text, &LineBreakOptions::japanese_typesetting()).contains(&after_bracket));
 }
 
 #[test]
@@ -140,7 +140,7 @@ fn a_mandatory_break_survives_kinsoku() {
     // A line feed ends the line whatever follows it. `%` is prohibited at a line start, and this
     // must not remove the hard break.
     let text = "one\n%two";
-    let opportunities = break_opportunities(text, &LineBreakOptions::default());
+    let opportunities = break_opportunities(text, &LineBreakOptions::japanese_typesetting());
     let mandatory: Vec<usize> = opportunities
         .iter()
         .filter(|opportunity| opportunity.kind == BreakKind::Mandatory)
@@ -148,7 +148,7 @@ fn a_mandatory_break_survives_kinsoku() {
         .collect();
     assert_eq!(mandatory, vec![4, 8]);
 
-    let breaker = LineBreaker::new(text, LineBreakOptions::default());
+    let breaker = LineBreaker::new(text, LineBreakOptions::japanese_typesetting());
     let line = breaker.next_line(0, 1000.0, &mut one_unit_per_character(text));
     assert_eq!(line.end, 4);
     assert_eq!(line.kind, LineBreakKind::Mandatory);
@@ -185,7 +185,7 @@ fn a_trailing_ideographic_full_stop_hangs_past_the_measure() {
     assert_eq!(&text[full_stop..full_stop + 3], "。");
     let after = full_stop + 3;
 
-    let hanging = LineBreaker::new(text, LineBreakOptions::default());
+    let hanging = LineBreaker::new(text, LineBreakOptions::japanese_typesetting());
     let tail = hanging.hanging_tail(0..after);
     assert_eq!(tail, full_stop..after, "the full stop is the hanging tail");
 
@@ -201,7 +201,7 @@ fn a_trailing_ideographic_full_stop_hangs_past_the_measure() {
         text,
         LineBreakOptions {
             hanging_punctuation: false,
-            ..LineBreakOptions::default()
+            ..LineBreakOptions::japanese_typesetting()
         },
     );
     assert_eq!(plain.hanging_tail(0..after), after..after);
@@ -213,11 +213,112 @@ fn a_trailing_ideographic_full_stop_hangs_past_the_measure() {
     );
 }
 
+/// The Latin case hand-off 5 of MJXOFF-160 says was missing: under `Default`, an English
+/// sentence's line-final full stop **counts against the measure**.
+///
+/// This is the test that would have caught the old default, and it is written from both ends so
+/// that neither half can be satisfied by accident: the same text under
+/// [`LineBreakOptions::japanese_typesetting`] hangs the stop and fits one character more, and under
+/// `Default` it does not. If the two agreed, the fixture would prove nothing.
+#[test]
+fn an_english_full_stop_counts_against_the_measure_under_the_default_options() {
+    // Twelve characters, the last of which is an ASCII full stop, with break opportunities after
+    // each space (bytes 4 and 8) and at the end (byte 12). A measure of eleven fits the whole text
+    // only if the stop does not count.
+    let text = "aaa bbb ccc.";
+    let full_stop = "aaa bbb ccc".len();
+    assert_eq!(&text[full_stop..], ".");
+    assert_eq!(text.len(), 12);
+
+    let default = LineBreaker::new(text, LineBreakOptions::default());
+    assert_eq!(
+        default.hanging_tail(0..text.len()),
+        text.len()..text.len(),
+        "nothing hangs under the default options, whatever the character is"
+    );
+    let line = default.next_line(0, 11.0, &mut one_unit_per_character(text));
+    assert_eq!(
+        line.end, 8,
+        "the full stop counts, so twelve characters do not fit eleven and the line falls back"
+    );
+    assert_eq!(line.kind, LineBreakKind::Fitted);
+    assert_eq!(line.hanging, 8..8);
+
+    // The same text under Japanese typesetting: the ASCII full stop is in JIS X 4051's hangable set,
+    // so it hangs past the measure and the whole text fits on one line. That is the behaviour the
+    // old `Default` gave an English paragraph, silently.
+    let japanese = LineBreaker::new(text, LineBreakOptions::japanese_typesetting());
+    assert_eq!(
+        japanese.hanging_tail(0..text.len()),
+        full_stop..text.len(),
+        "under Japanese typesetting the ASCII full stop is the hanging tail"
+    );
+    let hung = japanese.next_line(0, 11.0, &mut one_unit_per_character(text));
+    assert_eq!(
+        hung.end,
+        text.len(),
+        "with the stop hanging, eleven characters plus it fit a measure of eleven"
+    );
+    assert_eq!(hung.hanging, full_stop..text.len());
+    assert_ne!(
+        hung.end, line.end,
+        "the two option sets must break in different places, or this fixture proves nothing"
+    );
+}
+
+/// MJXOFF-158's one defect, found while MJXOFF-160 was writing the Latin case above: **a
+/// paragraph's last line was exempt from its own measure.**
+///
+/// UAX #14 reports the end of the text as a *mandatory* break, and `next_line` used to return at the
+/// first mandatory opportunity without measuring it. So a paragraph whose final word did not fit
+/// came back as one enormous line even when a perfectly good break was available earlier — and the
+/// fitting break the loop had already found in `best` was discarded.
+///
+/// The two halves are both asserted, because only together do they say the rule is *discriminating*:
+/// the end sentinel is measured, and a real hard break still is not.
+#[test]
+fn the_end_of_the_text_is_measured_but_a_hard_break_is_not() {
+    // One short word, a break opportunity at byte 2, then a word far longer than the measure.
+    let text = "a bbbbbbbbbbbbbbbbbbbb";
+    assert_eq!(text.len(), 22);
+    let opportunities = break_opportunities(text, &LineBreakOptions::default());
+    assert_eq!(
+        opportunities,
+        vec![
+            mjx_text::BreakOpportunity {
+                at: 2,
+                kind: BreakKind::Allowed
+            },
+            mjx_text::BreakOpportunity {
+                at: 22,
+                kind: BreakKind::Mandatory
+            },
+        ],
+        "the fixture rests on the end of the text being reported as mandatory"
+    );
+
+    let breaker = LineBreaker::new(text, LineBreakOptions::default());
+    let line = breaker.next_line(0, 5.0, &mut one_unit_per_character(text));
+    assert_eq!(
+        line.end, 2,
+        "the fitting break at byte 2 must be taken; returning all 22 characters against a measure \
+         of 5 is what this test exists to catch"
+    );
+    assert_eq!(line.kind, LineBreakKind::Fitted);
+
+    // A *hard* break is still unconditional: `\n` ends the line at byte 2 whatever the measure, and
+    // a measure of a thousand does not stretch the line past it.
+    let hard = LineBreaker::new("a\nbbbb", LineBreakOptions::default());
+    let hard_line = hard.next_line(0, 1000.0, &mut one_unit_per_character("a\nbbbb"));
+    assert_eq!(hard_line.end, 2);
+    assert_eq!(hard_line.kind, LineBreakKind::Mandatory);
+}
+
 #[test]
 fn a_line_that_is_nothing_but_hanging_punctuation_does_not_measure_zero() {
     // Otherwise a line of commas would never advance.
     let text = "。。。";
-    let breaker = LineBreaker::new(text, LineBreakOptions::default());
+    let breaker = LineBreaker::new(text, LineBreakOptions::japanese_typesetting());
     assert_eq!(breaker.hanging_tail(0..text.len()), text.len()..text.len());
 }
 
@@ -301,7 +402,7 @@ fn a_document_may_declare_its_own_kinsoku_sets() {
     let text = "aaa xbb";
     let options = LineBreakOptions {
         kinsoku: KinsokuRules::from_character_sets("x", "", ""),
-        ..LineBreakOptions::default()
+        ..LineBreakOptions::japanese_typesetting()
     };
 
     assert!(allowed(text, &LineBreakOptions::unicode_only()).contains(&4));
