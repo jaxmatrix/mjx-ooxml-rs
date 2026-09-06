@@ -1,10 +1,26 @@
-//! Typography for the client platform: which face, and what are its numbers.
+//! Typography for the client platform: which face, what are its numbers, and what glyphs does this
+//! text become.
 //!
-//! This crate answers exactly two questions and no others. *Which face should this run be drawn
-//! in?* — through three tiers and a substitution table. *What are that face's numbers?* — units per
-//! em, ascent, descent, line gap, cap height, x-height, advance widths, glyph bounds, variation
-//! axes and colour tables. Shaping, bidirectional reordering, itemisation and line breaking are
-//! **R03**; rasterisation and the glyph atlas are **R04**; nothing here lays anything out.
+//! *Which face should this run be drawn in?* — through three tiers and a substitution table.
+//! *What are that face's numbers?* — units per em, ascent, descent, line gap, cap height, x-height,
+//! advance widths, glyph bounds, variation axes and colour tables. *What glyphs does this text
+//! become, in what order, at what positions, and where may a line end?* — shaping, bidirectional
+//! resolution, script and face itemisation, line breaking, grapheme segmentation and hyphenation.
+//!
+//! Rasterisation and the glyph atlas are **R04**. **Nothing here lays anything out**: this crate
+//! says where a line *may* end, never where the line goes, how tall it is or what flows around it.
+//! Those are the box model's, from R05 onward.
+//!
+//! # Why not Parley
+//!
+//! Parley is the obvious Rust text stack and it is deliberately **not** adopted. It is a *layout*
+//! library: it owns line breaking, alignment and the arrangement of runs into lines, and it makes
+//! those decisions the way a web engine does. This project's line and page decisions have to come
+//! out where Office's do, and `docs/UI_PLATFORM_PLAN.md` §4 puts them in `mjx-layout` and the three
+//! box models above it. What is needed from a text stack here is the **primitives** — shape this
+//! run, resolve these levels, offer these break opportunities — and taking Parley would mean taking
+//! a layout policy in order to reach them, then fighting it wherever it disagreed. See
+//! [`mod@shaping`] for the same note where a shaper's author will meet it.
 //!
 //! # Why metric compatibility is a correctness requirement
 //!
@@ -47,30 +63,63 @@
 //! slice index or arithmetic overflow sits on any path that reads one; every failure is a
 //! [`FontError`].
 
+pub mod cache;
 pub mod compatibility;
+pub mod direction;
 pub mod embedded;
 pub mod error;
 pub mod face;
+pub mod feature;
+pub mod hyphenation;
 pub mod index;
+pub mod itemisation;
+pub mod line_breaking;
 pub mod manifest;
 pub mod reference;
 pub mod resolver;
+pub mod script;
+pub mod segmentation;
+pub mod shaping;
 pub mod substitution;
 
+pub use cache::{CacheStatistics, ShapedRunCache, DEFAULT_CACHE_CAPACITY};
 pub use compatibility::{verify_metric_compatibility, MetricCompatibility, UnverifiedReason};
+pub use direction::{
+    BidiAnalysis, BidiLevel, DeclaredRunDirection, DirectionalRun, ParagraphDirection,
+    TextDirection,
+};
 pub use embedded::{EmbeddedFont, EmbeddedFontEncoding, ObfuscationKey};
 pub use error::FontError;
 pub use face::{
     AdvanceWidth, ColourGlyphFormats, FaceIdentity, FaceMetrics, FaceReader, FontFace, FontSlant,
     FontWeight, FontWidth, GlyphBounds, GlyphIndex, LineDecorationMetrics, VariationAxis,
 };
+pub use feature::{
+    FeatureSet, FeatureTag, FigureSpacing, FigureStyle, FontFeature, LigatureOptions,
+    SmallCapitals, StylisticSets, TypographyOptions,
+};
+pub use hyphenation::{
+    HyphenationPatterns, Hyphenator, NoHyphenation, PatternHyphenator, SoftHyphenHyphenator,
+    SOFT_HYPHEN,
+};
 pub use index::{FaceIndex, FontRequest, ResolutionTier};
+pub use itemisation::{itemise, TextItem};
+pub use line_breaking::{
+    break_opportunities, BreakKind, BreakOpportunity, KinsokuRules, LineBreak, LineBreakKind,
+    LineBreakOptions, LineBreaker,
+};
 pub use manifest::{SubstitutionManifest, SubstitutionRecord};
 pub use reference::{
     reference_for_family, ReferenceAuthority, ReferenceMetrics, ReferenceVerticalMetrics,
     ADVANCE_TOLERANCE_PER_MILLE,
 };
 pub use resolver::{FontResolution, FontResolver, FontResolverBuilder, ResolvedFont};
+pub use script::{itemise_by_script, itemise_range_by_script, ScriptRun, TextScript};
+pub use segmentation::{
+    grapheme_cluster_boundaries, grapheme_cluster_count, grapheme_clusters, next_grapheme_boundary,
+    previous_grapheme_boundary, word_at, word_segments, words,
+};
+pub use shaping::{shape_uncached, FontSize, ShapedGlyph, ShapedRun, Shaper, ShapingRequest};
 pub use substitution::{
     fetchable_subset_for_character, substitution_for_family, FetchPlan, FetchableSubset,
     GenericFamily, SubstitutionRule, FETCHABLE_SUBSETS, SUBSTITUTION_TABLE,

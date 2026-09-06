@@ -81,6 +81,23 @@ pub enum FontError {
         /// How many bytes actually arrived.
         length: usize,
     },
+
+    /// A shaped run's advances sum past what an [`crate::AdvanceWidth`] can carry.
+    ///
+    /// The sum is accumulated in `i64` and checked, rather than wrapping in `i32`: a run of
+    /// untrusted text can be arbitrarily long, and a width that silently became negative would put
+    /// a line break in a place no measure explains. It takes roughly a million ems in one run,
+    /// which no document produces and a fuzzer produces immediately.
+    #[error(
+        "the shaped run's advance is {font_units} font units across {characters} characters, which \
+         does not fit the 32-bit advance a width carries"
+    )]
+    ShapedRunTooWide {
+        /// The sum that did not fit.
+        font_units: i64,
+        /// How many characters were in the run.
+        characters: usize,
+    },
 }
 
 impl From<ttf_parser::FaceParsingError> for FontError {
