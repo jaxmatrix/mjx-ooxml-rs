@@ -58617,3 +58617,24 @@ pub static OBJECT_PROPERTIES: &ChildOrder = &SML_TYPES[203];
 
 /// A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`) (`CT_DataConsolidate`, `sml.xsd`).
 pub static DATA_CONSOLIDATION: &ChildOrder = &SML_TYPES[79];
+
+/// A header/footer's six opaque strings, odd then even then first, header before footer in each pair (`x:headerFooter`) (`CT_HeaderFooter`, `sml.xsd`).
+pub static HEADER_FOOTER: &ChildOrder = &SML_TYPES[152];
+
+/// One saved sheet view's ten children: its pane, selection, two break lists, print block, autofilter, then `extLst` (`x:customSheetView`) (`CT_CustomSheetView`, `sml.xsd`).
+pub static CUSTOM_SHEET_VIEW: &ChildOrder = &SML_TYPES[73];
+
+/// One saved chartsheet view's three children: margins, the chartsheet page setup, then the header/footer (`x:customSheetView`, under `x:customSheetViews` of a chartsheet) (`CT_CustomChartsheetView`, `sml.xsd`).
+pub static CUSTOM_CHARTSHEET_VIEW: &ChildOrder = &SML_TYPES[67];
+
+/// A chartsheet's 14 children, from `sheetPr` to `extLst` — **no `sheetData`** (`x:chartsheet`) (`CT_Chartsheet`, `sml.xsd`).
+pub static CHARTSHEET: &ChildOrder = &SML_TYPES[40];
+
+/// A chartsheet's views, then `extLst` (`x:sheetViews` of a chartsheet) (`CT_ChartsheetViews`, `sml.xsd`).
+pub static CHARTSHEET_VIEWS: &ChildOrder = &SML_TYPES[44];
+
+/// A dialogsheet's 16 children, from `sheetPr` to `extLst` — **no `sheetData`** (`x:dialogsheet`) (`CT_Dialogsheet`, `sml.xsd`).
+pub static DIALOGSHEET: &ChildOrder = &SML_TYPES[97];
+
+/// A macrosheet's 27 children, from `sheetPr` to `extLst` (`CT_Macrosheet` — a complex type ECMA-376 declares no global element for) (`CT_Macrosheet`, `sml.xsd`).
+pub static MACROSHEET: &ChildOrder = &SML_TYPES[171];
