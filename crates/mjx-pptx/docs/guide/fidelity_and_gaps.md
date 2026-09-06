@@ -239,13 +239,6 @@ loses. A deck carrying any of it round-trips unchanged.
 | **No rendering, of any kind** | Measurement: resolved geometry, effective properties, absolute bounds | No layout engine, no SVG, no PDF. Rendering is a separate phase with no date |
 | **Encrypted and password-protected packages are out of scope**; digital signatures are preserved, not processed | A typed error rather than a guess | Decrypting an ECMA-376 Part 2 protected package is a cryptography project, and validating a signature this library may then invalidate by rewriting the container would be worse than not claiming to |
 
-The embedded workbook a chart authors is written by a **minimal SpreadsheetML writer inside
-`mjx-chart`** — one sheet, a shared-string table and a styles skeleton, and deliberately nothing else.
-It is scheduled for removal, and **its condition is now met**: `mjx-sml` writes SpreadsheetML and
-sits beneath `mjx-chart`, so the duplicate writer has somewhere to go. Deleting it is
-[MJXOFF-99](https://github.com/jaxmatrix/mjx-ooxml-rs)'s own unit of work rather than something this
-page can claim; until it lands, the writer above is what a chart's workbook comes from.
-
 ### Built, not yet verified against Office
 
 Everything here works and is tested against markup **we wrote**. What none of it has is a run through
@@ -286,6 +279,14 @@ tell the difference between "gone" and "quietly dropped":
   had no setter. It now has six: read, set and clear, for a level and for the `a:defPPr` beneath the
   levels, plus [`clear_shape_list_style`](Presentation::clear_shape_list_style) for the whole element.
   See [list formatting for the whole shape](crate::guide::shapes_and_text).
+- **The duplicate SpreadsheetML writer is gone.** A chart's embedded workbook used to be written by
+  a minimal writer inside `mjx-chart` — one sheet, a shared-string table and a styles skeleton — which
+  existed only because no SpreadsheetML crate did, and which carried a note naming its own executioner.
+  It is deleted. The workbook is now written by **`mjx-sml`** (`mjx_sml::write::WorkbookPackage`), not
+  by `mjx-xlsx`: `mjx-chart` is shared markup and `mjx-xlsx` is a format crate above it, so the
+  original sentence on this page named the wrong crate and the edge it implied was illegal.
+  `mjx-chart` now only decides *which cell* a chart's data belongs in, and holds no SpreadsheetML at
+  all. What a chart's workbook contains has not changed by a byte (MJXOFF-99).
 - **A chart's decoration is modelled.** `c:dLbls`, `c:dLbl`, `c:dPt`, `c:trendline` and `c:errBars`
   had no typed surface: a caller could not ask what a label said, could not switch a series from
   value to percentage, and could not author a chart that labelled itself. All five now read, author

@@ -54,17 +54,18 @@
 //! from the schema rather than from a list written here.
 //!
 //! Authoring writes any of the sixteen kinds ([`ChartData`]) **together with the embedded workbook**
-//! that PowerPoint's Edit Data opens ([`EmbeddedWorkbook`]) — and, with
-//! [`ChartData::data_labels`], a chart that labels itself.
+//! that PowerPoint's Edit Data opens ([`embedded_workbook_for_chart_data`]) — and, with
+//! [`ChartData::data_labels`], a chart that labels itself. That workbook is a real `.xlsx` package
+//! written by `mjx-sml`; this crate lays out the grid and nothing else.
 
 mod author;
 mod axis;
 mod build;
 mod data;
 mod decoration;
+mod embedding;
 mod plot;
 mod space;
-mod workbook;
 
 pub use author::{ChartData, ChartDataError};
 pub use axis::{
@@ -85,6 +86,7 @@ pub use decoration::{
     ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorBars, ErrorBarsContent, ErrorValueType,
     Trendline, TrendlineContent, TrendlineKind, TrendlineSpec,
 };
+pub use embedding::{embedded_workbook_for_chart_data, embedded_workbook_for_chart_space};
 pub use plot::{
     Area3DChart, AreaChart, Bar3DChart, BarChart, BarDirection, BarGrouping, BubbleChart,
     ChartKind, DoughnutChart, Line3DChart, LineChart, OfPieChart, OfPieType, Pie3DChart, PieChart,
@@ -93,6 +95,3 @@ pub use plot::{
     SurfaceChart,
 };
 pub use space::{Chart, ChartContent, ChartSpace, ChartSpaceContent, PlotArea, PlotAreaContent};
-pub use workbook::{
-    EmbeddedWorkbook, WorkbookCell, CONTENT_TYPE_WORKBOOK_PACKAGE, DEFAULT_SHEET_NAME,
-};

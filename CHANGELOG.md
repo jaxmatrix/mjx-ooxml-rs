@@ -42,6 +42,8 @@ reconstructed afterwards.
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
 | `mjx_sml::ConditionalFormattingFormula` | `mjx_sml::FormulaElement` (module `mjx_sml::formula::element`) | MJXOFF-123. `sml.xsd` hangs three elements off `ST_Formula` — `cfRule/formula`, `dataValidation/formula1` and `dataValidation/formula2` — whose content model, escaping rules and no-evaluation contract are identical, so the type carries its own local name and there is one implementation rather than three. `new` gains a `local: &str` parameter for the same reason. The answer to a second consumer is one helper both can reach, not a copy with a different doc comment. |
 | `mjx_docx::{RunPropertyContent, ParagraphMarkRunPropertyContent, ParagraphPropertyContent, StyleParagraphPropertyContent, SectionPropertyContent, NumberingPropertyContent}::Change`/`Inserted`/`Deleted`/`MovedFrom`/`MovedTo`, `FieldCharacterContent::NumberingChange` | inner type `Unmodeled` → the real revision type (`RunPropertiesChange`, `ParagraphMarkPropertiesChange`, `ParagraphPropertiesChange`, `TrackChangeMarker`, `SectionPropertiesChange`, `TrackChangeNumbering`) | MJXOFF-126. `ParagraphProperties::change()` already had a public accessor returning `Option<&Unmodeled>` — this one is a real, consumer-visible signature change, not only a formal one; every other listed variant had no accessor before this child, matching the row above. |
+| `mjx_chart::EmbeddedWorkbook` (`new`, `Default`, `push_row`, `sheet_name`, `rows`, `for_chart_data`, `for_chart_space`, `to_package_bytes`), `mjx_chart::WorkbookCell` (`Blank`, `Number`, `Text`, `text`), `mjx_chart::CONTENT_TYPE_WORKBOOK_PACKAGE`, `mjx_chart::DEFAULT_SHEET_NAME` | **removed.** The two layout entry points become the free functions `mjx_chart::embedded_workbook_for_chart_data(&ChartData) -> Result<Vec<u8>, mjx_sml::SmlError>` and `mjx_chart::embedded_workbook_for_chart_space(&ChartSpace) -> Result<Vec<u8>, SmlError>`; the two constants become `mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE` and `mjx_sml::write::DEFAULT_SHEET_NAME`; the grid type has no replacement, because `mjx-chart` no longer holds a spreadsheet model | MJXOFF-99. `mjx-chart` carried a minimal SpreadsheetML writer because a chart embeds a real `.xlsx` and no SpreadsheetML crate existed — the workspace's one sanctioned duplicate, with a note in its own header naming this child as its executioner. `mjx-sml` (rank 2.1) now writes it and `mjx-chart` (2.2) reaches down to it; `mjx-chart → mjx-xlsx`, which the old note proposed, would have been an upward edge the layering forbids. What a chart's workbook *contains* did not change by a byte. |
+| `mjx_pptx::PptxError` gains `Sml(mjx_sml::SmlError)` | — | The same removal: a chart's embedded workbook is now written by `mjx-sml`, so its failures reach a PresentationML caller as themselves rather than being flattened into `Opc`. `PptxError` is deliberately not `#[non_exhaustive]`, so this is a breaking addition; `mjx_ooxml::Error` classifies it through the same `sml_code` that `mjx-xlsx`'s errors go through, and no `ErrorCode` was added — nothing changes for either binding. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -53,6 +55,71 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.122] - 2026-09-06
+
+**The workspace's one sanctioned duplicate is deleted: a chart's embedded workbook is written by
+`mjx-sml`** (MJXOFF-99, Phase E position 1).
+
+### Removed
+
+- **`crates/mjx-chart/src/workbook.rs`** — 686 lines of minimal SpreadsheetML writer, and the public
+  items listed under *Unreleased — 0.1.0* above. It opened by naming its own executioner: *"a
+  duplicate with a scheduled removal is a debt; a duplicate nobody removes is an architecture."*
+  Written because a chart embeds a whole `.xlsx` package at `/ppt/embeddings/*.xlsx` and no
+  SpreadsheetML crate existed, it proposed `mjx-xlsx` as its replacement — which would have been an
+  **upward** edge (2.2 → 3.0). `mjx-sml` is rank 2.1, so `mjx-chart → mjx-sml` points down, and that
+  is the edge the deletion rides on.
+- **`crates/mjx-chart/tests/workbook_parity.rs`** — MJXOFF-112's gate, which existed only to compare
+  the two writers byte for byte. With one writer left there is nothing to compare; everything it
+  asserted about the surviving writer is also asserted in `crates/mjx-sml/tests/package_writer.rs`.
+- **`mjx_chart`'s private `column_letters`.** A chart's `c:f` formulas name their columns through
+  `mjx_sml::address::column_letters`, so the chart and its workbook cannot disagree about which
+  column is which.
+
+### Changed
+
+- **`mjx-chart` holds no SpreadsheetML at all** — not an element name, not an `xl/` part name, not a
+  namespace constant, not in a test. `crates/mjx-chart/src/embedding.rs` decides only *which cell* a
+  chart's data belongs in and hands the rows to `mjx_sml::write::WorkbookPackage`. That is the whole
+  crate's involvement with spreadsheets now.
+- **`mjx-pptx` registers an embedded workbook with `mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE`**
+  and gained a direct `mjx-sml` dependency for it (3.0 → 2.1, downward). `add_chart` and
+  `refresh_chart_workbook` keep their shape exactly: everything fallible that does not touch the
+  package still happens first, and a refresh still answers `false` rather than erroring for a chart
+  with no `c:externalData`, an unresolvable relationship, an `External` target mode or a missing part.
+- **`mjx_sml::write::WorkbookPackage::push_row` advances past a row that writes nothing.** Fixed
+  forward here rather than worked around in `mjx-chart`. `Blank` and a non-finite number write no
+  cell, so a row of them left no `<row>` behind — and the next row's number was measured off the
+  *populated* rows, so it took the empty row's place and slid the whole grid up by one. A chart read
+  back from a file whose series carry no `c:tx` has exactly that header row, and its own `c:f` says
+  `Sheet1!$A$2:$A$3`. `AuthoredWorksheet::appended_row_count` is the new cursor, public and
+  documented, and `set_cell_value` still counts, so mixing the two doors never overwrites.
+
+### Fixed
+
+- **`the_refreshed_workbook_holds_the_edited_values` could not fail for the thing it names.** It set
+  a series' values *and* its categories, and `set_chart_series_categories` refreshes the workbook
+  too — so removing `set_chart_series_values`'s refresh entirely left it green. Found by mutation
+  while rerouting the writer. It is now one test per setter, each asserting that the labels or the
+  numbers the fixture carried are *gone*, and each independently red when its own refresh is removed.
+  A11's R4 (`editing_a_chart_dirties_only_the_chart_xml_and_its_workbook`) always caught the values
+  case, so nothing was unguarded; one of the two guards was simply not the guard it read as.
+
+### Documentation
+
+- **The gaps page's standing paragraph is a closed *What used to be here* row**, naming `mjx-sml`
+  rather than `mjx-xlsx` — the original sentence named the wrong crate, and the edge it implied was
+  illegal.
+- **`xtask/src/corpus/xlsx.rs` states, at the call site, why its hand-written worksheet stays.** It is
+  the fourth writer of SpreadsheetML in this repository and the only one left; MJXOFF-93 reported it
+  and left the decision open. It is kept on purpose: it is the *input* to a benchmark of the library's
+  reader, so generating it through the library would make `docs/BENCHMARKS.md` a measurement of our
+  reader against our own writer; it writes a file `WorkbookPackage` cannot (no shared strings, no
+  styles, `t="inlineStr"`, `spans` on every row); building it through the model would pay the cost
+  the harness exists to measure; and `xtask` is a host-only binary outside the ranked graph that
+  ships nowhere. **So the workspace's "one sanctioned duplicate" claim is retired with the writer it
+  described: exactly one SpreadsheetML writer ships, and the remaining hand-written one is tooling.**
 
 ## [0.0.121] - 2026-09-06
 

@@ -20,6 +20,11 @@ mjx-opc.workspace = true
 mjx-mce.workspace = true
 mjx-dml.workspace = true
 mjx-chart.workspace = true
+# SpreadsheetML, for the one thing this crate has to say about a spreadsheet: the content type a host
+# package registers an embedded `.xlsx` under, and the `SmlError` writing one can report. The bytes
+# themselves come from `mjx-chart`, which lays out the grid. Rank 2.1 from rank 3.0 — the same
+# downward direction as `mjx-dml` above, checked by `xtask/tests/layering.rs`.
+mjx-sml.workspace = true
 mjx-vml = { workspace = true, optional = true }
 thiserror.workspace = true
 unicode-segmentation.workspace = true

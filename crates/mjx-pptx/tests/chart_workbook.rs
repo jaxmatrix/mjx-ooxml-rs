@@ -1,12 +1,30 @@
-//! The embedded workbook a chart carries (MJX-116, part 1).
+//! The workbook a chart embeds: that the cells it fills are the cells the chart's formulas name.
 //!
-//! The chart's `c:f` formulas name cells; until this tier there was no workbook behind them, so
-//! PowerPoint's *Edit Data* had nothing to open. These tests assert the two agree — that the range
-//! the chart names is the range the workbook fills, cell for cell — because a workbook that is
-//! merely *present* and disagrees is worse than none at all.
+//! # Where these came from, and why they are here
+//!
+//! These assertions were `crates/mjx-chart/tests/workbook.rs` until MJXOFF-99 deleted
+//! `mjx-chart`'s minimal SpreadsheetML writer. `mjx-chart` now lays out the grid and `mjx-sml`
+//! writes it, and `mjx-chart` is required to hold *no* SpreadsheetML at all — not an element name,
+//! not a part name, not in a test. `mjx-pptx` is the crate that embeds the result, sees both
+//! `mjx-chart` and `mjx-sml`, and is where the two meeting can be checked.
+//!
+//! # What makes these discriminating
+//!
+//! Asserting that a workbook we just wrote contains what our own writer put in it proves nothing.
+//! Every layout assertion below is anchored to something stated independently:
+//!
+//! * the chart's own `c:f` formulas, **read off the authored chart part** rather than restated here,
+//!   so the workbook and the chart cannot drift apart without this failing;
+//! * `sml.xsd` itself, through `tests/schema_validity.rs`, which descends into the nested package;
+//! * the values the caller handed the chart, which neither writer chose.
+//!
+//! What the `mjx-sml` writer emits *in general* — the part list, the relationship graph, the styles
+//! skeleton, first-use interning, `dimension`, determinism — is asserted against the bytes in
+//! `crates/mjx-sml/tests/package_writer.rs`. This file asserts only the half that is about a chart.
 
 use mjx_chart::{
-    ChartData, ChartKind, ChartSpace, EmbeddedWorkbook, WorkbookCell, CONTENT_TYPE_WORKBOOK_PACKAGE,
+    embedded_workbook_for_chart_data, embedded_workbook_for_chart_space, ChartData, ChartKind,
+    ChartSpace,
 };
 use mjx_ooxml_core::FromXml;
 use mjx_opc::{Package, PartName};
@@ -28,6 +46,10 @@ fn bar_chart() -> ChartData {
         .categories(["North", "South", "West"])
         .series("Sales", [19.2, 21.4, 16.7])
         .series("Costs", [9.0, 8.5, 7.25])
+}
+
+fn bar_chart_workbook() -> Vec<u8> {
+    embedded_workbook_for_chart_data(&bar_chart()).expect("write the workbook")
 }
 
 #[test]
@@ -65,12 +87,6 @@ fn a_written_workbook_is_a_complete_package() {
             && rel.rel_type.ends_with("/officeDocument")),
         "the root relates to the workbook"
     );
-}
-
-fn bar_chart_workbook() -> Vec<u8> {
-    EmbeddedWorkbook::for_chart_data(&bar_chart())
-        .to_package_bytes()
-        .expect("write the workbook")
 }
 
 #[test]
@@ -139,9 +155,7 @@ fn a_scatter_chart_writes_numeric_x_values_not_labels() {
         .categories(["1.5", "2.5"])
         .series("Points", [10.0, 20.0]);
     let sheet = part_text(
-        &EmbeddedWorkbook::for_chart_data(&chart)
-            .to_package_bytes()
-            .expect("write"),
+        &embedded_workbook_for_chart_data(&chart).expect("write"),
         "xl/worksheets/sheet1.xml",
     );
     assert!(sheet.contains(r#"<c r="A2"><v>1.5</v></c>"#), "{sheet}");
@@ -159,41 +173,105 @@ fn the_workbook_of_an_existing_chart_is_read_from_its_caches() {
     let document = mjx_xml::fidelity::parse(&part).expect("parse");
     let space = ChartSpace::from_xml(&document.root, &document.interner).expect("from_xml");
 
-    let from_space = EmbeddedWorkbook::for_chart_space(&space);
-    let from_data = EmbeddedWorkbook::for_chart_data(&bar_chart());
+    let from_space = embedded_workbook_for_chart_space(&space).expect("write");
+    let from_data = bar_chart_workbook();
     assert_eq!(
         from_space, from_data,
-        "reading a chart back gives the same grid the chart was authored from"
+        "reading a chart back gives the same workbook the chart was authored from"
+    );
+}
+
+/// A row that fills nothing still occupies its number, so the grid stays where the formulas say.
+///
+/// A chart read back from a file whose series declare no `c:tx` has an entirely blank header row:
+/// the corner cell is blank by construction and every other cell is the missing name. If that row
+/// did not consume row 1, the categories would slide up to row 1 and the chart's own
+/// `Sheet1!$A$2:$A$3` would name the wrong cells — an embedded workbook that disagrees with the
+/// chart it backs, which is worse than no workbook at all.
+///
+/// The `c:tx` is removed from an authored part rather than asked for through `ChartData`, because
+/// `ChartData` always writes one; a third-party chart need not, and this is the refresh path that
+/// reads one. Anchored on the formula read off that same part, not on a restatement of it.
+#[test]
+fn an_unnamed_series_still_leaves_the_data_where_the_formulas_point() {
+    let authored = ChartData::new(ChartKind::Bar)
+        .categories(["North", "South"])
+        .series("Sales", [19.2, 21.4])
+        .to_part_bytes();
+    let text = String::from_utf8(authored).expect("utf-8");
+    let opening = text
+        .find("<c:tx>")
+        .expect("an authored series names itself");
+    let closing = text.find("</c:tx>").expect("the name element closes") + "</c:tx>".len();
+    let stripped = format!("{}{}", &text[..opening], &text[closing..]);
+
+    let document = mjx_xml::fidelity::parse(stripped.as_bytes()).expect("parse");
+    let space = ChartSpace::from_xml(&document.root, &document.interner).expect("from_xml");
+    let area = space.plot_area().expect("plot area");
+    let series_names: Vec<Option<String>> = area.all_series().map(|series| series.name()).collect();
+    assert_eq!(
+        series_names,
+        [None],
+        "the header row has nothing at all to write"
+    );
+
+    let categories: Vec<String> = area
+        .all_series()
+        .filter_map(|series| {
+            series
+                .categories()?
+                .string_reference()?
+                .formula()
+                .map(mjx_chart::Formula::text)
+        })
+        .collect();
+    assert_eq!(categories, ["Sheet1!$A$2:$A$3"], "the chart says row 2");
+
+    let sheet = part_text(
+        &embedded_workbook_for_chart_space(&space).expect("write"),
+        "xl/worksheets/sheet1.xml",
+    );
+    assert!(
+        sheet.contains(r#"<row r="2"><c r="A2" t="s"><v>0</v></c>"#),
+        "the categories start on row 2, not row 1: {sheet}"
+    );
+    assert!(
+        !sheet.contains(r#"<row r="1">"#),
+        "and the blank header row writes no <row> at all: {sheet}"
     );
 }
 
 #[test]
 fn a_ragged_or_empty_grid_writes_a_valid_sheet() {
     // A series shorter than the categories leaves blanks rather than inventing zeros.
-    let mut workbook = EmbeddedWorkbook::new("Sheet1");
-    workbook.push_row(vec![WorkbookCell::Blank, WorkbookCell::text("S")]);
-    workbook.push_row(vec![WorkbookCell::text("A"), WorkbookCell::Number(1.0)]);
-    workbook.push_row(vec![WorkbookCell::text("B")]);
-    let bytes = workbook.to_package_bytes().expect("write");
-    let sheet = part_text(&bytes, "xl/worksheets/sheet1.xml");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["A", "B"])
+        .series("S", [1.0]);
+    let sheet = part_text(
+        &embedded_workbook_for_chart_data(&chart).expect("write"),
+        "xl/worksheets/sheet1.xml",
+    );
     assert!(
         sheet.contains(r#"<row r="3"><c r="A3" t="s"><v>2</v></c></row>"#),
         "{sheet}"
     );
 
     // A non-finite value has no SpreadsheetML spelling, so its cell is simply not written.
-    let mut workbook = EmbeddedWorkbook::new("Sheet1");
-    workbook.push_row(vec![WorkbookCell::Number(f64::NAN)]);
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["A"])
+        .series("S", [f64::NAN]);
     let sheet = part_text(
-        &workbook.to_package_bytes().expect("write"),
+        &embedded_workbook_for_chart_data(&chart).expect("write"),
         "xl/worksheets/sheet1.xml",
     );
     assert!(!sheet.contains("NaN"), "{sheet}");
+    assert!(
+        !sheet.contains(r#"<c r="B2""#),
+        "a value with no spelling writes no cell: {sheet}"
+    );
 
-    // An empty workbook is still a package that opens.
-    let empty = EmbeddedWorkbook::new("Sheet1")
-        .to_package_bytes()
-        .expect("write");
+    // A chart with nothing in it is still a package that opens.
+    let empty = embedded_workbook_for_chart_data(&ChartData::new(ChartKind::Bar)).expect("write");
     let sheet = part_text(&empty, "xl/worksheets/sheet1.xml");
     assert!(sheet.contains("<sheetData/>"), "{sheet}");
     assert!(!sheet.contains("<dimension"), "no range is filled: {sheet}");
@@ -205,9 +283,7 @@ fn labels_needing_escaping_survive_the_round_trip() {
         .categories(["R&D", "<Ops>"])
         .series("A & B", [1.0, 2.0]);
     let strings = part_text(
-        &EmbeddedWorkbook::for_chart_data(&chart)
-            .to_package_bytes()
-            .expect("write"),
+        &embedded_workbook_for_chart_data(&chart).expect("write"),
         "xl/sharedStrings.xml",
     );
     assert!(strings.contains("<t>A &amp; B</t>"), "{strings}");
@@ -217,35 +293,20 @@ fn labels_needing_escaping_survive_the_round_trip() {
     assert!(strings.contains("<t>&lt;Ops></t>"), "{strings}");
 }
 
+/// Two calls produce the same bytes, or every round-trip assertion downstream is flaky.
+///
+/// `add_chart` stores these bytes in the package and `refresh_chart_workbook` replaces them; a
+/// writer that varied between calls would make a no-op edit dirty the workbook part and break the
+/// tier-3 isolation assertions in `tests/charts.rs`.
 #[test]
-fn the_content_type_constant_is_the_one_a_host_package_must_register() {
-    assert_eq!(
-        CONTENT_TYPE_WORKBOOK_PACKAGE,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-}
+fn writing_the_same_chart_twice_produces_the_same_bytes() {
+    assert_eq!(bar_chart_workbook(), bar_chart_workbook());
 
-#[test]
-fn a_chart_can_name_its_workbook() {
-    let part = bar_chart().to_part_bytes_linking_workbook("rId1");
-    let text = String::from_utf8(part.clone()).expect("utf-8");
-    assert!(
-        text.contains(r#"<c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>"#),
-        "{text}"
-    );
-    // `CT_ChartSpace` puts `c:externalData` after `c:chart`.
-    assert!(
-        text.find("</c:chart>").expect("chart") < text.find("<c:externalData").expect("external"),
-        "{text}"
-    );
-
+    let part = bar_chart().to_part_bytes();
     let document = mjx_xml::fidelity::parse(&part).expect("parse");
     let space = ChartSpace::from_xml(&document.root, &document.interner).expect("from_xml");
-    assert_eq!(space.external_data_rel_id(&document.interner), Some("rId1"));
-
-    // Without the workbook, no reference is written at all.
-    let bare = bar_chart().to_part_bytes();
-    let document = mjx_xml::fidelity::parse(&bare).expect("parse");
-    let space = ChartSpace::from_xml(&document.root, &document.interner).expect("from_xml");
-    assert_eq!(space.external_data_rel_id(&document.interner), None);
+    assert_eq!(
+        embedded_workbook_for_chart_space(&space).expect("write"),
+        embedded_workbook_for_chart_space(&space).expect("write"),
+    );
 }

@@ -20,7 +20,7 @@
 //! with every gate still green.
 //!
 //! There is no `dimension` in the seed, because a sheet with no populated cell has no bounding box
-//! to cache — `mjx_chart::EmbeddedWorkbook::dimension` answers `None` for exactly that case and
+//! to cache — `mjx-chart`'s retired writer answered `None` for exactly that case and
 //! writes no element. [`recompute_dimension`](AuthoredWorksheet::recompute_dimension) is what puts
 //! one there once there are cells, and [`WorksheetPart`]'s own rank table is what places it at rank
 //! 1, before `sheetData` at rank 5.
@@ -37,6 +37,10 @@ use super::constants::XML_DECLARATION;
 pub struct AuthoredWorksheet {
     name: String,
     part: WorksheetPart,
+    /// How many rows [`WorkbookPackage::push_row`](crate::write::WorkbookPackage::push_row) has
+    /// appended — see [`appended_row_count`](Self::appended_row_count) for why a count is kept
+    /// beside the cells rather than derived from them.
+    appended_rows: u32,
 }
 
 impl AuthoredWorksheet {
@@ -68,7 +72,39 @@ impl AuthoredWorksheet {
         Ok(Self {
             name: name.to_owned(),
             part,
+            appended_rows: 0,
         })
+    }
+
+    /// How many rows [`WorkbookPackage::push_row`](crate::write::WorkbookPackage::push_row) has
+    /// appended to this sheet, which is also the zero-based row the next one lands on.
+    ///
+    /// # Why this is counted rather than measured
+    ///
+    /// "The row after the last one written" cannot be read back off the cells, because **a row is
+    /// allowed to write no cell at all**: a [`Blank`](crate::write::AuthoredCellValue::Blank) and a
+    /// non-finite number both write nothing, so a row of them leaves no `<row>` behind. Deriving the
+    /// next row from the populated ones would hand that row's number to the *next* row and slide the
+    /// whole grid up by one.
+    ///
+    /// That is not hypothetical. A chart's embedded workbook opens with a header row whose first
+    /// cell is the empty corner above the category labels; a chart whose series carry no `c:tx` name
+    /// makes every other cell of that row blank too. The chart's own `c:f` formulas say its data
+    /// starts at row 2 (`Sheet1!$A$2:$A$4`), so a grid that slid up by one would leave the workbook
+    /// disagreeing with the chart it backs — which is the one thing an embedded workbook must never
+    /// do.
+    ///
+    /// A cell written straight through [`set_cell_value`](Self::set_cell_value) still counts: the
+    /// next appended row is the later of this count and the last populated row, so mixing the two
+    /// doors never overwrites.
+    #[must_use]
+    pub fn appended_row_count(&self) -> u32 {
+        self.appended_rows
+    }
+
+    /// Records that a row has been appended at zero-based `row`, so the next one lands after it.
+    pub(crate) fn note_appended_row(&mut self, row: u32) {
+        self.appended_rows = self.appended_rows.max(row.saturating_add(1));
     }
 
     /// The sheet's tab name — what `xl/workbook.xml` writes as `sheet@name` and what a chart's
@@ -139,7 +175,7 @@ impl AuthoredWorksheet {
     /// `None` — and no element — for a sheet with no populated cell. That is not a defensive
     /// nicety: `@ref` is `use="required"` on `CT_SheetDimension`, and `ref=""` is not an `ST_Ref`,
     /// so a sheet with nothing in it has no schema-valid dimension to write and must write none.
-    /// `mjx_chart::EmbeddedWorkbook` reached the same answer from the other side, by returning
+    /// `mjx-chart`'s retired writer reached the same answer from the other side, by returning
     /// `None` from its own `dimension()` for an empty grid.
     ///
     /// The box itself is [`WorksheetPart::recompute_dimension`]'s — this method only makes sure

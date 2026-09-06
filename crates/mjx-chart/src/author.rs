@@ -8,10 +8,11 @@
 //!
 //! The part carries the cached data (`c:strCache`/`c:numCache`) plus synthesized `c:f` formulas
 //! naming where that data lives. Those formulas are not fiction: the companion
-//! [`EmbeddedWorkbook`](crate::EmbeddedWorkbook) writes the workbook they name, laid out to match
-//! cell for cell, and [`to_part_bytes_linking_workbook`](ChartData::to_part_bytes_linking_workbook)
-//! adds the `c:externalData` that binds the two. A chart authored that way opens in PowerPoint's
-//! **Edit Data** on the numbers it actually draws.
+//! [`embedded_workbook_for_chart_data`](crate::embedded_workbook_for_chart_data) writes the workbook
+//! they name, laid out to match cell for cell, and
+//! [`to_part_bytes_linking_workbook`](ChartData::to_part_bytes_linking_workbook) adds the
+//! `c:externalData` that binds the two. A chart authored that way opens in PowerPoint's **Edit
+//! Data** on the numbers it actually draws.
 //!
 //! ```
 //! use mjx_chart::{ChartData, ChartKind, ChartSpace, LegendPosition};
@@ -37,6 +38,7 @@
 
 use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN, SHARED_RELATIONSHIP_REFERENCE};
+use mjx_sml::address::{column_letters, AddressText, LAST_COLUMN_INDEX};
 
 use crate::axis::{build_axis, AxisKind, AxisPosition, ChartTitle, Legend, LegendPosition};
 use crate::build::{
@@ -44,7 +46,6 @@ use crate::build::{
 };
 use crate::decoration::{DataLabelSpec, DataLabels};
 use crate::plot::ChartKind;
-use crate::workbook::column_letters;
 
 /// The XML declaration a fresh chart part opens with, matching what Office writes (the inner bytes of
 /// `<?xml … ?>`; the writer adds the delimiters).
@@ -356,7 +357,8 @@ impl ChartData {
     /// The part carries cached data only and **no** `c:externalData`: it renders everywhere, but
     /// PowerPoint's Edit Data has nothing to open. Use
     /// [`to_part_bytes_linking_workbook`](Self::to_part_bytes_linking_workbook) together with
-    /// [`EmbeddedWorkbook`](crate::EmbeddedWorkbook) to author a chart that does.
+    /// [`embedded_workbook_for_chart_data`](crate::embedded_workbook_for_chart_data) to author a
+    /// chart that does.
     #[must_use]
     pub fn to_part_bytes(&self) -> Vec<u8> {
         self.serialize(None)
@@ -367,7 +369,7 @@ impl ChartData {
     /// writes it.
     ///
     /// The caller is responsible for storing the workbook part
-    /// ([`EmbeddedWorkbook::to_package_bytes`](crate::EmbeddedWorkbook::to_package_bytes)) and for
+    /// ([`embedded_workbook_for_chart_data`](crate::embedded_workbook_for_chart_data)) and for
     /// relating it from the chart part under that id; this only writes the reference.
     #[must_use]
     pub fn to_part_bytes_linking_workbook(&self, workbook_rel_id: &str) -> Vec<u8> {
@@ -689,7 +691,85 @@ fn category_formula(count: usize) -> String {
 
 /// The formula for series `series_index`'s value cells: `Sheet1!$B$2:$B$N` for the first series,
 /// `$C$…` for the second, and so on (column `A` is the categories).
+///
+/// The letters come from `mjx-sml`'s grid vocabulary rather than from an encoder of this crate's
+/// own: MJXOFF-99 retired the private `column_letters` here in favour of
+/// [`mjx_sml::address::column_letters`], which is the same base-26 encoding the workbook writer
+/// addresses its cells with. A chart and its workbook naming the same column is the whole point, and
+/// two implementations of "which column is this" is how they would stop doing so.
 fn value_formula(series_index: usize, count: usize) -> String {
-    let column = column_letters(series_index + 1);
+    let column = series_column(series_index);
     format!("Sheet1!${column}$2:${column}${}", count + 1)
+}
+
+/// The column series `series_index`'s values occupy — `B` for the first series, column `A` being the
+/// categories.
+///
+/// [`mjx_sml::address::column_letters`] refuses an index past `XFD` instead of wrapping the way this
+/// crate's retired encoder did, and there is no honest column name past the last one, so this names
+/// the last one ([`LAST_COLUMN_LETTERS`], pinned equal to what the encoder answers for
+/// [`LAST_COLUMN_INDEX`] by `series_column_is_mjx_sml_s_answer` below). Past the grid is unreachable
+/// through any path that writes a file: such a chart has no workbook either —
+/// [`embedded_workbook_for_chart_data`](crate::embedded_workbook_for_chart_data) hands the same
+/// column to `WorkbookPackage::push_row`, which refuses it before a byte is packaged.
+fn series_column(series_index: usize) -> String {
+    let column = u16::try_from(series_index.saturating_add(1)).unwrap_or(u16::MAX);
+    column_letters(column.min(LAST_COLUMN_INDEX))
+        .as_ref()
+        .map_or(LAST_COLUMN_LETTERS, AddressText::as_str)
+        .to_owned()
+}
+
+/// The letters of SpreadsheetML's last column, `XFD`.
+///
+/// Stated here so [`series_column`] has a valid answer without a second call that could fail, and
+/// pinned equal to [`column_letters`]'s own answer by test — a constant that drifted from the
+/// encoder would be exactly the second implementation MJXOFF-99 removed.
+const LAST_COLUMN_LETTERS: &str = "XFD";
+
+#[cfg(test)]
+mod tests {
+    use super::{series_column, value_formula, LAST_COLUMN_LETTERS};
+    use mjx_sml::address::{column_letters, LAST_COLUMN_INDEX};
+
+    /// The column a series' formula names is `mjx-sml`'s answer, not a second encoder's.
+    ///
+    /// MJXOFF-99 retired this crate's own `column_letters`. The chart's `c:f` and the workbook's
+    /// `c@r` have to name the same column or Edit Data opens on the wrong cells, and that is only
+    /// guaranteed while one encoder answers both.
+    #[test]
+    fn series_column_is_mjx_sml_s_answer() {
+        for (index, expected) in [(0, "B"), (1, "C"), (24, "Z"), (25, "AA"), (700, "ZZ")] {
+            assert_eq!(series_column(index), expected, "series {index}");
+            assert_eq!(
+                series_column(index),
+                column_letters(u16::try_from(index + 1).expect("inside the grid"))
+                    .expect("inside the grid")
+                    .as_str(),
+                "series {index} disagrees with mjx-sml",
+            );
+        }
+
+        // The fallback constant is the encoder's own answer for the last column, not a second
+        // spelling of it.
+        assert_eq!(
+            LAST_COLUMN_LETTERS,
+            column_letters(LAST_COLUMN_INDEX)
+                .expect("the last column is in the grid")
+                .as_str(),
+        );
+        // A series past the grid has no column, so it names the last one there is. Such a chart has
+        // no workbook either — `push_row` refuses the same column — so no file is written from it.
+        assert_eq!(
+            series_column(usize::from(LAST_COLUMN_INDEX) + 1),
+            LAST_COLUMN_LETTERS,
+        );
+    }
+
+    /// The formula's shape, so a change to the encoder cannot quietly change the wire text.
+    #[test]
+    fn a_value_formula_names_the_range_the_workbook_fills() {
+        assert_eq!(value_formula(0, 3), "Sheet1!$B$2:$B$4");
+        assert_eq!(value_formula(1, 3), "Sheet1!$C$2:$C$4");
+    }
 }
