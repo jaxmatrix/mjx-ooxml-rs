@@ -566,9 +566,27 @@ For a rendering engine claiming parity, this is the single most important instru
 and it is a **foundational ticket, not a later one**. Building the engine for a year and *then*
 asking how close it is would be the defining mistake available here.
 
-- **Reference rendering**: render each fixture with LibreOffice to PNG — the repo already runs
-  LibreOffice as a CI canary, so the dependency exists — and where possible real Office on a Windows
-  runner, which is the only ground truth that actually counts.
+- **The reference is PowerPoint itself, not LibreOffice.** LibreOffice is installed and is a useful
+  *change detector* — it catches "this used to render and now doesn't", headlessly, in CI — but it is
+  not ground truth and must never be described as parity. Parity is judged against real Office, on
+  Windows, in a human-run offline pass that produces committed artefacts. (Office licensing generally
+  forbids datacentre use, so this is not a CI job, and that is simpler.)
+- **Baselines carry provenance and an authority flag.** One approved against a non-authoritative
+  reference is **provisional** and must be re-adjudicated when the authoritative one arrives.
+  Silently keeping LibreOffice-approved baselines would *ratify its rendering quirks into the ledger*
+  — worse than having no reference at all, because it looks like parity.
+- **"Pixel perfect" is only coherent through PDF.** Our screen render can never be pixel-identical to
+  PowerPoint's — different rasterisers, hinting and antialiasing differ even when layout is exactly
+  right. So both sides export to PDF, and the comparison has two tiers: a **layout tier**
+  (`pdftotext -bbox-layout` gives word bounding boxes — exact, rasteriser-independent, and it names
+  the word that moved) and a **pixel tier** (`pdftoppm` rasterises *both* PDFs with *one* rasteriser,
+  so a remaining difference is a real one). PowerPoint's PDF export carries its own layout decisions —
+  glyph positions, line breaks, autofit scale — which is precisely the ground truth wanted. It is
+  still a proxy for its screen rendering, and saying so is what keeps the ledger honest.
+- **Plan the Windows pass once, for both programmes.** The concurrent epic records its
+  Office-authored fixture corpus as empty and unowned — "the programme's deepest weakness; nothing
+  here has ever read a file real Microsoft Office wrote". One session authors fixture *files* for
+  that and exports reference *PDFs* for this.
 - **Perceptual diffing** with a structural metric and a per-fixture tolerance, not a byte compare.
   Every fixture carries a committed baseline; a regression fails CI with the diff image attached.
 - **The `SkiaPainter` is what makes this affordable** — golden images render headlessly, in CI, with
