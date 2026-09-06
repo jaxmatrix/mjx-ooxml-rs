@@ -28,6 +28,32 @@
 //! a caller does not count against the measure. Deciding what to do with that tail is the box
 //! model's; deciding which characters may form it is this crate's.
 //!
+//! # What `LineBreakOptions::default()` is, and why it is plain UAX #14 (MJXOFF-160)
+//!
+//! Until MJXOFF-160 the `Default` turned **both** East Asian rules on, and
+//! [`KinsokuRules::japanese_standard`]'s hangable set contains the ASCII comma and full stop as well
+//! as the ideographic ones. The consequence was that a caller who said nothing got the Japanese
+//! answer for an English paragraph: a line-final `.` did not count against the measure, so every
+//! sentence-ending line was allowed to run a fraction of an em long.
+//!
+//! Two questions were tangled together there, and they have different kinds of answer.
+//!
+//! * **Should ASCII `,` and `.` be in the Japanese hangable set at all?** In a Japanese paragraph
+//!   with `w:overflowPunct` on, ASCII punctuation is used and Word does hang it — but *exactly*
+//!   which characters, and whether a Latin paragraph in the same document is treated the same way,
+//!   is a measurement against Word rather than something the specification states. That question is
+//!   **not answered here**; it is MJXOFF-155 §9's Windows/PowerPoint reference pass, and the set is
+//!   left exactly as it was.
+//! * **Should a caller who said nothing get those rules?** That one needs no measurement. Both flags
+//!   are named for *document settings* — `w:kinsoku` and `w:overflowPunct` — and a document that
+//!   carries neither has not asked for either. A `Default` that silently enables two settings the
+//!   document did not write is not a default, it is a hidden policy, and it is one that changes
+//!   where every English line breaks.
+//!
+//! So `Default` is now [`LineBreakOptions::unicode_only`], and the Japanese answer has a name of its
+//! own: [`LineBreakOptions::japanese_typesetting`]. A box model reading a real document sets both
+//! flags from what the document says and never relies on either.
+//!
 //! # This is line breaking, not layout
 //!
 //! [`LineBreaker::next_line`] chooses **where a line ends**, given a measure and a function that
@@ -92,7 +118,16 @@ const JAPANESE_STANDARD_PROHIBITED_AT_LINE_END: &str =
     concat!("$([{£¥‘“", "〈《「『【〔〝", "＄（［｛￡￥",);
 
 /// The characters `w:overflowPunct` lets extend past the measure: the ideographic and fullwidth
-/// comma and full stop, and their halfwidth forms.
+/// comma and full stop, their halfwidth forms, **and the ASCII comma and full stop**, which a
+/// Japanese paragraph also uses.
+///
+/// The last two are why this set is reachable only through
+/// [`LineBreakOptions::japanese_typesetting`] and never through `Default`: they are the characters
+/// an English sentence ends with, and hanging them in a Latin paragraph nobody asked about is a
+/// silent policy rather than a default. Whether Word hangs an ASCII full stop in a *Japanese*
+/// paragraph, and whether it treats a Latin paragraph in the same document differently, is a
+/// measurement against Word and not a reading of the specification — MJXOFF-155 §9's reference pass
+/// — so the set itself is left exactly as JIS X 4051 and Word's own behaviour were transcribed.
 const JAPANESE_HANGING_PUNCTUATION: &str = "、。，．｡､,.";
 
 impl KinsokuRules {
@@ -162,35 +197,53 @@ impl Default for KinsokuRules {
 }
 
 /// What the document says about line breaking.
+///
+/// Both flags name a document setting, so both are **off** by default and a caller states what the
+/// document said. See the module documentation for why that is the default rather than Word's
+/// Japanese answer.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct LineBreakOptions {
-    /// `w:kinsoku` — whether the East Asian prohibitions apply on top of UAX #14. Word's default is
-    /// on, and turning it off is what a document does to get plain UAX #14 behaviour.
+    /// `w:kinsoku` — whether the East Asian prohibitions apply on top of UAX #14. Word turns this on
+    /// for a Japanese document; a document that does not write the setting has not asked for it.
     pub east_asian_rules: bool,
     /// `w:overflowPunct` — whether trailing punctuation may extend past the measure.
     pub hanging_punctuation: bool,
-    /// Which characters the two above are decided by.
+    /// Which characters the two above are decided by. Consulted only when one of them is on, so a
+    /// paragraph with both off is unaffected by what is in it.
     pub kinsoku: KinsokuRules,
 }
 
 impl Default for LineBreakOptions {
+    /// Plain UAX #14 — [`LineBreakOptions::unicode_only`].
     fn default() -> Self {
-        Self {
-            east_asian_rules: true,
-            hanging_punctuation: true,
-            kinsoku: KinsokuRules::default(),
-        }
+        Self::unicode_only()
     }
 }
 
 impl LineBreakOptions {
-    /// Plain UAX #14, with nothing layered on it — what `w:kinsoku` switched off means.
+    /// Plain UAX #14, with nothing layered on it — what a document that writes neither `w:kinsoku`
+    /// nor `w:overflowPunct` asked for, and what `w:kinsoku` switched off means.
     #[must_use]
     pub fn unicode_only() -> Self {
         Self {
             east_asian_rules: false,
             hanging_punctuation: false,
             kinsoku: KinsokuRules::default(),
+        }
+    }
+
+    /// Japanese typesetting: JIS X 4051's *kinsoku* prohibitions **and** hanging punctuation, over
+    /// [`KinsokuRules::japanese_standard`] — what Word does for a document that writes `w:kinsoku`
+    /// and `w:overflowPunct`.
+    ///
+    /// Named rather than defaulted, because these are two document settings and a caller that has
+    /// not read a document has not seen them. See the module documentation.
+    #[must_use]
+    pub fn japanese_typesetting() -> Self {
+        Self {
+            east_asian_rules: true,
+            hanging_punctuation: true,
+            kinsoku: KinsokuRules::japanese_standard(),
         }
     }
 }
@@ -268,9 +321,12 @@ impl<'a> LineBreaker<'a> {
     /// number per character because the width of a slice is a *shaped* width, and only the caller
     /// has the face and the cache to compute one.
     ///
-    /// A mandatory break inside the measure always wins. When nothing fits, the first opportunity
-    /// past the measure is taken and the result says [`LineBreakKind::Overflowing`], because a line
-    /// with no text on it would never terminate.
+    /// A **hard** break in the text — a line feed, `U+2028`, a paragraph separator — always wins,
+    /// whatever the measure says. The end of the text is not one of those, even though UAX #14
+    /// reports it as mandatory: it is measured like any other candidate, so a paragraph's last line
+    /// obeys the same measure as every line before it. When nothing fits, the first opportunity past
+    /// the measure is taken and the result says [`LineBreakKind::Overflowing`], because a line with
+    /// no text on it would never terminate.
     pub fn next_line(
         &self,
         from: usize,
@@ -292,18 +348,22 @@ impl<'a> LineBreaker<'a> {
             .copied()
             .filter(|opportunity| opportunity.at > from)
         {
-            if opportunity.kind == BreakKind::Mandatory {
-                // UAX #14 reports the end of the text as a mandatory break, because there is
-                // nothing after it to break before. That is not a *hard* break in the text, and a
-                // caller that treated it as one would draw a paragraph mark that is not there.
-                let kind = if opportunity.at >= self.text.len() {
-                    LineBreakKind::EndOfText
-                } else {
-                    LineBreakKind::Mandatory
-                };
+            // UAX #14 reports the end of the text as a mandatory break, because there is nothing
+            // after it to break before. That is not a *hard* break in the text, and it must **not**
+            // be taken unconditionally: doing so was MJXOFF-158's one defect, found by MJXOFF-160.
+            // A paragraph whose last word does not fit — `"a bbbbbbbbbbbbbbbbbbbb"` against a
+            // measure of five, with an opportunity at byte 2 that fits — returned the whole
+            // twenty-two characters as one line, because the loop reached the end sentinel and
+            // returned before ever measuring it. Every paragraph's *last* line was exempt from its
+            // own measure. The sentinel is therefore an ordinary candidate, and the `best` and
+            // `None` arms below already give it the right [`LineBreakKind::EndOfText`].
+            //
+            // A real hard break — a line feed, `U+2028`, a paragraph separator — is still taken
+            // whatever the measure says, because no rule may take one away.
+            if opportunity.kind == BreakKind::Mandatory && opportunity.at < self.text.len() {
                 return LineBreak {
                     end: opportunity.at,
-                    kind,
+                    kind: LineBreakKind::Mandatory,
                     hanging: self.hanging_tail(from..opportunity.at),
                 };
             }

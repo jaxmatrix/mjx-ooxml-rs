@@ -218,7 +218,16 @@ impl<'a> ShapingRequest<'a> {
 /// Cheap to clone: the glyphs sit behind an [`Arc`] the cache also holds, so a cache hit and the run
 /// it was shaped from share one allocation. [`ShapedRun::shares_glyphs_with`] is how a caller — or a
 /// test — can tell that they did.
-#[derive(Clone, Debug)]
+///
+/// # Equality is by value, identity is by [`ShapedRun::shares_glyphs_with`]
+///
+/// Two runs are equal when they carry the same glyphs at the same size in the same direction against
+/// the same em square, whether or not they came from the same shaping call. The distinction matters
+/// and both halves are needed: `mjx-layout` proves that resuming a page from a checkpoint produces
+/// the *same fragments* as laying the pages out in order, which is a question about values — the two
+/// runs are shaped by two different calls and must still compare equal — while the shaped-run
+/// cache's own gate is a question about identity. Added in MJXOFF-160 for the first of those.
+#[derive(Clone, PartialEq, Debug)]
 pub struct ShapedRun {
     glyphs: Arc<[ShapedGlyph]>,
     units_per_em: u16,

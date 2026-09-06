@@ -81,6 +81,14 @@ enum Tier {
     /// font *engine* is this, and the two meet above both. Its edges are what first exercise
     /// `mjx-tokens`'s tier.
     Typography,
+    /// `mjx-layout` — rank 1.6 (MJXOFF-160). The box model contract: the `BoxModel` trait, the
+    /// `FragmentTree` every box model produces, the checkpoint that makes flow layout resumable and
+    /// the spatial index that makes a hit test a query. It sits one step above `mjx-text`, which it
+    /// calls to measure text, and **below shared markup**, which is the whole point: `FragmentTree`
+    /// is the seam above which nothing has heard of OOXML, so a crate that may not name a
+    /// `.docx` must sit where it cannot reach one. Swapping the box model for a CSS or Markdown one
+    /// is what this rank buys.
+    BoxModel,
     /// `mjx-dml` — rank 2.0, the base of shared markup: every other markup crate may reach it.
     SharedMarkupBase,
     /// `mjx-sml` — rank 2.1. SpreadsheetML is shared markup because an embedded workbook is
@@ -130,6 +138,7 @@ impl Tier {
             Self::FoundationsTokens => Rank(0, 2),
             Self::Packaging => Rank(1, 0),
             Self::Typography => Rank(1, 5),
+            Self::BoxModel => Rank(1, 6),
             Self::SharedMarkupBase => Rank(2, 0),
             Self::SharedMarkupSpreadsheet => Rank(2, 1),
             Self::SharedMarkupUpper => Rank(2, 2),
@@ -150,6 +159,7 @@ impl Tier {
             Self::FoundationsTokens => "foundations, design tokens",
             Self::Packaging => "packaging/compatibility",
             Self::Typography => "typography",
+            Self::BoxModel => "box model",
             Self::SharedMarkupBase => "shared markup, base",
             Self::SharedMarkupSpreadsheet => "shared markup, spreadsheet",
             Self::SharedMarkupUpper => "shared markup, upper",
@@ -184,6 +194,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-opc", Tier::Packaging),
     ("mjx-mce", Tier::Packaging),
     ("mjx-text", Tier::Typography),
+    ("mjx-layout", Tier::BoxModel),
     ("mjx-dml", Tier::SharedMarkupBase),
     ("mjx-sml", Tier::SharedMarkupSpreadsheet),
     ("mjx-chart", Tier::SharedMarkupUpper),
@@ -408,6 +419,7 @@ fn every_dependency_points_strictly_downward() {
         "foundations, XML",
         "packaging/compatibility",
         "typography",
+        "box model",
         "shared markup, base",
         "shared markup, spreadsheet",
         "shared markup, upper",
@@ -425,6 +437,7 @@ fn every_dependency_points_strictly_downward() {
         "foundations, XML",
         "foundations, design tokens",
         "packaging/compatibility",
+        "typography",
         "shared markup, base",
         "shared markup, spreadsheet",
         "shared markup, upper",

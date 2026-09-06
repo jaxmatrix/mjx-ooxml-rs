@@ -17,6 +17,12 @@ members = [
     # the packaging tier and below shared markup because it has never heard of OOXML: it answers
     # "which face, and what are its numbers", and a `.pptx` is not one of its inputs.
     "crates/mjx-text",
+    # The box model contract — rank 1.6 (MJXOFF-160). The `BoxModel` trait, the `FragmentTree` every
+    # box model produces, the checkpoint that makes flow layout resumable and the spatial index that
+    # makes a hit test a query. It sits above `mjx-text`, which it calls to measure text, and below
+    # shared markup, because **no OOXML type may appear in its public API**: that is the seam the
+    # whole client platform is organised around, and `xtask/tests/layering.rs` is what holds it.
+    "crates/mjx-layout",
     "crates/mjx-dml",
     # `mjx-sml` sits *beside* `mjx-dml` and *beneath* `mjx-chart` — shared markup, rank 2.1. An
     # embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx`, so the markup is shared even
@@ -64,7 +70,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.125"
+version = "0.0.126"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -134,6 +140,7 @@ mjx-ooxml-types = { path = "crates/mjx-ooxml-types" }
 mjx-opc = { path = "crates/mjx-opc" }
 mjx-mce = { path = "crates/mjx-mce" }
 mjx-text = { path = "crates/mjx-text" }
+mjx-layout = { path = "crates/mjx-layout" }
 mjx-dml = { path = "crates/mjx-dml" }
 mjx-sml = { path = "crates/mjx-sml" }
 mjx-omml = { path = "crates/mjx-omml" }

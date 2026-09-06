@@ -1,0 +1,39 @@
+[package]
+name = "mjx-layout"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The box model contract: the BoxModel trait, the FragmentTree every box model produces, the checkpoint that makes flow layout resumable, and the spatial index that makes a hit test a query."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. `Emu` and `Angle` — the unit every fragment in this crate is positioned in. They lived in
+# `mjx-dml` until MJXOFF-160 and were lifted to the floor of the graph rather than duplicated here,
+# because this crate may not depend on `mjx-dml` (rank 2.0) and a second `Emu` in one workspace is
+# exactly the defect the layering rule exists to prevent.
+mjx-ooxml-core.workspace = true
+# Rank 1.5 (MJXOFF-158/159). This crate *calls* the text engine and never re-implements measurement:
+# shaping, bidirectional resolution, itemisation, line breaking and face metrics all come from there.
+# `crate::text` is the whole of the coupling.
+mjx-text.workspace = true
+thiserror.workspace = true
+
+# `mjx-tokens` (rank 0.2) is deliberately NOT a dependency, and this is a decision rather than an
+# omission. A design token names something a reader sees — a selection handle's colour, a gridline's
+# weight, the chrome's type — and `docs/UI_PLATFORM_PLAN.md` §4 L0 lists exactly those consumers:
+# the in-canvas UI (R07), the painter (R08) and the shell. Nothing in a *box model* is themed: a
+# document's own geometry, faces and colours come from the document. Declaring the edge anyway would
+# put a dependency with no call site into the shipped graph, which is the "produced, exported, never
+# read" pattern MJXOFF-155 §8 lists, one level up from a symbol. The rank ladder still places this
+# crate at 1.6, above `mjx-tokens` at 0.2, so the edge is legal the day something here has a reason
+# to read a token.
+
+# The bundled tier-2 faces `mjx-text` commits under `assets/fonts/` are reached by the test suites
+# through a path relative to this crate's manifest, so they need no dev-dependency of their own; a
+# test target already sees everything in `[dependencies]`. `thiserror` is there for the same reason:
+# the second box model in `tests/support/plain_text.rs` has a typed error like any real one would.
