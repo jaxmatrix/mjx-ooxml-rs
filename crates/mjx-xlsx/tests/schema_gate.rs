@@ -571,57 +571,91 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
 /// The rows are built here rather than found in the corpus, deliberately: no committed `.xlsx`
 /// produces an `Uncategorised` or a `SkippedPreservedForeign` under `xl/` — that is the point of the
 /// guard — so a case that only swept the corpus would prove the rule holds where it is never tested.
+///
+/// **MJXOFF-133 found this case one-sided and widened it.** See the comment at the top of the body:
+/// every row it authored was named `drawing1.xml` in the DrawingML namespace, so a widening scoped
+/// to *any* of the twelve preserved part kinds MJXOFF-133 added under `xl/` slipped past it
+/// untouched. Each shape now runs in two disguises.
 #[test]
 fn the_rule_still_rejects_every_shape_of_false_green() {
-    let row = |outcome| PartRow {
-        name: "/xl/drawings/drawing1.xml".to_owned(),
-        root_element: Some("xdr:wsDr".to_owned()),
-        namespace: Some(
-            "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing".to_owned(),
+    // Three *shapes* of row, each in **two disguises**. The disguise matters: MJXOFF-133 mutated the
+    // rule to swallow anything whose part name or content type said "pivot", and every case here
+    // stayed green — because every row was named `drawing1.xml` in the DrawingML namespace, so the
+    // pivot-shaped arm never executed. Proved, not assumed: the arm was instrumented to panic and
+    // the suite was still green. A guard whose witnesses all wear one costume tests one costume.
+    //
+    // MJXOFF-133 added a dozen part kinds under `xl/` — a pivot cache, an external link, a revision
+    // log, an XML map. Any of them is a plausible target for the next narrow widening, so the second
+    // disguise is one of them.
+    const DISGUISES: &[(&str, &str, &str)] = &[
+        (
+            "/xl/drawings/drawing1.xml",
+            "xdr:wsDr",
+            "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing",
         ),
-        outcome,
-    };
-
-    // 1. A namespace on no list at all — the original false green, and MJXOFF-107's (E3) namespace.
-    let uncategorised = row(PartOutcome::Uncategorised {
-        namespace: Some(
-            "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing".to_owned(),
+        (
+            "/xl/pivotCache/pivotCacheDefinition1.xml",
+            "pivotCacheDefinition",
+            "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
         ),
-    });
-    let reason = account_for_part_under_xl(&uncategorised).expect_err("must still be rejected");
-    assert!(
-        reason.contains("was not validated at all") && reason.contains("UNCATEGORISED"),
-        "the rejection must say what happened: {reason}"
-    );
+    ];
 
-    // 2. A namespace with a *reason* but no schema arm — still a skip, still rejected under xl/.
-    let foreign = row(PartOutcome::SkippedPreservedForeign {
-        namespace: Some("urn:example:preserved".to_owned()),
-        label: "a made-up preserved vocabulary",
-        reason: "authored by this test",
-    });
-    assert!(
-        account_for_part_under_xl(&foreign).is_err(),
-        "a part skipped for want of a schema arm is the false green this rule exists to catch"
-    );
+    for (name, root_element, namespace) in DISGUISES {
+        let row = |outcome| PartRow {
+            name: (*name).to_owned(),
+            root_element: Some((*root_element).to_owned()),
+            namespace: Some((*namespace).to_owned()),
+            outcome,
+        };
 
-    // 3. A binary payload nobody has written a reason for — the shape the widening must NOT admit.
-    let unexplained = row(PartOutcome::SkippedBinary(
-        "application/vnd.ms-excel.something".to_owned(),
-    ));
-    let reason = account_for_part_under_xl(&unexplained).expect_err("must be rejected");
-    assert!(
-        reason.contains("NON_XML_CONTENT_TYPES_UNDER_XL"),
-        "the rejection must say how to fix it: {reason}"
-    );
-
-    // …and the two the widening does admit, so this case cannot pass by rejecting everything.
-    for (content_type, _) in NON_XML_CONTENT_TYPES_UNDER_XL {
-        let accepted = row(PartOutcome::SkippedBinary((*content_type).to_owned()));
+        // 1. A namespace on no list at all — the original false green, and MJXOFF-107's (E3)
+        //    namespace.
+        let uncategorised = row(PartOutcome::Uncategorised {
+            namespace: Some((*namespace).to_owned()),
+        });
+        let reason = account_for_part_under_xl(&uncategorised).expect_err("must still be rejected");
         assert!(
-            account_for_part_under_xl(&accepted).is_ok(),
-            "{content_type} is on the allowlist and must be accepted"
+            reason.contains("was not validated at all") && reason.contains("UNCATEGORISED"),
+            "{name}: the rejection must say what happened: {reason}"
         );
+
+        // 2. A namespace with a *reason* but no schema arm — still a skip, still rejected under xl/.
+        let foreign = row(PartOutcome::SkippedPreservedForeign {
+            namespace: Some("urn:example:preserved".to_owned()),
+            label: "a made-up preserved vocabulary",
+            reason: "authored by this test",
+        });
+        assert!(
+            account_for_part_under_xl(&foreign).is_err(),
+            "{name}: a part skipped for want of a schema arm is the false green this rule exists to \
+             catch"
+        );
+
+        // 3. A binary payload nobody has written a reason for — the shape a widening must NOT admit.
+        //    Two of them: one generic, and one whose content type names a preserved cluster, so that
+        //    a widening scoped to that cluster is caught rather than sailing past.
+        for unexplained_content_type in [
+            "application/vnd.ms-excel.something",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.pivotCacheRecords",
+        ] {
+            let unexplained = row(PartOutcome::SkippedBinary(
+                unexplained_content_type.to_owned(),
+            ));
+            let reason = account_for_part_under_xl(&unexplained).expect_err("must be rejected");
+            assert!(
+                reason.contains("NON_XML_CONTENT_TYPES_UNDER_XL"),
+                "{name}: the rejection must say how to fix it: {reason}"
+            );
+        }
+
+        // …and the ones the widening does admit, so this case cannot pass by rejecting everything.
+        for (content_type, _) in NON_XML_CONTENT_TYPES_UNDER_XL {
+            let accepted = row(PartOutcome::SkippedBinary((*content_type).to_owned()));
+            assert!(
+                account_for_part_under_xl(&accepted).is_ok(),
+                "{content_type} is on the allowlist and must be accepted"
+            );
+        }
     }
 }
 

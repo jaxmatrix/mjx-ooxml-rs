@@ -4,9 +4,9 @@
 //! The entry point is [`Workbook`]: open a `.xlsx`'s container bytes with [`Workbook::open`], read
 //! its tabs with [`Workbook::sheets`] and its part graph with [`Workbook::parts`], and save with
 //! [`Workbook::save`]. A worksheet's cells are read with [`Workbook::worksheet_markup`] and one is
-//! written with [`Workbook::set_cell_value`]. Everything this crate does not model — which is still
-//! most of a workbook, fourteen of `CT_Worksheet`'s thirty-nine slots included — is preserved
-//! verbatim by the OPC copy-on-write layer.
+//! written with [`Workbook::set_cell_value`]. Everything this crate does not model — eight of
+//! `CT_Worksheet`'s thirty-nine slots, and the nine `sml.xsd` clusters [`Workbook::preserved_parts`]
+//! names — is preserved verbatim by the OPC copy-on-write layer.
 //!
 //! ```no_run
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,6 +50,17 @@
 //! of the tier is that **a hyperlink and its relationship are one thing**: the entry is in the
 //! worksheet and an external target is in the sheet's `.rels`, and neither half is written or
 //! removed without the other.
+//!
+//! MJXOFF-133 (D18) adds the identification surface over the **half of `sml.xsd` this project
+//! deliberately does not model** — pivot tables and their caches, external links, connections,
+//! query tables, XML maps, cell metadata, volatile dependencies, single-cell tables and the
+//! shared-workbook revision parts, 184 of `sml.xsd`'s 367 complex types between them.
+//! [`Workbook::preserved_parts`] inventories them, [`Workbook::pivot_tables`],
+//! [`Workbook::external_links`], [`Workbook::connections`], [`Workbook::query_tables`],
+//! [`Workbook::xml_maps`] and [`Workbook::revision_state`] report what each says, and **not one of
+//! them is modelled**: see `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md` for the
+//! cluster-by-cluster table and [`mjx_sml::preserved`] for why the pivot cluster is a phase of its
+//! own rather than a gap.
 
 mod authoring;
 mod blank;
@@ -63,12 +74,16 @@ mod workbook;
 mod worksheet;
 
 pub use error::XlsxError;
-pub use parts::{PartKind, SheetKind, WorkbookParts, WorksheetParts};
+pub use parts::{
+    PartKind, PivotCacheParts, PivotTableParts, RevisionHeadersParts, SheetKind, WorkbookParts,
+    WorksheetParts,
+};
 pub use preserve::{PartClassification, PartInventoryEntry};
 pub use validate::SpreadsheetDefect;
 pub use workbook::{
-    CalculationSettings, DateSystem, DefinedNameEntry, DefinedNameScope, Sheet, Workbook,
-    WorkbookWindow,
+    CalculationSettings, DateSystem, DefinedNameEntry, DefinedNameScope, PreservedParts,
+    RevisionState, Sheet, SheetPivotTable, SheetQueryTable, Workbook, WorkbookConnection,
+    WorkbookExternalLink, WorkbookWindow, WorkbookXmlMaps,
 };
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};

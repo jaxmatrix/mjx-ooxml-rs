@@ -71,16 +71,19 @@ use mjx_xml::fidelity;
 use crate::error::XlsxError;
 use crate::nav;
 use crate::parts::{
-    SheetKind, CONTENT_TYPE_CHARTSHEET, CONTENT_TYPE_DIALOGSHEET, CONTENT_TYPE_TABLE,
-    CONTENT_TYPE_WORKSHEET, REL_HYPERLINK, REL_IMAGE, REL_OFFICE_DOCUMENT, REL_PRINTER_SETTINGS,
+    SheetKind, CONTENT_TYPE_CHARTSHEET, CONTENT_TYPE_DIALOGSHEET, CONTENT_TYPE_EXTERNAL_LINK,
+    CONTENT_TYPE_PIVOT_CACHE_DEFINITION, CONTENT_TYPE_TABLE, CONTENT_TYPE_WORKSHEET, REL_HYPERLINK,
+    REL_IMAGE, REL_OFFICE_DOCUMENT, REL_PRINTER_SETTINGS,
 };
 
 /// The content-type prefix every SpreadsheetML part shares.
 ///
 /// Used by [`SpreadsheetDefect::UnreachableSpreadsheetPart`]'s check to pick out the family whose
 /// only consumer is the workbook graph. Matching on the prefix rather than on [`PartKind`]'s own
-/// list is deliberate: a SpreadsheetML part this crate does not classify (a revision log, a shared
-/// workbook's user names) is still one nothing but the workbook can reach.
+/// list is deliberate, and MJXOFF-133 did not change that: the enum now names every §12.3 part
+/// type, but the prefix still covers a `.xlsm`'s macro-enabled workbook, a producer's own
+/// `spreadsheetml.*` extension part, and anything a later edition of the specification adds — none
+/// of which this crate classifies and all of which only the workbook can reach.
 const SPREADSHEETML_CONTENT_TYPE_PREFIX: &str =
     "application/vnd.openxmlformats-officedocument.spreadsheetml.";
 
@@ -122,6 +125,39 @@ pub enum SpreadsheetDefect {
         part: String,
         /// Its content type.
         content_type: String,
+    },
+
+    /// A `x:pivotCache` or `x:externalReference` entry of the workbook part naming a relationship
+    /// that leads to a part of the wrong kind.
+    ///
+    /// The direction packaging cannot see, for the two lists in `CT_Workbook`'s sequence that point
+    /// *outward* at parts. A `pivotCaches/pivotCache@r:id` that leads to a shared string table is a
+    /// workbook whose pivot tables will not load, and §12.3.12 is explicit about what the target of
+    /// that relationship is; the forward direction — an `r:id` no relationship declares — is
+    /// [`PackageDefect::UndeclaredRelationshipReference`](mjx_opc::PackageDefect::UndeclaredRelationshipReference),
+    /// already reported over the same set of parts, and restating it here would be a second,
+    /// drifting implementation of one rule.
+    ///
+    /// The parts themselves are preserved and not modelled — see [`crate::preserve`] — which is
+    /// precisely why the *edges* to them are checked: nothing else in this library would ever
+    /// notice one going stale.
+    #[error(
+        "{part}: {element} names relationship {relationship_id}, which targets {target_part} of \
+         type {actual_content_type} — not {expected_content_type}"
+    )]
+    WorkbookReferenceTargetIsWrongKind {
+        /// The part holding the list (the workbook part).
+        part: String,
+        /// The wire name of the entry element — `pivotCache` or `externalReference`.
+        element: &'static str,
+        /// The relationship the entry names.
+        relationship_id: String,
+        /// The part that relationship targets.
+        target_part: String,
+        /// The content type that target actually has.
+        actual_content_type: String,
+        /// The content type §12.3 requires for that entry's target.
+        expected_content_type: &'static str,
     },
 
     /// A `x:sheet` entry naming a relationship that leads to something that is not a sheet.
@@ -327,6 +363,7 @@ pub(crate) fn check(package: &Package, workbook_part: &PartName) -> Result<(), X
     check_office_document_edge(package, workbook_part)?;
     check_spreadsheet_parts_are_reachable(package)?;
     check_sheet_list(package, workbook_part)?;
+    check_workbook_reference_targets(package, workbook_part)?;
     check_table_part_targets(package)?;
     check_table_identity(package)?;
     check_hyperlink_relationships(package)?;
@@ -376,6 +413,93 @@ fn part_tree<'a>(package: &'a Package, part: &PartName) -> Option<PartTree<'a>> 
     fidelity::parse(bytes)
         .ok()
         .map(|tree| PartTree::Parsed(Box::new(tree)))
+}
+
+/// The two lists in `CT_Workbook`'s sequence that point outward at parts —
+/// `x:pivotCaches/pivotCache` (rank 12) and `x:externalReferences/externalReference` (rank 7) —
+/// each name a relationship leading to a part of the kind §12.3 requires.
+///
+/// Scoped to [`Package::authored_xml_parts`](mjx_opc::Package::authored_xml_parts), like every other
+/// markup check here: a workbook opened and saved untouched is never faulted for markup it arrived
+/// with. `check_table_part_targets` is the same shape for a worksheet's `tableParts`, and this is
+/// deliberately written as one loop over two entry kinds rather than as two nearly identical
+/// functions.
+fn check_workbook_reference_targets(
+    package: &Package,
+    workbook_part: &PartName,
+) -> Result<(), XlsxError> {
+    /// One list in `CT_Workbook`'s sequence: the wrapper, the entry, and what the entry must reach.
+    const LISTS: &[(&str, &str, &str)] = &[
+        (
+            "pivotCaches",
+            "pivotCache",
+            CONTENT_TYPE_PIVOT_CACHE_DEFINITION,
+        ),
+        (
+            "externalReferences",
+            "externalReference",
+            CONTENT_TYPE_EXTERNAL_LINK,
+        ),
+    ];
+
+    if !package
+        .authored_xml_parts()
+        .any(|(part, _)| part == *workbook_part)
+    {
+        return Ok(()); // Container bytes: not ours to fault. See this module's own docs.
+    }
+    let Some(tree) = part_tree(package, workbook_part) else {
+        return Ok(());
+    };
+    let tree = tree.get();
+    let interner = &tree.interner;
+    let Some(prefix) = nav::namespace_prefix(&tree.root, interner, SHARED_RELATIONSHIP_REFERENCE)
+    else {
+        // The part binds the relationship-reference namespace nowhere, so no entry in it can carry
+        // an `r:id` at all. Both types declare one required; that is a schema defect the gate
+        // reports and this check does not restate.
+        return Ok(());
+    };
+    let Some(relationships) = package.relationships_for(Some(workbook_part)) else {
+        return Ok(());
+    };
+
+    for (wrapper, element, expected_content_type) in LISTS {
+        let Some(list) = nav::child(&tree.root, interner, SML, wrapper) else {
+            continue;
+        };
+        for entry in nav::children(list, interner, SML, element) {
+            let Some(reference) = nav::prefixed_attr_value(entry, interner, prefix, "id") else {
+                continue;
+            };
+            let reference = reference?;
+            let Some(rel) = relationships.by_id(&reference) else {
+                continue; // Undeclared: reported one layer down, as a dangling reference.
+            };
+            if rel.mode == TargetMode::External {
+                continue; // An external target has no content type to compare against.
+            }
+            let Ok(target) = nav::resolve_target(workbook_part, &rel.target) else {
+                continue; // `mjx-opc`'s defect to report.
+            };
+            let Some(actual) = package.content_type_of(&target) else {
+                continue; // A target with no content type is `mjx-opc`'s defect to report.
+            };
+            if actual == *expected_content_type {
+                continue;
+            }
+            return Err(SpreadsheetDefect::WorkbookReferenceTargetIsWrongKind {
+                part: workbook_part.as_str().to_owned(),
+                element,
+                relationship_id: reference,
+                target_part: target.as_str().to_owned(),
+                actual_content_type: actual.to_owned(),
+                expected_content_type,
+            }
+            .into());
+        }
+    }
+    Ok(())
 }
 
 /// Every `x:tablePart` of every worksheet **this library will write** names a relationship that
@@ -909,8 +1033,12 @@ mod tests {
     /// [`SpreadsheetDefect::UnreachableSpreadsheetPart`] is about.
     ///
     /// A test helper, not part of the check: the check works from the content-type *prefix* so that
-    /// a SpreadsheetML part this crate does not classify (a revision log, a shared workbook's user
-    /// names) is covered too. This is what pins the two descriptions against each other.
+    /// a SpreadsheetML part this crate does not classify is covered too. This is what pins the two
+    /// descriptions against each other.
+    ///
+    /// `.all()` on an empty slice is `true`, and no kind has an empty content-type list — every one
+    /// of the twenty-seven declares at least one, which `every_kind_round_trips_through_its_own_content_types`
+    /// asserts — so there is no kind this quietly answers `true` for by vacuity.
     fn is_spreadsheetml_part_kind(kind: PartKind) -> bool {
         kind.content_types()
             .iter()
@@ -1163,16 +1291,27 @@ mod tests {
     }
 
     /// Every SpreadsheetML [`PartKind`] is inside the content-type family the reachability check
-    /// uses, and the three non-SpreadsheetML ones are outside it.
+    /// uses, and the four outside it are outside it.
     ///
     /// Pins the prefix against the constants rather than restating it: a content type that drifted
     /// out of the family would silently stop being covered.
+    ///
+    /// [`PartKind::CustomXmlMappings`] is the fourth, and it is outside the family for a reason
+    /// worth stating rather than patching around: §12.3.6 gives that part the content type
+    /// `application/xml`, which is not a SpreadsheetML content type at all. So `xl/xmlMaps.xml` is
+    /// **not** covered by [`SpreadsheetDefect::UnreachableSpreadsheetPart`] — an unreferenced one is
+    /// dead weight rather than a missing dependency, exactly as `mjx-opc` says of any other
+    /// unreferenced part. Its markup still validates against `sml.xsd`, and its bytes still survive
+    /// a save; see `crates/mjx-xlsx/tests/preserved_parts.rs`.
     #[test]
     fn the_spreadsheetml_family_is_exactly_the_spreadsheetml_kinds() {
         for kind in PartKind::ALL {
             let expected = !matches!(
                 kind,
-                PartKind::Theme | PartKind::Drawing | PartKind::VmlDrawing
+                PartKind::Theme
+                    | PartKind::Drawing
+                    | PartKind::VmlDrawing
+                    | PartKind::CustomXmlMappings
             );
             assert_eq!(
                 is_spreadsheetml_part_kind(*kind),

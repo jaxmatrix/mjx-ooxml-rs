@@ -27,6 +27,7 @@
 //! | [`views`](self::views) | MJXOFF-100 (D06) — [`WorkbookWindow`]: the active tab and the window geometry, decoded |
 //! | [`properties`](self::properties) | MJXOFF-100 (D06) — [`DateSystem`] and [`CalculationSettings`], decoded |
 //! | [`defined_names`](self::defined_names) | MJXOFF-100 (D06) — [`DefinedNameEntry`], with `@localSheetId` resolved against the sheet list |
+//! | [`preserved`](self::preserved) | MJXOFF-133 (D18) — the identification surface over the nine `sml.xsd` clusters this library preserves and does not model: [`PreservedParts`], [`Workbook::pivot_tables`], [`Workbook::external_links`], [`Workbook::connections`], [`Workbook::query_tables`], [`Workbook::xml_maps`], [`Workbook::revision_state`] |
 //!
 //! Beside this directory: [`crate::parts`] (the part graph), [`crate::preserve`] (what happens to a
 //! part nobody models), [`crate::validate`] (the SpreadsheetML invariants), [`crate::worksheet`]
@@ -43,6 +44,7 @@
 //! full.
 
 pub(crate) mod defined_names;
+pub(crate) mod preserved;
 pub(crate) mod properties;
 pub(crate) mod sheets;
 pub(crate) mod views;
@@ -59,6 +61,10 @@ use crate::preserve::PartInventoryEntry;
 use crate::worksheet::Worksheet;
 
 pub use defined_names::{DefinedNameEntry, DefinedNameScope};
+pub use preserved::{
+    PreservedParts, RevisionState, SheetPivotTable, SheetQueryTable, WorkbookConnection,
+    WorkbookExternalLink, WorkbookXmlMaps,
+};
 pub use properties::{CalculationSettings, DateSystem};
 pub use sheets::Sheet;
 pub use views::WorkbookWindow;

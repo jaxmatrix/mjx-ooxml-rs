@@ -54,6 +54,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.119] - 2026-09-06
+
+The half of `sml.xsd` this project deliberately does not model — recognised, reported and proved to
+survive (MJXOFF-133, Phase D position 18).
+
+### Added
+
+- **`mjx_sml::preserved`** — read-only *identity views* over the parts of the nine unmodelled
+  clusters: `PivotTableIdentity` (name, cache id, `CT_Location@ref`), `PivotCacheIdentity` /
+  `PivotCacheSource`, `ExternalLinkIdentity` / `ExternalLinkTarget`, `ConnectionIdentity`,
+  `QueryTableIdentity`, `XmlMapsIdentity` / `XmlMapIdentity`, `RevisionHeadersIdentity` /
+  `RevisionSession`, and `SharedWorkbookUsersIdentity` / `SharedWorkbookUser`. **None of them
+  implements `ToXml`**, so there is no path by which reading one changes a byte — which is the
+  difference between identifying a part and modelling it.
+- **`mjx_xlsx::Workbook::preserved_parts`** and `PreservedParts` — every preserved part of a
+  workbook, resolved from relationships alone with **no markup parsed at all**. Beside it, the typed
+  reports: `pivot_tables`, `external_links`, `connections`, `query_tables`, `xml_maps` and
+  `revision_state`, with `SheetPivotTable`, `WorkbookExternalLink`, `WorkbookConnection`,
+  `SheetQueryTable`, `WorkbookXmlMaps` and `RevisionState`. A caller can ask *"does this workbook
+  have pivot tables, and where are they?"* and get the sheet, the range, the cache and every part
+  name — **without a ninety-seven-type model** behind it.
+- **`mjx_xlsx::PartKind` now names every ECMA-376 Part 1 §12.3 part type** — the six MJXOFF-91 left
+  out are in: `CustomProperty` (§12.3.5), `CustomXmlMappings` (§12.3.6), `RevisionHeaders`
+  (§12.3.16), `RevisionLog` (§12.3.17), `SharedWorkbookUserData` (§12.3.18) and
+  `SingleCellTableDefinitions` (§12.3.19). Twenty-seven kinds in all. **Recognising a part is not
+  modelling it:** every one of them is still carried through a save as the bytes it arrived as.
+- **`PartKind::from_relationship_type`** and `parts::AMBIGUOUS_CONTENT_TYPES`. Two §12.3 part types
+  are not identified by their content type — a Custom Property part carries *"any content, support
+  for which is application-defined"*, and the Custom XML Mappings part carries plain
+  `application/xml`, which in a real package is also the `Default` for every `.xml` part with no
+  `Override`. `preserve::classify` therefore asks the content type first and the relationship graph
+  second, and `from_content_type` refuses to answer from an ambiguous string rather than
+  misidentifying `docProps/custom.xml` as an XML map.
+- **New part-graph edges**: `WorkbookParts::custom_xml_mappings` / `revision_headers` /
+  `shared_workbook_user_data`, `WorksheetParts::custom_properties` /
+  `single_cell_table_definitions`, and the three sub-graphs `PivotTableParts` (a table to its
+  cache), `PivotCacheParts` (a cache to its records) and `RevisionHeadersParts` (the headers part to
+  its logs).
+- **`SpreadsheetDefect::WorkbookReferenceTargetIsWrongKind`** — a `pivotCaches/pivotCache@r:id` or
+  `externalReferences/externalReference@r:id` that leads to a part of the wrong kind. The direction
+  packaging cannot see, for the two lists in `CT_Workbook`'s sequence that point outward at parts:
+  those parts are preserved and unmodelled, which is exactly why nothing else here would notice one
+  going stale.
+- **`tests/fixtures/preserved_parts.xlsx`** — a workbook carrying one part of every cluster at once,
+  and `crates/mjx-xlsx/tests/preserved_parts.rs`, which edits a cell **on the very sheet the pivot
+  table sits on** and compares all fourteen preserved parts against the bytes they went in with.
+  *A part nothing asserts on is a part that silently disappears.*
+
+### Documented
+
+- **The scope decision, in writing.** `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md`
+  carries a cluster-by-cluster table: 184 of `sml.xsd`'s 367 complex types, what "preserved"
+  guarantees, what it does not, and **why** for each. The pivot cluster alone is 97 types — a
+  quarter of the schema — and it is derived data of a calculation model this project does not have:
+  **if it is ever modelled it is a phase of its own**, not a gap for a later child. A documented gap
+  is never a validation failure.
+- **`CT_Worksheet`'s ownership table was stale and is now re-derived from the code.**
+  MJXOFF-129 typed six slots (13, 19–22, 33) without updating
+  `crates/mjx-sml/src/worksheet/frame.rs`'s module table, which still described 25 modelled and 14
+  held. It is **31 modelled and 8 held**, and three of the eight — `phoneticPr` (15),
+  `legacyDrawingHF` (31) and `drawingHF` (32) — belong to no ticket at all, each with the reason it
+  does not. All nineteen of `CT_Workbook`'s slots are modelled.
+- **A place where ECMA-376 contradicts its own schema**, recorded as a tolerated deviation rather
+  than papered over: `CT_Schema` (`sml.xsd:340`) is one required child under a **strict** wildcard,
+  and what §12.3.6's own example puts there is an inline XML Schema document, which no schema
+  `sml.xsd` imports declares. `xl/xmlMaps.xml` is therefore a part no conformant instance can
+  satisfy — omitting the child breaks `minOccurs`, supplying the specification's own one breaks the
+  wildcard.
+
 ## [0.0.118] - 2026-09-06
 
 Print setup, headers and footers, custom views, and the three sheet kinds that are not worksheets
