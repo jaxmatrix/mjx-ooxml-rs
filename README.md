@@ -7,10 +7,13 @@ The goal: open *any* OOXML file, load it fully into RAM, operate on it at runtim
 valid file **without corrupting the parts you did not touch** — with a codebase that cross-compiles
 cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyond.
 
-> **Status:** pre-release `v0.0.x`. The packaging, byte-fidelity, and Markup-Compatibility core and
-> the schema-type generator are implemented and tested; the format models are being built
-> **PowerPoint first** — milestones `v0.1` = PowerPoint, `v0.2` = Word, `v0.3` = Excel. The public API
-> is not stable until `v0.1`. See [`PLAN.md`](PLAN.md) and [`CHANGELOG.md`](CHANGELOG.md).
+> **Status:** pre-release `v0.0.x`. The packaging, byte-fidelity and Markup-Compatibility core, the
+> schema-type generator, and **all three format models** are implemented and tested, and all three
+> are projected through the facade and through both bindings. The one format detection recognizes
+> and nothing opens is `.xlsb`, whose main part is a binary record stream rather than SpreadsheetML —
+> refused by design, not by schedule. Milestones remain `v0.1` = PowerPoint, `v0.2` = Word,
+> `v0.3` = Excel, and the public API is not stable until `v0.1`. See [`PLAN.md`](PLAN.md) and
+> [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Why another OOXML library?
 
@@ -22,9 +25,10 @@ cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyon
 - **Unified model.** One packaging + compatibility + DrawingML core shared across all three formats,
   rather than three unrelated libraries.
 - **Binding-ready, and bound.** [`mjx-ooxml`](crates/mjx-ooxml) is the facade an application depends
-  on: `detect_format` reads what a file *is* from its package rather than its name, `Deck` restates
-  the whole PowerPoint surface in types a foreign function boundary can express, and one `Error`
-  carries eleven stable codes. Two in-workspace bindings project it whole —
+  on: `detect_format` reads what a file *is* from its package rather than its name, `Deck`,
+  `Document` and `Workbook` restate the PowerPoint, Word and Excel surfaces in types a foreign
+  function boundary can express, and one `Error` carries eleven stable codes. Two in-workspace
+  bindings project it whole —
   [`bindings/mjx-python`](bindings/mjx-python) (PyO3) and
   [`bindings/mjx-wasm`](bindings/mjx-wasm) (wasm-bindgen).
 
@@ -76,7 +80,11 @@ try {
 ```
 
 `mjx-ooxml` is the facade; `mjx-pptx` underneath it is the same surface with Rust-native ergonomics
-(`impl Into<Surface>`, a `ShapeCursor` that states an address once) that no binding can carry.
+(`impl Into<Surface>`, a `ShapeCursor` that states an address once) that no binding can carry. Word
+and Excel have exactly the same arrangement — `mjx_ooxml::Document` over `mjx_docx::Document`, and
+`mjx_ooxml::Workbook` over `mjx_xlsx::Workbook` — and the walkthrough above has a counterpart for
+each: `crates/mjx-ooxml/examples/build_a_document.rs` and `build_a_workbook.rs`, each of which also
+exists as a Python test and a Node test that compare their output against the Rust one part by part.
 
 `open` takes bytes and `save` returns bytes — the library never touches a filesystem, a network or a
 clock, which is why the same code cross-compiles to WebAssembly and runs in a browser. Every part you
@@ -92,8 +100,8 @@ did not touch comes back byte-for-byte as it arrived.
 
 | Binding | Package | Status |
 |---|---|---|
-| Python (PyO3) | `bindings/mjx-python` → `pip install mjx-ooxml` | ✅ the whole `Deck` surface |
-| TypeScript / WebAssembly (wasm-bindgen) | `bindings/mjx-wasm` → `npm install @mjx/ooxml` | ✅ the whole `Deck` surface |
+| Python (PyO3) | `bindings/mjx-python` → `pip install mjx-ooxml` | ✅ the whole `Deck`, `Document` and `Workbook` surface |
+| TypeScript / WebAssembly (wasm-bindgen) | `bindings/mjx-wasm` → `npm install @mjx/ooxml` | ✅ the whole `Deck`, `Document` and `Workbook` surface |
 
 Rendering (document viewer) is **deferred** — see [`PLAN.md`](PLAN.md), which also records why the
 bindings are workspace members built on PyO3 and wasm-bindgen rather than the separate UniFFI
@@ -114,7 +122,8 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
 5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
      Tooling          xtask       (schema codegen)
-     Test-only        mjx-schema-gate  ·  mjx-fixtures   (never published, never a runtime dependency)
+     Test-only        mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
+                      (never published, never a runtime dependency)
 ```
 
 An edge is legal **iff** it points to a *strictly* lower rank, which makes sideways as illegal as
@@ -237,7 +246,8 @@ snippet in them is compiled as a doctest, so none of it can rot.
 | [Styles, numbering and inheritance](crates/mjx-docx/docs/guide/styles_and_inheritance.md) | Where a property comes from when the run does not state it |
 | [Fidelity and the known gaps](crates/mjx-docx/docs/guide/fidelity_and_gaps.md) | The round-trip guarantee, the `wml` preserve-only ledger, and what is not modelled |
 
-**Excel** — [`crates/mjx-xlsx/docs/guide/`](crates/mjx-xlsx/docs/guide/README.md), thirteen pages.
+**Excel** — [`crates/mjx-xlsx/docs/guide/`](crates/mjx-xlsx/docs/guide/README.md), one page per
+feature area; that guide's own README lists them all.
 The five to start with:
 
 | Guide | What it covers |
@@ -248,6 +258,14 @@ The five to start with:
 | [Large workbooks](crates/mjx-xlsx/docs/guide/large_workbooks.md) | What a sheet costs to hold, what it costs to open, and why the second is paid on every call |
 | [Deliberate limitations](crates/mjx-xlsx/docs/guide/deliberate_limitations.md) | **Before you file a bug** — no calculation engine, no rule evaluation, no filter application |
 | [Fidelity and the part graph](crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md) | The round-trip guarantee, and the nine `sml.xsd` clusters preserved rather than modelled |
+
+Each format also carries a deep **effective-properties** reference, three pages in one shape —
+[PowerPoint](crates/mjx-pptx/docs/effective_properties.md),
+[Word](crates/mjx-docx/docs/effective_properties.md) and
+[Excel](crates/mjx-xlsx/docs/effective_properties.md) — and the facade carries
+[the shared-markup reachability table](crates/mjx-ooxml/docs/shared_markup_reachability.md), which
+says what each of `Deck`, `Document` and `Workbook` can reach of the five shared-markup crates, with
+a written reason beside every asymmetry and a test that fails when the table and the code disagree.
 
 ### Examples
 
