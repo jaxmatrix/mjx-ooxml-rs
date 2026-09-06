@@ -183,6 +183,23 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
         probe_root_element: "dataModel",
     },
     ModeledSchema {
+        namespace: namespaces::DML_SPREADSHEET_DRAWING.transitional,
+        label: "DrawingML spreadsheet drawings",
+        schema: SchemaRef {
+            set: SchemaSet::Markup,
+            file: "dml-spreadsheetDrawing.xsd",
+        },
+        // MJXOFF-107 (E3) added `dml-spreadsheetDrawing` to `CHILD_ORDER_SCHEMAS` — it **moved**
+        // there out of `CHILD_ORDER_SCHEMA_DEPENDENCIES`, where MJXOFF-132 had put it so that
+        // `sml.xsd`'s `CT_ObjectAnchor` could place `xdr:from`/`xdr:to` — and modelled `xdr:wsDr`
+        // and the three anchors in `mjx-dml::spreadsheet_drawing`. Without this row a drawing part
+        // reports `Uncategorised`, which is the false green MJXOFF-110 exists to close: it is
+        // exactly how `mjx-vml` sat unvalidated. `tests/fixtures/worksheet_drawings.xlsx` is what
+        // reaches the arm, and `assert_every_modeled_schema_was_exercised` fails if nothing does.
+        ordering: OrderingCoverage::Generated,
+        probe_root_element: "wsDr",
+    },
+    ModeledSchema {
         namespace: namespaces::SML.transitional,
         label: "SpreadsheetML",
         schema: SchemaRef {

@@ -478,9 +478,21 @@ const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
     ),
     (
         "image/png",
-        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`). `mjx-opc` \
-         stores the caller's bytes verbatim and `ImageFormat::sniff` reads a magic-byte signature \
-         without decoding a pixel",
+        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`) and, since \
+         MJXOFF-107, a picture anchored on a worksheet drawing (`xl/media/imageN.png`, named by an \
+         `xdr:pic`'s `a:blip@r:embed`). `mjx-opc` stores the caller's bytes verbatim and \
+         `ImageFormat::sniff` reads a magic-byte signature without decoding a pixel. **One row, two \
+         kinds of part**: this list is keyed on the content type, not on where the part sits, so a \
+         PNG under `xl/media/` needed no row of its own",
+    ),
+    (
+        "image/jpeg",
+        "a raster image in the other format `xl/media/` actually carries — the one MJXOFF-107 (E3) \
+         did have to add, because no committed fixture held a JPEG before it. \
+         `tests/fixtures/worksheet_drawings.xlsx` anchors a PNG on its two-cell and one-cell \
+         anchors and a JPEG on its absolute anchor, precisely so that the media path is not \
+         proved by one format and assumed for the rest. Nothing here decodes a scan line: \
+         `ImageFormat::sniff` reads the `FF D8 FF` signature and stops",
     ),
 ];
 
