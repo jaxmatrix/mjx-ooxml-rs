@@ -575,3 +575,41 @@ def test_a_chart_over_a_live_range_reads_the_cells_and_reports_a_stale_cache(
     assert filled.refresh_chart_cache_from_cells(0, anchor) == 1
     assert list(filled.chart_series(0, anchor)[0].values) == [99.0, 9.5]
     filled.save()
+
+
+def test_removing_an_excel_chart_binding_is_caught_by_this_suite() -> None:
+    """The parity clause's own guard: **remove one binding and this case goes red.**
+
+    `bindings/mjx-wasm/tests/node/workbook_surface.mjs` has carried this guard since MJXOFF-111;
+    the Python half of the same pair had none, which MJXOFF-118 found while checking that all
+    three pairs enforce the clause rather than one of them. Delete
+    `Workbook::chart_anchor_indices` from `bindings/mjx-python/src/workbook.rs` and this fails
+    with `AttributeError` before any chart case above runs.
+    """
+    workbook = mjx_ooxml.Workbook.blank()
+    for method in (
+        "chart_anchor_indices",
+        "chart_rel_id",
+        "chart_part_bytes",
+        "add_chart",
+        "add_range_chart",
+        "chart_series",
+        "chart_kinds",
+        "chart_axes",
+        "chart_title",
+        "chart_legend",
+        "chart_workbooks",
+        "refresh_chart_workbook",
+        "detach_chart_workbook",
+        "chart_series_references",
+        "chart_series_from_cells",
+        "chart_series_freshness",
+        "refresh_chart_cache_from_cells",
+        "resolve_range_reference",
+        "set_chart_series_values",
+        "set_chart_data_labels",
+        "add_chart_trendline",
+        "set_chart_error_bars",
+        "drop_chart_dangling_decoration",
+    ):
+        assert callable(getattr(workbook, method)), f"Workbook.{method} is not bound"

@@ -61,8 +61,9 @@ use crate::address::{
 };
 use crate::charts::{
     ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
-    ChartPointFormatData, ChartSeriesData, ChartTrendlineData, ChartWorkbook,
-    DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec, TrendlineSpec,
+    ChartPointFormatData, ChartSeriesData, ChartSeriesReferences, ChartTrendlineData,
+    ChartWorkbook, DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec,
+    TrendlineSpec,
 };
 use crate::content::{
     ActiveXControlSpec, DiagramContent, DiagramParts, DiagramRelationshipIds, ExternalLink,
@@ -1783,6 +1784,22 @@ impl Deck {
                 .chart_series(surface_of(surface)?, path_of(shape_idx)?),
         )
         .map(|values| values.into_iter().map(ChartSeriesData).collect())
+    }
+
+    /// Where every series of that chart says its data lives — the formula beside each cache, as
+    /// the file wrote it. The companion of `chartSeries`: that answers what the caches *hold*,
+    /// this answers what the references *name*. Reading does not dirty the part.
+    #[wasm_bindgen(js_name = "chartSeriesReferences")]
+    pub fn chart_series_references(
+        &mut self,
+        surface: &SurfaceArg,
+        shape_idx: &ShapePathArg,
+    ) -> Result<Vec<ChartSeriesReferences>, JsValue> {
+        map_error(
+            self.inner
+                .chart_series_references(surface_of(surface)?, path_of(shape_idx)?),
+        )
+        .map(|values| values.into_iter().map(ChartSeriesReferences).collect())
     }
 
     /// Rewrites the values of series `series_idx` (0-based across the chart's plots) of the chart

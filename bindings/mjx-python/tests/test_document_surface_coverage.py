@@ -207,6 +207,8 @@ def test_the_whole_word_chart_family_is_bound_and_reads_back(document: Document)
     assert document.chart_part_bytes(drawing) is not None
     assert document.chart_kinds(drawing) == [ChartKind.Bar]
 
+    references = document.chart_series_references(drawing)
+    assert references[0].values is not None, "an authored chart names its embedded workbook"
     series = document.chart_series(drawing)
     assert [entry.name for entry in series] == ["North", "South"]
     assert list(series[0].values) == [12.5, 18.0, 21.5]
@@ -323,6 +325,7 @@ def test_removing_a_word_chart_binding_is_caught_by_this_suite(document: Documen
         "add_chart",
         "add_floating_chart",
         "chart_series",
+        "chart_series_references",
         "chart_kinds",
         "chart_axes",
         "chart_title",

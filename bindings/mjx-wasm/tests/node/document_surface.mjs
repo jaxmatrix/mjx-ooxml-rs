@@ -443,6 +443,7 @@ test("removing a Word chart binding is caught by this suite", () => {
       "addChart",
       "addFloatingChart",
       "chartSeries",
+      "chartSeriesReferences",
       "chartKinds",
       "chartAxes",
       "chartTitle",
