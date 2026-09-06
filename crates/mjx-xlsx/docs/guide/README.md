@@ -16,10 +16,12 @@ opaque header/footer strings and the three sheet kinds that are not worksheets. 
 writes down the half of `sml.xsd` this project deliberately does not model, and proves it survives.
 MJXOFF-135 (D19) adds the two pages that were missing and the six runnable examples. MJXOFF-137
 (D20) projects the whole of it through `mjx-ooxml` and both bindings, and adds the one page about
-what changes on the way. MJXOFF-107 (E3) — this child — adds worksheet drawings, the last place
-DrawingML reaches that it had not: the `xl/drawings` part, the three anchor modes, and the one
-answer on this surface that has to say which half of itself was defaulted. This guide says exactly
-that much and no more, so that nobody plans around a surface that is not here.
+what changes on the way. MJXOFF-107 (E3) adds worksheet drawings, the last place DrawingML
+reaches that it had not: the `xl/drawings` part, the three anchor modes, and the one answer on this
+surface that has to say which half of itself was defaulted. MJXOFF-111 (E4) — this child — puts a
+chart in one of those anchors, and with it the one chart in this library whose data source is a
+**live range in the same workbook** rather than an embedded copy. This guide says exactly that much
+and no more, so that nobody plans around a surface that is not here.
 
 | Page | Read it when |
 |---|---|
