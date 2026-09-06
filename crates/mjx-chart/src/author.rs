@@ -14,6 +14,15 @@
 //! `c:externalData` that binds the two. A chart authored that way opens in PowerPoint's **Edit
 //! Data** on the numbers it actually draws.
 //!
+//! # Where the data lives is a choice, not a constant
+//!
+//! Those synthesized formulas name the companion workbook because that is where a chart in a
+//! *presentation* or a *document* keeps its data. A chart on a **worksheet** has no embedded
+//! workbook at all: its `c:f` names a live range in the sheets it already lives among, and the cells
+//! are the source. [`ChartData::ranges`] is how a caller says so, and MJXOFF-111 (E4) is why it
+//! exists. Nothing here parses a reference — this crate has never resolved one — it writes the text
+//! the caller gave.
+//!
 //! ```
 //! use mjx_chart::{ChartData, ChartKind, ChartSpace, LegendPosition};
 //! use mjx_ooxml_core::FromXml;
@@ -157,6 +166,41 @@ pub enum ChartDataError {
     CustomErrorBarsNeedValues,
 }
 
+/// Where one series' data lives, as the `c:f` formulas the chart part writes (MJXOFF-111).
+///
+/// A chart in a presentation or a document carries a copy of its data in an embedded workbook, and
+/// the formulas name cells in *that* workbook. A chart on a **worksheet** has no embedded workbook:
+/// its formulas name a live range in the sheets it already lives among, and the cells are the
+/// source. This is how a caller states that second case.
+///
+/// The strings are the reference text exactly as it will be written. Nothing here parses one —
+/// `mjx-chart` has never resolved a reference and does not start now; `mjx_sml::ReferenceAreas` and
+/// `mjx_sml::SheetQualifiedReference` are the grammar, and resolving one against a package is
+/// `mjx-xlsx`'s.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ChartSeriesRange {
+    /// The cell holding the series' name (`c:tx > c:strRef > c:f`), or `None` to write the name as
+    /// a literal `c:tx > c:v` — which is what a chart with no host workbook does.
+    pub name: Option<String>,
+    /// The cells holding the series' values (`c:val`, or `c:yVal` for a scatter or bubble plot).
+    pub values: String,
+}
+
+/// Where a whole chart's data lives — the categories, and each series
+/// (MJXOFF-111).
+///
+/// Handed to [`ChartData::ranges`]. A series with no entry here, and a chart with no
+/// `categories`, falls back to the formulas naming the companion embedded workbook, so a partial
+/// description is still coherent rather than half-written.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ChartRanges {
+    /// The cells holding the shared category labels (`c:cat`, or `c:xVal` for a scatter or bubble
+    /// plot).
+    pub categories: Option<String>,
+    /// One entry per series, in the order the series were added.
+    pub series: Vec<ChartSeriesRange>,
+}
+
 /// One named series of a chart: its name and its cached numeric values.
 #[derive(Debug, Clone, PartialEq)]
 struct ChartSeries {
@@ -179,6 +223,8 @@ pub struct ChartData {
     title: Option<String>,
     legend: Option<LegendPosition>,
     data_labels: Option<DataLabelSpec>,
+    /// Where the data lives, when it is not the companion embedded workbook (MJXOFF-111).
+    ranges: Option<ChartRanges>,
 }
 
 impl ChartData {
@@ -192,7 +238,49 @@ impl ChartData {
             title: None,
             legend: None,
             data_labels: None,
+            ranges: None,
         }
+    }
+
+    /// Points the chart's `c:f` formulas at cells in a **host workbook** rather than at the
+    /// companion embedded one (MJXOFF-111).
+    ///
+    /// This is what makes a chart on a worksheet different from every other chart this library
+    /// writes: there is no embedded copy of the data, the formulas name the sheets the chart lives
+    /// among, and the cells are the source. The cached values this description carries are still
+    /// written — a cache is what draws until a consumer recalculates — but they now describe cells
+    /// that exist, so a consumer can refresh them.
+    ///
+    /// A series `ranges` says nothing about keeps the default formula naming the embedded workbook,
+    /// which is coherent for a caller filling one series in and wrong to silently *drop* the rest.
+    #[must_use]
+    pub fn ranges(mut self, ranges: ChartRanges) -> Self {
+        self.ranges = Some(ranges);
+        self
+    }
+
+    /// The `c:f` for the category cells: what [`ranges`](Self::ranges) said, or the companion
+    /// workbook's own `Sheet1!$A$2:$A$N`.
+    fn category_reference(&self, count: usize) -> String {
+        self.ranges
+            .as_ref()
+            .and_then(|ranges| ranges.categories.clone())
+            .unwrap_or_else(|| category_formula(count))
+    }
+
+    /// The `c:f` for series `index`'s value cells: what [`ranges`](Self::ranges) said, or the
+    /// companion workbook's own `Sheet1!$B$2:$B$N`.
+    fn value_reference(&self, index: usize, count: usize) -> String {
+        self.ranges
+            .as_ref()
+            .and_then(|ranges| ranges.series.get(index))
+            .map(|series| series.values.clone())
+            .unwrap_or_else(|| value_formula(index, count))
+    }
+
+    /// The `c:f` naming the cell series `index` takes its name from, when there is one.
+    fn name_reference(&self, index: usize) -> Option<&str> {
+        self.ranges.as_ref()?.series.get(index)?.name.as_deref()
     }
 
     /// Sets the shared category labels (replacing any set before). For a scatter or bubble chart
@@ -561,10 +649,14 @@ impl ChartData {
         index: usize,
         series: &ChartSeries,
     ) -> RawElement {
+        let name = match self.name_reference(index) {
+            Some(reference) => build_referenced_series_name(interner, reference, &series.name),
+            None => build_series_name(interner, &series.name),
+        };
         let mut children = vec![
             el(chart_val_leaf(interner, "idx", &index.to_string())),
             el(chart_val_leaf(interner, "order", &index.to_string())),
-            el(build_series_name(interner, &series.name)),
+            el(name),
         ];
         let count = series.values.len();
         if self.kind.uses_xy_data() {
@@ -572,13 +664,13 @@ impl ChartData {
             children.push(el(build_num_data(
                 interner,
                 "xVal",
-                &category_formula(count),
+                &self.category_reference(count),
                 &x_values,
             )));
             children.push(el(build_num_data(
                 interner,
                 "yVal",
-                &value_formula(index, count),
+                &self.value_reference(index, count),
                 &series.values,
             )));
             // `c:bubbleSize` is optional and this description carries no third channel: emitting a
@@ -588,7 +680,7 @@ impl ChartData {
             children.push(el(build_num_data(
                 interner,
                 "val",
-                &value_formula(index, count),
+                &self.value_reference(index, count),
                 &series.values,
             )));
         }
@@ -597,7 +689,11 @@ impl ChartData {
 
     /// Builds `c:cat` — a `c:strRef` naming the category cells and caching their labels.
     fn build_categories(&self, interner: &mut Interner) -> RawElement {
-        let formula = chart_text_leaf(interner, "f", &category_formula(self.categories.len()));
+        let formula = chart_text_leaf(
+            interner,
+            "f",
+            &self.category_reference(self.categories.len()),
+        );
         let cache = build_str_cache(interner, &self.categories);
         let reference = chart_element(interner, "strRef", Vec::new(), vec![el(formula), el(cache)]);
         chart_element(interner, "cat", Vec::new(), vec![el(reference)])
@@ -629,6 +725,25 @@ fn build_external_data(interner: &mut Interner, rel_id: &str) -> RawElement {
 fn build_series_name(interner: &mut Interner, name: &str) -> RawElement {
     let value = chart_text_leaf(interner, "v", name);
     chart_element(interner, "tx", Vec::new(), vec![el(value)])
+}
+
+/// Builds `c:tx` holding a **reference** to the cell the name lives in, plus the cache of what that
+/// cell says (`<c:tx><c:strRef><c:f>…</c:f><c:strCache>…</c:strCache></c:strRef></c:tx>`).
+///
+/// This is the shape a chart on a worksheet writes, and the one LibreOffice and Excel both emit: the
+/// formula names the header cell and the cache carries the text that draws until a consumer reads
+/// that cell again. The literal form [`build_series_name`] writes is what a chart with no host
+/// workbook uses, and the two are not interchangeable — a literal name is not refreshable.
+fn build_referenced_series_name(
+    interner: &mut Interner,
+    reference: &str,
+    name: &str,
+) -> RawElement {
+    let formula = chart_text_leaf(interner, "f", reference);
+    let cache = build_str_cache(interner, std::slice::from_ref(&name.to_owned()));
+    let string_reference =
+        chart_element(interner, "strRef", Vec::new(), vec![el(formula), el(cache)]);
+    chart_element(interner, "tx", Vec::new(), vec![el(string_reference)])
 }
 
 /// Builds a numeric data source `<c:local><c:numRef><c:f>…</c:f><c:numCache>…</c:numCache></c:numRef>
