@@ -618,6 +618,7 @@ dependencies = [
  "anyhow",
  "criterion",
  "mjx-allocation-counter",
+ "mjx-chart",
  "mjx-derive",
  "mjx-dml",
  "mjx-fixtures",

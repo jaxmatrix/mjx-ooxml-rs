@@ -452,7 +452,10 @@ impl Workbook {
     // -------------------------------------------------------------------------------------------
 
     /// The drawing part behind the tab at `index` and the `x:drawing@r:id` that reached it.
-    fn sheet_drawing_part(&self, index: usize) -> Result<Option<(PartName, String)>, XlsxError> {
+    pub(crate) fn sheet_drawing_part(
+        &self,
+        index: usize,
+    ) -> Result<Option<(PartName, String)>, XlsxError> {
         let sheets = self.sheets().len();
         let sheet_part = self
             .sheets()
@@ -481,7 +484,7 @@ impl Workbook {
 
     /// The drawing part behind the tab at `index`, creating it — and the `x:drawing` entry, the
     /// relationship and the content-type override — when the sheet has none.
-    fn drawing_part_or_create(&mut self, index: usize) -> Result<PartName, XlsxError> {
+    pub(crate) fn drawing_part_or_create(&mut self, index: usize) -> Result<PartName, XlsxError> {
         if let Some((part, _)) = self.sheet_drawing_part(index)? {
             return Ok(part);
         }
@@ -538,7 +541,7 @@ impl Workbook {
     /// re-flow the part and rewrite its prologue — Apache POI writes
     /// `<?xml version="1.0" encoding="UTF-8"?>` where this project writes `standalone="yes"`, so
     /// *edit one anchor* would otherwise change the first line of somebody else's file.
-    fn read_drawing_document(
+    pub(crate) fn read_drawing_document(
         &self,
         part: &PartName,
     ) -> Result<Option<(RawDocument, WorksheetDrawing)>, XlsxError> {

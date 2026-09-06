@@ -16,8 +16,9 @@
 //!
 //! # Classification is not a gate
 //!
-//! [`PartKind`] names the twenty-seven part kinds this crate can *identify* — every part type
-//! ECMA-376 Part 1 §12.3 defines, plus a theme, a printer settings part and a legacy VML drawing. A
+//! [`PartKind`] names the twenty-eight part kinds this crate can *identify* — every part type
+//! ECMA-376 Part 1 §12.3 defines, plus a theme, a chart, a printer settings part and a legacy VML
+//! drawing. A
 //! part it cannot identify is not an error and is not rejected: [`classify`] reports it as
 //! [`PartClassification::Unclassified`], and it is carried through a save untouched. That is why a
 //! `.xlsm`'s macro-enabled workbook and an embedded image both round-trip through a crate that

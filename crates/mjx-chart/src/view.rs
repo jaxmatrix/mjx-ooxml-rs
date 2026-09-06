@@ -40,6 +40,29 @@ pub struct ChartSeriesData {
     pub values: Vec<f64>,
 }
 
+/// Where one series says its data lives — the `c:f` formulas beside its caches, as written
+/// (MJXOFF-111).
+///
+/// **The text, never a parse.** `c:f` is preserved as opaque wire text by this crate's data model
+/// and this report keeps it that way: a `c:f` naming a range, a defined name or another workbook all
+/// come back as themselves, and making sense of one is the host's — `mjx_xlsx`'s resolver is what
+/// turns it into cells, because only a package knows which sheet is which.
+///
+/// A field is `None` when that source is a **literal** rather than a reference: a `c:numLit` has no
+/// cells behind it, and neither has a `c:tx` holding a bare `c:v`. That distinction is the whole
+/// point of the type — a series whose values are literal cannot be refreshed from a sheet, and
+/// saying so is better than reporting an empty string.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ChartSeriesReferences {
+    /// The cell the series' name comes from (`c:tx > c:strRef > c:f`).
+    pub name: Option<String>,
+    /// The cells its category labels come from (`c:cat`, or a scatter series' `c:xVal`) — whichever
+    /// of the three reference shapes the source uses.
+    pub categories: Option<String>,
+    /// The cells its values come from (`c:val`, or a scatter series' `c:yVal`).
+    pub values: Option<String>,
+}
+
 /// One axis of a chart — everything `EG_AxShared` says about it, resolved into typed values.
 ///
 /// A field is `None` when the axis does not declare that setting: the axis inherits it, and this

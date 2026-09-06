@@ -16,7 +16,8 @@ use mjx_xml::XmlError;
 /// **adding a variant fails to compile until it is classified there**. MJXOFF-137 (D20) wrote that
 /// mapping — `mjx_ooxml::error::classify_xlsx` — and proved the property by adding a twelfth variant
 /// here and watching the facade fail to compile. It reaches further than this enum: `classify_xlsx`
-/// descends into [`SmlError`] and, through it, `AddressError`, all three with no wildcard arm.
+/// descends into [`SmlError`] and, through it, `AddressError`, and — since MJXOFF-111 (E4) — into
+/// `mjx_chart::ChartAccessError`, all four with no wildcard arm.
 ///
 /// # Untrusted input
 ///
@@ -105,6 +106,72 @@ pub enum XlsxError {
         /// The external target.
         target: String,
     },
+
+    /// A read or an edit of a chart that had already been found and parsed failed — an index past
+    /// the end, a series with nothing editable, a part declaring no `c:chart` (MJXOFF-111).
+    ///
+    /// # Why this wraps rather than restates
+    ///
+    /// `mjx-chart`'s [`ChartAccessError`](mjx_chart::ChartAccessError) is the single source of these
+    /// verdicts for all three host surfaces (MJXOFF-103), and it is deliberately **not**
+    /// `#[non_exhaustive]` so that every host must account for a new variant. The two hosts before
+    /// this one answer that obligation differently, and the difference is history rather than
+    /// design: `mjx-pptx` maps each variant onto a `PptxError` variant it had already written before
+    /// the shared body existed, while `mjx-docx` wraps the enum whole.
+    ///
+    /// This crate takes the **`mjx-docx` shape**, and the reason is on the type above rather than in
+    /// a preference. `XlsxError` is exhaustively classified by `mjx_ooxml::error::classify_xlsx`,
+    /// which has no wildcard arm and already **descends** into [`SmlError`] — and through it into
+    /// `AddressError` — through functions of their own. A chart-level refusal takes the same road:
+    /// the facade classifies `ChartAccessError` in `chart_access_code`, which is itself exhaustive
+    /// with no wildcard and is the *same* function `DocxError::ChartAccess` goes through. So a
+    /// variant added to `ChartAccessError` still fails to compile until somebody decides what it
+    /// means, which is the whole property `mjx-pptx` buys by restating eight variants — bought here
+    /// without inventing eight variants this crate never wrote first, and with the guarantee that a
+    /// chart refusing the same index answers the same `mjx_ooxml::ErrorCode` from a workbook, a
+    /// document and a presentation alike.
+    #[error(transparent)]
+    ChartAccess(#[from] mjx_chart::ChartAccessError),
+
+    /// A [`ChartData`](mjx_chart::ChartData) description cannot be written as a schema-valid chart
+    /// part — a stock chart given the wrong number of series, for instance. Refused before anything
+    /// is written, so the workbook is untouched (MJXOFF-111).
+    ///
+    /// The "nothing to draw" case is [`InvalidChartData`](Self::InvalidChartData) instead, the split
+    /// `mjx_pptx::PptxError` and `mjx_docx::DocxError` both already make.
+    #[error(transparent)]
+    ChartData(#[from] mjx_chart::ChartDataError),
+
+    /// A chart description with nothing to draw — no series, or every series empty (MJXOFF-111).
+    #[error("a chart description has nothing to draw")]
+    InvalidChartData,
+
+    /// A caller addressed a chart by an anchor that frames something else, or by an anchor index
+    /// the sheet's drawing does not have (MJXOFF-111).
+    ///
+    /// The address is `(sheet index, anchor index)` — the anchor's position in the drawing part,
+    /// which is also its paint order and is what
+    /// [`SheetDrawingObject::index`](crate::SheetDrawingObject) reports and what
+    /// [`Workbook::remove_sheet_drawing_object`](crate::Workbook::remove_sheet_drawing_object)
+    /// takes. A chart is not given a second addressing scheme of its own.
+    #[error("anchor {anchor_index} on sheet {sheet_index} does not frame a chart")]
+    AnchorIsNotAChart {
+        /// The tab that was asked for.
+        sheet_index: usize,
+        /// The anchor that was asked for.
+        anchor_index: usize,
+    },
+
+    /// The chart references no backing workbook (`c:externalData`), so there is nothing to detach
+    /// (MJXOFF-111).
+    ///
+    /// This is the **ordinary** state of a chart on a worksheet, not a defect: such a chart names a
+    /// live range in the sheets it lives among and has no embedded copy of its data. Only
+    /// [`detach_chart_workbook`](crate::Workbook::detach_chart_workbook) raises it, because
+    /// detaching nothing is a caller error;
+    /// [`refresh_chart_workbook`](crate::Workbook::refresh_chart_workbook) answers `false` instead.
+    #[error("chart has no external data reference")]
+    ChartHasNoExternalData,
 
     /// The bytes handed to an image-adding call match no format this build recognises
     /// (MJXOFF-107).

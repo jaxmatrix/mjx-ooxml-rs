@@ -37,7 +37,7 @@ use crate::plot::{ChartKind, Series, SeriesDecoration};
 use crate::space::ChartSpace;
 use crate::view::{
     ChartAxisData, ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData,
-    ChartSeriesData, ChartTrendlineData,
+    ChartSeriesData, ChartSeriesReferences, ChartTrendlineData,
 };
 
 /// What can go wrong reading or editing a chart, once its part has already been found and parsed.
@@ -213,6 +213,60 @@ pub fn series(space: &ChartSpace) -> Vec<ChartSeriesData> {
                 .unwrap_or_default(),
         })
         .collect()
+}
+
+/// Where every series says its data lives — one entry per series, in the same order
+/// [`series`] reports them (MJXOFF-111).
+///
+/// This is the companion of [`series`]: that answers what the **caches** hold, this answers what the
+/// `c:f` beside each cache **names**. On a worksheet the two can disagree, because the cells are the
+/// source and the cache is only what drew last; everywhere else the reference names an embedded
+/// workbook the same call would rewrite. Reporting both, and naming which is which, is the honesty
+/// this library already applies to a chart whose workbook disagrees with its caches.
+#[must_use]
+pub fn series_references(space: &ChartSpace) -> Vec<ChartSeriesReferences> {
+    let Some(area) = space.plot_area() else {
+        return Vec::new();
+    };
+    area.all_series()
+        .map(|series| ChartSeriesReferences {
+            name: series
+                .name_source()
+                .and_then(crate::data::SeriesText::reference)
+                .and_then(|reference| reference.formula())
+                .map(crate::data::Formula::text),
+            categories: series
+                .categories()
+                .or_else(|| series.x_data())
+                .and_then(category_formula),
+            values: series
+                .values()
+                .or_else(|| series.y_data())
+                .and_then(|data| data.reference())
+                .and_then(|reference| reference.formula())
+                .map(crate::data::Formula::text),
+        })
+        .collect()
+}
+
+/// The `c:f` of whichever of the three reference shapes a category source uses, or `None` for a
+/// literal one.
+///
+/// `CT_AxDataSource` admits four children and three of them carry a reference — a string reference,
+/// a numeric one, and a multi-level one. A category axis reading its labels out of a two-level range
+/// is as much a live range as a flat one, so all three are read rather than only the common one.
+fn category_formula(data: &crate::data::CategoryData) -> Option<String> {
+    data.string_reference()
+        .and_then(crate::data::StringReference::formula)
+        .or_else(|| {
+            data.number_reference()
+                .and_then(crate::data::NumberReference::formula)
+        })
+        .or_else(|| {
+            data.multi_level_reference()
+                .and_then(crate::data::MultiLevelStringReference::formula)
+        })
+        .map(crate::data::Formula::text)
 }
 
 /// The kind of every plot the chart draws, in document order — one entry per plot element, so a

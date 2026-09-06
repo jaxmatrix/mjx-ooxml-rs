@@ -949,6 +949,20 @@ pub struct SeriesText {
 }
 
 impl SeriesText {
+    /// The `c:strRef` naming the cell the series takes its name from, or `None` when the name is a
+    /// literal `c:v` (or neither).
+    ///
+    /// The reference is what a chart on a **worksheet** writes — the header cell of the column the
+    /// series plots — and [`StringReference::formula`] is how MJXOFF-111 reads that cell's address
+    /// back out. [`text`](Self::text) answers what the *cache* says, which is a different question.
+    #[must_use]
+    pub fn reference(&self) -> Option<&StringReference> {
+        self.content.iter().find_map(|item| match item {
+            SeriesTextContent::Reference(reference) => Some(reference),
+            _ => None,
+        })
+    }
+
     /// The series name — a literal `c:v`, else the first cached string of its `c:strRef`. `None` when
     /// neither is present.
     #[must_use]
