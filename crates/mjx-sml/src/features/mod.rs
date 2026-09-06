@@ -106,6 +106,7 @@ pub mod conditional_rules;
 pub mod conditional_scales;
 pub mod conditional_specs;
 pub mod custom_views;
+pub mod embedded;
 pub mod filter_specs;
 pub mod filters;
 pub mod hyperlinks;
@@ -138,6 +139,11 @@ pub use conditional_specs::{
 };
 pub use custom_views::{
     CustomSheetView, CustomSheetViewContent, CustomSheetViews, CustomSheetViewsContent,
+};
+pub use embedded::{
+    EmbeddedObject, EmbeddedObjectContent, EmbeddedObjects, EmbeddedObjectsContent, FormControl,
+    FormControlContent, FormControlProperties, FormControlPropertiesContent, FormControls,
+    FormControlsContent,
 };
 pub use filter_specs::{
     AutoFilterSpec, CustomFilterSpec, FilterColumnSpec, FilterSpecKind, SortConditionSpec,

@@ -59448,6 +59448,9 @@ pub static OBJECT_ANCHOR: &ChildOrder = &SML_TYPES[202];
 /// An embedded object's one child, its anchor (`x:objectPr`) (`CT_ObjectPr`, `sml.xsd`).
 pub static OBJECT_PROPERTIES: &ChildOrder = &SML_TYPES[203];
 
+/// A form control's one child, its anchor (`x:controlPr`) (`CT_ControlPr`, `sml.xsd`).
+pub static CONTROL_PROPERTIES: &ChildOrder = &SML_TYPES[64];
+
 /// A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`) (`CT_DataConsolidate`, `sml.xsd`).
 pub static DATA_CONSOLIDATION: &ChildOrder = &SML_TYPES[79];
 
