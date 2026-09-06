@@ -4,6 +4,11 @@ members = [
     "crates/mjx-ooxml-core",
     "crates/mjx-xml",
     "crates/mjx-derive",
+    # The client platform's design tokens — rank 0.2. Generated from
+    # `docs/client-platform/data/tokens.json` by `cargo run -p xtask -- tokens`, because the chrome
+    # is HTML and the document canvas is Rust, and a canvas cannot inherit a CSS custom property.
+    # It is data: it declares no workspace dependency at all, and its rank says who may reach *it*.
+    "crates/mjx-tokens",
     "crates/mjx-ooxml-types",
     "crates/mjx-opc",
     "crates/mjx-mce",
@@ -43,7 +48,7 @@ members = [
 # Pre-release: increment the patch (v0.0.x) each iteration until the first milestone (v0.1 =
 # PowerPoint). Internal deps are path-only (no version pin) while pre-publish, so a bump touches only
 # this one line. See CHANGELOG.md.
-version = "0.0.121"
+version = "0.0.122"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -75,6 +80,7 @@ criterion = "0.8"
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
 mjx-xml = { path = "crates/mjx-xml" }
 mjx-derive = { path = "crates/mjx-derive" }
+mjx-tokens = { path = "crates/mjx-tokens" }
 mjx-ooxml-types = { path = "crates/mjx-ooxml-types" }
 mjx-opc = { path = "crates/mjx-opc" }
 mjx-mce = { path = "crates/mjx-mce" }

@@ -1,0 +1,19 @@
+[package]
+name = "mjx-tokens"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The client platform's design tokens: the generated default table, and the runtime resolver that layers host overrides over it."
+
+[lints]
+workspace = true
+
+[dependencies]
+# The only dependency, and the workspace's standard one for a typed error. Everything else this
+# crate needs is `core` and `alloc`: it is *data*, and a data crate that grows a dependency graph
+# has stopped being one. Its rank (0.2) is a ceiling — `mjx-ooxml-core` is what it may reach — not
+# a claim that it reaches anything.
+thiserror.workspace = true

@@ -54,6 +54,85 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.122] - 2026-09-06
+
+**One design-token source, three generated consumers — and the contrast rule enforced rather than
+documented** (MJXOFF-156, Phase R position 1).
+
+The chrome is HTML and the document canvas is Rust, and **a canvas cannot inherit a CSS custom
+property**. A token system that stopped at a stylesheet would leave the in-canvas UI — selection
+handles, alignment guides, rulers, marching ants — visually detached from the application drawn
+around it. So one source reaches three consumers that share nothing.
+
+### Added
+
+- **`docs/client-platform/data/tokens.json`** — the token source, in the W3C Design Tokens
+  Community Group format. It carries the allr.work values **as measured** in `DESIGN_TOKENS.md` §1
+  (read from the site's own stylesheet, not approximated) plus the three additions an editor needs
+  and a marketing site does not: the derived dark palette (§2.1), the document-surface palette that
+  keeps the page true white in both schemes (§2.3), and the semantic aliases. 92 tokens.
+- **`cargo run -p xtask -- tokens`** — the generator, a subcommand of the existing codegen rather
+  than a second generator, sharing its `rustfmt` pass, its plain writer and its committed-output
+  doctrine. `tokens --check` regenerates in memory and refuses instead of writing, naming the file,
+  the line and both spellings of the first value that differs.
+- **`ui/tokens/tokens.css`** — every token as a flat custom property under the name the source
+  stylesheet itself declares (`--color-paper`, `--radius-card`), which is what makes *"drop the
+  platform into a host that already defines these properties and it re-themes with no code
+  change"* true rather than aspirational — plus a colour-scheme layer resolving `--theme-*` and
+  `--document-*` in the only cascade order that behaves: light by default, the system's preference
+  unless the host asked for light, an explicit `data-theme` over both.
+- **`ui/tokens/tokens.ts`** — one interface per group, the `Tokens` type, the constant that
+  satisfies it, `ColorScheme`, and `customProperties`, the path → custom-property map a runtime
+  resolver reads host overrides through. Property names are **camelCase**, from the same rule
+  `bindings/mjx-wasm` applies to every method it exports.
+- **`mjx-tokens`, a new crate at rank 0.2** — `Tokens`, `Tokens::DEFAULTS`, the eight value types
+  (`Color`, `Dimension`, `Duration`, `CubicBezier`, `FontStack`, `Shadow`, `TokenValue`,
+  `LengthUnit`), the `TOKENS` identity table, and `resolve`, which layers *explicit configuration →
+  host-supplied overrides → generated defaults*. The two sources are treated differently on
+  purpose: a host element carries properties that are not ours, so an unknown name there is skipped;
+  explicit configuration is the caller's own, so an unknown name there is a typo, and a typo
+  silently ignored is the classic theming bug. It declares **no workspace dependency at all** —
+  `thiserror` and nothing else. `CLAUDE.md`'s rank table and `xtask/tests/layering.rs` both carry
+  the row.
+
+### The contrast rule is a build failure
+
+`DESIGN_TOKENS.md` §2.2 measures `--color-green` `#2e9e63` at **3.39 : 1** on white — legal for a
+fill, illegal for body text — and `--color-green-deep` `#1e7a49` at **5.34 : 1**, and calls getting
+that backwards *"the most likely accessibility defect in the chrome"*. Every colour token in the
+source now declares `usage` (`on-light-text`, `on-dark-text` or `fill-only`) and, where it is
+meaningful, the `background` it was measured against. **There is no default**, because a default
+would make an omission invisible. The generator refuses a token tagged for text that does not reach
+4.5 : 1, quoting the ratio it measured; it also refuses a text tag that names a background of the
+wrong lightness, a translucent text colour, an alias cycle, a dangling alias, two colour schemes
+that disagree about their members, and two tokens that would reach the same custom property.
+
+The measured ratio is recorded in all three artefacts for every colour that declares a background,
+so a `fill-only` decision is auditable at the point of use rather than only at the point it was
+taken. One such decision is new: `--color-honey-deep` `#b77e1f` measures **3.49 : 1** on white — the
+honey ramp has no text-legal deep step the way the green ramp does — so it, and the tracked-change
+colours built on it, are `fill-only`.
+
+### The two gates, both divergence gates
+
+*"The three artefacts are generated and committed"* is satisfied by three files nothing reads.
+
+- **Derived, not hand-written** — `xtask/tests/tokens.rs` runs the real binary with `--check`, and
+  the emitters' own tests add a token to a source and watch it appear in all three.
+- **Equal to each other** — `crates/mjx-tokens/tests/artefacts_agree.rs` parses the emitted CSS and
+  TypeScript from disk, with no help from the generator that wrote them, and compares every value
+  against the Rust table. The three names a token goes by come out of `TOKENS` rather than being
+  re-derived, because a test that recomputed `--color-ink-soft` from `color.inkSoft` itself could
+  agree perfectly with a wrong rule.
+
+### Changed
+
+- **`xtask`'s JSON reader moved to `xtask/src/json.rs`** and grew number and boolean payloads and an
+  ordered-member accessor. It was a private module of `xtask/tests/layering.rs` while that gate was
+  its only consumer; the token generator is a second one, and an integration test cannot reach a
+  binary crate's private modules, so the gate now pulls the one file in by path rather than keeping
+  a copy. A workspace with two JSON readers in it has one reader too many.
+
 ## [0.0.121] - 2026-09-06
 
 **Excel through the facade and both bindings — and one API decision made from a measurement rather

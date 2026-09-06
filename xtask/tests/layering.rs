@@ -62,6 +62,12 @@ enum Tier {
     /// `mjx-xml` — rank 0.1. The foundations are *not* flat: `mjx-xml` is built on
     /// `mjx-ooxml-core`'s `RawElement`/`Interner`, so it sits one step above it.
     FoundationsXml,
+    /// `mjx-tokens` — rank 0.2 (MJXOFF-156). The generated design-token table and its runtime
+    /// resolver. It is *data*: it declares no workspace dependency at all today, and its ceiling is
+    /// `mjx-ooxml-core`. The rank is about who may reach **it** — the client platform's renderer
+    /// crates, every one of which sits above the whole document graph, so a token table below
+    /// `mjx-ooxml-types` is reachable from all of them without an upward edge.
+    FoundationsTokens,
     /// `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` — rank 1.0.
     Packaging,
     /// `mjx-dml` — rank 2.0, the base of shared markup: every other markup crate may reach it.
@@ -110,6 +116,7 @@ impl Tier {
         Some(match self {
             Self::FoundationsCore => Rank(0, 0),
             Self::FoundationsXml => Rank(0, 1),
+            Self::FoundationsTokens => Rank(0, 2),
             Self::Packaging => Rank(1, 0),
             Self::SharedMarkupBase => Rank(2, 0),
             Self::SharedMarkupSpreadsheet => Rank(2, 1),
@@ -128,6 +135,7 @@ impl Tier {
         match self {
             Self::FoundationsCore => "foundations, core",
             Self::FoundationsXml => "foundations, XML",
+            Self::FoundationsTokens => "foundations, design tokens",
             Self::Packaging => "packaging/compatibility",
             Self::SharedMarkupBase => "shared markup, base",
             Self::SharedMarkupSpreadsheet => "shared markup, spreadsheet",
@@ -158,6 +166,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-ooxml-core", Tier::FoundationsCore),
     ("mjx-derive", Tier::FoundationsCore),
     ("mjx-xml", Tier::FoundationsXml),
+    ("mjx-tokens", Tier::FoundationsTokens),
     ("mjx-ooxml-types", Tier::Packaging),
     ("mjx-opc", Tier::Packaging),
     ("mjx-mce", Tier::Packaging),
@@ -480,305 +489,13 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
     }
 }
 
-/// Just enough JSON to read `cargo metadata`.
+/// Just enough JSON to read `cargo metadata`, shared with the design-token generator.
 ///
-/// `xtask` carries no JSON dependency and this is the only place in the workspace that wants one, so
-/// the reader is here rather than in the dependency graph. It is a complete value parser — not a
-/// scan for the fields of interest — because a scanner that misreads a nested string is a scanner
-/// that drops an edge, and dropping an edge is exactly how this gate would pass without doing
-/// anything.
-mod json {
-    /// A parsed JSON value.
-    ///
-    /// Booleans and numbers are recognised and **discarded**: `cargo metadata` has plenty of both
-    /// and this file reads none of them, so keeping their payloads would be a field nothing ever
-    /// looks at. They still have to be *parsed*, because a value skipped rather than parsed is a
-    /// value whose end is a guess.
-    pub(crate) enum Value {
-        Null,
-        Bool,
-        Number,
-        String(String),
-        Array(Vec<Value>),
-        Object(Vec<(String, Value)>),
-    }
-
-    impl Value {
-        /// The value at `key`, if this is an object that has one and it is not `null`.
-        pub(crate) fn get(&self, key: &str) -> Option<&Value> {
-            match self {
-                Value::Object(members) => members
-                    .iter()
-                    .find(|(name, _)| name == key)
-                    .map(|(_, value)| value)
-                    .filter(|value| !matches!(value, Value::Null)),
-                _ => None,
-            }
-        }
-
-        /// This value's elements, if it is an array.
-        pub(crate) fn array(&self) -> Option<&[Value]> {
-            match self {
-                Value::Array(items) => Some(items),
-                _ => None,
-            }
-        }
-
-        /// This value's text, if it is a string.
-        pub(crate) fn string(&self) -> Option<&str> {
-            match self {
-                Value::String(text) => Some(text),
-                _ => None,
-            }
-        }
-    }
-
-    /// Parses a whole JSON document, or reports the byte offset it gave up at.
-    pub(crate) fn parse(text: &str) -> Result<Value, String> {
-        let bytes = text.as_bytes();
-        let mut at = 0;
-        let value = value(bytes, &mut at)?;
-        skip_whitespace(bytes, &mut at);
-        if at != bytes.len() {
-            return Err(format!("trailing input at byte {at}"));
-        }
-        Ok(value)
-    }
-
-    fn skip_whitespace(bytes: &[u8], at: &mut usize) {
-        while *at < bytes.len() && matches!(bytes[*at], b' ' | b'\t' | b'\n' | b'\r') {
-            *at += 1;
-        }
-    }
-
-    fn expect(bytes: &[u8], at: &mut usize, byte: u8) -> Result<(), String> {
-        if bytes.get(*at) == Some(&byte) {
-            *at += 1;
-            Ok(())
-        } else {
-            Err(format!(
-                "expected `{}` at byte {at}",
-                char::from(byte),
-                at = *at
-            ))
-        }
-    }
-
-    fn value(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        skip_whitespace(bytes, at);
-        match bytes.get(*at) {
-            Some(b'{') => object(bytes, at),
-            Some(b'[') => array(bytes, at),
-            Some(b'"') => string(bytes, at).map(Value::String),
-            Some(b't') => literal(bytes, at, "true").map(|()| Value::Bool),
-            Some(b'f') => literal(bytes, at, "false").map(|()| Value::Bool),
-            Some(b'n') => literal(bytes, at, "null").map(|()| Value::Null),
-            Some(_) => number(bytes, at),
-            None => Err("unexpected end of input".to_owned()),
-        }
-    }
-
-    fn literal(bytes: &[u8], at: &mut usize, word: &str) -> Result<(), String> {
-        if bytes[*at..].starts_with(word.as_bytes()) {
-            *at += word.len();
-            Ok(())
-        } else {
-            Err(format!("expected `{word}` at byte {at}", at = *at))
-        }
-    }
-
-    fn number(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        let start = *at;
-        while *at < bytes.len()
-            && matches!(bytes[*at], b'-' | b'+' | b'.' | b'e' | b'E' | b'0'..=b'9')
-        {
-            *at += 1;
-        }
-        if start == *at {
-            return Err(format!("expected a value at byte {start}"));
-        }
-        Ok(Value::Number)
-    }
-
-    fn string(bytes: &[u8], at: &mut usize) -> Result<String, String> {
-        expect(bytes, at, b'"')?;
-        let mut out = String::new();
-        loop {
-            let byte = *bytes
-                .get(*at)
-                .ok_or_else(|| "unterminated string".to_owned())?;
-            *at += 1;
-            match byte {
-                b'"' => return Ok(out),
-                b'\\' => {
-                    let escape = *bytes
-                        .get(*at)
-                        .ok_or_else(|| "unterminated escape".to_owned())?;
-                    *at += 1;
-                    match escape {
-                        b'"' => out.push('"'),
-                        b'\\' => out.push('\\'),
-                        b'/' => out.push('/'),
-                        b'b' => out.push('\u{8}'),
-                        b'f' => out.push('\u{c}'),
-                        b'n' => out.push('\n'),
-                        b'r' => out.push('\r'),
-                        b't' => out.push('\t'),
-                        b'u' => out.push(unicode_escape(bytes, at)?),
-                        other => {
-                            return Err(format!("unknown escape `\\{}`", char::from(other)));
-                        }
-                    }
-                }
-                // A raw byte of a multi-byte UTF-8 sequence lands here too; pushing the bytes and
-                // decoding at the end would be equivalent, but this keeps `out` a `String`
-                // throughout. The input came from `String::from_utf8`, so the sequence is valid.
-                _ => {
-                    let start = *at - 1;
-                    let width = utf8_width(byte);
-                    *at = start + width;
-                    let text = std::str::from_utf8(&bytes[start..*at])
-                        .map_err(|error| error.to_string())?;
-                    out.push_str(text);
-                }
-            }
-        }
-    }
-
-    /// How many bytes the UTF-8 sequence starting with `lead` occupies.
-    fn utf8_width(lead: u8) -> usize {
-        match lead {
-            0x00..=0x7f => 1,
-            0xc0..=0xdf => 2,
-            0xe0..=0xef => 3,
-            _ => 4,
-        }
-    }
-
-    /// A `\uXXXX` escape, with the surrogate pair a character outside the BMP is written as.
-    fn unicode_escape(bytes: &[u8], at: &mut usize) -> Result<char, String> {
-        let first = hex4(bytes, at)?;
-        if (0xd800..0xdc00).contains(&first) {
-            expect(bytes, at, b'\\')?;
-            expect(bytes, at, b'u')?;
-            let second = hex4(bytes, at)?;
-            let combined =
-                0x1_0000 + ((u32::from(first) - 0xd800) << 10) + (u32::from(second) - 0xdc00);
-            return char::from_u32(combined).ok_or_else(|| "invalid surrogate pair".to_owned());
-        }
-        char::from_u32(u32::from(first)).ok_or_else(|| "invalid escape".to_owned())
-    }
-
-    fn hex4(bytes: &[u8], at: &mut usize) -> Result<u16, String> {
-        let digits = bytes
-            .get(*at..*at + 4)
-            .ok_or_else(|| "truncated \\u escape".to_owned())?;
-        *at += 4;
-        let text = std::str::from_utf8(digits).map_err(|error| error.to_string())?;
-        u16::from_str_radix(text, 16).map_err(|error| error.to_string())
-    }
-
-    fn array(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        expect(bytes, at, b'[')?;
-        let mut items = Vec::new();
-        skip_whitespace(bytes, at);
-        if bytes.get(*at) == Some(&b']') {
-            *at += 1;
-            return Ok(Value::Array(items));
-        }
-        loop {
-            items.push(value(bytes, at)?);
-            skip_whitespace(bytes, at);
-            match bytes.get(*at) {
-                Some(b',') => *at += 1,
-                Some(b']') => {
-                    *at += 1;
-                    return Ok(Value::Array(items));
-                }
-                _ => return Err(format!("expected `,` or `]` at byte {at}", at = *at)),
-            }
-        }
-    }
-
-    fn object(bytes: &[u8], at: &mut usize) -> Result<Value, String> {
-        expect(bytes, at, b'{')?;
-        let mut members = Vec::new();
-        skip_whitespace(bytes, at);
-        if bytes.get(*at) == Some(&b'}') {
-            *at += 1;
-            return Ok(Value::Object(members));
-        }
-        loop {
-            skip_whitespace(bytes, at);
-            let key = string(bytes, at)?;
-            skip_whitespace(bytes, at);
-            expect(bytes, at, b':')?;
-            members.push((key, value(bytes, at)?));
-            skip_whitespace(bytes, at);
-            match bytes.get(*at) {
-                Some(b',') => *at += 1,
-                Some(b'}') => {
-                    *at += 1;
-                    return Ok(Value::Object(members));
-                }
-                _ => return Err(format!("expected `,` or `}}` at byte {at}", at = *at)),
-            }
-        }
-    }
-
-    #[cfg(test)]
-    mod tests {
-        use super::*;
-
-        /// The reader has to survive the shapes `cargo metadata` actually emits: nested objects and
-        /// arrays, `null` (which is how a normal dependency's `kind` is spelled), escapes inside
-        /// strings, and non-ASCII text. A reader that mis-tracked a string's end would find the
-        /// wrong keys, so this is checked rather than assumed.
-        #[test]
-        fn the_reader_handles_the_shapes_cargo_emits() {
-            let text = r#"{
-                "packages": [
-                    {"name": "a", "kind": null, "path": "C:\\x\\y", "note": "a \"quoted\" ünïcode ☃ \u2603 \ud83d\ude00"},
-                    {"name": "b", "deps": [], "meta": {}, "n": -1.5e3, "ok": true}
-                ]
-            }"#;
-            let root = parse(text).expect("parses");
-            let packages = root.get("packages").and_then(Value::array).expect("array");
-            assert_eq!(packages.len(), 2);
-            assert_eq!(packages[0].get("name").and_then(Value::string), Some("a"));
-            // `null` reads as absent, which is exactly how a normal dependency's `kind` is meant to
-            // be understood.
-            assert!(packages[0].get("kind").is_none());
-            assert_eq!(
-                packages[0].get("path").and_then(Value::string),
-                Some(r"C:\x\y")
-            );
-            assert_eq!(
-                packages[0].get("note").and_then(Value::string),
-                Some("a \"quoted\" ünïcode ☃ ☃ 😀")
-            );
-            assert_eq!(packages[1].get("name").and_then(Value::string), Some("b"));
-            assert_eq!(
-                packages[1]
-                    .get("deps")
-                    .and_then(Value::array)
-                    .map(<[_]>::len),
-                Some(0)
-            );
-        }
-
-        #[test]
-        fn malformed_input_is_an_error_rather_than_a_wrong_answer() {
-            for bad in [
-                "{",
-                "{\"a\"}",
-                "[1,]",
-                "\"unterminated",
-                "{} trailing",
-                "{\"a\": \\}",
-            ] {
-                assert!(parse(bad).is_err(), "`{bad}` should not parse");
-            }
-        }
-    }
-}
+/// `xtask` carries no JSON dependency and nothing in the shipped graph wants one, so the reader
+/// lives at `xtask/src/json.rs` rather than in the dependency graph. It used to be a private module
+/// *here*, because this gate was its only consumer; MJXOFF-156's token generator became a second
+/// one, and an integration test cannot reach a binary crate's private modules — so the one file is
+/// pulled in by path rather than copied. A workspace with two JSON readers in it has one reader too
+/// many, and the copy that is not exercised is the one that is wrong.
+#[path = "../src/json.rs"]
+mod json;
