@@ -31,8 +31,9 @@ use mjx_ooxml as ooxml;
 
 use crate::charts::{
     ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
-    ChartPointFormatData, ChartSeriesData, ChartTrendlineData, ChartWrap, DanglingPointReference,
-    DataLabelSettings, DataLabelSpec, DocumentChartWorkbook, ErrorBarSpec, TrendlineSpec,
+    ChartPointFormatData, ChartSeriesData, ChartSeriesReferences, ChartTrendlineData, ChartWrap,
+    DanglingPointReference, DataLabelSettings, DataLabelSpec, DocumentChartWorkbook, ErrorBarSpec,
+    TrendlineSpec,
 };
 use crate::enums::{
     AxisOrientation, CellBorderEdge, ChartKind, HeaderFooterType, LegendPosition, MergedCellType,
@@ -1199,6 +1200,18 @@ impl Document {
     pub fn chart_series(&mut self, drawing_id: u32) -> Result<Vec<ChartSeriesData>, JsValue> {
         map_error(self.inner.chart_series(drawing_id))
             .map(|values| values.into_iter().map(ChartSeriesData).collect())
+    }
+
+    /// Where every series says its data lives — the formula beside each cache, as written. The
+    /// companion of `chartSeries`: that answers what the caches *hold*, this answers what the
+    /// references *name*.
+    #[wasm_bindgen(js_name = "chartSeriesReferences")]
+    pub fn chart_series_references(
+        &mut self,
+        drawing_id: u32,
+    ) -> Result<Vec<ChartSeriesReferences>, JsValue> {
+        map_error(self.inner.chart_series_references(drawing_id))
+            .map(|values| values.into_iter().map(ChartSeriesReferences).collect())
     }
 
     /// The kind of every plot the chart draws, in document order.
