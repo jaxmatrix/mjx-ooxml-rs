@@ -86,9 +86,9 @@ did not touch comes back byte-for-byte as it arrived.
 
 | Format | Crate | Status |
 |---|---|---|
-| PowerPoint `.pptx` | `mjx-pptx` | 🚧 first target |
-| Word `.docx` | `mjx-docx` | ⏳ planned |
-| Excel `.xlsx` | `mjx-xlsx` | ⏳ planned |
+| PowerPoint `.pptx` | `mjx-pptx` | 🚧 open, read, author, edit, save |
+| Word `.docx` | `mjx-docx` | 🚧 open, read, author, edit, save |
+| Excel `.xlsx` | `mjx-sml` + `mjx-xlsx` | 🚧 open, read, author, edit, save |
 
 | Binding | Package | Status |
 |---|---|---|
@@ -216,6 +216,8 @@ Every public item is documented; the `missing_docs` lint and a strict rustdoc CI
 Longer-form prose lives beside the code, and renders as its own pages under `cargo doc`. Every code
 snippet in them is compiled as a doctest, so none of it can rot.
 
+**PowerPoint** — [`crates/mjx-pptx/docs/guide/`](crates/mjx-pptx/docs/guide/README.md):
+
 | Guide | What it covers |
 |---|---|
 | [Building a deck](crates/mjx-pptx/docs/guide/building_a_deck.md) | The whole story once: open, add slides, fill them, style them, save |
@@ -225,19 +227,68 @@ snippet in them is compiled as a doctest, so none of it can rot.
 | [Effective properties](crates/mjx-pptx/docs/effective_properties.md) | The deep reference: every inheritance ladder, why colours bake to `RRGGBB`, where each reader stops |
 | [Fidelity and the known gaps](crates/mjx-pptx/docs/guide/fidelity_and_gaps.md) | The round-trip guarantee, and an honest list of what is not modelled |
 
+**Word** — [`crates/mjx-docx/docs/guide/`](crates/mjx-docx/docs/guide/README.md):
+
+| Guide | What it covers |
+|---|---|
+| [Building a document](crates/mjx-docx/docs/guide/building_a_document.md) | The whole story once: open or blank, paragraphs, runs, tables, headers, save |
+| [Text and formatting](crates/mjx-docx/docs/guide/text_and_formatting.md) | Addressing a run, editing it precisely, and the annotations that hang off it |
+| [Tables, sections and headers](crates/mjx-docx/docs/guide/tables_sections_and_headers.md) | Structured content, and the section a paragraph sits in |
+| [Styles, numbering and inheritance](crates/mjx-docx/docs/guide/styles_and_inheritance.md) | Where a property comes from when the run does not state it |
+| [Fidelity and the known gaps](crates/mjx-docx/docs/guide/fidelity_and_gaps.md) | The round-trip guarantee, the `wml` preserve-only ledger, and what is not modelled |
+
+**Excel** — [`crates/mjx-xlsx/docs/guide/`](crates/mjx-xlsx/docs/guide/README.md), thirteen pages.
+The five to start with:
+
+| Guide | What it covers |
+|---|---|
+| [Opening and saving a workbook](crates/mjx-xlsx/docs/guide/opening_and_saving.md) | The whole of the current surface, once — and which of the two Excel crates is which |
+| [Reading and editing cells](crates/mjx-xlsx/docs/guide/reading_and_editing_cells.md) | A value out of a sheet, and one into it |
+| [Authoring a workbook](crates/mjx-xlsx/docs/guide/authoring_a_workbook.md) | A workbook this library wrote, rather than one it opened |
+| [Large workbooks](crates/mjx-xlsx/docs/guide/large_workbooks.md) | What a sheet costs to hold, what it costs to open, and why the second is paid on every call |
+| [Deliberate limitations](crates/mjx-xlsx/docs/guide/deliberate_limitations.md) | **Before you file a bug** — no calculation engine, no rule evaluation, no filter application |
+| [Fidelity and the part graph](crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md) | The round-trip guarantee, and the nine `sml.xsd` clusters preserved rather than modelled |
+
 ### Examples
 
-Six runnable programs. Each one reopens what it wrote and asserts something about it, and CI runs all
-six on every push.
+Twenty-six runnable programs. Twenty-five of them **reopen what they wrote and assert something about
+it** — an example that only produced a file would prove nothing — and the twenty-sixth
+(`mjx-xml`'s `mjx248_measure`) is the serialization measurement `docs/BENCHMARKS.md` reproduces. CI
+runs every one on every push.
 
 ```sh
+# PowerPoint
 cargo run -p mjx-pptx --example build_a_deck -- out.pptx   # the guide, end to end
 cargo run -p mjx-pptx --example read_deck -- deck.pptx     # inspect, changing nothing
 cargo run -p mjx-pptx --example edit_text                  # and report which parts changed
+cargo run -p mjx-pptx --example blank_deck
 cargo run -p mjx-pptx --example style_shapes
 cargo run -p mjx-pptx --example build_table
 cargo run -p mjx-pptx --example charts_and_media
 cargo run -p mjx-pptx --example legacy_content            # OLE, ActiveX, ink, SmartArt (add --features vml)
+
+# Word
+cargo run -p mjx-docx --example blank_document            # a document from nothing
+cargo run -p mjx-docx --example read_document -- out.docx # inspect, changing nothing
+cargo run -p mjx-docx --example edit_text
+cargo run -p mjx-docx --example build_table
+cargo run -p mjx-docx --example structured_content
+cargo run -p mjx-docx --example styles_and_numbering
+cargo run -p mjx-docx --example sections_and_headers
+cargo run -p mjx-docx --example fields_and_hyperlinks
+cargo run -p mjx-docx --example annotations
+
+# Excel
+cargo run -p mjx-xlsx --example build_a_workbook           # a workbook from nothing
+cargo run -p mjx-xlsx --example edit_a_workbook            # and check exactly which parts changed
+cargo run -p mjx-xlsx --example read_formulas              # formulas, cached values, and the stale one
+cargo run -p mjx-xlsx --example style_a_range              # one xf, N cells pointing at it
+cargo run -p mjx-xlsx --example table_and_autofilter       # a table part, and a filter that hides nothing
+cargo run -p mjx-xlsx --example large_sparse_sheet         # with its memory figure asserted
+
+# Through the facade, naming no lower crate
+cargo run -p mjx-ooxml --example build_a_deck
+cargo run -p mjx-ooxml --example build_a_document
 ```
 
 ## Contributing

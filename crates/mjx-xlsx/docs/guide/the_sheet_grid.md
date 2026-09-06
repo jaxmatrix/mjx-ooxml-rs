@@ -160,10 +160,12 @@ until [`mjx_sml::WorksheetPart::recompute_outline_levels`] is called. That is th
 
 ## What is still held rather than modelled
 
-**Eighteen** of `CT_Worksheet`'s thirty-nine slots are modelled as of MJXOFF-125 — thirteen by
+**Thirty-one** of `CT_Worksheet`'s thirty-nine slots are modelled as of MJXOFF-129 — thirteen by
 MJXOFF-117, plus `conditionalFormatting` (MJXOFF-120), `autoFilter`, `sortState` and
-`dataValidations` (MJXOFF-123) and `tableParts` (MJXOFF-125). The other twenty-one — hyperlinks,
-print setup, headers and footers, drawings, OLE objects and the rest — are held as the markup the
+`dataValidations` (MJXOFF-123), `tableParts` (MJXOFF-125), seven more by MJXOFF-127 and six by
+MJXOFF-129. The other **eight** — `phoneticPr`, the drawing family (`drawing`, `legacyDrawing`,
+`legacyDrawingHF`, `drawingHF`, `oleObjects`, `controls`) and `extLst` — are held as the markup the
 producer wrote, in the position it wrote it, and come back byte for byte.
+`crates/mjx-sml/src/worksheet/frame.rs` names the disposition of every one.
 Held is not dropped: a worksheet whose `conditionalFormatting` survives an edit to its column widths
 is proof the frame works.

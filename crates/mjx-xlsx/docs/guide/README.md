@@ -1,6 +1,6 @@
 # Guide
 
-Ten pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+Thirteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
@@ -11,8 +11,12 @@ page breaks and sheet protection. MJXOFF-120 (D13) adds conditional formatting, 
 reports and never evaluates. MJXOFF-123 (D14) adds autofilters, sort state and data validation,
 which this library records and never applies. MJXOFF-125 (D15) adds worksheet tables — the first
 feature here that lives in a part of its own. MJXOFF-127 (D16) adds hyperlinks, which are two records
-in two parts that this library writes and removes together. This guide says exactly that much and no
-more, so that nobody plans around a surface that is not here.
+in two parts that this library writes and removes together. MJXOFF-129 (D17) adds print setup, the
+opaque header/footer strings and the three sheet kinds that are not worksheets. MJXOFF-133 (D18)
+writes down the half of `sml.xsd` this project deliberately does not model, and proves it survives.
+MJXOFF-135 (D19) — this child — adds the two pages that were missing and the six runnable examples.
+This guide says exactly that much and no more, so that nobody plans around a surface that is not
+here.
 
 | Page | Read it when |
 |---|---|
@@ -27,10 +31,25 @@ more, so that nobody plans around a surface that is not here.
 | [Hyperlinks](hyperlinks) | You want to read, add or remove a link — and to know what this library will never do to a target |
 | [Print setup and sheet kinds](print_setup_and_sheet_kinds) | You want a sheet's margins, page setup or header/footer, or a tab that is not a grid of cells |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
+| [Large workbooks](large_workbooks) | Before you write a loop that touches a lot of cells |
+| [Deliberate limitations](deliberate_limitations) | **Before you file a bug** — every standing refusal, its reason and its workaround |
 
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a
 value it computed — the same rule `mjx-pptx`'s and `mjx-docx`'s guides are held to, and what keeps a
-guide from drifting away from the API it describes.
+guide from drifting away from the API it describes. Rename a public method without updating the page
+that names it and `cargo test` goes red, which is what makes this a test rather than a document.
+
+Beside them are **six runnable examples** under `crates/mjx-xlsx/examples/`, each of which reopens
+what it wrote and asserts something about it. CI runs every one on every push.
+
+```sh
+cargo run -p mjx-xlsx --example build_a_workbook      # a workbook from nothing
+cargo run -p mjx-xlsx --example edit_a_workbook       # and check exactly which parts changed
+cargo run -p mjx-xlsx --example read_formulas         # formulas, cached values, and the stale one
+cargo run -p mjx-xlsx --example style_a_range         # one xf, N cells pointing at it
+cargo run -p mjx-xlsx --example table_and_autofilter  # a table part, and a filter that hides nothing
+cargo run -p mjx-xlsx --example large_sparse_sheet    # with its memory figure asserted
+```
 
 ## The shape of the API, in one page
 

@@ -38,6 +38,12 @@ criterion.workspace = true
 # Locates the workspace root the corpus generator writes `target/corpus/` under. Dependency-free, so
 # this adds no edge beyond the one every other test suite already has.
 mjx-fixtures.workspace = true
+# The counting global allocator (MJXOFF-146, moved to its own crate by MJXOFF-95). Installed by
+# `examples/large_sparse_sheet.rs`, which asserts a byte bound rather than describing one — the same
+# instrument `crates/mjx-sml/tests/cell_store_allocation.rs` uses, and for the same reason:
+# `size_of_val` reports the same twenty-four bytes for a `Vec` that reserved a million slots as for
+# an empty one. Dependency-free and `publish = false`, so it adds no edge to the shipped graph.
+mjx-allocation-counter.workspace = true
 
 [[bench]]
 name = "xlsx_operations"

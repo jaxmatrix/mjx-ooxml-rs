@@ -87,3 +87,15 @@ pub mod fidelity_and_the_part_graph {
     #![doc = include_str!("../docs/guide/fidelity_and_the_part_graph.md")]
     guide_vocabulary!();
 }
+
+/// What a sheet costs to hold, what it costs to open, and why the second one is paid on every call.
+pub mod large_workbooks {
+    #![doc = include_str!("../docs/guide/large_workbooks.md")]
+    guide_vocabulary!();
+}
+
+/// The page to read before filing a bug: every deliberate refusal, its reason, and its workaround.
+pub mod deliberate_limitations {
+    #![doc = include_str!("../docs/guide/deliberate_limitations.md")]
+    guide_vocabulary!();
+}
