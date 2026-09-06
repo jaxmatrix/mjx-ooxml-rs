@@ -315,4 +315,53 @@ pub enum DocxError {
         /// The `w:altChunk/@r:id` that did not resolve.
         relationship_id: String,
     },
+
+    // ---------------------------------------------------------------------------------------------
+    // MJXOFF-103 (E2) — charts on the Word surface.
+    // ---------------------------------------------------------------------------------------------
+    /// [`crate::Document::add_chart`]: the chart description has nothing to draw — no series, or
+    /// every series empty. Word will not open a chart with no data, so this is refused at creation
+    /// rather than written out.
+    #[error("a chart must have at least one series with at least one value")]
+    InvalidChartData,
+
+    /// No drawing in the document body carries `wp:docPr@id == drawing_id`, or the one that does
+    /// frames something other than a chart — a picture, a Word shape, a diagram.
+    ///
+    /// The `wp:docPr` id is how every Word drawing is addressed on this surface, the same id
+    /// [`crate::Document::add_chart`] returns and [`crate::Document::remove_drawing`] takes.
+    #[error("drawing {drawing_id} is not a chart")]
+    DrawingIsNotAChart {
+        /// The `wp:docPr@id` that was asked for.
+        drawing_id: u32,
+    },
+
+    /// The chart references no backing workbook (`c:externalData`), so there is nothing to detach.
+    #[error("chart has no external data reference")]
+    ChartHasNoExternalData,
+
+    /// A read or an edit of a chart that had already been found and parsed failed — an index past
+    /// the end, a series with nothing editable, a part declaring no `c:chart`.
+    ///
+    /// This wraps `mjx-chart`'s own [`ChartAccessError`](mjx_chart::ChartAccessError) rather than
+    /// restating its eight variants, because MJXOFF-103 made that enum the single source of those
+    /// verdicts for both host surfaces: a Word chart and a PowerPoint chart refuse the same index
+    /// for the same reason and say so in the same words. `mjx-pptx` maps the same type onto its own
+    /// pre-existing variants instead, which is a difference in that crate's history rather than in
+    /// what either surface does.
+    #[error(transparent)]
+    ChartAccess(#[from] mjx_chart::ChartAccessError),
+
+    /// A [`ChartData`](mjx_chart::ChartData) description cannot be written as a schema-valid chart
+    /// part — a stock chart given the wrong number of series, for instance. Refused before anything
+    /// is written, so the document is untouched.
+    ///
+    /// The "nothing to draw" case is [`InvalidChartData`](Self::InvalidChartData) instead, which is
+    /// the split `mjx_pptx::PptxError` already makes.
+    #[error(transparent)]
+    ChartData(#[from] mjx_chart::ChartDataError),
+
+    /// A chart's embedded workbook could not be written.
+    #[error(transparent)]
+    Sml(#[from] mjx_sml::SmlError),
 }
