@@ -109,6 +109,7 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 0.2  Foundations      mjx-tokens  (design tokens — generated defaults + the runtime resolver)
 1.0  Packaging/compat mjx-opc  ·  mjx-mce  ·  mjx-ooxml-types (generated)
 1.5  Typography       mjx-text    (fonts, substitution, shaping, bidi, line breaking)
+1.6  Box model        mjx-layout  (the BoxModel contract, FragmentTree, Checkpoint, spatial index)
 2.0  Shared markup    mjx-dml
 2.1  Shared markup    mjx-sml     (SpreadsheetML markup — an embedded workbook is not Excel's alone)
 2.2  Shared markup    mjx-chart  ·  mjx-omml  ·  mjx-vml

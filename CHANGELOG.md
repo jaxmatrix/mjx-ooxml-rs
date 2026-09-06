@@ -54,6 +54,103 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.126] - 2026-09-07
+
+**The box model contract** (MJXOFF-160, Phase R position 5).
+
+The layer the whole client-platform architecture is organised around. `mjx-layout` defines what a box
+model *is* and what it produces, and nothing else: no document format is laid out here, and no OOXML
+type may appear in its public API. Above a `FragmentTree`, scene building, painting, hit-testing,
+selection, caret placement, comment anchoring, accessibility and every exporter are written against
+six fragment kinds and a `SourceRef`, and none of them can tell a `.docx` from a Markdown file. That
+is what makes the box model swappable, which was the requirement this architecture exists to satisfy.
+
+### Added
+
+- **`crates/mjx-layout`, rank 1.6** — a new crate depending on `mjx-ooxml-core` and `mjx-text` and on
+  **no format crate, ever**. `CLAUDE.md`'s rank table, `README.md`'s ladder and
+  `xtask/tests/layering.rs` all grew the row; adding `mjx-pptx` to its manifest turns the layering
+  test red naming both crates and both ranks, which is how the seam is held rather than asserted.
+- **`BoxModel`** — `layout_page(content, page, constraints, resume) -> PageFragments`,
+  `estimate_extent(content, constraints) -> Extent`, `invalidate(change) -> DirtyPages`, and
+  `signature() -> ModelSignature`, with associated `Content` and `Error` types. `estimate_extent`
+  takes the constraints as well as the content, which the specification's sketch did not: a page
+  count is a function of the page, and an extent computed without one would be an answer to no
+  question.
+- **`FragmentTree`** — `BoxFragment`, `LineFragment`, `GlyphRunFragment`, `ImageFragment`,
+  `ShapeFragment` and `TableFragment` in a flat arena with parent/child/sibling indices: one
+  allocation for a page, iteration in memory order for a painter, no recursion anywhere. Transforms
+  and clips live in shared side tables, so a page with no rotation stores exactly one `Transform`
+  however many fragments are on it. Children are in paint order; the children of a `LineFragment` are
+  in **visual** order while their `SourceRef`s stay **logical**, which is the contract half of
+  `mjx-text`'s "shape in logical order, place in visual order".
+- **`SourceRef`** on every fragment — a part number, a path of child indices and a character range,
+  and **no OOXML type**. Six path segments are held inline and deeper ones spill to a shared `Arc`,
+  because there is one of these per fragment and hundreds of thousands of fragments in a document.
+  Ordering is document order, which is what lets an invalidation binary-search and a caret walk.
+- **`Checkpoint`** — the continuation token that makes page 300 reachable without laying out 299.
+  Carries the page it ends, a shared inspectable position, a `ModelSignature` and the box model's own
+  opaque bytes under a 1 KiB ceiling. `Checkpoint::state_for` checks **both** halves — the right model
+  *and* the right page — because a checkpoint from the right model and the wrong page produces a page
+  that looks entirely plausible and holds the wrong content.
+- **`SpatialIndex`** — a uniform grid in CSR form, built in bulk at the end of layout, with an
+  oversized list for fragments too large to write into cells. Point and rectangle queries, and a
+  `topmost_at` that answers what a click is about.
+- **`LineComposer`** — the join to the text engine. Fits a line against a measure, shapes each item,
+  and emits the segments in visual order. It **calls** `mjx-text` and never re-implements measurement.
+- **`mjx_ooxml_core::measure`** — `Emu` and `Angle` moved down from `mjx-dml`, which now re-exports
+  them. `mjx-layout` positions every fragment in EMU and may not depend on `mjx-dml`; a second `Emu`
+  is the defect the layering rule exists to prevent, so the type moved rather than being copied.
+  `Emu` gained saturating arithmetic, `from_twips`/`from_inches` and `from_emu_rounded`; **there is
+  still exactly one `Emu` in the workspace.**
+- **`ShapedRun` is `PartialEq`** — needed to prove that resuming a page from a checkpoint produces the
+  *same fragments*, which is a question about values rather than about the `Arc` identity
+  `shares_glyphs_with` already answered.
+
+### Fixed
+
+- **`LineBreaker::next_line` exempted every paragraph's last line from its own measure** (MJXOFF-158,
+  found here). UAX #14 reports the end of the text as a *mandatory* break, and the loop returned at
+  the first mandatory opportunity without measuring it — so `"a bbbbbbbbbbbbbbbbbbbb"` against a
+  measure of five came back as one twenty-two-character line, discarding the fitting break at byte 2
+  that the loop had already found. The end sentinel is now an ordinary candidate; a real hard break —
+  a line feed, `U+2028`, a paragraph separator — is still taken whatever the measure says.
+
+### Changed
+
+- **`LineBreakOptions::default()` is now plain UAX #14** rather than Japanese typesetting, and the
+  Japanese answer has a name: `LineBreakOptions::japanese_typesetting()`. The old default enabled
+  `east_asian_rules` and `hanging_punctuation`, and JIS X 4051's hangable set contains the **ASCII**
+  comma and full stop — so a caller who said nothing got an English paragraph whose line-final full
+  stop did not count against the measure. Both flags are named for document settings (`w:kinsoku`,
+  `w:overflowPunct`), and a document that carries neither has not asked for either; a `Default` that
+  silently enables two settings the document did not write is a hidden policy, not a default.
+  **What is deliberately *not* decided here:** whether Word hangs an ASCII full stop in a *Japanese*
+  paragraph, and whether it treats a Latin paragraph in the same document differently. That is a
+  measurement against Word, and the character set is left exactly as it was until the reference pass
+  makes it. `mjx-text`'s suite gained the Latin case that was missing.
+
+### Tested
+
+- **A second `BoxModel` implementation with no OOXML in it** — `tests/support/plain_text.rs` reflows
+  a `Vec<String>` into a fixed-width column, produces a real `FragmentTree` with real `SourceRef`s,
+  paginates, resumes and hit-tests. An abstraction with one implementation is a guess.
+- **Checkpoint resumption proved equivalent, not merely present** — pages 1..=*N* laid out in order
+  and page *N* laid out alone from *N−1*'s checkpoint compare equal as whole fragment trees, down to
+  the glyphs. Perturbing one byte of the continuation makes them differ, so the equality can fail.
+- **The spatial index proved against brute force** — every point and rectangle query over randomised
+  fragment sets equals a linear scan's, across fragment counts and rectangle sizes that move the grid
+  through three shapes and both the cell and oversized paths.
+- **`ShapedGlyph::unsafe_to_break` has its first consumer and its first assertions.** It had zero
+  readers anywhere in the workspace, so no assertion could depend on it. `slice_width` reads it, and
+  two fixtures show why: Carlito's `ffi` ligature in `"office"` leaves bytes 2 and 3 with no glyph to
+  slice at, and Liberation Sans's kerned `"AV"` has a glyph at byte 1 that only the flag marks unsafe
+  — the case that distinguishes reading the flag from ignoring it.
+- **A reachability gate over this crate's own public surface.** Every `pub fn` and `pub const` in
+  `src/` must be named somewhere else, or the suite fails and prints it. It found four orphans on its
+  first run; two were deleted and two given tests. MJXOFF-155 §9 item 10 asked for a gate rather than
+  a list, and this is that gate, scoped to the crate where a dead export does the most harm.
+
 ## [0.0.125] - 2026-09-06
 
 **Glyph rasterisation and the scale-bucketed atlas** (MJXOFF-159, Phase R position 4).

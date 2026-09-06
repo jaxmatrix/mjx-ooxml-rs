@@ -34,6 +34,15 @@
 //! `#[derive(XmlAttributes)]` in `mjx-derive` — so unknown attributes, their order and their quote
 //! style survive untouched.
 //!
+//! # Measures
+//!
+//! [`measure`] holds the two units that are nobody's markup: [`Emu`], the English
+//! Metric Unit every length in every one of the three formats finally reduces to, and
+//! [`Angle`]. They were `mjx-dml`'s until MJXOFF-160 and now sit here, because the
+//! client platform's box model (`mjx-layout`, rank 1.6) positions every fragment in EMU and may not
+//! reach `mjx-dml` (rank 2.0). `mjx-dml` re-exports them, so there is still exactly one `Emu` in the
+//! workspace.
+//!
 //! Later phases also add the arena + stable-handle primitives, when the typed model needs them (see
 //! `PLAN.md`).
 //!
@@ -52,6 +61,7 @@
 pub mod attribute;
 pub mod convert;
 pub mod intern;
+pub mod measure;
 pub mod raw;
 
 pub use attribute::{
@@ -59,6 +69,7 @@ pub use attribute::{
 };
 pub use convert::{FromXml, FromXmlError, ToXml};
 pub use intern::{Interner, Symbol};
+pub use measure::{Angle, Emu};
 pub use raw::{
     QuoteStyle, RawAttribute, RawDocument, RawElement, RawElementContent, RawName, RawNode,
 };

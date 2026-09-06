@@ -35,6 +35,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 0.2 — foundations, design tokens | `mjx-tokens` |
   | 1.0 — packaging / compatibility | `mjx-ooxml-types`, `mjx-opc`, `mjx-mce` |
   | 1.5 — typography | `mjx-text` |
+  | 1.6 — box model contract | `mjx-layout` |
   | 2.0 — shared markup, base | `mjx-dml` |
   | 2.1 — shared markup, spreadsheet | `mjx-sml` |
   | 2.2 — shared markup, upper | `mjx-chart`, `mjx-omml`, `mjx-vml` |
@@ -54,7 +55,15 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   metric-compatible substitution table and the per-document substitution manifest — and **it has
   never heard of OOXML**. A document's font *reference* is `mjx-dml`'s model of `<a:latin>`; a font
   *engine* is this; the two meet above both, which is why an edge from `mjx-text` to a format crate
-  or to `mjx-dml` is a layering violation rather than a convenience. `mjx-sml` sits between
+  or to `mjx-dml` is a layering violation rather than a convenience. `mjx-layout` (MJXOFF-160) is one
+  step above it at 1.6 and depends on `mjx-ooxml-core` and `mjx-text` alone: it is the **box model
+  contract** — the `BoxModel` trait, the `FragmentTree` every box model produces, the `Checkpoint`
+  that makes flow layout resumable, and the spatial index that makes a hit test a query. Its rank is
+  the seam the whole client platform is organised around: above a `FragmentTree`, scene building,
+  painting, hit-testing, selection and export have never heard of OOXML, so the crate that defines it
+  must sit where it cannot reach a format crate. That is what makes the box model swappable, and
+  `crates/mjx-layout/tests/the_seam_holds.rs` names the identifiers as well as the layering test
+  refusing the edge. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
