@@ -735,9 +735,20 @@ impl Workbook {
     /// `c:externalData` reference — the element and its relationship — leaving the chart to render
     /// from its cached values.
     ///
-    /// If the reference was to an *embedded* workbook, that part is left unreferenced; sweep it with
-    /// [`mjx_opc::Package::remove_unreferenced_parts`] if wanted. This never removes parts on its
-    /// own. Dirties only the chart part.
+    /// # It also removes the workbook part, and here that is forced
+    ///
+    /// `mjx_docx::Document::detach_chart_workbook` leaves the detached part in the package and says
+    /// so, on the ground that removing parts is the caller's business. **This surface cannot make
+    /// that promise**, because [`save`](Self::save) runs `Package::validate` and refuses a package
+    /// holding a SpreadsheetML part no relationship chain reaches
+    /// ([`SpreadsheetDefect::UnreachableSpreadsheetPart`](crate::SpreadsheetDefect)) — and an
+    /// embedded chart workbook carries the SpreadsheetML package content type, so a detach that left
+    /// it behind would hand back a workbook this library then declines to write. Leaving the caller
+    /// to discover that on the next `save` is worse than one documented removal.
+    ///
+    /// So the part goes **only when nothing else reaches it**: another chart naming the same
+    /// workbook keeps it, and an external reference names no part of this package to remove.
+    /// Dirties the chart part, and removes at most the one part the detached relationship named.
     ///
     /// # Errors
     /// [`XlsxError::AnchorIsNotAChart`] if the anchor frames no chart,
@@ -752,6 +763,13 @@ impl Workbook {
         let rel_id = self
             .chart_external_data_rel_id(&chart_part)?
             .ok_or(XlsxError::ChartHasNoExternalData)?;
+        // Resolved before the relationship goes, because afterwards there is nothing left to resolve.
+        let workbook_part = self
+            .package()
+            .relationships_for(Some(&chart_part))
+            .and_then(|rels| rels.by_id(&rel_id))
+            .filter(|rel| rel.mode == TargetMode::Internal)
+            .and_then(|rel| crate::nav::resolve_target(&chart_part, &rel.target).ok());
         {
             let Some(bytes) = self.package().part_bytes(&chart_part) else {
                 return Err(XlsxError::MissingWorkbookPart(
@@ -771,7 +789,33 @@ impl Workbook {
         }
         self.package_mut()
             .remove_relationship(Some(&chart_part), &rel_id)?;
+        if let Some(part) = workbook_part {
+            if !self.is_reachable(&part) {
+                self.package_mut().remove_part(&part)?;
+            }
+        }
         Ok(())
+    }
+
+    /// Whether any relationship in the package still resolves to `part`.
+    ///
+    /// One pass over every relationship item — the same walk [`crate::preserve`] makes to classify a
+    /// part by its incoming edge, asked the other way round. An unresolvable target reaches nothing,
+    /// and `Package::validate` is what reports one; treating it as a reference here would keep a part
+    /// alive on the strength of an edge that goes nowhere.
+    fn is_reachable(&self, part: &PartName) -> bool {
+        self.package().relationships().iter().any(|item| {
+            item.relationships.iter().any(|rel| {
+                if rel.mode == TargetMode::External {
+                    return false;
+                }
+                let resolved = match &item.source {
+                    Some(source) => crate::nav::resolve_target(source, &rel.target),
+                    None => crate::nav::resolve_from_root(&rel.target),
+                };
+                resolved.is_ok_and(|target| &target == part)
+            })
+        })
     }
 
     // ---------------------------------------------------------------------------------------------

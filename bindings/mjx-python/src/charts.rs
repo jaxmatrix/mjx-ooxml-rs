@@ -68,6 +68,233 @@ value_class! {
 
     /// How text flows around a floating Word chart (`Document.add_floating_chart`).
     ChartWrap(ooxml::ChartWrap), derive(Copy, PartialEq, Eq);
+
+    /// Where one series says its data lives — the formula beside each cache, as the file wrote it.
+    ChartSeriesReferences(ooxml::ChartSeriesReferences), derive(PartialEq, Eq);
+
+    /// Where one series of an Excel range chart takes its data from (`Workbook.add_range_chart`).
+    ChartRangeSeries(ooxml::ChartRangeSeries), derive(PartialEq, Eq);
+
+    /// An Excel chart's backing workbook: which anchor on which tab holds the chart, where the
+    /// workbook is, and whether it lies outside the package.
+    SheetChartWorkbookInfo(ooxml::SheetChartWorkbookInfo), derive(PartialEq, Eq);
+
+    /// One series' cache set beside what its cells actually say, with each named.
+    ChartSeriesFreshnessInfo(ooxml::ChartSeriesFreshnessInfo), derive(PartialEq);
+
+    /// One cell a chart's formula reaches, and where it sits in that reference.
+    RangeCellInfo(ooxml::RangeCellInfo), derive(PartialEq);
+
+    /// A chart's formula, resolved against a workbook's cells.
+    ResolvedRangeInfo(ooxml::ResolvedRangeInfo), derive(PartialEq);
+}
+
+// ---------------------------------------------------------------------------------------------
+// The Excel chart surface (MJXOFF-111)
+// ---------------------------------------------------------------------------------------------
+
+#[pymethods]
+impl ChartSeriesReferences {
+    /// The cell the series' name comes from, or `None` when the name is a literal.
+    #[getter]
+    fn name(&self) -> Option<&str> {
+        self.0.name.as_deref()
+    }
+
+    /// The cells its category labels come from, or `None` when they are a literal.
+    #[getter]
+    fn categories(&self) -> Option<&str> {
+        self.0.categories.as_deref()
+    }
+
+    /// The cells its values come from, or `None` when they are a literal.
+    #[getter]
+    fn values(&self) -> Option<&str> {
+        self.0.values.as_deref()
+    }
+}
+
+#[pymethods]
+impl ChartRangeSeries {
+    /// A series taking its values from `values` and its name from the literal `name`.
+    #[new]
+    fn new(name: &str, values: &str) -> Self {
+        Self(ooxml::ChartRangeSeries::new(name, values))
+    }
+
+    /// The same series, taking its name from the cell `reference` names instead.
+    fn named_by_cell(&self, reference: &str) -> Self {
+        Self(self.0.clone().named_by_cell(reference))
+    }
+
+    /// The cell the series takes its name from, or `None` for a literal name.
+    #[getter]
+    fn name_cell(&self) -> Option<&str> {
+        self.0.name_cell.as_deref()
+    }
+
+    /// The name to use when no cell names it, or when the cell it names holds nothing.
+    #[getter]
+    fn name(&self) -> &str {
+        &self.0.name
+    }
+
+    /// The cells the series' values come from.
+    #[getter]
+    fn values(&self) -> &str {
+        &self.0.values
+    }
+}
+
+#[pymethods]
+impl SheetChartWorkbookInfo {
+    /// The tab the chart is anchored on.
+    #[getter]
+    fn sheet(&self) -> u32 {
+        self.0.sheet
+    }
+
+    /// The anchor that frames it, in the drawing part's paint order.
+    #[getter]
+    fn anchor(&self) -> u32 {
+        self.0.anchor
+    }
+
+    /// Where the workbook is — a part name inside the package, or a URI outside it.
+    #[getter]
+    fn target(&self) -> &str {
+        &self.0.target
+    }
+
+    /// Whether the workbook lies outside the package.
+    #[getter]
+    fn external(&self) -> bool {
+        self.0.external
+    }
+}
+
+#[pymethods]
+impl ChartSeriesFreshnessInfo {
+    /// Which series this is, in the order `Workbook.chart_series` reports them.
+    #[getter]
+    fn series_index(&self) -> u32 {
+        self.0.series_index
+    }
+
+    /// What the chart draws today — its caches.
+    #[getter]
+    fn cached(&self) -> ChartSeriesData {
+        ChartSeriesData(self.0.cached.clone())
+    }
+
+    /// The formula of each of the series' sources, as the file wrote them.
+    #[getter]
+    fn references(&self) -> ChartSeriesReferences {
+        ChartSeriesReferences(self.0.references.clone())
+    }
+
+    /// What the cells say, for the sources that are references and resolved.
+    ///
+    /// `clippy::wrong_self_convention` reads `from_*` as a constructor; here it is the *identity*
+    /// projection of `mjx_ooxml::ChartSeriesFreshnessInfo::from_cells`, and this binding renames
+    /// nothing (see the crate's own doc comment). Renaming it to satisfy a lint would put a third
+    /// spelling of one field in front of a Python caller.
+    #[allow(clippy::wrong_self_convention)]
+    #[getter]
+    fn from_cells(&self) -> ChartSeriesData {
+        ChartSeriesData(self.0.from_cells.clone())
+    }
+
+    /// Why the values reference did not resolve, in words, or `None` when it did.
+    #[getter]
+    fn values_problem(&self) -> Option<&str> {
+        self.0.values_problem.as_deref()
+    }
+
+    /// Why the categories reference did not resolve, in words, or `None`.
+    #[getter]
+    fn categories_problem(&self) -> Option<&str> {
+        self.0.categories_problem.as_deref()
+    }
+
+    /// Whether the cached values and the cells agree. `None` means *cannot say* — the values are a
+    /// literal, or the reference did not resolve.
+    #[getter]
+    fn values_agree(&self) -> Option<bool> {
+        self.0.values_agree
+    }
+
+    /// Whether the cached category labels and the cells agree. `None` as above.
+    #[getter]
+    fn categories_agree(&self) -> Option<bool> {
+        self.0.categories_agree
+    }
+}
+
+#[pymethods]
+impl RangeCellInfo {
+    /// The cell's zero-based position within the whole reference — the index a cache uses.
+    #[getter]
+    fn offset(&self) -> u64 {
+        self.0.offset
+    }
+
+    /// The tab the cell is on.
+    #[getter]
+    fn sheet(&self) -> u32 {
+        self.0.sheet
+    }
+
+    /// Where on that tab, in A1 text.
+    #[getter]
+    fn reference(&self) -> &str {
+        &self.0.reference
+    }
+
+    /// The cell's value as a number, or `None` for one that is not a number.
+    #[getter]
+    fn number(&self) -> Option<f64> {
+        self.0.number
+    }
+
+    /// What a category axis would show for the cell.
+    #[getter]
+    fn label(&self) -> &str {
+        &self.0.label
+    }
+}
+
+#[pymethods]
+impl ResolvedRangeInfo {
+    /// The reference exactly as the chart wrote it.
+    #[getter]
+    fn reference(&self) -> &str {
+        &self.0.reference
+    }
+
+    /// How many cells the reference addresses, blanks included.
+    #[getter]
+    fn addressed_cells(&self) -> u64 {
+        self.0.addressed_cells
+    }
+
+    /// Whether every area of the reference resolved.
+    #[getter]
+    fn fully_resolved(&self) -> bool {
+        self.0.fully_resolved
+    }
+
+    /// Why the first area that failed did, in words, or `None` when none did.
+    #[getter]
+    fn problem(&self) -> Option<&str> {
+        self.0.problem.as_deref()
+    }
+
+    /// The cells that hold something, in reference order. A blank cell is absent rather than zero.
+    #[getter]
+    fn cells(&self) -> Vec<RangeCellInfo> {
+        self.0.cells.iter().cloned().map(RangeCellInfo).collect()
+    }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1001,5 +1228,11 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ChartWorkbook>()?;
     module.add_class::<DanglingPointReference>()?;
     module.add_class::<DocumentChartWorkbook>()?;
-    module.add_class::<ChartWrap>()
+    module.add_class::<ChartWrap>()?;
+    module.add_class::<ChartSeriesReferences>()?;
+    module.add_class::<ChartRangeSeries>()?;
+    module.add_class::<SheetChartWorkbookInfo>()?;
+    module.add_class::<ChartSeriesFreshnessInfo>()?;
+    module.add_class::<RangeCellInfo>()?;
+    module.add_class::<ResolvedRangeInfo>()
 }

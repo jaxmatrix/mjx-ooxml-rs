@@ -4,7 +4,7 @@ use mjx_chart::chart_ops;
 use mjx_chart::{
     embedded_workbook_for_chart_data, embedded_workbook_for_chart_space, AxisOrientation,
     ChartAxisData, ChartData, ChartDataError, ChartKind, ChartLegendData, ChartSeriesData,
-    ChartSpace, LegendPosition,
+    ChartSeriesReferences, ChartSpace, LegendPosition,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN, PML};
@@ -479,6 +479,27 @@ impl Presentation {
     ) -> Result<Vec<ChartKind>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, _interner| {
             Ok(chart_ops::kinds(space))
+        })
+    }
+
+    /// Where every series of the chart says its data lives — the `c:f` beside each cache, as the
+    /// file wrote it. Reading does not dirty the part.
+    ///
+    /// The companion of [`chart_series`](Self::chart_series): that answers what the **caches** hold,
+    /// this answers what the references **name**. For a chart this library authored, those
+    /// references name the embedded workbook beside it; for one a producer wrote they may name
+    /// anything, and the text comes back as written. A field is `None` where the source is a
+    /// literal and so has no cells behind it at all.
+    ///
+    /// # Errors
+    /// As [`chart_kinds`](Self::chart_kinds).
+    pub fn chart_series_references(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Vec<ChartSeriesReferences>, PptxError> {
+        self.with_chart(surface.into(), shape_idx, |space, _interner| {
+            Ok(chart_ops::series_references(space))
         })
     }
 
