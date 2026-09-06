@@ -292,18 +292,19 @@ fn shapes_answers_exactly_what_the_per_address_readers_do() {
         assert_eq!(listed.len(), pres.shape_count(surface).expect("count"));
 
         for entry in &listed {
+            // `ShapeInfo::index` is a `u32`: the struct is re-exported verbatim by `mjx-ooxml` and
+            // by both bindings, so its width may not depend on the host. This crate addresses in
+            // `usize`, so a caller crossing back converts once, here.
+            let index = usize::try_from(entry.index).expect("a shape index fits a usize");
             assert_eq!(
                 entry.kind,
-                pres.shape_kind(surface, entry.index).expect("kind"),
-                "{surface:?} shape {}",
-                entry.index
+                pres.shape_kind(surface, index).expect("kind"),
+                "{surface:?} shape {index}"
             );
             assert_eq!(
                 entry.placeholder,
-                pres.shape_placeholder(surface, entry.index)
-                    .expect("placeholder"),
-                "{surface:?} shape {}",
-                entry.index
+                pres.shape_placeholder(surface, index).expect("placeholder"),
+                "{surface:?} shape {index}"
             );
         }
     }

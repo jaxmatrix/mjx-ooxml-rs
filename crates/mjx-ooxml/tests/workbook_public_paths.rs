@@ -882,7 +882,7 @@ fn the_whole_chart_family_is_reachable_naming_only_the_facade() {
         .set_chart_data_labels(
             0,
             anchor,
-            ChartLabelScope::Series { series_idx: 0 },
+            ChartLabelScope::Series { series_index: 0 },
             &DataLabelSpec::new().value(true),
         )
         .expect("labels");
@@ -894,7 +894,7 @@ fn the_whole_chart_family_is_reachable_naming_only_the_facade() {
             == Some(true)
     );
     assert!(workbook
-        .chart_data_label_tier(0, anchor, ChartLabelScope::Series { series_idx: 0 })
+        .chart_data_label_tier(0, anchor, ChartLabelScope::Series { series_index: 0 })
         .expect("tier")
         .is_some());
     assert_eq!(
@@ -977,10 +977,10 @@ fn the_whole_chart_family_is_reachable_naming_only_the_facade() {
         .remove_chart_point_format(0, anchor, 0, 1)
         .expect("removed"));
     workbook
-        .suppress_chart_data_labels(0, anchor, ChartLabelScope::Series { series_idx: 1 })
+        .suppress_chart_data_labels(0, anchor, ChartLabelScope::Series { series_index: 1 })
         .expect("suppressed");
     assert!(workbook
-        .remove_chart_data_labels(0, anchor, ChartLabelScope::Series { series_idx: 0 })
+        .remove_chart_data_labels(0, anchor, ChartLabelScope::Series { series_index: 0 })
         .expect("removed"));
     assert_eq!(workbook.chart_style_id(0, anchor).expect("style"), None);
 

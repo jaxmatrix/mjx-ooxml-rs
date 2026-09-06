@@ -352,18 +352,22 @@ fn the_same_sequence_of_edits_leaves_all_three_charts_saying_the_same_thing() {
     deck.set_chart_data_labels(
         Surface::Slide(0),
         shape.into(),
-        ChartLabelScope::Series { series_idx: 0 },
+        ChartLabelScope::Series { series_index: 0 },
         &labels,
     )
     .unwrap();
     document
-        .set_chart_data_labels(drawing, ChartLabelScope::Series { series_idx: 0 }, &labels)
+        .set_chart_data_labels(
+            drawing,
+            ChartLabelScope::Series { series_index: 0 },
+            &labels,
+        )
         .unwrap();
     workbook
         .set_chart_data_labels(
             sheet,
             anchor,
-            ChartLabelScope::Series { series_idx: 0 },
+            ChartLabelScope::Series { series_index: 0 },
             &labels,
         )
         .unwrap();
@@ -473,22 +477,22 @@ fn the_same_sequence_of_edits_leaves_all_three_charts_saying_the_same_thing() {
         deck.suppress_chart_data_labels(
             Surface::Slide(0),
             shape.into(),
-            ChartLabelScope::Series { series_idx: 1 }
+            ChartLabelScope::Series { series_index: 1 }
         )
         .is_ok(),
         document
-            .suppress_chart_data_labels(drawing, ChartLabelScope::Series { series_idx: 1 })
+            .suppress_chart_data_labels(drawing, ChartLabelScope::Series { series_index: 1 })
             .is_ok()
     );
     assert_eq!(
         deck.remove_chart_data_labels(
             Surface::Slide(0),
             shape.into(),
-            ChartLabelScope::Series { series_idx: 0 }
+            ChartLabelScope::Series { series_index: 0 }
         )
         .unwrap(),
         document
-            .remove_chart_data_labels(drawing, ChartLabelScope::Series { series_idx: 0 })
+            .remove_chart_data_labels(drawing, ChartLabelScope::Series { series_index: 0 })
             .unwrap()
     );
 }

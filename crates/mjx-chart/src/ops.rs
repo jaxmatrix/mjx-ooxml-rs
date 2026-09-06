@@ -122,6 +122,18 @@ pub enum ChartAccessError {
 // Locating one addressed thing
 // =================================================================================================
 
+/// A `u32` index carried by a public [`ChartLabelScope`] as the `usize` this crate's models address
+/// with.
+///
+/// Widening `u32` to `usize` is lossless on every target this library builds for (32- and 64-bit,
+/// plus `wasm32`); on a hypothetical 16-bit one it saturates at [`usize::MAX`], which is an index no
+/// chart holds, so the caller gets an out-of-range error rather than the wrong plot. This is the
+/// same conversion `mjx_ooxml`'s own facade-level `index` helper makes, for the same reason: one
+/// width on every host at the public boundary, the model's own width inside.
+fn as_index(value: u32) -> usize {
+    usize::try_from(value).unwrap_or(usize::MAX)
+}
+
 /// The `n`-th series of a chart being read, or [`ChartAccessError::SeriesOutOfRange`].
 ///
 /// # Errors
@@ -364,27 +376,28 @@ pub fn data_label_tier(
 ) -> Result<Option<DataLabelSettings>, ChartAccessError> {
     let area = space.plot_area().ok_or(ChartAccessError::NoChartElement)?;
     match scope {
-        ChartLabelScope::Plot { plot_idx } => {
+        ChartLabelScope::Plot { plot_index } => {
+            let plot_index = as_index(plot_index);
             let count = area.chart_kinds().len();
-            if plot_idx >= count {
+            if plot_index >= count {
                 return Err(ChartAccessError::PlotOutOfRange {
-                    index: plot_idx,
+                    index: plot_index,
                     count,
                 });
             }
             Ok(area
-                .plot_data_labels(plot_idx)
+                .plot_data_labels(plot_index)
                 .map(|labels| labels.settings(interner)))
         }
-        ChartLabelScope::Series { series_idx } => Ok(series_at(space, series_idx)?
+        ChartLabelScope::Series { series_index } => Ok(series_at(space, as_index(series_index))?
             .data_labels()
             .map(|labels| labels.settings(interner))),
         ChartLabelScope::Point {
-            series_idx,
-            point_idx,
-        } => Ok(series_at(space, series_idx)?
+            series_index,
+            point_index,
+        } => Ok(series_at(space, as_index(series_index))?
             .data_labels()
-            .and_then(|labels| labels.label_for_point(interner, point_idx))
+            .and_then(|labels| labels.label_for_point(interner, point_index))
             .map(|label| label.settings(interner))),
     }
 }
@@ -701,33 +714,42 @@ pub fn set_data_labels(
     // prefix would otherwise gain unbound markup the moment one is written.
     space.ensure_drawingml_namespace(interner);
     match scope {
-        ChartLabelScope::Plot { plot_idx } => {
+        ChartLabelScope::Plot { plot_index } => {
+            let plot_index = as_index(plot_index);
             let area = space
                 .plot_area_mut()
                 .ok_or(ChartAccessError::NoChartElement)?;
             let count = area.chart_kinds().len();
-            if area.set_plot_data_labels(interner, plot_idx, spec)? {
+            if area.set_plot_data_labels(interner, plot_index, spec)? {
                 Ok(())
             } else {
                 Err(ChartAccessError::PlotOutOfRange {
-                    index: plot_idx,
+                    index: plot_index,
                     count,
                 })
             }
         }
-        ChartLabelScope::Series { series_idx } => {
-            with_series_decoration(space, interner, series_idx, |decoration, interner| {
+        ChartLabelScope::Series { series_index } => with_series_decoration(
+            space,
+            interner,
+            as_index(series_index),
+            |decoration, interner| {
                 decoration.set_data_labels(interner, spec)?;
                 Ok(())
-            })
-        }
+            },
+        ),
         ChartLabelScope::Point {
-            series_idx,
-            point_idx,
-        } => with_series_decoration(space, interner, series_idx, |decoration, interner| {
-            decoration.set_point_label(interner, point_idx, spec)?;
-            Ok(())
-        }),
+            series_index,
+            point_index,
+        } => with_series_decoration(
+            space,
+            interner,
+            as_index(series_index),
+            |decoration, interner| {
+                decoration.set_point_label(interner, point_index, spec)?;
+                Ok(())
+            },
+        ),
     }
 }
 
@@ -743,33 +765,42 @@ pub fn suppress_data_labels(
     scope: ChartLabelScope,
 ) -> Result<(), ChartAccessError> {
     match scope {
-        ChartLabelScope::Plot { plot_idx } => {
+        ChartLabelScope::Plot { plot_index } => {
+            let plot_index = as_index(plot_index);
             let area = space
                 .plot_area_mut()
                 .ok_or(ChartAccessError::NoChartElement)?;
             let count = area.chart_kinds().len();
-            if area.suppress_plot_data_labels(interner, plot_idx)? {
+            if area.suppress_plot_data_labels(interner, plot_index)? {
                 Ok(())
             } else {
                 Err(ChartAccessError::PlotOutOfRange {
-                    index: plot_idx,
+                    index: plot_index,
                     count,
                 })
             }
         }
-        ChartLabelScope::Series { series_idx } => {
-            with_series_decoration(space, interner, series_idx, |decoration, interner| {
+        ChartLabelScope::Series { series_index } => with_series_decoration(
+            space,
+            interner,
+            as_index(series_index),
+            |decoration, interner| {
                 decoration.suppress_data_labels(interner)?;
                 Ok(())
-            })
-        }
+            },
+        ),
         ChartLabelScope::Point {
-            series_idx,
-            point_idx,
-        } => with_series_decoration(space, interner, series_idx, |decoration, interner| {
-            decoration.suppress_point_label(interner, point_idx)?;
-            Ok(())
-        }),
+            series_index,
+            point_index,
+        } => with_series_decoration(
+            space,
+            interner,
+            as_index(series_index),
+            |decoration, interner| {
+                decoration.suppress_point_label(interner, point_index)?;
+                Ok(())
+            },
+        ),
     }
 }
 
@@ -787,30 +818,34 @@ pub fn remove_data_labels(
     scope: ChartLabelScope,
 ) -> Result<bool, ChartAccessError> {
     match scope {
-        ChartLabelScope::Plot { plot_idx } => {
+        ChartLabelScope::Plot { plot_index } => {
+            let plot_index = as_index(plot_index);
             let area = space
                 .plot_area_mut()
                 .ok_or(ChartAccessError::NoChartElement)?;
             let count = area.chart_kinds().len();
-            if plot_idx >= count {
+            if plot_index >= count {
                 return Err(ChartAccessError::PlotOutOfRange {
-                    index: plot_idx,
+                    index: plot_index,
                     count,
                 });
             }
-            Ok(area.remove_plot_data_labels(plot_idx))
+            Ok(area.remove_plot_data_labels(plot_index))
         }
-        ChartLabelScope::Series { series_idx } => {
-            with_series_decoration(space, interner, series_idx, |decoration, _| {
+        ChartLabelScope::Series { series_index } => {
+            with_series_decoration(space, interner, as_index(series_index), |decoration, _| {
                 Ok(decoration.remove_data_labels())
             })
         }
         ChartLabelScope::Point {
-            series_idx,
-            point_idx,
-        } => with_series_decoration(space, interner, series_idx, |decoration, interner| {
-            Ok(decoration.remove_point_label(interner, point_idx))
-        }),
+            series_index,
+            point_index,
+        } => with_series_decoration(
+            space,
+            interner,
+            as_index(series_index),
+            |decoration, interner| Ok(decoration.remove_point_label(interner, point_index)),
+        ),
     }
 }
 

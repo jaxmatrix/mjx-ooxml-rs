@@ -148,19 +148,20 @@ pub enum ChartLabelScope {
     /// `chart_kinds` numbers them, so a combo chart's two plots are 0 and 1.
     Plot {
         /// Which plot of the plot area.
-        plot_idx: usize,
+        plot_index: u32,
     },
     /// One series' settings, overriding its plot's.
     Series {
         /// Which series, counted across every plot.
-        series_idx: usize,
+        series_index: u32,
     },
     /// One point's settings, overriding its series'.
     Point {
         /// Which series, counted across every plot.
-        series_idx: usize,
-        /// Which point of that series — the `c:idx` the override is anchored by.
-        point_idx: u32,
+        series_index: u32,
+        /// Which point of that series — the `c:idx` the override is anchored by. The wire token is
+        /// `c:idx`; the field is spelled out, as every public identifier in this workspace is.
+        point_index: u32,
     },
 }
 

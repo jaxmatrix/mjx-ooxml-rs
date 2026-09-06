@@ -38,7 +38,9 @@ fn main() -> Result<()> {
         println!("\nslide {slide} (layout {layout:?})");
 
         for entry in deck.shapes(slide)? {
-            let shape = entry.index;
+            // `ShapeInfo::index` is a `u32` — one width on every host, because the facade and
+            // both bindings hand this struct straight to a caller; this crate addresses in `usize`.
+            let shape = usize::try_from(entry.index)?;
             let role = match &entry.placeholder {
                 Some(info) => format!("{:?} placeholder", info.kind),
                 None => "not a placeholder".to_owned(),
