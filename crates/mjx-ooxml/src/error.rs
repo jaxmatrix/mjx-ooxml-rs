@@ -1,12 +1,18 @@
 //! [`Error`] — one error type, shaped so a foreign-function binding can act on it.
 //!
-//! `mjx-pptx` reports failures as [`PptxError`], sixty-six variants each carrying exactly the
-//! context its own call site had; `mjx-docx` reports its own as [`DocxError`], thirty-five more; and
-//! `mjx-xlsx` reports its own as [`XlsxError`], eleven that in turn open onto [`SmlError`]'s fifteen
-//! and [`AddressError`]'s sixteen. That is the right shape for Rust and the wrong shape for a
-//! binding: neither PyO3 nor wasm-bindgen can project a hundred-odd variants with as many payload
-//! shapes into an exception hierarchy anyone would want to catch, and pinning a stable ABI to a
-//! variant list that grows every release is a promise this library cannot keep.
+//! `mjx-pptx` reports failures as [`PptxError`], one variant per refusal, each carrying exactly the
+//! context its own call site had; `mjx-docx` reports its own as [`DocxError`]; and `mjx-xlsx` reports
+//! its own as [`XlsxError`], which in turn opens onto [`SmlError`] and [`AddressError`]. Together
+//! that is **well over a hundred variants** with as many payload shapes — the right shape for Rust
+//! and the wrong shape for a binding: neither PyO3 nor wasm-bindgen can project them into an
+//! exception hierarchy anyone would want to catch, and pinning a stable ABI to a variant list that
+//! grows every release is a promise this library cannot keep.
+//!
+//! (No exact per-enum count is quoted here on purpose. Three were, and by MJXOFF-118 two of the
+//! three had rotted — `DocxError` had grown from thirty-five to forty-one and `XlsxError` from
+//! eleven to eighteen — while the sentence they were in went on reading as though it had been
+//! checked. The claim that matters is *"too many to project one-for-one"*, and that one cannot
+//! expire. The exhaustive `match`es below are what actually keep the mapping honest.)
 //!
 //! So the facade collapses them into **eleven stable [`ErrorCode`]s**, a human [`message`](Error::message),
 //! and the machine-readable indices in [`ErrorDetail`] — the surface, shape, row, column and index a
@@ -23,9 +29,8 @@
 //! `SmlError` and `AddressError` is `#[non_exhaustive]`. Adding a variant to any of them fails to
 //! compile here until someone decides which code it belongs to. A catch-all arm would instead file
 //! every future failure under whichever code happened to be the fallback — and no test would notice.
-//! Every one of `DocxError`'s thirty-five variants, and every one of Excel's forty-two across the
-//! three enumerations, fits an existing code from the PresentationML mapping; none needed a
-//! twelfth.
+//! Every `DocxError` variant, and every one of Excel's across the three enumerations, fits an
+//! existing code from the PresentationML mapping; none has needed a twelfth.
 
 use std::fmt;
 
