@@ -1068,7 +1068,7 @@ fn numeric_shape_identifier(identifier: &str) -> Option<u32> {
 ///
 /// **By position, never by identifier.** LibreOffice gives *every* comment shape in a part the same
 /// `@id` — `shape_0`, twice over in `tests/fixtures/cell_comments.xlsx` — so removing "the shape
-/// whose id is this" deletes every comment box on the sheet. That is a defect the two-halves
+/// whose id is this" takes every comment box on the sheet with it. That is a defect the two-halves
 /// invariant then reports on the *other* comments, which is how it was found; a producer's file
 /// disagreeing with what this library would have written is the whole reason that fixture exists.
 ///
