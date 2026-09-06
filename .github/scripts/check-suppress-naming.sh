@@ -105,6 +105,35 @@
 #     `deleted` is identifier-shaped and the quotes are what keep the exemption to a string literal.
 #   * `crates/mjx-ooxml-types/src/generated/`, which is generated from the XSDs and is nothing but
 #     wire tokens.
+#   * **The design token for a tracked deletion's colour** (MJXOFF-156, allow-listed in MJXOFF-158) —
+#     `tracked_change_delete` and `trackedChangeDelete`, in `crates/mjx-tokens/src/generated.rs`.
+#     This is the **same situation as `RevisionKind::Deleted` two bullets down**, arriving from the
+#     other side of the product: a tracked change that removed text *is* a deletion, so `delete` is
+#     the correct English and `suppress` would be actively wrong — a suppressed revision would be one
+#     the reader is not shown, which is a different feature (`w:rPrChange` display settings) that the
+#     renderer will eventually also need a name for. The gate's own reason for existing is the
+#     *chart* API, where `delete_*` meant "this tier is switched off" and `suppress_*` says so
+#     better; a revision bar's colour is not that.
+#
+#     The name is **not this repository's to choose**: the token is generated from
+#     `docs/client-platform/data/tokens.json`, whose entry is derived from allr.work's own declared
+#     custom property `--color-tracked-change-delete`, and `xtask`'s generator derives every Rust
+#     field, CSS property and TypeScript path from that one string. Renaming the identifier would
+#     make the Rust name disagree with the CSS property beside it in the same generated file, which
+#     is the drift the single-source generator exists to prevent. If the *source* name is to change
+#     that is a design decision, taken in `tokens.json`, and the generator would carry it into all
+#     three artefacts unasked.
+#
+#     Allow-listed by **exact token and by exact file**, the shape `smart_tag_was_deleted` above
+#     uses — only these two spellings, and only in `crates/mjx-tokens/src/generated.rs`. A blanket
+#     exemption for that file was **not** taken, for the reason the `RevisionKind` bullet below
+#     records: file scoping alone was tried there and rejected, because it excuses whatever else the
+#     file might one day contain. Probed both ways before this entry was written: with the entry in
+#     place, a `pub fn delete_token` planted in `generated.rs` still fails the gate, and removing the
+#     entry turns `tracked_change_delete` red again — MJXOFF-158's commit message pastes both. The
+#     CSS spellings `--document-light-tracked-change-delete` and the token path
+#     `document.light.tracked-change-delete` need no entry at all: hyphens are not identifier
+#     characters, so the pattern never matched them.
 #   * **The two bindings' own projection of `RevisionKind`** (MJXOFF-139) — `Deleted` and
 #     `MarkerDeleted`, in `bindings/mjx-python/src/enums.rs`, `bindings/mjx-wasm/src/enums.rs` and
 #     the committed `.pyi` stub. `RevisionKind` is `mjx_docx`'s own tracked-change vocabulary (the
@@ -257,6 +286,8 @@ offenders=$(grep -rnEi "$pattern" "${targets[@]}" 2>/dev/null \
         -e '/^crates\/mjx-sml\/src\/worksheet\//s/"(deleteColumns|deleteRows|deleted)"/<wire-token>/g' \
         -e '/^crates\/mjx-sml\/src\/features\/annotations\.rs:/s/smart_tag_was_deleted/<smart-tag>/g' \
         -e '/^crates\/mjx-sml\/src\/features\/annotations\.rs:/s/"deleted"/<wire-token>/g' \
+        -e '/^crates\/mjx-tokens\/src\/generated\.rs:/s/tracked_change_delete/<tracked-change-token>/g' \
+        -e '/^crates\/mjx-tokens\/src\/generated\.rs:/s/trackedChangeDelete/<tracked-change-token>/g' \
   | awk -F: -v py_range="$py_enums_range" -v wasm_range="$wasm_enums_range" -v pyi_range="$pyi_stub_range" \
         -v dist_web_js_range="$wasm_dist_web_js_range" -v dist_web_dts_range="$wasm_dist_web_dts_range" \
         -v dist_bundler_js_range="$wasm_dist_bundler_js_range" -v dist_bundler_dts_range="$wasm_dist_bundler_dts_range" '
