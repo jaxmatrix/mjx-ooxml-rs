@@ -211,8 +211,10 @@ anything is written** — so a refusal leaves the workbook exactly as it was.
 
 **Charts on a drawing part** are MJXOFF-111's: an `xdr:graphicFrame` is reported here, with its
 transform and its `a:graphic` reference, and its content is not decomposed. **Cell comments and the
-legacy VML box they draw in** are MJXOFF-114's; `x:legacyDrawing` at rank 30 is still held as the
-markup the file wrote.
+legacy VML box they draw in** are their own page — see [Cell comments and legacy
+content](cell_comments_and_legacy_content). `x:legacyDrawing` at rank 30 is a different part in a
+different vocabulary from the `x:drawing` at rank 29, and the two never meet: a comment box is a
+`v:shape`, not an anchor.
 
 And nothing here **renders**. A shape's preset geometry is a named outline this library reports and
 never evaluates into a path, exactly as it is for PowerPoint.

@@ -185,6 +185,49 @@ fn markup_naming_a_declared_relationship_saves() {
     package.save().expect("a declared reference is fine");
 }
 
+/// A legacy VML part this library wrote is inside the validation scope — the same rule, at the one
+/// content type that says XML without the `+xml` suffix.
+///
+/// **This case exists because it did not hold.** `XML_CONTENT_TYPES_WITHOUT_SUFFIX` spelled its one
+/// entry `…vmlDrawing` while `is_xml_content_type` folds its argument to lower case, so the entry
+/// matched nothing: an authored `.vml` was not in [`Package::authored_xml_parts`] at all, and every
+/// check scoped to that set — this one, and every format layer's markup checks — silently skipped
+/// it. MJXOFF-114 found it by writing a validator that had to see one.
+///
+/// Both directions, because a test that only proved the refusal would also pass for a validator
+/// that rejected every VML part.
+#[test]
+fn an_authored_vml_part_naming_an_undeclared_relationship_is_refused() {
+    const VML_CONTENT_TYPE: &str = "application/vnd.openxmlformats-officedocument.vmlDrawing";
+    const DRAWING: &[u8] = br#"<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><v:shape id="_x0000_s1025"><v:imagedata r:id="rId9"/></v:shape></xml>"#;
+
+    let mut package = Package::empty();
+    let drawing = part("/drawings/vmlDrawing1.vml");
+    package
+        .insert_part(&drawing, VML_CONTENT_TYPE, DRAWING.to_vec())
+        .expect("insert");
+
+    match defect(&package) {
+        PackageDefect::UndeclaredRelationshipReference {
+            part,
+            attribute,
+            relationship_id,
+            ..
+        } => {
+            assert_eq!(part, "/drawings/vmlDrawing1.vml");
+            assert_eq!(attribute, "r:id");
+            assert_eq!(relationship_id, "rId9");
+        }
+        other => panic!("wrong defect: {other:?}"),
+    }
+
+    package
+        .insert_part(&part("/media/image1.png"), "image/png", b"\x89PNG".to_vec())
+        .expect("insert");
+    relate(&mut package, Some(&drawing), "rId9", "../media/image1.png");
+    package.save().expect("a declared reference is fine");
+}
+
 /// A part this library wrote, typed as XML, whose bytes are not well-formed.
 #[test]
 fn authored_bytes_that_are_not_well_formed_xml_are_refused() {

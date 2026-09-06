@@ -56,6 +56,55 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.126] - 2026-09-07
+
+**Excel's legacy surfaces** (MJXOFF-114, Phase E position 5): a cell comment, the Transitional VML
+box that draws it, and the identifier hop from a sheet's modern markup to the legacy shape an OLE
+object or a form control is drawn as.
+
+### Added
+
+- **`mjx_sml::comments`** — `CT_Comments`, `CT_Authors`, `CT_CommentList`, `CT_Comment`,
+  `CT_CommentPr` and `CT_LegacyDrawing`, the last slot of `CT_Worksheet` that had an owner
+  (rank 30). `commentPr@anchor` consumes MJXOFF-127's `ObjectAnchor` rather than modelling
+  `CT_ObjectAnchor` a second time, and every placement goes through a generated child-order table.
+- **The comment family on `mjx_xlsx::Workbook`** — `sheet_comments`, `comment_at`,
+  `comments_markup`, `edit_comments_markup`, `add_comment`, `set_comment_text`, `remove_comment`,
+  and the VML side: `sheet_vml_drawing_part`, `vml_drawing_markup`, `edit_vml_drawing_markup`,
+  `with_vml_shape_for_comment`, `with_vml_shape_for_ole_object`,
+  `with_vml_shape_for_form_control`. A comment is **two parts**, and `add_comment` writes all seven
+  things that have to agree while `remove_comment` takes them away.
+- **`SpreadsheetDefect::CommentWithoutABox` and `CommentBoxWithoutAComment`** — the two-halves
+  invariant, checked by `Workbook::validate` over a saved package rather than asserted by the
+  surface that writes it. Neither half of a comment names the other by relationship, so nothing in
+  the packaging layer could ever have noticed half of one.
+- **`mjx_vml::Drawing::shape_by_numeric_identifier`** and **`mjx_vml::shape_identifier_for_number`**
+  — the shared half of the hop. SpreadsheetML names a shape by a *number* (`x:oleObject@shapeId`,
+  `x:control@shapeId`, `x:comment@shapeId`) where PresentationML names it by the string that number
+  appears in; the `_x0000_s` spelling and the three attributes producers put it in are stated once,
+  in the crate both formats reach.
+- **The same surface on `mjx_ooxml::Workbook` and on both bindings** — `sheet_comments`,
+  `cell_comment`, `add_cell_comment`, `set_cell_comment_text`, `remove_cell_comment`,
+  `vml_shape_id_for_ole_object`, `vml_shape_id_for_form_control`, `sheet_vml_part_bytes`, with
+  `SheetCommentInfo` and `CommentBoxInfo`.
+- **Three producer-written fixtures**, none of them this project's: `cell_comments.xlsx` and
+  `legacy_form_control.xlsx` from **LibreOffice 25.8.7.3** driven headless over UNO, and
+  `comments_third_party.xlsx` from **XlsxWriter 3.2.9**. The Excel guide gains
+  *Cell comments and legacy content*, whose every snippet is a compiled doctest.
+
+### Fixed
+
+- **`mjx-opc` treated an edited VML part as though it were not XML.**
+  `XML_CONTENT_TYPES_WITHOUT_SUFFIX` spelled its one entry `…vmlDrawing` while `is_xml_content_type`
+  folds its argument to lower case, so the entry matched nothing and an authored `.vml` sat outside
+  `Package::authored_xml_parts` — outside `Package::validate`'s relationship checks and outside
+  every format layer's markup checks — from the day the list was written. A test now fails on any
+  entry written in a spelling the fold would swallow.
+- **Deleting one comment could delete every comment box on the sheet.** Removal matched the shape by
+  its `@id`, and LibreOffice gives every comment shape in a part the same one. It matches by
+  position now; the fixture that found it is the producer file, and the two-halves invariant is what
+  reported it.
+
 ## [0.0.125] - 2026-09-06
 
 **Charts on the Excel surface** (MJXOFF-111, Phase E position 4): the third host for one body of

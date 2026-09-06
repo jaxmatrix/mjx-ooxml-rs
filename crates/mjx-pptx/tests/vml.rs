@@ -284,11 +284,32 @@ fn an_activex_control_resolves_to_the_vml_shape_that_draws_it() {
     );
 }
 
+/// The same fallback drawing with **no `r:id` on its `v:imagedata`**.
+///
+/// `add_vml_drawing` stores the caller's bytes verbatim and declares nothing on their behalf, so a
+/// drawing naming `rId9` is a part whose `.rels` a caller still has to write — and until MJXOFF-114
+/// fixed `mjx-opc`'s `XML_CONTENT_TYPES_WITHOUT_SUFFIX` (whose one entry was spelled in a casing
+/// `is_xml_content_type` folds away), an authored `.vml` was not in `authored_xml_parts` at all and
+/// `Package::validate` never looked at it. It does now, and it is right to:
+/// `UndeclaredRelationshipReference` over `OLE_FALLBACK_DRAWING` is a true statement about that
+/// markup. The tests that only *read* keep using it, because its `r:id` is what
+/// `an_ole_object_resolves_to_the_vml_shape_that_draws_it` asserts on; the one that **saves** uses
+/// this instead, because what it is about is the content type and the part name.
+const PLAIN_FALLBACK_DRAWING: &[u8] = br##"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+ <o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>
+ <v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" filled="f" stroked="f"><v:stroke joinstyle="miter"/></v:shapetype>
+ <v:shape id="_x0000_s1026" type="#_x0000_t75" style="position:absolute;width:240pt;height:180pt" o:ole="" alt="Worksheet" fillcolor="#ffffff">
+  <x:ClientData ObjectType="Pict"><x:SizeWithCells/><x:CF>Bitmap</x:CF></x:ClientData>
+ </v:shape>
+</xml>
+"##;
+
 #[test]
 fn an_added_vml_drawing_registers_its_content_type_and_relationship() {
     let mut pres = Presentation::open(&fixture("sample.pptx")).expect("open");
     let name = pres
-        .add_vml_drawing(0, OLE_FALLBACK_DRAWING)
+        .add_vml_drawing(0, PLAIN_FALLBACK_DRAWING)
         .expect("add drawing");
     assert_eq!(name, part("/ppt/drawings/vmlDrawing1.vml"));
 
@@ -320,10 +341,12 @@ fn an_added_vml_drawing_registers_its_content_type_and_relationship() {
         reopened.vml_drawing_part(0).expect("part"),
         Some(name.clone())
     );
-    assert_eq!(reopened.vml_part_bytes(&name), Some(OLE_FALLBACK_DRAWING));
+    assert_eq!(reopened.vml_part_bytes(&name), Some(PLAIN_FALLBACK_DRAWING));
 
     // A second drawing does not collide with the first.
-    let second = pres.add_vml_drawing(0, OLE_FALLBACK_DRAWING).expect("add");
+    let second = pres
+        .add_vml_drawing(0, PLAIN_FALLBACK_DRAWING)
+        .expect("add");
     assert_eq!(second, part("/ppt/drawings/vmlDrawing2.vml"));
 }
 

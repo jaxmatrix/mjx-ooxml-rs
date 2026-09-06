@@ -115,6 +115,77 @@ def test_an_external_link_and_an_internal_jump_are_not_each_other(filled: Workbo
     assert filled.remove_cell_hyperlink(0, "A2") is False
 
 
+def test_a_comment_writes_both_halves_and_a_delete_takes_both_away(
+    fixtures: pathlib.Path,
+) -> None:
+    """The two halves of an Excel comment, through the binding.
+
+    Asymmetric on purpose: the two cells hold *different* text and *different* authors, so a
+    delegate that ignored `reference` and held one comment would fail. The fixture is
+    LibreOffice's, so the producer's own two comments are there to be counted against.
+    """
+    workbook = Workbook.open((fixtures / "cell_comments.xlsx").read_bytes())
+    assert len(workbook.sheet_comments(0)) == 2
+
+    checked = workbook.cell_comment(0, "A2")
+    assert checked is not None
+    assert checked.text == "Checked against the ledger.\nSecond line."
+    assert checked.author == "Unknown Author"
+    assert checked.comment_box is not None
+    assert checked.comment_box.is_visible is True
+    assert checked.comment_box.row == 1
+    assert checked.comment_box.column == 0
+    # Read, never inferred: the anchor is the producer's own string.
+    assert checked.comment_box.anchor_text == "1, 23, 0, 0, 2, 47, 3, 1"
+
+    spend = workbook.cell_comment(0, "B1")
+    assert spend is not None
+    assert spend.text == "Spend is in thousands."
+    assert spend.comment_box is not None
+    assert spend.comment_box.is_visible is False
+
+    shape_id = workbook.add_cell_comment(0, "C3", "Jai Shukla", "A fresh note.")
+    assert shape_id == 1025
+    fresh = workbook.cell_comment(0, "C3")
+    assert fresh is not None
+    assert fresh.author == "Jai Shukla"
+    assert fresh.shape_id == 1025
+    assert fresh.comment_box is not None
+    assert fresh.comment_box.identifier == "_x0000_s1025"
+
+    assert workbook.set_cell_comment_text(0, "C3", "Rewritten.") is True
+    assert workbook.set_cell_comment_text(0, "Z9", "nobody") is False
+    rewritten = workbook.cell_comment(0, "C3")
+    assert rewritten is not None
+    assert rewritten.text == "Rewritten."
+
+    assert workbook.remove_cell_comment(0, "C3") is True
+    assert workbook.remove_cell_comment(0, "C3") is False
+    assert workbook.cell_comment(0, "C3") is None
+    # Both halves went: saving would refuse if either were left behind.
+    workbook.save()
+
+
+def test_a_form_control_resolves_to_its_legacy_shape_and_an_ole_object_does_not(
+    fixtures: pathlib.Path,
+) -> None:
+    """The `shapeId` hop, and the two lists it reads from told apart.
+
+    LibreOffice's fixture lists a form control and no OLE object, so the two methods must answer
+    differently — a delegate wired to the wrong list would answer the same thing twice.
+    """
+    workbook = Workbook.open((fixtures / "legacy_form_control.xlsx").read_bytes())
+    assert workbook.vml_shape_id_for_form_control(0, 0) == "AcceptTerms"
+    assert workbook.vml_shape_id_for_form_control(0, 7) is None
+    assert workbook.vml_shape_id_for_ole_object(0, 0) is None
+
+    vml = workbook.sheet_vml_part_bytes(0)
+    assert vml is not None
+    assert b'o:spid="_x0000_s1001"' in vml
+    with pytest.raises(mjx_ooxml.IndexOutOfRangeError):
+        workbook.sheet_vml_part_bytes(workbook.sheet_count())
+
+
 def test_a_tab_that_is_not_there_and_a_tab_with_no_cells_are_different_failures(
     fixtures: pathlib.Path,
 ) -> None:

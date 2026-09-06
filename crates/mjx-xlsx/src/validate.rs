@@ -325,9 +325,10 @@ pub enum SpreadsheetDefect {
     /// it as damaged and repairs it by dropping the comment.
     ///
     /// This is the direction packaging cannot see at all: `mjx-opc` checks that a named relationship
-    /// is declared, and *neither* half of a comment names the other by relationship. See
-    /// [`crate::worksheet::comments`] for the two ways a box is matched to its comment, both of
-    /// which are things the file says.
+    /// is declared, and *neither* half of a comment names the other by relationship. A box is
+    /// matched to its comment by the comment's own `@shapeId`, or failing that by the `x:Row` and
+    /// `x:Column` the shape states — both things the file says, neither inferred. See
+    /// [`Workbook::with_vml_shape_for_comment`](crate::Workbook::with_vml_shape_for_comment).
     #[error(
         "{sheet_part}: the comment on {cell} in {comments_part} has no box — the sheet's legacy VML \
          drawing holds no shape for it"

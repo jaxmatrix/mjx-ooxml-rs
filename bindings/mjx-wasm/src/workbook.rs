@@ -62,8 +62,8 @@ use crate::paint::{FillSpec, LineSpec};
 use crate::spreadsheet::{
     AnchorBoundsInfo, AnchorShiftInfo, BorderSpec, CalculationSettings, CellBlock, CellFormatSpec,
     CellWrite, DefinedName, EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec,
-    PreservedPartsSummary, SheetDrawingInfo, SheetHyperlinkInfo, SheetPivotTableInfo,
-    SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
+    PreservedPartsSummary, SheetCommentInfo, SheetDrawingInfo, SheetHyperlinkInfo,
+    SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
     WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
 };
 
@@ -484,6 +484,87 @@ impl Workbook {
     #[wasm_bindgen(js_name = "removeCellHyperlink")]
     pub fn remove_cell_hyperlink(&mut self, sheet: u32, reference: &str) -> Result<bool, JsValue> {
         map_error(self.inner.remove_cell_hyperlink(sheet, reference))
+    }
+
+    // --- cell comments ----------------------------------------------------------------------------
+
+    /// Every comment on one sheet, in the order the comments part lists them.
+    #[wasm_bindgen(js_name = "sheetComments")]
+    pub fn sheet_comments(&self, sheet: u32) -> Result<Vec<SheetCommentInfo>, JsValue> {
+        map_error(
+            self.inner
+                .sheet_comments(sheet)
+                .map(|comments| comments.into_iter().map(SheetCommentInfo).collect()),
+        )
+    }
+
+    /// The comment attached to `reference`, or `undefined`.
+    #[wasm_bindgen(js_name = "cellComment")]
+    pub fn cell_comment(
+        &self,
+        sheet: u32,
+        reference: &str,
+    ) -> Result<Option<SheetCommentInfo>, JsValue> {
+        map_error(
+            self.inner
+                .cell_comment(sheet, reference)
+                .map(|comment| comment.map(SheetCommentInfo)),
+        )
+    }
+
+    /// Attaches a comment to `reference`, writing both halves, and answers its shape identifier.
+    #[wasm_bindgen(js_name = "addCellComment")]
+    pub fn add_cell_comment(
+        &mut self,
+        sheet: u32,
+        reference: &str,
+        author: &str,
+        text: &str,
+    ) -> Result<u32, JsValue> {
+        map_error(self.inner.add_cell_comment(sheet, reference, author, text))
+    }
+
+    /// Replaces the text of the comment on `reference`, leaving its box as it was.
+    #[wasm_bindgen(js_name = "setCellCommentText")]
+    pub fn set_cell_comment_text(
+        &mut self,
+        sheet: u32,
+        reference: &str,
+        text: &str,
+    ) -> Result<bool, JsValue> {
+        map_error(self.inner.set_cell_comment_text(sheet, reference, text))
+    }
+
+    /// Removes the comment on `reference` — both halves.
+    #[wasm_bindgen(js_name = "removeCellComment")]
+    pub fn remove_cell_comment(&mut self, sheet: u32, reference: &str) -> Result<bool, JsValue> {
+        map_error(self.inner.remove_cell_comment(sheet, reference))
+    }
+
+    /// The `@id` of the legacy VML shape an OLE object on a sheet is drawn as, or `undefined`.
+    #[wasm_bindgen(js_name = "vmlShapeIdForOleObject")]
+    pub fn vml_shape_id_for_ole_object(
+        &self,
+        sheet: u32,
+        object: u32,
+    ) -> Result<Option<String>, JsValue> {
+        map_error(self.inner.vml_shape_id_for_ole_object(sheet, object))
+    }
+
+    /// The `@id` of the legacy VML shape a form control on a sheet is drawn as, or `undefined`.
+    #[wasm_bindgen(js_name = "vmlShapeIdForFormControl")]
+    pub fn vml_shape_id_for_form_control(
+        &self,
+        sheet: u32,
+        control: u32,
+    ) -> Result<Option<String>, JsValue> {
+        map_error(self.inner.vml_shape_id_for_form_control(sheet, control))
+    }
+
+    /// The verbatim bytes of the legacy VML drawing part behind one sheet, or `undefined`.
+    #[wasm_bindgen(js_name = "sheetVmlPartBytes")]
+    pub fn sheet_vml_part_bytes(&self, sheet: u32) -> Result<Option<Vec<u8>>, JsValue> {
+        map_error(self.inner.sheet_vml_part_bytes(sheet))
     }
 
     // --- drawings ---------------------------------------------------------------------------------

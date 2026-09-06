@@ -36,6 +36,7 @@ and no more, so that nobody plans around a surface that is not here.
 | [Worksheet drawings](worksheet_drawings) | You want a picture or a shape on a sheet, or you want to know where one already is |
 | [Charts on a sheet](charts) | You want to read, author or edit a chart — and to know which of its two data sources answered |
 | [Hyperlinks](hyperlinks) | You want to read, add or remove a link — and to know what this library will never do to a target |
+| [Cell comments and legacy content](cell_comments_and_legacy_content) | You want a cell comment, or the legacy VML shape an OLE object or a form control is drawn as |
 | [Print setup and sheet kinds](print_setup_and_sheet_kinds) | You want a sheet's margins, page setup or header/footer, or a tab that is not a grid of cells |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 | [Large workbooks](large_workbooks) | Before you write a loop that touches a lot of cells |

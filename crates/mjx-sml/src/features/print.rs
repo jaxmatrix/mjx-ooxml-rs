@@ -277,9 +277,11 @@ character_data_body! {
     /// them. There is no parsed form to write back from, so there is no way for a round trip to
     /// change a code.
     ///
-    /// [`character_data_body!`](crate::leaf::character_data_body) states why this is hand-written
-    /// rather than `#[derive(FromXml, ToXml)]` with `#[xml(text)]`, and why the six element names
-    /// share one type.
+    /// It is hand-written rather than `#[derive(FromXml, ToXml)]` with `#[xml(text)]` because that
+    /// grammar re-escapes character data **minimally** on write, losing entity spellings, character
+    /// references and CDATA sections — the gap `CLAUDE.md` records. One `s:ST_Xstring` shape is
+    /// declared once in `crate::leaf` and shared with [`CommentAuthor`](crate::CommentAuthor), so
+    /// the six element names this type stands for cost one implementation rather than six.
     ///
     /// # The reading accessors are read-only *by construction*
     ///

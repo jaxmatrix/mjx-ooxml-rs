@@ -57,8 +57,8 @@ use crate::paint::{FillSpec, LineSpec};
 use crate::spreadsheet::{
     AnchorBoundsInfo, AnchorShiftInfo, BorderSpec, CalculationSettings, CellBlock, CellFormatSpec,
     CellWrite, DefinedName, EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec,
-    PreservedPartsSummary, SheetDrawingInfo, SheetHyperlinkInfo, SheetPivotTableInfo,
-    SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
+    PreservedPartsSummary, SheetCommentInfo, SheetDrawingInfo, SheetHyperlinkInfo,
+    SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
     WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
 };
 
@@ -418,6 +418,70 @@ impl Workbook {
         self.inner
             .remove_cell_hyperlink(sheet, reference)
             .map_err(to_py_err)
+    }
+
+    // --- cell comments ----------------------------------------------------------------------------
+
+    /// Every comment on one sheet, in the order the comments part lists them.
+    fn sheet_comments(&self, sheet: u32) -> PyResult<Vec<SheetCommentInfo>> {
+        self.inner
+            .sheet_comments(sheet)
+            .map(|comments| comments.into_iter().map(SheetCommentInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// The comment attached to `reference`, or `None`.
+    fn cell_comment(&self, sheet: u32, reference: &str) -> PyResult<Option<SheetCommentInfo>> {
+        self.inner
+            .cell_comment(sheet, reference)
+            .map(|comment| comment.map(SheetCommentInfo))
+            .map_err(to_py_err)
+    }
+
+    /// Attaches a comment to `reference`, writing both halves, and answers its shape identifier.
+    fn add_cell_comment(
+        &mut self,
+        sheet: u32,
+        reference: &str,
+        author: &str,
+        text: &str,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_cell_comment(sheet, reference, author, text)
+            .map_err(to_py_err)
+    }
+
+    /// Replaces the text of the comment on `reference`, leaving its box as it was.
+    fn set_cell_comment_text(&mut self, sheet: u32, reference: &str, text: &str) -> PyResult<bool> {
+        self.inner
+            .set_cell_comment_text(sheet, reference, text)
+            .map_err(to_py_err)
+    }
+
+    /// Removes the comment on `reference` — both halves.
+    fn remove_cell_comment(&mut self, sheet: u32, reference: &str) -> PyResult<bool> {
+        self.inner
+            .remove_cell_comment(sheet, reference)
+            .map_err(to_py_err)
+    }
+
+    /// The `@id` of the legacy VML shape an OLE object on a sheet is drawn as, or `None`.
+    fn vml_shape_id_for_ole_object(&self, sheet: u32, object: u32) -> PyResult<Option<String>> {
+        self.inner
+            .vml_shape_id_for_ole_object(sheet, object)
+            .map_err(to_py_err)
+    }
+
+    /// The `@id` of the legacy VML shape a form control on a sheet is drawn as, or `None`.
+    fn vml_shape_id_for_form_control(&self, sheet: u32, control: u32) -> PyResult<Option<String>> {
+        self.inner
+            .vml_shape_id_for_form_control(sheet, control)
+            .map_err(to_py_err)
+    }
+
+    /// The verbatim bytes of the legacy VML drawing part behind one sheet, or `None`.
+    fn sheet_vml_part_bytes(&self, sheet: u32) -> PyResult<Option<Vec<u8>>> {
+        self.inner.sheet_vml_part_bytes(sheet).map_err(to_py_err)
     }
 
     // --- drawings ---------------------------------------------------------------------------------
