@@ -3022,6 +3022,54 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "DATA_CONSOLIDATION", "sml", "CT_DataConsolidate",
         "A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`)",
     ),
+
+    // ---- The print block, custom views and the non-worksheet sheet kinds (MJXOFF-129) ---------
+    //
+    // Seven of this child's seventeen types place children rather than append them, and only those
+    // seven are here — the rule `CT_TableParts` and `CT_NumFmts` are left out under.
+    // `CT_CustomSheetViews`, `CT_CustomChartsheetViews` and `CT_ChartsheetPr` each declare a single
+    // child slot, so appending *is* placing; `CT_PageMargins`, `CT_PrintOptions`, `CT_PageSetup`,
+    // `CT_CsPageSetup`, `CT_ChartsheetProtection` and `CT_SheetBackgroundPicture` are attribute-only
+    // and declare none at all; and `CT_ChartsheetView` declares only `extLst`.
+    //
+    // `CT_HeaderFooter` is the one whose table earns its keep in an unusual way: its six children
+    // are all the *same* type (`s:ST_Xstring`) and differ only by element name, so the sequence
+    // position is the **only** thing that distinguishes `oddHeader` from `firstFooter`. A writer
+    // that inserted by hand here would be writing that order down.
+    (
+        "HEADER_FOOTER", "sml", "CT_HeaderFooter",
+        "A header/footer's six opaque strings, odd then even then first, header before footer in \
+         each pair (`x:headerFooter`)",
+    ),
+    (
+        "CUSTOM_SHEET_VIEW", "sml", "CT_CustomSheetView",
+        "One saved sheet view's ten children: its pane, selection, two break lists, print block, \
+         autofilter, then `extLst` (`x:customSheetView`)",
+    ),
+    (
+        "CUSTOM_CHARTSHEET_VIEW", "sml", "CT_CustomChartsheetView",
+        "One saved chartsheet view's three children: margins, the chartsheet page setup, then the \
+         header/footer (`x:customSheetView`, under `x:customSheetViews` of a chartsheet)",
+    ),
+    (
+        "CHARTSHEET", "sml", "CT_Chartsheet",
+        "A chartsheet's 14 children, from `sheetPr` to `extLst` — **no `sheetData`** \
+         (`x:chartsheet`)",
+    ),
+    (
+        "CHARTSHEET_VIEWS", "sml", "CT_ChartsheetViews",
+        "A chartsheet's views, then `extLst` (`x:sheetViews` of a chartsheet)",
+    ),
+    (
+        "DIALOGSHEET", "sml", "CT_Dialogsheet",
+        "A dialogsheet's 16 children, from `sheetPr` to `extLst` — **no `sheetData`** \
+         (`x:dialogsheet`)",
+    ),
+    (
+        "MACROSHEET", "sml", "CT_Macrosheet",
+        "A macrosheet's 27 children, from `sheetPr` to `extLst` (`CT_Macrosheet` — a complex type \
+         ECMA-376 declares no global element for)",
+    ),
 ];
 
 /// Reports naming-override rows that no emitted type or value matched.

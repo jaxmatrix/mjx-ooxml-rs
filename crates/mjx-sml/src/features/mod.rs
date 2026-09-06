@@ -27,6 +27,8 @@
 //! | `objects.rs` | `CT_ObjectAnchor` and `CT_ObjectPr` — **the vocabulary three Phase E children share** | MJXOFF-127 (D16) |
 //! | `annotations.rs` | `cellWatches`, `ignoredErrors` and the worksheet `smartTags` cluster | MJXOFF-127 (D16) |
 //! | `publishing.rs` | `dataConsolidate`, `customProperties` and `webPublishItems` | MJXOFF-127 (D16) |
+//! | `print.rs` | `printOptions`, `pageMargins`, `pageSetup`, `headerFooter`, `picture` — **the block every sheet *kind* shares** | MJXOFF-129 (D17) |
+//! | `custom_views.rs` | `customSheetViews`/`customSheetView`, where four of this crate's clusters meet | MJXOFF-129 (D17) |
 //!
 //! # Conditional formatting reports; it never evaluates
 //!
@@ -76,6 +78,18 @@
 //! fetched. The same rule covers a [`WebPublishItem`]'s `@destinationFile`, which is a path on
 //! somebody else's disk. See [`hyperlinks`] and [`publishing`].
 //!
+//! # A header string is never re-serialised, and nothing paginates
+//!
+//! MJXOFF-129's two, stated here beside the five above. A header or footer is one opaque string in
+//! Excel's formatting-code language, and [`print::HeaderFooterText`] holds the file's own bytes for
+//! it: there is no parsed representation to write back from, so a round trip cannot turn
+//! `&amp;"Arial,Bold"` into anything else. The reading accessors return borrowed slices of that one
+//! string and there is no constructor that takes segments.
+//!
+//! And `fitToWidth="2"` is **reported**. Nothing in this workspace decides where a page breaks, how
+//! many pages a sheet occupies or what a margin is in device units — the same rule
+//! [`PageBreaks`](crate::PageBreaks) states from the other side.
+//!
 //! The invariant that runs the other way is real work and lives one tier up: **a hyperlink and its
 //! relationship are one thing.** Adding an external link adds a relationship, removing it removes
 //! that relationship, and a relationship left behind is a defect
@@ -91,10 +105,12 @@ pub mod conditional_chain;
 pub mod conditional_rules;
 pub mod conditional_scales;
 pub mod conditional_specs;
+pub mod custom_views;
 pub mod filter_specs;
 pub mod filters;
 pub mod hyperlinks;
 pub mod objects;
+pub mod print;
 pub mod publishing;
 pub mod table_specs;
 pub mod tables;
@@ -120,6 +136,9 @@ pub use conditional_specs::{
     ColorScaleSpec, ConditionalRuleSpec, ConditionalRuleSpecKind, ConditionalValueObjectSpec,
     DataBarSpec, DifferentialFormatSpec, IconSetSpec,
 };
+pub use custom_views::{
+    CustomSheetView, CustomSheetViewContent, CustomSheetViews, CustomSheetViewsContent,
+};
 pub use filter_specs::{
     AutoFilterSpec, CustomFilterSpec, FilterColumnSpec, FilterSpecKind, SortConditionSpec,
     SortStateSpec,
@@ -131,6 +150,10 @@ pub use filters::{
 };
 pub use hyperlinks::{Hyperlink, Hyperlinks, HyperlinksContent};
 pub use objects::{ObjectAnchor, ObjectProperties, ObjectPropertiesContent};
+pub use print::{
+    ChartSheetPageSetup, HeaderFooter, HeaderFooterContent, HeaderFooterSection, HeaderFooterSlot,
+    HeaderFooterText, PageMargins, PageSetup, PrintOptions, SheetBackgroundPicture,
+};
 pub use publishing::{
     CustomProperties, CustomPropertiesContent, CustomProperty, DataConsolidation,
     DataConsolidationContent, DataReference, DataReferences, DataReferencesContent, WebPublishItem,

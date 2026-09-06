@@ -138,6 +138,17 @@ pub const REL_HYPERLINK: &str =
 pub const REL_PRINTER_SETTINGS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/printerSettings";
 
+/// The relationship type from a sheet part to an **image** part (ECMA-376 Part 1 §15.2.14).
+///
+/// In a workbook this is what a sheet's background picture (`x:picture`,
+/// [`mjx_sml::SheetBackgroundPicture`]) reaches — `xl/media/imageN.png` and its siblings. The image
+/// itself is bytes `mjx-opc` carries verbatim; nothing in this crate decodes one.
+///
+/// The same URI `mjx-pptx` and `mjx-docx` each declare for the same OPC concept, declared again here
+/// for the reason [`REL_THEME`] is: reaching across for it would be a sideways crate edge.
+pub const REL_IMAGE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/image";
+
 /// The relationship type from the workbook part to a theme part (DrawingML, Part 1 §14.2.7).
 ///
 /// Not SpreadsheetML — the same URI and the same OPC concept `mjx-pptx` and `mjx-docx` each declare
@@ -540,7 +551,8 @@ impl WorkbookParts {
 ///
 /// `tests/fixtures/sample.xlsx`'s single worksheet relates to nothing at all, so every field is
 /// empty there; a workbook with comments, a chart, an autofilter table or a saved printer
-/// configuration fills them.
+/// configuration fills them. `tests/fixtures/print_and_sheet_kinds.xlsx` fills
+/// [`printer_settings`](Self::printer_settings) and [`background_image`](Self::background_image).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct WorksheetParts {
     /// The DrawingML drawings part, if related — where a chart or a picture on this sheet lives.
@@ -551,6 +563,13 @@ pub struct WorksheetParts {
     pub comments: Option<PartName>,
     /// The printer settings part, if related. Opaque bytes, preserved verbatim.
     pub printer_settings: Option<PartName>,
+    /// The image part this sheet's background picture (`x:picture`) draws, if related. Opaque
+    /// bytes, preserved verbatim — nothing here decodes an image.
+    ///
+    /// This is the *part graph* view: it says the sheet relates to an image, not that the sheet's
+    /// `x:picture` names that relationship. [`crate::Workbook::sheet_background_image`] answers the
+    /// second question, by reading the `r:id` off the markup.
+    pub background_image: Option<PartName>,
     /// Every related table definition part, in relationship order.
     pub tables: Vec<PartName>,
     /// Every related query table part, in relationship order.
@@ -573,6 +592,7 @@ impl WorksheetParts {
             vml_drawing: single(sheet_part, rels, REL_VML_DRAWING)?,
             comments: single(sheet_part, rels, REL_COMMENTS)?,
             printer_settings: single(sheet_part, rels, REL_PRINTER_SETTINGS)?,
+            background_image: single(sheet_part, rels, REL_IMAGE)?,
             tables: many(sheet_part, rels, REL_TABLE)?,
             query_tables: many(sheet_part, rels, REL_QUERY_TABLE)?,
             pivot_tables: many(sheet_part, rels, REL_PIVOT_TABLE)?,

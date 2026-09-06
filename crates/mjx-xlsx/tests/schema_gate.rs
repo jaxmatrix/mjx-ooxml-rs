@@ -10,7 +10,7 @@ use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawName, RawNode};
 use mjx_opc::{Package, PartName};
 use mjx_schema_gate::{
     assert_fixture_is_schema_valid, fixture, harness, inspect_deck, inspect_fixture, outcome_table,
-    package_fixtures_with_extension, PartOutcome,
+    package_fixtures_with_extension, PartOutcome, PartRow,
 };
 
 /// The SpreadsheetML namespace, as `sml.xsd` declares it.
@@ -432,6 +432,90 @@ fn the_worksheet_spine_fixtures_parts_are_all_validated() {
     }
 }
 
+/// The content types under `xl/` that carry **no XML to validate**, each with the reason it is not
+/// a skip anybody should worry about.
+///
+/// # Why this list exists, and why it is a list rather than a wildcard
+///
+/// `no_part_under_xl_is_skipped_as_foreign_or_uncategorised` originally rejected *every* outcome
+/// that was not `Validated` or `Tolerated`, `PartOutcome::SkippedBinary` included. That conflated
+/// two categorically different things:
+///
+/// * a part whose **payload is not XML** — a printer-settings `DEVMODE` blob, a PNG — has nothing a
+///   schema could be applied to, so skipping it is the *correct* verdict and always will be;
+/// * a part whose **root namespace has no arm** in `mjx_schema_gate::categories` is the false green
+///   MJXOFF-110 exists to close, and reports `SkippedPreservedForeign` or `Uncategorised`.
+///
+/// MJXOFF-127 (D16) hit the first case, and — rightly — put its fixture's binary part at the package
+/// root rather than weaken this gate in the same commit that added the thing the gate would have
+/// caught. MJXOFF-129 (D17) is the commit that draws the distinction, because a printer-settings
+/// part is `xl/printerSettings/printerSettings1.bin` in every file Excel writes and there is nowhere
+/// else to put it.
+///
+/// The widening is **narrow by construction**: a `SkippedBinary` is accepted only when its content
+/// type is on this list. A content type nobody has written a reason for still fails, naming itself,
+/// so the next child adding a new kind of binary part under `xl/` adds a row here and states why —
+/// exactly as `mce_parts_are_skipped_with_a_named_reason` pins the MCE skips rather than allowing a
+/// class of them. **MJXOFF-107 (E3)** is the next one: `xl/media/` grows when a sheet drawing lands.
+///
+/// Every row is proved live by `every_non_xml_content_type_on_the_allowlist_is_exercised`, so a row
+/// that stops matching anything fails rather than rotting.
+const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
+    (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.printerSettings",
+        "a printer settings part (ECMA-376 Part 1 §15.2.13), on which the specification places no \
+         requirement at all. Every file this project has read carries a Windows DEVMODE blob; \
+         `mjx-sml` holds the `pageSetup@r:id` that names it and never opens it",
+    ),
+    (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.customProperty",
+        "a Custom Property part (ECMA-376 Part 1 §12.3.5), whose content the specification leaves \
+         entirely to the application. `mjx-sml` holds the `customPr@r:id` that names it \
+         (MJXOFF-127) and nothing opens it. `hyperlinks.xlsx` carried this part at the *package \
+         root* until MJXOFF-129, because this guard rejected it under `xl/`; a Custom Property \
+         part's target is relative to the workbook, so `xl/` is where it belongs and where it now \
+         is",
+    ),
+    (
+        "image/png",
+        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`). `mjx-opc` \
+         stores the caller's bytes verbatim and `ImageFormat::sniff` reads a magic-byte signature \
+         without decoding a pixel",
+    ),
+];
+
+/// The rule `no_part_under_xl_is_skipped_as_foreign_or_uncategorised` applies to one part: `Ok(())`,
+/// or the reason it fails.
+///
+/// Extracted from the loop so that
+/// [`the_rule_still_rejects_every_shape_of_false_green`] can feed it the outcomes no committed
+/// fixture produces. A guard whose only witness is the corpus is a guard nobody has seen fail.
+fn account_for_part_under_xl(row: &PartRow) -> Result<(), String> {
+    match &row.outcome {
+        PartOutcome::Validated(_) | PartOutcome::Tolerated { .. } => Ok(()),
+        // The one widening, and the whole of it: a payload that is not XML, whose content type
+        // somebody has written a reason for.
+        PartOutcome::SkippedBinary(content_type)
+            if NON_XML_CONTENT_TYPES_UNDER_XL
+                .iter()
+                .any(|(known, _)| known == content_type) =>
+        {
+            Ok(())
+        }
+        PartOutcome::SkippedBinary(content_type) => Err(format!(
+            "{} is a non-XML part under xl/ whose content type ({content_type}) is on no list. \
+             Skipping a binary payload is correct, but only once somebody has said which payload \
+             and why: add a row to NON_XML_CONTENT_TYPES_UNDER_XL",
+            row.name
+        )),
+        other => Err(format!(
+            "{} is under xl/ and was not validated at all — it reported: {}",
+            row.name,
+            other.describe()
+        )),
+    }
+}
+
 #[test]
 fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
     // MJXOFF-91's schema clause in its general form. `the_spreadsheetml_parts_are_validated_and_not_skipped`
@@ -441,7 +525,10 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
     // This is the exact false-green MJXOFF-110 exists to close: a part in a namespace with no arm
     // reports a *skip*, and `assert_outcomes_are_valid` fails on neither a skip nor a tolerance. So
     // "schema validity covers the .xlsx fixtures and is green" is satisfied precisely when the Excel
-    // parts are not being validated at all.
+    // parts are not being validated at all. **That guard is untouched by MJXOFF-129's widening** —
+    // see `account_for_part_under_xl`, which still rejects `SkippedPreservedForeign` and
+    // `Uncategorised` outright, and `the_rule_still_rejects_every_shape_of_false_green`, which
+    // proves it rather than asserting it.
     // Swept over **every** committed `.xlsx`, not over `sample.xlsx` alone (MJXOFF-102). A later
     // child adding a fixture with a new kind of part under `xl/` is exactly the case this rule is
     // for, and pinning one fixture would have let `worksheet_spine.xlsx`'s `/xl/tables/table1.xml`
@@ -460,13 +547,8 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
                 continue;
             }
             checked += 1;
-            match &row.outcome {
-                PartOutcome::Validated(_) | PartOutcome::Tolerated { .. } => {}
-                other => panic!(
-                    "{name}: {} is under xl/ and was not validated at all — it reported: {}",
-                    row.name,
-                    other.describe()
-                ),
+            if let Err(reason) = account_for_part_under_xl(row) {
+                panic!("{name}: {reason}");
             }
         }
     }
@@ -475,6 +557,114 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
         "only {checked} part(s) under xl/ were checked across {} fixture(s); sample.xlsx alone \
          carries five",
         fixtures.len()
+    );
+}
+
+/// The widened arm did not open the door it was widened beside.
+///
+/// MJXOFF-129 relaxed [`account_for_part_under_xl`] to accept a `SkippedBinary` whose content type
+/// is on [`NON_XML_CONTENT_TYPES_UNDER_XL`]. This case feeds the rule the three shapes the guard
+/// exists for and asserts each is still rejected — including a `SkippedBinary` whose content type is
+/// on **no** list, which is the shape a careless widening (`SkippedBinary(_) => Ok(())`) would have
+/// let through.
+///
+/// The rows are built here rather than found in the corpus, deliberately: no committed `.xlsx`
+/// produces an `Uncategorised` or a `SkippedPreservedForeign` under `xl/` — that is the point of the
+/// guard — so a case that only swept the corpus would prove the rule holds where it is never tested.
+#[test]
+fn the_rule_still_rejects_every_shape_of_false_green() {
+    let row = |outcome| PartRow {
+        name: "/xl/drawings/drawing1.xml".to_owned(),
+        root_element: Some("xdr:wsDr".to_owned()),
+        namespace: Some(
+            "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing".to_owned(),
+        ),
+        outcome,
+    };
+
+    // 1. A namespace on no list at all — the original false green, and MJXOFF-107's (E3) namespace.
+    let uncategorised = row(PartOutcome::Uncategorised {
+        namespace: Some(
+            "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing".to_owned(),
+        ),
+    });
+    let reason = account_for_part_under_xl(&uncategorised).expect_err("must still be rejected");
+    assert!(
+        reason.contains("was not validated at all") && reason.contains("UNCATEGORISED"),
+        "the rejection must say what happened: {reason}"
+    );
+
+    // 2. A namespace with a *reason* but no schema arm — still a skip, still rejected under xl/.
+    let foreign = row(PartOutcome::SkippedPreservedForeign {
+        namespace: Some("urn:example:preserved".to_owned()),
+        label: "a made-up preserved vocabulary",
+        reason: "authored by this test",
+    });
+    assert!(
+        account_for_part_under_xl(&foreign).is_err(),
+        "a part skipped for want of a schema arm is the false green this rule exists to catch"
+    );
+
+    // 3. A binary payload nobody has written a reason for — the shape the widening must NOT admit.
+    let unexplained = row(PartOutcome::SkippedBinary(
+        "application/vnd.ms-excel.something".to_owned(),
+    ));
+    let reason = account_for_part_under_xl(&unexplained).expect_err("must be rejected");
+    assert!(
+        reason.contains("NON_XML_CONTENT_TYPES_UNDER_XL"),
+        "the rejection must say how to fix it: {reason}"
+    );
+
+    // …and the two the widening does admit, so this case cannot pass by rejecting everything.
+    for (content_type, _) in NON_XML_CONTENT_TYPES_UNDER_XL {
+        let accepted = row(PartOutcome::SkippedBinary((*content_type).to_owned()));
+        assert!(
+            account_for_part_under_xl(&accepted).is_ok(),
+            "{content_type} is on the allowlist and must be accepted"
+        );
+    }
+}
+
+/// Every row of [`NON_XML_CONTENT_TYPES_UNDER_XL`] matches a part in the committed corpus.
+///
+/// The allowlist rule MJXOFF-110 established, applied to this list: an entry is a claim that a
+/// content type is really carried under `xl/` by a file this project keeps, and a claim nothing
+/// witnesses is a claim that can quietly become false. `mjx_schema_gate::categories`'
+/// `the_allowlist_has_no_dead_entries` is the same test for the namespace lists.
+#[test]
+fn every_non_xml_content_type_on_the_allowlist_is_exercised() {
+    let fixtures = package_fixtures_with_extension("xlsx");
+    let mut seen: Vec<&str> = Vec::new();
+    for name in &fixtures {
+        let rows = inspect_fixture(name);
+        if rows.is_empty() {
+            return;
+        }
+        for row in &rows {
+            if !row.name.starts_with("/xl/") {
+                continue;
+            }
+            if let PartOutcome::SkippedBinary(content_type) = &row.outcome {
+                if let Some((known, _)) = NON_XML_CONTENT_TYPES_UNDER_XL
+                    .iter()
+                    .find(|(known, _)| known == content_type)
+                {
+                    if !seen.contains(known) {
+                        seen.push(known);
+                    }
+                }
+            }
+        }
+    }
+    let dead: Vec<&str> = NON_XML_CONTENT_TYPES_UNDER_XL
+        .iter()
+        .map(|(content_type, _)| *content_type)
+        .filter(|content_type| !seen.contains(content_type))
+        .collect();
+    assert!(
+        dead.is_empty(),
+        "no committed .xlsx carries a part under xl/ with {dead:?}; an allowlist entry nothing \
+         witnesses is one that can quietly become false"
     );
 }
 
