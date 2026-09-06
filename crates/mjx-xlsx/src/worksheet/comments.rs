@@ -118,7 +118,12 @@ pub struct CommentBox {
     /// false, which is Excel's default for a note.
     pub is_visible: bool,
     /// `x:ClientData/x:Anchor` **exactly as written** — the comma-separated eight numbers Excel
-    /// honours. Not decoded; see the [module documentation](self).
+    /// honours.
+    ///
+    /// **Not decoded, deliberately.** It is a different anchor vocabulary from the sheet drawing's
+    /// `xdr:` markers, and turning it into a rectangle would be a second decoder for a thing
+    /// MJXOFF-107 already models once. `x:commentPr/anchor` is the *other* anchor, and LibreOffice
+    /// writes none at all.
     pub anchor_text: Option<String>,
     /// `x:ClientData/x:Row` — the zero-based row the box is attached to, as the shape states it.
     pub row: Option<u32>,

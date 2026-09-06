@@ -64,6 +64,12 @@ value_class! {
     /// One `x:hyperlink` on a sheet, resolved against the sheet's relationships.
     SheetHyperlinkInfo(ooxml::SheetHyperlinkInfo), derive(PartialEq, Eq);
 
+    /// One cell comment, resolved across both of the parts it lives in.
+    SheetCommentInfo(ooxml::SheetCommentInfo), derive(PartialEq, Eq);
+
+    /// The `v:shape` that draws one comment's pop-up box.
+    CommentBoxInfo(ooxml::CommentBoxInfo), derive(PartialEq, Eq);
+
     /// One table on a sheet, resolved to its part.
     SheetTableInfo(ooxml::SheetTableInfo), derive(PartialEq, Eq);
 
@@ -559,6 +565,90 @@ impl CalculationSettings {
 // ---------------------------------------------------------------------------------------------
 // Hyperlinks, tables and grid anomalies
 // ---------------------------------------------------------------------------------------------
+
+#[wasm_bindgen]
+impl SheetCommentInfo {
+    /// The cell the comment is attached to, as A1 text.
+    #[wasm_bindgen(getter, js_name = "cell")]
+    pub fn cell(&self) -> String {
+        self.0.cell.clone()
+    }
+
+    /// `@authorId` — an index into the part's author list, not a name.
+    #[wasm_bindgen(getter, js_name = "authorIndex")]
+    pub fn author_index(&self) -> u32 {
+        self.0.author_index
+    }
+
+    /// The name at that index, or `undefined`.
+    #[wasm_bindgen(getter, js_name = "author")]
+    pub fn author(&self) -> Option<String> {
+        self.0.author.clone()
+    }
+
+    /// The displayed text: the plain `t`, then each formatted run's `t`, concatenated.
+    #[wasm_bindgen(getter, js_name = "text")]
+    pub fn text(&self) -> String {
+        self.0.text.clone()
+    }
+
+    /// `@shapeId`, when the file states one.
+    #[wasm_bindgen(getter, js_name = "shapeId")]
+    pub fn shape_id(&self) -> Option<u32> {
+        self.0.shape_id
+    }
+
+    /// The box that draws it, or `undefined`.
+    #[wasm_bindgen(getter, js_name = "commentBox")]
+    pub fn comment_box(&self) -> Option<CommentBoxInfo> {
+        self.0.comment_box.clone().map(CommentBoxInfo)
+    }
+}
+
+#[wasm_bindgen]
+impl CommentBoxInfo {
+    /// The shape's own `@id`, as the file wrote it.
+    #[wasm_bindgen(getter, js_name = "identifier")]
+    pub fn identifier(&self) -> Option<String> {
+        self.0.identifier.clone()
+    }
+
+    /// `@o:spid`, the application's identifier for the shape.
+    #[wasm_bindgen(getter, js_name = "applicationIdentifier")]
+    pub fn application_identifier(&self) -> Option<String> {
+        self.0.application_identifier.clone()
+    }
+
+    /// Whether the box is showing without the pointer over the cell.
+    #[wasm_bindgen(getter, js_name = "isVisible")]
+    pub fn is_visible(&self) -> bool {
+        self.0.is_visible
+    }
+
+    /// `x:ClientData/x:Anchor` exactly as written. Never decoded.
+    #[wasm_bindgen(getter, js_name = "anchorText")]
+    pub fn anchor_text(&self) -> Option<String> {
+        self.0.anchor_text.clone()
+    }
+
+    /// `x:ClientData/x:Row` — the zero-based row the box states.
+    #[wasm_bindgen(getter, js_name = "row")]
+    pub fn row(&self) -> Option<u32> {
+        self.0.row
+    }
+
+    /// `x:ClientData/x:Column` — the zero-based column.
+    #[wasm_bindgen(getter, js_name = "column")]
+    pub fn column(&self) -> Option<u32> {
+        self.0.column
+    }
+
+    /// The shape's CSS2 `@style`, verbatim.
+    #[wasm_bindgen(getter, js_name = "style")]
+    pub fn style(&self) -> Option<String> {
+        self.0.style.clone()
+    }
+}
 
 #[wasm_bindgen]
 impl SheetHyperlinkInfo {

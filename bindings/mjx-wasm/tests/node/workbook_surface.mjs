@@ -172,6 +172,77 @@ test("an external link and an internal jump are not each other", () => {
   });
 });
 
+test("a comment writes both halves and a delete takes both away", () => {
+  // Asymmetric on purpose: the two cells hold different text and different visibility, so a
+  // delegate that ignored `reference` and held one comment would fail. The fixture is
+  // LibreOffice's, so the producer's own two comments are there to be counted against.
+  scope((owned) => {
+    const workbook = owned.keep(
+      Workbook.open(readFileSync(join(FIXTURES, "cell_comments.xlsx"))),
+    );
+    const all = workbook.sheetComments(0);
+    assert.equal(all.length, 2);
+    for (const comment of all) {
+      comment.free();
+    }
+
+    const checked = owned.keep(workbook.cellComment(0, "A2"));
+    assert.equal(checked.text, "Checked against the ledger.\nSecond line.");
+    assert.equal(checked.author, "Unknown Author");
+    const checkedBox = owned.keep(checked.commentBox);
+    assert.equal(checkedBox.isVisible, true);
+    assert.equal(checkedBox.row, 1);
+    assert.equal(checkedBox.column, 0);
+    // Read, never inferred: the anchor is the producer's own string.
+    assert.equal(checkedBox.anchorText, "1, 23, 0, 0, 2, 47, 3, 1");
+
+    const spend = owned.keep(workbook.cellComment(0, "B1"));
+    assert.equal(spend.text, "Spend is in thousands.");
+    const spendBox = owned.keep(spend.commentBox);
+    assert.equal(spendBox.isVisible, false);
+
+    assert.equal(workbook.addCellComment(0, "C3", "Jai Shukla", "A fresh note."), 1025);
+    const fresh = owned.keep(workbook.cellComment(0, "C3"));
+    assert.equal(fresh.author, "Jai Shukla");
+    assert.equal(fresh.shapeId, 1025);
+    const freshBox = owned.keep(fresh.commentBox);
+    assert.equal(freshBox.identifier, "_x0000_s1025");
+
+    assert.equal(workbook.setCellCommentText(0, "C3", "Rewritten."), true);
+    assert.equal(workbook.setCellCommentText(0, "Z9", "nobody"), false);
+    const rewritten = owned.keep(workbook.cellComment(0, "C3"));
+    assert.equal(rewritten.text, "Rewritten.");
+
+    assert.equal(workbook.removeCellComment(0, "C3"), true);
+    assert.equal(workbook.removeCellComment(0, "C3"), false);
+    assert.equal(workbook.cellComment(0, "C3"), undefined);
+    // Both halves went: saving would refuse if either were left behind.
+    workbook.save();
+  });
+});
+
+test("a form control resolves to its legacy shape and an OLE object does not", () => {
+  // The `shapeId` hop, and the two lists it reads from told apart. LibreOffice's fixture lists a
+  // form control and no OLE object, so the two methods must answer differently — a delegate wired
+  // to the wrong list would answer the same thing twice.
+  scope((owned) => {
+    const workbook = owned.keep(
+      Workbook.open(readFileSync(join(FIXTURES, "legacy_form_control.xlsx"))),
+    );
+    assert.equal(workbook.vmlShapeIdForFormControl(0, 0), "AcceptTerms");
+    assert.equal(workbook.vmlShapeIdForFormControl(0, 7), undefined);
+    assert.equal(workbook.vmlShapeIdForOleObject(0, 0), undefined);
+
+    const vml = workbook.sheetVmlPartBytes(0);
+    assert.ok(vml instanceof Uint8Array);
+    const text = new TextDecoder().decode(vml);
+    assert.ok(
+      text.includes('o:spid="_x0000_s1001"'),
+      "the producer's own VML comes through verbatim",
+    );
+  });
+});
+
 test("a tab that is not there and a tab with no cells are different failures", () => {
   scope((owned) => {
     const workbook = owned.keep(

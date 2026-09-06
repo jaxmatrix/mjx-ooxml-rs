@@ -187,11 +187,11 @@ pub use format::{detect_format, Format, FormatFamily};
 pub use references::{DiagramParts, ExternalLink, InkReference};
 pub use workbook::{
     AnchorBoundsInfo, AnchorShiftInfo, CellBlock, CellData, CellInput, CellWrite, ChartRangeSeries,
-    ChartSeriesFreshnessInfo, DefinedName, GridAnomalyInfo, GridAnomalyKind, PreservedPart,
-    PreservedPartsSummary, RangeCellInfo, ResolvedRangeInfo, RevisionSessionInfo,
-    SharedWorkbookUserInfo, SheetChartWorkbookInfo, SheetDrawingInfo, SheetDrawingObjectInfo,
-    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary,
-    SheetTableColumnInfo, SheetTableInfo, Workbook, WorkbookConnectionInfo,
+    ChartSeriesFreshnessInfo, CommentBoxInfo, DefinedName, GridAnomalyInfo, GridAnomalyKind,
+    PreservedPart, PreservedPartsSummary, RangeCellInfo, ResolvedRangeInfo, RevisionSessionInfo,
+    SharedWorkbookUserInfo, SheetChartWorkbookInfo, SheetCommentInfo, SheetDrawingInfo,
+    SheetDrawingObjectInfo, SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo,
+    SheetSummary, SheetTableColumnInfo, SheetTableInfo, Workbook, WorkbookConnectionInfo,
     WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
     XmlMapInfo,
 };

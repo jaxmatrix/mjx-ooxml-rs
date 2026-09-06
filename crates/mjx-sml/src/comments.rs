@@ -263,16 +263,16 @@ impl CommentAuthors {
 ///
 /// # Why this is not [`StringItem`](crate::StringItem), and why it is not a plain text leaf either
 ///
-/// [`StringItem`] is a *view into a packed store*: MJXOFF-97 built it so that a workbook with a
+/// [`StringItem`](crate::StringItem) is a *view into a packed store*: MJXOFF-97 built it so that a workbook with a
 /// million shared strings costs 48 bytes an entry rather than a `RawElement` tree, and the store is
 /// addressed by index and owns the part's whole buffer. A comment part carries a handful of entries,
 /// is reached one comment at a time by cell reference, and has to sit inside a `RawElement`-backed
 /// [`Comment`] whose siblings are typed models — so the store's shape buys nothing here and its
 /// addressing is wrong.
 ///
-/// It is not a [`character_data_body!`](crate::leaf::character_data_body) leaf either, and the
-/// difference is the one a naive reader gets wrong: **a `CT_Rst` carries no character data of its
-/// own.** `<text>hello</text>` is invalid markup; the text lives in a `t` child, or — when the
+/// It is not one of this crate's `s:ST_Xstring` leaves either — [`CommentAuthor`],
+/// [`HeaderFooterText`](crate::HeaderFooterText) — and the difference is the one a naive reader
+/// gets wrong: **a `CT_Rst` carries no character data of its own.** `<text>hello</text>` is invalid markup; the text lives in a `t` child, or — when the
 /// author formatted part of it — in the `t` of each `r` run. A decoder that read the element's own
 /// character data answers the empty string for every comment any producer has ever written.
 ///

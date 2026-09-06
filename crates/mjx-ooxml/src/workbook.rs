@@ -97,6 +97,7 @@ use crate::format::{format_of, Format};
 
 mod cells;
 mod charts;
+mod comments;
 mod drawings;
 mod features;
 mod grid;
@@ -114,6 +115,7 @@ pub use charts::{
     ChartRangeSeries, ChartSeriesFreshnessInfo, RangeCellInfo, ResolvedRangeInfo,
     SheetChartWorkbookInfo,
 };
+pub use comments::{CommentBoxInfo, SheetCommentInfo};
 pub use drawings::{AnchorBoundsInfo, AnchorShiftInfo, SheetDrawingInfo, SheetDrawingObjectInfo};
 pub use grid::{GridAnomalyInfo, GridAnomalyKind};
 pub use hyperlinks::SheetHyperlinkInfo;
