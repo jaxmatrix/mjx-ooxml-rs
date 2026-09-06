@@ -5,8 +5,11 @@
 //! the same part is still a failure. A tolerance never applies to a deck this library authors: the
 //! authoring paths are handed an empty tolerance list.
 //!
-//! Every entry names a producer and says why the markup is not ours to correct. There are four, and
-//! three of them are in fixtures written by LibreOffice or python-pptx.
+//! Every entry names a producer and says why the markup is not ours to correct. There are five:
+//! three are in fixtures written by LibreOffice or python-pptx, one reproduces a producer-wide
+//! divergence in a fixture MJXOFF-97 authored on purpose, and the fifth (MJXOFF-133's
+//! `xl/xmlMaps.xml`) records a place where **the specification contradicts its own schema** — see
+//! that entry's reason.
 
 /// A schema deviation carried by an *input* rather than by markup this project writes.
 #[derive(Debug, Clone, Copy)]
@@ -64,6 +67,24 @@ pub const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[
         error_contains: "The attribute 'dateCompatibility' is not allowed",
         reason: "LibreOffice writes `dateCompatibility` on `s:workbookPr`; the attribute is not in \
                  the ECMA-376 5th-edition Transitional `sml.xsd`. An input we preserve verbatim",
+    },
+    ToleratedDeviation {
+        fixture: "preserved_parts.xlsx",
+        part: "/xl/xmlMaps.xml",
+        error_contains: "demanded by the strict wildcard",
+        reason: "`CT_Schema` (sml.xsd:340) is `<xsd:sequence><xsd:any/></xsd:sequence>` — one \
+                 required child, and `processContents` defaults to `strict`, so the child must be a \
+                 globally declared element of a schema the validator has loaded. What actually goes \
+                 there is an **XML Schema document**, in the `http://www.w3.org/2001/XMLSchema` \
+                 namespace, which `sml.xsd` neither imports nor could import. ECMA-376 Part 1 \
+                 §12.3.6's own example inlines exactly such an `xsd:schema` and so does every file \
+                 Excel writes, which makes `CT_Schema` a type no conformant instance can satisfy: \
+                 omitting the child breaks `minOccurs`, and supplying the one the specification \
+                 shows breaks the wildcard. MJXOFF-133 authored this fixture to reproduce the \
+                 §12.3.6 example rather than to dodge it — `xl/xmlMaps.xml` is a part this library \
+                 preserves verbatim and never writes, and a gap the specification leaves is not a \
+                 gap a fixture should paper over. The same shape as the `CT_Extension` \
+                 `xsd:any minOccurs=\"1\"` trap MJXOFF-120 recorded against `mc:Ignorable`",
     },
 ];
 

@@ -46,7 +46,7 @@ use crate::error::XlsxError;
 // there and in `mjx-chart` — and would have been three times over the moment MJXOFF-112 wrote a
 // third producer; `mjx-sml` is below this crate in the layering, so the one set can live there and
 // be reached from both sides. Every other constant below is this crate's own: reading a part graph
-// needs twenty-five relationship types and an author needs four.
+// needs twenty-nine relationship types and an author needs four.
 pub use mjx_sml::write::constants::{REL_OFFICE_DOCUMENT, REL_WORKSHEET};
 
 /// The relationship type from the workbook part to a chartsheet part (§12.3.2).
@@ -157,6 +157,41 @@ pub const REL_IMAGE: &str =
 pub const REL_THEME: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme";
 
+/// The relationship type from a **worksheet** part to a Custom Property part (§12.3.5).
+///
+/// §12.3's summary table says the relationship source is the Workbook part; §12.3.5's own body and
+/// its example both say the Worksheet part, and every file this project has read agrees with the
+/// body. The two statements are the specification's, quoted rather than reconciled, and
+/// [`WorksheetParts::custom_properties`] follows the body.
+pub const REL_CUSTOM_PROPERTY: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/customProperty";
+
+/// The relationship type from the workbook part to the Custom XML Mappings part (§12.3.6).
+pub const REL_CUSTOM_XML_MAPPINGS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/xmlMaps";
+
+/// The relationship type from the workbook part to the Shared Workbook Revision Headers part
+/// (§12.3.16).
+pub const REL_REVISION_HEADERS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/revisionHeaders";
+
+/// The relationship type from the revision headers part to one Shared Workbook Revision Log part
+/// (§12.3.17) — an **explicit** relationship, named by a `x:header@r:id`.
+pub const REL_REVISION_LOG: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/revisionLog";
+
+/// The relationship type from the workbook part to the Shared Workbook User Data part (§12.3.18).
+///
+/// The URI's last segment is `usernames`, all lower case, where the part's content type spells the
+/// same word `userNames`. Both spellings are §12.3.18's own, quoted exactly.
+pub const REL_SHARED_WORKBOOK_USER_DATA: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/usernames";
+
+/// The relationship type from a worksheet part to its Single Cell Table Definitions part
+/// (§12.3.19).
+pub const REL_SINGLE_CELL_TABLE_DEFINITIONS: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/tableSingleCells";
+
 // ---------------------------------------------------------------------------------------------
 // Content types (ECMA-376 Part 1 §12.3)
 // ---------------------------------------------------------------------------------------------
@@ -242,6 +277,57 @@ pub const CONTENT_TYPE_PRINTER_SETTINGS: &str =
 /// The content type of a theme part (DrawingML, Part 1 §14.2.7) — the same string every format uses.
 pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocument.theme+xml";
 
+/// A content type a Custom Property part (§12.3.5) may be registered under.
+///
+/// §12.3.5 states the content type as *"Any content, support for which is application-defined"* and
+/// then offers two examples in a Note: this string, and `application/xml`. So this is **an**
+/// example the specification gives rather than **the** content type of the part, which is why
+/// [`PartKind::CustomProperty`] is identified by its relationship type and not by this string. It
+/// is declared because `[Content_Types].xml` has to register the part under *something* and this is
+/// what real producers write; `tests/fixtures/hyperlinks.xlsx` carries one.
+pub const CONTENT_TYPE_CUSTOM_PROPERTY: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.customProperty";
+
+/// The content type of the Custom XML Mappings part (§12.3.6) — plain `application/xml`, the one
+/// content type in this file that names no format at all.
+///
+/// See [`AMBIGUOUS_CONTENT_TYPES`] for why a part is never classified as XML maps *by* this string.
+pub const CONTENT_TYPE_CUSTOM_XML_MAPPINGS: &str = "application/xml";
+
+/// The content type of the Shared Workbook Revision Headers part (§12.3.16).
+pub const CONTENT_TYPE_REVISION_HEADERS: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionHeaders+xml";
+
+/// The content type of a Shared Workbook Revision Log part (§12.3.17).
+pub const CONTENT_TYPE_REVISION_LOG: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.revisionLog+xml";
+
+/// The content type of the Shared Workbook User Data part (§12.3.18).
+pub const CONTENT_TYPE_SHARED_WORKBOOK_USER_DATA: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.userNames+xml";
+
+/// The content type of a Single Cell Table Definitions part (§12.3.19).
+pub const CONTENT_TYPE_SINGLE_CELL_TABLE_DEFINITIONS: &str =
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.tableSingleCells+xml";
+
+/// Content types that identify **no single part kind**, each with the reason, so that
+/// [`PartKind::from_content_type`] can refuse to guess from one.
+///
+/// The list exists because two of §12.3's part types are not identified by their content type at
+/// all, and answering from one anyway would be a confident wrong answer rather than a missing one.
+/// A part registered under one of these is classified through
+/// [`PartKind::from_relationship_type`] instead — the edge the graph actually reaches it through,
+/// which is how §12.3 identifies every one of its part types in the first place.
+pub const AMBIGUOUS_CONTENT_TYPES: &[(&str, &str)] = &[(
+    CONTENT_TYPE_CUSTOM_XML_MAPPINGS,
+    "§12.3.6 gives the Custom XML Mappings part this content type and §12.3.5's Note offers it as \
+     one a Custom Property part may carry. It is also the string `[Content_Types].xml` most often \
+     registers as the `Default` for the `xml` extension, so in a package written by a real \
+     producer it is the content type of every part carrying no `Override` at all — a workbook's \
+     `docProps/custom.xml`, an embedded custom XML item, a producer's own scratch part. Answering \
+     `XmlMaps` from it would misclassify all of them.",
+)];
+
 // ---------------------------------------------------------------------------------------------
 // Part kinds
 // ---------------------------------------------------------------------------------------------
@@ -250,16 +336,36 @@ pub const CONTENT_TYPE_THEME: &str = "application/vnd.openxmlformats-officedocum
 /// (how the graph reaches it) and one or more content types (how `[Content_Types].xml` registers
 /// it).
 ///
-/// The set is the part list of ECMA-376 Part 1 §12.3 that a `.xlsx` written by a real producer
-/// actually carries, plus the three non-SpreadsheetML parts a workbook nevertheless relates to
-/// ([`Theme`](Self::Theme), [`Drawing`](Self::Drawing), [`VmlDrawing`](Self::VmlDrawing)) and
-/// [`PrinterSettings`](Self::PrinterSettings). The five §12.3 parts left out — Custom Property,
-/// Custom XML Mappings, and the three Shared Workbook revision parts — are left out on purpose:
-/// two of them have no content type of their own to classify by (`application/xml`, and "any
-/// content, support for which is application-defined"), and the revision trio belongs to the
-/// shared-workbook feature MJXOFF-133 (D18) writes down as deliberately unmodelled. All five are
-/// still **preserved** — see [`crate::PartClassification`], which reports any part this enum does
-/// not name rather than rejecting it.
+/// # Every §12.3 part type is here
+///
+/// The set is **all twenty-four part types ECMA-376 Part 1 §12.3 defines** (§12.3.1 through
+/// §12.3.24, [`Drawing`](Self::Drawing) at §12.3.8 among them), plus the three a workbook relates
+/// to that §12.3 does not define: [`Theme`](Self::Theme) (§14.2.7),
+/// [`PrinterSettings`](Self::PrinterSettings) (§15.2.13) and [`VmlDrawing`](Self::VmlDrawing)
+/// (Part 4 §8.2). Twenty-seven in all, counting [`Workbook`](Self::Workbook) once for the two
+/// content types §12.3.23 gives it.
+///
+/// MJXOFF-91 (D02) left six of the twenty-four out: Custom Property, Custom XML Mappings, the
+/// three Shared Workbook parts and Single Cell Table Definitions. MJXOFF-133 (D18) puts them in,
+/// because *"we do not model it"* and *"we do not recognise it"* are different statements and only
+/// the first is a guarantee. **Recognising a part is not modelling it:** every one of these is
+/// still carried through a save as the bytes it arrived as — see [`crate::preserve`] and
+/// `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md`'s unmodelled-cluster table.
+///
+/// # Two of them are not identified by their content type
+///
+/// [`CustomProperty`](Self::CustomProperty)'s content type is, in §12.3.5's own words, *"any
+/// content, support for which is application-defined"* — so the string
+/// [`CONTENT_TYPE_CUSTOM_PROPERTY`] is one example of what such a part may carry rather than a
+/// guarantee, and a producer registering the same part as `text/plain` has broken no rule.
+/// [`CustomXmlMappings`](Self::CustomXmlMappings)'s is plain `application/xml`, which in a real
+/// package is also the `Default` for every unregistered `.xml` part; classifying from it would
+/// misidentify unrelated parts, so it is on [`AMBIGUOUS_CONTENT_TYPES`] and
+/// [`from_content_type`](Self::from_content_type) refuses to answer from it.
+///
+/// Both are therefore identified by [`from_relationship_type`](Self::from_relationship_type) — the
+/// edge §12.3 identifies every one of its part types by — and
+/// [`crate::preserve::classify`] tries it whenever a content type answers nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PartKind {
     /// `x:workbook` — the workbook part (§12.3.23).
@@ -304,6 +410,30 @@ pub enum PartKind {
     PrinterSettings,
     /// `a:theme` — a theme part (§14.2.7). DrawingML, not SpreadsheetML.
     Theme,
+    /// A Custom Property part (§12.3.5) — user-defined data hung off a worksheet, of **any**
+    /// content the producing application cares to write. Never opened here.
+    ///
+    /// Identified by [`REL_CUSTOM_PROPERTY`] and not by a content type; see the enum's own
+    /// documentation.
+    CustomProperty,
+    /// `x:MapInfo` — the Custom XML Mappings part (§12.3.6), which says how a custom XML schema is
+    /// mapped into cells.
+    ///
+    /// SpreadsheetML markup registered under `application/xml`, so identified by
+    /// [`REL_CUSTOM_XML_MAPPINGS`] and not by a content type; see the enum's own documentation.
+    CustomXmlMappings,
+    /// `x:headers` — the Shared Workbook Revision Headers part (§12.3.16): one entry per editing
+    /// session, each naming a revision log.
+    RevisionHeaders,
+    /// `x:revisions` — one Shared Workbook Revision Log part (§12.3.17), the cell edits of one
+    /// session.
+    RevisionLog,
+    /// `x:users` — the Shared Workbook User Data part (§12.3.18), the list of users sharing the
+    /// workbook.
+    SharedWorkbookUserData,
+    /// `x:singleXmlCells` — a Single Cell Table Definitions part (§12.3.19): how non-repeating
+    /// custom XML elements map into individual cells of one worksheet.
+    SingleCellTableDefinitions,
 }
 
 impl PartKind {
@@ -337,7 +467,32 @@ impl PartKind {
             Self::VmlDrawing => REL_VML_DRAWING,
             Self::PrinterSettings => REL_PRINTER_SETTINGS,
             Self::Theme => REL_THEME,
+            Self::CustomProperty => REL_CUSTOM_PROPERTY,
+            Self::CustomXmlMappings => REL_CUSTOM_XML_MAPPINGS,
+            Self::RevisionHeaders => REL_REVISION_HEADERS,
+            Self::RevisionLog => REL_REVISION_LOG,
+            Self::SharedWorkbookUserData => REL_SHARED_WORKBOOK_USER_DATA,
+            Self::SingleCellTableDefinitions => REL_SINGLE_CELL_TABLE_DEFINITIONS,
         }
+    }
+
+    /// The kind a part reached through a relationship of this type is, or `None` for a relationship
+    /// type this crate does not classify.
+    ///
+    /// The exact inverse of [`relationship_type`](Self::relationship_type), and the *only* way to
+    /// identify the two kinds whose content type says nothing —
+    /// [`CustomProperty`](Self::CustomProperty) and
+    /// [`CustomXmlMappings`](Self::CustomXmlMappings). It is well defined because no two kinds
+    /// share a relationship type, which
+    /// `no_two_part_kinds_share_a_content_type_or_a_relationship_type` asserts rather than assumes.
+    ///
+    /// `None` for [`REL_HYPERLINK`], which reaches no part at all.
+    #[must_use]
+    pub fn from_relationship_type(relationship_type: &str) -> Option<Self> {
+        Self::ALL
+            .iter()
+            .copied()
+            .find(|kind| kind.relationship_type() == relationship_type)
     }
 
     /// Every content type `[Content_Types].xml` may register this kind under, most common first.
@@ -369,6 +524,12 @@ impl PartKind {
             Self::VmlDrawing => &[CONTENT_TYPE_VML_DRAWING],
             Self::PrinterSettings => &[CONTENT_TYPE_PRINTER_SETTINGS],
             Self::Theme => &[CONTENT_TYPE_THEME],
+            Self::CustomProperty => &[CONTENT_TYPE_CUSTOM_PROPERTY],
+            Self::CustomXmlMappings => &[CONTENT_TYPE_CUSTOM_XML_MAPPINGS],
+            Self::RevisionHeaders => &[CONTENT_TYPE_REVISION_HEADERS],
+            Self::RevisionLog => &[CONTENT_TYPE_REVISION_LOG],
+            Self::SharedWorkbookUserData => &[CONTENT_TYPE_SHARED_WORKBOOK_USER_DATA],
+            Self::SingleCellTableDefinitions => &[CONTENT_TYPE_SINGLE_CELL_TABLE_DEFINITIONS],
         }
     }
 
@@ -398,15 +559,29 @@ impl PartKind {
         Self::VmlDrawing,
         Self::PrinterSettings,
         Self::Theme,
+        Self::CustomProperty,
+        Self::CustomXmlMappings,
+        Self::RevisionHeaders,
+        Self::RevisionLog,
+        Self::SharedWorkbookUserData,
+        Self::SingleCellTableDefinitions,
     ];
 
     /// The kind a part with this content type is, or `None` for a content type this crate does not
-    /// classify.
+    /// classify — **or one that classifies nothing**, see [`AMBIGUOUS_CONTENT_TYPES`].
     ///
     /// `None` is never a rejection — see [`crate::PartClassification`]. It is what a `.xlsm`'s
-    /// macro-enabled workbook, a custom XML mapping (`application/xml`) and an image all report.
+    /// macro-enabled workbook and an image both report, and what
+    /// [`crate::preserve::classify`] then tries [`from_relationship_type`](Self::from_relationship_type)
+    /// on before giving up.
     #[must_use]
     pub fn from_content_type(content_type: &str) -> Option<Self> {
+        if AMBIGUOUS_CONTENT_TYPES
+            .iter()
+            .any(|(ambiguous, _)| *ambiguous == content_type)
+        {
+            return None;
+        }
         Self::ALL
             .iter()
             .copied()
@@ -496,6 +671,14 @@ pub struct WorkbookParts {
     pub external_links: Vec<PartName>,
     /// Every related pivot table cache definition, in relationship order.
     pub pivot_cache_definitions: Vec<PartName>,
+    /// `xl/xmlMaps.xml`, if related — the Custom XML Mappings part (§12.3.6), of which §12.3.6
+    /// permits at most one per package.
+    pub custom_xml_mappings: Option<PartName>,
+    /// `xl/revisions/revisionHeaders.xml`, if related — §12.3.16 permits at most one, and its
+    /// presence is what says this workbook is in shared mode.
+    pub revision_headers: Option<PartName>,
+    /// `xl/revisions/userNames.xml`, if related — §12.3.18 permits at most one.
+    pub shared_workbook_user_data: Option<PartName>,
 }
 
 impl WorkbookParts {
@@ -525,6 +708,9 @@ impl WorkbookParts {
             volatile_dependencies: single(workbook_part, rels, REL_VOLATILE_DEPENDENCIES)?,
             external_links: many(workbook_part, rels, REL_EXTERNAL_LINK)?,
             pivot_cache_definitions: many(workbook_part, rels, REL_PIVOT_CACHE_DEFINITION)?,
+            custom_xml_mappings: single(workbook_part, rels, REL_CUSTOM_XML_MAPPINGS)?,
+            revision_headers: single(workbook_part, rels, REL_REVISION_HEADERS)?,
+            shared_workbook_user_data: single(workbook_part, rels, REL_SHARED_WORKBOOK_USER_DATA)?,
         })
     }
 
@@ -576,6 +762,15 @@ pub struct WorksheetParts {
     pub query_tables: Vec<PartName>,
     /// Every related pivot table part, in relationship order.
     pub pivot_tables: Vec<PartName>,
+    /// Every related Custom Property part (§12.3.5), in relationship order. Opaque bytes of a
+    /// content type the specification leaves entirely to the producer; nothing here opens one.
+    ///
+    /// The sheet's own `x:customProperties` list ([`mjx_sml::CustomProperties`]) is the other half:
+    /// it holds the `customPr@r:id` and the name the sheet gives each one. This is the part-graph
+    /// view.
+    pub custom_properties: Vec<PartName>,
+    /// The Single Cell Table Definitions part (§12.3.19), if related — at most one per worksheet.
+    pub single_cell_table_definitions: Option<PartName>,
 }
 
 impl WorksheetParts {
@@ -596,6 +791,94 @@ impl WorksheetParts {
             tables: many(sheet_part, rels, REL_TABLE)?,
             query_tables: many(sheet_part, rels, REL_QUERY_TABLE)?,
             pivot_tables: many(sheet_part, rels, REL_PIVOT_TABLE)?,
+            custom_properties: many(sheet_part, rels, REL_CUSTOM_PROPERTY)?,
+            single_cell_table_definitions: single(
+                sheet_part,
+                rels,
+                REL_SINGLE_CELL_TABLE_DEFINITIONS,
+            )?,
+        })
+    }
+}
+
+/// A pivot table part's own part graph: the cache definition it draws its data from (§12.3.11 —
+/// *"A Pivot Table part shall have an implicit relationship to a Pivot Table Cache Definition
+/// part"*).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PivotTableParts {
+    /// The pivot table cache definition this table reads, if related.
+    pub cache_definition: Option<PartName>,
+}
+
+impl PivotTableParts {
+    /// Resolves the relationships of the pivot table part at `pivot_table_part`.
+    ///
+    /// # Errors
+    /// As [`WorkbookParts::resolve`].
+    pub(crate) fn resolve(
+        package: &Package,
+        pivot_table_part: &PartName,
+    ) -> Result<Self, XlsxError> {
+        let Some(rels) = package.relationships_for(Some(pivot_table_part)) else {
+            return Ok(Self::default());
+        };
+        Ok(Self {
+            cache_definition: single(pivot_table_part, rels, REL_PIVOT_CACHE_DEFINITION)?,
+        })
+    }
+}
+
+/// A pivot table cache definition's own part graph: the records part holding the cached rows
+/// (§12.3.13).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct PivotCacheParts {
+    /// The cache records part, if related. Absent for a cache saved with `saveData="0"`, which is a
+    /// real shape and not a defect.
+    pub records: Option<PartName>,
+}
+
+impl PivotCacheParts {
+    /// Resolves the relationships of the cache definition part at `cache_definition_part`.
+    ///
+    /// # Errors
+    /// As [`WorkbookParts::resolve`].
+    pub(crate) fn resolve(
+        package: &Package,
+        cache_definition_part: &PartName,
+    ) -> Result<Self, XlsxError> {
+        let Some(rels) = package.relationships_for(Some(cache_definition_part)) else {
+            return Ok(Self::default());
+        };
+        Ok(Self {
+            records: single(cache_definition_part, rels, REL_PIVOT_CACHE_RECORDS)?,
+        })
+    }
+}
+
+/// The revision headers part's own part graph: one revision log per editing session (§12.3.17).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RevisionHeadersParts {
+    /// Every related revision log part, in relationship order.
+    ///
+    /// Relationship order, not `x:header` order: the headers part's own list is what orders the
+    /// sessions, and [`crate::RevisionState`] reads it.
+    pub logs: Vec<PartName>,
+}
+
+impl RevisionHeadersParts {
+    /// Resolves the relationships of the revision headers part at `revision_headers_part`.
+    ///
+    /// # Errors
+    /// As [`WorkbookParts::resolve`].
+    pub(crate) fn resolve(
+        package: &Package,
+        revision_headers_part: &PartName,
+    ) -> Result<Self, XlsxError> {
+        let Some(rels) = package.relationships_for(Some(revision_headers_part)) else {
+            return Ok(Self::default());
+        };
+        Ok(Self {
+            logs: many(revision_headers_part, rels, REL_REVISION_LOG)?,
         })
     }
 }
@@ -659,8 +942,78 @@ mod tests {
         }
         assert_eq!(
             PartKind::ALL.len(),
-            21,
+            27,
             "PartKind::ALL changed size — update the count and this crate's module documentation"
+        );
+    }
+
+    /// Every kind is reachable from its own relationship type, and the two whose content type says
+    /// nothing are reachable **only** that way.
+    ///
+    /// This is the case MJXOFF-133 rests on: a Custom Property part carries "any content" and a
+    /// Custom XML Mappings part carries `application/xml`, so if `from_relationship_type` did not
+    /// exist neither could be identified at all, and both would report
+    /// [`crate::PartClassification::Unclassified`] in a workbook that plainly relates to them.
+    #[test]
+    fn every_kind_round_trips_through_its_own_relationship_type() {
+        for kind in PartKind::ALL {
+            assert_eq!(
+                PartKind::from_relationship_type(kind.relationship_type()),
+                Some(*kind),
+                "{kind:?} is not reachable from its own relationship type"
+            );
+        }
+        assert_eq!(
+            PartKind::from_content_type(CONTENT_TYPE_CUSTOM_XML_MAPPINGS),
+            None,
+            "CustomXmlMappings must not be identified by application/xml: see \
+             AMBIGUOUS_CONTENT_TYPES and §12.3.6"
+        );
+        // A hyperlink relationship reaches no part, so it names no kind.
+        assert_eq!(PartKind::from_relationship_type(REL_HYPERLINK), None);
+    }
+
+    /// Every [`AMBIGUOUS_CONTENT_TYPES`] row is a content type some kind really declares, carries a
+    /// reason, and is refused by [`PartKind::from_content_type`].
+    ///
+    /// The allowlist rule MJXOFF-110 established, applied to this list: an entry that named a
+    /// content type no kind uses would be a rule guarding nothing, and one with an empty reason
+    /// would be the unexplained skip the schema gate exists to reject.
+    #[test]
+    fn every_ambiguous_content_type_is_declared_by_a_kind_and_refused() {
+        assert!(!AMBIGUOUS_CONTENT_TYPES.is_empty());
+        for (content_type, reason) in AMBIGUOUS_CONTENT_TYPES {
+            assert!(
+                PartKind::ALL
+                    .iter()
+                    .any(|kind| kind.content_types().contains(content_type)),
+                "{content_type} is on the ambiguous list but no PartKind declares it — the entry \
+                 guards nothing"
+            );
+            assert!(
+                reason.len() > 40,
+                "{content_type} is refused without a written reason"
+            );
+            assert_eq!(
+                PartKind::from_content_type(content_type),
+                None,
+                "{content_type} is on the ambiguous list and must classify to nothing"
+            );
+        }
+    }
+
+    /// The one content type on the ambiguous list still classifies through its relationship.
+    ///
+    /// Without this the previous case could be satisfied by a kind nothing can ever identify.
+    #[test]
+    fn a_part_registered_as_plain_xml_is_still_identified_by_its_relationship() {
+        assert_eq!(
+            PartKind::from_content_type(CONTENT_TYPE_CUSTOM_XML_MAPPINGS),
+            None
+        );
+        assert_eq!(
+            PartKind::from_relationship_type(REL_CUSTOM_XML_MAPPINGS),
+            Some(PartKind::CustomXmlMappings)
         );
     }
 
@@ -681,6 +1034,15 @@ mod tests {
                 "{kind:?} has no content type"
             );
             for content_type in kind.content_types() {
+                if AMBIGUOUS_CONTENT_TYPES
+                    .iter()
+                    .any(|(ambiguous, _)| ambiguous == content_type)
+                {
+                    // Declared by this kind, but identifying nothing — the round trip runs through
+                    // `from_relationship_type` instead, which
+                    // `every_kind_round_trips_through_its_own_relationship_type` asserts.
+                    continue;
+                }
                 assert_eq!(
                     PartKind::from_content_type(content_type),
                     Some(*kind),
