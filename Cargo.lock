@@ -628,6 +628,7 @@ dependencies = [
  "mjx-opc",
  "mjx-schema-gate",
  "mjx-sml",
+ "mjx-vml",
  "mjx-xml",
  "thiserror",
 ]

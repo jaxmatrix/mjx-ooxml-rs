@@ -686,6 +686,13 @@ fn classify_xlsx(error: &XlsxError) -> (ErrorCode, ErrorDetail) {
         XlsxError::UnrecognizedImageFormat
         | XlsxError::InvalidChartData
         | XlsxError::ChartData(_) => (C::InvalidArgument, none()),
+
+        // --- the part reached is not the kind the call means ---------------------------------
+        //
+        // The same code `PptxError::PartIsNotVmlDrawing` gets, from the same refusal: a
+        // `legacyDrawing` relationship pointing at something that is not a `.vml` is a part of the
+        // wrong kind, not a missing one.
+        XlsxError::PartIsNotVmlDrawing(_) => (C::WrongKind, none()),
     }
 }
 

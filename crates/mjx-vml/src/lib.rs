@@ -98,6 +98,23 @@ pub const REL_VML_DRAWING: &str =
 /// [`CONTENT_TYPE_VML`] is registered as a Content-Types Default.
 pub const VML_DEFAULT_EXTENSION: &str = "vml";
 
+/// The `@id` Office generates for a VML shape whose numeric shape identifier is `number`:
+/// `_x0000_s` followed by the number.
+///
+/// ECMA-376 Part 4 §19.1.2.19 *id (Unique Identifier)*. The spelling matters because
+/// SpreadsheetML names a shape by the **number alone** — `x:oleObject@shapeId`,
+/// `x:control@shapeId` and `x:comment@shapeId` are all `xsd:unsignedInt` — while the shape
+/// itself carries the full string. Stated here rather than in each host format, so the two
+/// halves of the hop cannot drift apart.
+///
+/// ```
+/// assert_eq!(mjx_vml::shape_identifier_for_number(1025), "_x0000_s1025");
+/// ```
+#[must_use]
+pub fn shape_identifier_for_number(number: u32) -> String {
+    format!("_x0000_s{number}")
+}
+
 /// Whether `content_type` names a legacy VML drawing part.
 #[must_use]
 pub fn is_vml_content_type(content_type: &str) -> bool {

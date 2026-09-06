@@ -31,6 +31,15 @@ mjx-sml.workspace = true
 # moved down into `mjx_chart::chart_ops`; every chart read and every chart edit below calls the
 # identically-named function there, exactly as `mjx-pptx` and `mjx-docx` do.
 mjx-chart.workspace = true
+# Legacy VML (Transitional-only), rank 2.2 against this crate's 3.0 (MJXOFF-114, E5). **Not
+# feature-gated**, which is the `mjx-docx` arrangement and deliberately not `mjx-pptx`'s: an Excel
+# cell comment *is* two parts, and one of them is always a `v:shape` in a `vmlDrawingN.vml`. There
+# is no comment without a box, so a `Workbook` that could only read the text under default features
+# would ship a comment surface that answers half the truth — where a PresentationML caller may open
+# a thousand decks and never meet an OLE fallback, which is what `mjx-pptx`'s `vml` flag spares
+# them. Two arrangements, both with a written reason; see `crates/mjx-pptx/Cargo.toml`'s comment
+# above `vml = ["dep:mjx-vml"]` for the other half.
+mjx-vml.workspace = true
 thiserror.workspace = true
 
 [dev-dependencies]

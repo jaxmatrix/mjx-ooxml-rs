@@ -23,6 +23,7 @@
 //! | [`hyperlinks`](self::hyperlinks) | **MJXOFF-127 (D16) — done**: hyperlinks — the entry, the relationship, and the rule that they are one thing |
 //! | [`print`](self::print) | **MJXOFF-129 (D17) — done**: the other three sheet kinds as [`crate::SheetMarkup`], and the two `r:id`s a print block reaches |
 //! | [`drawings`](self::drawings) | **MJXOFF-107 (E3) — done**: `xl/drawings/drawingN.xml`, the six things a drawing is, the image parts an anchored picture names, and the anchor-to-EMU surface |
+//! | [`comments`](self::comments) | **MJXOFF-114 (E5) — done**: cell comments — the two parts one is, the `shapeId` hop to the legacy shape that draws it, and the surface that keeps both halves consistent |
 //!
 //! # What this is not
 //!
@@ -36,6 +37,7 @@
 
 pub(crate) mod chart_ranges;
 pub(crate) mod charts;
+pub(crate) mod comments;
 pub(crate) mod drawings;
 pub(crate) mod features;
 pub(crate) mod formatting;
