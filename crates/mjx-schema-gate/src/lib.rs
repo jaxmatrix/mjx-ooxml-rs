@@ -37,6 +37,7 @@ pub mod categories;
 pub mod harness;
 pub mod inspect;
 pub mod order;
+pub mod references;
 pub mod sweep;
 pub mod tolerances;
 
@@ -59,6 +60,10 @@ pub use mjx_fixtures::{
 pub use order::{
     assert_deck_is_in_schema_order, audit_deck_order, audit_order_report,
     parts_that_must_be_audited, AuditedPart, OrderAudit, MINIMUM_ELEMENTS_VISITED,
+};
+pub use references::{
+    assert_authored_package_resolves_every_reference, audit_package_references, DanglingReference,
+    ReferenceAudit,
 };
 pub use sweep::{assert_authored_parts_are_categorised, Sweep};
 pub use tolerances::{tolerances_for, ToleratedDeviation, TOLERATED_DEVIATIONS};

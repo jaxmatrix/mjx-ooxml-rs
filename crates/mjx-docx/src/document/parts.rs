@@ -241,55 +241,6 @@ pub(crate) fn target_error(err: mjx_opc::OpcError, target: &str) -> DocxError {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn every_part_kind_pairs_a_relationship_type_with_a_content_type() {
-        // Not much of an assertion on its own, but it forces every arm of both matches to compile
-        // and run — a new PartKind variant with a missing arm in either match fails to build, and
-        // that is the discriminating property: this test cannot pass while a variant is unhandled.
-        for kind in [
-            PartKind::Document,
-            PartKind::GlossaryDocument,
-            PartKind::Styles,
-            PartKind::Numbering,
-            PartKind::Settings,
-            PartKind::WebSettings,
-            PartKind::FontTable,
-            PartKind::Header,
-            PartKind::Footer,
-            PartKind::Comments,
-            PartKind::Footnotes,
-            PartKind::Endnotes,
-            PartKind::Recipients,
-        ] {
-            assert!(!kind.relationship_type().is_empty());
-            assert!(kind.content_type().ends_with("+xml"));
-        }
-    }
-
-    #[test]
-    fn document_and_glossary_document_content_types_stay_disambiguated() {
-        // The one place the relationship-type-suffix pattern this module's content types otherwise
-        // follow deliberately breaks — see `constants::CONTENT_TYPE_MAIL_MERGE_RECIPIENT_DATA`'s doc
-        // comment for the other eleven. A regression here would silently collide two part kinds.
-        assert_eq!(
-            PartKind::Document.content_type(),
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
-        );
-        assert_eq!(
-            PartKind::GlossaryDocument.content_type(),
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"
-        );
-        assert_ne!(
-            PartKind::Document.content_type(),
-            PartKind::GlossaryDocument.content_type()
-        );
-    }
-}
-
 // =================================================================================================
 // MJXOFF-200 — authoring a theme, and only where there is none
 // =================================================================================================
@@ -371,4 +322,53 @@ pub(crate) fn package_carries_a_theme(package: &Package) -> bool {
     package
         .part_names()
         .any(|part| package.content_type_of(&part) == Some(constants::CONTENT_TYPE_THEME))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_part_kind_pairs_a_relationship_type_with_a_content_type() {
+        // Not much of an assertion on its own, but it forces every arm of both matches to compile
+        // and run — a new PartKind variant with a missing arm in either match fails to build, and
+        // that is the discriminating property: this test cannot pass while a variant is unhandled.
+        for kind in [
+            PartKind::Document,
+            PartKind::GlossaryDocument,
+            PartKind::Styles,
+            PartKind::Numbering,
+            PartKind::Settings,
+            PartKind::WebSettings,
+            PartKind::FontTable,
+            PartKind::Header,
+            PartKind::Footer,
+            PartKind::Comments,
+            PartKind::Footnotes,
+            PartKind::Endnotes,
+            PartKind::Recipients,
+        ] {
+            assert!(!kind.relationship_type().is_empty());
+            assert!(kind.content_type().ends_with("+xml"));
+        }
+    }
+
+    #[test]
+    fn document_and_glossary_document_content_types_stay_disambiguated() {
+        // The one place the relationship-type-suffix pattern this module's content types otherwise
+        // follow deliberately breaks — see `constants::CONTENT_TYPE_MAIL_MERGE_RECIPIENT_DATA`'s doc
+        // comment for the other eleven. A regression here would silently collide two part kinds.
+        assert_eq!(
+            PartKind::Document.content_type(),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"
+        );
+        assert_eq!(
+            PartKind::GlossaryDocument.content_type(),
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document.glossary+xml"
+        );
+        assert_ne!(
+            PartKind::Document.content_type(),
+            PartKind::GlossaryDocument.content_type()
+        );
+    }
 }
