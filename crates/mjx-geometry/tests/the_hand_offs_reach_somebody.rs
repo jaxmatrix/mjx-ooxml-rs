@@ -20,6 +20,7 @@ mod common;
 
 use common::{box_on_the_page, extents_of_the_box, StepTally};
 use mjx_dml::geometry::{GeometryGuide, GeometryGuideList, PresetGeometry};
+use mjx_geometry::PathFillMode;
 use mjx_geometry::{
     outline_of_definition, preset_outline, Derivation, PresetCoordinate, PresetPath,
     PresetPathStep, PresetPoint, PresetShapeDefinition, PresetShapeType, ShapeOutline,
@@ -126,10 +127,14 @@ const TWO_CONTOURS_ONE_MOVE: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "two contours sharing a start point, for the hand-off to MJXOFF-203",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
             PresetPathStep::LineTo(PresetPoint::at("hc", "t")),
@@ -148,10 +153,14 @@ const A_PATH_WITH_NO_START: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a path that starts with a line, which is malformed and must not gain a start point",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::LineTo(PresetPoint::at("r", "b")),
             PresetPathStep::Close,

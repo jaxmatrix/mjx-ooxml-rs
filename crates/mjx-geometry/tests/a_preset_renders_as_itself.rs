@@ -1,37 +1,43 @@
-//! A seeded preset draws the shape it is, and a scene of them needs no stand-in.
+//! A hand-transcribed preset draws the shape it is, and a scene of presets needs no stand-in.
 //!
-//! # What this file refuses to accept as evidence
+//! # What this file is about, now that the table is generated
 //!
-//! *"The provider returned commands without erroring"* is satisfied by six wrong shapes. The output
-//! is visual and the input is guide formulas nobody reads, so it is mechanically easy to produce
-//! something that runs and geometrically hard to know it is right. Nothing here gates on
-//! resolution succeeding. It gates on:
+//! MJXOFF-203 replaced the six-shape seed table with 186 rows extracted from
+//! `presetShapeDefinitions.xml`, and the counts, the structure and the box census of all 186 moved
+//! to `the_generated_table_is_the_spec_file.rs` and `every_preset_stands_where_its_box_is.rs`.
+//! What stayed here is everything whose *expectation* was written by hand, because a count derived
+//! from the table it checks would agree with a table that had lost a step:
 //!
-//! 1. **Closure** — every subpath a shape opens is closed, and at least one is opened, so a walker
-//!    that found no subpaths cannot pass by finding no violations either.
-//! 2. **The box** — the bounding box of the resolved commands is the shape's box, within a
-//!    tolerance that is *stated, justified and shown to bite*. See [`BOX_TOLERANCE_PIXELS`].
-//! 3. **The counts** — a rectangle is four corners, an ellipse is four arcs, a right arrow is
-//!    seven points. A shape whose transcription lost a step fails here immediately, and needs no
-//!    reference to do it.
-//! 4. **The placeholder count in both directions** — zero for a scene of seeded shapes, non-zero
-//!    for one that contains an unseeded shape. A counter that never increments satisfies the first
-//!    perfectly, which is why the second is here.
+//! 1. **The counts of the six** — a rectangle is four corners, an ellipse is four arcs, a right
+//!    arrow is seven points. Written out per shape, from ECMA-376's prose, and checked against the
+//!    **generated** rows. This is a second differential on top of `the_two_routes_agree.rs`: that
+//!    one compares outlines, this one compares structure.
+//! 2. **The box, and a tolerance shown to bite.** See [`BOX_TOLERANCE_PIXELS`] and
+//!    [`the_box_tolerance_is_not_wide_enough_to_pass_a_wrong_shape`], which exhibits a shape that
+//!    passes at this tolerance and fails at half of it.
+//! 3. **The step vocabulary** — that every `PresetPathStep` maps onto exactly one `DrawCommand`.
+//! 4. **The placeholder count in both directions** — zero for a scene of shapes the table has,
+//!    non-zero for one that contains `upArrow`, the single preset ECMA-376's own geometry file
+//!    defines nothing for. A counter that never increments satisfies the first perfectly, which is
+//!    why the second is here.
 //!
-//! And what it deliberately is **not**: rendering the six and finding them plausible. MJXOFF-201 §6
-//! says a picture that looks right is not evidence and an agent asserting it looks right is
+//! And what it deliberately is **not**: rendering the shapes and finding them plausible. MJXOFF-201
+//! §6 says a picture that looks right is not evidence and an agent asserting it looks right is
 //! asserting nothing. The authoritative visual check is the user's, against PowerPoint.
 
 mod common;
 
 use common::{
-    bounds_of, box_on_the_page, edge_distance, extents_of_the_box, overhang, seeded, StepTally,
+    bounds_of, box_on_the_page, edge_distance, extents_of_the_box, hand_transcribed, overhang,
+    StepTally,
 };
 use mjx_dml::geometry::{AdjustAngle, AdjustCoordinate, DrawCommand, Emu};
+use mjx_geometry::PathFillMode;
 use mjx_geometry::{
     definition_of, outline_of_definition, preset_outline, seeded_shapes, Derivation, PresetAngle,
     PresetCoordinate, PresetGeometryProvider, PresetPath, PresetPathStep, PresetPoint,
     PresetShapeDefinition, PresetShapeType, ShapeOutline, Size, UnknownShapePolicy,
+    PRESETS_WITHOUT_GEOMETRY,
 };
 use mjx_paint::plan_frame;
 use mjx_scene::{
@@ -83,10 +89,18 @@ const OVERHANG_TOLERANCE_PIXELS: f32 = 0.01;
 // -------------------------------------------------------------------------------------------
 
 #[test]
-fn every_seeded_shape_closes_every_subpath_it_opens() {
+fn each_hand_transcribed_shape_is_one_closed_contour() {
+    // The six shapes MJXOFF-202 read out of ECMA-376's prose are each a single closed outline, and
+    // that is a claim about the *shapes* rather than about the table: a rectangle, an ellipse, a
+    // triangle, a rounded rectangle, a right arrow and a pie wedge are all one contour, closed.
+    //
+    // It is deliberately **not** stated of all 186. Sixty-four of the presets end a contour without
+    // an `a:close`, which is what a stroked, unfilled outline is — `straightConnector1` is a line
+    // segment — and the universal invariants that *do* hold over the whole table are asserted in
+    // `the_generated_table_is_the_spec_file.rs`.
     let (within, extents) = (box_on_the_page(), extents_of_the_box());
     let mut subpaths_seen = 0usize;
-    for (preset, token) in seeded() {
+    for (preset, token) in hand_transcribed() {
         let outline = preset_outline(preset, extents, &[], within)
             .unwrap_or_else(|error| panic!("`{token}` did not resolve: {error}"));
         assert!(
@@ -125,16 +139,20 @@ fn every_seeded_shape_closes_every_subpath_it_opens() {
     // A walker that found no subpaths would satisfy every assertion above by finding no violations.
     assert_eq!(
         subpaths_seen,
-        seeded().len(),
-        "the six seeded shapes are one contour each, and the walk saw {subpaths_seen}"
+        hand_transcribed().len(),
+        "the six shapes are one contour each, and the walk saw {subpaths_seen}"
     );
 }
 
 #[test]
-fn every_seeded_shape_fills_the_box_it_was_given() {
+fn each_hand_transcribed_shape_fills_the_box_it_was_given() {
+    // Six shapes that are their box, and the tolerance stated on [`BOX_TOLERANCE_PIXELS`]. Every
+    // arc of every one of the six begins and ends on a quadrant boundary, which is why [`overhang`]
+    // — the stricter measure, over control points — is the right one here, and why the census over
+    // all 186 in `every_preset_stands_where_its_box_is.rs` must use the flattened one instead.
     let (within, extents) = (box_on_the_page(), extents_of_the_box());
     let mut worst = 0.0f32;
-    for (preset, token) in seeded() {
+    for (preset, token) in hand_transcribed() {
         let outline = preset_outline(preset, extents, &[], within)
             .unwrap_or_else(|error| panic!("`{token}` did not resolve: {error}"));
         let measured = edge_distance(bounds_of(&outline.commands), within);
@@ -150,10 +168,10 @@ fn every_seeded_shape_fills_the_box_it_was_given() {
             "`{token}` reaches {outside} device pixels outside its own box"
         );
     }
-    // The headroom, asserted rather than hoped for: every seeded shape is inside *half* the stated
+    // The headroom, asserted rather than hoped for: every one is inside *half* the stated
     // tolerance, so the number is not knife-edge and halving it would not start failing correct
     // shapes. It is printed so a reviewer can see how much of the budget is actually used.
-    println!("worst bounding-box error across the seeded shapes: {worst} device pixels");
+    println!("worst bounding-box error across the six shapes: {worst} device pixels");
     assert!(
         worst <= BOX_TOLERANCE_PIXELS / 2.0,
         "the worst correct shape is {worst} pixels off, which is more than half the tolerance — \
@@ -180,10 +198,14 @@ const NARROW_BY_NINETY_FIVE_EMU: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a rectangle 95 EMU narrow, for the tolerance gate alone",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::MoveTo(corner(0, 0)),
             PresetPathStep::LineTo(corner(SHAPE_WIDTH_EMU - 95, 0)),
@@ -200,10 +222,14 @@ const NARROW_BY_ONE_PER_CENT: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a rectangle one per cent narrow, for the tolerance gate alone",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::MoveTo(corner(0, 0)),
             PresetPathStep::LineTo(corner(SHAPE_WIDTH_EMU - SHAPE_WIDTH_EMU / 100, 0)),
@@ -268,11 +294,25 @@ fn the_box_tolerance_is_not_wide_enough_to_pass_a_wrong_shape() {
 
 #[test]
 fn the_command_counts_are_the_shapes_own() {
-    // Written out per shape rather than derived from the table, deliberately: a count computed from
-    // the same data it checks would agree with a table that had lost a step. These are what the
-    // shape *is* — a rectangle is four corners, an ellipse four quadrant arcs and therefore four
-    // cubics, a right arrow seven points, and `roundRect` has three lines and four corners because
-    // its left edge is drawn by the close.
+    // Written out per shape from ECMA-376's prose rather than derived from the table, deliberately:
+    // a count computed from the same data it checks would agree with a table that had lost a step.
+    // These are what the shape *is* — a rectangle is four corners, an ellipse four quadrant arcs
+    // and therefore four cubics, a right arrow seven points, and `roundRect` has three lines and
+    // four corners because its left edge is drawn by the close.
+    //
+    // **The counts are checked against the generated rows**, which is what makes this a second
+    // differential rather than a restatement: MJXOFF-202 wrote them from the prose and MJXOFF-203
+    // supplies the geometry they are measured against. `the_two_routes_agree.rs` compares the same
+    // six shapes' resolved outlines; this compares their structure.
+    //
+    // **What the 186-shape equivalent is, since there cannot be one of these per shape.** A
+    // hand-written tally for every preset would be a transcription of the file into a second file,
+    // with the same error rate and no independent source. What replaces it is a count of the *whole
+    // table* against the file's own element counts, in
+    // `the_generated_table_is_the_spec_file.rs` — 445 `moveTo`, 1 689 `lnTo`, 393 `arcTo`, 33
+    // `quadBezTo`, 28 `cubicBezTo`, 319 `close` — obtained by counting XML elements, which is a
+    // different reading of the same bytes from the one the extractor does. A shape that lost a step
+    // moves that total.
     let expected = [
         (PresetShapeType::Rectangle, StepTally::expected(1, 3, 0, 1)),
         (PresetShapeType::Ellipse, StepTally::expected(1, 0, 4, 1)),
@@ -286,10 +326,10 @@ fn the_command_counts_are_the_shapes_own() {
     ];
     assert_eq!(
         expected.len(),
-        seeded_shapes().len(),
-        "the seed table has {} shapes and this list has {}; a shape added without a count is a \
-         shape nothing checks the structure of",
-        seeded_shapes().len(),
+        hand_transcribed().len(),
+        "the hand-written reference has {} shapes and this list has {}; a shape added without a \
+         count is a shape nothing checks the structure of",
+        hand_transcribed().len(),
         expected.len()
     );
 
@@ -307,12 +347,12 @@ fn the_command_counts_are_the_shapes_own() {
 }
 
 #[test]
-fn the_seed_table_says_how_independently_each_shape_was_transcribed() {
-    // MJXOFF-203's main gate is diffing its generated table against this hand-written one, and that
-    // diff is only worth what the two routes' independence is worth. So every row records it, both
-    // values are used, and every row explains itself in prose long enough to be a real answer.
+fn the_hand_written_table_says_how_independently_each_shape_was_transcribed() {
+    // `the_two_routes_agree.rs` is only worth what the two routes' independence is worth. So every
+    // hand-written row records it, both hand-written values are used, and every row explains itself
+    // in prose long enough to be a real answer.
     let mut seen = Vec::new();
-    for definition in seeded_shapes() {
+    for definition in mjx_geometry::seed::HAND_TRANSCRIBED_SHAPES {
         let token = definition.preset.to_wire();
         assert!(
             definition.source.len() > 200,
@@ -329,17 +369,24 @@ fn the_seed_table_says_how_independently_each_shape_was_transcribed() {
                 definition.source.contains("NOT independent")
                     || definition.source.contains("NOT independently"),
                 "`{token}` is marked as taking constants from the generated tables but its note \
-                 does not say which are not independent, so MJXOFF-203 cannot tell what its diff \
+                 does not say which are not independent, so the differential cannot tell what it \
                  is worth"
             );
         }
         seen.push(definition.derivation);
     }
+    // The third value belongs to the generated rows, not to these; between the two tables every
+    // value of the enumeration is carried by something.
+    seen.extend(
+        seeded_shapes()
+            .iter()
+            .map(|definition| definition.derivation),
+    );
     for value in Derivation::ALL {
         assert!(
             seen.contains(&value),
-            "no seeded shape is marked {value:?}; an enumeration one value of which nothing \
-             carries is a distinction nothing makes"
+            "no shape in either table is marked {value:?}; an enumeration one value of which \
+             nothing carries is a distinction nothing makes"
         );
     }
 }
@@ -446,10 +493,14 @@ const A_CURVE: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a curve, for the two step kinds no seeded shape uses",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
             PresetPathStep::QuadBezierTo {
@@ -506,7 +557,8 @@ fn a_seeded_shape_is_the_documents_own_geometry_and_not_the_stand_in() {
         .outline(7, within)
         .expect("the placeholder answers every handle");
 
-    for (preset, token) in seeded() {
+    for definition in seeded_shapes() {
+        let (preset, token) = (definition.preset, definition.preset.to_wire());
         let outline = preset_outline(preset, extents, &[], within)
             .unwrap_or_else(|error| panic!("`{token}` did not resolve: {error}"));
         assert_eq!(
@@ -520,12 +572,19 @@ fn a_seeded_shape_is_the_documents_own_geometry_and_not_the_stand_in() {
             outline.commands, stand_in.commands,
             "`{token}` drew the placeholder's own path"
         );
-        // The placeholder is four contours — a frame and two diagonal bars — and no seeded shape
-        // is. A substitution that produced the same shape by another route would pass the
-        // inequality above and fail this.
+        // The placeholder is a frame and two diagonal bars, drawn with *quadratic* corners — a
+        // quadratic through a corner point is not a circular arc, which is one more way the
+        // stand-in is not something DrawingML draws. **No preset in the file uses a `quadBezTo`
+        // for a corner of an axis-aligned rounded box**, and thirty-three `quadBezTo`s across the
+        // 186 are enough that this is a real distinction rather than an empty one. A substitution
+        // that produced the placeholder's shape by another route would pass the inequality above
+        // and fail this.
         assert!(
-            StepTally::of(&outline.commands).closes < StepTally::of(&stand_in.commands).closes,
-            "`{token}` has as many contours as the placeholder's four"
+            StepTally::of(&outline.commands).quadratics
+                < StepTally::of(&stand_in.commands).quadratics
+                || StepTally::of(&outline.commands).closes
+                    != StepTally::of(&stand_in.commands).closes,
+            "`{token}` has the placeholder's own quadratic corners and its contour count"
         );
     }
 }
@@ -634,8 +693,10 @@ fn a_scene_of_seeded_shapes_needs_no_stand_in_at_all() {
     let report = plan.report();
 
     assert_eq!(
-        report.placeholders, 0,
-        "a page of six seeded presets drew {} stand-in(s)",
+        report.placeholders,
+        0,
+        "a page of {} presets drew {} stand-in(s)",
+        handles.len(),
         report.placeholders
     );
     // A counter that never increments satisfies the line above perfectly, so this is the half that
@@ -643,29 +704,34 @@ fn a_scene_of_seeded_shapes_needs_no_stand_in_at_all() {
     assert_eq!(report.draw_calls, handles.len());
     assert!(
         report.triangles > handles.len() * 2,
-        "six shapes became {} triangle(s), which cannot be six filled outlines",
+        "{} shapes became {} triangle(s), which cannot be that many filled outlines",
+        handles.len(),
         report.triangles
     );
 }
 
 #[test]
 fn one_unseeded_shape_raises_the_count_off_zero() {
-    // `Cloud` is a real preset and has no path table until MJXOFF-203 lands, which is what makes it
-    // the honest way to ask this question: nothing about the scene is different except that one of
-    // its shapes cannot be drawn.
+    // `upArrow` is a real preset that this build genuinely cannot draw — ECMA-376's own geometry
+    // file has no element for it — which is what makes it the honest way to ask this question:
+    // nothing about the scene is different except that one of its shapes has no table.
+    //
+    // MJXOFF-202 left this test keyed on `cloud` and said it would break when MJXOFF-203 seeded
+    // all 186, deliberately, so that the count would still be provable in both directions. It is:
+    // `upArrow` took `cloud`'s place, and the guard below fails loudly if a later child hand-writes
+    // the one shape the file omits.
+    let unseeded_preset = PRESETS_WITHOUT_GEOMETRY[0];
     assert!(
-        definition_of(PresetShapeType::Cloud).is_none(),
-        "`cloud` is now seeded; pick a preset this build still cannot draw"
+        definition_of(unseeded_preset).is_none(),
+        "`{}` is now seeded; pick a preset this build still cannot draw",
+        unseeded_preset.to_wire()
     );
 
     let (mut provider, mut handles) = a_provider(UnknownShapePolicy::StandIn);
     let unseeded = handle_of(handles.len());
     provider.register(
         unseeded,
-        ShapeOutline::new(
-            PresetShapeType::Cloud,
-            Size::from_emu(160 * 12_700, 68 * 12_700),
-        ),
+        ShapeOutline::new(unseeded_preset, Size::from_emu(160 * 12_700, 68 * 12_700)),
     );
     handles.push(unseeded);
 
@@ -675,7 +741,7 @@ fn one_unseeded_shape_raises_the_count_off_zero() {
     assert_eq!(
         plan.report().placeholders,
         1,
-        "one unseeded shape among six seeded ones produced {} stand-in(s)",
+        "one unseeded shape among the table's own produced {} stand-in(s)",
         plan.report().placeholders
     );
     assert_eq!(plan.report().draw_calls, handles.len());
@@ -688,7 +754,7 @@ fn a_shape_this_build_cannot_draw_is_never_silently_nothing() {
     // permitted answers and this asserts both, on both of the two ways a shape can be undrawable.
     let within = box_on_the_page();
     let extents = extents_of_the_box();
-    let unseeded = ShapeOutline::new(PresetShapeType::Cloud, extents);
+    let unseeded = ShapeOutline::new(PRESETS_WITHOUT_GEOMETRY[0], extents);
 
     for (label, policy) in [
         ("refusing", UnknownShapePolicy::Refuse),
@@ -728,10 +794,14 @@ const A_MISSING_GUIDE: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a path naming a guide that does not exist, for this gate alone",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
             PresetPathStep::LineTo(PresetPoint::at("nowhere", "t")),
@@ -742,9 +812,13 @@ const A_MISSING_GUIDE: PresetShapeDefinition = PresetShapeDefinition {
 
 #[test]
 fn a_broken_table_is_an_error_under_both_policies() {
-    // The policy is a fall-through for a *gap* in the table, not a blanket "answer with something".
-    // A seeded shape whose guide list will not evaluate is a defect in this crate's own data, and
-    // a rounded rectangle drawn over it would hide the one failure the seed table exists to catch.
+    // The policy is a fall-through for *"there is no geometry to draw"*, not a blanket "answer with
+    // something". A shape the table has, whose path names a guide the table does not define, is a
+    // defect in this crate's own data, and a rounded rectangle drawn over it would hide the one
+    // failure the table's gates exist to catch. **It is deliberately distinguishable from the
+    // singular case**, which looks identical from `DrawCommand::resolve` — an undefined guide name
+    // — and is told apart by whether the table defined the guide and the resolver left it out; see
+    // `an_adjustment_moves_the_shape.rs`.
     let error = outline_of_definition(
         &A_MISSING_GUIDE,
         extents_of_the_box(),
@@ -753,9 +827,13 @@ fn a_broken_table_is_an_error_under_both_policies() {
     )
     .expect_err("a path naming an undefined guide cannot resolve");
     assert!(
-        !error.is_a_gap_in_the_table(),
-        "a table whose path names a missing guide reported itself as a gap, so a stand-in would \
-         have been drawn over it: {error}"
+        !error.has_no_geometry_to_draw(),
+        "a table whose path names a missing guide reported itself as having nothing to draw, so a \
+         stand-in would have been drawn over it: {error}"
+    );
+    assert!(
+        matches!(error, mjx_geometry::GeometryError::PathCommand { .. }),
+        "a path naming a guide nothing ever defined is not a singularity: {error}"
     );
     assert_eq!(error.shape(), Some("rect"));
     assert!(

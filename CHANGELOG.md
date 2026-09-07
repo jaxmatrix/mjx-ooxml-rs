@@ -58,6 +58,102 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.133] - 2026-09-07
+
+**All 186 preset shapes ECMA-376 defines, extracted from `presetShapeDefinitions.xml`**
+(MJXOFF-203, Phase G position 2).
+
+MJXOFF-202 built the machine and seeded it with six shapes transcribed by hand. This fills it from
+the normative file: every shape's whole `a:gdLst` and `a:avLst` in declaration order, every
+`a:pathLst` with each path's coordinate box, its `@fill`/`@stroke`/`@extrusionOk` flags and its
+ordered steps. `mjx-geometry`'s provider needed no structural change to consume it.
+
+**186, and not 187.** `ST_ShapeType` declares 187 values and ECMA-376's own geometry file has no
+`upArrow` element at all. That is a gap in the spec, not in the extraction, and it is named in
+`mjx_geometry::PRESETS_WITHOUT_GEOMETRY` — derived from the difference between the enumeration and
+the file rather than written down — so `upArrow` is the one preset that still reaches
+`UnknownShapePolicy`.
+
+### The differential, reported per shape
+
+The strongest gate available was diffing this mechanical extraction against MJXOFF-202's hand
+transcription from the spec's *prose*: two genuinely independent routes to one answer.
+`crates/mjx-geometry/tests/the_two_routes_agree.rs` runs it on every build, over the defaults and
+both ends of every adjustment's domain — 18 comparisons — and reports each with its derivation
+class, because **they are not six confirmations**:
+
+| Shape | Result | What the agreement is worth |
+|---|---|---|
+| `rect` | 0.00000 px | Fully independent, and proves the least: there is one way to draw a rectangle. |
+| `ellipse` | 0.00000 px | **Structural coincidence, not a second measurement.** Four 90° `a:arcTo` quadrants clockwise from `(l, vc)` is the only structure DrawingML's arc semantics make natural, and MJXOFF-202 predicted the file would use it. |
+| `triangle` | 0.00000 px | Paths independent; the `adj` domain came from the generated `adjustments_of`. |
+| `roundRect` | 0.00000 px | Paths independent; the `adj` domain came from `adjustments_of`. |
+| `rightArrow` | 0.00000 px | **Strong.** Seven points and eight guides, including `dy1 = */ h a1 200000` — the row MJXOFF-202 named as its own weakest point. The file writes the same eight formulas and the same seven points, in the same order. |
+| `pie` | 0.00000 px | **Strong on the paths**, and it disagreed structurally: the file draws `moveTo(rim) → arcTo → lnTo(hc, vc) → close` and the seed draws `moveTo(hc, vc) → lnTo(rim) → arcTo → close`. Same wedge, rotated start point — exactly the difference MJXOFF-202 predicted, which is why the comparison is of resolved outlines and never of step lists. |
+
+`triangle` also disagreed on *names*: the file's apex guide is `x2`, and its `x1` is a different
+formula (`*/ w a 200000`, for the text rectangle). A diff on guide names would have reported a
+contradiction where there is agreement to the EMU. The comparison is a symmetric point-to-segment
+Hausdorff distance over flattened contours, and a one-digit slip in `rightArrow`'s divisor measures
+30 device pixels against it.
+
+### Added
+
+- **`crates/mjx-geometry/src/generated.rs`** — 186 `PresetShapeDefinition` rows, 3 612 `gdLst`
+  guides, 298 `avLst` values, 319 paths and 2 907 drawing steps, emitted by
+  `cargo run -p xtask -- codegen`. Committed output, never a `build.rs`.
+- **`PresetShapeDefinition::adjustment_values`** — the shape's whole `a:avLst`, not the subset
+  `adjustments_of` exposes. An `avLst` entry no adjust handle references is not a user-facing
+  adjustment and **is** a name the shape's `gdLst` reads: `pentagon`'s first guide is
+  `*/ wd2 hf 100000`. Nine shapes could not evaluate a single guide without it.
+- **`PresetPath::fill` / `stroke` / `extrusion_ok`**, and the consumer MJXOFF-202 required them to
+  arrive with. `contours_of_definition` / `preset_contours` / `PresetGeometryProvider::contours`
+  answer per `a:path`, each contour carrying its own treatment — the answer `ResolvedOutline`
+  cannot hold, and the reason `arc` needs the flags at all: it strokes a `fill="none"` path and
+  fills a `stroke="false"` sibling. `outline_of_definition` **acts** on the pair, leaving out the
+  one contour in the whole file that is neither filled nor stroked
+  (`flowChartMultidocument`'s third).
+- **`GeometryError::SingularGeometry`**, and `has_no_geometry_to_draw` (was
+  `is_a_gap_in_the_table`). ECMA-376's formulas divide and take square roots, and at the ends of an
+  adjustment's domain the divisor can be zero — `circularArrow`'s `swAng` has no value at
+  `adj5 = 0`, which is that adjustment's own *minimum*. Six presets have such a point; they answer
+  with a counted stand-in under `StandIn` rather than failing the page, and never with a silent
+  empty path.
+- **`Derivation::ExtractedFromTheGeometryFile`**, the third value, carried by every generated row.
+- **`mjx_geometry::seed::HAND_TRANSCRIBED_SHAPES`** — the six hand-written rows, now public and no
+  longer the live table. They are the differential's reference; a reference nothing compares
+  against is not a reference.
+
+### Changed
+
+- **`seeded_shapes()` returns the generated table**, 186 rows instead of six. Nothing else in the
+  provider changed.
+- **The `gdLst` is evaluated one guide at a time.** A guide with no finite value is left
+  *undefined* rather than fatal, and so is every later guide naming it. In four of the ten shapes
+  that have a singular point the guide is `il`/`it`/`ir`/`ib` — the **text rectangle**'s insets,
+  which draw nothing — so the shape now draws where it previously could not. A *path* reading one
+  is `SingularGeometry`; a malformed formula or a name nothing defines stays fatal, because those
+  are table defects.
+- **Eight formulas of `presetShapeDefinitions.xml` are corrected on the way out.** `+-` takes three
+  arguments and these give it four, with a trailing `0` after an expression that is already
+  complete; `circularArrow`, `leftCircularArrow` and `leftRightCircularArrow` cannot evaluate a
+  single guide without the correction. Each has a sibling written a few guides earlier with three
+  arguments and the same shape (`xG = "+- xH dxG 0"` beside `xB = "+- xH 0 dxB 0"`), so dropping
+  the excess token is the file's own reading rather than a guess. Two gates hold the table honest:
+  `apply_errata` fails if a corrected guide says something else, and `check_formula_arity` walks
+  every formula afterwards and fails on any still malformed — which is what caught the two of the
+  eight the first draft missed.
+- **`xtask` gains a `mjx-dml` dependency**, so that arity gate checks against
+  `GuideOperator::argument_count` — the same function the resolver checks against — rather than a
+  second copy of §20.1.9.11's argument counts.
+
+### Fixed
+
+- `xtask/src/codegen/geometry.rs`'s header said the adjustment-bound closure was **335** guides,
+  and MJXOFF-201 and MJXOFF-203 repeated the figure from it. It is **334** —
+  `crates/mjx-dml/tests/guide_formula.rs` has asserted that number all along — and the geometry
+  table's own suite now asserts it too, so the prose and the assertion cannot drift apart again.
+
 ## [0.0.132] - 2026-09-07
 
 **`mjx-geometry`: the preset shape path tables, and the `GeometryProvider` that ends the

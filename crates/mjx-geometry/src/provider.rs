@@ -14,8 +14,9 @@
 //!
 //! # What happens to a shape this build cannot draw
 //!
-//! 181 of the 187 presets have no path table until MJXOFF-203 lands, and a handle may be unknown
-//! outright. Neither may draw nothing:
+//! One of the 187 presets has no path table — `upArrow`, which ECMA-376's own geometry file omits
+//! (see [`PRESETS_WITHOUT_GEOMETRY`](crate::PRESETS_WITHOUT_GEOMETRY)) — and a handle may be
+//! unknown outright. Neither may draw nothing:
 //!
 //! > *"a shape that silently drew nothing is a defect a reader reports as 'my slide is missing a
 //! > box' and nobody finds"* — `mjx-scene`'s own seam.
@@ -25,11 +26,12 @@
 //! [`OutlineProvenance::Placeholder`](mjx_scene::OutlineProvenance::Placeholder) intact**, so the render is visibly wrong *and* countable.
 //! What neither answer does is silently substitute a rectangle.
 //!
-//! The policy applies only to a *gap in the table*
-//! ([`GeometryError::is_a_gap_in_the_table`]). A shape that is seeded and whose guide list will not
-//! evaluate is a defect in this crate's own data, and papering over it with a rounded rectangle
-//! would hide the one failure the seed table exists to catch — so that is an error under both
-//! policies.
+//! The policy applies only where there is genuinely *no geometry to draw*
+//! ([`GeometryError::has_no_geometry_to_draw`]): an unregistered handle, a preset ECMA-376 defines
+//! nothing for, or a shape whose own formulas are singular at the adjustments in force. A shape
+//! whose table entry exists and whose guide list will not evaluate is a defect in this crate's own
+//! data, and papering over it with a rounded rectangle would hide the one failure the table's gates
+//! exist to catch — so that is an error under both policies.
 
 use std::collections::HashMap;
 
@@ -38,7 +40,7 @@ use mjx_ooxml_core::Interner;
 use mjx_ooxml_types::drawingml::PresetShapeType;
 use mjx_scene::{GeometryProvider, PlaceholderGeometry, ResolvedOutline, SceneError, SceneRect};
 
-use crate::resolve::preset_outline;
+use crate::resolve::{preset_contours, preset_outline, PresetContour};
 use crate::GeometryError;
 
 /// One `a:avLst` override: an adjustment's wire name and the value in effect.
@@ -145,7 +147,7 @@ pub enum UnknownShapePolicy {
     /// [`OutlineProvenance::Placeholder`](mjx_scene::OutlineProvenance::Placeholder).
     ///
     /// The right answer for an application: a deck whose every shape must draw is better served by
-    /// 181 obviously-wrong shapes it can count than by a blank page. The count is what makes it
+    /// an obviously-wrong shape it can count than by a blank page. The count is what makes it
     /// safe — `DrawReport::placeholders` is non-zero, so no golden image taken against it can be
     /// recorded as fidelity.
     StandIn,
@@ -221,11 +223,35 @@ impl PresetGeometryProvider {
         outline: u64,
         within: SceneRect,
     ) -> Result<ResolvedOutline, GeometryError> {
-        let shape = self
-            .shapes
-            .get(&outline)
-            .ok_or(GeometryError::UnregisteredOutline { outline })?;
+        let shape = self.registered(outline)?;
         preset_outline(shape.preset, shape.extents, &shape.adjustments, within)
+    }
+
+    /// Every contour `outline` draws, each with its own `a:path@fill` and `@stroke`.
+    ///
+    /// The answer [`resolve`](Self::resolve) cannot give, and the reason those two attributes are
+    /// in the table at all: a preset shape is a *list* of paths, `arc` strokes one of them and
+    /// fills another, and [`ResolvedOutline`] carries one command list and one fill rule. A caller
+    /// that paints a preset faithfully reads this; a caller that only needs the silhouette — which
+    /// is what the display-list seam takes — reads [`resolve`](Self::resolve).
+    ///
+    /// # Errors
+    ///
+    /// As [`resolve`](Self::resolve).
+    pub fn contours(
+        &self,
+        outline: u64,
+        within: SceneRect,
+    ) -> Result<Vec<PresetContour>, GeometryError> {
+        let shape = self.registered(outline)?;
+        preset_contours(shape.preset, shape.extents, &shape.adjustments, within)
+    }
+
+    /// What `outline` was registered as, or [`GeometryError::UnregisteredOutline`].
+    fn registered(&self, outline: u64) -> Result<&ShapeOutline, GeometryError> {
+        self.shapes
+            .get(&outline)
+            .ok_or(GeometryError::UnregisteredOutline { outline })
     }
 }
 
@@ -234,7 +260,7 @@ impl GeometryProvider for PresetGeometryProvider {
         match self.resolve(outline, within) {
             Ok(resolved) => Ok(resolved),
             Err(error)
-                if error.is_a_gap_in_the_table()
+                if error.has_no_geometry_to_draw()
                     && self.unknown_shapes == UnknownShapePolicy::StandIn =>
             {
                 PlaceholderGeometry::new().outline(outline, within)

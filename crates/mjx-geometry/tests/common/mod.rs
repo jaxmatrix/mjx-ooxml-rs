@@ -93,6 +93,35 @@ pub fn edge_distance(left: SceneRect, right: SceneRect) -> f32 {
         .max((left.bottom - right.bottom).abs())
 }
 
+/// The smallest rectangle containing every point the outline actually **draws**, curves flattened.
+///
+/// The companion of [`bounds_of`], and the one a suite over the generated table wants: a Bézier
+/// lies inside its control polygon and not on it, so [`bounds_of`] measures a hull that can sit
+/// several per cent outside the shape wherever an arc is not quadrant-aligned. `heart`'s control
+/// points are 83 device pixels outside a 160-pixel box and its curve reaches 0.57.
+pub fn curve_bounds(commands: &[PathCommand]) -> SceneRect {
+    let (mut left, mut top, mut right, mut bottom) = (f32::MAX, f32::MAX, f32::MIN, f32::MIN);
+    for point in flattened(commands).into_iter().flatten() {
+        left = left.min(point.x);
+        top = top.min(point.y);
+        right = right.max(point.x);
+        bottom = bottom.max(point.y);
+    }
+    SceneRect::new(left, top, right, bottom)
+}
+
+/// Every preset MJXOFF-202 transcribed by hand, with the wire token a failure should name it by.
+///
+/// Six of the 186, and the ones whose *expected* structure a suite may write out: they were
+/// derived from ECMA-376's prose rather than from the table, so a count stated beside them is an
+/// independent claim rather than a restatement of the data it checks.
+pub fn hand_transcribed() -> Vec<(PresetShapeType, &'static str)> {
+    mjx_geometry::seed::HAND_TRANSCRIBED_SHAPES
+        .iter()
+        .map(|definition| (definition.preset, definition.preset.to_wire()))
+        .collect()
+}
+
 /// How far outside `box_` the furthest **named point** of `commands` lies, control points included.
 ///
 /// The stricter of the two overhang measures, and the one to use where every curve is known to
