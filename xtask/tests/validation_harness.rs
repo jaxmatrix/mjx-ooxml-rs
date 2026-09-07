@@ -32,10 +32,10 @@ use std::sync::OnceLock;
 
 use mjx_opc::Package;
 use mjx_schema_gate::{
-    assert_authored_deck_is_schema_valid, audit_deck_order, harness, inspect_deck, outcome_table,
-    PartOutcome,
+    assert_authored_deck_is_schema_valid, audit_deck_order, audit_order_report, harness,
+    inspect_deck, outcome_table, PartOutcome,
 };
-use xtask::validation::{corpus_directory, original_for, Variant, AREAS};
+use xtask::validation::{corpus_directory, original_for, Area, Variant, AREAS};
 
 /// Where this file's artefacts go. Its own directory, so the determinism test's two runs and this
 /// one cannot race each other inside one test binary.
@@ -137,6 +137,95 @@ fn the_catalogue_is_well_formed_and_not_empty() {
 }
 
 // -------------------------------------------------------------------------------------------
+// What an artefact inherits from the file it was edited from
+// -------------------------------------------------------------------------------------------
+
+/// The defects an area's Office-authored original **arrived with**.
+///
+/// # Why this exists (MJXOFF-130)
+///
+/// An `authored` artefact is ours to the last byte and nothing in it is excused. An `edited` one is
+/// mostly *somebody else's file* — this library opened an original, changed one thing, and re-emitted
+/// every untouched part verbatim, which is the whole promise. Holding that artefact to a
+/// tolerance-free gate faults **the producer's markup**, and A7b's scope rule says the opposite in
+/// as many words: a file that arrives with a defect must still open and re-save unchanged.
+///
+/// Measured, not hypothesised: with `sample.xlsx` standing in the corpus slot,
+/// `every_generated_artefact_is_schema_valid_and_in_child_order` failed on
+/// `v-xlsx-02-edited.xlsx` for a `workbookPr@dateCompatibility` **LibreOffice** wrote — a deviation
+/// `crates/mjx-schema-gate/src/tolerances.rs` already records for that fixture, arriving here
+/// through a path that consults no tolerance list.
+///
+/// So the rule for an edited artefact is *no **new** defect*: everything the original already had is
+/// subtracted, and anything left is ours.
+#[derive(Default)]
+struct Inherited {
+    /// Schema deviations, as `part: outcome` lines.
+    schema: BTreeSet<String>,
+    /// The package defect the original arrived with, if any.
+    package: Option<String>,
+    /// Child-order defects, with a fixed label so the two reports are comparable.
+    order: BTreeSet<String>,
+}
+
+/// A label both halves of a comparison use, so the messages differ only where the defects do.
+const INHERITED_LABEL: &str = "the Office-authored original";
+
+impl Inherited {
+    /// What this area's original arrived with — empty for an authored artefact, and empty when the
+    /// corpus has no original for the area.
+    fn of(area: &Area, variant: Variant) -> Self {
+        if variant != Variant::Edited {
+            return Self::default();
+        }
+        let Some(original) = original_for(area).expect("reading the Office-authored corpus") else {
+            return Self::default();
+        };
+        Self {
+            schema: harness()
+                .map(|harness| {
+                    inspect_deck(&harness, INHERITED_LABEL, &original, &[])
+                        .iter()
+                        .filter(|row| row.outcome.is_failure())
+                        .map(|row| format!("{}: {}", row.name, row.outcome.describe()))
+                        .collect()
+                })
+                .unwrap_or_default(),
+            package: Package::open(&original)
+                .ok()
+                .and_then(|package| package.validate().err())
+                .map(|defect| defect.to_string()),
+            order: audit_order_report(INHERITED_LABEL, &original)
+                .defects
+                .into_iter()
+                .collect(),
+        }
+    }
+}
+
+/// How many areas the corpus holds an original for — the number of `edited` artefacts a run writes.
+///
+/// Every count in this file is stated against this rather than against `AREAS.len()` alone. The
+/// corpus was empty when MJXOFF-122 wrote these gates, and a bare `AREAS.len()` would have started
+/// failing the day the first Office-authored original landed: a gate that breaks on the work it is
+/// waiting for.
+fn areas_with_an_original() -> usize {
+    AREAS
+        .iter()
+        .filter(|area| {
+            original_for(area)
+                .expect("reading the Office-authored corpus")
+                .is_some()
+        })
+        .count()
+}
+
+/// How many artefacts a run writes: one per area, plus one per area with an original.
+fn expected_artefacts() -> usize {
+    AREAS.len() + areas_with_an_original()
+}
+
+// -------------------------------------------------------------------------------------------
 // The three machine gates
 // -------------------------------------------------------------------------------------------
 
@@ -146,22 +235,74 @@ fn every_generated_artefact_is_schema_valid_and_in_child_order() {
     let mut checked = 0usize;
     for area in AREAS {
         for variant in Variant::all() {
-            let path = directory.join(area.artefact_name(variant));
+            let name = area.artefact_name(variant);
+            let path = directory.join(&name);
             if !path.is_file() {
                 continue;
             }
             let bytes = std::fs::read(&path).expect("reading a generated artefact");
-            // Both halves: the child-order audit always, `xmllint` when `References/` is present.
-            assert_authored_deck_is_schema_valid(&area.artefact_name(variant), &bytes);
+            let inherited = Inherited::of(area, variant);
+            if inherited.schema.is_empty() && inherited.order.is_empty() {
+                // Both halves: the child-order audit always, `xmllint` when `References/` is
+                // present. Nothing is excused, which is right for every byte we wrote.
+                assert_authored_deck_is_schema_valid(&name, &bytes);
+            } else {
+                assert_no_new_defect(&name, &bytes, &inherited);
+            }
             checked += 1;
         }
     }
     assert_eq!(
         checked,
-        AREAS.len(),
-        "every area must contribute its authored artefact to the schema gate"
+        expected_artefacts(),
+        "every area must contribute its authored artefact to the schema gate, and every area with \
+         an Office-authored original its edited one too"
     );
     println!("schema gate: {checked} generated artefact(s) validated");
+}
+
+/// Holds an *edited* artefact to "no **new** defect", subtracting what its original arrived with.
+///
+/// # Panics
+/// On a schema deviation or an ordering defect the original did not already have.
+fn assert_no_new_defect(name: &str, bytes: &[u8], inherited: &Inherited) {
+    let order = audit_order_report(INHERITED_LABEL, bytes);
+    let new_order: Vec<&String> = order
+        .defects
+        .iter()
+        .filter(|defect| !inherited.order.contains(*defect))
+        .collect();
+    assert!(
+        new_order.is_empty(),
+        "{name}: editing introduced {} child-order defect(s) the Office-authored original did not \
+         have:\n{}",
+        new_order.len(),
+        new_order
+            .iter()
+            .map(|defect| format!("  {defect}"))
+            .collect::<Vec<_>>()
+            .join("\n")
+    );
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, INHERITED_LABEL, bytes, &[]);
+    let new_schema: Vec<String> = rows
+        .iter()
+        .filter(|row| row.outcome.is_failure())
+        .map(|row| format!("{}: {}", row.name, row.outcome.describe()))
+        .filter(|line| !inherited.schema.contains(line))
+        .collect();
+    assert!(
+        new_schema.is_empty(),
+        "{name}: editing introduced {} schema deviation(s) the Office-authored original did not \
+         have:\n{}",
+        new_schema.len(),
+        new_schema.join("\n")
+    );
+    println!(
+        "schema gate: {name} adds no defect to the {} its original arrived with",
+        inherited.schema.len() + inherited.order.len()
+    );
 }
 
 #[test]
@@ -177,13 +318,19 @@ fn every_generated_artefact_is_a_valid_package() {
             }
             let bytes = std::fs::read(&path).expect("reading a generated artefact");
             let package = Package::open(&bytes).unwrap_or_else(|e| panic!("{name}: opening: {e}"));
-            package
-                .validate()
-                .unwrap_or_else(|defect| panic!("{name}: package invariant: {defect}"));
+            // The same rule as the schema gate: an edited artefact is mostly its original's bytes,
+            // and a package defect the original *arrived* with is not one this library introduced.
+            let inherited = Inherited::of(area, variant).package;
+            let found = package.validate().err().map(|defect| defect.to_string());
+            assert!(
+                found.is_none() || found == inherited,
+                "{name}: package invariant: {}",
+                found.unwrap_or_default()
+            );
             checked += 1;
         }
     }
-    assert_eq!(checked, AREAS.len());
+    assert_eq!(checked, expected_artefacts());
     println!("package validator: {checked} generated artefact(s) validated");
 }
 
@@ -199,7 +346,16 @@ fn the_ordering_audit_visits_real_structure_in_every_artefact() {
                 continue;
             }
             let bytes = std::fs::read(&path).expect("reading a generated artefact");
-            let audited = audit_deck_order(&name, &bytes);
+            // `audit_deck_order` panics on the first defect, which is right for markup we authored
+            // and wrong for an original's; `assert_no_new_defect` above owns that comparison, so
+            // here an inherited defect is stepped over rather than re-raised.
+            let inherited = Inherited::of(area, variant).order;
+            let report = audit_order_report(INHERITED_LABEL, &bytes);
+            let audited = if report.defects.iter().all(|d| inherited.contains(d)) {
+                report.audited
+            } else {
+                audit_deck_order(&name, &bytes)
+            };
             assert!(
                 !audited.is_empty(),
                 "{name}: the ordering audit found no part whose root the tables know"
@@ -297,10 +453,22 @@ fn two_runs_produce_byte_identical_artefacts() {
         files_in(&second),
         "the two runs wrote different sets of files"
     );
+    // One artefact per area, plus one more for every area the Office-authored corpus has an
+    // original for. Stated as a *derived* count rather than as `AREAS.len()`: the corpus was empty
+    // when this case was written and the plain count would have started failing the day MJXOFF-130's
+    // first file landed — a gate that breaks on the work it is waiting for.
+    let originals = AREAS
+        .iter()
+        .filter(|area| {
+            original_for(area)
+                .expect("reading the Office-authored corpus")
+                .is_some()
+        })
+        .count();
     assert_eq!(
         names.len(),
-        AREAS.len(),
-        "a run must write one artefact per area while the Office corpus is empty"
+        AREAS.len() + originals,
+        "a run must write one artefact per area, and a second for each of the {originals} area(s)          the Office-authored corpus holds an original for"
     );
     for name in &names {
         let a = std::fs::read(first.join(name)).expect("first run");
