@@ -1,5 +1,13 @@
 # Phase 2 Handoff — PowerPoint vertical slice
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-16.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 A self-contained brief to **resume Phase 2 from a cold start**. Read this first, then `PLAN.md`,
 `CLAUDE.md`, and `docs/DRAWINGML_PRESET_SHAPES.md`. It is written to survive a full context reset: it
 records what is done, the exact next piece, and — critically — **the places a fresh session tends to

@@ -1,5 +1,13 @@
 # Handoff — custom geometry (`a:custGeom`) — COMPLETE
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-30.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 The freeform path a hand-drawn shape is traced from. Read after `docs/TRANSFORM_HANDOFF.md` (the
 `a:xfrm` workstream, which left `a:custGeom` opaque and pointed here). Standard guardrails in
 `CLAUDE.md` and `docs/PHASE2_HANDOFF.md` §3.
@@ -139,4 +147,4 @@ with attributes `w` / `h` (`ST_PositiveCoordinate`, default 0), `fill` (`ST_Path
 the read/build helpers), `crates/mjx-dml/src/geometry/mod.rs` (re-exports and the fidelity-mechanism
 notes), `crates/mjx-pptx/src/geometry.rs` (`Geometry`), `crates/mjx-pptx/src/slide.rs`
 (`shape_prstgeom` / `shape_custgeom` / `set_geometry` and the geometry-slot index helpers), and
-`crates/mjx-pptx/src/presentation.rs` (`shape_geometry` / `set_shape_geometry`).
+`crates/mjx-pptx/src/presentation/` (`shape_geometry` / `set_shape_geometry`).

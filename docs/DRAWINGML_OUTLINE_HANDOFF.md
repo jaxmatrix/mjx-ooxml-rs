@@ -1,5 +1,13 @@
 # Handoff — PowerPoint shape outline (`a:ln`) — COMPLETE
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-18.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 A self-contained record of the shape-outline workstream. Read after `docs/DRAWINGML_FILL_HANDOFF.md`
 and `docs/DRAWINGML_EFFECTIVE_FILL_HANDOFF.md` — outline is the **line analog** of the fill story and
 mirrors it PR-for-PR.
