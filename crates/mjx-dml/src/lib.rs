@@ -105,6 +105,6 @@ pub use text::{
     TextRun, TextSpacing, TextStrike, TextUnderline, UnderlineFill, UnderlineLine,
 };
 pub use theme::{
-    ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot, SupplementalFont,
-    Theme, ThemeFontReference, ThemeInfo,
+    default_theme_xml, ColorScheme, ColorSchemeSlot, FontCollection, FontScheme, FontSchemeSlot,
+    SupplementalFont, Theme, ThemeFontReference, ThemeInfo, DEFAULT_THEME_XML,
 };

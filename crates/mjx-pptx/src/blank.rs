@@ -296,75 +296,12 @@ fn presentation_bytes(size: SlideSize) -> Vec<u8> {
 
 /// The bytes of `theme1.xml`.
 ///
-/// The colour scheme is the Office 2013 palette, so a deck built here looks like a deck built in
-/// PowerPoint rather than like a debugging artefact. `dk1`/`lt1` are plain `a:srgbClr` rather than
-/// `a:sysClr`: the value is then the same everywhere, which is what the effective-colour readers
-/// resolve against.
-///
-/// The three fill styles are the same colour at three strengths (`phClr` is the placeholder the
-/// shape's `a:fillRef` substitutes), the three line styles are three widths, and the three effect
-/// styles are empty — `a:effectStyle` requires an effect group, and an empty `a:effectLst` is the
-/// honest way to say "no effect" rather than inventing a shadow nothing asked for.
+/// The markup is [`mjx_dml::theme::default_theme_xml`], which is where the one theme this workspace
+/// authors lives: a theme is DrawingML, all three formats carry the identical part under a different
+/// name, and MJXOFF-200 needed the same bytes from Word and Excel. This function stays as the deck's
+/// own name for it so the part list below reads the way the other four do.
 fn theme_bytes() -> Vec<u8> {
-    concat!(
-        r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
-        "\n",
-        r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
-        r#" name="Office Theme">"#,
-        "<a:themeElements>",
-        // --- colours -------------------------------------------------------------------------
-        r#"<a:clrScheme name="Office">"#,
-        r#"<a:dk1><a:srgbClr val="000000"/></a:dk1>"#,
-        r#"<a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>"#,
-        r#"<a:dk2><a:srgbClr val="44546A"/></a:dk2>"#,
-        r#"<a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>"#,
-        r#"<a:accent1><a:srgbClr val="4472C4"/></a:accent1>"#,
-        r#"<a:accent2><a:srgbClr val="ED7D31"/></a:accent2>"#,
-        r#"<a:accent3><a:srgbClr val="A5A5A5"/></a:accent3>"#,
-        r#"<a:accent4><a:srgbClr val="FFC000"/></a:accent4>"#,
-        r#"<a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>"#,
-        r#"<a:accent6><a:srgbClr val="70AD47"/></a:accent6>"#,
-        r#"<a:hlink><a:srgbClr val="0563C1"/></a:hlink>"#,
-        r#"<a:folHlink><a:srgbClr val="954F72"/></a:folHlink>"#,
-        "</a:clrScheme>",
-        // --- fonts ---------------------------------------------------------------------------
-        r#"<a:fontScheme name="Office">"#,
-        r#"<a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/>"#,
-        r#"<a:cs typeface=""/></a:majorFont>"#,
-        r#"<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/>"#,
-        r#"<a:cs typeface=""/></a:minorFont>"#,
-        "</a:fontScheme>",
-        // --- the style matrix ----------------------------------------------------------------
-        r#"<a:fmtScheme name="Office">"#,
-        "<a:fillStyleLst>",
-        r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"><a:tint val="60000"/></a:schemeClr></a:solidFill>"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"><a:shade val="80000"/></a:schemeClr></a:solidFill>"#,
-        "</a:fillStyleLst>",
-        "<a:lnStyleLst>",
-        r#"<a:ln w="6350" cap="flat" cmpd="sng" algn="ctr">"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>"#,
-        r#"<a:ln w="12700" cap="flat" cmpd="sng" algn="ctr">"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>"#,
-        r#"<a:ln w="19050" cap="flat" cmpd="sng" algn="ctr">"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>"#,
-        "</a:lnStyleLst>",
-        "<a:effectStyleLst>",
-        "<a:effectStyle><a:effectLst/></a:effectStyle>",
-        "<a:effectStyle><a:effectLst/></a:effectStyle>",
-        "<a:effectStyle><a:effectLst/></a:effectStyle>",
-        "</a:effectStyleLst>",
-        "<a:bgFillStyleLst>",
-        r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"><a:tint val="60000"/></a:schemeClr></a:solidFill>"#,
-        r#"<a:solidFill><a:schemeClr val="phClr"><a:shade val="80000"/></a:schemeClr></a:solidFill>"#,
-        "</a:bgFillStyleLst>",
-        "</a:fmtScheme>",
-        "</a:themeElements>",
-        "</a:theme>",
-    )
-    .as_bytes()
-    .to_vec()
+    mjx_dml::theme::default_theme_xml()
 }
 
 /// The bytes of `slideMaster1.xml`: a title and a body placeholder positioned for `size`, the

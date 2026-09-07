@@ -566,3 +566,105 @@ fn effect_styles_of(
     }
     Ok(styles)
 }
+
+// ---------------------------------------------------------------------------------------------
+// Authoring a theme
+// ---------------------------------------------------------------------------------------------
+
+/// The bytes of a complete `a:theme` part carrying the Office palette — the one theme this
+/// workspace authors, for whichever format needs one.
+///
+/// # Why a byte producer rather than a writer over [`Theme`]
+///
+/// [`Theme`] is a **read-only** view: it keeps the color scheme, the font scheme and the two style
+/// matrices and drops everything else (`a:bgFillStyleLst`, unknown children, the `@name`
+/// attributes), because resolving a fill never needs them. Serializing that view would emit a theme
+/// with holes in it. A theme this project *authors* is a fixed, complete document with no caller
+/// input at all, so the honest shape is the document itself.
+///
+/// # What it says, and why each piece is the value it is
+///
+/// The colour scheme is the Office 2013 palette, so a file built here looks like a file built in
+/// Word, Excel or PowerPoint rather than like a debugging artefact. `dk1`/`lt1` are plain
+/// `a:srgbClr` rather than `a:sysClr`: the value is then the same everywhere, which is what the
+/// effective-colour readers resolve against.
+///
+/// The three fill styles are the same colour at three strengths (`phClr` is the placeholder the
+/// shape's `a:fillRef` substitutes), the three line styles are three widths, and the three effect
+/// styles are empty — `a:effectStyle` requires an effect group, and an empty `a:effectLst` is the
+/// honest way to say "no effect" rather than inventing a shadow nothing asked for.
+///
+/// # Who writes it
+///
+/// A theme is DrawingML, and all three formats carry the identical part under a different name
+/// (`/ppt/theme/theme1.xml`, `/word/theme/theme1.xml`, `/xl/theme/theme1.xml`). Keeping the markup
+/// here is what stops it being written out three times: `mjx_pptx::blank` puts it in every deck,
+/// `mjx_sml::write::WorkbookPackage` puts it in every authored workbook, and `mjx-docx` and
+/// `mjx-xlsx` author it **only into a package that has none** — a document that arrives with a theme
+/// keeps the one it came with, because supplying a default in place of the user's own would override
+/// the branding of whoever opens the file.
+///
+/// Deterministic: every call returns the same bytes.
+#[must_use]
+pub fn default_theme_xml() -> Vec<u8> {
+    DEFAULT_THEME_XML.as_bytes().to_vec()
+}
+
+/// [`default_theme_xml`] without the copy, for a caller that only wants to read it.
+pub const DEFAULT_THEME_XML: &str = concat!(
+    r#"<?xml version="1.0" encoding="UTF-8" standalone="yes"?>"#,
+    "\n",
+    r#"<a:theme xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main""#,
+    r#" name="Office Theme">"#,
+    "<a:themeElements>",
+    // --- colours -----------------------------------------------------------------------------
+    r#"<a:clrScheme name="Office">"#,
+    r#"<a:dk1><a:srgbClr val="000000"/></a:dk1>"#,
+    r#"<a:lt1><a:srgbClr val="FFFFFF"/></a:lt1>"#,
+    r#"<a:dk2><a:srgbClr val="44546A"/></a:dk2>"#,
+    r#"<a:lt2><a:srgbClr val="E7E6E6"/></a:lt2>"#,
+    r#"<a:accent1><a:srgbClr val="4472C4"/></a:accent1>"#,
+    r#"<a:accent2><a:srgbClr val="ED7D31"/></a:accent2>"#,
+    r#"<a:accent3><a:srgbClr val="A5A5A5"/></a:accent3>"#,
+    r#"<a:accent4><a:srgbClr val="FFC000"/></a:accent4>"#,
+    r#"<a:accent5><a:srgbClr val="5B9BD5"/></a:accent5>"#,
+    r#"<a:accent6><a:srgbClr val="70AD47"/></a:accent6>"#,
+    r#"<a:hlink><a:srgbClr val="0563C1"/></a:hlink>"#,
+    r#"<a:folHlink><a:srgbClr val="954F72"/></a:folHlink>"#,
+    "</a:clrScheme>",
+    // --- fonts -------------------------------------------------------------------------------
+    r#"<a:fontScheme name="Office">"#,
+    r#"<a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/>"#,
+    r#"<a:cs typeface=""/></a:majorFont>"#,
+    r#"<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/>"#,
+    r#"<a:cs typeface=""/></a:minorFont>"#,
+    "</a:fontScheme>",
+    // --- the style matrix --------------------------------------------------------------------
+    r#"<a:fmtScheme name="Office">"#,
+    "<a:fillStyleLst>",
+    r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"><a:tint val="60000"/></a:schemeClr></a:solidFill>"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"><a:shade val="80000"/></a:schemeClr></a:solidFill>"#,
+    "</a:fillStyleLst>",
+    "<a:lnStyleLst>",
+    r#"<a:ln w="6350" cap="flat" cmpd="sng" algn="ctr">"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>"#,
+    r#"<a:ln w="12700" cap="flat" cmpd="sng" algn="ctr">"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>"#,
+    r#"<a:ln w="19050" cap="flat" cmpd="sng" algn="ctr">"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill><a:prstDash val="solid"/></a:ln>"#,
+    "</a:lnStyleLst>",
+    "<a:effectStyleLst>",
+    "<a:effectStyle><a:effectLst/></a:effectStyle>",
+    "<a:effectStyle><a:effectLst/></a:effectStyle>",
+    "<a:effectStyle><a:effectLst/></a:effectStyle>",
+    "</a:effectStyleLst>",
+    "<a:bgFillStyleLst>",
+    r#"<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"><a:tint val="60000"/></a:schemeClr></a:solidFill>"#,
+    r#"<a:solidFill><a:schemeClr val="phClr"><a:shade val="80000"/></a:schemeClr></a:solidFill>"#,
+    "</a:bgFillStyleLst>",
+    "</a:fmtScheme>",
+    "</a:themeElements>",
+    "</a:theme>",
+);
