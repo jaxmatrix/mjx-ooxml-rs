@@ -15,8 +15,22 @@
 //! [`RawDocument`] → [`RawNode`] → [`RawElement`] is a **lossless DOM**. Names are interned
 //! [`Symbol`]s; attribute values and text are stored as *raw, escaped bytes* exactly as they appeared
 //! in the source. That is what lets the `mjx-xml` fidelity writer reproduce a part's bytes exactly.
-//! A `Vec<RawNode>` also serves as the "unknown content bucket" the future typed model carries so it
-//! can round-trip anything it does not itself model.
+//! A [`RawNode`] is also how a modelled type keeps the content it does not itself model, and the
+//! shape that takes downstream is one of three — all of them this type, none of them optional:
+//!
+//! * an `extra: Vec<RawNode>` holding the children a type declared no accessor for
+//!   (`mjx_docx::SignedTwipsMeasureElement`);
+//! * a `children: Vec<RawNode>` holding **all** of them, with typed accessors reading out of it on
+//!   demand (`mjx_dml::Inline`) — which preserves strictly more, because nothing was separated out
+//!   in the first place;
+//! * a typed content vector with a `Raw(RawNode)` variant, so an unmodelled child keeps its position
+//!   among its modelled siblings rather than being collected at the end
+//!   (`mjx_docx::ParagraphContent`).
+//!
+//! Which of the three a type uses is a modelling choice. Keeping one at all is the rule — and it is
+//! a rule with exceptions, which is why naming the mechanism is not the same as naming the
+//! guarantee. `crates/mjx-opc/docs/guide/the_round_trip_contract.md` states what holds it up, and
+//! names the types it does not cover.
 //!
 //! Trees are normally produced by the `mjx-xml` fidelity reader rather than built by hand.
 //!
@@ -24,7 +38,9 @@
 //!
 //! [`FromXml`] / [`ToXml`] (in [`convert`]) are the seam between the raw tree and typed models: a
 //! type parses itself out of a [`RawElement`] and rebuilds one, reusing interned [`Symbol`]s so the
-//! result round-trips. The format crates implement them (by hand first, later via `mjx-derive`).
+//! result round-trips. The format crates implement them, most through `mjx-derive` and some by hand
+//! — see `crates/mjx-opc/docs/guide/the_round_trip_contract.md` for the one reason a type still
+//! declines the derive.
 //!
 //! # Typed attributes
 //!
@@ -34,8 +50,16 @@
 //! `#[derive(XmlAttributes)]` in `mjx-derive` — so unknown attributes, their order and their quote
 //! style survive untouched.
 //!
-//! Later phases also add the arena + stable-handle primitives, when the typed model needs them (see
-//! `PLAN.md`).
+//! # What is deliberately *not* here
+//!
+//! `PLAN.md` settles the in-memory model as *hybrid* — an arena or columnar store for bulk data,
+//! owned trees for small structures — and this crate was long expected to grow the arena half. It
+//! did not, and that is now a decision rather than a gap: the one model that needed bulk storage
+//! built it against its own data instead, and the reasoning is recorded in
+//! `crates/mjx-sml/docs/CELL_STORE.md`. A packed store measured against worksheet cells does not
+//! generalise to slides or paragraphs, and a primitive here that no second caller wanted would be
+//! carried by every crate in the workspace. The owned-tree half is the whole of what this crate
+//! provides.
 //!
 //! # Example
 //!

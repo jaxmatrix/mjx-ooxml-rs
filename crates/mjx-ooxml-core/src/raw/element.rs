@@ -34,7 +34,8 @@ impl QuoteStyle {
 }
 
 /// A qualified name. `prefix` preserves the literal source prefix for byte-fidelity; `namespace`
-/// records the resolved URI for semantics (MCE, the future typed model). Both are interned; the
+/// records the resolved URI for semantics (`mjx_mce::resolve`, and every typed model's child
+/// matching — a file may bind `w:` to the Strict namespace). Both are interned; the
 /// prefix→namespace redundancy is intentional and cheap.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RawName {
