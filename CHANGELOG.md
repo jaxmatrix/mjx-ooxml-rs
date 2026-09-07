@@ -58,6 +58,86 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.131] - 2026-09-07
+
+### The documentation gate and the index — a doc page can now fail (MJXOFF-199, G1)
+
+**Phase G's first child, and the harness the eight that follow write into.** Until this release
+nothing in the workspace read a single prose document, and MJXOFF-88 §9 B5/B6 records what that
+cost: five documents directing a reader at a `presentation.rs` that has been the directory
+`crates/mjx-pptx/src/presentation/` since Phase A, and a **live test** whose own doc comment cited a
+file MJXOFF-99 had deleted and described that deletion in the future tense. Every one was found by a
+person reading carefully.
+
+### Added
+
+- **`xtask/tests/doc_gate.rs`** — the gate. Its corpus is `git ls-files`, never a list: every
+  tracked markdown page and the comments of every tracked Rust file, so a new page is inside it the
+  moment it is committed. Four checks, each reporting its counts on success as well as on failure:
+  - **Paths.** Every repository path a document names in a code span or a file-shaped markdown link
+    exists — resolved crate-relative, then from the root, then by crate name, with `{a,b}` groups
+    expanded and a `file.rs::symbol` citation checked against the named file. At this release:
+    **1,111 mentions of 369 distinct paths across 293 documents**, plus 5 `file::symbol` citations.
+  - **Symbols.** Every crate-qualified reference (`mjx_sml::CellFormula`, and `crate::…` inside a
+    crate's own sources) still names something that crate has — **1,356 references across 318
+    documents, over 21 crates holding 14,302 declared item names.** The subset and its boundary are
+    stated on the test: a bare `Type::member` is not checked, because the same word is a type in
+    several crates and a word in every sentence.
+  - **The index, both directions.** `docs/api/README.md`'s row set must equal `git ls-files '*.md'`
+    exactly. Committing a page without indexing it fails; indexing a page that does not exist fails.
+  - **Anti-vacuity floors on all of it**, stated as *the extractor is still matching* rather than as
+    *the corpus is this size*, so a floor cannot fire before the assertion it guards. Neutralising
+    the code-span scanner turns three checks red with "the extractor has stopped matching" instead
+    of a silent green — which is the failure this gate exists to prevent, applied to itself.
+- **`docs/api/README.md`** — one entry point, 69 rows, one per markdown page in the repository, with
+  what it covers and which crate owns it. It is prose a person writes whose *row set* is derived and
+  enforced: an index generated from the same walk a test compares it against would prove nothing and
+  would carry no descriptions.
+- **A single escape hatch, and a liveness check on it.** A document may name a file or item that no
+  longer exists **only inside a block that also names the ticket that removed it**. That one rule
+  separates honest history from a stale live claim, and `RETIRED_PATHS` / `RETIRED_SYMBOLS` are
+  themselves failed when nothing names them any more.
+
+### Fixed
+
+- **Six documents pointed at `crates/mjx-pptx/src/presentation.rs`**, a directory since Phase A —
+  the five §9 B6 names plus `docs/DRAWINGML_FILL_HANDOFF.md`, which it does not.
+- **Eight live sites named symbols MJXOFF-99 deleted**, a class §9 B5 does not list at all: the
+  `mjx-chart` workbook writer named from `mjx-sml`'s crate root, its package writer, its address
+  module, its constants and its package-writer suite, and from `mjx-xlsx`'s parts module; plus
+  `crates/mjx-sml/docs/SHARED_STRINGS.md`, which said the duplicate "is still there" and that
+  MJXOFF-99 "performs the deletion", in the future tense.
+- **`crates/mjx-sml/src/strings/table.rs`** claimed in the present tense that a deleted parity gate
+  *compares* two writers, naming no ticket — §9 B5's first site.
+- **`crates/mjx-sml/tests/shared_strings_fidelity.rs`** — §9 B5's second. The live test's doc cited
+  a deleted file as "the other side" and said MJXOFF-99 "then deletes" the writer. Rewritten to say
+  what is true, and the test renamed from `an_authored_table_matches_the_chart_writers_bytes_exactly`
+  to `an_authored_table_writes_exactly_these_bytes`: there is no chart writer to match.
+- **`CLAUDE.md`** was still prospective about that deletion (§9 B13), and addressed
+  `bindings/mjx-python/tests/test_stub_parity.py` from the wrong root.
+- **Nine more stale citations the gate found on its first run** — `docs/BENCHMARKS.md` pointing at
+  an `xtask/src/fuzz/allocation.rs` that MJXOFF-95 moved to `crates/mjx-allocation-counter`;
+  `xtask/src/corpus/memory.rs` naming the same moved module; `mjx-sml` and `mjx-xlsx` citing a
+  `docs/fidelity_and_gaps.md` Excel has never had; the two bindings citing test files that do not
+  exist (`tests/node/enums.mjs`, `tests/node/format.mjs`, `tests/test_format.py`);
+  `crates/mjx-omml/src/support.rs` naming a `crate::geometry::Transform2D` that is `mjx-dml`'s; two
+  `xtask` codegen modules naming a `crate::support` that is `mjx-ooxml-types`'; and a broken sibling
+  link in `crates/mjx-xlsx/docs/guide/worksheet_tables.md`.
+
+### Changed
+
+- **The eight July-2026 hand-off documents are dated, not retired** (§9 B6). Each carries a banner
+  at its head saying it describes the repository as it stood on a given day, before the Phase A
+  module split, and that its paths, status markers and counts are not maintained. They are kept
+  because the design reasoning they record — 1,477 lines of why each decision went the way it did —
+  is written down nowhere else; only their description of the layout has expired. Retiring them
+  would have lost the reasoning to save a banner.
+- **CI's `lint-test` job names the gate as its own step.** `cargo test --workspace` already runs it
+  in both feature modes — verified with `--no-run`, which lists `Executable tests/doc_gate.rs` in
+  each — but MJXOFF-130 found `xtask/tests/` reachable by one job and auditor pass 4 found
+  `mjx-dml`'s preset-geometry sweep reachable by none. A gate whose job is only implied is the gate
+  that turns out not to run.
+
 ## [0.0.130] - 2026-09-07
 
 ### The Office-authored corpus — the ingestion path, and the weakness it retires (MJXOFF-130, F3)
