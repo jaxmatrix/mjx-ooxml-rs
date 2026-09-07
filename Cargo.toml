@@ -54,6 +54,15 @@ members = [
     # `xtask`, so the one `unsafe impl GlobalAlloc` in the workspace lives where both can reach it.
     "crates/mjx-allocation-counter",
     "crates/mjx-ooxml",
+    # The platform boundary — rank 5.5 (MJXOFF-163). The `Painter` contract, the `SurfaceHost`
+    # contract and the `wgpu` painter. Its rank is **above the facade**, and that is the whole of
+    # what the rank buys: nothing in the document graph — no format crate, no facade, and above all
+    # no binding — can then declare an edge to a crate that links Vulkan, Metal or Direct3D. What
+    # the rank does *not* buy is the other direction: at 5.5 every crate in the workspace is a legal
+    # dependency of this one, so "below a display list, nothing has heard of a font, a layout
+    # algorithm or a document" is held here by an explicit manifest gate,
+    # `crates/mjx-paint/tests/the_seam_holds.rs`, and by nothing else.
+    "crates/mjx-paint",
     # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
     # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
     # number cover them too. The cross-build matrix excludes both: a PyO3 cdylib needs a Python
@@ -78,7 +87,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.128"
+version = "0.0.129"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -147,6 +156,38 @@ unicode-script = "0.5"
 # shader — is also what makes the browser a target at all: `wgpu`'s WebGL2 backend has no compute
 # stage, and `docs/UI_PLATFORM_PLAN.md` §7 puts the browser inside the matrix.
 lyon_tessellation = "1"
+# The graphics stack (MJXOFF-163), used only by `mjx-paint`. **This is the one external dependency
+# in the workspace that is not pure Rust**, and it is why `CLAUDE.md`'s pure-Rust rule now names the
+# document graph rather than the whole workspace: `wgpu` links `ash` (Vulkan), `metal`/`objc2` and
+# `windows-rs`, because a pixel cannot reach a screen without the operating system's graphics stack.
+# `mjx-paint` at rank 5.5 is the declared platform boundary and the only crate that may declare this
+# edge; `mjx-scene` and everything below it stay pure Rust, so the headless, `wasm32`, export and
+# test paths never require a GPU.
+#
+# Features are stated in full rather than inherited, and two absences are deliberate:
+#
+# * **`noop` is not enabled.** wgpu 30 ships a null backend that reports success and draws nothing.
+#   Compiling it in would make "rendering succeeded" true on a machine with no graphics stack at
+#   all, which is precisely the failure this child's gates exist to refuse.
+# * **`webgl` is not enabled here.** It is a `wasm32`-only feature and pulls `wasm-bindgen`; the
+#   browser build asks for it in `mjx-paint`'s own target-specific section.
+#
+# `wgsl` is the shader language; `vulkan`/`metal`/`dx12`/`gles` are the four native backends the
+# cross-build matrix covers; `webgpu` is the browser's opportunistic upgrade over WebGL2.
+wgpu = { version = "30", default-features = false, features = [
+    "std",
+    "parking_lot",
+    "wgsl",
+    "vulkan",
+    "metal",
+    "dx12",
+    "gles",
+    "webgpu",
+] }
+# Adapter and device acquisition are futures on every target. On native they are already complete
+# when they are returned, and nothing in this workspace carries an async runtime, so a single-file
+# blocking executor is what turns them back into ordinary calls. Used only by `mjx-paint`.
+pollster = "0.4"
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
@@ -171,6 +212,7 @@ mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }
 mjx-allocation-counter = { path = "crates/mjx-allocation-counter" }
 mjx-ooxml = { path = "crates/mjx-ooxml" }
+mjx-paint = { path = "crates/mjx-paint" }
 
 # --- binding toolkits (used only by `bindings/*`) ---
 pyo3 = { version = "0.29", default-features = false, features = ["abi3-py39", "macros"] }

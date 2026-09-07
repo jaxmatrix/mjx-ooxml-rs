@@ -118,6 +118,9 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 3.0  Formats          mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
 4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
 5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
+5.5  Platform boundary mjx-paint  (the Painter contract and the wgpu painter — the one crate that
+                                  may link the platform's graphics API, and the reason the
+                                  pure-Rust rule now names the *document graph*)
      Tooling          xtask       (schema and token codegen)
      Test-only        mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
                                   (never published, never a runtime dependency)
