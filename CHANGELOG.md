@@ -88,8 +88,8 @@ sources and requires every hand-written `FromXml`/`ToXml` to be on a ledger with
 reason — **and checks the idiom against the impl body**, so a row claiming to preserve everything
 while handing `RawElement::rebuilt` a fresh `Vec::new()` fails, which is exactly the shape
 `Picture::to_xml` had. It reports 41 derived types, 57 via the shared macro and 13 hand-written impls
-over 9 types. `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside it and tracked
-separately.
+over 9 types. `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside it, raised as
+MJXOFF-218.
 
 **Then the guide**: six pages under `crates/mjx-dml/docs/guide/`, reachable from `docs/api/README.md`
 and from `mjx_dml::guide`. Written for a caller who has a shape and wants it filled, outlined,

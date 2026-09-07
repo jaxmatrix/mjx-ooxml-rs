@@ -43,7 +43,7 @@
 //!
 //! **This gate covers `mjx-dml` only.** `mjx-docx` writes the fully-preserving body out by hand for
 //! 158 types and `mjx-sml` for 57 more, and classifying those is a unit of its own rather than a
-//! paragraph of this one; it is tracked separately. Extending this file to them means widening
+//! paragraph of this one; it is **MJXOFF-218**. Extending this file to them means widening
 //! [`crate_root`] and growing [`LEDGER`], not rewriting anything here.
 
 use std::collections::BTreeSet;

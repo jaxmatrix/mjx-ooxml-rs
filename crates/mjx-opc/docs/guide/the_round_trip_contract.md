@@ -134,7 +134,7 @@ them**, which is the opposite of per-fixture coverage:
    fails. The nine rows that remain are three read-only projections, three dispatchers on an element
    name (`mjx_dml::Fill` and the two `xdr:` choices), and three wrappers holding their children raw.
    `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside that gate today, and
-   extending it to them is a unit of its own.
+   extending it to them is MJXOFF-218.
 
 ### 3 · "MCE is handled in `mjx-mce`, preserved on write and resolved (non-mutating) on read/render"
 
