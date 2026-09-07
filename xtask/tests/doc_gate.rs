@@ -466,6 +466,15 @@ fn link_targets(line: &str) -> Vec<&str> {
 
 /// File extensions this repository's documents actually cite. A code span ending in one of these is
 /// a file reference even without a directory separator.
+///
+/// This is a hand-maintained list, which is the shape `CLAUDE.md` warns about — so its blast radius
+/// is worth stating rather than leaving implicit. **It is not load-bearing for an ordinary path.** A
+/// citation containing `/` is recognised regardless of its extension, so the whole main corpus (369
+/// distinct paths) is unaffected by an omission here. The list gates exactly two narrow cases: a
+/// *bare* filename with no directory, which `Resolver::resolve_span` already restricts to names that
+/// resolve at the repository root; and the `file.rs::symbol` split, where a miss makes the span read
+/// as a Rust path instead and be rejected. An omission therefore under-checks a handful of bare
+/// filenames — never a whole crate, which is the failure the crate-set comparison above exists for.
 const FILE_EXTENSIONS: &[&str] = &[
     ".rs", ".md", ".toml", ".py", ".pyi", ".mjs", ".js", ".ts", ".json", ".sh", ".yml", ".yaml",
     ".xsd", ".xml", ".pptx", ".docx", ".xlsx", ".txt", ".sha256", ".lock", ".wasm",
