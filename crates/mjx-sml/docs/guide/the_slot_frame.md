@@ -23,13 +23,18 @@ WorksheetPart
 └── epilogue
 ```
 
-Six types are frames: [`mjx_sml::WorksheetPart`](crate::WorksheetPart),
+Six types are frames in that strict sense: [`mjx_sml::WorksheetPart`](crate::WorksheetPart),
 [`mjx_sml::WorkbookPart`](crate::WorkbookPart), [`mjx_sml::StylesheetPart`](crate::StylesheetPart),
 [`mjx_sml::ChartSheetPart`](crate::ChartSheetPart),
 [`mjx_sml::DialogSheetPart`](crate::DialogSheetPart) and
 [`mjx_sml::MacroSheetPart`](crate::MacroSheetPart). The last three share one generic frame, in
 `crates/mjx-sml/src/sheets/frame.rs`, because a sheet kind whose markup is entirely borrowed from the
 worksheet spine should be a content enum and a set of accessors and nothing else.
+
+[`mjx_sml::Comments`](crate::Comments) is the seventh part model and is built the same way — a
+content enum with `Authors`, `List` and `Raw`, ranked through the generated table — but it reads
+through `#[derive(FromXml)]` rather than through a hand-written frame, because `CT_Comments` has
+three children rather than thirty-nine and needs none of the machinery below.
 
 ## Modelled and held are different claims
 
