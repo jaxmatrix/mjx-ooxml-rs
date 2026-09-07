@@ -58,6 +58,53 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.137] - 2026-09-08
+
+### The packaging tier's guide, and the four fidelity claims answered (MJXOFF-215, G7)
+
+**`mjx-opc`, `mjx-mce`, `mjx-xml` and `mjx-ooxml-core` are where this project's promise is actually
+implemented, and none of the four had a narrative guide.** Six pages now, over the four crates rather
+than one apiece, because the mechanism is spread across all of them and no one of them can be read
+alone. Five are hosted by `mjx-opc` — the only crate in the tier that can see two of the other three
+— and the sixth by `mjx-mce`, which is the same layering rank and therefore unreachable from it. That
+is the layering rule showing through the documentation rather than a gap in it.
+
+**The page that had to be written is `removing_a_part.md`.** Four methods on `Package` remove a
+part, they have genuinely different blast radii, and until now the difference lived only in prose
+MJXOFF-209 had to write after the fact. A caller choosing wrongly deletes a producer's content: that
+is exactly what MJXOFF-209 *was*, three `Document` edits finishing with the package-wide sweep and an
+edit about a header deleting an unrelated image.
+
+**`CLAUDE.md`'s four fidelity rules were claims nobody had checked as claims.** Each now has an
+answer, and two of the four needed correcting.
+
+*"Part-level laziness"* is **parse** laziness. `Package::open` inflates every ZIP entry eagerly with
+`read_to_end`; what is deferred is the XML parse. The distinction is why a small archive can expand
+without bound (MJXOFF-154, still open), and it was written down nowhere.
+
+*"Every modeled complex type carries `extra: Vec<RawNode>`"* names the rarest of three idioms. The
+guarantee is stronger than the sentence — `mjx-derive`'s codegen *generates* the `Raw` fallthrough, so
+one test failure reaches every derived type at once — but a reader who grepped for `extra` would
+conclude `mjx-dml` had no bucket at all, when what it has preserves strictly more. "Every" also has
+exceptions, and one of them is a defect: `mjx_dml::Picture` and `mjx_dml::PictureNonVisual`
+hand-write `FromXml`/`ToXml` with no raw remainder and an empty attribute vector, and were **proved**
+to destroy a producer's attribute and a foreign child. Latent rather than live — no shipped write
+path reaches them — and filed as **MJXOFF-216**, with the ledger question the class raises.
+
+*"MCE is handled in `mjx-mce`"* is true of resolution. Two format crates walk `mc:AlternateContent`
+by hand instead, defensibly, and `mjx_mce::resolve` has exactly one shipped call site.
+
+*The round-trip contract itself* is the best-enforced of the four, at three granularities — container,
+tree and edit — and the page says which test holds each and what none of them can see.
+
+**Also: seven stale claims repaired.** The worst was on `Package::remove_part`, which said the graph
+operation was "left to a later phase" while its three graph-aware siblings sat below it in the same
+file. The rest were `mjx-ooxml-core` describing a typed model, a derive and an attribute-typing
+variant that had all shipped, and promising an arena that was deliberately never built — the reasoning
+for which is in `crates/mjx-sml/docs/CELL_STORE.md` and is now recorded as a decision rather than a
+gap. And `CLAUDE.md` gained the `#[xml(text)]` escaping gap that two `mjx-sml` source comments have
+cited it for since MJXOFF-114 without it ever being there.
+
 ## [0.0.136] - 2026-09-07
 
 ### The facade's guide, and the audit that had to come first (MJXOFF-214, G6)
