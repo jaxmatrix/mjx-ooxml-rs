@@ -547,16 +547,6 @@ impl Workbook {
         name: &str,
         resizing: ResizingBehavior,
     ) -> Result<(usize, PartName), XlsxError> {
-        // A series this library authors carries no `c:spPr`, so its fill comes from the theme's
-        // `accent1…accent6`. A workbook with no theme part resolves those to nothing and paints no
-        // bars at all (MJXOFF-200). One is authored here — for both chart doors, which is why it is
-        // in this shared helper rather than in either of them — **only** if the package carries
-        // none: a workbook that arrived with a theme keeps it untouched, because supplying a default
-        // in place of the user's own would override the branding of whoever opens the file.
-        let workbook_part = self.workbook_part().clone();
-        let theme_rel_id = self.next_workbook_relationship_id();
-        crate::parts::ensure_theme_part(self.package_mut(), &workbook_part, &theme_rel_id)?;
-
         let drawing_part = self.drawing_part_or_create(sheet_index)?;
         let chart_part = PartName::new(&self.free_chart_part_name())?;
         self.package_mut()
@@ -598,6 +588,22 @@ impl Workbook {
             &drawing_part,
             mjx_xml::fidelity::serialize_to_vec(&document),
         )?;
+
+        // A series this library authors carries no `c:spPr`, so its fill comes from the theme's
+        // `accent1…accent6`. A workbook with no theme part resolves those to nothing and paints no
+        // bars at all (MJXOFF-200). One is authored here — for both chart doors, which is why it is
+        // in this shared helper rather than in either of them — **only** if the package carries
+        // none: a workbook that arrived with a theme keeps it untouched, because supplying a default
+        // in place of the user's own would override the branding of whoever opens the file.
+        //
+        // It is written **last**, after every step that can refuse. Written first, a chart aimed at
+        // a tab that cannot hold one — a dialogsheet, say — left the theme part behind in a
+        // workbook whose chart was never added, so a refused edit had changed the file. The
+        // preservation gate (MJXOFF-210) found that on `print_and_sheet_kinds.xlsx`.
+        let workbook_part = self.workbook_part().clone();
+        let theme_rel_id = self.next_workbook_relationship_id();
+        crate::parts::ensure_theme_part(self.package_mut(), &workbook_part, &theme_rel_id)?;
+
         Ok((at, chart_part))
     }
 
