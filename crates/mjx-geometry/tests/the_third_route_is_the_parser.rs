@@ -87,6 +87,16 @@ const DRAWINGML: &str = "http://schemas.openxmlformats.org/drawingml/2006/main";
 /// defect that still fails: one EMU written as two.
 const AGREEMENT_TOLERANCE_PIXELS: f32 = 0.01;
 
+/// How far apart, in **degrees**, the two routes' connection angles may lie.
+///
+/// A different unit from [`AGREEMENT_TOLERANCE_PIXELS`] and therefore a different number, which is
+/// the point of stating it separately: an angle is not a length and a tolerance in pixels says
+/// nothing about one. The wire scale is 60000ths of a degree and both routes read the same integer
+/// through the same `Angle::from_degrees`, so the only error available is the division by 60 000 —
+/// which is exact for every value in the table. The measured worst case is **0.0**, so this is a
+/// bound on `f64` noise and nothing else.
+const ANGLE_TOLERANCE_DEGREES: f64 = 1e-9;
+
 /// How many presets the differential covers.
 const PRESETS: usize = 186;
 
@@ -765,16 +775,29 @@ fn the_connection_sites_agree_through_the_parser() {
                 .enumerate()
             {
                 let placed = place(within, scale, shape_point(there.position));
-                worst_position = worst_position
-                    .max((here.position.x - placed.x).abs())
+                let apart = (here.position.x - placed.x)
+                    .abs()
                     .max((here.position.y - placed.y).abs());
                 // **The angle as well as the point.** A site without its outgoing direction is a
                 // point, and an elbow connector that left along the straight line to its target
                 // would cut through the shape it started in. 648 of the 856 name a guide for it and
                 // 208 write a literal, so both arms of `ST_AdjAngle` are in this comparison.
-                worst_angle = worst_angle.max((here.angle.degrees() - there.angle.degrees()).abs());
+                let turned = (here.angle.degrees() - there.angle.degrees()).abs();
+                // Named here rather than only in the aggregate below: a failure has to say *which*
+                // site of which shape, or the reader is left diffing 856 of them by hand.
+                assert!(
+                    apart <= AGREEMENT_TOLERANCE_PIXELS && turned <= ANGLE_TOLERANCE_DEGREES,
+                    "`{shape}` in {orientation}, site {index}: this crate answers {:?} at {}° and \
+                     the parser route answers ({}, {}) at {}° — {apart} px and {turned}° apart",
+                    here.position,
+                    here.angle.degrees(),
+                    placed.x,
+                    placed.y,
+                    there.angle.degrees()
+                );
+                worst_position = worst_position.max(apart);
+                worst_angle = worst_angle.max(turned);
                 sites += 1;
-                let _ = index;
             }
         }
     }
@@ -792,7 +815,7 @@ fn the_connection_sites_agree_through_the_parser() {
         "the two routes' connection sites differ by {worst_position} px"
     );
     assert!(
-        worst_angle <= 1e-9,
+        worst_angle <= ANGLE_TOLERANCE_DEGREES,
         "the two routes' connection angles differ by {worst_angle}°"
     );
 }
