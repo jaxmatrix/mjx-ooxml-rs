@@ -58,6 +58,69 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.134] - 2026-09-07
+
+### Charts authored into Word and Excel had no data series: no theme part was ever written (MJXOFF-200, G4)
+
+**Found by a person opening a file.** The human validation pass opened `v-docx-04-authored.docx` and
+reported that the chart showed no data. It showed everything else: title, axis titles, category
+labels, value-axis tick labels, legend *text* and the plot frame. **No bars, and no colour keys in
+the legend.** The value axis auto-scaled correctly from the cached maximum, so the consumer was
+reading the series fine — the failure was in painting.
+
+**Cause: this library never wrote a theme part for Word or Excel.** Measured across the twenty
+validation artefacts at 0.0.133: 8 of 8 `.pptx` carried one, 0 of 6 `.docx` and 0 of 6 `.xlsx` did. A
+chart series this library authors carries **no `c:spPr`**, deliberately, so that the host document's
+brand wins — which means its fill comes from the theme's `accent1…accent6`. With no theme part those
+resolve to nothing and the series is painted with no colour. PowerPoint escaped by accident: a
+`.pptx` always has a theme because every slide master requires one, so the identical chart markup
+rendered blue and orange bars there and nothing in Word.
+
+**The fix is a theme, and the constraint on it is the whole difficulty.** Per-series `spPr` literals
+were rejected explicitly: they would make our own artefacts look right while overriding the palette
+of whoever opens the file. And a writer that emitted `word/theme/theme1.xml` unconditionally would
+have destroyed the branding of every real document this library opens and re-saves — an
+invisible-chart bug turned into a corrupt-the-customer's-file bug, and every gate here would have
+stayed green through it. So a theme is authored **only into a package that carries none**, and "has a
+theme" is decided by content type over the whole package rather than by the relationship this crate
+happens to classify.
+
+### Added
+
+- **`mjx_dml::default_theme_xml`** — the one `a:theme` this workspace authors, moved down from
+  `mjx-pptx`'s `blank` so Word, Excel and PowerPoint share the same bytes rather than writing the
+  markup out three times. Every deck is byte-identical to 0.0.133's.
+- **`mjx_sml::write::WorkbookPackage` writes `xl/theme/theme1.xml`**, so `Workbook::blank` and every
+  chart's embedded workbook carry one.
+- **`mjx-schema-gate`'s reference-resolution gate** — for a package we authored, every reference its
+  own content makes resolves to something present: relationship ids and targets, DrawingML scheme
+  colours and theme fonts, WordprocessingML theme colours, theme fonts, style ids and numbering ids,
+  SpreadsheetML theme colour indices, the font scheme and every index into a `styles.xml` table. This
+  is the class MJXOFF-198 §5 records as having no gate at all: **every other check in this repository
+  asks whether the bytes we wrote are the bytes we meant, and none asks whether a part we did not
+  write should have existed.**
+
+  The rule that matters is the one with nothing in the markup to look for: a `c:ser` with **no**
+  `c:spPr` states no colour, it *defers* to `accent1…accent6` cycled by series order. A gate that
+  searched for `a:schemeClr` would have stayed green through this entire defect.
+
+### Fixed
+
+- **A chart added to a `.docx` or `.xlsx` gains a theme when the package has none**, so its series
+  resolve a colour. A document or workbook that arrives with a theme keeps it byte for byte.
+- **The authored workbook's font 0 follows the theme** — `<color theme="1"/>` and
+  `<scheme val="minor"/>` beside the literal `Calibri`, which is what Excel writes. This was API-audit
+  finding F5: inert while there was no theme to reference, live the moment there is one, so it is
+  fixed in the same change.
+
+### Documentation
+
+- `crates/mjx-xlsx/docs/guide/deliberate_limitations.md` recorded the missing theme as harmless —
+  *"a `theme`-referencing colour in a file you opened resolves against the theme that file carries"*.
+  True of a file you opened and **false of the authored case the row was about**. The row is gone and
+  the section says why, because a limitations page is a place a rendering defect can hide reading as
+  a nicety. Four more pages said the same thing and are corrected with it.
+
 ## [0.0.133] - 2026-09-07
 
 ### A relationship target's percent-encoding is decoded, and three Word edits stop sweeping the package (MJXOFF-209, G3)
