@@ -1,12 +1,33 @@
-//! Six preset shapes, transcribed by hand — the data this crate's machine was built and gated
-//! against before `presetShapeDefinitions.xml` was available.
+//! Six preset shapes, transcribed by hand — **no longer the table this crate answers from**, and
+//! kept as the independent reference the generated table is diffed against.
+//!
+//! # What these are now
+//!
+//! MJXOFF-203 extracted all 186 presets `presetShapeDefinitions.xml` defines, mechanically, and
+//! [`seeded_shapes`](crate::seeded_shapes) returns *those*. These six stayed, because the
+//! extraction's strongest available gate was diffing it against a transcription that did **not**
+//! come from the same file: two routes to one answer. `tests/the_two_routes_agree.rs` is that
+//! diff, it runs on every build, and it is what keeps this module from being dead weight — a
+//! reference nothing compares against is not a reference.
+//!
+//! **What the diff found, so a reader need not rerun it.** All six agree on the resolved outline.
+//! Two of the six disagree on how the file *writes* that outline, and neither disagreement is an
+//! error:
+//!
+//! * `pie` — the file draws `moveTo(rim) → arcTo → lnTo(hc, vc) → close`; this module draws
+//!   `moveTo(hc, vc) → lnTo(rim) → arcTo → close`. Same wedge, rotated start point. MJXOFF-202
+//!   predicted exactly this, which is why the diff compares resolved outlines and never step
+//!   lists.
+//! * `triangle` — the file's apex guide is called `x2` and its `x1` is a different formula
+//!   (`*/ w a 200000`, for the text rectangle); this module called the apex `x1`. Same number,
+//!   different name, which is why the diff never compares guide names either.
+//!
+//! The rest agree step for step, including `rightArrow`'s seven points and its `dy1 =
+//! */ h a1 200000` — the row MJXOFF-202 named as its own weakest point.
 //!
 //! # Why these are hand-written, and what that is *for*
 //!
-//! MJXOFF-203 extracts all 187 presets mechanically out of `presetShapeDefinitions.xml`. Its
-//! strongest available gate is diffing that extraction against a transcription that did **not**
-//! come from the same file: two routes to one answer. That is the whole purpose of this module, and
-//! it is worth exactly as much as its independence, so every row records how independent it really
+//! It is worth exactly as much as its independence, so every row records how independent it really
 //! was in [`Derivation`] and says so in prose in its `source` field.
 //!
 //! **Read that honestly before relying on it.** Nothing here was copied out of the XML, but the
@@ -45,7 +66,7 @@
 //! be off-centre by however much the shape is not square. Every row here is written on that basis,
 //! and [`crate::arc`] converts.
 
-use mjx_ooxml_types::drawingml::{PresetGuide, PresetShapeType};
+use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide, PresetShapeType};
 
 use crate::table::{
     PresetAngle, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition,
@@ -82,6 +103,42 @@ const ELLIPSE_STEPS: &[PresetPathStep] = &[
     ellipse_quadrant(PresetAngle::Native(0)),
     ellipse_quadrant(PresetAngle::Guide("cd4")),
     PresetPathStep::Close,
+];
+
+/// The `a:avLst` of `triangle`: where the apex sits, as a fraction of the width.
+const TRIANGLE_ADJUSTMENT_VALUES: &[PresetGuide] = &[PresetGuide {
+    wire_name: "adj",
+    formula: "val 50000",
+}];
+
+/// The `a:avLst` of `roundRect`: the corner radius, as a fraction of the shorter side.
+const ROUNDED_RECTANGLE_ADJUSTMENT_VALUES: &[PresetGuide] = &[PresetGuide {
+    wire_name: "adj",
+    formula: "val 16667",
+}];
+
+/// The `a:avLst` of `rightArrow`: the shaft's thickness, then the head's length.
+const RIGHT_ARROW_ADJUSTMENT_VALUES: &[PresetGuide] = &[
+    PresetGuide {
+        wire_name: "adj1",
+        formula: "val 50000",
+    },
+    PresetGuide {
+        wire_name: "adj2",
+        formula: "val 50000",
+    },
+];
+
+/// The `a:avLst` of `pie`: the start angle, then the end angle.
+const PIE_ADJUSTMENT_VALUES: &[PresetGuide] = &[
+    PresetGuide {
+        wire_name: "adj1",
+        formula: "val 0",
+    },
+    PresetGuide {
+        wire_name: "adj2",
+        formula: "val 16200000",
+    },
 ];
 
 /// The guides of `triangle`: pin the adjustment into its domain, then place the apex.
@@ -258,17 +315,25 @@ const PIE_STEPS: &[PresetPathStep] = &[
     PresetPathStep::Close,
 ];
 
-/// A path with no coordinate box of its own — the shape's space is the path's space.
+/// A path with no coordinate box of its own, filled and stroked the way an unstated `a:path` is —
+/// the shape's space is the path's space, and the three flags take their schema defaults.
 const fn whole_shape(steps: &'static [PresetPathStep]) -> PresetPath {
     PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps,
     }
 }
 
-/// The six seeded shapes, in `PresetShapeType` declaration order.
-pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
+/// The six hand-transcribed shapes, in `PresetShapeType` declaration order.
+///
+/// Public because its only consumer is a test in another crate-level target —
+/// `tests/the_two_routes_agree.rs`, which compares each row against
+/// [`definition_of`](crate::definition_of)'s generated answer for the same preset.
+pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
     PresetShapeDefinition {
         preset: PresetShapeType::Ellipse,
         derivation: Derivation::FromFirstPrinciples,
@@ -280,6 +345,7 @@ pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
                  stAng coincide, so the structure is forced rather than chosen. That also means \
                  agreement with a generated row here is weak evidence: there is no other sensible \
                  way to write it.",
+        adjustment_values: &[],
         guides: &[],
         paths: &[whole_shape(ELLIPSE_STEPS)],
     },
@@ -299,6 +365,7 @@ pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
                  documentation, which quotes the spec's `arc` shape: it converts the true angle \
                  stAng into the parametric one, which is what puts the arc's centre on (hc, vc). \
                  That idiom is therefore NOT independently derived.",
+        adjustment_values: PIE_ADJUSTMENT_VALUES,
         guides: PIE_GUIDES,
         paths: &[whole_shape(PIE_STEPS)],
     },
@@ -308,6 +375,7 @@ pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
         source: "ECMA-376 Part 1 §20.1.10.56, ST_ShapeType value `rect`. The shape's box itself: \
                  four corners clockwise from (l, t), no guides and no adjustments. There is one \
                  way to write it, so this row is fully independent and proves the least.",
+        adjustment_values: &[],
         guides: &[],
         paths: &[whole_shape(RECTANGLE_STEPS)],
     },
@@ -324,6 +392,7 @@ pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
                  shorter side, so pinning a2 at 100000·w/ss pins dx1 at w. The shaft is centred on \
                  vc and dy1 is half its thickness, hence the 200000 divisor. Seven points \
                  clockwise from the shaft's top-left corner.",
+        adjustment_values: RIGHT_ARROW_ADJUSTMENT_VALUES,
         guides: RIGHT_ARROW_GUIDES,
         paths: &[whole_shape(RIGHT_ARROW_STEPS)],
     },
@@ -338,6 +407,7 @@ pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
                  the shorter side because two corners of more than that would overlap, which is \
                  what makes 50000 the only bound the shape could have. Four arcs and three lines: \
                  the left edge is drawn by the close, not by a lnTo.",
+        adjustment_values: ROUNDED_RECTANGLE_ADJUSTMENT_VALUES,
         guides: ROUNDED_RECTANGLE_GUIDES,
         paths: &[whole_shape(ROUNDED_RECTANGLE_STEPS)],
     },
@@ -350,6 +420,7 @@ pub(crate) const SEEDED_SHAPES: &[PresetShapeDefinition] = &[
                  (50000, the centre, which is the isosceles case the shape is pictured as) are \
                  read from the generated adjustments_of table and are NOT independent. Three \
                  points: bottom-left, apex, bottom-right.",
+        adjustment_values: TRIANGLE_ADJUSTMENT_VALUES,
         guides: TRIANGLE_GUIDES,
         paths: &[whole_shape(TRIANGLE_STEPS)],
     },

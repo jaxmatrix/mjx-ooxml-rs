@@ -23,22 +23,29 @@
 //! | a `PresetAngle` | `Native` versus `Guide` | `PresetAngle::to_adjust_angle` |
 //! | an arc's swing | zero — the arm that draws nothing | `arc_to_cubics` |
 //! | an ellipse's radii | equal — the arm where true and parametric angles coincide | `parametric_angle` |
+//! | a guide that will not evaluate | finite — the arm that defines it | `guide_environment`'s `is_a_singularity` |
+//! | a path's `@fill`/`@stroke` | filled and stroked — the arm that keeps the contour | `outline_of_definition` |
 //!
-//! **Every one of those branches has both arms exercised here, with a consequence.** The two that
-//! would otherwise never be taken with a non-identity value are the path coordinate box — no seeded
-//! shape declares one, because none of the six needs one — and the anisotropic arc, which is why
-//! `outline_of_definition` is public.
+//! **Every one of those branches has both arms exercised here, with a consequence.** Two would
+//! otherwise never be taken with a non-identity value against *real* data — the anisotropic arc,
+//! which is why `outline_of_definition` is public, and the three arms of `is_a_singularity`, of
+//! which only one is reachable from the committed table at all. The path coordinate box is no
+//! longer among them: thirty-one of the 186 generated shapes declare one, in boxes of 2, 5, 10,
+//! 21 600 and 43 200 — but the synthetic case below stays, because it is the one that pins down
+//! *which* number the box divides by.
 
 mod common;
 
 use common::{bounds_of, box_on_the_page, extents_of_the_box, points_of};
 use mjx_dml::geometry::{AdjustAngle, AdjustCoordinate};
+use mjx_geometry::PathFillMode;
 use mjx_geometry::{
     adjustment_domains, arc_to_cubics, outline_of_definition, parametric_angle, preset_outline,
     AdjustmentOverride, Derivation, PresetAngle, PresetCoordinate, PresetGeometryProvider,
     PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition, PresetShapeType, ShapeOutline,
     ShapePoint, Size, UnknownShapePolicy, MAXIMUM_ARC_SEGMENT_RADIANS,
 };
+use mjx_ooxml_types::drawingml::PresetGuide;
 use mjx_scene::{GeometryProvider, OutlineProvenance, SceneError, SceneRect};
 
 /// A unit square path, written in whatever coordinate box the definition below declares.
@@ -67,10 +74,14 @@ const NO_COORDINATE_BOX: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a 1000 EMU square in the shape's own space, for the identity-value probe",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: UNIT_SQUARE,
     }],
 };
@@ -81,10 +92,14 @@ const A_COORDINATE_BOX: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a 1000 × 1000 path box, for the identity-value probe",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: Some(1000),
         height: Some(1000),
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: UNIT_SQUARE,
     }],
 };
@@ -95,13 +110,195 @@ const A_ZERO_COORDINATE_BOX: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Rectangle,
     derivation: Derivation::FromFirstPrinciples,
     source: "a path box declared as zero, which is the schema default and means no box",
+    adjustment_values: &[],
     guides: &[],
     paths: &[PresetPath {
         width: Some(0),
         height: Some(0),
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: UNIT_SQUARE,
     }],
 };
+
+// -------------------------------------------------------------------------------------------
+// A guide that will not evaluate: which of the three arms, and what each one costs
+// -------------------------------------------------------------------------------------------
+
+/// A shape one of whose guides has no finite value, read by nothing.
+///
+/// `wide` divides by a guide that is zero, so it has no value; `x1` never mentions it and the path
+/// draws through `x1` alone. The whole shape must still draw — that is the arm that turns four of
+/// the ten singular presets back into drawable ones.
+const A_SINGULAR_GUIDE_NOBODY_READS: PresetShapeDefinition = PresetShapeDefinition {
+    preset: PresetShapeType::Rectangle,
+    derivation: Derivation::FromFirstPrinciples,
+    source: "a guide with no finite value that no path reads, for the identity-value probe",
+    adjustment_values: &[],
+    guides: &[
+        PresetGuide {
+            wire_name: "zero",
+            formula: "val 0",
+        },
+        PresetGuide {
+            wire_name: "wide",
+            formula: "*/ w h zero",
+        },
+        PresetGuide {
+            wire_name: "x1",
+            formula: "*/ w 1 2",
+        },
+    ],
+    paths: &[PresetPath {
+        width: None,
+        height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
+        steps: &[
+            PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
+            PresetPathStep::LineTo(PresetPoint::at("x1", "b")),
+            PresetPathStep::Close,
+        ],
+    }],
+};
+
+/// The same singular guide, this time read by the path.
+const A_SINGULAR_GUIDE_A_PATH_READS: PresetShapeDefinition = PresetShapeDefinition {
+    preset: PresetShapeType::Rectangle,
+    derivation: Derivation::FromFirstPrinciples,
+    source: "a guide with no finite value that a path reads, for the identity-value probe",
+    adjustment_values: &[],
+    guides: &[
+        PresetGuide {
+            wire_name: "zero",
+            formula: "val 0",
+        },
+        PresetGuide {
+            wire_name: "wide",
+            formula: "*/ w h zero",
+        },
+    ],
+    paths: &[PresetPath {
+        width: None,
+        height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
+        steps: &[
+            PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
+            PresetPathStep::LineTo(PresetPoint::at("wide", "b")),
+            PresetPathStep::Close,
+        ],
+    }],
+};
+
+/// A guide naming something nothing ever defines — a defect in the table, not a singularity.
+const A_GUIDE_WITH_A_NAME_NOTHING_DEFINES: PresetShapeDefinition = PresetShapeDefinition {
+    preset: PresetShapeType::Rectangle,
+    derivation: Derivation::FromFirstPrinciples,
+    source: "a guide naming an undefined name, for the identity-value probe",
+    adjustment_values: &[],
+    guides: &[PresetGuide {
+        wire_name: "x1",
+        formula: "*/ w nowhere 100000",
+    }],
+    paths: &[PresetPath {
+        width: None,
+        height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
+        steps: &[
+            PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
+            PresetPathStep::LineTo(PresetPoint::at("x1", "b")),
+            PresetPathStep::Close,
+        ],
+    }],
+};
+
+/// A guide whose formula gives its operator the wrong number of arguments.
+const A_GUIDE_WITH_A_MALFORMED_FORMULA: PresetShapeDefinition = PresetShapeDefinition {
+    preset: PresetShapeType::Rectangle,
+    derivation: Derivation::FromFirstPrinciples,
+    source: "a guide with a four-argument `+-`, for the identity-value probe",
+    adjustment_values: &[],
+    guides: &[PresetGuide {
+        wire_name: "x1",
+        formula: "+- w 0 h 0",
+    }],
+    paths: &[PresetPath {
+        width: None,
+        height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
+        steps: &[
+            PresetPathStep::MoveTo(PresetPoint::at("l", "t")),
+            PresetPathStep::LineTo(PresetPoint::at("x1", "b")),
+            PresetPathStep::Close,
+        ],
+    }],
+};
+
+#[test]
+fn all_three_arms_of_a_guide_that_will_not_evaluate_are_taken_and_answer_differently() {
+    // `is_a_singularity` has three answers and the committed table only ever reaches one of them,
+    // so the other two are exhibited here. They must not collapse into each other: a shape's own
+    // arithmetic leaving the reals is not a defect and must not fail the page, while a table that
+    // names a guide it does not define, or writes a formula the language does not have, is a defect
+    // and must.
+    let (within, extents) = (box_on_the_page(), extents_of_the_box());
+
+    // 1. Not finite, and nothing reads it — the shape draws. This is the arm that matters: four of
+    //    the ten presets whose guide list has a singular point are singular only in the text
+    //    rectangle's insets, and would otherwise be undrawable at those adjustments.
+    let drawn = outline_of_definition(&A_SINGULAR_GUIDE_NOBODY_READS, extents, &[], within)
+        .expect("a guide nothing reads cannot stop the shape drawing");
+    assert_eq!(drawn.commands.len(), 3, "the triangle still drew");
+
+    // 2. Not finite, and a path reads it — no geometry, and a *counted* stand-in may fill it.
+    let singular = outline_of_definition(&A_SINGULAR_GUIDE_A_PATH_READS, extents, &[], within)
+        .expect_err("a path reading a guide with no value cannot resolve");
+    assert!(
+        matches!(&singular, mjx_geometry::GeometryError::SingularGeometry { guide, .. } if guide == "wide"),
+        "a path reading a singular guide reported {singular}, which names the wrong cause"
+    );
+    assert!(
+        singular.has_no_geometry_to_draw(),
+        "a singularity must be fillable by a counted stand-in"
+    );
+
+    // 3. A name nothing defines — a table defect, and no stand-in may hide it.
+    let undefined =
+        outline_of_definition(&A_GUIDE_WITH_A_NAME_NOTHING_DEFINES, extents, &[], within)
+            .expect_err("a guide naming nothing cannot resolve");
+    assert!(
+        matches!(undefined, mjx_geometry::GeometryError::Guides { .. }),
+        "an undefined name reported {undefined}, which is not a guide-list failure"
+    );
+    assert!(
+        !undefined.has_no_geometry_to_draw(),
+        "a table defect reported itself as having nothing to draw, so a stand-in would hide it"
+    );
+    assert!(
+        format!("{undefined}").contains("nowhere"),
+        "the failure does not name the guide it could not find: {undefined}"
+    );
+
+    // 4. A malformed formula — the same, by the other arm of `is_a_singularity`.
+    let malformed = outline_of_definition(&A_GUIDE_WITH_A_MALFORMED_FORMULA, extents, &[], within)
+        .expect_err("a four-argument `+-` cannot resolve");
+    assert!(
+        matches!(malformed, mjx_geometry::GeometryError::Guides { .. }),
+        "a malformed formula reported {malformed}"
+    );
+    assert!(
+        !malformed.has_no_geometry_to_draw(),
+        "a malformed formula reported itself as having nothing to draw"
+    );
+}
 
 #[test]
 fn a_paths_own_coordinate_box_changes_where_its_points_land() {
@@ -291,7 +488,12 @@ fn the_unknown_shape_policy_decides_what_an_unseeded_shape_becomes() {
     // getter is that both arms are asked the same question and answer differently *at the seam* —
     // through `GeometryProvider::outline`, which is the only method anything above will call.
     let within = box_on_the_page();
-    let shape = ShapeOutline::new(PresetShapeType::Cloud, extents_of_the_box());
+    // `upArrow` — the one `ST_ShapeType` value ECMA-376's own geometry file defines nothing for,
+    // and therefore the only preset this build genuinely cannot draw.
+    let shape = ShapeOutline::new(
+        mjx_geometry::PRESETS_WITHOUT_GEOMETRY[0],
+        extents_of_the_box(),
+    );
 
     let mut refusing = PresetGeometryProvider::new();
     assert_eq!(refusing.unknown_shape_policy(), UnknownShapePolicy::Refuse);
@@ -502,6 +704,7 @@ const A_DIAGONAL_ARC: PresetShapeDefinition = PresetShapeDefinition {
     preset: PresetShapeType::Pie,
     derivation: Derivation::ConstantsFromTheGeneratedTables,
     source: "a 45° to 135° arc of the inscribed ellipse, for the identity-value probe",
+    adjustment_values: &[],
     guides: &[
         mjx_ooxml_types::drawingml::PresetGuide {
             wire_name: "wt1",
@@ -531,6 +734,9 @@ const A_DIAGONAL_ARC: PresetShapeDefinition = PresetShapeDefinition {
     paths: &[PresetPath {
         width: None,
         height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
         steps: &[
             PresetPathStep::MoveTo(PresetPoint::at("x1", "y1")),
             PresetPathStep::ArcTo {

@@ -21,20 +21,27 @@
 //! its `pathLst`. A [`PresetPath`] carries the path's own coordinate box (`@w`/`@h`), which
 //! [`crate::resolve`] applies, and its steps.
 //!
-//! It does **not** carry `@fill` or `@stroke`, and that is a decision rather than an omission.
-//! Nothing consumes them: the display-list seam carries one command list and one
-//! [`FillRule`](mjx_scene::FillRule) per outline, and whether a shape is filled or stroked is
-//! decided by the *scene builder* from the fragment's decoration, not by the geometry. A flag
-//! extracted and read by nobody is the exact defect this loop keeps finding — `SceneMesh::provenance`
-//! was written once and read zero times — so the flags arrive with their consumer, in MJXOFF-203,
-//! and not before. `arc` is the shape that will need them: its only path is `fill="none"`, and
-//! filling an open contour is visibly wrong.
+//! It **does** carry `@fill`, `@stroke` and `@extrusionOk`, and MJXOFF-202 deliberately did not —
+//! its reason was that nothing consumed them, and *"a flag extracted and read by nobody is the
+//! exact defect this loop keeps finding"*. That reason has expired rather than been overruled:
+//! MJXOFF-203 brought the consumer with the flags. [`crate::resolve::contours_of_definition`] is a
+//! per-`a:path` answer that carries each contour's own treatment, and
+//! [`crate::outline_of_definition`] **acts** on the pair — a contour that is neither filled nor
+//! stroked draws nothing at all and is left out of the single command list the display-list seam
+//! takes. Exactly one path in the whole of `presetShapeDefinitions.xml` is in that state
+//! (`flowChartMultidocument`'s third), which is why the rule is gated by name rather than by
+//! sampling.
+//!
+//! `@extrusionOk` is the one flag with no consumer here, and it is carried rather than dropped for
+//! a stated reason: MJXOFF-201 §7 puts 3-D — `a:sp3d`, bevels and extrusion — outside this epic
+//! entirely, and re-opening the extractor later to fetch one attribute costs more than emitting it
+//! now. **Its reader is named in MJXOFF-211**, not left to be discovered.
 
 use mjx_dml::geometry::{AdjustAngle, AdjustCoordinate, DrawCommand, Emu, Point};
 use mjx_ooxml_core::measure::Angle;
-use mjx_ooxml_types::drawingml::{PresetGuide, PresetShapeType};
+use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide, PresetShapeType};
 
-use crate::seed::SEEDED_SHAPES;
+use crate::generated::GENERATED_SHAPES;
 use crate::Derivation;
 
 /// How many angular units the wire uses per degree — `a:gd` angles and `a:arcTo@stAng` are both in
@@ -108,6 +115,15 @@ impl PresetPoint {
             x: PresetCoordinate::Guide(x),
             y: PresetCoordinate::Guide(y),
         }
+    }
+
+    /// A point whose coordinates are stated one at a time — a literal, a guide, or one of each.
+    ///
+    /// The general constructor [`at`](Self::at) is the shorthand for. The generated table writes
+    /// this form wherever either coordinate is a literal, which is about one point in eight.
+    #[must_use]
+    pub const fn new(x: PresetCoordinate, y: PresetCoordinate) -> Self {
+        Self { x, y }
     }
 
     /// This point as `mjx-dml`'s own [`Point`].
@@ -201,7 +217,8 @@ impl PresetPathStep {
     }
 }
 
-/// One `a:path` of a preset shape: its own coordinate box, and its ordered steps.
+/// One `a:path` of a preset shape: its own coordinate box, the treatment it declares, and its
+/// ordered steps.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PresetPath {
     /// The width of the path's own coordinate box (`@w`), or `None` when the path is written
@@ -211,11 +228,58 @@ pub struct PresetPath {
     /// path coordinate system"*, so a declared box means every `x` in this path is a fraction of it
     /// rather than a length: [`crate::resolve`] scales by `within.width() / w` instead of by the
     /// shape's extents. Absent, or zero, means no box and no scaling.
+    ///
+    /// Thirty-one of the generated shapes declare one, and the boxes are small — `2`, `5`, `10`,
+    /// `21600` — so a coordinate inside such a path is a *proportion*. A guide name may still
+    /// appear there, but only ever an **angular** one (`cd2`, `cd4`, `3cd4`): an angle is
+    /// dimensionless and means the same in either space, while a length guide is computed in EMU
+    /// and would be meaningless against a box of ten. That is a property of the file, and
+    /// `xtask`'s extraction gate asserts it rather than assuming it.
     pub width: Option<i64>,
     /// The height of the path's own coordinate box (`@h`). As [`width`](Self::width).
     pub height: Option<i64>,
+    /// How this path is filled (`@fill`; the schema default is
+    /// [`Normal`](PathFillMode::Normal)).
+    ///
+    /// [`PathFillMode::None`] is not "no fill colour" but *"do not fill this contour"* — the
+    /// stroked outline of a shape whose filled body is a different path. `arc` is the clearest
+    /// case: its only stroked path is `fill="none"` and filling an open contour draws a chord
+    /// nothing asked for.
+    pub fill: PathFillMode,
+    /// Whether this path is stroked (`@stroke`; the schema default is `true`).
+    ///
+    /// `false` is the *body* half of the same pairing: a contour that carries the shape's fill and
+    /// must not be outlined, because the outline belongs to a sibling path.
+    pub stroke: bool,
+    /// Whether this path may be extruded in 3-D (`@extrusionOk`; the schema default is `true`).
+    ///
+    /// Carried, and read by nobody in this crate — the one flag in the row that is not acted on
+    /// here, for the reason the [module documentation](self) gives: MJXOFF-201 §7 puts 3-D outside
+    /// this epic and MJXOFF-211 names who reads it.
+    pub extrusion_ok: bool,
     /// The steps, in order.
     pub steps: &'static [PresetPathStep],
+}
+
+impl PresetPath {
+    /// Whether this path contributes a filled region (`@fill` is anything but
+    /// [`None`](PathFillMode::None)).
+    #[must_use]
+    pub fn is_filled(self) -> bool {
+        self.fill != PathFillMode::None
+    }
+
+    /// Whether this path draws nothing at all — neither filled nor stroked.
+    ///
+    /// True for exactly one path of one shape in ECMA-376's geometry file
+    /// (`flowChartMultidocument`'s third), and [`crate::outline_of_definition`] leaves such a
+    /// contour out of the single command list the display-list seam takes. That is the whole of
+    /// what makes [`fill`](Self::fill) and [`stroke`](Self::stroke) fields something acts on rather
+    /// than fields something merely stores.
+    #[must_use]
+    pub fn draws_nothing(self) -> bool {
+        !self.is_filled() && !self.stroke
+    }
 }
 
 /// One preset shape's geometry: the guide list its coordinates are written against, and its paths.
@@ -231,6 +295,22 @@ pub struct PresetShapeDefinition {
     /// between a generated row and a hand-written one is only useful if the hand-written one says
     /// what it thought it was doing.
     pub source: &'static str,
+    /// The shape's `a:avLst`, in declaration order: every adjustable value it defines, with the
+    /// `val N` seed the file gives it.
+    ///
+    /// **Not the same list as [`adjustments_of`](mjx_ooxml_types::drawingml::adjustments_of)**, and
+    /// the difference is load-bearing rather than cosmetic. That table holds the *user-facing*
+    /// adjustments — the `a:avLst` entries some `a:ahLst` handle references — and deliberately drops
+    /// the rest as constants. But a dropped one is still a name the shape's own `gdLst` reads:
+    /// `pentagon`'s first guide is `*/ wd2 hf 100000` and `hf` is an `avLst` entry no handle points
+    /// at, so a guide environment seeded from the handled subset alone cannot evaluate the shape at
+    /// all. Nine shapes are in that position — the five- to ten-sided regular polygons and stars,
+    /// plus `wedgeRoundRectCallout`'s third adjustment — and they resolve because this field carries
+    /// the whole list.
+    ///
+    /// Evaluated before [`guides`](Self::guides), with any `a:avLst` override from the document
+    /// applied on top; see [`crate::resolve`].
+    pub adjustment_values: &'static [PresetGuide],
     /// The shape's `a:gdLst`, in declaration order — which is evaluation order, and therefore the
     /// whole of the cycle defence (ECMA-376 Part 1 §20.1.9.11).
     pub guides: &'static [PresetGuide],
@@ -238,22 +318,28 @@ pub struct PresetShapeDefinition {
     pub paths: &'static [PresetPath],
 }
 
-/// Every preset this build has a path table for, in `PresetShapeType` order.
+/// Every preset this build has a path table for, in `presetShapeDefinitions.xml` order.
 ///
-/// Six today, from [`crate::seed`]; 187 once MJXOFF-203 generates them.
+/// **186 shapes**, mechanically extracted from ECMA-376's own geometry file by
+/// `cargo run -p xtask -- codegen` — not the six hand-transcribed rows of [`crate::seed`], which
+/// stayed behind as the differential reference the extraction was checked against.
+///
+/// 186 and not 187, and that is the file's arithmetic rather than this crate's: `ST_ShapeType`
+/// declares 187 values and `presetShapeDefinitions.xml` defines geometry for 186 of them. The one
+/// it omits is named in [`PRESETS_WITHOUT_GEOMETRY`](crate::PRESETS_WITHOUT_GEOMETRY).
 #[must_use]
 pub fn seeded_shapes() -> &'static [PresetShapeDefinition] {
-    SEEDED_SHAPES
+    GENERATED_SHAPES
 }
 
 /// The path table for one preset, or `None` if this build has not got it.
 ///
-/// A linear scan rather than a `match`, because the table is data and MJXOFF-203 will make it
-/// generated data: a `match` would have to be regenerated in step with the rows, and a scan over
-/// 187 rows costs less than the guide evaluation that follows it.
+/// A linear scan rather than a `match`, because the table is generated data: a `match` would have
+/// to be regenerated in step with the rows, and a scan over 186 rows costs less than the guide
+/// evaluation that follows it.
 #[must_use]
 pub fn definition_of(preset: PresetShapeType) -> Option<&'static PresetShapeDefinition> {
-    SEEDED_SHAPES
+    GENERATED_SHAPES
         .iter()
         .find(|definition| definition.preset == preset)
 }
