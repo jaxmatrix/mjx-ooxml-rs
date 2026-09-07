@@ -13,6 +13,7 @@
 //!
 //! MCE appears in no OOXML XSD, so its namespace constant lives here.
 
+pub mod guide;
 mod resolve;
 mod scope;
 

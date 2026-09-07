@@ -38,6 +38,7 @@
 mod content_types;
 pub mod doc_props;
 mod error;
+pub mod guide;
 mod media;
 mod name;
 mod package;
