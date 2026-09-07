@@ -58,6 +58,61 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.132] - 2026-09-07
+
+**`mjx-geometry`: the preset shape path tables, and the `GeometryProvider` that ends the
+placeholder** (MJXOFF-202, Phase G position 1).
+
+Until this release every preset shape in every deck resolved to the same framed, crossed rounded
+rectangle — `mjx-scene`'s `PlaceholderGeometry`, built deliberately wrong so that a placeholder
+render could never be mistaken for a fidelity one. This is the machine that replaces it, built and
+gated against six shapes transcribed by hand so that it could exist before
+`presetShapeDefinitions.xml` was available. MJXOFF-203 feeds the same machine 187 shapes instead of
+six.
+
+### Added
+
+- **`mjx-geometry`, a new crate at rank 2.5**, between shared markup and the format tier. Every
+  other rank in the workspace is justified by what its crates may not *reach*; this one is placed by
+  what may not reach **it**. A preset path table is DrawingML, so it lives above `mjx-dml` (2.0) —
+  which is what keeps `mjx-scene` (1.7) and `mjx-layout` (1.6) structurally unable to depend on it,
+  and therefore keeps a display list from ever learning what a `.pptx` is. It is deliberately
+  *below* the format tier, because a format crate is allowed to know what its own shapes look like.
+  Grown in all three rank tables (`xtask/tests/layering.rs`, `CLAUDE.md`, `README.md`) and proved by
+  mutation in both directions: `mjx-sml -> mjx-geometry` (2.1 → 2.5) and `mjx-geometry -> mjx-pptx`
+  (2.5 → 3.0) each go red naming both crates and both ranks.
+- **`PresetGeometryProvider`** — a registry of outline handles, each naming a `PresetShapeType`, the
+  shape's extents and its `a:avLst` overrides. Answering a handle evaluates the shape's whole
+  `gdLst` through `mjx-dml`'s own evaluator, resolves its path through `mjx-dml`'s own resolver, and
+  maps the result onto the device-pixel box the seam supplied. Every answer carries
+  `OutlineProvenance::Document`, which is the field R10 gates a fidelity render on.
+  `ShapeOutline::from_preset_geometry` is the bridge from a document's own `a:prstGeom`.
+- **`UnknownShapePolicy`** — what a provider does with a shape it cannot draw: `Refuse`, so the page
+  fails rather than rendering a lie, or `StandIn`, which answers with `mjx-scene`'s placeholder
+  *with its provenance intact* so the render is visibly wrong and countable. Neither answer is an
+  empty path. The policy applies only to a gap in the table: a seeded shape whose guides will not
+  evaluate is an error under both, because papering over it would hide the one failure the seed
+  table exists to catch.
+- **Six seed shapes** — `rect`, `ellipse`, `triangle`, `roundRect`, `rightArrow` and `pie` —
+  transcribed from ECMA-376 Part 1 §20.1.10.56's descriptions and §20.1.9.11's formula language,
+  each recording **how independently it was derived**, because MJXOFF-203's strongest gate is
+  diffing its mechanical extraction against a transcription that did not come from the same file,
+  and a comparison whose two sides share a source proves nothing.
+- **Arc decomposition.** `mjx-dml` resolves an `a:arcTo` to two radii and two angles and stops,
+  because how many cubics an arc becomes is a renderer's decision. `mjx_geometry::arc` is that
+  decision, and it settles the question the spec answers only implicitly: **`stAng` is a true angle,
+  not an ellipse parameter**, which the `arc` preset's own `cat2 wd2 ht1 wt1` start point proves —
+  the derived centre lands on `(hc, vc)` under that reading and nowhere near it under the other.
+- **`mjx-paint`'s seam gate now forbids naming `mjx-geometry`.** At rank 5.5 the edge would be a
+  legal downward one, and a painter that built its own preset provider would be a painter that knows
+  what an `a:prstGeom` is.
+
+### Changed
+
+- Nothing below the display list. `mjx-scene` still takes a `&dyn GeometryProvider` and still has
+  never heard of OOXML; `mjx-paint` still does not name `mjx-dml`. That was MJXOFF-201 §3's rule and
+  it held without amendment.
+
 ## [0.0.131] - 2026-09-07
 
 ### Merged `main` into the client-platform phase branch
