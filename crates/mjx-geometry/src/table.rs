@@ -13,13 +13,21 @@
 //! that a reader comparing the two enumerations can see at a glance that neither has a case the
 //! other lacks, and `tests/a_preset_renders_as_itself.rs` asserts the mapping over all seven.
 //!
+//! [`PresetTextRectangle`] and [`PresetConnectionSite`] are the same construction applied to
+//! `mjx-dml`'s [`Rectangle`] and [`ConnectionSite`], for the same reason and with the same total
+//! mapping ([`to_rectangle`](PresetTextRectangle::to_rectangle),
+//! [`to_connection_site`](PresetConnectionSite::to_connection_site)). Neither introduces a
+//! coordinate type: both are written in the [`PresetCoordinate`], [`PresetAngle`] and
+//! [`PresetPoint`] this module already had, and both resolve through the *same* guide environment
+//! and the *same* affine map the paths do — see [`crate::resolve`].
+//!
 //! # What a row holds, and what it deliberately does not
 //!
 //! A [`PresetShapeDefinition`] is the shape's `gdLst` (as
 //! [`PresetGuide`]s — the *same* type `mjx-ooxml-types` already generates
-//! `adjustment_bound_guides_of` in, so MJXOFF-203 emits one kind of guide row rather than two) and
-//! its `pathLst`. A [`PresetPath`] carries the path's own coordinate box (`@w`/`@h`), which
-//! [`crate::resolve`] applies, and its steps.
+//! `adjustment_bound_guides_of` in, so MJXOFF-203 emits one kind of guide row rather than two), its
+//! `a:rect`, its `a:cxnLst` and its `pathLst`. A [`PresetPath`] carries the path's own coordinate
+//! box (`@w`/`@h`), which [`crate::resolve`] applies, and its steps.
 //!
 //! It **does** carry `@fill`, `@stroke` and `@extrusionOk`, and MJXOFF-202 deliberately did not —
 //! its reason was that nothing consumed them, and *"a flag extracted and read by nobody is the
@@ -37,7 +45,9 @@
 //! entirely, and re-opening the extractor later to fetch one attribute costs more than emitting it
 //! now. **Its reader is named in MJXOFF-211**, not left to be discovered.
 
-use mjx_dml::geometry::{AdjustAngle, AdjustCoordinate, DrawCommand, Emu, Point};
+use mjx_dml::geometry::{
+    AdjustAngle, AdjustCoordinate, ConnectionSite, DrawCommand, Emu, Point, Rectangle,
+};
 use mjx_ooxml_core::measure::Angle;
 use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide, PresetShapeType};
 
@@ -217,6 +227,79 @@ impl PresetPathStep {
     }
 }
 
+/// One preset shape's text rectangle (`a:rect`, `CT_GeomRect`) — where text goes **inside** the
+/// shape, rather than against the box the shape is drawn in.
+///
+/// The `static`-holdable form of [`mjx_dml::geometry::Rectangle`], for the same reason
+/// [`PresetPathStep`] is `DrawCommand`'s: an [`AdjustCoordinate`] owns its guide name.
+/// [`to_rectangle`](Self::to_rectangle) is the whole of the relationship between them, and there is
+/// no second rectangle vocabulary in this crate.
+///
+/// **Why it matters, and why its absence is not the same as its default.** A rounded rectangle's
+/// text starts `29.289 %` of the corner radius in from the corner; a chevron's starts past the
+/// notch; a callout's sits in the body and not in the tail. A renderer that laid text against the
+/// shape's *bounding box* instead would put every one of them in the wrong place and still draw
+/// text, which is why [`crate::TextRectangle`] makes "this shape declares none" a different answer
+/// from "this shape declares one that has no value here" — and neither of them the bounding box
+/// unless a caller asks for it by name.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PresetTextRectangle {
+    /// The left edge (`@l`).
+    pub left: PresetCoordinate,
+    /// The top edge (`@t`).
+    pub top: PresetCoordinate,
+    /// The right edge (`@r`).
+    pub right: PresetCoordinate,
+    /// The bottom edge (`@b`).
+    pub bottom: PresetCoordinate,
+}
+
+impl PresetTextRectangle {
+    /// This text rectangle as `mjx-dml`'s own [`Rectangle`].
+    #[must_use]
+    pub fn to_rectangle(self) -> Rectangle {
+        Rectangle {
+            left: self.left.to_adjust_coordinate(),
+            top: self.top.to_adjust_coordinate(),
+            right: self.right.to_adjust_coordinate(),
+            bottom: self.bottom.to_adjust_coordinate(),
+        }
+    }
+}
+
+/// One place a connector can attach to a preset shape (`a:cxn`, `CT_ConnectionSite`): a point on
+/// the outline, and the angle a connector leaves it at.
+///
+/// The `static`-holdable form of [`mjx_dml::geometry::ConnectionSite`], and
+/// [`to_connection_site`](Self::to_connection_site) is the whole of the relationship.
+///
+/// The **angle** is what makes a site more than a point. An elbow connector leaving the top of a
+/// box must go *up* before it turns, and a curved one must leave along its tangent; both read
+/// `@ang`, in the wire scale of 60000ths of a degree, clockwise from the positive `x` axis. Two
+/// hundred and eight of the table's 856 sites state it as a literal and 648 name a guide — usually
+/// one of the circle constants `cd4`, `cd2`, `3cd4` — so both arms of [`PresetAngle`] are exercised
+/// by real data rather than only by a probe. The **positions** are not so evenly split: all 1 712
+/// of their coordinates are guide names and not one is a literal, which
+/// `crates/mjx-geometry/tests/a_connector_lands_on_the_outline.rs` asserts rather than assumes.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct PresetConnectionSite {
+    /// The angle a connector leaves the site at (`@ang`).
+    pub angle: PresetAngle,
+    /// Where the site sits, in the shape's own space (`a:pos`).
+    pub position: PresetPoint,
+}
+
+impl PresetConnectionSite {
+    /// This site as `mjx-dml`'s own [`ConnectionSite`].
+    #[must_use]
+    pub fn to_connection_site(self) -> ConnectionSite {
+        ConnectionSite {
+            angle: self.angle.to_adjust_angle(),
+            position: self.position.to_point(),
+        }
+    }
+}
+
 /// One `a:path` of a preset shape: its own coordinate box, the treatment it declares, and its
 /// ordered steps.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -314,6 +397,22 @@ pub struct PresetShapeDefinition {
     /// The shape's `a:gdLst`, in declaration order — which is evaluation order, and therefore the
     /// whole of the cycle defence (ECMA-376 Part 1 §20.1.9.11).
     pub guides: &'static [PresetGuide],
+    /// The shape's `a:rect` — where text goes inside it — or `None` for the five presets that
+    /// declare none.
+    ///
+    /// `None` is *"this shape says nothing about where its text goes"* and is a different fact from
+    /// *"this shape says, and the answer has no value at these adjustments"*; the two are told
+    /// apart by [`crate::TextRectangle`] and never by an empty rectangle. The five are `chartPlus`,
+    /// `chartStar`, `chartX`, `line` and `lineInv` — three tick marks and two bare lines, none of
+    /// which is a shape text is laid inside.
+    pub text_rectangle: Option<PresetTextRectangle>,
+    /// The shape's `a:cxnLst`, in order.
+    ///
+    /// Empty for thirteen presets, and the emptiness is meaningful rather than missing: the four
+    /// `bentConnector*`, the four `curvedConnector*` and `straightConnector1` are **themselves**
+    /// connectors, and a connector has nothing to connect to. The other four are the three
+    /// `chart*` marks and `funnel`.
+    pub connection_sites: &'static [PresetConnectionSite],
     /// The shape's `a:pathLst`, in order.
     pub paths: &'static [PresetPath],
 }

@@ -27,7 +27,8 @@
 use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide, PresetShapeType};
 
 use crate::table::{
-    PresetAngle, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition,
+    PresetAngle, PresetConnectionSite, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint,
+    PresetShapeDefinition, PresetTextRectangle,
 };
 use crate::Derivation;
 
@@ -49,6 +50,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "*/ w adj2 100000" },
             PresetGuide { wire_name: "y2", formula: "*/ h adj3 100000" },
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -109,6 +117,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
             PresetGuide { wire_name: "y3", formula: "*/ h adj5 100000" },
             PresetGuide { wire_name: "x3", formula: "*/ w adj6 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -175,6 +190,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y4", formula: "*/ h adj7 100000" },
             PresetGuide { wire_name: "x4", formula: "*/ w adj8 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -232,6 +254,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "*/ w adj2 100000" },
             PresetGuide { wire_name: "y2", formula: "*/ h adj3 100000" },
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -292,6 +321,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
             PresetGuide { wire_name: "y3", formula: "*/ h adj5 100000" },
             PresetGuide { wire_name: "x3", formula: "*/ w adj6 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -358,6 +394,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y4", formula: "*/ h adj7 100000" },
             PresetGuide { wire_name: "x4", formula: "*/ w adj8 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -411,6 +454,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g10", formula: "+- vc dx2 0" },
             PresetGuide { wire_name: "g11", formula: "+- hc 0 dx2" },
             PresetGuide { wire_name: "g12", formula: "+- hc dx2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -489,6 +539,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g15", formula: "*/ g13 1 4" },
             PresetGuide { wire_name: "g16", formula: "+- g11 g14 0" },
             PresetGuide { wire_name: "g17", formula: "+- g11 g15 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -572,6 +629,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `actionButtonBlank` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -604,6 +668,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g13", formula: "*/ ss 3 16" },
             PresetGuide { wire_name: "g14", formula: "+- g12 0 g13" },
             PresetGuide { wire_name: "g15", formula: "+- g9 g13 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -706,6 +777,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g16", formula: "+- g11 g14 0" },
             PresetGuide { wire_name: "g17", formula: "+- g11 g15 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -793,6 +871,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g10", formula: "+- vc dx2 0" },
             PresetGuide { wire_name: "g11", formula: "+- hc 0 dx2" },
             PresetGuide { wire_name: "g12", formula: "+- hc dx2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -882,6 +967,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g37", formula: "+- g11 g20 0" },
             PresetGuide { wire_name: "g41", formula: "*/ g13 1 14" },
             PresetGuide { wire_name: "g42", formula: "*/ g13 3 28" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -1006,6 +1098,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g31", formula: "+- g11 g20 0" },
             PresetGuide { wire_name: "g32", formula: "+- g11 g22 0" },
             PresetGuide { wire_name: "g33", formula: "+- g11 g23 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -1148,6 +1247,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g35", formula: "+- g11 g20 0" },
             PresetGuide { wire_name: "g37", formula: "+- g11 g22 0" },
             PresetGuide { wire_name: "g38", formula: "*/ g13 3 32" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -1303,6 +1409,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g47", formula: "+- g9 g30 0" },
             PresetGuide { wire_name: "g48", formula: "+- g9 g31 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -1439,6 +1552,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g26", formula: "+- g11 g18 0" },
             PresetGuide { wire_name: "g27", formula: "*/ g13 1 8" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -1561,6 +1681,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g24", formula: "+- g11 g15 0" },
             PresetGuide { wire_name: "g25", formula: "+- g11 g16 0" },
             PresetGuide { wire_name: "g26", formula: "+- g11 g18 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -1690,6 +1817,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "cang2", formula: "+- enAng cd4 0" },
             PresetGuide { wire_name: "cang3", formula: "+/ cang1 cang2 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cang1"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cang3"), position: PresetPoint::at("hc", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cang2"), position: PresetPoint::at("x2", "y2") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -1752,6 +1885,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y5", formula: "+- dh2 bd 0" },
             PresetGuide { wire_name: "y6", formula: "+- y3 bd2 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x4", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("th2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "aw2") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -1782,6 +1922,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `bentConnector2` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -1807,6 +1949,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "x1", formula: "*/ w adj1 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -1837,6 +1981,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "*/ h adj2 100000" },
             PresetGuide { wire_name: "y1", formula: "+/ t y2 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -1871,6 +2017,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y1", formula: "+/ t y2 2" },
             PresetGuide { wire_name: "y3", formula: "+/ b y2 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -1916,6 +2064,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y3", formula: "+/ y2 b 2" },
             PresetGuide { wire_name: "y15", formula: "+/ y1 b 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x0", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y15") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -1950,6 +2107,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "*/ ss a 100000" },
             PresetGuide { wire_name: "x2", formula: "+- r 0 x1" },
             PresetGuide { wire_name: "y2", formula: "+- b 0 x1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("x1"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "x1") },
         ],
         paths: &[
             PresetPath {
@@ -2133,6 +2301,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "cang2", formula: "+- istAng cd4 0" },
             PresetGuide { wire_name: "cang3", formula: "+/ cang1 cang2 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cang1"), position: PresetPoint::at("x5", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cang2"), position: PresetPoint::at("x6", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cang3"), position: PresetPoint::at("hc", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -2165,6 +2339,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "*/ w adj2 100000" },
             PresetGuide { wire_name: "y2", formula: "*/ h adj3 100000" },
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -2213,6 +2394,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
             PresetGuide { wire_name: "y3", formula: "*/ h adj5 100000" },
             PresetGuide { wire_name: "x3", formula: "*/ w adj6 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -2267,6 +2455,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y4", formula: "*/ h adj7 100000" },
             PresetGuide { wire_name: "x4", formula: "*/ w adj8 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -2317,6 +2512,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "+- x1 it 0" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 it" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -2384,6 +2586,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -2438,6 +2647,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "*/ h adj3 100000" },
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -2485,6 +2701,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "*/ w adj4 100000" },
             PresetGuide { wire_name: "y3", formula: "*/ h adj5 100000" },
             PresetGuide { wire_name: "x3", formula: "*/ w adj6 100000" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -2539,6 +2762,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y4", formula: "*/ h adj7 100000" },
             PresetGuide { wire_name: "x4", formula: "*/ w adj8 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -2582,6 +2812,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y1", formula: "*/ ss a 200000" },
             PresetGuide { wire_name: "y2", formula: "+- y1 y1 0" },
             PresetGuide { wire_name: "y3", formula: "+- b 0 y1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -2634,6 +2872,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `chartPlus` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: Some(10),
@@ -2670,6 +2910,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `chartStar` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: Some(10),
@@ -2708,6 +2950,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `chartX` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: Some(10),
@@ -2754,6 +2998,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx", formula: "+- x2 0 x1" },
             PresetGuide { wire_name: "il", formula: "?: dx x1 l" },
             PresetGuide { wire_name: "ir", formula: "?: dx x2 r" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -2810,6 +3061,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("stAng"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("enAng"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("midAng"), position: PresetPoint::at("x3", "y3") },
         ],
         paths: &[
             PresetPath {
@@ -3031,6 +3288,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("aI"), position: PresetPoint::at("xI", "yI") },
+            PresetConnectionSite { angle: PresetAngle::Guide("ptAng"), position: PresetPoint::at("xGp", "yGp") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aA"), position: PresetPoint::at("xA", "yA") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aB"), position: PresetPoint::at("xBp", "yBp") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -3065,6 +3329,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g28", formula: "*/ h 21577 21600" },
             PresetGuide { wire_name: "g29", formula: "*/ w 21582 21600" },
             PresetGuide { wire_name: "g30", formula: "*/ h 1235 21600" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("g29", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "g28") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("g27", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "g30") },
         ],
         paths: &[
             PresetPath {
@@ -3174,6 +3445,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g29", formula: "*/ w 21582 21600" },
             PresetGuide { wire_name: "g30", formula: "*/ h 1235 21600" },
             PresetGuide { wire_name: "pang", formula: "at2 dxPos dyPos" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("g27", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "g28") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("g29", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "g30") },
+            PresetConnectionSite { angle: PresetAngle::Guide("pang"), position: PresetPoint::at("xPos", "yPos") },
         ],
         paths: &[
             PresetPath {
@@ -3289,6 +3568,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "?: d y1 t" },
             PresetGuide { wire_name: "ir", formula: "?: d r x1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "cy1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("cx1", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -3318,6 +3604,21 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx", formula: "*/ 1 md 20" },
             PresetGuide { wire_name: "y1", formula: "+- 0 b dx" },
             PresetGuide { wire_name: "x1", formula: "+- 0 r dx" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("dx"), top: PresetCoordinate::Guide("dx"), right: PresetCoordinate::Guide("x1"), bottom: PresetCoordinate::Guide("y1") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("dx", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("dx", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "t") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "b") },
         ],
         paths: &[
             PresetPath {
@@ -3391,6 +3692,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "*/ x4 1 2" },
             PresetGuide { wire_name: "x3", formula: "+/ y1 r 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y2") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -3463,6 +3773,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `curvedConnector2` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -3490,6 +3802,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x3", formula: "+/ r x2 2" },
             PresetGuide { wire_name: "y3", formula: "*/ h 3 4" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -3525,6 +3839,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y3", formula: "+/ y1 y4 2" },
             PresetGuide { wire_name: "y5", formula: "+/ b y4 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -3566,6 +3882,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y6", formula: "+/ y5 y4 2" },
             PresetGuide { wire_name: "y7", formula: "+/ y5 b 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -3634,6 +3952,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "stAng2", formula: "+- 3cd4 0 dang2" },
             PresetGuide { wire_name: "swAng2", formula: "+- dang2 0 cd4" },
             PresetGuide { wire_name: "swAng3", formula: "+- cd4 dang2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ix", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("q12", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x4", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x6", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x8", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -3740,6 +4066,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "swAng3", formula: "+- swAng dang2 0" },
             PresetGuide { wire_name: "stAng3", formula: "+- 0 0 dang2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "q12") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd3"), position: PresetPoint::at("l", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "y8") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "iy") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -3844,6 +4178,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "swAng2", formula: "+- dang2 0 cd4" },
             PresetGuide { wire_name: "swAng3", formula: "+- cd4 dang2 0" },
             PresetGuide { wire_name: "stAng3", formula: "+- cd2 0 dang2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "iy") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "y8") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x1", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "q12") },
         ],
         paths: &[
             PresetPath {
@@ -3951,6 +4293,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "swAng3", formula: "+- swAng dang2 0" },
             PresetGuide { wire_name: "stAng2", formula: "+- cd4 0 dang2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x6", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("q12", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ix", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x8", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4026,6 +4376,19 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y3", formula: "+- vc dy2 0" },
             PresetGuide { wire_name: "y4", formula: "+- vc dy1 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4065,6 +4428,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y1", formula: "*/ y2 1 2" },
             PresetGuide { wire_name: "y3", formula: "+/ y2 b 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("y3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("hc", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4090,6 +4460,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "ir", formula: "*/ w 3 4" },
             PresetGuide { wire_name: "ib", formula: "*/ h 3 4" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("hd4"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -4122,6 +4499,21 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "*/ h 7906 21600" },
             PresetGuide { wire_name: "y3", formula: "*/ h 13694 21600" },
             PresetGuide { wire_name: "y4", formula: "*/ h 18706 21600" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
         ],
         paths: &[
             PresetPath {
@@ -4166,6 +4558,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
         ],
         paths: &[
             PresetPath {
@@ -4237,6 +4640,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ h a1 50000" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 it" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x12", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x5", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x16", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4275,6 +4685,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "+- hc dx1 0" },
             PresetGuide { wire_name: "dy2", formula: "*/ x1 dy1 wd2" },
             PresetGuide { wire_name: "y2", formula: "+- y1 dy2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -4327,6 +4744,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "*/ h a4 100000" },
             PresetGuide { wire_name: "y1", formula: "*/ y2 1 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4363,6 +4787,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
         ],
         paths: &[
             PresetPath {
@@ -4435,6 +4870,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y7", formula: "+- y1 dy3 0" },
             PresetGuide { wire_name: "cy7", formula: "+- q1 q1 y7" },
             PresetGuide { wire_name: "y8", formula: "+- b 0 dy1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("q1"), right: PresetCoordinate::Guide("x5"), bottom: PresetCoordinate::Guide("y6") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "q1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd8", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "y2") },
         ],
         paths: &[
             PresetPath {
@@ -4576,6 +5018,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "cu7", formula: "+- q1 q1 u7" },
             PresetGuide { wire_name: "cy7", formula: "+- b 0 cu7" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("y6"), right: PresetCoordinate::Guide("x5"), bottom: PresetCoordinate::Guide("rh") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd8", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "rh") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "y2") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4665,6 +5114,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4694,6 +5150,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "ir", formula: "*/ w 3 4" },
             PresetGuide { wire_name: "ib", formula: "*/ h 3 4" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("hd4"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
         ],
         paths: &[
             PresetPath {
@@ -4727,6 +5189,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4753,6 +5226,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "ir", formula: "*/ w 3 4" },
             PresetGuide { wire_name: "ib", formula: "*/ h 3 4" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("hd4"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -4783,6 +5263,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -4807,6 +5294,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         adjustment_values: &[],
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 5 6" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd6"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -4835,6 +5329,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y1", formula: "*/ h 17322 21600" },
             PresetGuide { wire_name: "y2", formula: "*/ h 20172 21600" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y1") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(21600),
@@ -4859,6 +5360,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         adjustment_values: &[],
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 3 4" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("vc"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd4", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -4887,6 +5395,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x5", formula: "*/ w 4 5" },
             PresetGuide { wire_name: "x6", formula: "*/ w 9 10" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd5"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x5"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd10", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(5),
@@ -4910,6 +5427,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `flowChartInternalStorage` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd8"), top: PresetCoordinate::Guide("hd8"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(1),
@@ -4962,6 +5486,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "y3", formula: "*/ h 5 6" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("hd3"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "hd3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(6),
@@ -5011,6 +5543,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         adjustment_values: &[],
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 2 3" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd6"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5070,6 +5610,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
             PresetGuide { wire_name: "ang1", formula: "at2 w h" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -5096,6 +5643,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `flowChartManualInput` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("hd5"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "hd10") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(5),
@@ -5122,6 +5676,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x3", formula: "*/ w 4 5" },
             PresetGuide { wire_name: "x4", formula: "*/ w 9 10" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd5"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd10", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(5),
@@ -5146,6 +5707,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         adjustment_values: &[],
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 3 4" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("vc") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd4", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5174,6 +5742,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x3", formula: "*/ w 9298 21600" },
             PresetGuide { wire_name: "x4", formula: "*/ w 12286 21600" },
             PresetGuide { wire_name: "x5", formula: "*/ w 18595 21600" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("x5"), bottom: PresetCoordinate::Guide("y8") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y8") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5260,6 +5835,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "x4", formula: "*/ w 3 4" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("vc") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd4", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(2),
@@ -5308,6 +5890,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "y1", formula: "*/ h 4 5" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y1") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(10),
@@ -5333,6 +5922,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         adjustment_values: &[],
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 5 6" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd6"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5364,6 +5960,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
         ],
         paths: &[
             PresetPath {
@@ -5419,6 +6026,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 7 8" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd8"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(1),
@@ -5471,6 +6085,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "x2", formula: "*/ w 4 5" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd5"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(10),
@@ -5496,6 +6117,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `flowChartProcess` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(1),
@@ -5519,6 +6147,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `flowChartPunchedCard` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("hd5"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(5),
@@ -5545,6 +6180,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "y2", formula: "*/ h 9 10" },
             PresetGuide { wire_name: "ib", formula: "*/ h 4 5" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("hd5"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "hd10") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5573,6 +6215,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         guides: &[
             PresetGuide { wire_name: "ir", formula: "*/ w 3 4" },
             PresetGuide { wire_name: "ib", formula: "*/ h 3 4" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd4"), top: PresetCoordinate::Guide("hd4"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5628,6 +6277,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
         ],
         paths: &[
             PresetPath {
@@ -5686,6 +6346,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ h 3163 21600" },
             PresetGuide { wire_name: "ib", formula: "*/ h 18437 21600" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(21600),
@@ -5719,6 +6386,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "+- x1 dy1 0" },
             PresetGuide { wire_name: "y2", formula: "+- b 0 dy2" },
             PresetGuide { wire_name: "y1", formula: "+- y2 dy1 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -5781,6 +6455,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x4", formula: "+- r 0 x1" },
             PresetGuide { wire_name: "y4", formula: "+- b 0 x1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("x1"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -5841,6 +6522,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "+- wd2 0 rw2" },
             PresetGuide { wire_name: "cd", formula: "*/ cd2 2 1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -5977,6 +6660,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "yCxn1", formula: "+/ yB1 yC1 2" },
             PresetGuide { wire_name: "yCxn2", formula: "+- b 0 yCxn1" },
             PresetGuide { wire_name: "xCxn4", formula: "+/ r 0 xCxn1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("xD5"), top: PresetCoordinate::Guide("yA1"), right: PresetCoordinate::Guide("xA1"), bottom: PresetCoordinate::Guide("yD2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(19800000), position: PresetPoint::at("xCxn1", "yCxn1") },
+            PresetConnectionSite { angle: PresetAngle::Native(1800000), position: PresetPoint::at("xCxn1", "yCxn2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "yB3") },
+            PresetConnectionSite { angle: PresetAngle::Native(9000000), position: PresetPoint::at("xCxn4", "yCxn2") },
+            PresetConnectionSite { angle: PresetAngle::Native(12600000), position: PresetPoint::at("xCxn4", "yCxn1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "yC6") },
         ],
         paths: &[
             PresetPath {
@@ -6268,6 +6960,18 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "xCxn7", formula: "+/ r 0 xCxn2" },
             PresetGuide { wire_name: "xCxn8", formula: "+/ r 0 xCxn1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("xA8"), top: PresetCoordinate::Guide("yD1"), right: PresetCoordinate::Guide("xD1"), bottom: PresetCoordinate::Guide("yD3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(18600000), position: PresetPoint::at("xCxn1", "yCxn1") },
+            PresetConnectionSite { angle: PresetAngle::Native(21000000), position: PresetPoint::at("xCxn2", "yCxn2") },
+            PresetConnectionSite { angle: PresetAngle::Native(1800000), position: PresetPoint::at("xCxn3", "yCxn3") },
+            PresetConnectionSite { angle: PresetAngle::Native(4200000), position: PresetPoint::at("xCxn4", "yCxn4") },
+            PresetConnectionSite { angle: PresetAngle::Native(6600000), position: PresetPoint::at("xCxn5", "yCxn4") },
+            PresetConnectionSite { angle: PresetAngle::Native(9000000), position: PresetPoint::at("xCxn6", "yCxn3") },
+            PresetConnectionSite { angle: PresetAngle::Native(11400000), position: PresetPoint::at("xCxn7", "yCxn2") },
+            PresetConnectionSite { angle: PresetAngle::Native(13800000), position: PresetPoint::at("xCxn8", "yCxn1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "yC9") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -6344,6 +7048,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "cx2", formula: "+/ x2 r 2" },
             PresetGuide { wire_name: "cy2", formula: "*/ y1 1 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("cx2", "cy2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("cx1", "cy1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -6379,6 +7090,11 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "*/ w 1 6" },
             PresetGuide { wire_name: "ir", formula: "*/ w 5 6" },
             PresetGuide { wire_name: "ib", formula: "*/ h 2 3" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("hd4"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "hd4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
         ],
         paths: &[
             PresetPath {
@@ -6424,6 +7140,16 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "+- svc dy2 0" },
             PresetGuide { wire_name: "y3", formula: "+- svc dy3 0" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 y1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x5"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x5", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x4", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x2", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -6475,6 +7201,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 it" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -6508,6 +7243,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "+- r 0 dx1" },
             PresetGuide { wire_name: "ir", formula: "+/ x1 r 2" },
             PresetGuide { wire_name: "x2", formula: "*/ x1 1 2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -6546,6 +7288,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y5", formula: "+- y6 0 ch2" },
             PresetGuide { wire_name: "x3", formula: "+- r 0 ch" },
             PresetGuide { wire_name: "x4", formula: "+- r 0 ch2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("ch"), top: PresetCoordinate::Guide("ch"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y6") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "ch") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -6640,6 +7389,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y9", formula: "*/ h 13937 21600" },
             PresetGuide { wire_name: "y18", formula: "*/ h 13290 21600" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x5"), top: PresetCoordinate::Guide("y3"), right: PresetCoordinate::Guide("x21"), bottom: PresetCoordinate::Guide("y9") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x24", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x12", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y18") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(21600),
@@ -6694,6 +7450,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y16", formula: "*/ h 18842 21600" },
             PresetGuide { wire_name: "y17", formula: "*/ h 15935 21600" },
             PresetGuide { wire_name: "y24", formula: "*/ h 6645 21600" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x5"), top: PresetCoordinate::Guide("y3"), right: PresetCoordinate::Guide("x19"), bottom: PresetCoordinate::Guide("y17") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y8") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x16", "y16") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y24") },
         ],
         paths: &[
             PresetPath {
@@ -6756,6 +7519,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx1", formula: "*/ y1 dx2 hd2" },
             PresetGuide { wire_name: "x1", formula: "+- x2  0 dx1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -6807,6 +7577,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "+- r 0 dx2" },
             PresetGuide { wire_name: "x3", formula: "+/ x2 r 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -6854,6 +7631,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "+- r 0 dx1" },
             PresetGuide { wire_name: "it", formula: "+- y1 0 dy1" },
             PresetGuide { wire_name: "ib", formula: "+- b dy1 y1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("r", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("r", "b") },
         ],
         paths: &[
             PresetPath {
@@ -6908,6 +7691,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "+- r 0 dx1" },
             PresetGuide { wire_name: "it", formula: "+- y1 0 dy1" },
             PresetGuide { wire_name: "ib", formula: "+- b dy1 y1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("r", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("r", "b") },
         ],
         paths: &[
             PresetPath {
@@ -7157,6 +7946,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("aI"), position: PresetPoint::at("xI", "yI") },
+            PresetConnectionSite { angle: PresetAngle::Guide("ptAng"), position: PresetPoint::at("xGp", "yGp") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aA"), position: PresetPoint::at("xA", "yA") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aB"), position: PresetPoint::at("xBp", "yBp") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7198,6 +7994,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx1", formula: "*/ y1 x2 hd2" },
             PresetGuide { wire_name: "x1", formula: "+- x2 0 dx1" },
             PresetGuide { wire_name: "x4", formula: "+- x3 dx1 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
         ],
         paths: &[
             PresetPath {
@@ -7253,6 +8058,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx2", formula: "*/ w a4 200000" },
             PresetGuide { wire_name: "x2", formula: "+- hc 0 dx2" },
             PresetGuide { wire_name: "x3", formula: "+- hc dx2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -7528,6 +8340,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("aL"), position: PresetPoint::at("xL", "yL") },
+            PresetConnectionSite { angle: PresetAngle::Guide("lptAng"), position: PresetPoint::at("xKp", "yKp") },
+            PresetConnectionSite { angle: PresetAngle::Guide("ptAng"), position: PresetPoint::at("xGp", "yGp") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aA"), position: PresetPoint::at("xA", "yA") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aB"), position: PresetPoint::at("xBp", "yBp") },
+            PresetConnectionSite { angle: PresetAngle::Guide("aJ"), position: PresetPoint::at("xJp", "yJp") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7584,6 +8405,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x3", formula: "+- hc wd32 0" },
             PresetGuide { wire_name: "y1", formula: "+- ly1 hR 0" },
             PresetGuide { wire_name: "y2", formula: "+- ry2 0 hR" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("ly1"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("ry4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "ry3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x4", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "ly4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "ly2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "ry1") },
         ],
         paths: &[
             PresetPath {
@@ -7690,6 +8520,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "*/ dx3 x1 dx2" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("y3"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("y5") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y4") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7751,6 +8588,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "cx1", formula: "+/ x1 x5 2" },
             PresetGuide { wire_name: "cy1", formula: "+/ x1 y5 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("y3"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y5") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x2", "x1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("cx1", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x5", "cy1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "x1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7797,6 +8645,16 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y10", formula: "*/ h 14277 21600" },
             PresetGuide { wire_name: "y11", formula: "*/ h 14915 21600" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x4"), top: PresetCoordinate::Guide("y4"), right: PresetCoordinate::Guide("x9"), bottom: PresetCoordinate::Guide("y10") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("l", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x5", "y11") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("r", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x11", "y7") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x8", "y2") },
+        ],
         paths: &[
             PresetPath {
                 width: Some(21600),
@@ -7827,6 +8685,11 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `line` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: None,
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("r", "b") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7847,6 +8710,11 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `lineInv` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: None,
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("r", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7893,6 +8761,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "+- hc 0 dx1" },
             PresetGuide { wire_name: "x3", formula: "+- hc dx1 0" },
             PresetGuide { wire_name: "x2", formula: "+- hc 0 rad" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y3"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x3", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -7942,6 +8817,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "yC1", formula: "+/ y1 y2 2" },
             PresetGuide { wire_name: "yC2", formula: "+/ y3 y4 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "yC1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "yC2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "yC1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "yC2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -7979,6 +8863,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "+- vc dy1 0" },
             PresetGuide { wire_name: "x1", formula: "+- hc 0 dx1" },
             PresetGuide { wire_name: "x2", formula: "+- hc dx1 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -8036,6 +8927,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "yI", formula: "+- b 0 yC" },
             PresetGuide { wire_name: "xC2", formula: "+- r 0 xM" },
             PresetGuide { wire_name: "yC3", formula: "+- b 0 yM" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("xA"), top: PresetCoordinate::Guide("yB"), right: PresetCoordinate::Guide("xE"), bottom: PresetCoordinate::Guide("yH") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("xM", "yM") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("xC2", "yM") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("xC2", "yC3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("xM", "yC3") },
         ],
         paths: &[
             PresetPath {
@@ -8128,6 +9026,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "yC3", formula: "+/ y3 y4 2" },
             PresetGuide { wire_name: "yC4", formula: "+/ dry dly 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x8"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x8", "yC2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x8", "yC3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("xC2", "yC4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "yC2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "yC3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("xC1", "yC1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8181,6 +9088,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "+- vc 0 dx2" },
             PresetGuide { wire_name: "y3", formula: "+- vc dx2 0" },
             PresetGuide { wire_name: "y4", formula: "+- vc dy1 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("x4"), bottom: PresetCoordinate::Guide("y3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -8250,6 +9164,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "enAng1", formula: "+- enAngp1 0 21600000" },
             PresetGuide { wire_name: "swAng1", formula: "+- enAng1 0 stAng1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("g12w"), top: PresetCoordinate::Guide("g15h"), right: PresetCoordinate::Guide("g0w"), bottom: PresetCoordinate::Guide("g16h") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("r", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("r", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("g0w", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8288,6 +9209,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ hd3 adjm maxAdj" },
             PresetGuide { wire_name: "irt", formula: "*/ wd3 a2 maxAdj" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 irt" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -8347,6 +9275,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8391,6 +9330,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "*/ dy1 dx2 hd2" },
             PresetGuide { wire_name: "x3", formula: "+- r 0 x1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8427,6 +9373,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "*/ x1 1 2" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "x1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "x1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
         ],
         paths: &[
             PresetPath {
@@ -8476,6 +9433,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y1", formula: "pin 0 q3 h" },
             PresetGuide { wire_name: "y2", formula: "+- b 0 y1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "t") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8516,6 +9482,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y1", formula: "+- svc 0 dy1" },
             PresetGuide { wire_name: "y2", formula: "+- svc 0 dy2" },
             PresetGuide { wire_name: "it", formula: "*/ y1 dx2 dx1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -8568,6 +9543,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8594,6 +9576,11 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "g2", formula: "sin h 13500000" },
             PresetGuide { wire_name: "x1", formula: "+- r g1 0" },
             PresetGuide { wire_name: "y1", formula: "+- b g2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
         ],
         paths: &[
             PresetPath {
@@ -8627,6 +9614,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8658,6 +9652,21 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx", formula: "*/ 1 md 20" },
             PresetGuide { wire_name: "y1", formula: "+- 0 b dx" },
             PresetGuide { wire_name: "x1", formula: "+- 0 r dx" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("dx"), top: PresetCoordinate::Guide("dx"), right: PresetCoordinate::Guide("x1"), bottom: PresetCoordinate::Guide("y1") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("dx", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("dx", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "t") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "b") },
         ],
         paths: &[
             PresetPath {
@@ -8732,6 +9741,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "?: d x1 t" },
             PresetGuide { wire_name: "ib", formula: "?: d y2 b" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8788,6 +9804,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y6", formula: "+- b 0 x1" },
             PresetGuide { wire_name: "il", formula: "*/ dx3 x1 dx2" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("y3"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -8865,6 +9888,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y4", formula: "+- vc 0 dx3" },
             PresetGuide { wire_name: "y5", formula: "+- vc dx3 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("x7"), bottom: PresetCoordinate::Guide("y7") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8916,6 +9946,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `rect` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -8961,6 +9998,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "hR", formula: "*/ h a1 400000" },
             PresetGuide { wire_name: "y5", formula: "+- b 0 hR" },
             PresetGuide { wire_name: "y6", formula: "+- y2 0 hR" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("x9"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd8", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x10", "y3") },
         ],
         paths: &[
             PresetPath {
@@ -9085,6 +10129,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y6", formula: "+- b 0 hR" },
             PresetGuide { wire_name: "y7", formula: "+- y1 0 hR" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x2"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x9"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("wd8", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x10", "y3") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9198,6 +10249,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx2", formula: "*/ y1 dx1 hd2" },
             PresetGuide { wire_name: "x2", formula: "+- x1 dx2 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9249,6 +10307,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x2", formula: "*/ w a4 100000" },
             PresetGuide { wire_name: "x1", formula: "*/ x2 1 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9297,6 +10362,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- l dx1 0" },
             PresetGuide { wire_name: "it", formula: "+- y1 0 dy1" },
             PresetGuide { wire_name: "ib", formula: "+- b dy1 y1" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("r", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("l", "b") },
         ],
         paths: &[
             PresetPath {
@@ -9352,6 +10423,12 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- y1 0 dy1" },
             PresetGuide { wire_name: "ib", formula: "+- b dy1 y1" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9396,6 +10473,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "idx", formula: "*/ dx1 29289 100000" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 idx" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9436,6 +10520,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx", formula: "?: d dx1 dx2" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 dx" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 dx" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("dx"), top: PresetCoordinate::Guide("dx"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -9482,6 +10573,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 bdx" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("tdx"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9520,6 +10618,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9550,6 +10655,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ h 7 12" },
             PresetGuide { wire_name: "ir", formula: "*/ w 7 12" },
             PresetGuide { wire_name: "ib", formula: "*/ h 11 12" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("wd12"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("r", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("hc", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -9595,6 +10709,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
             PresetGuide { wire_name: "wR", formula: "*/ w 1125 21600" },
             PresetGuide { wire_name: "hR", formula: "*/ h 1125 21600" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
         ],
         paths: &[
             PresetPath {
@@ -9661,6 +10786,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ dx1 1 2" },
             PresetGuide { wire_name: "ir", formula: "+/ x1 r 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9701,6 +10833,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "*/ dx 1 2" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -9746,6 +10885,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ tx1 1 2" },
             PresetGuide { wire_name: "ib", formula: "+/ by1 b 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9784,6 +10930,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "*/ x1 29289 100000" },
             PresetGuide { wire_name: "ir", formula: "+/ x2 r 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9814,6 +10967,25 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dx", formula: "*/ 1 md 20" },
             PresetGuide { wire_name: "y1", formula: "+- 0 b dx" },
             PresetGuide { wire_name: "x1", formula: "+- 0 r dx" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("dx"), top: PresetCoordinate::Guide("dx"), right: PresetCoordinate::Guide("x1"), bottom: PresetCoordinate::Guide("y1") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("dx", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("dx", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("dx", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("dx", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "t") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x1", "dx") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x1", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -9915,6 +11087,19 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy4", formula: "+- vc sdy1 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx2"), top: PresetCoordinate::Guide("sy2"), right: PresetCoordinate::Guide("sx5"), bottom: PresetCoordinate::Guide("sy3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -9986,6 +11171,21 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy5", formula: "+- vc sdy2 0" },
             PresetGuide { wire_name: "sy6", formula: "+- vc sdy1 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx2"), top: PresetCoordinate::Guide("sy2"), right: PresetCoordinate::Guide("sx5"), bottom: PresetCoordinate::Guide("sy5") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "hd4") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("wd4", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "hd4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("wd4", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -10084,6 +11284,25 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x5", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x5", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x4", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y6") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x2", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x3", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x4", "y1") },
         ],
         paths: &[
             PresetPath {
@@ -10214,6 +11433,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -10385,6 +11611,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -10481,6 +11714,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy2", formula: "+- vc sdy 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx1"), top: PresetCoordinate::Guide("sy1"), right: PresetCoordinate::Guide("sx2"), bottom: PresetCoordinate::Guide("sy2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -10541,6 +11781,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy3", formula: "+- svc ihd2 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- svc 0 ihd2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx1"), top: PresetCoordinate::Guide("sy1"), right: PresetCoordinate::Guide("sx4"), bottom: PresetCoordinate::Guide("sy3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -10590,6 +11838,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy1", formula: "+- vc 0 sdy1" },
             PresetGuide { wire_name: "sy2", formula: "+- vc sdy1 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx1"), top: PresetCoordinate::Guide("sy1"), right: PresetCoordinate::Guide("sx4"), bottom: PresetCoordinate::Guide("sy2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "hd4") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "hd4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
         ],
         paths: &[
             PresetPath {
@@ -10665,6 +11922,16 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy4", formula: "+- svc ihd2 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- svc 0 ihd2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx2"), top: PresetCoordinate::Guide("sy1"), right: PresetCoordinate::Guide("sx5"), bottom: PresetCoordinate::Guide("sy3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x5", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x6", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x4", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x3", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x2", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -10723,6 +11990,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "sy4", formula: "+- vc sdy1 0" },
             PresetGuide { wire_name: "yAdj", formula: "+- vc 0 ihd2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("sx1"), top: PresetCoordinate::Guide("sy1"), right: PresetCoordinate::Guide("sx4"), bottom: PresetCoordinate::Guide("sy4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x1", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -10758,6 +12036,8 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
         source: "presetShapeDefinitions.xml, shape element `straightConnector1` — ECMA-376 Part 1 §20.1.10.56 names the preset and §20.1.9.11 the guide language its formulas are written in. Mechanically extracted, in the file's own order, with no naming and no simplification.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[],
         paths: &[
             PresetPath {
                 width: None,
@@ -10792,6 +12072,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "+- vc dy1 0" },
             PresetGuide { wire_name: "dx6", formula: "*/ dy1 dx5 hd2" },
             PresetGuide { wire_name: "x6", formula: "+- r 0 dx6" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x4"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x6"), bottom: PresetCoordinate::Guide("y2") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x5", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x5", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -10879,6 +12166,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y17", formula: "*/ h g17 100000" },
             PresetGuide { wire_name: "y18", formula: "*/ h g18 100000" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x9"), top: PresetCoordinate::Guide("y9"), right: PresetCoordinate::Guide("x8"), bottom: PresetCoordinate::Guide("y8") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -10961,6 +12255,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "yP2", formula: "+- yF dy5 0" },
             PresetGuide { wire_name: "xP2", formula: "val wd4" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("xC", "t") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "yD") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("xE", "yE") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -11008,6 +12309,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x1", "y1") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -11045,6 +12357,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ hd3 a maxAdj" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x4", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -11074,6 +12393,15 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x1", formula: "*/ w a 200000" },
             PresetGuide { wire_name: "x2", formula: "*/ w a 100000" },
             PresetGuide { wire_name: "x3", formula: "+- x1 wd2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("vc"), right: PresetCoordinate::Guide("x3"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("x2", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("l", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x2", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("r", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x3", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -11122,6 +12450,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "y2", formula: "+- b 0 dy2" },
             PresetGuide { wire_name: "y3", formula: "+/ y2 b 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y2") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -11166,6 +12501,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dy1", formula: "*/ x1 y2 wd2" },
             PresetGuide { wire_name: "y1", formula: "+- y2 0 dy1" },
             PresetGuide { wire_name: "y4", formula: "+- y3 dy1 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("x1"), top: PresetCoordinate::Guide("y1"), right: PresetCoordinate::Guide("x2"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y2") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y3") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x2", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y2") },
         ],
         paths: &[
             PresetPath {
@@ -11221,6 +12567,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "dy2", formula: "*/ h a4 200000" },
             PresetGuide { wire_name: "y2", formula: "+- vc 0 dy2" },
             PresetGuide { wire_name: "y3", formula: "+- vc dy2 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("y2"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("y3") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -11298,6 +12651,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x5", formula: "+- x7 0 bd2" },
             PresetGuide { wire_name: "cx", formula: "+/ th x7 2" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x6", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("x8", "y5") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("cx", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("th2", "b") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -11345,6 +12706,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "x5", formula: "+- x6 0 ch2" },
             PresetGuide { wire_name: "y3", formula: "+- b 0 ch" },
             PresetGuide { wire_name: "y4", formula: "+- b 0 ch2" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("ch"), top: PresetCoordinate::Guide("ch"), right: PresetCoordinate::Guide("x6"), bottom: PresetCoordinate::Guide("y4") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("ch", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x6", "vc") },
         ],
         paths: &[
             PresetPath {
@@ -11464,6 +12832,13 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "it", formula: "*/ h a1 50000" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 it" },
         ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("xAdj2", "y1") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("x1", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("xAdj", "y4") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("x9", "vc") },
+        ],
         paths: &[
             PresetPath {
                 width: None,
@@ -11518,6 +12893,17 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "ir", formula: "+- hc idx 0" },
             PresetGuide { wire_name: "it", formula: "+- vc 0 idy" },
             PresetGuide { wire_name: "ib", formula: "+- vc idy 0" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("it"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("il", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("il", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("ir", "ib") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("ir", "it") },
+            PresetConnectionSite { angle: PresetAngle::Guide("pang"), position: PresetPoint::at("xPos", "yPos") },
         ],
         paths: &[
             PresetPath {
@@ -11578,6 +12964,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "yr", formula: "?: dz y1 t7" },
             PresetGuide { wire_name: "t8", formula: "?: dyPos yPos b" },
             PresetGuide { wire_name: "yb", formula: "?: dz t8 b" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("l"), top: PresetCoordinate::Guide("t"), right: PresetCoordinate::Guide("r"), bottom: PresetCoordinate::Guide("b") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("xPos", "yPos") },
         ],
         paths: &[
             PresetPath {
@@ -11656,6 +13050,14 @@ pub(crate) const GENERATED_SHAPES: &[PresetShapeDefinition] = &[
             PresetGuide { wire_name: "il", formula: "*/ u1 29289 100000" },
             PresetGuide { wire_name: "ir", formula: "+- r 0 il" },
             PresetGuide { wire_name: "ib", formula: "+- b 0 il" },
+        ],
+        text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide("il"), top: PresetCoordinate::Guide("il"), right: PresetCoordinate::Guide("ir"), bottom: PresetCoordinate::Guide("ib") }),
+        connection_sites: &[
+            PresetConnectionSite { angle: PresetAngle::Guide("3cd4"), position: PresetPoint::at("hc", "t") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd2"), position: PresetPoint::at("l", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("hc", "b") },
+            PresetConnectionSite { angle: PresetAngle::Native(0), position: PresetPoint::at("r", "vc") },
+            PresetConnectionSite { angle: PresetAngle::Guide("cd4"), position: PresetPoint::at("xPos", "yPos") },
         ],
         paths: &[
             PresetPath {

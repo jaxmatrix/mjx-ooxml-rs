@@ -16,7 +16,7 @@
 //! | Shape | What the agreement is worth |
 //! |---|---|
 //! | `rect` | **Full independence, and it proves the least** — there is one way to draw a rectangle. |
-//! | `ellipse` | **Structural coincidence.** Four 90° `a:arcTo` quadrants clockwise from `(l, vc)` is the only structure DrawingML's arc semantics make natural. MJXOFF-202 predicted the file would use it, and it does. This is not a second measurement. |
+//! | `ellipse` | **Structural coincidence on the path; a real second measurement on the text rectangle.** Four 90° `a:arcTo` quadrants clockwise from `(l, vc)` is the only structure DrawingML's arc semantics make natural, so the outline proves little. Its `a:rect` is a *theorem* — the largest inscribed rectangle has half-axes `a/√2`, `b/√2` — which the file could have disagreed with while drawing the identical outline. It agrees to 0.0003 px. |
 //! | `triangle` | Paths independent; the `adj` domain came from the generated `adjustments_of`. |
 //! | `roundRect` | Paths independent; the `adj` domain came from `adjustments_of`. |
 //! | `rightArrow` | **Strong.** Seven points and eight guides, including `dy1 = */ h a1 200000` — the row MJXOFF-202 named as its own weakest point, because its monotonicity sweep asserts the direction its own derivation implies. The file writes the same eight formulas and the same seven points, in the same order. |
@@ -41,6 +41,18 @@
 //! Everything else agrees step for step. Where the two routes genuinely disagreed the file would
 //! win — it is the normative artefact and a transcription is not — but on these six they did not.
 //!
+//! # Two text rectangles, and no connection sites at all
+//!
+//! MJXOFF-204 added `a:rect` and `a:cxnLst` to the table and did **not** hand-write them for all
+//! six rows, which would have bought six more agreements and proved nothing: a text rectangle is a
+//! design decision and a connection site's placement a convention, so a "transcription" of either
+//! would be a copy of the file wearing a different hat. `crate::seed`'s own documentation states
+//! the rule. Two are forced and are here — `rect`'s is the box, `ellipse`'s is a theorem — and
+//! [`the_two_text_rectangles_that_could_be_derived_agree_with_the_file`] compares them. What
+//! replaces the differential for the other four is a geometric invariant that needs no second
+//! author: `text_goes_inside_the_shape.rs` and `a_connector_lands_on_the_outline.rs` measure all
+//! 181 and all 173.
+//!
 //! # Why the comparison is a Hausdorff distance
 //!
 //! Two outlines that draw the same region can differ in start point, in direction, and in how many
@@ -52,11 +64,11 @@
 
 mod common;
 
-use common::{box_on_the_page, extents_of_the_box, flattened};
+use common::{box_on_the_page, distance_to_segment, extents_of_the_box, flattened};
 use mjx_geometry::{
     adjustment_domains, definition_of, outline_of_definition, seed::HAND_TRANSCRIBED_SHAPES,
-    AdjustmentOverride, Derivation, PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition,
-    PresetShapeType,
+    text_rectangle_of_definition, AdjustmentOverride, Derivation, PresetPath, PresetPathStep,
+    PresetPoint, PresetShapeDefinition, PresetShapeType, TextRectangle,
 };
 use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide};
 use mjx_scene::ScenePoint;
@@ -123,6 +135,86 @@ fn each_shape_reports_what_its_agreement_is_worth() {
         }
     }
     println!("worst disagreement across the six shapes: {worst} device pixels");
+}
+
+#[test]
+fn the_two_text_rectangles_that_could_be_derived_agree_with_the_file() {
+    // **Two of the six carry a text rectangle, and four deliberately do not.** MJXOFF-204's reason
+    // is in `crate::seed`'s own documentation: a text rectangle is a *design decision* and a
+    // connection site's placement a *convention*, so hand-writing the other four would have been
+    // guessing what Microsoft chose and then correcting the guess against the file — a differential
+    // whose two sides share a source.
+    //
+    // These two are the exceptions, and they are exceptions for opposite reasons:
+    //
+    // * `rect`'s rectangle is `l t r b`. There is nothing else it could be, so the agreement proves
+    //   the least — exactly what its *path* is worth.
+    // * `ellipse`'s is a **theorem**: the largest axis-aligned rectangle inscribed in an ellipse has
+    //   half-axes `a/√2` and `b/√2`. That is a second measurement the file could have disagreed
+    //   with while drawing the identical outline, and it is the one place the ellipse row is
+    //   stronger than its own path, whose four-quadrant structure MJXOFF-202 called a structural
+    //   coincidence.
+    let (within, extents) = (box_on_the_page(), extents_of_the_box());
+    let mut compared = 0usize;
+
+    for hand in HAND_TRANSCRIBED_SHAPES {
+        let token = hand.preset.to_wire();
+        let generated = definition_of(hand.preset).expect("in the generated table");
+        let Some(_) = hand.text_rectangle else {
+            assert!(
+                hand.connection_sites.is_empty(),
+                "`{token}` carries hand-written connection sites, which `crate::seed` says it must \
+                 not: their placement is a convention and a transcription of it would be a copy"
+            );
+            continue;
+        };
+        compared += 1;
+
+        let mine = text_rectangle_of_definition(hand, extents, &[], within)
+            .unwrap_or_else(|error| panic!("the hand-written `{token}`: {error}"));
+        let theirs = text_rectangle_of_definition(generated, extents, &[], within)
+            .unwrap_or_else(|error| panic!("the generated `{token}`: {error}"));
+        let (TextRectangle::Declared(mine), TextRectangle::Declared(theirs)) = (&mine, &theirs)
+        else {
+            panic!("`{token}`: one route has no rectangle — {mine:?} against {theirs:?}");
+        };
+        let distance = (mine.left - theirs.left)
+            .abs()
+            .max((mine.top - theirs.top).abs())
+            .max((mine.right - theirs.right).abs())
+            .max((mine.bottom - theirs.bottom).abs());
+        println!(
+            "{token:>12} text rectangle: {distance:>9.5} px   ({:?})",
+            hand.derivation
+        );
+        assert!(
+            distance <= AGREEMENT_TOLERANCE_PIXELS,
+            "`{token}`'s two text rectangles are {distance} device pixels apart: {mine:?} against \
+             {theirs:?}. The file wins — it is the normative artefact — so the seed row is what to \
+             correct.\nThe seed says it was derived thus: {}",
+            hand.source
+        );
+    }
+    assert_eq!(
+        compared, 2,
+        "the seed used to carry exactly two text rectangles, and the reason each is there is \
+         written in `crate::seed`"
+    );
+
+    // …and the comparison is not vacuous: `ellipse`'s is a genuine inset, not the box, so a route
+    // that had fallen back to the bounding box would fail above rather than agree.
+    let ellipse = definition_of(PresetShapeType::Ellipse).expect("in the generated table");
+    let TextRectangle::Declared(inscribed) =
+        text_rectangle_of_definition(ellipse, extents, &[], within).expect("`ellipse` resolves")
+    else {
+        panic!("`ellipse` has no text rectangle");
+    };
+    assert!(
+        inscribed.left - within.left > 20.0,
+        "`ellipse`'s inscribed rectangle starts {} px in from a 160 px box, which is not the \
+         1 - 1/√2 ≈ 14.6 % of the width the theorem gives",
+        inscribed.left - within.left
+    );
 }
 
 #[test]
@@ -238,6 +330,8 @@ const A_RIGHT_ARROW_WITH_THE_WRONG_DIVISOR: PresetShapeDefinition = PresetShapeD
             formula: "+- vc dy1 0",
         },
     ],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -360,17 +454,4 @@ fn one_way(from: &[Vec<ScenePoint>], to: &[Vec<ScenePoint>]) -> f32 {
         worst = worst.max(nearest);
     }
     worst
-}
-
-/// How far `point` is from the segment `start`–`end`.
-fn distance_to_segment(point: ScenePoint, start: ScenePoint, end: ScenePoint) -> f32 {
-    let (dx, dy) = (end.x - start.x, end.y - start.y);
-    let length_squared = dx * dx + dy * dy;
-    let t = if length_squared <= f32::EPSILON {
-        0.0
-    } else {
-        (((point.x - start.x) * dx + (point.y - start.y) * dy) / length_squared).clamp(0.0, 1.0)
-    };
-    let (nearest_x, nearest_y) = (start.x + t * dx, start.y + t * dy);
-    ((point.x - nearest_x).powi(2) + (point.y - nearest_y).powi(2)).sqrt()
 }

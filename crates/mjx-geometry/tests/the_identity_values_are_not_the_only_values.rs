@@ -25,6 +25,23 @@
 //! | an ellipse's radii | equal — the arm where true and parametric angles coincide | `parametric_angle` |
 //! | a guide that will not evaluate | finite — the arm that defines it | `guide_environment`'s `is_a_singularity` |
 //! | a path's `@fill`/`@stroke` | filled and stroked — the arm that keeps the contour | `outline_of_definition` |
+//! | a shape's `a:rect` | absent — the shape says nothing about where its text goes | `text_rectangle_of_definition` |
+//! | a text rectangle's edge | `Guide` — the only arm the spec file ever takes | `PresetCoordinate::to_adjust_coordinate` |
+//! | a connection site's position | `Guide` — likewise, all 1 712 of them | `PresetPoint::to_point` |
+//! | **the box's orientation** | landscape — where `ss` is always `h` | `GuideContext::from_size`, reached through every `ss` formula |
+//!
+//! **The last of those was added by MJXOFF-204's audit and is the sharpest.** It is not a parameter
+//! this crate passes; it is a *shape* of the fixtures. Every box and every non-degenerate extent the
+//! crate had was landscape or square, and `ss` is `min(w, h)`, so an implementation that read `h`
+//! where a formula says `ss` was indistinguishable from a correct one in every gate — the seed
+//! differential measured 0.00000 px, the box census kept its membership, the monotonicity sweep kept
+//! its direction. [`a_portrait_box_and_a_landscape_one_are_two_values_of_the_shorter_side`] is the
+//! branch, and `text_goes_inside_the_shape.rs` now takes **every** census in both orientations,
+//! which is where two further facts turned up that a single aspect ratio had hidden.
+//!
+//! The lesson is worth stating beside the table, because it generalises past this crate: **asking
+//! whether a value reaches somebody is not the same as asking at how many distinct values it was
+//! ever supplied.** A measurement taken at exactly one point is a measurement of that point.
 //!
 //! **Every one of those branches has both arms exercised here, with a consequence.** Two would
 //! otherwise never be taken with a non-identity value against *real* data — the anisotropic arc,
@@ -36,14 +53,19 @@
 
 mod common;
 
-use common::{bounds_of, box_on_the_page, extents_of_the_box, points_of};
+use common::{
+    bounds_of, box_on_the_page, extents_of_the_box, points_of, portrait_box_on_the_page,
+    portrait_extents,
+};
 use mjx_dml::geometry::{AdjustAngle, AdjustCoordinate};
 use mjx_geometry::PathFillMode;
 use mjx_geometry::{
-    adjustment_domains, arc_to_cubics, outline_of_definition, parametric_angle, preset_outline,
-    AdjustmentOverride, Derivation, PresetAngle, PresetCoordinate, PresetGeometryProvider,
-    PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition, PresetShapeType, ShapeOutline,
-    ShapePoint, Size, UnknownShapePolicy, MAXIMUM_ARC_SEGMENT_RADIANS,
+    adjustment_domains, arc_to_cubics, connection_sites_of_definition, outline_of_definition,
+    parametric_angle, preset_connection_sites, preset_outline, preset_text_rectangle,
+    text_rectangle_of_definition, AdjustmentOverride, Derivation, PresetAngle,
+    PresetConnectionSite, PresetCoordinate, PresetGeometryProvider, PresetPath, PresetPathStep,
+    PresetPoint, PresetShapeDefinition, PresetShapeType, PresetTextRectangle, ShapeOutline,
+    ShapePoint, Size, TextRectangle, UnknownShapePolicy, MAXIMUM_ARC_SEGMENT_RADIANS,
 };
 use mjx_ooxml_types::drawingml::PresetGuide;
 use mjx_scene::{GeometryProvider, OutlineProvenance, SceneError, SceneRect};
@@ -76,6 +98,8 @@ const NO_COORDINATE_BOX: PresetShapeDefinition = PresetShapeDefinition {
     source: "a 1000 EMU square in the shape's own space, for the identity-value probe",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -94,6 +118,8 @@ const A_COORDINATE_BOX: PresetShapeDefinition = PresetShapeDefinition {
     source: "a 1000 × 1000 path box, for the identity-value probe",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: Some(1000),
         height: Some(1000),
@@ -112,6 +138,8 @@ const A_ZERO_COORDINATE_BOX: PresetShapeDefinition = PresetShapeDefinition {
     source: "a path box declared as zero, which is the schema default and means no box",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: Some(0),
         height: Some(0),
@@ -150,6 +178,8 @@ const A_SINGULAR_GUIDE_NOBODY_READS: PresetShapeDefinition = PresetShapeDefiniti
             formula: "*/ w 1 2",
         },
     ],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -180,6 +210,8 @@ const A_SINGULAR_GUIDE_A_PATH_READS: PresetShapeDefinition = PresetShapeDefiniti
             formula: "*/ w h zero",
         },
     ],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -204,6 +236,8 @@ const A_GUIDE_WITH_A_NAME_NOTHING_DEFINES: PresetShapeDefinition = PresetShapeDe
         wire_name: "x1",
         formula: "*/ w nowhere 100000",
     }],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -228,6 +262,8 @@ const A_GUIDE_WITH_A_MALFORMED_FORMULA: PresetShapeDefinition = PresetShapeDefin
         wire_name: "x1",
         formula: "+- w 0 h 0",
     }],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -731,6 +767,8 @@ const A_DIAGONAL_ARC: PresetShapeDefinition = PresetShapeDefinition {
             formula: "+- vc dy1 0",
         },
     ],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -749,3 +787,217 @@ const A_DIAGONAL_ARC: PresetShapeDefinition = PresetShapeDefinition {
         ],
     }],
 };
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-204's branches
+// -------------------------------------------------------------------------------------------
+
+/// A rounded rectangle whose text rectangle is written in a **literal** rather than in a guide
+/// name.
+///
+/// The arm of [`PresetCoordinate`] that ECMA-376's own file never takes for an `a:rect`: all 724 of
+/// its edges are guide names, which `text_goes_inside_the_shape.rs` asserts rather than assumes.
+/// The type models both because `ST_AdjCoordinate` does, so the untaken arm is taken here — with a
+/// consequence, not merely constructed.
+const A_LITERAL_TEXT_RECTANGLE: PresetShapeDefinition = PresetShapeDefinition {
+    preset: PresetShapeType::Rectangle,
+    derivation: Derivation::FromFirstPrinciples,
+    source: "a square whose text rectangle is four literals, for the identity-value probe",
+    adjustment_values: &[],
+    guides: &[],
+    // A quarter of the way in on every side of a 2 032 000 x 1 524 000 EMU shape.
+    text_rectangle: Some(PresetTextRectangle {
+        left: PresetCoordinate::Emu(508_000),
+        top: PresetCoordinate::Emu(381_000),
+        right: PresetCoordinate::Emu(1_524_000),
+        bottom: PresetCoordinate::Emu(1_143_000),
+    }),
+    connection_sites: &[],
+    paths: &[PresetPath {
+        width: None,
+        height: None,
+        fill: PathFillMode::Normal,
+        stroke: true,
+        extrusion_ok: true,
+        steps: UNIT_SQUARE,
+    }],
+};
+
+/// The same square with the same rectangle written as **guide names** instead.
+const A_GUIDE_NAMED_TEXT_RECTANGLE: PresetShapeDefinition = PresetShapeDefinition {
+    guides: &[
+        PresetGuide {
+            wire_name: "il",
+            formula: "*/ w 1 4",
+        },
+        PresetGuide {
+            wire_name: "it",
+            formula: "*/ h 1 4",
+        },
+        PresetGuide {
+            wire_name: "ir",
+            formula: "*/ w 3 4",
+        },
+        PresetGuide {
+            wire_name: "ib",
+            formula: "*/ h 3 4",
+        },
+    ],
+    text_rectangle: Some(PresetTextRectangle {
+        left: PresetCoordinate::Guide("il"),
+        top: PresetCoordinate::Guide("it"),
+        right: PresetCoordinate::Guide("ir"),
+        bottom: PresetCoordinate::Guide("ib"),
+    }),
+    ..A_LITERAL_TEXT_RECTANGLE
+};
+
+/// The same square with a connection site whose position is written in **literals**.
+///
+/// The other arm ECMA-376's file never takes: all 1 712 of its site coordinates are guide names.
+const A_LITERAL_CONNECTION_SITE: PresetShapeDefinition = PresetShapeDefinition {
+    text_rectangle: None,
+    connection_sites: &[PresetConnectionSite {
+        angle: PresetAngle::Native(5_400_000),
+        position: PresetPoint::new(
+            PresetCoordinate::Emu(508_000),
+            PresetCoordinate::Emu(381_000),
+        ),
+    }],
+    ..A_LITERAL_TEXT_RECTANGLE
+};
+
+#[test]
+fn a_text_rectangle_a_shape_declares_and_one_it_does_not_are_two_different_answers() {
+    // The `Option<PresetTextRectangle>` branch of a row, taken both ways against **real** table
+    // data, each with a consequence a caller can see.
+    let (within, extents) = (box_on_the_page(), extents_of_the_box());
+
+    let declared = preset_text_rectangle(PresetShapeType::RoundedRectangle, extents, &[], within)
+        .expect("`roundRect` resolves");
+    let absent = preset_text_rectangle(PresetShapeType::StraightLine, extents, &[], within)
+        .expect("`line` resolves");
+
+    assert_ne!(declared, absent, "the two arms answer the same value");
+    // The downstream consequence: one of them has a rectangle and the other's fallback is the box,
+    // so a text layout would put the two shapes' first line in different places.
+    assert_ne!(
+        declared.or_bounding_box(within),
+        absent.or_bounding_box(within),
+        "a shape with an inset text rectangle and one with none lay text in the same place"
+    );
+    assert_eq!(absent.or_bounding_box(within), within);
+}
+
+#[test]
+fn a_literal_text_rectangle_and_a_guide_named_one_are_two_ways_to_the_same_place() {
+    // Both arms of `PresetCoordinate` inside an `a:rect` — the literal one, which the spec file
+    // never takes, and the guide-named one, which it takes 724 times. Written to describe the
+    // *same* rectangle, so the assertion is that the two roads meet: a resolver that ignored the
+    // literal arm, or scaled it as though it were a fraction, would land somewhere else.
+    let (within, extents) = (box_on_the_page(), extents_of_the_box());
+    let literal = text_rectangle_of_definition(&A_LITERAL_TEXT_RECTANGLE, extents, &[], within)
+        .expect("a literal rectangle resolves");
+    let named = text_rectangle_of_definition(&A_GUIDE_NAMED_TEXT_RECTANGLE, extents, &[], within)
+        .expect("a guide-named rectangle resolves");
+    assert_eq!(
+        literal, named,
+        "the same rectangle written two ways resolved to two places"
+    );
+
+    // ...and it is not the box, so the comparison is not two fallbacks agreeing with each other.
+    let TextRectangle::Declared(rectangle) = literal else {
+        panic!("a literal rectangle answered {literal:?}");
+    };
+    assert!(
+        (rectangle.left - within.left - 40.0).abs() < 0.01,
+        "a quarter of a 160-pixel box is 40 px in, and this is {}",
+        rectangle.left - within.left
+    );
+}
+
+#[test]
+fn a_literal_site_coordinate_and_a_guide_named_one_are_two_ways_to_the_same_point() {
+    // The same probe for `a:cxn`'s position. `PresetPoint::new` is the constructor the generated
+    // table uses wherever either coordinate is a literal — which for connection sites is never, so
+    // this is the case that keeps the arm honest.
+    let (within, extents) = (box_on_the_page(), extents_of_the_box());
+    let sites = connection_sites_of_definition(&A_LITERAL_CONNECTION_SITE, extents, &[], within)
+        .expect("a literal site resolves");
+    assert_eq!(sites.len(), 1);
+    // A quarter of the way in on both axes: 40 px of 160, 30 px of 120.
+    assert!(
+        (sites[0].position.x - within.left - 40.0).abs() < 0.01
+            && (sites[0].position.y - within.top - 30.0).abs() < 0.01,
+        "a literal site landed at {:?}, not a quarter of the way into {within:?}",
+        sites[0].position
+    );
+    // The angle's literal arm, with its own consequence: 5 400 000 in the wire scale is 90 degrees.
+    assert!((sites[0].angle.degrees() - 90.0).abs() < 1e-9);
+
+    // And the guide-named arm, from the committed table, answering a *different* number — so the
+    // two arms are not both quietly returning zero.
+    let named = preset_connection_sites(PresetShapeType::Rectangle, extents, &[], within)
+        .expect("`rect` resolves");
+    assert!((named[0].angle.degrees() - 270.0).abs() < 1e-9);
+    assert_ne!(named[0].position, sites[0].position);
+}
+
+#[test]
+fn a_portrait_box_and_a_landscape_one_are_two_values_of_the_shorter_side() {
+    // **"The box is landscape" is an identity value, and it was never varied.** `ss` is
+    // `min(w, h)`, so in a landscape box the shorter side is always the height — and every box and
+    // every non-degenerate extent this crate had was landscape or square. An implementation that
+    // read `h` where a formula says `ss` produced identical numbers in every gate.
+    //
+    // The two boxes below have the *same* `ss` (120 points) and differ only in which side it is, so
+    // a quantity written in `ss` must come out the same in both. `roundRect`'s text inset is such a
+    // quantity — `x1 = ss·adj/100000`, inset `= x1·29289/100000` — and
+    // `text_goes_inside_the_shape.rs` pins its value in both orientations. Here is the branch
+    // itself, with the consequence that separates the three readings.
+    let landscape = preset_text_rectangle(
+        PresetShapeType::RoundedRectangle,
+        extents_of_the_box(),
+        &[],
+        box_on_the_page(),
+    )
+    .expect("`roundRect` resolves in a landscape box");
+    let portrait = preset_text_rectangle(
+        PresetShapeType::RoundedRectangle,
+        portrait_extents(),
+        &[],
+        portrait_box_on_the_page(),
+    )
+    .expect("`roundRect` resolves in a portrait box");
+
+    let (TextRectangle::Declared(landscape_rectangle), TextRectangle::Declared(portrait_rectangle)) =
+        (&landscape, &portrait)
+    else {
+        panic!("`roundRect` lost its text rectangle in one of the two boxes");
+    };
+    let landscape_inset = landscape_rectangle.left - box_on_the_page().left;
+    let portrait_inset = portrait_rectangle.left - portrait_box_on_the_page().left;
+
+    // Equal, because `ss` is the same in both — and *not* equal to what either side alone would
+    // give, which is what makes this a probe rather than a restatement.
+    assert!(
+        (landscape_inset - portrait_inset).abs() < 0.001,
+        "the inset is {landscape_inset} px landscape and {portrait_inset} px portrait; a quantity \
+         written in `ss` cannot differ between two boxes with the same shorter side"
+    );
+    assert!(
+        (landscape_inset - 7.811).abs() > 0.5,
+        "the inset is what the *longer* side would give, so `ss` is being read as `w` or `h`"
+    );
+
+    // The downstream consequence: the two boxes really are different boxes, so this is not two
+    // identical resolutions agreeing with each other.
+    assert!(
+        (box_on_the_page().width() - portrait_box_on_the_page().width()).abs() > 1.0,
+        "the two orientations are the same box"
+    );
+    assert_ne!(
+        landscape, portrait,
+        "the two rectangles are the same rectangle"
+    );
+}
