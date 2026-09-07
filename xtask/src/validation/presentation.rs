@@ -12,15 +12,15 @@
 
 use anyhow::{Context, Result};
 use mjx_ooxml::{
-    AdjustAngle, AdjustCoordinate, Angle, CellBorder, CellFormat, CellMargins, Cells,
-    CharacterPropertiesSpec, ChartData, ChartKind, ChartLabelScope, ColorSpec, ConnectionSite,
-    CustomGeometrySpec, DataLabelPosition, DataLabelSpec, Deck, DrawCommand, EffectListSpec, Emu,
-    ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, FillSpec, Fraction, Geometry,
-    GlowEffect, GradientStopSpec, GuideContext, GuideSpec, Hyperlink, LegendPosition, LineSpec,
-    LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec, PictureFillMode, Point,
-    PresetShapeType, Rectangle, SchemeColor, ShapeBounds, SlideSize, Surface, TableStyleBorder,
-    TableStyleFormat, TableStylePart, TextAlignment, TextAnchoring, TrendlineKind, TrendlineSpec,
-    DEFAULT_PLACEHOLDER_IMAGE,
+    AdjustAngle, AdjustCoordinate, Angle, AxisOrientation, CellBorder, CellFormat, CellMargins,
+    Cells, CharacterPropertiesSpec, ChartData, ChartKind, ChartLabelScope, ColorSpec,
+    ConnectionSite, CustomGeometrySpec, DataLabelPosition, DataLabelSpec, Deck, DrawCommand,
+    EffectListSpec, Emu, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, FillSpec,
+    Fraction, Geometry, GlowEffect, GradientStopSpec, GuideContext, GuideSpec, Hyperlink,
+    LegendPosition, LineSpec, LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec,
+    PictureFillMode, Point, PresetShapeType, Rectangle, SchemeColor, ShapeBounds, SlideSize,
+    Surface, TableStyleBorder, TableStyleFormat, TableStylePart, TextAlignment, TextAnchoring,
+    Transform2D, TrendlineKind, TrendlineSpec, DEFAULT_PLACEHOLDER_IMAGE,
 };
 
 /// A deck with one slide, ready for an area to fill.
@@ -635,6 +635,32 @@ fn write_geometry_areas(deck: &mut Deck, surface: Surface) -> Result<()> {
     let _read_back = deck
         .shape_geometry(surface, custom.into())
         .context("reading the custom geometry back")?;
+
+    // A rotated shape. Note what this is *not*: R7 asks about a transform naming a rotation and
+    // neither `a:off` nor `a:ext`, and `set_shape_transform` is documented to write only the fields
+    // its argument names — *an unset field means leave it alone, never clear it* — so no facade call
+    // can author that shape. What this one gives the pass is the rotation itself, and the bounds
+    // this library reports for it; R7's own case waits on an original that carries one
+    // (`V-PPTX-07.6`).
+    let rotated = deck
+        .add_shape(
+            surface,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(6.2, 5.2, 1.6, 1.0),
+        )
+        .context("rotation-only shape")?;
+    deck.set_shape_transform(
+        surface,
+        rotated.into(),
+        &Transform2D {
+            rotation: Some(Angle::from_degrees(30.0)),
+            ..Transform2D::default()
+        },
+    )
+    .context("rotation-only transform")?;
+    let _no_bounds = deck
+        .effective_shape_bounds(surface, rotated.into())
+        .context("effective bounds of the rotation-only shape")?;
     Ok(())
 }
 
@@ -834,6 +860,65 @@ fn write_chart_decoration_areas(deck: &mut Deck, surface: Surface) -> Result<()>
     Ok(())
 }
 
+/// The axes-and-workbook chart, on a slide of its own: bounded, reversed, ruled, its two series
+/// coloured — and then **detached** from its embedded workbook, so *Edit Data* has nothing to open.
+fn write_axes_and_detached_workbook_area(deck: &mut Deck, surface: Surface) -> Result<()> {
+    let axes = deck
+        .add_chart(
+            surface,
+            &quarterly_chart(),
+            ShapeBounds::from_inches(0.4, 0.4, 6.0, 3.0),
+        )
+        .context("axes chart")?;
+    deck.set_chart_title(surface, axes.into(), Some("Bounded 0-25, reversed, ruled"))?;
+    deck.set_chart_axis_title(surface, axes.into(), 0, Some("Quarter"))?;
+    deck.set_chart_axis_title(surface, axes.into(), 1, Some("Revenue"))?;
+    deck.set_chart_axis_scale(surface, axes.into(), 1, Some(0.0), Some(25.0))
+        .context("axis scale")?;
+    deck.set_chart_axis_orientation(surface, axes.into(), 1, AxisOrientation::MaximumToMinimum)
+        .context("axis orientation")?;
+    deck.set_chart_axis_gridlines(surface, axes.into(), 0, true, false)
+        .context("category gridlines")?;
+    deck.set_chart_axis_gridlines(surface, axes.into(), 1, true, true)
+        .context("value gridlines")?;
+    deck.set_chart_series_fill(
+        surface,
+        axes.into(),
+        0,
+        &FillSpec::solid(ColorSpec::Srgb("4472C4".into())),
+    )
+    .context("series 0 fill")?;
+    deck.set_chart_series_line(
+        surface,
+        axes.into(),
+        1,
+        &LineSpec::solid(
+            LineWidth::from_points(2.0),
+            ColorSpec::Srgb("ED7D31".into()),
+        ),
+    )
+    .context("series 1 outline")?;
+
+    let detached = deck
+        .add_chart(
+            surface,
+            &quarterly_chart(),
+            ShapeBounds::from_inches(6.8, 0.4, 6.0, 3.0),
+        )
+        .context("detached chart")?;
+    deck.set_chart_title(
+        surface,
+        detached.into(),
+        Some("This chart has no embedded workbook"),
+    )?;
+    deck.detach_chart_workbook(surface, detached.into())
+        .context("detaching the workbook")?;
+    let _workbooks = deck
+        .chart_workbooks(surface)
+        .context("reading the workbook list back")?;
+    Ok(())
+}
+
 /// The dangling-anchor case, which needs a slide of its own because it ends with a chart whose
 /// `c:dPt` addresses a point the series no longer has.
 fn write_dangling_point_area(deck: &mut Deck, surface: Surface) -> Result<()> {
@@ -910,6 +995,8 @@ fn write_plot_type_gallery(deck: &mut Deck) -> Result<()> {
 pub(crate) fn authored_chart_decoration() -> Result<Vec<u8>> {
     let (mut deck, slide) = one_slide_deck()?;
     write_chart_decoration_areas(&mut deck, slide)?;
+    let axes = deck.add_slide().context("axes slide")?;
+    write_axes_and_detached_workbook_area(&mut deck, axes.into())?;
     let dangling = deck.add_slide().context("dangling-point slide")?;
     write_dangling_point_area(&mut deck, dangling.into())?;
     write_plot_type_gallery(&mut deck)?;
@@ -923,6 +1010,8 @@ pub(crate) fn authored_chart_decoration() -> Result<Vec<u8>> {
 pub(crate) fn edit_chart_decoration(original: &[u8]) -> Result<Vec<u8>> {
     let (mut deck, slide) = opened(original)?;
     write_chart_decoration_areas(&mut deck, slide)?;
+    let axes = deck.add_slide().context("axes slide")?;
+    write_axes_and_detached_workbook_area(&mut deck, axes.into())?;
     let dangling = deck.add_slide().context("dangling-point slide")?;
     write_dangling_point_area(&mut deck, dangling.into())?;
     write_plot_type_gallery(&mut deck)?;
