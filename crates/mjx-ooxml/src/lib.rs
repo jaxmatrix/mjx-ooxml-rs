@@ -95,6 +95,25 @@
 //!
 //! # Guides
 //!
+//! **[This crate's own guide](guide) is six pages plus an index**, and it is the one to read first,
+//! because it is about the surface all three formats are reached through rather than about any one
+//! of them:
+//!
+//! - [Opening and saving](guide::opening_and_saving) — what a package *is*, which surface opens it,
+//!   and what saving refuses.
+//! - [Addressing](guide::addressing) — the three addressing vocabularies, and the four calls that
+//!   take the column before the row.
+//! - [One vocabulary, three surfaces](guide::one_vocabulary_three_surfaces) — what a caller who
+//!   learned one format already knows about the other two.
+//! - [Errors](guide::errors) — the eleven codes, the coordinates beside them, the typed cause under
+//!   them, and how each of the two bindings projects all three.
+//! - [The curated surface](guide::the_curated_surface) — what stays behind in each format crate, the
+//!   six reasons why, the three escape hatches, and the one gap that is a gap.
+//! - [Fidelity and the known gaps](guide::fidelity_and_gaps) — the round-trip contract through this
+//!   crate, what is preserved rather than modelled, and what is not verified against Office yet.
+//!
+//! Then the per-format guides, each written against its own crate's type.
+//!
 //! Start with [the PowerPoint guide](mjx_pptx::guide) — five pages, in reading order:
 //!
 //! - [Building a deck](mjx_pptx::guide::building_a_deck) — the whole story once, end to end.
@@ -184,6 +203,7 @@ pub mod deck;
 pub mod document;
 mod error;
 mod format;
+pub mod guide;
 mod index;
 mod references;
 pub mod shared_markup_reachability;
