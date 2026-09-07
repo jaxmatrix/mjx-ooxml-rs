@@ -62,6 +62,7 @@ use crate::error::DocxError;
 
 use super::body::{BlockContent, ParagraphContent, Run, RunInnerContent};
 use super::drawing::{Drawing, DrawingContent};
+use super::parts::ensure_theme_part;
 use super::{Body, Document, MainDocument};
 
 /// Where a chart sits in the text: in the line, or floating beside it.
@@ -317,6 +318,18 @@ impl Document {
                 DocxError::AddressNotFound(format!("no paragraph at {paragraph_path}"))
             })?;
         }
+        // A series this library authors carries no `c:spPr`, so its fill comes from the theme's
+        // `accent1…accent6`. A document with no theme part resolves those to nothing and paints no
+        // bars at all (MJXOFF-200). One is authored here **only** if the package carries none: a
+        // document that arrived with a theme keeps it untouched, because supplying a default in
+        // place of the user's own would override the branding of whoever opens the file.
+        let theme_rel_id = self.next_rid_for(&self.document_part.clone());
+        ensure_theme_part(
+            &mut self.package,
+            &self.document_part.clone(),
+            &theme_rel_id,
+        )?;
+
         let workbook = embedded_workbook_for_chart_data(chart)?;
         let chart_part = self.next_chart_part()?;
         let workbook_part = self.next_chart_workbook_part()?;

@@ -492,10 +492,18 @@ fn an_authored_chart_writes_three_parts_and_a_run_that_references_it() {
             && !before.contains(&"/word/_rels/document.xml.rels".to_owned()),
         "the document's own .rels is created by the chart's relationship: before {before:?}"
     );
+    // And five, not four: the series carries no `c:spPr`, so its fill comes from the theme's
+    // `accent1`, and a blank document has no theme for it to come from. MJXOFF-200 is the bug that
+    // was: title, axes and legend text painted and no bars at all.
+    assert!(
+        after.contains(&"/word/theme/theme1.xml".to_owned())
+            && !before.contains(&"/word/theme/theme1.xml".to_owned()),
+        "the chart's scheme colours need a theme to resolve against: before {before:?}"
+    );
     assert_eq!(
         after.len(),
-        before.len() + 4,
-        "those four parts and no others: {after:?}"
+        before.len() + 5,
+        "those five parts and no others: {after:?}"
     );
 
     // The run really references the chart part, through a `wp:inline` — not through anything a
@@ -1191,5 +1199,144 @@ fn the_word_chart_constants_are_the_same_strings_powerpoint_uses() {
     assert_eq!(
         mjx_docx::constants::CONTENT_TYPE_CHART,
         "application/vnd.openxmlformats-officedocument.drawingml.chart+xml"
+    );
+}
+
+// =================================================================================================
+// MJXOFF-200 — the theme a chart's scheme colours resolve against
+// =================================================================================================
+
+/// Every part of `bytes` registered as a theme.
+fn theme_parts(bytes: &[u8]) -> Vec<String> {
+    let package = Package::open(bytes).expect("the package opens");
+    let mut names: Vec<String> = package
+        .part_names()
+        .filter(|name| {
+            package.content_type_of(name)
+                == Some("application/vnd.openxmlformats-officedocument.theme+xml")
+        })
+        .map(|name| name.as_str().to_owned())
+        .collect();
+    names.sort();
+    names
+}
+
+/// **The chart authored into a document with no theme gains one, and its `accent1` resolves.**
+///
+/// The distinction the assertion turns on is the one MJXOFF-200 is about: the series carries **no**
+/// `c:spPr`, deliberately, so its fill is whatever `accent1` resolves to. A test that only asserted
+/// "a theme part exists" would pass the day someone wrote an empty one, and the chart would still
+/// paint no bars. So this reads the theme back through `mjx-dml`'s own reader and asserts the six
+/// accent slots a chart's series actually index into.
+#[test]
+fn a_chart_authored_into_a_document_with_no_theme_gains_one_its_colours_resolve_against() {
+    let mut document = blank_with_a_paragraph();
+    assert!(
+        theme_parts(&document.save().expect("it saves")).is_empty(),
+        "the premise: a blank document carries no theme"
+    );
+
+    document
+        .add_chart(0usize, &sample_chart(), 4_572_000, 2_743_200, "Revenue")
+        .expect("the chart is added");
+    let bytes = document.save().expect("it saves");
+
+    assert_eq!(
+        theme_parts(&bytes),
+        ["/word/theme/theme1.xml"],
+        "exactly one theme, at the name Word uses"
+    );
+
+    // The series states no fill of its own. That is the whole reason the theme has to be there, and
+    // it is what lets a host document's brand win instead of ours.
+    let chart = part_text(&bytes, "/word/charts/chart1.xml");
+    assert!(
+        !chart.contains("<c:spPr"),
+        "a series this library authors states no shape properties: {chart}"
+    );
+
+    // So `accent1` has to resolve to a colour, and so do the other five a multi-series chart walks.
+    let theme_text = part_text(&bytes, "/word/theme/theme1.xml");
+    let parsed = mjx_xml::fidelity::parse(theme_text.as_bytes()).expect("the theme is well-formed");
+    let theme = mjx_dml::Theme::from_xml(&parsed.root, &parsed.interner).expect("it reads back");
+    let scheme = theme.color_scheme().expect("a:clrScheme");
+    for slot in [
+        mjx_dml::ColorSchemeSlot::Accent1,
+        mjx_dml::ColorSchemeSlot::Accent2,
+        mjx_dml::ColorSchemeSlot::Accent3,
+        mjx_dml::ColorSchemeSlot::Accent4,
+        mjx_dml::ColorSchemeSlot::Accent5,
+        mjx_dml::ColorSchemeSlot::Accent6,
+    ] {
+        assert!(
+            scheme.color(slot).is_some(),
+            "{slot:?} must resolve or the series is painted with no colour"
+        );
+    }
+
+    // The theme is related from the document part, which is where Word puts it and how a consumer
+    // walking the package finds it.
+    let rels = part_text(&bytes, "/word/_rels/document.xml.rels");
+    assert!(
+        rels.contains(
+            r#"Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme""#
+        ) && rels.contains(r#"Target="theme/theme1.xml""#),
+        "{rels}"
+    );
+}
+
+/// **A document that arrives with a theme keeps it, byte for byte.**
+///
+/// This is the test MJXOFF-200's decision comment says will be forgotten, and it is the one that
+/// matters more: a writer that emitted `word/theme/theme1.xml` unconditionally would fix the
+/// invisible chart and **destroy the branding of every real document this library opens and
+/// re-saves**, and every other gate in this repository would stay green while it did.
+///
+/// `sample.docx` is LibreOffice's own output and ships `word/theme/theme1.xml`; the assertion is on
+/// that part's decompressed payload before and after an edit that goes right past it.
+///
+/// **Proved able to fail.** Removing the `package_carries_a_theme` guard in
+/// `crates/mjx-docx/src/document/parts.rs` — so that `ensure_theme_part` writes unconditionally —
+/// turns this red with `insert_part` refusing the duplicate; making it overwrite instead reddens the
+/// payload comparison directly. Neither mutation is visible to any other case in this workspace.
+#[test]
+fn a_document_that_arrives_with_a_theme_keeps_it_byte_for_byte() {
+    let original = mjx_fixtures::fixture("sample.docx");
+    assert_eq!(
+        theme_parts(&original),
+        ["/word/theme/theme1.xml"],
+        "the premise: this fixture carries a theme of its own"
+    );
+    let before = part_bytes_of(&original, "/word/theme/theme1.xml");
+
+    let mut document = Document::open(&original).expect("the fixture opens");
+    document
+        .add_chart(0usize, &sample_chart(), 4_572_000, 2_743_200, "Revenue")
+        .expect("the chart is added");
+    let after_bytes = document.save().expect("it saves");
+
+    assert_eq!(
+        theme_parts(&after_bytes),
+        ["/word/theme/theme1.xml"],
+        "no second theme is authored beside the document's own"
+    );
+    let after = part_bytes_of(&after_bytes, "/word/theme/theme1.xml");
+    assert!(
+        after == before,
+        "the document's own theme is not rewritten, re-serialized or replaced.\n  before: {}\n   after: {}",
+        String::from_utf8_lossy(&before),
+        String::from_utf8_lossy(&after),
+    );
+    assert_ne!(
+        before,
+        mjx_dml::default_theme_xml(),
+        "the fixture's theme really is a different one — otherwise the comparison above is vacuous"
+    );
+
+    // The chart still landed, so the edit under test was a real one.
+    assert_eq!(
+        theme_parts(&after_bytes).len()
+            + usize::from(part_text(&after_bytes, "/word/charts/chart1.xml").contains("<c:chart")),
+        2
     );
 }
