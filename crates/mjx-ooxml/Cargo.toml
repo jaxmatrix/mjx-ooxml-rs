@@ -30,6 +30,9 @@ mjx-xlsx.workspace = true
 # than on a filename. The OPC layer is the only way to do that; no other test names a crate below
 # this one.
 mjx-opc.workspace = true
+# The committed fixture corpus, read as a directory rather than listed — `tests/preservation/` is a
+# sweep over every fixture it holds, and a fixture added later must join that sweep by being there.
+mjx-fixtures.workspace = true
 # The counting global allocator, so `tests/workbook_boundary.rs` can hold the range-crossing
 # contract to a deterministic byte ratio instead of to a stopwatch. Dependency-free and outside the
 # shipped graph; it is the same allocator `xtask`'s fuzz campaign and `mjx-sml`'s cell-store gate
@@ -47,6 +50,14 @@ mjx-sml.workspace = true
 # `crates/mjx-sml/tests/cell_store_allocation.rs` makes.
 # `criterion`, for the Excel boundary bench. Dev-only; nothing on a `cargo test` path runs it.
 criterion.workspace = true
+
+# The preservation gate (MJXOFF-210): every fixture × every public `&mut self` method of the three
+# surfaces. It lives in a directory rather than one file because it is a registry of 452 cases plus
+# the diff primitive they are checked with; cargo only auto-discovers `tests/*.rs`, so the entry
+# point is named here.
+[[test]]
+name = "preservation"
+path = "tests/preservation/main.rs"
 
 [[test]]
 name = "workbook_boundary"
