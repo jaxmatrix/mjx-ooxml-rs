@@ -207,6 +207,46 @@ jobs:
           soffice --headless --convert-to pdf --outdir . facade_workbook.xlsx
           test -s facade_workbook.pdf
 
+  # The painter, on a graphics device that actually exists (MJXOFF-163).
+  #
+  # **A GitHub-hosted runner has no GPU**, which is exactly the situation this job is written for. A
+  # rendering suite that treated "no adapter" as "nothing to do" would be green precisely when the
+  # work was skipped — this project's signature failure — so:
+  #
+  #   * `mesa-vulkan-drivers` installs `lavapipe`, a *real* Vulkan implementation that rasterises on
+  #     the processor. It is enumerated as an ordinary adapter, so nothing is faked and nothing is
+  #     forced: `force_fallback_adapter` stays `false` and the painter reports `device_type: Cpu`,
+  #     which is the honest answer and is what the suites print.
+  #   * `MJX_REQUIRE_GPU=1` turns a missing device into a **failure** rather than a skip, exactly as
+  #     `MJX_REQUIRE_SCHEMA` and `MJX_REQUIRE_SOFFICE` already do for their tools. Locally the same
+  #     suites skip cleanly and say so by name.
+  #   * `vulkaninfo --summary` runs first and is *reported*, so the log says which implementation the
+  #     frames were drawn by rather than leaving a reader to assume.
+  #
+  # `wgpu`'s null backend is deliberately not compiled into this workspace (see the `wgpu` feature
+  # list in `Cargo.toml`); with it, this job would pass on a machine with no graphics stack at all.
+  render:
+    name: render (software Vulkan)
+    runs-on: ubuntu-latest
+    env:
+      MJX_REQUIRE_GPU: "1"
+      # Mesa's software rasteriser for the OpenGL path too, so that a `wgpu` build which prefers GL
+      # on this runner still finds something rather than reporting an absence that is not real.
+      LIBGL_ALWAYS_SOFTWARE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install a software Vulkan implementation
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mesa-vulkan-drivers libvulkan1 vulkan-tools libgl1-mesa-dri
+      - name: which implementation is present
+        run: vulkaninfo --summary || true
+      - name: the painter's own suites, with a missing device as a failure
+        run: cargo test -p mjx-paint --no-fail-fast -- --nocapture
+
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
   examples:
@@ -314,6 +354,41 @@ jobs:
             exit 1
           fi
           echo "no hand-written \`unsafe\` in bindings/*/src or bindings/*/tests"
+
+      # The same claim, for the platform boundary (MJXOFF-163), and the same principle: a claim CI
+      # does not check is a claim that quietly stops being true. `mjx-paint` is the fourth crate with
+      # a local `#![allow(unsafe_code)]`, and unlike the bindings it *does* contain one hand-written
+      # unsafe block — the surface created from a window handle the shell supplied, which no safe API
+      # can express. So the rule here is not "none" but "exactly the marked one": any `unsafe`
+      # keyword in `crates/mjx-paint/src`, outside a comment and outside the crate-level attribute,
+      # must carry `MJX-PAINT-SURFACE-UNSAFE` on its own line.
+      #
+      # `grep -w` rather than a bare match, because `create_surface_unsafe` and
+      # `SurfaceTargetUnsafe` are identifiers: a scan that could not tell a keyword from an
+      # identifier would report the very call the crate is built around and fail for ever.
+      # `crates/mjx-paint/tests/the_seam_holds.rs` asserts the same rule with the same word-boundary
+      # definition, one round trip earlier, and additionally that exactly one line carries it.
+      - name: only the marked `unsafe` in the platform boundary
+        run: |
+          offenders=$(grep -rnw 'unsafe' crates/mjx-paint/src 2>/dev/null \
+            | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' \
+            | grep -vF '#![allow(unsafe_code)]' \
+            | grep -vF 'MJX-PAINT-SURFACE-UNSAFE' \
+            || true)
+          if [ -n "$offenders" ]; then
+            echo "unmarked hand-written \`unsafe\` in crates/mjx-paint/src:"
+            echo "$offenders"
+            echo
+            echo "\`mjx-paint\` carries \`#![allow(unsafe_code)]\` on the stated grounds that it has"
+            echo "exactly one unsafe block: the surface created from a window handle the shell"
+            echo "supplied, whose validity is the window system's invariant. Adding another needs"
+            echo "its own justification and its own review — and this check, and the crate's own"
+            echo "\`the_seam_holds.rs\`, updated to permit it explicitly."
+            exit 1
+          fi
+          marked=$(grep -rncw 'unsafe' crates/mjx-paint/src 2>/dev/null \
+            | awk -F: '{ total += $2 } END { print total + 0 }')
+          echo "crates/mjx-paint/src: $marked \`unsafe\` line(s), all carrying the marker"
 
       - name: build the Python extension module
         run: cargo build -p mjx-python --features extension-module --release

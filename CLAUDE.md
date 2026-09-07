@@ -43,6 +43,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
+  | 5.5 — platform boundary | `mjx-paint` |
   | — outside the graph | `mjx-fixtures`, `mjx-schema-gate`, `mjx-allocation-counter`, `xtask` |
 
   **Shared markup is not flat**, and neither are the foundations. `mjx-xml` is built on
@@ -87,6 +88,19 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   added to both. Dev-dependencies are deliberately exempt from the rank check (`mjx-derive` tests
   against `mjx-ooxml-types`; every format crate dev-depends on the gate) but may still never reach a
   binding or `xtask`.
+
+  **`mjx-paint` at 5.5 is a rank that says who may reach *it*, and nothing else** (MJXOFF-163). It
+  sits above the facade so that *nothing in the document graph can depend on it* — no format crate,
+  no `mjx-ooxml`, and above all no binding, because `bindings/mjx-python` must never grow a GPU
+  dependency. **Do not lower it**: below the format tier the formats and the facade would sit
+  *above* it and could legally depend on it, which is the outcome the position exists to prevent.
+  But the layering gate refuses only an edge that points up or sideways, so at 5.5 **every crate in
+  the workspace is a legal dependency of `mjx-paint`** — and the architecture's second seam (*below
+  a display list, nothing has heard of a font, a layout algorithm or a document*) is therefore held
+  for that crate by an explicit manifest gate, `crates/mjx-paint/tests/the_seam_holds.rs`, and by
+  nothing else. `mjx-scene` got 1.7 so the layering gate could refuse its illegal edge by name; **no
+  rank can do the same job for a painter, in either direction.** A reader who assumes the rank is
+  protecting the painter's own edges has it backwards.
 - **Three test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema
   and child-order gate, a `dev-dependency` of the three format crates), `mjx-fixtures` (the committed
   corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can reach it
@@ -96,12 +110,31 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   `publish = false` and no shipped crate depends on any of them. A test suite reads its fixture
   corpus from `mjx-fixtures` — never from a `const FIXTURES` list — and installs its allocator from
   `mjx-allocation-counter` rather than writing a second one.
-- **Pure-Rust only** in shipped crates — no C/system libs. C tools (`xmllint`, LibreOffice) are for
-  CI/tests only. `quick-xml` lives *only* behind `mjx-xml`; the ZIP backend *only* behind `mjx-opc`.
-  PyO3 and wasm-bindgen live *only* behind `bindings/`.
+- **Pure-Rust only *in the document graph*** — ranks 0 through the facade — no C/system libs. C
+  tools (`xmllint`, LibreOffice) are for CI/tests only. `quick-xml` lives *only* behind `mjx-xml`;
+  the ZIP backend *only* behind `mjx-opc`. PyO3 and wasm-bindgen live *only* behind `bindings/`.
+
+  **The rule used to say "in shipped crates", and MJXOFF-163 amended it, because a pixel cannot
+  reach a screen without the operating system's graphics stack.** `wgpu` links `ash` (Vulkan),
+  `metal`/`objc2` and `windows-rs`, and no amount of Rust removes that. So the boundary is
+  *declared* rather than crossed quietly: **`mjx-paint` at rank 5.5 is the platform boundary and the
+  only crate that may link the platform's graphics API.** Everything below it — `mjx-scene`,
+  `mjx-layout`, `mjx-text`, the whole document graph — stays pure Rust, so the headless, `wasm32`,
+  export and test paths never require a GPU. That is not a hope: `tiny-skia` is a **required**
+  second painter (R09) precisely so that a fully pure-Rust path to pixels always exists, and the
+  cross-build matrix builds the library graph for five targets without one.
 - **`unsafe_code = "deny"`** workspace-wide; a crate that truly needs it must `#[allow(unsafe_code)]`
-  locally **with a written safety justification**. **No shipped crate does.** Three places allow it,
-  all outside the shipped graph:
+  locally **with a written safety justification**. **No crate in the document graph does.** Four
+  places allow it — three outside the shipped graph, and the platform boundary:
+  - `crates/mjx-paint` (MJXOFF-163), with **one** hand-written `unsafe` block: the surface created
+    from a window handle the shell supplied. No safe API can promise that a raw window handle
+    outlives the surface made from it; that promise is the window system's invariant and the
+    shell's to keep, it is documented at the call site and stated as the caller's obligation on
+    `DesktopWindow::new`, and every other `unsafe` in the crate's tree belongs to `wgpu`. **CI greps
+    `crates/mjx-paint/src`** for the `unsafe` keyword outside a comment and fails on any line that
+    does not carry the marker `MJX-PAINT-SURFACE-UNSAFE`, in the same job that guards
+    `bindings/*/src`; `crates/mjx-paint/tests/the_seam_holds.rs` asserts the same thing one round
+    trip earlier and additionally that there is exactly **one** such line.
   - `bindings/mjx-python` and `bindings/mjx-wasm`, with the same justification: *no hand-written
     `unsafe`; every unsafe block is generated by `#[pyclass]` / `#[wasm_bindgen]`.* CI greps
     `bindings/*/src` for `unsafe` outside that comment and fails if it finds any, so the

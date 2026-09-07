@@ -54,6 +54,59 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.129] - 2026-09-07
+
+**`mjx-paint`: the `Painter` contract, the `wgpu` painter, and the two architecture rules that had
+to change** (MJXOFF-163, Phase R position 8).
+
+**Where pixels first appear in this programme.** A display list becomes a frame: tessellated path
+fills and strokes, batched glyph quads out of the atlas, pictures, the fifty-four preset hatches,
+gradients, exact path clipping through a stencil buffer, opacity groups, five blend modes, the seven
+DrawingML effects as offscreen subtree renders, and four-sample multisampling — on Vulkan, Metal,
+Direct3D 12, OpenGL ES / WebGL 2 and WebGPU, from one shader and one pipeline layout.
+
+### Two `CLAUDE.md` rules amended, in writing rather than quietly
+
+- **The pure-Rust rule now governs the *document graph*, not the workspace.** A pixel cannot reach a
+  screen without the operating system's graphics stack, and `wgpu` links `ash`, `metal`/`objc2` and
+  `windows-rs`. Ranks 0 through the facade stay pure Rust; **`mjx-paint` at rank 5.5 is the declared
+  platform boundary** and the only crate that may link a graphics API. `tiny-skia` remains a
+  *required* second painter (R09) precisely so a fully pure-Rust path to pixels always exists.
+- **`mjx-paint` is the fourth crate with a local `#![allow(unsafe_code)]`**, with exactly one
+  hand-written `unsafe` block: the surface created from a window handle the shell supplied. CI greps
+  `crates/mjx-paint/src` for the keyword and fails on any line without the
+  `MJX-PAINT-SURFACE-UNSAFE` marker, in the same job that guards `bindings/*/src`.
+
+### The rank does not protect the painter's own edges, and something else had to
+
+Rank 5.5 sits above the facade so that *nothing in the document graph can depend on `mjx-paint`* —
+which is what keeps a GPU out of `bindings/mjx-python`. But the layering gate refuses only edges that
+point up or sideways, so at 5.5 every crate in the workspace is a legal dependency of the painter.
+`crates/mjx-paint/tests/the_seam_holds.rs` is what holds the architecture's second seam instead: it
+refuses `mjx-layout`, `mjx-dml`, every format crate and the facade in the painter's source, asserts
+the manifest exactly, and confines `mjx-text` to the **one** file that adapts R04's atlas delta —
+asserting both that no other file names it and that that one still does.
+
+### `mjx-scene`: a mesh now says where its outline came from
+
+`ResolvedOutline::provenance` was written once and read zero times: `outline_of` dropped it at the
+single point where the crate consumes a geometry provider, so **a painter could not tell a
+placeholder rounded rectangle from the document's own shape**. Since every preset shape resolves to
+a placeholder today, the guard R10's fidelity rule depends on did not exist. `SceneMesh` now carries
+a `Provenance` — origin and the provider's label — populated by `tessellate_scene` through the new
+`Tessellator::fill_resolved` / `stroke_resolved`; the painter counts them into
+`DrawReport::placeholders` and paints them in a warning colour.
+
+### Added
+
+- `crates/mjx-paint` — `Painter`, `SurfaceHost`, `Viewport`, `Frame`, `Resources`, `AtlasSource`,
+  `ImageSource`, the GPU-free `FramePlan` lowering, the budgeted `TexturePool`, the fifty-four
+  preset hatch masks and the gradient-ramp resolver.
+- `mjx_scene::Provenance`, `SceneMesh::provenance`, `Tessellator::fill_resolved` and
+  `Tessellator::stroke_resolved`.
+- A `render` CI job on a software Vulkan implementation with `MJX_REQUIRE_GPU=1`, so a missing
+  device there is a failure rather than a silent skip.
+
 ## [0.0.128] - 2026-09-07
 
 **`lyon` tessellation and the geometry-provider seam** (MJXOFF-162, Phase R position 7).

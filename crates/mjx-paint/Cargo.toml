@@ -1,0 +1,60 @@
+[package]
+name = "mjx-paint"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The platform boundary: the Painter contract every renderer implements, and the wgpu painter that turns a display list into pixels."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 1.7. The display list is this crate's input, its tessellator is where triangles come from,
+# and its re-exports are how a painter names a colour, a bitmap format, a hinting mode, a text
+# direction and a scale bucket without naming a crate below it.
+mjx-scene.workspace = true
+# Rank 0.2. Design tokens: a placeholder outline is painted in a warning colour, and the workspace
+# has exactly one sRGB colour type.
+mjx-tokens.workspace = true
+# Rank 1.5. **Named in exactly one file**, `src/glyph_atlas.rs`, and nowhere else — see that module
+# and `tests/the_seam_holds.rs`, which fails if a second file names it. A display list deliberately
+# carries no pixels, so the only way to honour "upload what changed, never the whole atlas" is to
+# take the atlas's own delta; `AtlasSource` is this crate's vocabulary for that, and the adapter
+# from `mjx_text::GlyphAtlas` to it is the one place the seam is crossed.
+mjx-text.workspace = true
+thiserror.workspace = true
+
+# The platform boundary itself. `CLAUDE.md`'s pure-Rust rule now governs the *document graph*; this
+# crate is where the operating system's graphics stack is allowed in, and nothing in the document
+# graph may depend on it.
+wgpu.workspace = true
+# A one-file executor. `Instance::request_adapter` and `Adapter::request_device` are futures on every
+# target; on native they are already complete when returned, and this crate has no runtime of its
+# own to drive them with.
+pollster.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# WebGL2 is the baseline in a browser and WebGPU is the opportunistic upgrade, so the browser build
+# compiles both. On native this feature would drag `wasm-bindgen` into a desktop binary for nothing.
+wgpu = { workspace = true, features = ["webgl"] }
+
+[dev-dependencies]
+# The graphics stack again, as a dev-dependency, so that `tests/a_missing_gpu_is_a_loud_skip.rs` can
+# force the adapter set to `Backends::empty()` and show that the absence is a named error rather
+# than a quietly green frame. A test that could only ask the painter "did it work" could not prove
+# that.
+wgpu.workspace = true
+# The counting global allocator, for the effect texture pool's byte budget. Test-only, outside the
+# rank graph.
+mjx-allocation-counter.workspace = true
+
+# The texture pool's byte budget is a binary of its own with **no test harness**, for the reason
+# `mjx-scene`'s mesh-cache gate gives: a `#[global_allocator]` is installed for a whole process, so a
+# measurement taken beside other tests measures them too, and `cargo test` runs a harness's cases on
+# several threads at once. A plain `main` runs the cases one after another.
+[[test]]
+name = "the_texture_pool_holds_its_budget"
+harness = false

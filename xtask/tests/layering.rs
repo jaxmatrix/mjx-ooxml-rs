@@ -118,6 +118,26 @@ enum Tier {
     Facade,
     /// `bindings/*` — rank 5.0. Nothing may depend on a binding.
     Bindings,
+    /// `mjx-paint` — rank 5.5 (MJXOFF-163). **The platform boundary**: the `Painter` contract, the
+    /// `SurfaceHost` contract and the `wgpu` painter.
+    ///
+    /// Its rank sits **above the facade**, and that is the whole of what the rank buys — it says
+    /// who may reach *it*, and the answer is nothing in the document graph. No format crate, no
+    /// `mjx-ooxml`, and above all no binding can declare an edge to a crate that links Vulkan,
+    /// Metal or Direct3D; `bindings/mjx-python` must never grow a GPU dependency, and at 5.5 it
+    /// structurally cannot. **Do not lower it**: below the format tier the formats and the facade
+    /// would sit *above* it and could legally depend on it, which is the outcome this position
+    /// exists to prevent.
+    ///
+    /// **What the rank does not buy is the other direction, and this is worth reading before
+    /// relying on it.** This file refuses only an edge that points up or sideways, so at 5.5 every
+    /// crate in the workspace is a legal dependency of `mjx-paint` — `mjx-dml`, the format crates,
+    /// `mjx-text`, `mjx-layout`, all of them. The architecture's second seam (*below a display
+    /// list, nothing has heard of a font, a layout algorithm or a document*) is therefore held for
+    /// that crate by an explicit manifest gate, `crates/mjx-paint/tests/the_seam_holds.rs`, and by
+    /// nothing else. `mjx-scene` got 1.7 so this file could refuse its illegal edge by name; **no
+    /// rank can do the same job for a painter, in either direction.**
+    PlatformBoundary,
     /// `mjx-fixtures`: the committed corpus, **no dependencies at all**, so `mjx-opc`'s own suites
     /// can reach it without an upward edge. Outside the shipped graph.
     TestCorpus,
@@ -161,6 +181,7 @@ impl Tier {
             Self::Formats => Rank(3, 0),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
+            Self::PlatformBoundary => Rank(5, 5),
             Self::TestCorpus | Self::TestGate | Self::TestInstrument | Self::Tooling => {
                 return None
             }
@@ -183,6 +204,7 @@ impl Tier {
             Self::Formats => "formats",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
+            Self::PlatformBoundary => "platform boundary",
             Self::TestCorpus => "test-only corpus (outside the shipped graph)",
             Self::TestGate => "test-only gate (outside the shipped graph)",
             Self::TestInstrument => "test-only instrument (outside the shipped graph)",
@@ -224,6 +246,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),
     ("mjx-wasm", Tier::Bindings),
+    ("mjx-paint", Tier::PlatformBoundary),
     ("mjx-fixtures", Tier::TestCorpus),
     ("mjx-schema-gate", Tier::TestGate),
     ("mjx-allocation-counter", Tier::TestInstrument),
@@ -420,14 +443,24 @@ fn every_dependency_points_strictly_downward() {
     // floors are not a guess about workspace size: they are what the shipped graph carries today,
     // and a change that empties one of them is a change worth failing on.
     //
-    // The check has **two** halves, because a tier can be exercised from either end and three of
-    // them can only ever be exercised from one. `mjx-ooxml-core`, `mjx-derive` and `mjx-tokens`
-    // declare no workspace dependency at all — they are the floor and the data crate — so no edge
-    // ever leaves their tiers, and listing them below would fail on a workspace that is exactly
-    // right. What *can* be asserted about them is that something reaches them, which is what the
-    // second list does. MJXOFF-156 left a note asking MJXOFF-157 to add `foundations, design
-    // tokens` to "the exercised-tier list"; `mjx-text -> mjx-tokens` is that edge, and this is the
-    // list it belongs in.
+    // The check has **two** halves, because a tier can be exercised from either end and not every
+    // tier can be exercised from both.
+    //
+    // * `foundations, core` and `foundations, design tokens` declare no workspace dependency at all
+    //   — they are the floor and the data crate — so no edge ever *leaves* them, and listing them in
+    //   the first list would fail on a workspace that is exactly right. What can be asserted about
+    //   them is that something reaches them, which is the second list's job. MJXOFF-156 left a note
+    //   asking MJXOFF-157 to add `foundations, design tokens` to the exercised-tier list;
+    //   `mjx-text -> mjx-tokens` is that edge, and the second list is the one it belongs in.
+    // * `bindings` and `platform boundary` sit at the top and nothing may reach them — the former
+    //   by `nothing_depends_on_a_binding_or_on_the_tooling`, the latter because every crate that
+    //   would is in the document graph and must never link a GPU — so they appear only in the first
+    //   list.
+    // * Everything between is in both. `display list` was added to the *incoming* list by
+    //   MJXOFF-163, which is the first child to depend on `mjx-scene`: MJXOFF-161 deliberately left
+    //   it out because nothing depended on the crate yet and the assertion would have failed, and
+    //   MJXOFF-162 was the same crate. `box model` was added by MJXOFF-161 for the same reason one
+    //   child earlier.
     assert!(
         checked >= 50,
         "only {checked} edges were checked, which is fewer than the shipped graph has — the walk \
@@ -445,6 +478,7 @@ fn every_dependency_points_strictly_downward() {
         "formats",
         "facade",
         "bindings",
+        "platform boundary",
     ] {
         assert!(
             per_source_tier.get(tier).copied().unwrap_or_default() > 0,
@@ -458,6 +492,7 @@ fn every_dependency_points_strictly_downward() {
         "packaging/compatibility",
         "typography",
         "box model",
+        "display list",
         "shared markup, base",
         "shared markup, spreadsheet",
         "shared markup, upper",
