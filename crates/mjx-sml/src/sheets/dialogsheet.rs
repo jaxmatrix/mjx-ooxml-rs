@@ -12,7 +12,7 @@
 //! of values. So [`DialogSheetPart`] has no cell accessor, for the reason
 //! [`crate::sheets::chartsheet`] states in full: the absence is in the type.
 //!
-//! # Eleven of its sixteen slots are modelled, and none of them is modelled here
+//! # Sixteen slots, ten modelled, six held — and none of the ten is modelled here
 //!
 //! Every one comes from somewhere else in this crate — [`SheetProperties`],
 //! [`SheetViews`], [`SheetFormatProperties`] and
@@ -22,12 +22,18 @@
 //! content enum and a set of accessors, which is all a sheet kind whose markup is entirely shared
 //! *should* be.
 //!
-//! The five held verbatim are `legacyDrawing` (rank 10), `legacyDrawingHF` (11), `drawingHF` (12),
+//! The six held verbatim are `legacyDrawing` (rank 10), `legacyDrawingHF` (11), `drawingHF` (12),
 //! `oleObjects` (13) and `controls` (14) — the drawing family and the two object slots — plus
 //! `extLst` (15). `oleObjects` and `controls` are **MJXOFF-107's (E3)**, which is also the child
 //! that will make a dialogsheet's controls readable; `legacyDrawing` is **MJXOFF-114's (E5)**. All
 //! six round-trip byte-for-byte in position regardless, which is what
 //! [`DialogSheetContent::Raw`] is for.
+//!
+//! Both figures are derived rather than stated: `sheets/frame.rs`'s
+//! `every_slot_of_every_sheet_kind_is_accounted_for` reads a dialogsheet holding one of every slot
+//! and holds the heading above to what the reader actually typed. Until MJXOFF-220 wrote it, this
+//! header claimed that eleven of the sixteen were modelled where ten are, and called six of them
+//! *five* in the sentence directly above the list of them.
 
 use mjx_ooxml_core::{FromXml, Interner, RawElement, RawNode};
 use mjx_ooxml_types::child_order::{ChildOrder, DIALOGSHEET};

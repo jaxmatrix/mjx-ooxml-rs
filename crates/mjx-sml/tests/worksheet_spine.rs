@@ -477,18 +477,32 @@ fn closing_index(text: &str, start: usize, local: &str) -> usize {
     start + rest.find(&close).expect("an end tag") + close.len()
 }
 
-/// Every slot the generated table names is either modelled or held raw, and the modelled set is
-/// exactly the thirteen this workspace claims.
+/// The generated sequence names thirty-nine distinct children, and the slots this frame models are
+/// **not** a prefix of them.
 ///
-/// MJXOFF-102 (D07) modelled the first seven ranks, and the fact that they were a **prefix** was
-/// what let the frame hold everything else as unranked raw markup. MJXOFF-117 (D12) added six more —
-/// ranks 7, 8, 9, 14, 23 and 24 — so the modelled and held slots now interleave, and the frame ranks
-/// a held child through the same generated table rather than treating it as unrankable. The
-/// assertion below is what stops that distinction being lost again:
-/// `crates/mjx-sml/tests/sheet_grid.rs` pins the placement it makes possible.
+/// # What this test does not claim, and where that claim lives
+///
+/// Until MJXOFF-220 this test was called *the thirty-nine slots are accounted for* and its
+/// documentation said the modelled set *"is exactly the thirteen this workspace claims"*. Neither
+/// was true: the body listed thirteen local names frozen at MJXOFF-117, asserted only that each of
+/// them is **a** slot of `CT_Worksheet`, and could not have noticed the twenty-two that were
+/// modelled after it — which is exactly how the split came to be written down as 25/14, then 31/8,
+/// then 34/5, then 35/4. Whether a slot is modelled or held is invisible from outside the crate
+/// (`WorksheetContent` is private), so this file cannot answer it and now says so instead of
+/// implying it. **`mjx_sml::worksheet::frame`'s `every_slot_of_the_generated_sequence_is_accounted_for`
+/// derives it from the read path**, and two more tests beside it hold the module's table and its
+/// prose to that derivation.
+///
+/// What *is* checkable here is the table property that made `Slot::rank` necessary. MJXOFF-102
+/// (D07) modelled ranks 0..=6, and the fact that they were a prefix is what let the frame hold
+/// everything after them as unranked raw markup. MJXOFF-117 (D12) added ranks 7, 8, 9, 14, 23 and
+/// 24, so a held slot could then stand *before* a modelled one and had to be ranked through the same
+/// generated table. `crates/mjx-sml/tests/sheet_grid.rs` pins the placement that makes possible.
 #[test]
-fn the_thirty_nine_slots_are_accounted_for() {
-    const MODELLED: &[&str] = &[
+fn the_generated_sequence_interleaves_the_slots_this_frame_models() {
+    /// The thirteen ranks that were modelled when the interleaving began — the smallest set that
+    /// demonstrates the property, not a claim about what is modelled today.
+    const RANKED_BY_MJXOFF_117: &[&str] = &[
         // MJXOFF-102 (D07) — ranks 0..=6.
         "sheetPr",
         "dimension",
@@ -508,24 +522,21 @@ fn the_thirty_nine_slots_are_accounted_for() {
 
     let names: BTreeSet<&'static str> = WORKSHEET.slots.iter().map(|slot| slot.local).collect();
     assert_eq!(names.len(), 39, "thirty-nine distinct child names");
-    for local in MODELLED {
+    for local in RANKED_BY_MJXOFF_117 {
         assert!(
             names.contains(local),
             "{local} is modelled here but is not a slot of CT_Worksheet"
         );
     }
-    let mut modelled_ranks: Vec<u16> = MODELLED
+    let mut ranks: Vec<u16> = RANKED_BY_MJXOFF_117
         .iter()
         .map(|local| WORKSHEET.rank_of(None, local).expect("a rank"))
         .collect();
-    modelled_ranks.sort_unstable();
-    assert_eq!(
-        modelled_ranks,
-        vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 23, 24]
-    );
+    ranks.sort_unstable();
+    assert_eq!(ranks, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 14, 23, 24]);
     assert_ne!(
-        modelled_ranks,
-        (0..modelled_ranks.len() as u16).collect::<Vec<_>>(),
+        ranks,
+        (0..ranks.len() as u16).collect::<Vec<_>>(),
         "the modelled slots are no longer a prefix of the sequence, which is why a held child has \
          to be ranked too — see `Slot::rank` in `crates/mjx-sml/src/worksheet/frame.rs`"
     );

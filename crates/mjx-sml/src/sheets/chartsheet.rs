@@ -25,7 +25,18 @@
 //! the match is the place the distinction is made — once, at the door, rather than at every
 //! accessor.
 //!
-//! # Six of its slots are shared markup, and are not re-modelled here
+//! # Fourteen slots, ten modelled, four held
+//!
+//! `pageMargins`, `pageSetup`, `headerFooter` and `picture` come straight from
+//! [`crate::features::print`] and `webPublishItems` from [`crate::features::publishing`], so six of
+//! the ten are shared markup this file does not re-model. The four held verbatim are
+//! `legacyDrawing`, `legacyDrawingHF`, `drawingHF` and `extLst`.
+//!
+//! Neither figure is written down anywhere it can rot: `sheets/frame.rs`'s
+//! `every_slot_of_every_sheet_kind_is_accounted_for` reads a chartsheet holding one of every slot,
+//! asks the reader which it typed, and holds this heading to the answer.
+//!
+//! # The six shared-markup slots, and why they are not re-modelled here
 //!
 //! `pageMargins`, `pageSetup`, `headerFooter` and `picture` come straight from
 //! [`crate::features::print`]; `webPublishItems` from [`crate::features::publishing`]. The one
