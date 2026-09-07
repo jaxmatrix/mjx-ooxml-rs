@@ -42,3 +42,13 @@ thiserror.workspace = true
 # a dev-dependency is not a link-time edge. `mjx-paint` does not depend on this crate, and
 # `crates/mjx-paint/tests/the_seam_holds.rs` forbids it naming this one, so the edge cannot invert.
 mjx-paint.workspace = true
+# **A dev-dependency, and the reason is again the gate rather than the code.** MJXOFF-205's
+# differential (`the_third_route_is_the_parser.rs`) writes each preset out as `a:custGeom` XML and
+# reads it back, so that the table is checked against a geometry that *arrived through the parser*
+# rather than through a `static` this crate compiled in. That needs `mjx_xml::fidelity::parse`, and
+# there is no second parser to reach for: `quick-xml` lives only behind `mjx-xml` (`CLAUDE.md`), so
+# writing one here would be the thing that rule forbids.
+#
+# It points **down** the ladder (2.5 → 0.1), so it is a legal edge even as an ordinary dependency;
+# it is a dev-dependency only because nothing this crate ships reads XML.
+mjx-xml.workspace = true
