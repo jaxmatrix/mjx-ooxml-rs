@@ -41,6 +41,7 @@ mod error;
 mod media;
 mod name;
 mod package;
+mod percent;
 mod rels;
 mod validate;
 
