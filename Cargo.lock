@@ -758,11 +758,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-allocation-counter"
-version = "0.0.131"
+version = "0.0.132"
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -776,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -788,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-derive",
  "mjx-fixtures",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "anyhow",
  "criterion",
@@ -824,11 +824,23 @@ dependencies = [
 
 [[package]]
 name = "mjx-fixtures"
-version = "0.0.131"
+version = "0.0.132"
+
+[[package]]
+name = "mjx-geometry"
+version = "0.0.132"
+dependencies = [
+ "mjx-dml",
+ "mjx-ooxml-core",
+ "mjx-ooxml-types",
+ "mjx-paint",
+ "mjx-scene",
+ "thiserror",
+]
 
 [[package]]
 name = "mjx-layout"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-text",
@@ -837,7 +849,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-mce"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -846,7 +858,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -856,7 +868,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "criterion",
  "mjx-allocation-counter",
@@ -875,18 +887,18 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.131"
+version = "0.0.132"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -897,7 +909,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-paint"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-scene",
@@ -911,7 +923,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "anyhow",
  "criterion",
@@ -933,7 +945,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
@@ -941,7 +953,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-scene"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "lyon_tessellation",
  "mjx-allocation-counter",
@@ -955,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-schema-gate"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-fixtures",
  "mjx-mce",
@@ -967,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-sml"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-derive",
@@ -983,7 +995,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-text"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "fontdb",
  "mjx-allocation-counter",
@@ -1001,14 +1013,14 @@ dependencies = [
 
 [[package]]
 name = "mjx-tokens"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mjx-vml"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -1019,7 +1031,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -1029,7 +1041,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1051,7 +1063,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -2333,7 +2345,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.0.131"
+version = "0.0.132"
 dependencies = [
  "anyhow",
  "mjx-allocation-counter",

@@ -40,6 +40,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.0 — shared markup, base | `mjx-dml` |
   | 2.1 — shared markup, spreadsheet | `mjx-sml` |
   | 2.2 — shared markup, upper | `mjx-chart`, `mjx-omml`, `mjx-vml` |
+  | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
@@ -74,7 +75,15 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   a `mjx-scene` above shared markup would make `mjx-scene → mjx-dml` a legal *downward* edge and the
   guarantee the crate exists to hold — below a display list, nothing has heard of a font, a layout
   algorithm or a document — would be enforced by nothing. At 1.7 the edge is refused by name. Do not
-  raise it. `mjx-sml` sits between
+  raise it. `mjx-geometry` (MJXOFF-202) is the mirror image of those three, at **2.5**: every other
+  rank is justified by what its crates may not *reach*, and this one by what may not reach **it**. It
+  holds the `presetShapeDefinitions` path tables and the `GeometryProvider` that ends `mjx-scene`'s
+  placeholder, so it is DrawingML and must live above `mjx-dml` (2.0) — which means `mjx-scene` (1.7)
+  and `mjx-layout` (1.6) structurally cannot depend on it, and a display list therefore still cannot
+  learn what a `.pptx` is. It is deliberately **below** the format tier, so `mjx-pptx` may reach it: a
+  format crate is allowed to know what its own shapes look like. What the rank cannot do is stop
+  `mjx-paint` (5.5) declaring the edge, so `crates/mjx-paint/tests/the_seam_holds.rs` forbids the
+  painter naming it, exactly as it forbids `mjx-dml`. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
