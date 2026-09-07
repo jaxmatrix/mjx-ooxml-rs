@@ -150,6 +150,19 @@ jobs:
       - name: schema-validity suite (Word and Excel)
         run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
 
+      # The validation harness and the Office-authored corpus. Both reach the gate, and both had
+      # their schema halves **skipping in every CI run** before this step existed: they live in
+      # `xtask/tests/`, which only `lint-test` ran, and `lint-test` has no `References/`. So
+      # `every_generated_artefact_is_schema_valid_and_in_child_order` validated nothing on CI, and
+      # the MCE/CT_Extension reproduction (MJXOFF-196) returned early. That is precisely the
+      # "green because it was skipped" shape this file's other jobs are written against.
+      #
+      # MJX_REQUIRE_OFFICE_CORPUS is deliberately NOT set: the corpus is empty and no agent may fill
+      # it. Set it here once `tests/office-authored/` has files, and an empty corpus becomes a
+      # failure rather than a reported count.
+      - name: schema-validity suite (the validation harness and the Office corpus)
+        run: cargo test -p xtask --test validation_harness --test office_corpus
+
   # The Phase-2 exit gate: a .pptx or .docx we construct actually opens in a real Office
   # implementation. Kept separate from lint-test so the heavy LibreOffice install cannot slow or
   # flake the fast lane. MJX_REQUIRE_SOFFICE=1 turns a missing binary into a hard failure, so this
