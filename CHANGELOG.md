@@ -58,6 +58,88 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.135] - 2026-09-08
+
+**Verification across all 186 presets — structural, differential and monotonic** (MJXOFF-205, Phase
+G position 4).
+
+It is mechanically easy to produce 186 shapes that resolve and geometrically hard to know any of
+them is right. Nobody reads 3 923 guide formulas and the output is visual, so this release is three
+gates that need no reference render, and the defect the first of them found.
+
+### The monotonicity gate now covers 285 adjustments, not four
+
+`an_adjustment_moves_the_shape.rs` states a direction in a shape's own words and asserts the
+geometry moves that way; it covers `triangle`, `roundRect`, `rightArrow` and `pie`. The remaining
+182 presets had never had an adjustment checked against a geometric expectation.
+`every_adjustment_moves_its_shape.rs` sweeps **all 285 (shape, adjustment) pairs across 119
+presets**, in both orientations, and asks four questions:
+
+- **every one of the 285 moves its geometry** — no exceptions;
+- **the axis it moves on is the axis its own `a:ahLst` handle declares** — a differential against a
+  part of ECMA-376's file the path table does not read — with **eight** named exceptions, each a
+  shape whose handle drags along one axis and whose geometry is arranged along the other;
+- **it keeps its shape in its box throughout**, with **eleven** named exceptions carrying measured
+  bounds in both orientations, and the worst shape that stays inside measuring 0.005 28 px against a
+  0.01 px tolerance — so halving the tolerance would fail a correct shape; and
+- **three adjustments reach a point their own formulas have no value at**, each at a stop a handle
+  drag reaches, each answering `SingularGeometry` so a stand-in is counted rather than the page
+  failing.
+
+### Fixed — an arc on a degenerate ellipse landed a whole radius from the pen
+
+Found by that gate, on its first sample. `parametric_angle` tested for a degenerate ellipse by
+asking whether `wR·sin θ` and `hR·cos θ` were **both exactly zero**, and `sin π` is `1.22e-16` in
+binary floating point. So an `a:arcTo` whose ellipse has one radius zero took the general branch,
+`atan2(1.22e-16, -0.0)` answered `π/2` instead of `π`, and the quarter turn that invented put the
+derived centre a whole `wR` from the pen. **`can` at `adj = 0` drew its top ellipse 80 device pixels
+left of a box beginning at zero, and `leftBracket` at `adj = 0` drew a full 160 outside a 160-pixel
+box** — both at an adjustment's own minimum, which a handle drag reaches. The guard is now on the
+radii, which is what the function's own documentation always claimed. **No existing gate saw it**:
+the box census resolves at default adjustments, the four monotonicity cases are four other shapes,
+and the degenerate-size sweep asserts finiteness rather than position.
+
+### A third route to the same geometry, through the parser
+
+`the_third_route_is_the_parser.rs` writes each of the 186 out as `a:custGeom` XML, reads it back
+through `mjx_xml::fidelity::parse`, and resolves it with `mjx-dml` alone — then compares **all three
+surfaces**: 6 189 path commands, 362 text rectangles and 1 712 connection sites, in two
+orientations. Every one agrees **exactly**, to 0.0 px and 0.0°. The route shares the arc
+decomposition and the guide evaluator (there is one of each in the workspace, deliberately) and
+shares nothing else: the table is read off the wire as `ST_AdjCoordinate` and `ST_AdjAngle` rather
+than out of a `static`, and the map onto the page — `CT_Path2D`'s `@w`/`@h` coordinate box included
+— is written a second time.
+
+### The structural walk: correspondence, not counts
+
+`every_preset_is_structurally_sound.rs` walks each of the 186 at **six sizes** and at **every
+adjustment's own extremes**, and asserts the resolved command list *is* the table's step list with
+exactly three transformations: an arc expanded into cubics, a `MoveTo` inserted where a step follows
+an `a:close` (six presets, all accent callouts), and a second `a:close` suppressed (none). It also
+asserts the map onto the box is affine, by resolving every preset in two boxes eight times apart and
+comparing every point through the transform between them — 15 096 points, worst disagreement
+6.1e-5 px.
+
+### Each check proved able to fail
+
+One mutation per check, each run over the whole table and each reddening **one shape and only that
+shape**: a `pie` whose swing angle is written in degrees rather than the wire's sixty-thousandths
+(the structural walk), a `triangle` whose apex guide reads `h` where the file writes `w` (the
+differential, 20 px), and a `triangle` whose apex is pinned to a constant equal to its own default —
+identical at its defaults and dead under a sweep (the monotonicity gate).
+
+### Also
+
+- `cargo run -p mjx-geometry --example plate_gallery -- out.svg` draws all 186 on one sheet with
+  their boxes, text rectangles and connection sites. It is **for the user to compare against
+  PowerPoint** and nothing gates on it: a picture that looks right is not evidence.
+- `orientations()` moved into the suites' shared scaffolding; it had been written twice and was
+  about to be written twice more.
+- Corrected stale prose on `TextRectangle::Singular`, which still said four presets are singular
+  there and named `parallelogram`. It is three, and `parallelogram`'s singular guide is one its
+  *connection sites* read — measured in 0.0.134 and asserted since, while the sentence in
+  `resolve.rs` went on saying otherwise.
+
 ## [0.0.134] - 2026-09-07
 
 **The text rectangle and the connection sites — `a:rect` and `a:cxnLst`** (MJXOFF-204, Phase G

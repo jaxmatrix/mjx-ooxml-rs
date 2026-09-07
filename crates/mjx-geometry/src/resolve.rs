@@ -474,10 +474,15 @@ pub fn outline_of_definition(
 /// * [`NotDeclared`](Self::NotDeclared) — the shape says nothing. Five of the 186 (`chartPlus`,
 ///   `chartStar`, `chartX`, `line`, `lineInv`): three tick marks and two bare lines.
 /// * [`Singular`](Self::Singular) — the shape says, and one of the guides it says it in has no
-///   finite value at this size and these adjustments. **Four presets are singular *only* here**,
+///   finite value at this size and these adjustments. **Three presets are singular *only* here**,
 ///   which is why `mjx-dml`'s evaluator is run one guide at a time: `leftRightUpArrow`,
-///   `leftUpArrow` and `quadArrow` lose `il`, and `parallelogram` loses the `q3` its `il` is built
-///   from, each at one end of one adjustment's own domain. Their paths draw perfectly well there.
+///   `leftUpArrow` and `quadArrow` all lose `il`, each at one end of one adjustment's own domain,
+///   and their paths draw perfectly well there. **Three and not four, and `parallelogram` is not
+///   one of them** — MJXOFF-204's brief said it was, and measuring it found the singular guide is
+///   `q3`, which its *connection sites* read and its `a:rect` does not.
+///   `tests/text_goes_inside_the_shape.rs`'s
+///   `the_singular_text_rectangles_are_three_and_parallelogram_is_not_one` is the assertion, and
+///   this sentence was still the old one until MJXOFF-205 grepped for it.
 /// * [`Inverted`](Self::Inverted) — the shape says, the guides all have values, and the edges have
 ///   **crossed**. There is no text area at all, and the crossed rectangle is a diagnosis rather
 ///   than a box.

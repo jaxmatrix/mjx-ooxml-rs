@@ -61,6 +61,25 @@ pub fn portrait_extents() -> Size {
     Size::from_emu(120 * 12_700, 160 * 12_700)
 }
 
+/// The two orientations a census is taken in, labelled for a failure message.
+///
+/// **Two, and not one, because `ss` is `min(w, h)`.** A great many preset guides are written in the
+/// shorter side, and in a landscape box the shorter side is always the height — so a census taken
+/// there alone cannot tell `ss` from `h`. `text_goes_inside_the_shape.rs`'s
+/// `the_shorter_side_is_the_shorter_side_in_both_orientations` is the probe that pins the
+/// distinction; this is the pair every census that would otherwise have been taken at one aspect
+/// ratio loops over.
+///
+/// One definition rather than one per suite: MJXOFF-204 wrote it twice and MJXOFF-205 wanted it a
+/// third and a fourth time, and four copies of a *box* is how two of them come to disagree about
+/// which box portrait is.
+pub fn orientations() -> [(&'static str, SceneRect, Size); 2] {
+    [
+        ("landscape", box_on_the_page(), extents_of_the_box()),
+        ("portrait", portrait_box_on_the_page(), portrait_extents()),
+    ]
+}
+
 /// Every shape this build seeds, with the wire token a failure should name it by.
 pub fn seeded() -> Vec<(PresetShapeType, &'static str)> {
     mjx_geometry::seeded_shapes()

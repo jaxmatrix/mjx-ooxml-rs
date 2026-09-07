@@ -100,15 +100,25 @@ pub const MAXIMUM_ARC_SEGMENT_RADIANS: f64 = FRAC_PI_2;
 /// `tan φ = (wR/hR)·tan θ`, taken as a two-argument arc tangent so the quadrant survives, and then
 /// unwrapped against `θ` so an arc that crosses the `atan2` branch cut does not lose a turn.
 ///
-/// A degenerate ellipse — both radii zero, or the ray landing exactly on the collapsed axis —
-/// answers with `θ` itself, which is the only value that keeps the sweep's sign and magnitude.
+/// **A degenerate ellipse — either radius zero — answers with `θ` itself**, which is the only value
+/// that keeps the sweep's sign and magnitude, and therefore the only one that leaves the arc where
+/// the file put it.
+///
+/// The test is on the *radii* and not on the products, and that is the whole of it. `sin π` is
+/// `1.22e-16` in binary floating point and `cos π/2` is `6.12e-17`, never zero, so a guard written
+/// as `across == 0.0 && along == 0.0` misses every degenerate ellipse whose arc starts on the
+/// collapsed axis — which is where they nearly all start. `atan2(1.22e-16, -0.0)` is `π/2`, not
+/// `π`, and the quarter turn it invents lands the derived centre a whole `wR` away from where the
+/// pen says it is: `can` at `adj = 0` drew its top ellipse 80 device pixels *left* of a box that
+/// begins at zero, and `leftBracket` at `adj = 0` drew a full 160 outside a 160-pixel box. Both
+/// values are an adjustment's own minimum, so a handle drag reaches them.
 #[must_use]
 pub fn parametric_angle(true_angle: f64, width_radius: f64, height_radius: f64) -> f64 {
-    let across = width_radius * true_angle.sin();
-    let along = height_radius * true_angle.cos();
-    if across == 0.0 && along == 0.0 {
+    if width_radius == 0.0 || height_radius == 0.0 {
         return true_angle;
     }
+    let across = width_radius * true_angle.sin();
+    let along = height_radius * true_angle.cos();
     let raw = across.atan2(along);
     // The two angles share a quadrant, so their difference is inside a quarter turn; wrapping into
     // `(-π, π]` therefore recovers it exactly rather than merely approximately.
