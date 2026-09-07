@@ -332,6 +332,85 @@ fn a_live_range_chart_declines_to_refresh_a_workbook_it_never_had() {
     ));
 }
 
+/// A data edit patches the chart's embedded workbook and leaves the rest of it alone (MJXOFF-208).
+///
+/// Excel's own surface reaches the same `mjx-chart` patcher `mjx-pptx` and `mjx-docx` do, so this is
+/// the third host proving the same property. Before MJXOFF-208 the whole embedded package was
+/// rebuilt by a call that only said *set series 0 to these numbers*.
+#[test]
+fn a_data_edit_patches_the_charts_embedded_workbook_and_keeps_the_rest_of_it() {
+    let mut workbook = Workbook::open(&producer_workbook()).expect("opens");
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2"])
+        .series("Plan", [1.0, 2.0]);
+    let anchor = workbook
+        .add_chart(
+            0,
+            &chart,
+            CellMarker::new(0, 0, 10, 0),
+            CellMarker::new(5, 0, 25, 0),
+            "Plan",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart with an embedded workbook");
+
+    let embedded = PartName::new("/xl/embeddings/Microsoft_Excel_Sheet1.xlsx").expect("a name");
+    let before = Package::open(&workbook.save().expect("saves"))
+        .expect("reopens")
+        .part_bytes(&embedded)
+        .expect("the workbook part is there")
+        .to_vec();
+
+    workbook
+        .set_chart_series_values(0, anchor, 0, &[7.5, 8.5])
+        .expect("the values are rewritten");
+    let saved = workbook.save().expect("saves");
+    let after = Package::open(&saved)
+        .expect("reopens")
+        .part_bytes(&embedded)
+        .expect("the workbook part survives")
+        .to_vec();
+
+    let inner_before = Package::open(&before).expect("the embedded workbook opens");
+    let inner_after = Package::open(&after).expect("the patched workbook opens");
+    let names: Vec<String> = inner_before
+        .part_names()
+        .map(|name| name.as_str().to_owned())
+        .collect();
+    assert_eq!(
+        names,
+        inner_after
+            .part_names()
+            .map(|name| name.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        "a data edit must add and remove no part of the embedded workbook"
+    );
+    for name in &names {
+        if name == "/xl/worksheets/sheet1.xml" {
+            continue;
+        }
+        let part = PartName::new(name).expect("a part name");
+        assert_eq!(
+            inner_before.part_bytes(&part),
+            inner_after.part_bytes(&part),
+            "a data edit must leave {name} of the embedded workbook byte-identical"
+        );
+    }
+
+    let sheet = String::from_utf8_lossy(
+        inner_after
+            .part_bytes(&PartName::new("/xl/worksheets/sheet1.xml").expect("a name"))
+            .expect("the worksheet"),
+    )
+    .into_owned();
+    for value in ["7.5", "8.5"] {
+        assert!(
+            sheet.contains(&format!("<v>{value}</v>")),
+            "the patched sheet holds {value}: {sheet}"
+        );
+    }
+}
+
 #[test]
 fn a_sheet_chart_that_carries_a_workbook_refreshes_normally() {
     // The other half of the pair, and the reason the case above is not vacuous: the same method on

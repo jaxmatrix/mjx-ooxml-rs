@@ -1068,6 +1068,13 @@ impl Workbook {
         map_error(self.inner.refresh_chart_workbook(sheet, anchor))
     }
 
+    /// Replaces the embedded workbook of the chart with a freshly built one, discarding whatever it
+    /// held. Answers whether it replaced one.
+    #[wasm_bindgen(js_name = "regenerateChartWorkbook")]
+    pub fn regenerate_chart_workbook(&mut self, sheet: u32, anchor: u32) -> Result<bool, JsValue> {
+        map_error(self.inner.regenerate_chart_workbook(sheet, anchor))
+    }
+
     /// Detaches the backing workbook, leaving the chart to render from its cached values. The
     /// workbook part goes with it unless another chart still names it.
     #[wasm_bindgen(js_name = "detachChartWorkbook")]

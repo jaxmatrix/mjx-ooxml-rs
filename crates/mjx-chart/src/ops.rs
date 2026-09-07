@@ -33,6 +33,7 @@ use crate::axis::{Axis, AxisOrientation, LegendPosition};
 use crate::decoration::{
     DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec, TrendlineSpec,
 };
+use crate::embedding::patch::ReferenceProblem;
 use crate::plot::{ChartKind, Series, SeriesDecoration};
 use crate::space::ChartSpace;
 use crate::view::{
@@ -116,6 +117,27 @@ pub enum ChartAccessError {
     /// a pie series, a point past the end of the data, leader lines on one point's label.
     #[error(transparent)]
     Data(#[from] ChartDataError),
+
+    /// A `c:f` names cells this library will not write, so the chart's data cannot be put into the
+    /// workbook the chart embeds (MJXOFF-208).
+    ///
+    /// A data edit **patches** the embedded workbook — it writes the new numbers into the cells the
+    /// chart's own formulas name and leaves every other sheet, format and name the producer wrote
+    /// exactly as it was. When the formula does not resolve to writable cells the edit is refused
+    /// here rather than completed by regenerating the workbook, because regenerating it destroys
+    /// content in a part the caller never named. [`ReferenceProblem`] says which shape of reference
+    /// it was; `regenerate_chart_workbook` on the host type is the explicit opt-in for a caller who
+    /// would rather have a fresh workbook than the producer's one.
+    #[error(
+        "the chart reference `{reference}` cannot be written into the embedded workbook: {problem}"
+    )]
+    EmbeddedWorkbookNotWritable {
+        /// The `c:f` exactly as the chart wrote it, or the sheet name it qualified itself with when
+        /// the workbook is what could not answer.
+        reference: String,
+        /// What about the reference stopped it.
+        problem: ReferenceProblem,
+    },
 }
 
 // =================================================================================================

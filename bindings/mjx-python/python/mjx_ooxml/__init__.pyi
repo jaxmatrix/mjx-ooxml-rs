@@ -2381,9 +2381,15 @@ class Deck:
         """
         ...
     def refresh_chart_workbook(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bool:
-        """Rewrites the embedded workbook of the chart the frame `shape_idx` on `surface`
-        references so its cells hold exactly what the chart now draws, and answers whether it
-        rewrote one.
+        """Writes the chart's data into the workbook the chart the frame `shape_idx` on `surface`
+        references already embeds — the cells its own `c:f` formulas name, and nothing else — and
+        answers whether it wrote one.
+        """
+        ...
+    def regenerate_chart_workbook(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> bool:
+        """Replaces the embedded workbook of the chart the frame `shape_idx` on `surface`
+        references with a freshly built one, discarding whatever it held. Answers whether it
+        replaced one.
         """
         ...
     def chart_kinds(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartKind]:
@@ -3943,8 +3949,13 @@ class Document:
         """Every chart in the document that references a backing workbook."""
         ...
     def refresh_chart_workbook(self, drawing_id: int) -> bool:
-        """Rewrites the embedded workbook of the chart `drawing_id` frames. Answers whether it
-        rewrote one.
+        """Writes the chart's data into the workbook the chart `drawing_id` frames already embeds —
+        the cells its own `c:f` formulas name, and nothing else. Answers whether it wrote one.
+        """
+        ...
+    def regenerate_chart_workbook(self, drawing_id: int) -> bool:
+        """Replaces the embedded workbook of the chart `drawing_id` frames with a freshly built
+        one, discarding whatever it held. Answers whether it replaced one.
         """
         ...
     def detach_chart_workbook(self, drawing_id: int) -> None:
@@ -7440,8 +7451,15 @@ class Workbook:
         ...
 
     def refresh_chart_workbook(self, sheet: int, anchor: int) -> bool:
-        """Rewrites the embedded workbook of the chart. Answers `False` — changing nothing — when there
-        is none, which is the ordinary state of a chart on a sheet.
+        """Writes the chart's data into the workbook it already embeds — the cells its own `c:f`
+        formulas name, and nothing else. Answers `False` — changing nothing — when there is none,
+        which is the ordinary state of a chart on a sheet.
+        """
+        ...
+
+    def regenerate_chart_workbook(self, sheet: int, anchor: int) -> bool:
+        """Replaces the embedded workbook of the chart with a freshly built one, discarding
+        whatever it held. Answers whether it replaced one.
         """
         ...
 

@@ -228,7 +228,6 @@ loses. A deck carrying any of it round-trips unchanged.
 | **`extLst` is never modelled** — on a cell, on a table's properties, on a shape, a line, a chart, a text run | The extension list, the `uri` of every extension in it, and all of its content come back exactly as they went in, through an edit to the element that carries it | `extLst` **is** the unknown bucket, at the schema's own insistence: `CT_OfficeArtExtension` is a required `uri` plus `xsd:any processContents="lax"`, so an extension's content is markup in a namespace nobody but its author defines. Modelling it would mean modelling `a16:`, `p14:` and every vendor namespace after them. What matters is that an extension survives an edit *and stays where the sequence puts it* — `extLst` is last in `CT_TableCellProperties`, `CT_TableProperties`, `CT_TextListStyle` and the rest — and that is pinned by tests rather than asserted here |
 | **A font slot the theme does not define keeps its reference** (`+mj-lt`, `+mn-ea`, …) | The reference itself, verbatim, as the effective answer | The alternative is a guess. A deck naming a slot its theme leaves undefined — or a `+…` spelling `a:fontScheme` has no slot for — is telling you something, and substituting a plausible typeface would hide it. Resolution replaces a reference only with a font the theme actually names |
 | **A transform naming a rotation but not both `a:off` and `a:ext`** answers `None` for its bounds | `effective_shape_bounds` says "no answer", not "at the origin" | A transform is inherited **whole**: the first tier that places a shape wins entirely, and a shape cannot take its position from one tier and its size from another. A partial transform therefore places nothing, and `None` is the honest report of that |
-| **A chart's workbook is regenerated, not patched** | A data edit rewrites the embedded workbook from the chart's own data, so the two always agree | Reconciling an arbitrary third-party workbook with edited chart data is a merge problem with no correct answer. Detach the workbook first if you would rather keep it stale than lose the formatting or extra sheets it carried (MJX-116) |
 | **Chart colour and style parts** (`colors1.xml`, `style1.xml`) are preserved, not modelled | The parts, verbatim | They are Office 2013+ extensions outside ECMA-376, and a chart renders without them. The in-schema styling — `c:style`, `c:varyColors`, a series' `c:spPr` — *is* modelled |
 | **InkML strokes are not modelled** | The stroke set, verbatim, plus `add_ink` / `set_ink_content` checking the root namespace | InkML is a W3C vocabulary with no OOXML semantics of its own. Parsing it would buy reach into a format this library does not render |
 | **A SmartArt layout is not run** | `add_diagram` writes the data, layout, style and colour documents and the frame naming them, and `mjx_dml::diagram` reads the markup of all four back fully typed — the algorithm tree included; PowerPoint regenerates the cached `dsp:drawing`, and a diagram that already has one keeps it verbatim | Walking `LayoutNode`'s typed algorithm tree to compute where a consumer draws each point's shape is a rendering feature, and there is no rendering here — see [*what `mjx_dml::diagram` models*](#smartart-what-mjx_dmldiagram-models) above for the line between the markup (typed) and the engine (not) |
@@ -279,6 +278,20 @@ tell the difference between "gone" and "quietly dropped":
   had no setter. It now has six: read, set and clear, for a level and for the `a:defPPr` beneath the
   levels, plus [`clear_shape_list_style`](Presentation::clear_shape_list_style) for the whole element.
   See [list formatting for the whole shape](crate::guide::shapes_and_text).
+- **A chart's embedded workbook is no longer thrown away by a data edit.** This page used to carry a
+  non-goal reading *a chart's workbook is regenerated, not patched*, whose reason was that
+  reconciling an arbitrary third-party workbook with edited chart data is a merge problem with no
+  correct answer. **It is not a merge problem.** The chart already states where its data lives — the
+  `c:f` beside each cache — so putting the new numbers there is an address lookup. Opening a real
+  deck, changing one series value and saving used to discard every extra sheet, cell format, defined
+  name and macro that workbook carried, silently, from a call that said nothing about any of them.
+  [`set_chart_series_values`](Presentation::set_chart_series_values),
+  [`set_chart_series_categories`](Presentation::set_chart_series_categories) and
+  [`refresh_chart_workbook`](Presentation::refresh_chart_workbook) now **patch** those cells and
+  leave the rest of the package byte for byte as it was; a `c:f` this library will not write over is
+  refused by name rather than quietly rebuilt over; and the old behaviour is
+  [`regenerate_chart_workbook`](Presentation::regenerate_chart_workbook), which a caller has to ask
+  for (MJXOFF-208).
 - **The duplicate SpreadsheetML writer is gone.** A chart's embedded workbook used to be written by
   a minimal writer inside `mjx-chart` — one sheet, a shared-string table and a styles skeleton — which
   existed only because no SpreadsheetML crate did, and which carried a note naming its own executioner.

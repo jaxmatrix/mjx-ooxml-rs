@@ -255,6 +255,83 @@ fn editing_a_chart_dirties_only_the_chart_xml_and_its_workbook() {
     assert_eq!(before, after, "editing chart data must add no parts");
 }
 
+/// Editing a series' values patches the producer's workbook and leaves the rest of it alone
+/// (MJXOFF-208).
+///
+/// `charts.pptx` was written by PowerPoint, and its embedded workbook carries a theme, a stylesheet,
+/// a shared-string table, document properties and a `cols` block — none of which a regenerated
+/// workbook has. Until MJXOFF-208 all of it was discarded by a call that only said *set series 0 to
+/// these three numbers*. Every part named below is one of the things that used to be lost.
+#[test]
+fn a_data_edit_patches_the_producers_workbook_and_keeps_the_rest_of_it() {
+    let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    let embedded = part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx");
+    let before = Package::open(&pres.save().expect("save"))
+        .expect("reopen")
+        .part_bytes(&embedded)
+        .expect("the workbook part is there")
+        .to_vec();
+
+    pres.set_chart_series_values(CHART_SURFACE, 0, 0, &[41.5, 42.5, 43.5])
+        .expect("set values");
+    let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
+    let after = pkg
+        .part_bytes(&embedded)
+        .expect("the workbook part survives")
+        .to_vec();
+
+    // Every part of the embedded package but the one worksheet is byte-identical, and the part list
+    // is unchanged — a regenerated workbook has neither a theme nor `docProps` at all.
+    let inner_before = Package::open(&before).expect("the workbook opens");
+    let inner_after = Package::open(&after).expect("the patched workbook opens");
+    let names: Vec<String> = inner_before
+        .part_names()
+        .map(|name| name.as_str().to_owned())
+        .collect();
+    assert_eq!(
+        names,
+        inner_after
+            .part_names()
+            .map(|name| name.as_str().to_owned())
+            .collect::<Vec<_>>(),
+        "a data edit must add and remove no part of the embedded workbook"
+    );
+    assert!(
+        names.iter().any(|name| name == "/xl/theme/theme1.xml"),
+        "the fixture's workbook should carry a producer's part graph: {names:?}"
+    );
+    for name in &names {
+        if name == "/xl/worksheets/sheet1.xml" {
+            continue;
+        }
+        let part = part(name);
+        assert_eq!(
+            inner_before.part_bytes(&part),
+            inner_after.part_bytes(&part),
+            "a data edit must leave {name} of the embedded workbook byte-identical"
+        );
+    }
+
+    // And inside the worksheet, only the cells the chart's `c:f` names moved.
+    let sheet = workbook_sheet(&after);
+    for value in ["41.5", "42.5", "43.5"] {
+        assert!(
+            sheet.contains(&format!("<v>{value}</v>")),
+            "the patched sheet holds {value}: {sheet}"
+        );
+    }
+    for kept in [
+        r#"<col min="1" max="1" width="10.7109375" customWidth="1"/>"#,
+        r#"<sheetView tabSelected="1" workbookViewId="0"/>"#,
+        r#"<c r="A2" s="1" t="s"><v>0</v></c>"#,
+    ] {
+        assert!(
+            sheet.contains(kept),
+            "a data edit must leave `{kept}` in the producer's worksheet: {sheet}"
+        );
+    }
+}
+
 /// Editing a series' **values** refreshes the workbook, on its own.
 ///
 /// Deliberately edits nothing else. This case used to set the categories in the same test, and
@@ -287,33 +364,55 @@ fn the_refreshed_workbook_holds_the_edited_values() {
     }
 }
 
-/// Editing a series' **categories** refreshes the workbook, on its own — the other half of the pair
+/// Editing a series' **categories** reaches the workbook, on its own — the other half of the pair
 /// above, for the same reason.
+///
+/// MJXOFF-208 moved *where* the new labels land, and this case says so. Before it, the workbook was
+/// regenerated and the labels came back as a rebuilt `xl/sharedStrings.xml`. Now the cells the
+/// chart's own `c:f` names are patched in place, and new text is written as an **inline** string —
+/// interning it would mean rewriting the string table as well, which is a second part of somebody
+/// else's file that the caller never named. The old entries stay in the table, unreferenced and
+/// harmless, and every other part of the workbook survives untouched.
 #[test]
-fn the_refreshed_workbook_holds_the_edited_categories() {
+fn the_edited_categories_land_in_the_cells_the_chart_names() {
     let mut pres = Presentation::open(&fixture("charts.pptx")).expect("open");
+    let before = workbook_part(
+        Package::open(&pres.save().expect("save"))
+            .expect("reopen")
+            .part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
+            .expect("the workbook part survives"),
+        "xl/styles.xml",
+    );
+
     pres.set_chart_series_categories(CHART_SURFACE, 0, 0, &["Alpha", "Beta", "Gamma"])
         .expect("set categories");
 
     let pkg = Package::open(&pres.save().expect("save")).expect("reopen");
-    let strings = workbook_part(
-        pkg.part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
-            .expect("the workbook part survives"),
-        "xl/sharedStrings.xml",
+    let workbook = pkg
+        .part_bytes(&part("/ppt/embeddings/Microsoft_Excel_Sheet1.xlsx"))
+        .expect("the workbook part survives");
+    let sheet = workbook_sheet(workbook);
+    for label in ["Alpha", "Beta", "Gamma"] {
+        assert!(
+            sheet.contains(&format!("<is><t>{label}</t></is>")),
+            "the patched sheet should hold {label} in the cell the chart names: {sheet}"
+        );
+    }
+    // The cells no longer point into the string table, so the old labels no longer read back —
+    // which is what makes this fail on a workbook nobody wrote to.
+    let categories = pres
+        .chart_series(CHART_SURFACE, 0)
+        .expect("series")
+        .remove(0)
+        .categories;
+    assert_eq!(categories, ["Alpha", "Beta", "Gamma"]);
+
+    // And the parts the edit never named are exactly as they were.
+    assert_eq!(
+        workbook_part(workbook, "xl/styles.xml"),
+        before,
+        "a category edit must leave the workbook's styles byte-identical"
     );
-    for label in ["Alpha", "Beta", "Gamma", "Sales"] {
-        assert!(
-            strings.contains(&format!("<t>{label}</t>")),
-            "the refreshed shared strings should hold {label}: {strings}"
-        );
-    }
-    // And the labels the fixture carried are gone, so this cannot pass on a workbook nobody rewrote.
-    for stale in ["North", "South", "West"] {
-        assert!(
-            !strings.contains(&format!("<t>{stale}</t>")),
-            "the stale label {stale} must not survive the refresh: {strings}"
-        );
-    }
 }
 
 #[test]

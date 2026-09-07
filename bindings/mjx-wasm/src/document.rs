@@ -1189,6 +1189,13 @@ impl Document {
         map_error(self.inner.refresh_chart_workbook(drawing_id))
     }
 
+    /// Replaces the embedded workbook of the chart `drawingId` frames with a freshly built one,
+    /// discarding whatever it held. Answers whether it replaced one.
+    #[wasm_bindgen(js_name = "regenerateChartWorkbook")]
+    pub fn regenerate_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, JsValue> {
+        map_error(self.inner.regenerate_chart_workbook(drawing_id))
+    }
+
     /// Detaches the backing workbook, leaving the chart to render from its cached values.
     #[wasm_bindgen(js_name = "detachChartWorkbook")]
     pub fn detach_chart_workbook(&mut self, drawing_id: u32) -> Result<(), JsValue> {

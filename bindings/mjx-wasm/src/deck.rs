@@ -1854,6 +1854,20 @@ impl Deck {
         )
     }
 
+    /// Replaces the embedded workbook of the chart the frame `shapeIdx` on `surface` references
+    /// with a freshly built one, discarding whatever it held. Answers whether it replaced one.
+    #[wasm_bindgen(js_name = "regenerateChartWorkbook")]
+    pub fn regenerate_chart_workbook(
+        &mut self,
+        surface: &SurfaceArg,
+        shape_idx: &ShapePathArg,
+    ) -> Result<bool, JsValue> {
+        map_error(
+            self.inner
+                .regenerate_chart_workbook(surface_of(surface)?, path_of(shape_idx)?),
+        )
+    }
+
     /// The kind of every plot the chart the frame `shape_idx` on `surface` references draws, in
     /// document order — one entry per plot element, so a combo chart yields several. Reading does
     /// not dirty the part.
