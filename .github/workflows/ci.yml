@@ -27,6 +27,22 @@ jobs:
         run: cargo fmt --all --check
       - name: clippy
         run: cargo clippy --workspace --all-targets -- -D warnings
+      # The documentation gate (MJXOFF-199): every file path and crate-qualified symbol the prose
+      # names still resolves, and `docs/api/README.md` names every committed page and only those.
+      #
+      # It needs nothing this job does not already have — no `References/`, no LibreOffice, no
+      # Python — but it *does* need a real git checkout, because it derives its corpus from
+      # `git ls-files` rather than from a hand-maintained list. `actions/checkout@v4` gives it one.
+      #
+      # The `test` step below already runs it as part of `--workspace`, and so does the
+      # `all-features` job: verified with `cargo test --workspace --no-run`, which lists
+      # `Executable tests/doc_gate.rs` in both modes. This step is named anyway, for two reasons.
+      # A prose error then reports as "doc-gate" in seconds rather than as one line inside a
+      # 3,000-test run — and, more to the point, MJXOFF-130 found `xtask/tests/` reachable by only
+      # one job and auditor pass 4 found `mjx-dml`'s preset-geometry sweep reachable by none
+      # (MJXOFF-197). A gate whose job is only implied is the gate that turns out not to run.
+      - name: doc-gate (paths, symbols and the index)
+        run: cargo test -p xtask --test doc_gate -- --nocapture
       # `--no-fail-fast`: a plain `cargo test` stops at the first failing test *binary*, so a second
       # broken crate is invisible until the first is fixed — one round trip per defect.
       - name: test
