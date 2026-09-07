@@ -30,9 +30,12 @@ revertible commit. Gaps-page owners: `MJX-211` R1, `MJX-208`. Shipped by `MJX-22
 ### R2 — every fixture is hand-crafted
 
 No test in this repository has ever read a file Microsoft Office wrote. LibreOffice confirms files
-*open*; nothing yet confirms they *render as intended*. `MJXOFF-130` is the antidote, and the
-entries that feed it are written here — every artefact this pass re-saves from Office is a candidate
-for that corpus.
+*open*; nothing yet confirms they *render as intended*. `MJXOFF-130` built the road — the corpus slot
+at `tests/office-authored/`, the ingest command, and `xtask/tests/office_corpus.rs`, which holds
+whatever lands there to byte identity at the container *and* through the facade, to the fidelity
+tree, to the package invariants and to the child-order audit. **It cannot supply the traffic.** Every
+artefact this pass re-saves from Office is a candidate for that corpus, and
+`docs/validation/06-the-office-pass.md` §5 is the loop that puts one in.
 
 * **`V-PPTX-04.4`** — re-save each chart from Office and read it back. This is the one that produces the corpus's first files.
 * Every entry marked **blocked** on this page's sibling pages names `MJXOFF-130` because of R2:
@@ -119,7 +122,7 @@ detail**, so the last row is really the first thing to try.
 
 ## The design questions
 
-Five checks on these pages have **no expected result**, because what they establish is a decision
+Six checks on these pages have **no expected result**, because what they establish is a decision
 rather than a fact. Each says *record which happens* and names the decision that follows. **None of
 them may be marked `differs`** — there is nothing to differ from.
 

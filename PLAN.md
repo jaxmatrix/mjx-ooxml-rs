@@ -48,6 +48,12 @@ public API is not stable until `v0.1`. Milestones advance the minor version — 
 **`v0.2`** Word, **`v0.3`** Excel — with later milestones (rendering) defined as scheduled.
 See [`CHANGELOG.md`](CHANGELOG.md).
 
+**A minor digit is a completeness claim, and it rests on a person.** `v0.1` means "PowerPoint
+complete *and validated against real Office*", and no machine in this repository can establish the
+second half — see [`docs/validation/00-method.md`](docs/validation/00-method.md). Every version this
+project has ever taken moved the patch digit; the minor and major digits are raised by hand, during
+verification, and there are no tags.
+
 ## Phases
 
 - **Phase 0 — Skeleton + container + round-trip proof.** ✅ *done.* Workspace, CI, docs,
@@ -93,7 +99,20 @@ See [`CHANGELOG.md`](CHANGELOG.md).
   `bindings/mjx-wasm` (wasm-bindgen, `npm install @mjx/ooxml`), both projecting the whole `Deck`
   surface, both proved by writing the guide's walkthrough a second and third time and checking that
   all three produce byte-identical parts. 🔨 Next, **validation**: every shipped feature checked by
-  hand against real PowerPoint, which nothing has yet been.
+  hand against real PowerPoint, which nothing has yet been. The harness for it is built —
+  [`docs/validation/`](docs/validation/00-method.md) holds the method, the index, the risk order and
+  113 checks across the three formats, `cargo run -p xtask -- validation-artefacts` writes the files
+  a person opens, and [`docs/validation/06-the-office-pass.md`](docs/validation/06-the-office-pass.md)
+  is how that person runs the pass. **The verdicts are the user's and every result line ships
+  unfilled**, which is why this bullet still says *next*.
+- **The Office-authored corpus.** `tests/office-authored/` is the slot for files real Microsoft
+  Office wrote, with a redistribution rule, an ingest command
+  (`validation-artefacts --ingest <file>`) and `xtask/tests/office_corpus.rs`, which holds whatever
+  lands there to per-part byte identity at the container *and* through the facade, to the fidelity
+  tree, to the package invariants and to the child-order audit. **It is empty.** Every fixture in
+  this repository was written by this project or by LibreOffice, so every gate proves that our reader
+  agrees with our writer; a file's value in that directory is entirely its provenance, and no agent
+  may supply one. Filling it is §5 of the hand-off document.
 - **Phase 4 — Word slice.** `mjx-docx` body/styles/tables/sections/numbering/headers + `mjx-omml`.
 - **Phase 5 — Excel slice.** **Two** crates, not one: `mjx-sml` holds the SpreadsheetML *markup* —
   cells, rows, shared strings, styles, number formats, formulas as text (no calc engine) — in the

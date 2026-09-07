@@ -143,10 +143,23 @@ Each area produces two artefacts, and they are different code paths:
   Authoring bugs and editing bugs are different bugs, and only this variant exercises edit isolation
   against markup we did not write.
 
-The corpus is empty until MJXOFF-130 fills it, so every edit variant currently **skips by name** —
-the run prints the area and the exact path it looked for. `MJX_REQUIRE_OFFICE_CORPUS=1` turns any
-such skip into a hard failure, the same arrangement `MJX_REQUIRE_SOFFICE=1` makes for the
-`office_open` canary.
+The corpus is empty, so every edit variant currently **skips by name** — the run prints the area and
+the exact path it looked for. `MJX_REQUIRE_OFFICE_CORPUS=1` turns any such skip into a hard failure,
+the same arrangement `MJX_REQUIRE_SOFFICE=1` makes for the `office_open` canary, and it should be set
+only once there are files.
+
+Filling it is the other direction of the same command, and it is the half of this pass that changes
+the repository:
+
+```sh
+cargo run -p xtask -- validation-artefacts --ingest <a file saved out of Office> --area 2
+```
+
+It reports which entry the file answers, whether it round-trips at the container and through the
+facade, whether the package invariants hold, whether its child order matches our generated tables,
+whether it validates, and where it would be committed — and it copies nothing, because committing a
+file is a decision taken against the redistribution rule in `tests/office-authored/README.md`.
+`docs/validation/06-the-office-pass.md` §5 is the whole loop.
 
 The same artefacts are produced a second time by `bindings/mjx-python/tests/test_validation_artefacts.py`
 and a third time by `bindings/mjx-wasm/tests/node/validation_artefacts.mjs`, each compared against

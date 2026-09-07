@@ -153,6 +153,39 @@ They are listed here so nobody plans around a surface that is not present.
 | **Authoring a theme part.** [`Workbook::blank`] writes no `xl/theme/theme1.xml` | An indexed or `rgb` colour needs no theme; a `theme`-referencing colour in a file you opened resolves against the theme that file carries |
 | **A `DocumentDefect` equivalent for `mjx-docx`** | `mjx-xlsx` and `mjx-pptx` both report structural anomalies rather than repairing them; Word does not yet |
 
+## Built, not yet verified against Excel
+
+A third list, and it is neither of the two above. Everything here **works** and is tested against
+markup *we wrote*; what none of it has is a run through real Microsoft Excel. It is not a limitation
+and not a defect — it is a statement about the evidence.
+
+Every fixture under `tests/fixtures/` was written by this project or by LibreOffice, so every gate in
+the workspace proves that our reader agrees with our writer. What now exists is the **road** for
+changing that: `tests/office-authored/` with its redistribution rule,
+`cargo run -p xtask -- validation-artefacts --ingest` to report on a file before it is committed, and
+`xtask/tests/office_corpus.rs`, which holds whatever lands there to per-part byte identity at the
+container *and* through [`Workbook`], to the fidelity tree, to `mjx_opc::Package::validate` and to the
+child-order audit. **The corpus is empty**, and no agent may fill it: a file's value here is entirely
+its provenance. `docs/validation/06-the-office-pass.md` is how a person with Excel fills it.
+
+| Not yet verified | What is in place | Where the check lives |
+|---|---|---|
+| **Whether Excel is content with a workbook authored from nothing** | [`Workbook::blank`] writes `workbook.xml`, one worksheet, `styles.xml`, both `docProps` parts and no theme; every part is schema-valid, in child order, and reopens unchanged | `V-XLSX-01.1` — and the Excel list's own note is that the format is the least forgiving of the three about structural detail, so a repair prompt here invalidates everything under it |
+| **The two-layer `xf` indirection**, resolved the way Excel resolves it | [`Workbook::effective_cell_format`] walks `cellXfs` over `cellStyleXfs` from ECMA-376 §18.8.45's prose; `docs/EFFECTIVE_CELL_FORMAT_HANDOFF.md` holds 28 rows of it with its **Excel says** column deliberately empty | `V-XLSX-02.1`, `V-XLSX-02.2`, `V-XLSX-02.4` |
+| **A number-format code against what Excel actually renders** | The code and its id are reported; nothing here formats a value | `V-XLSX-02.3` |
+| **Shared and array formulas surviving an edit** | The group's master and its `@ref` round-trip, and an edit never rewrites a cell it was not asked to | `V-XLSX-01.4` |
+| **Conditional-formatting rule priority** | `@priority` is read and reported, never resolved — a rule is described, not evaluated | `V-XLSX-02.5` |
+| **A chart reading a live range** | The chart's cached values and its `c:f` references are both preserved; Excel recalculates from the range | `V-XLSX-04.1`, `V-XLSX-04.2` |
+
+**One deviation is expected on the first real workbook, and it is ours.** The schema gate validates
+the markup-compatibility-resolved view of a part; resolution removes an ignorable element together
+with its content; and `sml.xsd`'s `CT_Extension` declares its wildcard as a bare
+`<xsd:any processContents="lax"/>`, whose `minOccurs` therefore defaults to 1. Every modern Excel file
+writes `x14`/`x15` extensions under `mc:Ignorable`, so the emptied `<ext>` is rejected with *Missing
+child element(s)*. That is a defect in how the two compose — not a property of the file, and
+deliberately not a tolerance — filed as **MJXOFF-196**, and reproduced from markup authored for the
+purpose in `xtask/tests/office_corpus.rs`.
+
 ## Where each of these is written down
 
 | Limitation | Page |
