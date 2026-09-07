@@ -30,6 +30,37 @@ pub fn extents_of_the_box() -> Size {
     Size::from_emu(160 * 12_700, 120 * 12_700)
 }
 
+/// A device-pixel box that is **taller than it is wide** — 120 × 160, the transpose of
+/// [`box_on_the_page`].
+///
+/// # Why a second box, and why portrait specifically
+///
+/// Every other box and every non-degenerate extent in this crate's suites is landscape or square,
+/// and that makes one confusion invisible to all of them. `ss` is `min(w, h)` — ECMA-376's "shorter
+/// side", and the unit a great many preset guides are written in — so **in a landscape box `ss` is
+/// always `h`**, and an implementation that read `h` where the formula says `ss` would produce
+/// identical numbers everywhere the crate measures. It would keep its box-census membership,
+/// measure zero in the seed differential and draw the same command tally.
+///
+/// Here `ss` is `w`. Together the two boxes pin `ss` to `min(w, h)` rather than to either side:
+/// a quantity written in `ss` must come out the *same* in both, an `h`-based one comes out larger
+/// here, and a `w`-based one comes out larger there.
+///
+/// Not square, not at the origin, and at a different offset from the landscape box — so a mapping
+/// that dropped the offset or swapped the axes would fail in one of the two.
+pub fn portrait_box_on_the_page() -> SceneRect {
+    SceneRect::new(23.0, 17.0, 143.0, 177.0)
+}
+
+/// The extents a shape in [`portrait_box_on_the_page`] has in the document, at one device pixel per
+/// point.
+///
+/// 120 × 160 points at 12 700 EMU to the point — the transpose of [`extents_of_the_box`], so the
+/// two boxes have the *same* `ss` and differ only in which side it is.
+pub fn portrait_extents() -> Size {
+    Size::from_emu(120 * 12_700, 160 * 12_700)
+}
+
 /// Every shape this build seeds, with the wire token a failure should name it by.
 pub fn seeded() -> Vec<(PresetShapeType, &'static str)> {
     mjx_geometry::seeded_shapes()
@@ -148,6 +179,52 @@ pub fn curve_overhang(commands: &[PathCommand], box_: SceneRect) -> f32 {
         flattened(commands).into_iter().flat_map(Vec::into_iter),
         box_,
     )
+}
+
+/// How far `point` is from the segment `start`–`end`.
+///
+/// The one point-to-segment primitive the suites share. `the_two_routes_agree.rs`'s Hausdorff
+/// distance and `a_connector_lands_on_the_outline.rs`'s *"is this site on the outline"* are the
+/// same measurement asked twice, and a second implementation of it would be free to disagree with
+/// the first about a degenerate segment.
+pub fn distance_to_segment(point: ScenePoint, start: ScenePoint, end: ScenePoint) -> f32 {
+    let (dx, dy) = (end.x - start.x, end.y - start.y);
+    let length_squared = dx * dx + dy * dy;
+    let t = if length_squared <= f32::EPSILON {
+        0.0
+    } else {
+        (((point.x - start.x) * dx + (point.y - start.y) * dy) / length_squared).clamp(0.0, 1.0)
+    };
+    let (nearest_x, nearest_y) = (start.x + t * dx, start.y + t * dy);
+    ((point.x - nearest_x).powi(2) + (point.y - nearest_y).powi(2)).sqrt()
+}
+
+/// How far `point` lies from the nearest point of the outline `commands` draws, curves flattened.
+///
+/// Zero for a point on the outline. The closing segment of every contour is included, because a
+/// connection site on the edge an `a:close` draws is on the outline as surely as one on an edge a
+/// `a:lnTo` draws — and a contour the outline left open (a `fill="none"` path) gets the same
+/// treatment, which can only make the answer smaller and never larger.
+pub fn distance_to_outline(point: ScenePoint, commands: &[PathCommand]) -> f32 {
+    let mut nearest = f32::MAX;
+    for contour in flattened(commands) {
+        for pair in contour.windows(2) {
+            nearest = nearest.min(distance_to_segment(point, pair[0], pair[1]));
+        }
+        if let (Some(first), Some(last)) = (contour.first(), contour.last()) {
+            nearest = nearest.min(distance_to_segment(point, *last, *first));
+        }
+    }
+    nearest
+}
+
+/// How far `inner` reaches outside `outer`, on the worst of its four edges; zero when it is inside.
+pub fn reaches_outside(inner: SceneRect, outer: SceneRect) -> f32 {
+    (outer.left - inner.left)
+        .max(inner.right - outer.right)
+        .max(outer.top - inner.top)
+        .max(inner.bottom - outer.bottom)
+        .max(0.0)
 }
 
 /// How far the furthest of `points` lies outside `box_`; zero when every one is inside.

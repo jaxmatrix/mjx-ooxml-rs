@@ -87,6 +87,12 @@ struct ShapeAdjustments {
     adjustment_values: Vec<(String, String)>,
     /// The shape's whole `gdLst`, in declaration order.
     guides: Vec<(String, String)>,
+    /// The shape's `a:rect` — where text goes *inside* the shape — or `None` for the five presets
+    /// that declare none.
+    text_rectangle: Option<TextRectangle>,
+    /// The shape's `a:cxnLst`, in order. Empty for the thirteen presets that declare none, which
+    /// are the nine connectors, the three `chart*` marks and `funnel`.
+    connections: Vec<Connection>,
     /// The shape's `pathLst`, in order.
     paths: Vec<PathBlock>,
     /// Everything about this shape the reader could not represent, in the order it was met.
@@ -94,6 +100,39 @@ struct ShapeAdjustments {
     /// Never empty *and* ignored: [`emit_preset_geometry`] fails on the first shape that has any,
     /// naming the shape and every complaint, so a preset can never be silently half-extracted.
     unreadable: Vec<String>,
+}
+
+/// One `a:rect` (`CT_GeomRect`): the four edges of the text rectangle, verbatim.
+///
+/// The order is the file's own attribute order, `l t r b`, which is also the order
+/// [`RectErratum`] states a correction in.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct TextRectangle {
+    left: String,
+    top: String,
+    right: String,
+    bottom: String,
+}
+
+impl TextRectangle {
+    /// The four edges in `l t r b` order — what an erratum is written against.
+    fn edges(&self) -> [&str; 4] {
+        [&self.left, &self.top, &self.right, &self.bottom]
+    }
+}
+
+/// One `a:cxn` (`CT_ConnectionSite`): the angle a connector leaves at, and where it attaches.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Connection {
+    angle: String,
+    position: Pt,
+}
+
+/// An `a:cxn` whose single `a:pos` child has not arrived yet.
+#[derive(Debug, Clone)]
+struct PendingConnection {
+    angle: Option<String>,
+    positions: Vec<Pt>,
 }
 
 /// One `a:path`: its optional coordinate box, its three flags, and its ordered steps.
@@ -270,7 +309,18 @@ fn parse(xml: &[u8]) -> Result<Vec<ShapeAdjustments>> {
             }
             Event::Empty(e) => {
                 if depth >= 2 && token.is_some() {
+                    // **An empty element is a start immediately followed by an end, and it is
+                    // handled as exactly that.** Without the second call a self-closing section
+                    // marker — `<gdLst/>` for a shape with no guides, which is legal and which the
+                    // schema's own `minOccurs="0"` invites — would set `in_gdlst` and never clear
+                    // it, and every later element of that shape would be read as though it were
+                    // inside the list. `ShapeBlock::read_text_rectangle` refuses a `rect` inside a
+                    // list, so the shape's text rectangle would become a complaint rather than a
+                    // rectangle: a defect that costs a shape its text position and is invisible in
+                    // the paths.
+                    let local = e.local().to_owned();
                     shape.record(&e);
+                    shape.close_element(&local);
                 }
             }
             Event::End(name) => {
@@ -286,6 +336,8 @@ fn parse(xml: &[u8]) -> Result<Vec<ShapeAdjustments>> {
                                 bound_guides,
                                 adjustment_values: std::mem::take(&mut shape.adjustment_values),
                                 guides: std::mem::take(&mut shape.guides),
+                                text_rectangle: shape.text_rectangle.take(),
+                                connections: std::mem::take(&mut shape.connections),
                                 paths: std::mem::take(&mut shape.paths),
                                 unreadable: std::mem::take(&mut shape.unreadable),
                             });
@@ -309,6 +361,7 @@ struct ShapeBlock {
     in_avlst: bool,
     in_gdlst: bool,
     in_ahlst: bool,
+    in_cxnlst: bool,
     in_pathlst: bool,
     /// `avLst` `val N` seeds, in declaration order.
     seeds: Vec<(String, i32)>,
@@ -318,6 +371,12 @@ struct ShapeBlock {
     guides: Vec<(String, String)>,
     /// Adjustment name → (axis, min, max) from the first handle that references it.
     handles: HashMap<String, (&'static str, Bound, Bound)>,
+    /// The `a:rect` this shape declares, if it declares one.
+    text_rectangle: Option<TextRectangle>,
+    /// The `a:cxn` currently open, if any.
+    pending_connection: Option<PendingConnection>,
+    /// The connection sites closed so far, in order.
+    connections: Vec<Connection>,
     /// The `a:path` currently open, if any.
     current_path: Option<PathBlock>,
     /// A multi-point step whose `a:pt` children are still arriving.
@@ -354,6 +413,22 @@ impl ShapeBlock {
                 record_axis(e, "gdRefX", "minX", "maxX", "Horizontal", &mut self.handles);
                 record_axis(e, "gdRefY", "minY", "maxY", "Vertical", &mut self.handles);
             }
+            "cxnLst" => self.in_cxnlst = true,
+            "cxn" if self.in_cxnlst => self.begin_connection(e.attr("ang")),
+            // **The `a:pos` of a connection site, and not the one of an adjust handle.** Both
+            // `a:ahXY` and `a:ahPolar` have a `a:pos` child too, and the handles are read from
+            // their *own* attributes above rather than from it. The guard is the open `a:cxn`, so
+            // a handle's position cannot be mistaken for a connection site's.
+            "pos" if self.pending_connection.is_some() => {
+                let point = (
+                    e.attr("x").unwrap_or_default().to_owned(),
+                    e.attr("y").unwrap_or_default().to_owned(),
+                );
+                if let Some(pending) = self.pending_connection.as_mut() {
+                    pending.positions.push(point);
+                }
+            }
+            "rect" => self.read_text_rectangle(e),
             "pathLst" => self.in_pathlst = true,
             "path" if self.in_pathlst => {
                 self.current_path = Some(read_path(e));
@@ -397,6 +472,8 @@ impl ShapeBlock {
             "avLst" => self.in_avlst = false,
             "gdLst" => self.in_gdlst = false,
             "ahLst" => self.in_ahlst = false,
+            "cxnLst" => self.in_cxnlst = false,
+            "cxn" => self.finish_connection(),
             "pathLst" => self.in_pathlst = false,
             "path" => {
                 self.finish_pending();
@@ -407,6 +484,75 @@ impl ShapeBlock {
             "moveTo" | "lnTo" | "quadBezTo" | "cubicBezTo" => self.finish_pending(),
             _ => {}
         }
+    }
+
+    /// Reads the shape's `a:rect` — its four required edges, and nothing else.
+    ///
+    /// Every anomaly is a **complaint** rather than a silence, because a text rectangle read wrong
+    /// is invisible: text still renders, in the wrong place, and every gate that checks *"did the
+    /// shape draw"* passes. So a `rect` with a missing edge, a `rect` inside a section that has no
+    /// business holding one, and a second `rect` in one shape are all named.
+    fn read_text_rectangle(&mut self, e: &mjx_xml::Element) {
+        if self.in_avlst || self.in_gdlst || self.in_ahlst || self.in_cxnlst || self.in_pathlst {
+            self.unreadable
+                .push("a `rect` inside a list element, where the schema has none".to_owned());
+            return;
+        }
+        if self.text_rectangle.is_some() {
+            self.unreadable
+                .push("a second `rect`, where the schema allows one".to_owned());
+            return;
+        }
+        let edge = |name: &str| e.attr(name).map(str::to_owned);
+        match (edge("l"), edge("t"), edge("r"), edge("b")) {
+            (Some(left), Some(top), Some(right), Some(bottom)) => {
+                self.text_rectangle = Some(TextRectangle {
+                    left,
+                    top,
+                    right,
+                    bottom,
+                });
+            }
+            _ => self.unreadable.push(format!(
+                "a `rect` missing one of its four required edges: l={:?} t={:?} r={:?} b={:?}",
+                e.attr("l"),
+                e.attr("t"),
+                e.attr("r"),
+                e.attr("b")
+            )),
+        }
+    }
+
+    /// Opens an `a:cxn`. A previous one still open is malformed and is finished (and complained
+    /// about) rather than silently absorbing this site's position.
+    fn begin_connection(&mut self, angle: Option<&str>) {
+        self.finish_connection();
+        self.pending_connection = Some(PendingConnection {
+            angle: angle.map(str::to_owned),
+            positions: Vec::new(),
+        });
+    }
+
+    /// Turns the open `a:cxn` into a [`Connection`], or complains that it had no `@ang` or the
+    /// wrong number of `a:pos` children.
+    fn finish_connection(&mut self) {
+        let Some(pending) = self.pending_connection.take() else {
+            return;
+        };
+        let Some(angle) = pending.angle else {
+            self.unreadable.push("a `cxn` with no `@ang`".to_owned());
+            return;
+        };
+        if pending.positions.len() != 1 {
+            self.unreadable.push(format!(
+                "a `cxn` with {} `pos` children, not 1",
+                pending.positions.len()
+            ));
+            return;
+        }
+        let mut positions = pending.positions.into_iter();
+        let position = positions.next().unwrap_or_default();
+        self.connections.push(Connection { angle, position });
     }
 
     /// Opens a multi-point step. A previous one still open is malformed and is finished (and
@@ -639,7 +785,8 @@ const GENERATED_HEADER: &str = "\
 use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide, PresetShapeType};
 
 use crate::table::{
-    PresetAngle, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition,
+    PresetAngle, PresetConnectionSite, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint,
+    PresetShapeDefinition, PresetTextRectangle,
 };
 use crate::Derivation;
 
@@ -792,6 +939,191 @@ fn apply_errata(shapes: &mut [ShapeAdjustments]) -> Result<()> {
     Ok(())
 }
 
+/// One text rectangle `presetShapeDefinitions.xml` writes with its edges transposed, and the
+/// correction applied on the way out.
+struct RectErratum {
+    /// The shape element the `a:rect` is in.
+    shape: &'static str,
+    /// What the file's `@l @t @r @b` say, in that order, byte for byte. Checked, not assumed.
+    written: [&'static str; 4],
+    /// What is emitted instead, in the same order.
+    corrected: [&'static str; 4],
+}
+
+/// The one `a:rect` `presetShapeDefinitions.xml` gets wrong, and the correction applied on the way
+/// out.
+///
+/// **`pie` names its top edge `ir` and its right edge `it`** — a horizontal guide used as a
+/// vertical edge and a vertical guide used as a horizontal one. The file's own guide list is the
+/// evidence, and it is not ambiguous:
+///
+/// ```text
+/// <gd name="il" fmla="+- hc 0 idx" />   <gd name="ir" fmla="+- hc idx 0" />
+/// <gd name="it" fmla="+- vc 0 idy" />   <gd name="ib" fmla="+- vc idy 0" />
+/// ```
+///
+/// `il`/`ir` are the horizontal centre plus and minus a horizontal offset; `it`/`ib` are the
+/// *vertical* centre plus and minus a vertical one. Writing `t="ir"` puts the top edge at
+/// `hc + idx`, which on a 160 × 120 box is 136.6 points down a 120-point shape — below the shape
+/// entirely — while `r="it"` puts the right edge to the *left* of `l="il"`. The rectangle is
+/// inverted on both axes and lies partly outside the shape, which is what
+/// `crates/mjx-geometry/tests/text_goes_inside_the_shape.rs` measures and refuses.
+///
+/// Every one of the other 180 text rectangles that names these guides names them for their own
+/// side, `l t r b` ↔ `il it ir ib`, which is the second half of the evidence: this is a
+/// transposition in one row of a table, not a convention this shape follows and the rest do not.
+///
+/// **Why this is a table here and not a check.** [`check_formula_arity`] can be *syntactic* — an
+/// operator's arity is knowable without evaluating anything — but "this rectangle is the wrong way
+/// round" is only knowable once the guides have values, and the evaluator lives in `mjx-dml`, below
+/// this binary's concerns. So the correction is stated here, with the file's text guarded by
+/// [`apply_rect_errata`], and the *class* is gated where the numbers are: every one of the 181
+/// resolved text rectangles is asserted upright and inside its own shape, at default adjustments
+/// and across every adjustment's whole domain. That gate is what would catch a second `pie`.
+const RECT_ERRATA: &[RectErratum] = &[RectErratum {
+    shape: "pie",
+    written: ["il", "ir", "it", "ib"],
+    corrected: ["il", "it", "ir", "ib"],
+}];
+
+/// Applies [`RECT_ERRATA`] to the parsed shapes, in place.
+///
+/// # Errors
+///
+/// Fails, naming every one, if a row addresses a shape whose `a:rect` is there and says something
+/// else — the same rule, for the same reason, as [`apply_errata`]. A shape or a `rect` that is
+/// *absent* is skipped.
+fn apply_rect_errata(shapes: &mut [ShapeAdjustments]) -> Result<()> {
+    let mut unmatched: Vec<String> = Vec::new();
+    for erratum in RECT_ERRATA {
+        let Some(shape) = shapes.iter_mut().find(|shape| shape.token == erratum.shape) else {
+            continue;
+        };
+        let Some(rectangle) = shape.text_rectangle.as_mut() else {
+            continue;
+        };
+        if rectangle.edges() == erratum.corrected {
+            continue;
+        }
+        if rectangle.edges() != erratum.written {
+            unmatched.push(format!(
+                "`{}`'s `rect` is {:?}, not the {:?} this erratum corrects",
+                erratum.shape,
+                rectangle.edges(),
+                erratum.written
+            ));
+            continue;
+        }
+        let [left, top, right, bottom] = erratum.corrected;
+        *rectangle = TextRectangle {
+            left: left.to_owned(),
+            top: top.to_owned(),
+            right: right.to_owned(),
+            bottom: bottom.to_owned(),
+        };
+    }
+    if !unmatched.is_empty() {
+        bail!(
+            "{} text-rectangle erratum/errata no longer match presetShapeDefinitions.xml:\n  {}",
+            unmatched.len(),
+            unmatched.join("\n  ")
+        );
+    }
+    Ok(())
+}
+
+/// One `a:cxn` `presetShapeDefinitions.xml` writes with a coordinate from the wrong axis, and the
+/// correction applied on the way out.
+struct ConnectionErratum {
+    /// The shape element the `a:cxn` is in.
+    shape: &'static str,
+    /// Which site, counting from zero in `a:cxnLst` order — which is how `a:cxn@idx` names one.
+    index: usize,
+    /// What the file's `@ang` and its `a:pos`'s `@x`/`@y` say, in that order, byte for byte.
+    written: [&'static str; 3],
+    /// What is emitted instead, in the same order.
+    corrected: [&'static str; 3],
+}
+
+/// The one `a:cxn` `presetShapeDefinitions.xml` gets wrong, and the correction applied on the way
+/// out.
+///
+/// **`squareTabs`'s sixth connection site reads `y="x1"`, a horizontal guide used as a vertical
+/// coordinate** — the same class of slip as [`RECT_ERRATA`]'s, in the same file, found by the same
+/// gate. The shape's whole `gdLst` is four guides and two of them are the axis pair:
+///
+/// ```text
+/// <gd name="y1" fmla="+- 0 b dx" />     <gd name="x1" fmla="+- 0 r dx" />
+/// ```
+///
+/// `y1` is the bottom edge less the tab size and `x1` the right edge less the same. The site's
+/// three siblings are the other three inner corners — `(dx, dx)`, `(x1, dx)`, `(x1, y1)` — so the
+/// missing one is `(dx, y1)`, and `(dx, y1)` is a **vertex of the shape's own second path**, which
+/// draws the bottom-left tab as `l,y1 → dx,y1 → dx,b → l,b`. The site as written lands at
+/// `(dx, r - dx)`, which on a 160 × 120 shape is ten points *below the shape's own bottom edge*: a
+/// connector would attach to a point outside the shape it is attaching to.
+///
+/// Every other `@y` in the shape's sixteen sites is `t`, `dx`, `y1` or `b`, all vertical, and `x1`
+/// appears only ever as an `@x`. Nothing else in the file's 856 sites is in this position.
+///
+/// The `@ang` is corrected too, and it is not corrected — it is restated unchanged (`cd2`, left),
+/// so that the erratum's `written` row is the *whole* site and a later edition that changed the
+/// angle instead of the coordinate would fail [`apply_connection_errata`] rather than be quietly
+/// half-applied.
+const CONNECTION_ERRATA: &[ConnectionErratum] = &[ConnectionErratum {
+    shape: "squareTabs",
+    index: 5,
+    written: ["cd2", "dx", "x1"],
+    corrected: ["cd2", "dx", "y1"],
+}];
+
+/// Applies [`CONNECTION_ERRATA`] to the parsed shapes, in place.
+///
+/// # Errors
+///
+/// Fails, naming every one, if a row addresses a site that is there and says something else — the
+/// same rule, for the same reason, as [`apply_errata`]. A shape or an index that is *absent* is
+/// skipped.
+fn apply_connection_errata(shapes: &mut [ShapeAdjustments]) -> Result<()> {
+    let mut unmatched: Vec<String> = Vec::new();
+    for erratum in CONNECTION_ERRATA {
+        let Some(shape) = shapes.iter_mut().find(|shape| shape.token == erratum.shape) else {
+            continue;
+        };
+        let Some(site) = shape.connections.get_mut(erratum.index) else {
+            continue;
+        };
+        let stated = [
+            site.angle.as_str(),
+            site.position.0.as_str(),
+            site.position.1.as_str(),
+        ];
+        if stated == erratum.corrected {
+            continue;
+        }
+        if stated != erratum.written {
+            unmatched.push(format!(
+                "`{}`'s connection site {} is {stated:?}, not the {:?} this erratum corrects",
+                erratum.shape, erratum.index, erratum.written
+            ));
+            continue;
+        }
+        let [angle, x, y] = erratum.corrected;
+        *site = Connection {
+            angle: angle.to_owned(),
+            position: (x.to_owned(), y.to_owned()),
+        };
+    }
+    if !unmatched.is_empty() {
+        bail!(
+            "{} connection-site erratum/errata no longer match presetShapeDefinitions.xml:\n  {}",
+            unmatched.len(),
+            unmatched.join("\n  ")
+        );
+    }
+    Ok(())
+}
+
 /// Fails on any guide formula whose operator or argument count `mjx-dml`'s evaluator would refuse.
 ///
 /// Run **after** [`apply_errata`], over every `avLst` and `gdLst` formula of every shape. Its point
@@ -864,6 +1196,8 @@ fn check_formula_arity(shapes: &[ShapeAdjustments]) -> Result<()> {
 pub fn emit_preset_geometry(xml: &[u8], shape_tokens: &[String]) -> Result<String> {
     let mut shapes = parse(xml)?;
     apply_errata(&mut shapes)?;
+    apply_rect_errata(&mut shapes)?;
+    apply_connection_errata(&mut shapes)?;
     check_formula_arity(&shapes)?;
     let declared: HashSet<&str> = shape_tokens.iter().map(String::as_str).collect();
 
@@ -924,6 +1258,8 @@ fn emit_shape_row(s: &mut String, shape: &ShapeAdjustments) {
 
     emit_guide_list(s, "adjustment_values", &shape.adjustment_values);
     emit_guide_list(s, "guides", &shape.guides);
+    emit_text_rectangle(s, shape.text_rectangle.as_ref());
+    emit_connection_sites(s, &shape.connections);
 
     s.push_str("        paths: &[\n");
     for path in &shape.paths {
@@ -943,6 +1279,48 @@ fn emit_guide_list(s: &mut String, field: &str, guides: &[(String, String)]) {
         let _ = write!(
             s,
             "            PresetGuide {{ wire_name: {name:?}, formula: {formula:?} }},\n"
+        );
+    }
+    s.push_str("        ],\n");
+}
+
+/// The `text_rectangle` field of a row: the shape's `a:rect`, or `None` for the five that have
+/// none.
+///
+/// Written through [`render_coordinate`] rather than as a string pair, so that the `PresetCoordinate`
+/// literal arm is available to a future edition. **No edge of any of the 181 is a literal today** —
+/// all 724 are guide names — and `crates/mjx-geometry/tests/text_goes_inside_the_shape.rs` asserts
+/// that rather than assuming it, so an edition that started writing one would be noticed rather
+/// than silently accommodated.
+fn emit_text_rectangle(s: &mut String, rectangle: Option<&TextRectangle>) {
+    let Some(rectangle) = rectangle else {
+        let _ = writeln!(s, "        text_rectangle: None,");
+        return;
+    };
+    let _ = write!(
+        s,
+        "        text_rectangle: Some(PresetTextRectangle {{ left: {}, top: {}, right: {}, \
+         bottom: {} }}),\n",
+        render_coordinate(&rectangle.left),
+        render_coordinate(&rectangle.top),
+        render_coordinate(&rectangle.right),
+        render_coordinate(&rectangle.bottom),
+    );
+}
+
+/// The `connection_sites` field of a row: the shape's `a:cxnLst`, in order.
+fn emit_connection_sites(s: &mut String, connections: &[Connection]) {
+    if connections.is_empty() {
+        let _ = writeln!(s, "        connection_sites: &[],");
+        return;
+    }
+    s.push_str("        connection_sites: &[\n");
+    for connection in connections {
+        let _ = write!(
+            s,
+            "            PresetConnectionSite {{ angle: {}, position: {} }},\n",
+            render_angle(&connection.angle),
+            render_point(&connection.position),
         );
     }
     s.push_str("        ],\n");
@@ -1327,6 +1705,273 @@ mod tests {
     }
 
     #[test]
+    fn a_text_rectangle_and_its_connection_sites_survive_the_read() {
+        // The two elements MJXOFF-204 added, read out of a shape that also has the things they are
+        // adjacent to: an `a:pos` inside an adjust handle, which must **not** become a connection
+        // site, and a `pathLst`, which must not absorb the `a:rect`.
+        const A_SHAPE_WITH_BOTH: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <roundRect>
+                <avLst xmlns="urn:a"><gd name="adj" fmla="val 16667"/></avLst>
+                <gdLst xmlns="urn:a"><gd name="il" fmla="*/ ss adj 100000"/></gdLst>
+                <ahLst xmlns="urn:a">
+                  <ahXY gdRefX="adj" minX="0" maxX="50000"><pos x="il" y="t"/></ahXY>
+                </ahLst>
+                <cxnLst xmlns="urn:a">
+                  <cxn ang="3cd4"><pos x="hc" y="t"/></cxn>
+                  <cxn ang="0"><pos x="r" y="vc"/></cxn>
+                </cxnLst>
+                <rect l="il" t="il" r="r" b="b" xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </roundRect>
+            </presetShapeDefinitons>"#;
+        let shapes = parse(A_SHAPE_WITH_BOTH).unwrap();
+        let shape = &shapes[0];
+        assert!(shape.unreadable.is_empty(), "{:?}", shape.unreadable);
+        assert_eq!(
+            shape.text_rectangle,
+            Some(TextRectangle {
+                left: "il".to_owned(),
+                top: "il".to_owned(),
+                right: "r".to_owned(),
+                bottom: "b".to_owned(),
+            })
+        );
+        // **Two sites, not three.** The `a:ahXY`'s own `a:pos` is not one, and the guard that keeps
+        // it out is the open `a:cxn` rather than the element name.
+        assert_eq!(
+            shape.connections,
+            vec![
+                Connection {
+                    angle: "3cd4".to_owned(),
+                    position: ("hc".to_owned(), "t".to_owned()),
+                },
+                Connection {
+                    angle: "0".to_owned(),
+                    position: ("r".to_owned(), "vc".to_owned()),
+                },
+            ]
+        );
+
+        // …and both reach the emitted row, in the shapes the table declares them in.
+        let source = emit_preset_geometry(A_SHAPE_WITH_BOTH, &["roundRect".to_owned()]).unwrap();
+        assert!(
+            source.contains(
+                "text_rectangle: Some(PresetTextRectangle { left: PresetCoordinate::Guide(\"il\"), \
+                 top: PresetCoordinate::Guide(\"il\"), right: PresetCoordinate::Guide(\"r\"), \
+                 bottom: PresetCoordinate::Guide(\"b\") }),"
+            ),
+            "{source}"
+        );
+        assert!(
+            source.contains(
+                "PresetConnectionSite { angle: PresetAngle::Guide(\"3cd4\"), position: \
+                 PresetPoint::at(\"hc\", \"t\") },"
+            ),
+            "{source}"
+        );
+        // The literal arm of `PresetAngle`, which 208 of the file's 856 sites take.
+        assert!(
+            source.contains(
+                "PresetConnectionSite { angle: PresetAngle::Native(0), position: \
+                 PresetPoint::at(\"r\", \"vc\") },"
+            ),
+            "{source}"
+        );
+    }
+
+    #[test]
+    fn a_shape_without_either_element_says_so_rather_than_inventing_one() {
+        // The five presets with no `a:rect` and the thirteen with no `a:cxnLst` must emit an
+        // *absence*, not a default box and not an empty-looking list that a reader would take for
+        // a declared one.
+        const NEITHER: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <line>
+                <gdLst xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </line>
+            </presetShapeDefinitons>"#;
+        let shapes = parse(NEITHER).unwrap();
+        assert_eq!(shapes[0].text_rectangle, None);
+        assert!(shapes[0].connections.is_empty());
+        let source = emit_preset_geometry(NEITHER, &["line".to_owned()]).unwrap();
+        assert!(source.contains("text_rectangle: None,"), "{source}");
+        assert!(source.contains("connection_sites: &[],"), "{source}");
+    }
+
+    #[test]
+    fn a_malformed_text_rectangle_or_connection_site_is_named_rather_than_dropped() {
+        // Every anomaly is a complaint, because a text rectangle read wrong is invisible: text
+        // still renders, in the wrong place.
+        const BROKEN: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <rect>
+                <gdLst xmlns="urn:a"/>
+                <cxnLst xmlns="urn:a">
+                  <cxn><pos x="l" y="t"/></cxn>
+                  <cxn ang="0"><pos x="l" y="t"/><pos x="r" y="b"/></cxn>
+                  <cxn ang="0"/>
+                </cxnLst>
+                <rect l="l" t="t" xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </rect>
+            </presetShapeDefinitons>"#;
+        let shapes = parse(BROKEN).unwrap();
+        let complaints = shapes[0].unreadable.join("; ");
+        assert!(complaints.contains("no `@ang`"), "{complaints}");
+        assert!(complaints.contains("2 `pos` children"), "{complaints}");
+        assert!(complaints.contains("0 `pos` children"), "{complaints}");
+        assert!(complaints.contains("four required edges"), "{complaints}");
+        assert_eq!(
+            shapes[0].text_rectangle, None,
+            "a half-read `rect` was kept"
+        );
+        assert!(shapes[0].connections.is_empty());
+
+        // And a complaint is what stops the generator, rather than being collected and ignored.
+        let failure = emit_preset_geometry(BROKEN, &["rect".to_owned()])
+            .expect_err("a shape with complaints must not be emitted");
+        assert!(format!("{failure}").contains("could not represent"));
+
+        // A second `a:rect` in one shape is the other anomaly, and it keeps the first rather than
+        // silently taking the last.
+        const TWO_RECTS: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <rect>
+                <gdLst xmlns="urn:a"/>
+                <rect l="l" t="t" r="r" b="b" xmlns="urn:a"/>
+                <rect l="r" t="b" r="l" b="t" xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </rect>
+            </presetShapeDefinitons>"#;
+        let shapes = parse(TWO_RECTS).unwrap();
+        assert!(shapes[0].unreadable.join("; ").contains("a second `rect`"));
+        assert_eq!(
+            shapes[0].text_rectangle.as_ref().map(TextRectangle::edges),
+            Some(["l", "t", "r", "b"])
+        );
+    }
+
+    #[test]
+    fn the_two_new_errata_fail_rather_than_rewriting_something_they_were_not_written_for() {
+        // The same rule as `SPEC_ERRATA`'s, applied to the two MJXOFF-204 added: an erratum is a
+        // claim about a specific text, and a claim that has stopped being true must fail rather
+        // than silently rewrite whatever is there now.
+        const A_DIFFERENT_PIE_RECT: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <pie>
+                <gdLst xmlns="urn:a"/>
+                <rect l="il" t="ib" r="ir" b="it" xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </pie>
+            </presetShapeDefinitons>"#;
+        let mut shapes = parse(A_DIFFERENT_PIE_RECT).unwrap();
+        let text = format!(
+            "{}",
+            apply_rect_errata(&mut shapes).expect_err("`pie`'s `rect` says something else")
+        );
+        assert!(text.contains("pie"), "{text}");
+        assert!(text.contains("\"ib\""), "{text}");
+
+        // Already corrected, and absent, are both skipped.
+        const ALREADY_UPRIGHT: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <pie>
+                <gdLst xmlns="urn:a"/>
+                <rect l="il" t="it" r="ir" b="ib" xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </pie>
+            </presetShapeDefinitons>"#;
+        let mut shapes = parse(ALREADY_UPRIGHT).unwrap();
+        apply_rect_errata(&mut shapes).expect("an already-corrected `rect` is not a mismatch");
+        let mut none = parse(SAMPLE).unwrap();
+        apply_rect_errata(&mut none).expect("a file without `pie` is not a mismatch");
+
+        // The transposition itself, corrected — the arm that does the work.
+        const AS_THE_FILE_WRITES_IT: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <pie>
+                <gdLst xmlns="urn:a"/>
+                <rect l="il" t="ir" r="it" b="ib" xmlns="urn:a"/>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </pie>
+            </presetShapeDefinitons>"#;
+        let mut shapes = parse(AS_THE_FILE_WRITES_IT).unwrap();
+        apply_rect_errata(&mut shapes).expect("the transposition is corrected");
+        assert_eq!(
+            shapes[0].text_rectangle.as_ref().map(TextRectangle::edges),
+            Some(["il", "it", "ir", "ib"])
+        );
+
+        // And the connection-site erratum, both arms.
+        const A_DIFFERENT_SQUARE_TABS: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <squareTabs>
+                <gdLst xmlns="urn:a"/>
+                <cxnLst xmlns="urn:a">
+                  <cxn ang="cd2"><pos x="l" y="t"/></cxn>
+                  <cxn ang="cd2"><pos x="l" y="dx"/></cxn>
+                  <cxn ang="cd2"><pos x="l" y="y1"/></cxn>
+                  <cxn ang="cd2"><pos x="l" y="b"/></cxn>
+                  <cxn ang="cd2"><pos x="dx" y="dx"/></cxn>
+                  <cxn ang="cd2"><pos x="dx" y="b"/></cxn>
+                </cxnLst>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </squareTabs>
+            </presetShapeDefinitons>"#;
+        let mut shapes = parse(A_DIFFERENT_SQUARE_TABS).unwrap();
+        let text = format!(
+            "{}",
+            apply_connection_errata(&mut shapes).expect_err("site 5 says something else")
+        );
+        assert!(text.contains("squareTabs"), "{text}");
+        assert!(text.contains('5'), "{text}");
+
+        const AS_THE_FILE_WRITES_THE_SITE: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <squareTabs>
+                <gdLst xmlns="urn:a"/>
+                <cxnLst xmlns="urn:a">
+                  <cxn ang="cd2"><pos x="l" y="t"/></cxn>
+                  <cxn ang="cd2"><pos x="l" y="dx"/></cxn>
+                  <cxn ang="cd2"><pos x="l" y="y1"/></cxn>
+                  <cxn ang="cd2"><pos x="l" y="b"/></cxn>
+                  <cxn ang="cd2"><pos x="dx" y="dx"/></cxn>
+                  <cxn ang="cd2"><pos x="dx" y="x1"/></cxn>
+                </cxnLst>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </squareTabs>
+            </presetShapeDefinitons>"#;
+        let mut shapes = parse(AS_THE_FILE_WRITES_THE_SITE).unwrap();
+        apply_connection_errata(&mut shapes).expect("the transposed site is corrected");
+        assert_eq!(
+            shapes[0].connections[5],
+            Connection {
+                angle: "cd2".to_owned(),
+                position: ("dx".to_owned(), "y1".to_owned()),
+            }
+        );
+        // Idempotent, and a shape the erratum does not name is untouched.
+        apply_connection_errata(&mut shapes).expect("applying it twice is not a mismatch");
+        let mut none = parse(SAMPLE).unwrap();
+        apply_connection_errata(&mut none).expect("a file without `squareTabs` is not a mismatch");
+
+        // An index the file no longer has is skipped rather than failing, the same way an absent
+        // guide is: a later edition may have dropped a site.
+        const TOO_FEW_SITES: &[u8] = br#"<?xml version="1.0"?>
+            <presetShapeDefinitons>
+              <squareTabs>
+                <gdLst xmlns="urn:a"/>
+                <cxnLst xmlns="urn:a"><cxn ang="cd2"><pos x="l" y="t"/></cxn></cxnLst>
+                <pathLst xmlns="urn:a"><path><close/></path></pathLst>
+              </squareTabs>
+            </presetShapeDefinitons>"#;
+        let mut shapes = parse(TOO_FEW_SITES).unwrap();
+        apply_connection_errata(&mut shapes).expect("a missing index is not a mismatch");
+    }
+
+    #[test]
     fn a_malformed_formula_no_erratum_covers_fails_the_generator() {
         // The gate that makes `SPEC_ERRATA` provably complete rather than merely present. Its first
         // draft covered six of the file's eight four-argument `+-`s; this is what caught the other
@@ -1542,6 +2187,68 @@ mod tests {
                 "the `{tag}` elements do not reconcile"
             );
         }
+
+        // MJXOFF-204's two elements. `<rect ` with a trailing space would also match the file's
+        // *shape* element if it had attributes, and `<rect>` is the shape — so the text rectangles
+        // are counted by the attribute the shape element does not have, which is the same
+        // distinction `ShapeBlock::read_text_rectangle` makes.
+        let rectangles = shapes
+            .iter()
+            .filter(|shape| shape.text_rectangle.is_some())
+            .count();
+        assert_eq!(
+            rectangles + usize::from(repeated.text_rectangle.is_some()),
+            occurrences("<rect l="),
+            "the text rectangles read plus the duplicated block's are not the file's `a:rect` \
+             elements"
+        );
+        assert_eq!(
+            occurrences("<rect l="),
+            182,
+            "the file's `a:rect` total has moved"
+        );
+
+        // **An empty `a:cxnLst` would make the list count and the element count disagree**, and
+        // this is the reading that can tell: the parse knows a shape declared a list, the committed
+        // table only knows whether it has sites. The equality below is therefore the assertion that
+        // the file writes no empty one.
+        let lists = shapes
+            .iter()
+            .filter(|shape| !shape.connections.is_empty())
+            .count();
+        assert_eq!(
+            lists + usize::from(!repeated.connections.is_empty()),
+            occurrences("<cxnLst"),
+            "the connection-site lists read plus the duplicated block's are not the file's \
+             `a:cxnLst` elements — a shape may declare an empty one"
+        );
+        assert_eq!(
+            occurrences("<cxnLst"),
+            174,
+            "the file's `a:cxnLst` total has moved"
+        );
+
+        let sites: usize = shapes.iter().map(|shape| shape.connections.len()).sum();
+        assert_eq!(
+            sites + repeated.connections.len(),
+            occurrences("<cxn "),
+            "the connection sites read plus the duplicated block's are not the file's `a:cxn` \
+             elements"
+        );
+        assert_eq!(
+            occurrences("<cxn "),
+            864,
+            "the file's `a:cxn` total has moved"
+        );
+
+        // Every site has exactly one `a:pos`, which is what `finish_connection` complains about if
+        // it does not — and the file also writes `a:pos` inside every adjust handle, so the total
+        // is the sites plus the handles rather than the sites alone.
+        assert_eq!(
+            occurrences("<pos "),
+            occurrences("<cxn ") + occurrences("<ahXY") + occurrences("<ahPolar"),
+            "an `a:pos` belongs to neither a connection site nor an adjust handle"
+        );
     }
 
     #[test]

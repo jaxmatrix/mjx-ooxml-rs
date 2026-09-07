@@ -76,6 +76,29 @@ const STEPS_IN_THE_FILE: StepCounts = StepCounts {
     closes: 320,
 };
 
+/// Every `a:rect` element in the file — the text rectangles, one per shape block that has one.
+///
+/// **182, out of 187 shape blocks**, and the file's own shape element named `rect` is *not* one of
+/// them: a text rectangle is written `<rect l= t= r= b=/>` and the shape is written `<rect>`, so a
+/// count that matched on the element name alone would say 183. Counting attributes rather than
+/// names is what tells the two apart.
+const RECT_ELEMENTS_IN_THE_FILE: usize = 182;
+
+/// The duplicated `upDownArrow` block's own `a:rect`.
+const DUPLICATED_RECTS: usize = 1;
+
+/// Every `a:cxnLst` element in the file — one per shape block that declares connection sites.
+const CXNLST_ELEMENTS_IN_THE_FILE: usize = 174;
+
+/// The duplicated `upDownArrow` block's own `a:cxnLst`.
+const DUPLICATED_CXNLSTS: usize = 1;
+
+/// Every `a:cxn` element in the file.
+const CXN_ELEMENTS_IN_THE_FILE: usize = 864;
+
+/// The duplicated `upDownArrow` block's eight connection sites.
+const DUPLICATED_CXNS: usize = 8;
+
 /// How many values `ST_ShapeType` declares — `crates/mjx-ooxml-types/src/generated/drawingml.rs`.
 const SHAPE_TYPE_VALUES: usize = 187;
 
@@ -202,6 +225,52 @@ fn the_table_holds_every_guide_of_every_shape_the_file_defines() {
         STEPS_IN_THE_FILE.less(DUPLICATED_STEPS),
         "the table's drawing steps are not the file's, less the duplicated `upDownArrow` block"
     );
+
+    // MJXOFF-204's two elements, reconciled the same way. A `rect` or a `cxnLst` silently dropped
+    // by the reader would resolve perfectly — the shape would simply lay its text against its box
+    // and offer nowhere to attach a connector — which is why the arithmetic is here and not left to
+    // the resolver.
+    let rectangles = seeded_shapes()
+        .iter()
+        .filter(|definition| definition.text_rectangle.is_some())
+        .count();
+    assert_eq!(
+        rectangles,
+        RECT_ELEMENTS_IN_THE_FILE - DUPLICATED_RECTS,
+        "the table carries {rectangles} text rectangles; the file has \
+         {RECT_ELEMENTS_IN_THE_FILE} and {DUPLICATED_RECTS} of them is the duplicated \
+         `upDownArrow` block"
+    );
+
+    let lists = seeded_shapes()
+        .iter()
+        .filter(|definition| !definition.connection_sites.is_empty())
+        .count();
+    assert_eq!(
+        lists,
+        CXNLST_ELEMENTS_IN_THE_FILE - DUPLICATED_CXNLSTS,
+        "the table carries {lists} connection-site lists; the file has \
+         {CXNLST_ELEMENTS_IN_THE_FILE} and {DUPLICATED_CXNLSTS} of them is the duplicated \
+         `upDownArrow` block"
+    );
+
+    let sites: usize = seeded_shapes()
+        .iter()
+        .map(|definition| definition.connection_sites.len())
+        .sum();
+    assert_eq!(
+        sites,
+        CXN_ELEMENTS_IN_THE_FILE - DUPLICATED_CXNS,
+        "the table carries {sites} connection sites; the file has {CXN_ELEMENTS_IN_THE_FILE} and \
+         {DUPLICATED_CXNS} of them are the duplicated `upDownArrow` block"
+    );
+
+    // **A limit of this comparison, stated rather than hidden.** `connection_sites` is a slice, so
+    // the table cannot say *"declares an `a:cxnLst`, and it is empty"* — that case and *"declares
+    // none"* are both `is_empty()`, and the list count above would then be one short of the element
+    // count while the site count still matched. The file writes no empty `a:cxnLst`, and it is
+    // `xtask`'s `preset_geometry_reconciles_with_the_file` that can *check* that, because it has
+    // the parse and this suite has only the table. It does check it.
 }
 
 #[test]

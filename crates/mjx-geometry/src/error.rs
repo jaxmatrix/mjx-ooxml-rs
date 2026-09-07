@@ -81,12 +81,18 @@ pub enum GeometryError {
     /// roots, and at the ends of an adjustment's domain the divisor can be zero.
     /// `circularArrow`'s `dxF1 = "+/ q11 q10 q4"` has no value at `adj5 = 0` — which is that
     /// adjustment's own *minimum*, and therefore a value a handle drag reaches. Six of the 186
-    /// presets have such a point; `crates/mjx-geometry/tests/every_preset_stands_where_its_box_is.rs`
-    /// names them and the guide each is singular in.
+    /// presets have such a point in a *path*;
+    /// `crates/mjx-geometry/tests/an_adjustment_moves_the_shape.rs`'s `SINGULAR_SOMEWHERE` names
+    /// them.
     ///
     /// [`crate::resolve`] leaves a guide with no finite value **undefined** rather than fatal, so a
-    /// singularity in a guide nothing draws through — four of the ten shapes that have one are
-    /// singular only in the text rectangle's insets — costs nothing. This variant is what happens
+    /// singularity in a guide nothing draws through costs nothing — and **which shapes are singular
+    /// depends on who is reading**, which is the whole return on evaluating the `gdLst` one guide at
+    /// a time. Three presets lose their *text rectangle* to a singular `il` and draw perfectly well
+    /// (`text_goes_inside_the_shape.rs`'s `SINGULAR_TEXT_RECTANGLE`); six lose a *connection site*,
+    /// and the two lists overlap in five (`a_connector_lands_on_the_outline.rs`'s
+    /// `SITES_SINGULAR_SOMEWHERE`). `noSmoking` is singular in a path and in nothing else;
+    /// `parallelogram` is singular in a site and in nothing else. This variant is what happens
     /// when a *path* reads one, and it answers
     /// [`has_no_geometry_to_draw`](Self::has_no_geometry_to_draw) with `true`: a counted stand-in is
     /// a better answer than a page that will not render, and a silent empty path is not an answer
@@ -114,6 +120,39 @@ pub enum GeometryError {
         #[source]
         source: GuideError,
     },
+
+    /// An edge of the shape's **text rectangle** (`a:rect`) named a guide the shape does not
+    /// define.
+    ///
+    /// The [`PathCommand`](Self::PathCommand) of the text rectangle, and separate from it for the
+    /// same reason `PathCommand` is separate from [`Guides`](Self::Guides): the failure names where
+    /// in the shape the bad reference is, and a text rectangle is not a path. A guide that is
+    /// defined but has no *finite* value here is not this — that is
+    /// [`TextRectangle::Singular`](crate::TextRectangle::Singular), which is an answer.
+    #[error("resolving the text rectangle of `{shape}`: {source}")]
+    TextRectangle {
+        /// The shape's `prst` token.
+        shape: &'static str,
+        /// What the resolver said.
+        #[source]
+        source: GuideError,
+    },
+
+    /// A coordinate or the angle of one of the shape's **connection sites** (`a:cxn`) named a guide
+    /// the shape does not define.
+    ///
+    /// Carries the site's index because that is how a connector names one (`a:cxn@idx`), so the
+    /// number in the failure is the number in the document.
+    #[error("resolving connection site {index} of `{shape}`: {source}")]
+    ConnectionSite {
+        /// The shape's `prst` token.
+        shape: &'static str,
+        /// Which site, counting from zero in `a:cxnLst` order.
+        index: usize,
+        /// What the resolver said.
+        #[source]
+        source: GuideError,
+    },
 }
 
 impl GeometryError {
@@ -128,7 +167,9 @@ impl GeometryError {
             Self::UnseededShape { shape }
             | Self::Guides { shape, .. }
             | Self::SingularGeometry { shape, .. }
-            | Self::PathCommand { shape, .. } => Some(shape),
+            | Self::PathCommand { shape, .. }
+            | Self::TextRectangle { shape, .. }
+            | Self::ConnectionSite { shape, .. } => Some(shape),
         }
     }
 
@@ -139,10 +180,10 @@ impl GeometryError {
     /// failures are of the first kind — a handle nobody registered, a preset ECMA-376 defines no
     /// geometry for, and a shape whose own formulas are singular at these adjustments — and a
     /// stand-in may legitimately fill any of them, because there is nothing else to draw and the
-    /// stand-in is *counted*. A table whose guide list will not evaluate, or whose path names a
-    /// guide that does not exist, is of the second kind: a bug that must not be papered over with
-    /// a rounded rectangle, because a stand-in would hide the one failure the table's own gates
-    /// exist to catch.
+    /// stand-in is *counted*. A table whose guide list will not evaluate, or whose path, text
+    /// rectangle or connection site names a guide that does not exist, is of the second kind: a bug
+    /// that must not be papered over with a rounded rectangle, because a stand-in would hide the one
+    /// failure the table's own gates exist to catch.
     #[must_use]
     pub fn has_no_geometry_to_draw(&self) -> bool {
         matches!(

@@ -330,10 +330,14 @@ fn domain_of(preset: PresetShapeType, wire_name: &str) -> mjx_geometry::Adjustme
 /// reaches. `noSmoking` is the same story with a `sqrt` of a negative.
 ///
 /// Ten of the 186 have such a point *somewhere in their guide list*; these six are the ones where a
-/// path reads it. In the other four the singular guide is `il`/`it`/`ir`/`ib` — the **text
-/// rectangle**'s insets, which draw nothing — and [`mjx_geometry::resolve`] therefore leaves it
-/// undefined and the shape draws normally. That distinction is the whole reason the resolver
-/// evaluates the `gdLst` one guide at a time.
+/// **path** reads it, and [`mjx_geometry::resolve`] leaves the rest undefined so the shape draws
+/// normally. That distinction is the whole reason the resolver evaluates the `gdLst` one guide at a
+/// time — and MJXOFF-204 measured what it buys: **which shapes are singular depends on who is
+/// reading**. Three presets lose their text rectangle (`text_goes_inside_the_shape.rs`'s
+/// `SINGULAR_TEXT_RECTANGLE`, all in `il`) and six lose a connection site
+/// (`a_connector_lands_on_the_outline.rs`'s `SITES_SINGULAR_SOMEWHERE`). The three lists are not
+/// the same list: `noSmoking` is here and in neither of the others, and `parallelogram` is in the
+/// third and in neither of these.
 ///
 /// The answer for these six is [`GeometryError::SingularGeometry`], which
 /// [`GeometryError::has_no_geometry_to_draw`] classifies as *"there is nothing to draw"* rather

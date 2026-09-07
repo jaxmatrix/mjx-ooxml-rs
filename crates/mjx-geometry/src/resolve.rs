@@ -59,8 +59,10 @@
 use std::collections::HashSet;
 
 use mjx_dml::geometry::{
-    Emu, GuideContext, GuideError, ResolvedDrawCommand, ResolvedGuides, ResolvedPoint, Size,
+    Emu, GuideContext, GuideError, ResolvedDrawCommand, ResolvedGuides, ResolvedPoint,
+    ResolvedRectangle, Size,
 };
+use mjx_ooxml_core::measure::Angle;
 use mjx_ooxml_types::drawingml::{
     adjustments_of, AdjustmentBound, AdjustmentSpec, PathFillMode, PresetShapeType,
 };
@@ -145,8 +147,11 @@ pub(crate) fn guide_environment(
     // refuses a non-finite guide, rightly — an infinity in a display list is worse than a wrong
     // number — but refusing the whole *shape* over it is wrong twice over: sixty (shape, size,
     // adjustment) combinations across ten presets are in that position, and in most of them the
-    // guide with no value is one the shape's paths never read. Four of the ten are singular only in
-    // `il` / `it` / `ir` / `ib`, which are the **text rectangle**'s insets and draw nothing at all.
+    // guide with no value is one the shape's paths never read. **Which shapes are singular depends
+    // on who is reading**, and MJXOFF-204 measured all three answers: six presets have a singular
+    // *path*, three a singular *text rectangle* (all in `il`, all at an `adj2` of zero, and all
+    // three draw perfectly well there), six a singular *connection site*. `noSmoking` is in the
+    // first list alone and `parallelogram` in the third alone.
     //
     // So a guide with no finite value is left *undefined* rather than fatal, and so is every later
     // guide that names it — an undefined name propagates exactly as far as it is used and no
@@ -451,6 +456,231 @@ pub fn outline_of_definition(
     })
 }
 
+// -------------------------------------------------------------------------------------------
+// The text rectangle (`a:rect`)
+// -------------------------------------------------------------------------------------------
+
+/// Where text goes inside a preset shape — or why there is no answer.
+///
+/// # Why this is four answers and not a rectangle
+///
+/// A shape's `a:rect` is what keeps a rounded rectangle's text off its corners, a chevron's out of
+/// its notch and a callout's out of its tail. The tempting signature is
+/// `fn text_rectangle(..) -> SceneRect`, falling back to the shape's own box wherever the answer is
+/// missing — **and that is the exact defect MJXOFF-201 §6 is about.** Text would still render, in
+/// the wrong place, and every test that asks *"did text appear"* would pass. So the three ways of
+/// having no answer are three *values*, each of which a caller has to look at:
+///
+/// * [`NotDeclared`](Self::NotDeclared) — the shape says nothing. Five of the 186 (`chartPlus`,
+///   `chartStar`, `chartX`, `line`, `lineInv`): three tick marks and two bare lines.
+/// * [`Singular`](Self::Singular) — the shape says, and one of the guides it says it in has no
+///   finite value at this size and these adjustments. **Four presets are singular *only* here**,
+///   which is why `mjx-dml`'s evaluator is run one guide at a time: `leftRightUpArrow`,
+///   `leftUpArrow` and `quadArrow` lose `il`, and `parallelogram` loses the `q3` its `il` is built
+///   from, each at one end of one adjustment's own domain. Their paths draw perfectly well there.
+/// * [`Inverted`](Self::Inverted) — the shape says, the guides all have values, and the edges have
+///   **crossed**. There is no text area at all, and the crossed rectangle is a diagnosis rather
+///   than a box.
+///
+/// [`or_bounding_box`](Self::or_bounding_box) is the fallback, and it is a **named call** rather
+/// than a default: a caller that lays text against the shape's own box where there is no rectangle
+/// has said so at the call site, in one word a reviewer can grep for.
+#[derive(Clone, PartialEq, Debug)]
+pub enum TextRectangle {
+    /// The shape declares an `a:rect` and it resolved, in the device pixels of the box the shape
+    /// was drawn in.
+    Declared(SceneRect),
+    /// The shape declares no `a:rect` at all.
+    NotDeclared,
+    /// The shape declares one, and a guide it is written in has no finite value here.
+    Singular {
+        /// The guide whose own formula has no finite value at this size and these adjustments.
+        guide: String,
+    },
+    /// The shape declares one and its edges have crossed — left past right, or top past bottom.
+    Inverted {
+        /// The rectangle those crossed edges describe, with its own edges put back in order.
+        ///
+        /// **Not a text area.** It is here so that a failure can print where the edges went, which
+        /// is what identified `pie`'s transposed `a:rect` in ECMA-376's own file — its top edge is
+        /// `hc + idx`, a *horizontal* guide, which on a 160 × 120 shape lands 16.6 points below the
+        /// shape's own bottom. `xtask`'s `RECT_ERRATA` corrects that one; this variant is what
+        /// would catch the next.
+        crossed: SceneRect,
+    },
+}
+
+impl TextRectangle {
+    /// The rectangle, if there is one — `None` for all three of the ways there is not.
+    #[must_use]
+    pub fn declared(&self) -> Option<SceneRect> {
+        match *self {
+            Self::Declared(rectangle) => Some(rectangle),
+            Self::NotDeclared | Self::Singular { .. } | Self::Inverted { .. } => None,
+        }
+    }
+
+    /// The rectangle, or the shape's own box where there is none.
+    ///
+    /// **The stated fallback policy, and the reason it is a method.** A text layout must lay text
+    /// somewhere, and the only other box it has is the one the shape was drawn in — so the fallback
+    /// is right, and burying it inside the resolver would make a shape whose rectangle silently
+    /// went missing indistinguishable from one that never had a rectangle to lose. Here the caller
+    /// names it, and [`declared`](Self::declared) is what a gate asks instead.
+    #[must_use]
+    pub fn or_bounding_box(&self, within: SceneRect) -> SceneRect {
+        self.declared().unwrap_or(within)
+    }
+}
+
+/// Where text goes inside a preset shape, in the device pixels of `within`.
+///
+/// # Errors
+///
+/// [`GeometryError::UnseededShape`] for a preset this build has no table for,
+/// [`GeometryError::Guides`] for a guide list that will not evaluate, and
+/// [`GeometryError::TextRectangle`] for an edge naming a guide the shape does not define. A guide
+/// that has *no finite value* is none of those — it is [`TextRectangle::Singular`], which is an
+/// answer and not a failure.
+pub fn preset_text_rectangle(
+    preset: PresetShapeType,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<TextRectangle, GeometryError> {
+    let definition = definition_of(preset).ok_or(GeometryError::UnseededShape {
+        shape: preset.to_wire(),
+    })?;
+    text_rectangle_of_definition(definition, extents, adjustments, within)
+}
+
+/// Where text goes inside a *given* definition — [`preset_text_rectangle`] without the table lookup.
+///
+/// Public for the reason [`outline_of_definition`] is: a suite that wants to prove the
+/// [`Inverted`](TextRectangle::Inverted) arm is reachable has to resolve a deliberately transposed
+/// rectangle, and a table it can only read cannot be made wrong.
+///
+/// # Errors
+///
+/// As [`preset_text_rectangle`], minus [`GeometryError::UnseededShape`] which cannot arise.
+pub fn text_rectangle_of_definition(
+    definition: &PresetShapeDefinition,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<TextRectangle, GeometryError> {
+    let Some(rectangle) = definition.text_rectangle else {
+        return Ok(TextRectangle::NotDeclared);
+    };
+    let shape = definition.preset.to_wire();
+    let (environment, singular) = guide_environment(definition, extents, adjustments)?;
+    let resolved = match rectangle.to_rectangle().resolve(&environment) {
+        Ok(resolved) => resolved,
+        Err(source) => {
+            return match singular_name(&singular, &source) {
+                Some(guide) => Ok(TextRectangle::Singular { guide }),
+                None => Err(GeometryError::TextRectangle { shape, source }),
+            }
+        }
+    };
+    let placed = ShapeToDevice::in_shape_space(within, extents).place_rectangle(resolved);
+    // Crossed edges are detected **before** the map, in the shape's own EMU, because `SceneRect`
+    // normalises: a rectangle whose left is past its right arrives on the page looking like a
+    // perfectly ordinary small box, and the one thing that says otherwise is the order the guides
+    // resolved in.
+    if resolved.left.emu() > resolved.right.emu() || resolved.top.emu() > resolved.bottom.emu() {
+        return Ok(TextRectangle::Inverted { crossed: placed });
+    }
+    Ok(TextRectangle::Declared(placed))
+}
+
+// -------------------------------------------------------------------------------------------
+// The connection sites (`a:cxnLst`)
+// -------------------------------------------------------------------------------------------
+
+/// One place a connector attaches to a shape, resolved into device pixels.
+///
+/// Named for what it *is* rather than after [`mjx_dml::geometry::ConnectionSite`], which is the
+/// unresolved form and which this crate maps from rather than redefining.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct ConnectionPoint {
+    /// Where the connector attaches, in the device pixels of the box the shape was drawn in.
+    pub position: ScenePoint,
+    /// The direction a connector leaves in, clockwise from the positive `x` axis.
+    ///
+    /// **This is why a site is not merely a point.** An elbow connector leaving the top of a box
+    /// must travel up before it turns and a curved one must leave along its tangent; without the
+    /// angle both would leave along the straight line to the other shape and cut through the one
+    /// they started in.
+    pub angle: Angle,
+}
+
+/// Every place a connector can attach to a preset shape, in the device pixels of `within`.
+///
+/// Empty for the thirteen presets that declare no `a:cxnLst`, nine of which are themselves
+/// connectors — and that emptiness is a fact about the shape rather than a failure to find
+/// anything, which is why it is not an error.
+///
+/// # Errors
+///
+/// [`GeometryError::UnseededShape`], [`GeometryError::Guides`],
+/// [`GeometryError::SingularGeometry`] and [`GeometryError::ConnectionSite`].
+///
+/// **A site whose guides have no finite value fails the whole list**, unlike a text rectangle,
+/// which answers [`TextRectangle::Singular`] for itself. The asymmetry is deliberate: a text
+/// rectangle is one thing that has an answer or has not, while a connector names a site *by index*
+/// — `a:cxn@idx` — so dropping the fourth site silently renumbers the fifth onwards and attaches
+/// every connector after it to the wrong side of the shape.
+pub fn preset_connection_sites(
+    preset: PresetShapeType,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<Vec<ConnectionPoint>, GeometryError> {
+    let definition = definition_of(preset).ok_or(GeometryError::UnseededShape {
+        shape: preset.to_wire(),
+    })?;
+    connection_sites_of_definition(definition, extents, adjustments, within)
+}
+
+/// Every connection site of a *given* definition — [`preset_connection_sites`] without the lookup.
+///
+/// # Errors
+///
+/// As [`preset_connection_sites`], minus [`GeometryError::UnseededShape`].
+pub fn connection_sites_of_definition(
+    definition: &PresetShapeDefinition,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<Vec<ConnectionPoint>, GeometryError> {
+    if definition.connection_sites.is_empty() {
+        return Ok(Vec::new());
+    }
+    let shape = definition.preset.to_wire();
+    let (environment, singular) = guide_environment(definition, extents, adjustments)?;
+    let map = ShapeToDevice::in_shape_space(within, extents);
+    let mut sites = Vec::with_capacity(definition.connection_sites.len());
+    for (index, site) in definition.connection_sites.iter().enumerate() {
+        let resolved = site
+            .to_connection_site()
+            .resolve(&environment)
+            .map_err(|source| match singular_name(&singular, &source) {
+                Some(guide) => GeometryError::SingularGeometry { shape, guide },
+                None => GeometryError::ConnectionSite {
+                    shape,
+                    index,
+                    source,
+                },
+            })?;
+        sites.push(ConnectionPoint {
+            position: map.place(shape_point(resolved.position)),
+            angle: resolved.angle,
+        });
+    }
+    Ok(sites)
+}
+
 /// The affine map from one path's coordinate space onto the device-pixel box the shape is drawn in.
 #[derive(Clone, Copy, Debug)]
 struct ShapeToDevice {
@@ -477,12 +707,41 @@ impl ShapeToDevice {
         }
     }
 
+    /// The map for coordinates written in the shape's **own** space, with no coordinate box.
+    ///
+    /// An `a:rect` and an `a:cxn` are exactly that: neither is inside an `a:path` and neither can
+    /// therefore inherit a `@w`/`@h`. That is not a simplification — `CT_Path2D`'s box is an
+    /// attribute of the *path*, and a text rectangle written in one path's box would be undefined
+    /// for a shape with three paths and three different boxes. Thirty-one of the 186 have such a
+    /// box and every one of them puts its text rectangle in the shape's space regardless.
+    fn in_shape_space(within: SceneRect, extents: Size) -> Self {
+        Self {
+            left: within.left,
+            top: within.top,
+            horizontal: scale(within.width(), extents.width.emu() as f64),
+            vertical: scale(within.height(), extents.height.emu() as f64),
+        }
+    }
+
     /// Where a point of the shape's space lands on the page.
     fn place(&self, point: ShapePoint) -> ScenePoint {
         ScenePoint::new(
             self.left + (point.x * self.horizontal) as f32,
             self.top + (point.y * self.vertical) as f32,
         )
+    }
+
+    /// Where a rectangle of the shape's space lands on the page.
+    fn place_rectangle(&self, rectangle: ResolvedRectangle) -> SceneRect {
+        let top_left = self.place(ShapePoint::new(
+            rectangle.left.emu() as f64,
+            rectangle.top.emu() as f64,
+        ));
+        let bottom_right = self.place(ShapePoint::new(
+            rectangle.right.emu() as f64,
+            rectangle.bottom.emu() as f64,
+        ));
+        SceneRect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y)
     }
 }
 
@@ -527,15 +786,27 @@ fn path_command_error(
     singular: &HashSet<&'static str>,
     source: GuideError,
 ) -> GeometryError {
-    if let GuideError::UndefinedGuide { name } = &source {
-        if singular.contains(name.as_str()) {
-            return GeometryError::SingularGeometry {
-                shape,
-                guide: name.clone(),
-            };
-        }
+    match singular_name(singular, &source) {
+        Some(guide) => GeometryError::SingularGeometry { shape, guide },
+        None => GeometryError::PathCommand { shape, source },
     }
-    GeometryError::PathCommand { shape, source }
+}
+
+/// The name of the singular guide a resolution failure is *about*, if that is what it is about.
+///
+/// The one place the distinction between *"this shape has no geometry here"* and *"this table is
+/// wrong"* is made, so that the path steps, the text rectangle and the connection sites cannot
+/// drift into three different readings of the same `GuideError`. `Some(name)` means the table
+/// defined that guide and [`guide_environment`] left it out because its own formula had no finite
+/// value at this size and these adjustments; `None` means the name is not the table's at all, which
+/// is a defect.
+fn singular_name(singular: &HashSet<&'static str>, source: &GuideError) -> Option<String> {
+    match source {
+        GuideError::UndefinedGuide { name } if singular.contains(name.as_str()) => {
+            Some(name.clone())
+        }
+        _ => None,
+    }
 }
 
 /// Walk one path's steps, appending the device-pixel commands they draw.
