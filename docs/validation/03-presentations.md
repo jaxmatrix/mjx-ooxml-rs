@@ -36,11 +36,11 @@ documented gap is never mistaken for a validation failure**.
 | `V-PPTX-02` | medium | *Built, not yet verified* — **`comp` / `gray` / `gamma` / `invGamma` colour transforms** (owner `MJX-211` R3) | `V-PPTX-02.4`, and it is **blocked**: no facade call authors a colour transform |
 | `V-PPTX-02` | medium | *Non-goal* — **InkML strokes**, **an ActiveX control's `ax:ocxPr`**, **a SmartArt layout is not run**, **VML geometry is preserved, not evaluated** | Non-goals. The legacy checks look at what is *preserved and referenced*, never at an evaluated stroke, property bag, layout or path |
 | `V-PPTX-03` | high | *Non-goal* — **`extLst` is never modelled** | Non-goal. `V-PPTX-03.5` checks the extension survives and stays where the sequence puts it, which is the whole claim |
-| `V-PPTX-04` | medium | *Non-goal* — **a chart's workbook is regenerated, not patched**; **chart colour and style parts are preserved, not modelled** | Non-goals, and R4 is exactly the claim that regenerating is safe |
+| `V-PPTX-04` | medium | *Non-goal* — **chart colour and style parts are preserved, not modelled**. The workbook non-goal beside it is **retired**: MJXOFF-208 made a data edit *patch* the embedded workbook | R4 is now the claim that patching leaves the rest of a producer's workbook alone |
 | `V-PPTX-05` | low | neither list | Plain modelled markup |
 | `V-PPTX-06` | low | neither list | Plain modelled markup |
 | `V-PPTX-07` | medium | *Non-goal* — **a transform naming a rotation but not both `a:off` and `a:ext` answers `None`** | R7, and the one place this pass interrogates a non-goal on purpose: `V-PPTX-07.6` |
-| `V-PPTX-08` | medium | *Non-goal* — **a chart's workbook is regenerated, not patched** | As `V-PPTX-04`; `V-PPTX-08.10` is the detached-workbook half of it |
+| `V-PPTX-08` | medium | the workbook non-goal is **retired** (MJXOFF-208) | As `V-PPTX-04`; `V-PPTX-08.10` is the detached-workbook half of it |
 | every area | — | *Built, not yet verified* — **every fixture is hand-crafted** | R2. Retired for all of them at once by `MJXOFF-130`, and this pass is what feeds it |
 
 ## `V-PPTX-01` · `text-inheritance` — text, paragraph and run properties, and what they inherit
@@ -491,7 +491,7 @@ Risk **medium** — **R4**. Shipped by `MJXOFF-57`, with the workbook writer mov
 - **Artefact** `v-pptx-04-authored.pptx`, `v-docx-04-authored.docx`, `v-xlsx-04-authored.xlsx`
 - **Object** the embedded workbook of each, and — for Excel — the live range the chart reads instead.
 - **Action** open *Edit Data* in each of the three, and confirm the numbers agree with the chart.
-- **Expect** all three agree. A data edit **regenerates** the embedded workbook from the chart's own data rather than patching the one that was there; that is a documented non-goal with a reason (reconciling an arbitrary third-party workbook is a merge problem with no correct answer), and `detach_chart_workbook` is the escape hatch. Exactly **one** SpreadsheetML writer ships, in `mjx-sml`.
+- **Expect** all three agree. Since MJXOFF-208 a data edit **patches** the embedded workbook: the new numbers go into the cells the series' own `c:f` names, and every other sheet, cell format, defined name and macro the workbook carried is left exactly as it was. A `c:f` this library will not write over is refused by name rather than rebuilt over; `regenerate_chart_workbook` is the explicit opt-in that does replace the workbook wholesale, and `detach_chart_workbook` drops the reference instead. Exactly **one** SpreadsheetML writer ships, in `mjx-sml`.
   Calls: `Deck::refresh_chart_workbook` · `Deck.refresh_chart_workbook` · `Deck.refreshChartWorkbook`
   Calls: `Document::add_chart` · `Document.add_chart` · `Document.addChart`
   Calls: `Workbook::add_range_chart` · `Workbook.add_range_chart` · `Workbook.addRangeChart`

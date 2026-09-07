@@ -758,6 +758,7 @@ test("removing an Excel chart binding is caught by this suite", () => {
       "chartLegend",
       "chartWorkbooks",
       "refreshChartWorkbook",
+      "regenerateChartWorkbook",
       "detachChartWorkbook",
       "chartSeriesReferences",
       "chartSeriesFromCells",

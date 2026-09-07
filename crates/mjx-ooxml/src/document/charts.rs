@@ -141,8 +141,14 @@ impl super::Document {
         Ok(self.document.chart_workbooks()?)
     }
 
-    /// Rewrites the embedded workbook of the chart the drawing `drawing_id` frames so its cells hold
-    /// exactly what the chart now draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook the chart the drawing `drawing_id` frames already
+    /// embeds — the cells its own `c:f` formulas name, and nothing else — and answers whether it
+    /// wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives; a reference this library
+    /// will not write is refused rather than written over. Use
+    /// [`regenerate_chart_workbook`](Self::regenerate_chart_workbook) to replace the workbook
+    /// wholesale instead.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure.
@@ -150,6 +156,21 @@ impl super::Document {
     /// See [`Document::refresh_chart_workbook`](mjx_docx::Document::refresh_chart_workbook).
     pub fn refresh_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, Error> {
         Ok(self.document.refresh_chart_workbook(drawing_id)?)
+    }
+
+    /// Replaces the embedded workbook of the chart the drawing `drawing_id` frames with a freshly
+    /// built one, and answers whether it replaced one.
+    ///
+    /// **This discards whatever that workbook held** — every extra sheet, cell format, defined name
+    /// and macro. It is the explicit opt-in;
+    /// [`refresh_chart_workbook`](Self::refresh_chart_workbook) is the preserving default.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure.
+    ///
+    /// See [`Document::regenerate_chart_workbook`](mjx_docx::Document::regenerate_chart_workbook).
+    pub fn regenerate_chart_workbook(&mut self, drawing_id: u32) -> Result<bool, Error> {
+        Ok(self.document.regenerate_chart_workbook(drawing_id)?)
     }
 
     /// Detaches the backing workbook from the chart the drawing `drawing_id` frames, leaving it to

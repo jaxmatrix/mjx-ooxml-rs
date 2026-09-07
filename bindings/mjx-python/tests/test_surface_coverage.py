@@ -449,6 +449,7 @@ def test_removing_a_deck_chart_binding_is_caught_by_this_suite(deck: Deck) -> No
         "chart_legend",
         "chart_workbooks",
         "refresh_chart_workbook",
+        "regenerate_chart_workbook",
         "detach_chart_workbook",
         "set_chart_series_values",
         "set_chart_series_categories",

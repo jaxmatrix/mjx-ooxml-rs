@@ -600,6 +600,7 @@ def test_removing_an_excel_chart_binding_is_caught_by_this_suite() -> None:
         "chart_legend",
         "chart_workbooks",
         "refresh_chart_workbook",
+        "regenerate_chart_workbook",
         "detach_chart_workbook",
         "chart_series_references",
         "chart_series_from_cells",

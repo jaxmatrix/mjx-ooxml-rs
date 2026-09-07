@@ -365,3 +365,17 @@ pub enum DocxError {
     #[error(transparent)]
     Sml(#[from] mjx_sml::SmlError),
 }
+
+impl From<mjx_chart::ChartWorkbookError> for DocxError {
+    /// Lifts a failure from writing a chart's data into the workbook it embeds (MJXOFF-208).
+    ///
+    /// The two halves land where they already belonged: a verdict about the chart is a
+    /// [`ChartAccess`](DocxError::ChartAccess), and the embedded package refusing to be read or
+    /// written is an [`Sml`](DocxError::Sml) like any other malformed part.
+    fn from(error: mjx_chart::ChartWorkbookError) -> Self {
+        match error {
+            mjx_chart::ChartWorkbookError::Access(problem) => Self::ChartAccess(problem),
+            mjx_chart::ChartWorkbookError::Sml(problem) => Self::Sml(problem),
+        }
+    }
+}

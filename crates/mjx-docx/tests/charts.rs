@@ -316,6 +316,150 @@ fn a_chart_a_third_party_producer_wrote_is_reachable_the_way_word_reaches_it() {
     assert!(!workbooks[0].external);
 }
 
+/// The part name of `chart_in_word.docx`'s embedded workbook — a name this library would never
+/// have generated, which is half of why the fixture is worth having.
+const PRODUCER_WORKBOOK: &str = "/word/embeddings/Microsoft_Excel_Worksheet1.xlsx";
+
+/// The part name every chart this library authors into a Word document embeds its workbook at.
+const AUTHORED_WORKBOOK: &str = "/word/embeddings/Microsoft_Excel_Sheet1.xlsx";
+
+/// Every part *inside* the fixture's embedded workbook, as `(name, decompressed payload)`.
+fn embedded_workbook_payloads(document_bytes: &[u8]) -> Vec<(String, Vec<u8>)> {
+    part_payloads(&part_bytes_of(document_bytes, PRODUCER_WORKBOOK))
+}
+
+#[test]
+fn a_data_edit_patches_the_producers_workbook_and_leaves_the_rest_of_it_alone() {
+    // MJXOFF-208. Until that child, this call regenerated the workbook: a fresh one-sheet package
+    // over the part Apache POI wrote, so the sheet's own name, its styles, its string table, its
+    // page margins, its document properties and the second series' whole column were discarded by a
+    // call that only said "set series 0 to these four numbers". Every assertion below is one of the
+    // things that used to be lost.
+    let original = producer_docx();
+    let before = embedded_workbook_payloads(&original);
+    assert!(
+        before.len() >= 8,
+        "the fixture's workbook should carry a real part graph, not a stub: {:?}",
+        before.iter().map(|(name, _)| name).collect::<Vec<_>>()
+    );
+
+    let mut document = Document::open(&original).expect("the fixture opens");
+    let chart = document.chart_drawing_ids().expect("charts")[0];
+    document
+        .set_chart_series_values(chart, 0, &[1.5, 2.5, 3.5, 4.5])
+        .expect("the values are rewritten");
+    let saved = document.save().expect("it saves");
+    let after = embedded_workbook_payloads(&saved);
+
+    // 1. The workbook still holds exactly the parts it arrived with — the regeneration wrote five
+    //    and dropped `docProps`, so this alone reddens if the destructive branch comes back.
+    assert_eq!(
+        before.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        after.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        "a data edit must add and remove no part of the embedded workbook"
+    );
+
+    // 2. Every part but the one worksheet the edit landed in is byte-identical.
+    for ((name, payload), (_, after_payload)) in before.iter().zip(after.iter()) {
+        if name == "/xl/worksheets/sheet1.xml" {
+            continue;
+        }
+        assert_eq!(
+            String::from_utf8_lossy(payload),
+            String::from_utf8_lossy(after_payload),
+            "a data edit must leave {name} of the embedded workbook byte-identical"
+        );
+    }
+
+    // 3. The worksheet holds the new numbers, in the cells the chart's own `c:f` names.
+    let sheet = workbook_part_text(&saved, PRODUCER_WORKBOOK, "/xl/worksheets/sheet1.xml");
+    for value in ["1.5", "2.5", "3.5", "4.5"] {
+        assert!(
+            sheet.contains(&format!("<v>{value}</v>")),
+            "the workbook holds the new value {value}: {sheet}"
+        );
+    }
+    assert!(
+        !sheet.contains("<v>12.5</v>"),
+        "series 0's old first value is gone: {sheet}"
+    );
+
+    // 4. And everything else in that worksheet survived: the *other* series' column, the category
+    //    column, the styles each cell names, the sheet view and the page margins.
+    for kept in [
+        r#"<c r="C2" t="n" s="0"><v>9.0</v></c>"#,
+        r#"<c r="C5" t="n" s="0"><v>16.5</v></c>"#,
+        r#"<c r="A2" t="n" s="0"><v>9.0</v></c>"#,
+        r#"<sheetView workbookViewId="0" tabSelected="true"/>"#,
+        r#"<pageMargins bottom="0.75" footer="0.3" header="0.3" left="0.7" right="0.7" top="0.75"/>"#,
+    ] {
+        assert!(
+            sheet.contains(kept),
+            "a data edit must leave `{kept}` in the producer's worksheet: {sheet}"
+        );
+    }
+}
+
+#[test]
+fn regenerating_the_producers_workbook_is_the_explicit_opt_in_and_still_discards_it() {
+    // The other half of MJXOFF-208: the destructive branch did not disappear, it grew a name that
+    // says what it does and stopped being what a data edit reaches for. This case is what keeps the
+    // one above honest — it shows the two calls genuinely differ.
+    let original = producer_docx();
+    let before = embedded_workbook_payloads(&original);
+
+    let mut document = Document::open(&original).expect("the fixture opens");
+    let chart = document.chart_drawing_ids().expect("charts")[0];
+    assert!(
+        document
+            .regenerate_chart_workbook(chart)
+            .expect("it regenerates"),
+        "the fixture's chart has a workbook to replace"
+    );
+    let after = embedded_workbook_payloads(&document.save().expect("it saves"));
+
+    assert_ne!(
+        before.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        after.iter().map(|(name, _)| name).collect::<Vec<_>>(),
+        "regenerating writes a different package — which is exactly why it is not the default"
+    );
+}
+
+#[test]
+fn a_reference_this_library_will_not_write_refuses_and_changes_neither_part() {
+    // The refusal is the other branch of "patch, or refuse": never a quiet fall back to
+    // regenerating, which is the content loss the patch exists to prevent. Here the chart's `c:f`
+    // is rewritten to name a sheet the embedded workbook does not have.
+    let original = producer_docx();
+    let chart_part = "/word/charts/chart1.xml";
+    let rewritten = part_text(&original, chart_part).replace("Sheet0!", "NoSuchSheet!");
+    let document = Document::open(&original).expect("the fixture opens");
+    let mut document = with_part_replaced(&document, chart_part, rewritten.into_bytes());
+    let before = document.save().expect("it saves");
+
+    let chart = document.chart_drawing_ids().expect("charts")[0];
+    let failure = document
+        .set_chart_series_values(chart, 0, &[1.5, 2.5, 3.5, 4.5])
+        .expect_err("a reference naming no sheet of the workbook is refused");
+    assert!(
+        matches!(
+            &failure,
+            DocxError::ChartAccess(mjx_chart::ChartAccessError::EmbeddedWorkbookNotWritable {
+                problem: mjx_chart::ReferenceProblem::NoSuchSheet,
+                ..
+            })
+        ),
+        "{failure:?}"
+    );
+
+    let after = document.save().expect("it saves");
+    assert_eq!(
+        part_payloads(&before),
+        part_payloads(&after),
+        "a refused edit leaves the chart part and the workbook exactly as they were"
+    );
+}
+
 // =================================================================================================
 // Authoring
 // =================================================================================================
@@ -422,11 +566,27 @@ fn an_unnamed_series_still_leaves_the_data_where_the_formulas_point() {
         [None],
         "the header row now has nothing at all to write"
     );
+    // MJXOFF-208 moved the layout claim below onto the method that still makes it. `refresh` now
+    // *patches* the cells the chart's `c:f` names and writes nothing else — so the blank header row
+    // is not its to write or to remove, and this case would be asserting nothing about the writer it
+    // is named for. `regenerate_chart_workbook` is that writer, under the name that says so.
+    let before_patch = part_bytes_of(&document.save().expect("it saves"), AUTHORED_WORKBOOK);
     assert!(
         document
             .refresh_chart_workbook(drawing)
-            .expect("the workbook refreshes"),
-        "there is an embedded workbook to refresh"
+            .expect("the patch runs"),
+        "there is an embedded workbook, and `refresh` says so even with nothing to change"
+    );
+    assert_eq!(
+        part_bytes_of(&document.save().expect("it saves"), AUTHORED_WORKBOOK),
+        before_patch,
+        "the workbook already holds what the chart draws, so patching leaves the part untouched"
+    );
+    assert!(
+        document
+            .regenerate_chart_workbook(drawing)
+            .expect("the workbook is rebuilt"),
+        "there is an embedded workbook to rebuild"
     );
 
     let bytes = document.save().expect("it saves");
