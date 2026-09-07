@@ -1105,7 +1105,13 @@ fn make_empty_element(
     )
 }
 
-/// Removes any `<Override>` child of the content-types root whose `PartName` equals `part`.
+/// Removes any `<Override>` child of the content-types root whose `PartName` names `part`.
+///
+/// The comparison is on the percent-**decoded** attribute, because that is the form
+/// [`ContentTypes::parse`] stored and the form `part` is in: a stream that spells the rule
+/// `/word/media/a%20b.png` must still be found when the part it names is `/word/media/a b.png`.
+/// Matching the raw bytes alone would leave the element behind while the parsed view dropped it,
+/// which is exactly the drift the tandem edit exists to prevent.
 fn remove_override_element(tree: &mut RawDocument, part: &PartName) {
     let target = escape_attribute_bytes(part.as_str());
     let RawDocument { interner, root, .. } = tree;
@@ -1114,20 +1120,40 @@ fn remove_override_element(tree: &mut RawDocument, part: &PartName) {
             return true;
         };
         let is_override = interner.resolve(el.name.local) == "Override";
-        let matches_part = el.attributes.iter().any(|a| {
-            interner.resolve(a.name.local) == "PartName" && a.value.as_ref() == target.as_ref()
-        });
+        let matches_part = el
+            .attributes
+            .iter()
+            .any(|a| interner.resolve(a.name.local) == "PartName" && names_part(&a.value, &target));
         !(is_override && matches_part)
     });
 }
 
+/// Whether an attribute holding a part name refers to the part whose escaped name is `target`.
+///
+/// `raw` and `target` are both XML-escaped, so the two alphabets do not overlap and the escaped form
+/// can be percent-decoded directly. Non-UTF-8 attribute bytes simply do not match.
+fn names_part(raw: &[u8], target: &[u8]) -> bool {
+    if raw == target {
+        return true;
+    }
+    std::str::from_utf8(raw)
+        .ok()
+        .and_then(crate::percent::decode_part_reference)
+        .is_some_and(|decoded| decoded.as_bytes() == target)
+}
+
 /// Inserts (replacing any existing) the `<Override>` for `part`, setting its content type.
+///
+/// The `PartName` is written percent-encoded, as ECMA-376 Part 2 requires of a part name and as
+/// [`ContentTypes::parse`] reads it back. Every name this library generates is already safe, so the
+/// encoding is the identity in practice; it matters only for a part the caller named itself.
 fn upsert_override_element(tree: &mut RawDocument, part: &PartName, content_type: &str) {
     remove_override_element(tree, part);
+    let encoded = crate::percent::encode_part_reference(part.as_str());
     let namespace = tree.root.name.namespace;
     let RawDocument { interner, root, .. } = tree;
     let attributes = vec![
-        make_attribute(interner, "PartName", part.as_str()),
+        make_attribute(interner, "PartName", &encoded),
         make_attribute(interner, "ContentType", content_type),
     ];
     let element = make_empty_element(interner, namespace, "Override", attributes);
