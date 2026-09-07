@@ -43,7 +43,29 @@ use crate::paint::{
 };
 
 /// How many section slots the wire values occupy, so that a lookup is an array index.
-const SECTION_SLOTS: usize = 14;
+///
+/// **Derived from the vocabulary, never restated.** Wire values run from one, so one slot per kind
+/// plus the unused zero is exactly what an index by wire value needs. Written as `14` it was a
+/// number that happened to be one larger than the largest kind, and the array index at the end of
+/// [`DisplayList::read_header`] was in bounds by that coincidence rather than by construction:
+/// adding a fourteenth [`SectionKind`] would have made a display list *from a file a reader opened*
+/// index `sections[14]` and panic, in the crate whose own documentation says it contains no slice
+/// index a caller can reach with bytes it did not write. The index is a `get_mut` now as well, so
+/// both halves of that have to fail before anything can.
+const SECTION_SLOTS: usize = SectionKind::ALL.len() + 1;
+
+// Every wire value has a slot. A compile-time assertion rather than a test, because the thing it
+// guards against is a *new kind* — and a new kind should not compile if it has nowhere to go.
+const _: () = {
+    let mut index = 0;
+    while index < SectionKind::ALL.len() {
+        assert!(
+            (SectionKind::ALL[index].wire_value() as usize) < SECTION_SLOTS,
+            "a section kind's wire value is past the end of the slot array it indexes"
+        );
+        index += 1;
+    }
+};
 
 /// Where one section lives in the blob.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -517,7 +539,7 @@ impl DisplayList {
                 reason: "the reserved word is not zero",
             });
         }
-        if usize::from(section_count) > SECTION_SLOTS - 1 {
+        if usize::from(section_count) > SectionKind::ALL.len() {
             return Err(SceneError::MalformedHeader {
                 reason: "more sections are declared than this version has kinds",
             });
@@ -602,7 +624,19 @@ impl DisplayList {
                 }
             }
             watermark = end;
-            sections[usize::from(kind_value)] = Some(Span { offset, length });
+            // `get_mut`, not an index. `SectionKind::from_wire_value` above has already refused
+            // every value without a slot, so this cannot fire — and it is written rather than
+            // assumed because the two facts are in different files, and the day they disagree the
+            // honest answer is an error and not a panic.
+            let Some(slot) = sections.get_mut(usize::from(kind_value)) else {
+                return Err(SceneError::MalformedSection {
+                    section: kind,
+                    offset,
+                    length,
+                    reason: "names a kind this build has no slot for",
+                });
+            };
+            *slot = Some(Span { offset, length });
         }
 
         Ok(Self {

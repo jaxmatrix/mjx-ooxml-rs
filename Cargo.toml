@@ -78,7 +78,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.127"
+version = "0.0.128"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -138,6 +138,15 @@ unicode-linebreak = "0.1"
 # The character-to-script table (ISO 15924), for itemising a run so that each shaping call sees one
 # script. Data only — no algorithm this crate would have to trust.
 unicode-script = "0.5"
+# Path tessellation (MJXOFF-162), used only by `mjx-scene`. Pure Rust with no C dependency, which is
+# what lets it live inside the shipped graph at all, and it is taken for the one algorithm this
+# workspace should least like to write itself: a robust, self-intersection-aware trapezoidation of an
+# arbitrary path. `lyon_tessellation` carries `lyon_path` and `lyon_geom` with it and needs nothing
+# else; the meta-crate `lyon` is deliberately not used, because it also pulls the SVG parser and the
+# algorithm collection this crate has no call for. A tessellation pipeline — rather than a compute
+# shader — is also what makes the browser a target at all: `wgpu`'s WebGL2 backend has no compute
+# stage, and `docs/UI_PLATFORM_PLAN.md` §7 puts the browser inside the matrix.
+lyon_tessellation = "1"
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }

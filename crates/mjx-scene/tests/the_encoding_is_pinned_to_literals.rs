@@ -41,8 +41,8 @@
 
 use mjx_scene::encoding::{
     CLIP_STRIDE, EFFECT_STRIDE, GEOMETRY_STRIDE, GLYPH_RUN_STRIDE, GLYPH_STRIDE,
-    GRADIENT_STOP_STRIDE, GRADIENT_STRIDE, IMAGE_STRIDE, PAINT_STRIDE, STROKE_STRIDE,
-    TRANSFORM_STRIDE,
+    GRADIENT_STOP_STRIDE, GRADIENT_STRIDE, IMAGE_STRIDE, PAINT_STRIDE, SECTION_ALIGNMENT,
+    STROKE_STRIDE, TRANSFORM_STRIDE,
 };
 use mjx_scene::{
     Clip, Color, Command, CompoundStroke, DashPattern, DisplayList, Effect, EffectKind, FillRule,
@@ -857,6 +857,215 @@ fn a_resource_index_is_addressable_without_walking_the_table() {
         );
     }
     assert_eq!(list.paint(ResourceIndex::new(8)), None);
+}
+
+// -------------------------------------------------------------------------------------------
+// The section vocabulary itself, swept rather than sampled
+// -------------------------------------------------------------------------------------------
+
+/// Every section kind, as `(wire value, stride)`, written down by hand.
+///
+/// **This is the enforcement, not a convenience.** Everything else in this file pins one section's
+/// *payload*; nothing pinned the vocabulary, so a fourteenth kind could be added — or an existing
+/// kind's number changed — and the format would move with no byte literal anywhere disagreeing. The
+/// two tests below sweep [`SectionKind::ALL`] against this table, so a new section that arrives
+/// without its row here does not pass, and the requirement is enforced rather than remembered.
+///
+/// A stride of zero means the section's records vary in length: the command stream and the path
+/// data, and nothing else.
+#[rustfmt::skip]
+const THE_SECTION_VOCABULARY: [(u16, usize); 13] = [
+    ( 1,  0),   // commands, variable
+    ( 2, 24),   // transforms
+    ( 3, 24),   // clips
+    ( 4, 16),   // paints
+    ( 5, 56),   // gradients
+    ( 6,  8),   // gradient stops
+    ( 7, 24),   // strokes
+    ( 8, 64),   // effects
+    ( 9, 32),   // geometries
+    (10,  0),   // path data, variable
+    (11, 32),   // glyph runs
+    (12, 36),   // glyphs
+    (13, 72),   // images
+];
+
+#[test]
+fn every_section_kind_is_pinned_to_its_wire_value_and_its_stride() {
+    assert_eq!(
+        SectionKind::ALL.len(),
+        THE_SECTION_VOCABULARY.len(),
+        "a section kind was added or removed without its row in this file's table, so the wire \
+         format moved and no byte literal noticed"
+    );
+    for (kind, (wire_value, stride)) in SectionKind::ALL.into_iter().zip(THE_SECTION_VOCABULARY) {
+        assert_eq!(kind.wire_value(), wire_value, "the wire value of `{kind}`");
+        assert_eq!(kind.stride().unwrap_or(0), stride, "the stride of `{kind}`");
+        assert_eq!(
+            SectionKind::from_wire_value(wire_value),
+            Some(kind),
+            "wire value {wire_value} does not read back as `{kind}`"
+        );
+    }
+    // And the numbers run from one, upward, without a gap — which is what lets a decoder index a
+    // slot array by wire value at all.
+    for (position, kind) in SectionKind::ALL.into_iter().enumerate() {
+        assert_eq!(usize::from(kind.wire_value()), position + 1);
+    }
+    assert_eq!(SectionKind::from_wire_value(0), None);
+    assert_eq!(
+        SectionKind::from_wire_value(14),
+        None,
+        "fourteen is the next free wire value and this build must not claim it"
+    );
+}
+
+#[test]
+fn every_fixed_stride_is_a_multiple_of_the_alignment_every_section_begins_on() {
+    // A section's bytes are followed **immediately** by the next section's — the writer pads
+    // nothing — and `DisplayList::from_bytes` refuses a section whose offset is not a multiple of
+    // `SECTION_ALIGNMENT`. So a stride that is not itself a multiple of it makes a table of an odd
+    // number of records push the section after it onto an unaligned offset, and this crate rejects
+    // a list it wrote itself.
+    //
+    // True of all thirteen strides today by arithmetic rather than by construction, and a `u16`
+    // index buffer — stride two — is exactly the shape a later section is likely to have. It is
+    // also asserted at compile time in `src/encoding.rs`; this is the readable half of the same
+    // claim.
+    assert_eq!(SECTION_ALIGNMENT, 4);
+    for kind in SectionKind::ALL {
+        if let Some(stride) = kind.stride() {
+            assert!(
+                stride % SECTION_ALIGNMENT == 0,
+                "the `{kind}` section's stride of {stride} is not a multiple of {SECTION_ALIGNMENT}"
+            );
+        }
+    }
+}
+
+#[test]
+fn the_section_table_of_a_scene_of_everything_names_every_kind_in_order() {
+    // The rows of a real blob, in the order they are written: each row's first four bytes are the
+    // kind and the stride, and both are the literals above. The offset and the length are what the
+    // payload happens to be and are pinned section by section elsewhere in this file.
+    let list = a_scene_of_every_section();
+    let bytes = list.as_bytes();
+    assert_eq!(
+        bytes.get(20..22),
+        Some(&(THE_SECTION_VOCABULARY.len() as u16).to_le_bytes()[..]),
+        "a scene of everything must declare one row per kind"
+    );
+    for (row, (wire_value, stride)) in THE_SECTION_VOCABULARY.into_iter().enumerate() {
+        let at = 32 + row * 12;
+        let expected: Vec<u8> = wire_value
+            .to_le_bytes()
+            .into_iter()
+            .chain((stride as u16).to_le_bytes())
+            .collect();
+        assert_bytes(
+            &format!("row {row} of the section table"),
+            bytes.get(at..at + 4).unwrap_or_default(),
+            &expected,
+        );
+    }
+}
+
+/// A scene that writes **every** section, so the table above has a row for each.
+fn a_scene_of_every_section() -> DisplayList {
+    let mut builder = SceneBuilder::new(two_pixels_per_point(), 320.0, 240.0);
+    let transform = builder
+        .add_transform(SceneTransform::IDENTITY)
+        .expect("a transform");
+    let clip = builder
+        .add_clip(Clip::rectangle(SceneRect::new(0.0, 0.0, 8.0, 8.0)))
+        .expect("a clip");
+    let paint = builder.add_paint(Paint::Solid(INK)).expect("a paint");
+    let gradient = builder
+        .add_gradient(&Gradient::linear(
+            vec![GradientStop::new(0.0, INK), GradientStop::new(1.0, INK)],
+            0.0,
+        ))
+        .expect("a gradient");
+    let gradient_paint = builder
+        .add_paint(Paint::Gradient(gradient))
+        .expect("a gradient paint");
+    let stroke = builder
+        .add_stroke(Stroke {
+            paint,
+            width: 1.0,
+            cap: LineCap::Flat,
+            join: LineJoin::Round,
+            dash: DashPattern::Solid,
+            alignment: StrokeAlignment::Centered,
+            compound: CompoundStroke::Single,
+            head: LineEnd::default(),
+            tail: LineEnd::default(),
+        })
+        .expect("a stroke");
+    let effect = builder
+        .add_effect(Effect::new(EffectKind::Blur))
+        .expect("an effect");
+    let path = builder
+        .add_geometry(&Geometry::path(
+            vec![
+                PathCommand::MoveTo(ScenePoint::new(0.0, 0.0)),
+                PathCommand::LineTo(ScenePoint::new(4.0, 4.0)),
+                PathCommand::Close,
+            ],
+            FillRule::NonZero,
+        ))
+        .expect("a path");
+    let run = builder
+        .add_glyph_run(&SceneGlyphRun {
+            face: 0,
+            bucket_steps: 48,
+            residual_scale: 1.0,
+            origin: ScenePoint::ORIGIN,
+            direction: TextDirection::LeftToRight,
+            hinting: Hinting::GridFitted,
+            level: 0,
+            glyphs: vec![SceneGlyph {
+                x: 0,
+                y: 0,
+                cluster: 0,
+                glyph: 3,
+                subpixel: 0,
+                image: GlyphImage::Outline(path),
+            }],
+        })
+        .expect("a glyph run");
+    let image = builder.add_image(Image::stretched(9)).expect("an image");
+    for command in [
+        Command::PushTransform(transform),
+        Command::PushClip(clip),
+        Command::PushEffect(effect),
+        Command::FillPath {
+            geometry: path,
+            paint: gradient_paint,
+        },
+        Command::StrokePath {
+            geometry: path,
+            stroke,
+        },
+        Command::DrawGlyphs { run, paint },
+        Command::DrawImage {
+            image,
+            destination: SceneRect::new(0.0, 0.0, 8.0, 8.0),
+        },
+        Command::Pop,
+        Command::Pop,
+        Command::Pop,
+    ] {
+        builder.push(command).expect("every command is legal");
+    }
+    let list = builder.finish().expect("the scene is well formed");
+    for kind in SectionKind::ALL {
+        assert!(
+            !list.section_bytes(kind).is_empty(),
+            "the `{kind}` section is empty, so the sweep above never reads its row"
+        );
+    }
+    list
 }
 
 /// Finish a builder that pushed no commands.

@@ -54,6 +54,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayvec"
+version = "0.7.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fb67a6e08acf24fdeccbac2cb6ac4305825bd1f117462e0e6f2f193345ad56"
+
+[[package]]
 name = "async-trait"
 version = "0.1.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -295,6 +301,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 
 [[package]]
+name = "euclid"
+version = "0.22.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1a05365e3b1c6d1650318537c7460c6923f1abdd272ad6842baa2b509957a06"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "find-msvc-tools"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -309,6 +324,12 @@ dependencies = [
  "crc32fast",
  "miniz_oxide",
 ]
+
+[[package]]
+name = "float_next_after"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8bf7cc16383c4b8d58b9905a8509f02926ce3058053c056376248d958c9df1e8"
 
 [[package]]
 name = "font-types"
@@ -442,6 +463,38 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ceec5bc11778974d1bcb055b18002eba7f4b3518b6a0081b3af5f21666da9ad"
 
 [[package]]
+name = "lyon_geom"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4336502e29e32af93cf2dad2214ed6003c17ceb5bd499df77b1de663b9042b92"
+dependencies = [
+ "arrayvec",
+ "euclid",
+ "num-traits",
+]
+
+[[package]]
+name = "lyon_path"
+version = "1.0.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5c463f9c428b7fc5ec885dcd39ce4aa61e29111d0e33483f6f98c74e89d8621e"
+dependencies = [
+ "lyon_geom",
+ "num-traits",
+]
+
+[[package]]
+name = "lyon_tessellation"
+version = "1.0.22"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "43b8dcf906637ecef61b3c0740c7a4e7f27caeb31257cfac0cc579ce15be6005"
+dependencies = [
+ "float_next_after",
+ "lyon_path",
+ "num-traits",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -469,11 +522,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-allocation-counter"
-version = "0.0.127"
+version = "0.0.128"
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -487,7 +540,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -499,7 +552,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-derive",
  "mjx-fixtures",
@@ -513,7 +566,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "anyhow",
  "criterion",
@@ -533,11 +586,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-fixtures"
-version = "0.0.127"
+version = "0.0.128"
 
 [[package]]
 name = "mjx-layout"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-text",
@@ -546,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-mce"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -555,7 +608,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -565,7 +618,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "criterion",
  "mjx-allocation-counter",
@@ -584,18 +637,18 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.127"
+version = "0.0.128"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -606,7 +659,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "anyhow",
  "criterion",
@@ -627,7 +680,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
@@ -635,8 +688,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-scene"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
+ "lyon_tessellation",
+ "mjx-allocation-counter",
+ "mjx-dml",
  "mjx-layout",
  "mjx-ooxml-core",
  "mjx-text",
@@ -646,7 +702,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-schema-gate"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-fixtures",
  "mjx-mce",
@@ -658,7 +714,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-sml"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-derive",
@@ -674,7 +730,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-text"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "fontdb",
  "mjx-allocation-counter",
@@ -692,14 +748,14 @@ dependencies = [
 
 [[package]]
 name = "mjx-tokens"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mjx-vml"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -710,7 +766,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -720,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "anyhow",
  "criterion",
@@ -740,7 +796,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -1407,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "xtask"
-version = "0.0.127"
+version = "0.0.128"
 dependencies = [
  "anyhow",
  "mjx-allocation-counter",

@@ -498,6 +498,31 @@ fn a_section_kind_this_version_does_not_define_is_refused() {
 }
 
 #[test]
+fn a_section_kind_just_past_the_vocabulary_is_refused_and_not_indexed() {
+    // The kinds this build defines run to thirteen and the decoder holds one slot per wire value,
+    // so the values immediately above the vocabulary are the ones that would land on or just past
+    // the end of that array. Every one of them has to be an *error*, and the assertion that matters
+    // is the one this test cannot write down: it does not panic.
+    //
+    // Fourteen is the next free wire value, so it is what a later section will take. A build that
+    // added the kind and left the slot array a literal `14` would index `sections[14]` out of
+    // bounds here, on bytes a reader opened — which is why the slot count is derived from
+    // `SectionKind::ALL` and the write is a `get_mut`.
+    for kind_value in [14_u16, 15, 16, 20, 255, 256, 4096] {
+        let mut bytes = a_scene_of_everything().into_bytes();
+        if let Some(field) = bytes.get_mut(32..34) {
+            field.copy_from_slice(&kind_value.to_le_bytes());
+        }
+        let error = DisplayList::from_bytes(bytes)
+            .expect_err("a section kind past the vocabulary is refused");
+        assert!(
+            matches!(error, SceneError::MalformedHeader { .. }),
+            "kind {kind_value}: expected a malformed-header error, got {error}"
+        );
+    }
+}
+
+#[test]
 fn a_declared_length_that_is_not_the_real_one_is_refused() {
     let mut bytes = a_scene_of_everything().into_bytes();
     let real = bytes.len();

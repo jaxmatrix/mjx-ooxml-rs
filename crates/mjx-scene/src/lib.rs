@@ -70,8 +70,11 @@ pub mod error;
 pub mod geometry;
 pub mod glyphs;
 pub mod list;
+pub mod mesh_cache;
 pub mod paint;
+pub mod provider;
 pub mod scene;
+pub mod tessellate;
 
 pub use build::SceneBuilder;
 pub use command::{Clip, Command};
@@ -84,14 +87,38 @@ pub use geometry::{
 };
 pub use glyphs::{AtlasPlacement, GlyphImage, SceneGlyph, SceneGlyphRun};
 pub use list::{Commands, DisplayList};
+pub use mesh_cache::MeshCache;
 pub use paint::{
     CompoundStroke, DashPattern, FillStyle, Gradient, GradientKind, GradientStop, Image,
     ImageAdjustments, ImageFillMode, LineCap, LineEnd, LineEndShape, LineEndSize, LineJoin, Paint,
     PathShade, PatternPreset, RectangleAnchor, Stroke, StrokeAlignment, StrokeStyle, TileFlip,
     PATTERN_PRESET_COUNT,
 };
+pub use provider::{
+    GeometryProvider, OutlineProvenance, PlaceholderGeometry, ResolvedOutline,
+    PLACEHOLDER_CORNER_FRACTION, PLACEHOLDER_FRAME_FRACTION,
+};
 pub use scene::{build_scene, Decoration, ResourceResolver, SceneOptions, DEFAULT_TEXT_COLOR};
+pub use tessellate::{
+    page_bucket, tessellate_scene, Mesh, MeshRole, SceneMesh, StrokeGeometry, TessellationOptions,
+    Tessellator, COORDINATE_LIMIT, DASH_SEGMENT_LIMIT, DEFAULT_MESH_CACHE_BYTES, MAXIMUM_TOLERANCE,
+    MINIMUM_TOLERANCE, REFERENCE_EM_POINTS, STROKE_WIDTH_LIMIT, TOLERANCE_DEVICE_PIXELS,
+    TRIANGLE_LIMIT,
+};
 
 /// The one sRGB colour in this workspace, re-exported so that a painter written against this crate
 /// does not have to name the design-token crate to say what colour something is.
 pub use mjx_tokens::Color;
+
+/// The five `mjx-text` types this crate's own surface is written in, re-exported for the same
+/// reason [`Color`] is: **a painter must be able to read every record of a list, and ask for its
+/// triangles, without naming a crate below this one.**
+///
+/// Not a convenience. [`AtlasPlacement::format`] *is* a [`BitmapFormat`]; [`SceneGlyphRun`]'s
+/// direction and hinting are `mjx-text`'s enumerations; [`DisplayList::device_scale`] answers with a
+/// [`DeviceScale`]; and [`page_bucket`] answers with a [`ScaleBucket`], which is what
+/// [`TessellationOptions`] is keyed on. R08's own seam gate (MJXOFF-163) asserts that
+/// `mjx-paint`'s source names neither `mjx-text` nor `mjx-layout`; without these five lines that
+/// gate is **unachievable by inspection of this crate's surface**, and the painter would have to
+/// reach past the display list to do the one thing the display list exists to let it do.
+pub use mjx_text::{BitmapFormat, DeviceScale, Hinting, ScaleBucket, TextDirection};

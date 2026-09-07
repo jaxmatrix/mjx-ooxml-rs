@@ -246,6 +246,29 @@ pub const GLYPH_STRIDE: usize = 36;
 /// One image.
 pub const IMAGE_STRIDE: usize = 72;
 
+// Every section begins on a `SECTION_ALIGNMENT` boundary and **the writer pads nothing** — one
+// section's bytes are followed immediately by the next section's — so every fixed stride has itself
+// to be a multiple of the alignment. Otherwise a table holding an odd number of records pushes the
+// section after it onto an unaligned offset and `DisplayList::from_bytes` refuses a list this crate
+// wrote.
+//
+// That was true of all thirteen strides by arithmetic rather than by construction, and nothing said
+// so. A `u16` index buffer has a stride of two, which is exactly the shape a later section is
+// likely to have, so the invariant is asserted at compile time: a section added with a stride of
+// two does not build.
+const _: () = {
+    let mut index = 0;
+    while index < SectionKind::ALL.len() {
+        if let Some(stride) = SectionKind::ALL[index].stride() {
+            assert!(
+                stride % SECTION_ALIGNMENT == 0,
+                "a section's stride is not a multiple of the alignment every section begins on"
+            );
+        }
+        index += 1;
+    }
+};
+
 /// The opcode of each command, as a byte in the record header.
 pub mod opcode {
     /// [`crate::Command::PushTransform`].
