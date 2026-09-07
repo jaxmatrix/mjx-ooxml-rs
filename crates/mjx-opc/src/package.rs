@@ -920,11 +920,46 @@ impl Package {
         Ok(removed)
     }
 
+    /// Removes `part` — and everything that was reachable only through it — **but only if nothing in
+    /// the package still references it**. Returns the parts removed, empty when `part` is still
+    /// referenced or is not there at all.
+    ///
+    /// This is the *scoped* clean-up: the one an edit performs on its own behalf, having just
+    /// unwired the relationship that named `part`. [`remove_unreferenced_parts`] is the package-wide
+    /// sweep, and the difference matters to a caller's file. The sweep deletes every orphan it can
+    /// find, including one the *producer* left there — so an edit that ran it would change something
+    /// the caller never asked about, which is precisely what an editing library must not do. This
+    /// touches nothing but the subtree the caller's own edit stranded.
+    ///
+    /// Being unreferenced is decided by the same resolver the sweep walks with, so the two agree on
+    /// what an edge points at. The cascade is [`remove_part_cascading`]'s, so a chart part takes its
+    /// embedded workbook with it and a picture two drawings share is left alone.
+    ///
+    /// [`remove_unreferenced_parts`]: Self::remove_unreferenced_parts
+    /// [`remove_part_cascading`]: Self::remove_part_cascading
+    ///
+    /// # Errors
+    /// Returns an error only if removing a swept part's content type fails.
+    pub fn remove_part_if_unreferenced(
+        &mut self,
+        part: &PartName,
+    ) -> Result<Vec<PartName>, OpcError> {
+        if self.is_referenced(part) || !self.entries.iter().any(|e| e.name == part.zip_name()) {
+            return Ok(Vec::new());
+        }
+        self.remove_part_cascading(part)
+    }
+
     /// Removes every part unreachable from the package root and returns their names, in the order the
     /// package listed them.
     ///
     /// [`remove_part_cascading`](Self::remove_part_cascading) is a *targeted* delete that walks
-    /// downward from one part the caller names. This is the *package-wide* garbage collection:
+    /// downward from one part the caller names, and
+    /// [`remove_part_if_unreferenced`](Self::remove_part_if_unreferenced) is the same walk guarded
+    /// by a reference check — the clean-up an edit does on its own behalf. This is the
+    /// *package-wide* garbage collection, and it deletes an orphan the producer left in the file
+    /// just as readily as one an edit stranded, so it belongs to a caller who asked for it rather
+    /// than inside an editing method:
     /// replacing an image, deleting a slide, or any edit that unwires a relationship can leave a part
     /// with nothing pointing at it (an orphaned media blob, most commonly), and an unreferenced part is
     /// legal but dead weight. This sweeps all of them at once.
