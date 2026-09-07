@@ -194,6 +194,21 @@ pub enum FontError {
         /// The ceiling they are held under.
         ceiling_bytes: usize,
     },
+
+    /// A font subset was asked for more glyph ids than a font file can hold.
+    ///
+    /// A glyph id is a `u16`, so this is the format's own ceiling rather than a policy: a request
+    /// naming more than this is a caller that has lost count, and answering it would produce a file
+    /// whose `maxp` disagrees with its `loca`.
+    #[error(
+        "a font subset was asked for {requested} glyphs; a font file addresses at most {maximum}"
+    )]
+    SubsetTooLarge {
+        /// How many were asked for.
+        requested: usize,
+        /// How many a font file can address.
+        maximum: usize,
+    },
 }
 
 impl From<ttf_parser::FaceParsingError> for FontError {

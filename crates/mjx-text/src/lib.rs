@@ -87,6 +87,7 @@ pub mod resolver;
 pub mod script;
 pub mod segmentation;
 pub mod shaping;
+pub mod subset;
 pub mod substitution;
 
 pub use atlas::{
@@ -140,6 +141,7 @@ pub use segmentation::{
     previous_grapheme_boundary, word_at, word_segments, words,
 };
 pub use shaping::{shape_uncached, FontSize, ShapedGlyph, ShapedRun, Shaper, ShapingRequest};
+pub use subset::{subset_truetype, FontSubset, MAXIMUM_GLYPHS};
 pub use substitution::{
     fetchable_subset_for_character, substitution_for_family, FetchPlan, FetchableSubset,
     GenericFamily, SubstitutionRule, FETCHABLE_SUBSETS, SUBSTITUTION_TABLE,

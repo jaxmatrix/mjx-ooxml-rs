@@ -296,9 +296,16 @@ fn the_parse_path_contains_no_unwrap_expect_or_panic() {
     // The crate's real file count, raised with the crate. A floor lower than the truth is a floor
     // nobody is standing on: it stays green when the walk stops reaching files, which is exactly
     // the failure this number exists to catch. Nineteen at MJXOFF-158; twenty-two at MJXOFF-159,
-    // which added `raster.rs`, `placement.rs` and `atlas.rs`. Raise it when a module is added, and
-    // do not lower it when one is removed without saying why.
-    const SOURCE_FILE_COUNT: usize = 22;
+    // which added `raster.rs`, `placement.rs` and `atlas.rs`; twenty-three at MJXOFF-164, which
+    // added `subset.rs`. Raise it when a module is added, and do not lower it when one is removed
+    // without saying why.
+    //
+    // `subset.rs` is squarely in this gate's scope and not an exception to it: cutting a face down
+    // to a glyph set is **table surgery on untrusted bytes** — every offset it reads comes out of a
+    // font file — so a slice index or an `unwrap` there is exactly the defect this file refuses. It
+    // reads every table through bounds-checked helpers and answers the whole face when it meets one
+    // it cannot cut.
+    const SOURCE_FILE_COUNT: usize = 23;
     assert_eq!(
         files_scanned, SOURCE_FILE_COUNT,
         "{files_scanned} source files were scanned and this crate has {SOURCE_FILE_COUNT} — either \
