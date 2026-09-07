@@ -210,35 +210,57 @@ fn an_entry_larger_than_the_whole_budget_is_never_admitted() {
         format!("the placeholder is only {measured} bytes, so this case proves nothing"),
     );
 
+    // **A small entry goes in first, and the case is what happens to it.** Without one, the
+    // oversized entry arrives at an empty cache and *every* policy looks the same from outside: a
+    // cache that refuses it and a cache that evicts its way down to nothing before giving up both
+    // end holding zero bytes. That is a green mutation this file caught — removing the early return
+    // in `insert` changed nothing any assertion could see — and the fix is a witness the wrong
+    // policy would have to destroy.
     let mut tessellator = Tessellator::with_budget(512);
+    let small = Geometry::Rectangle(SceneRect::new(0.0, 0.0, 4.0, 4.0));
+    let _ = tessellator
+        .fill(&small, &PlaceholderGeometry::new(), options())
+        .expect("a rectangle tessellates");
+    check(
+        tessellator.cache().len() == 1,
+        format!(
+            "the witness was not cached: {} entries",
+            tessellator.cache().len()
+        ),
+    );
+    let held = tessellator.cache().bytes();
+
     let _ = tessellator
         .fill(&big, &PlaceholderGeometry::new(), options())
-        .expect("it still tessellates");
+        .expect("the oversized entry still tessellates");
     let cache = tessellator.cache();
     check(
         cache.oversized() == 1,
         format!("{} entries were refused, not one", cache.oversized()),
     );
     check(
-        cache.is_empty() && cache.bytes() == 0,
+        cache.len() == 1 && cache.bytes() == held,
         format!(
-            "the cache admitted an entry it cannot afford: {} entries, {} bytes",
+            "the witness did not survive an entry the cache cannot afford: {} entries, {} bytes \
+             against the {held} it held before",
             cache.len(),
             cache.bytes()
         ),
     );
     check(
         cache.evictions() == 0,
-        "the cache evicted something to make room for an entry it then could not keep".to_owned(),
+        "the cache evicted something to make room for an entry it then could not keep, which is \
+         the one failure a byte bound asserted from above cannot tell from working correctly"
+            .to_owned(),
     );
 
-    // And it still caches what it *can* afford, so refusing the giant did not break it.
-    let small = Geometry::Rectangle(SceneRect::new(0.0, 0.0, 4.0, 4.0));
+    // And the witness is still *the same triangles*, not merely the same byte count.
+    let before = tessellator.cache().hits();
     let _ = tessellator
         .fill(&small, &PlaceholderGeometry::new(), options())
-        .expect("a rectangle tessellates");
+        .expect("the rectangle is still held");
     check(
-        tessellator.cache().len() == 1 && tessellator.cache().bytes() > 0,
+        tessellator.cache().hits() == before + 1 && tessellator.cache().bytes() > 0,
         format!(
             "after refusing an oversized entry the cache holds {} entries",
             tessellator.cache().len()
