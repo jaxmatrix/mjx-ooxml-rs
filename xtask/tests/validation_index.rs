@@ -299,7 +299,7 @@ fn every_entry_id_used_anywhere_in_the_validation_docs_is_in_the_index() {
     }
     assert!(pages >= 2, "only {pages} page(s) in docs/validation");
     assert!(
-        seen >= 18,
+        seen >= 120,
         "only {seen} entry id(s) were found across the validation docs; the scanner is not matching"
     );
     println!("index: {seen} entry-id mention(s) across {pages} page(s), every one bound");
@@ -400,16 +400,17 @@ fn no_result_line_anywhere_carries_a_verdict() {
     // The same floor, for the same reason: a row parser that matched nothing would make the cell
     // sweep above green by finding no cells.
     assert!(
-        cells >= 90,
+        cells >= 250,
         "only {cells} table cell(s) were swept across docs/validation/; the row parser is matching \
          almost nothing"
     );
     // The floor. "No result line says `pass`" is green precisely when the scanner finds no result
-    // lines at all, which is the exact shape of false green §7 of the epic keeps naming. Today the
-    // lines it finds are `00-method.md`'s worked examples of the convention; when MJXOFF-128 writes
-    // the checks there will be one per check, and the floor grows with them.
+    // lines at all, which is the exact shape of false green §7 of the epic keeps naming. It used to
+    // stand at one, because the only lines were `00-method.md`'s worked examples of the convention;
+    // MJXOFF-128 wrote one per check, and the floor grew with them exactly as this comment said it
+    // would.
     assert!(
-        lines >= 1,
+        lines >= 110,
         "not one `Result:` line was found across docs/validation/ — the scanner is matching nothing, \
          and this assertion would pass on an empty sweep"
     );
