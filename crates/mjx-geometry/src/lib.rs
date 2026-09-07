@@ -76,6 +76,29 @@
 //! [`PRESETS_WITHOUT_GEOMETRY`] names what is left over, derived from the difference rather than
 //! written down.
 //!
+//! # A shape is more than its outline: where its text goes, and where a connector attaches
+//!
+//! Two of `presetShapeDefinitions.xml`'s elements say nothing about what a shape *draws* and
+//! everything about how it is used (MJXOFF-204), and both resolve through the same guide
+//! environment and the same affine map the paths do:
+//!
+//! * **`a:rect`, the text rectangle** — [`preset_text_rectangle`]. 181 of the 186 declare one, and
+//!   136 of those inset it from the shape's own box: a rounded rectangle's text starts 29.289 % of
+//!   the corner radius in, a chevron's past the notch. A renderer that laid text against the
+//!   bounding box instead would still draw text, in the wrong place, which is why the answer is a
+//!   four-armed [`TextRectangle`] and the bounding-box fallback is a **named call** rather than a
+//!   default.
+//! * **`a:cxnLst`, the connection sites** — [`preset_connection_sites`]. 856 places a connector can
+//!   attach, each a point *and* an outgoing angle, because an elbow connector leaving the top of a
+//!   box has to travel up before it turns. Thirteen presets declare none, and nine of those are
+//!   themselves connectors.
+//!
+//! Two of ECMA-376's own rows are wrong in these elements, and `xtask`'s `RECT_ERRATA` and
+//! `CONNECTION_ERRATA` correct them with the file's own sibling rows as evidence and its text
+//! guarded: `pie` names its top edge with a horizontal guide, and `squareTabs`'s sixth site names
+//! its `y` with one. Both were found by the gates rather than by reading — a text rectangle outside
+//! its shape, and a connection site below its shape's bottom edge.
+//!
 //! [`seed`] still holds the six presets MJXOFF-202 transcribed by hand from ECMA-376 Part 1's own
 //! prose, before `References/` was available. They are no longer the table — they are what the
 //! table was **checked against**, in `tests/the_two_routes_agree.rs`: a hand transcription from the
@@ -99,12 +122,14 @@ pub use error::GeometryError;
 pub use generated::PRESETS_WITHOUT_GEOMETRY;
 pub use provider::{AdjustmentOverride, PresetGeometryProvider, ShapeOutline, UnknownShapePolicy};
 pub use resolve::{
-    adjustment_domains, contours_of_definition, outline_of_definition, preset_contours,
-    preset_outline, AdjustmentDomain, PresetContour,
+    adjustment_domains, connection_sites_of_definition, contours_of_definition,
+    outline_of_definition, preset_connection_sites, preset_contours, preset_outline,
+    preset_text_rectangle, text_rectangle_of_definition, AdjustmentDomain, ConnectionPoint,
+    PresetContour, TextRectangle,
 };
 pub use table::{
-    definition_of, seeded_shapes, PresetAngle, PresetCoordinate, PresetPath, PresetPathStep,
-    PresetPoint, PresetShapeDefinition,
+    definition_of, seeded_shapes, PresetAngle, PresetConnectionSite, PresetCoordinate, PresetPath,
+    PresetPathStep, PresetPoint, PresetShapeDefinition, PresetTextRectangle,
 };
 
 /// The two types this crate's public surface is written in that belong to the tiers below it,
@@ -118,6 +143,11 @@ pub use table::{
 pub use mjx_dml::geometry::Size;
 
 pub use mjx_ooxml_types::drawingml::{PathFillMode, PresetShapeType};
+
+/// The unit a connection site's outgoing direction is answered in, re-exported for the same reason
+/// as [`Size`]: [`ConnectionPoint::angle`] is written in it, and a caller must be able to read the
+/// answer without naming a second crate.
+pub use mjx_ooxml_core::measure::Angle;
 
 /// How independently a seed shape's geometry was arrived at.
 ///

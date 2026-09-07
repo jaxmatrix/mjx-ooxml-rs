@@ -45,6 +45,37 @@
 //! therefore *structural coincidence*, not a second measurement — and MJXOFF-203 should treat
 //! agreement there as weaker evidence than agreement on `rightArrow`.
 //!
+//! # Two of the six carry a text rectangle, and four carry none — on purpose
+//!
+//! MJXOFF-204 added `a:rect` and `a:cxnLst` to the table, and the obvious move was to hand-write
+//! them for all six rows and gain six more agreements. **That would have been six fabrications.**
+//!
+//! A path is forced by what the shape *is*: a triangle standing on its base has one outline and a
+//! transcription either finds it or is wrong. A **text rectangle is a design decision**, and a
+//! **connection site's count and placement are a convention**. Nothing about a triangle says its
+//! text starts at `x1 = w·a/200000` and `vc` rather than a third of the way up; nothing about a
+//! rounded rectangle says it has four connection sites at the edge midpoints rather than eight.
+//! Writing those down "from the prose" would be guessing what Microsoft chose, and then correcting
+//! the guess against the file — which is a copy of the file wearing a different hat, and a
+//! differential whose two sides share a source proves nothing. That is the same rule
+//! [`Derivation`] already encodes.
+//!
+//! So exactly the two that **are** forced are here:
+//!
+//! * `rect` — its text rectangle is the box, `l t r b`. There is nothing else it could be, and it
+//!   proves the least, which is the same thing its path is worth.
+//! * `ellipse` — the largest axis-aligned rectangle inscribed in an ellipse is a *theorem*
+//!   (half-axes `a/√2` and `b/√2`, corners at 45°), so its guides — `ELLIPSE_GUIDES`, in this
+//!   module — are a second measurement rather than the structural coincidence the ellipse's path
+//!   is. This is the one place the ellipse row is stronger than its own outline.
+//!
+//! The other four carry `text_rectangle: None`, and all six carry no connection sites. **What
+//! replaces the differential is a geometric invariant that needs no second author**: a connection
+//! site must lie *on the outline* and a text rectangle must lie *inside* it, which
+//! `tests/a_connector_lands_on_the_outline.rs` and `tests/text_goes_inside_the_shape.rs` measure
+//! across all 173 and all 181 — a stronger statement than six hand-written rows, and one no
+//! transcription could have made.
+//!
 //! # How to read a row
 //!
 //! Coordinates are in the shape's own space, where `l`/`t` are `0`, `r`/`b` are `w`/`h` and `hc`,
@@ -70,11 +101,67 @@ use mjx_ooxml_types::drawingml::{PathFillMode, PresetGuide, PresetShapeType};
 
 use crate::table::{
     PresetAngle, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint, PresetShapeDefinition,
+    PresetTextRectangle,
 };
 use crate::Derivation;
 
 /// A right angle in the wire scale, `cd4`'s value — 60000ths of a degree.
 const QUARTER_TURN: i64 = 5_400_000;
+
+/// A text rectangle written entirely in guide names, which all of ECMA-376's 181 are.
+const fn text_rectangle(
+    left: &'static str,
+    top: &'static str,
+    right: &'static str,
+    bottom: &'static str,
+) -> PresetTextRectangle {
+    PresetTextRectangle {
+        left: PresetCoordinate::Guide(left),
+        top: PresetCoordinate::Guide(top),
+        right: PresetCoordinate::Guide(right),
+        bottom: PresetCoordinate::Guide(bottom),
+    }
+}
+
+/// The guides `ellipse`'s text rectangle is written in — the largest axis-aligned rectangle that
+/// fits inside the ellipse.
+///
+/// **Derived, not transcribed.** A rectangle inscribed in the ellipse `(x/a)² + (y/b)² = 1` with
+/// corners at parametric angle `t` has area `4ab·sin t·cos t = 2ab·sin 2t`, maximal at `t = 45°`;
+/// its half-width is therefore `a/√2` and its half-height `b/√2`. `70711/100000` is `1/√2` to five
+/// places, which is six parts in ten million — 5 × 10⁻⁵ points on a 160-point shape, four orders of
+/// magnitude inside the tolerance `tests/the_two_routes_agree.rs` compares at.
+///
+/// This is a genuine second measurement rather than the structural coincidence the ellipse's *path*
+/// is: the optimum is a fact about ellipses, and a file that had chosen some other inset — the
+/// bounding box, or a rectangle inscribed at a different angle — would disagree here and would
+/// still draw the same outline.
+const ELLIPSE_GUIDES: &[PresetGuide] = &[
+    PresetGuide {
+        wire_name: "idx",
+        formula: "*/ wd2 70711 100000",
+    },
+    PresetGuide {
+        wire_name: "idy",
+        formula: "*/ hd2 70711 100000",
+    },
+    PresetGuide {
+        wire_name: "il",
+        formula: "+- hc 0 idx",
+    },
+    PresetGuide {
+        wire_name: "ir",
+        formula: "+- hc idx 0",
+    },
+    PresetGuide {
+        wire_name: "it",
+        formula: "+- vc 0 idy",
+    },
+    PresetGuide {
+        wire_name: "ib",
+        formula: "+- vc idy 0",
+    },
+];
 
 /// The steps of `rect`.
 const RECTANGLE_STEPS: &[PresetPathStep] = &[
@@ -344,9 +431,14 @@ pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
                  boundaries are the only angles at which the true-angle and parametric readings of \
                  stAng coincide, so the structure is forced rather than chosen. That also means \
                  agreement with a generated row here is weak evidence: there is no other sensible \
-                 way to write it.",
+                 way to write it. The text rectangle is the exception and is stronger: the largest \
+                 axis-aligned rectangle inscribed in an ellipse has half-axes a/√2 and b/√2, which \
+                 is a theorem rather than a convention, so ELLIPSE_GUIDES is a second measurement \
+                 the file could have disagreed with while drawing the same outline.",
         adjustment_values: &[],
-        guides: &[],
+        guides: ELLIPSE_GUIDES,
+        text_rectangle: Some(text_rectangle("il", "it", "ir", "ib")),
+        connection_sites: &[],
         paths: &[whole_shape(ELLIPSE_STEPS)],
     },
     PresetShapeDefinition {
@@ -367,6 +459,8 @@ pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
                  That idiom is therefore NOT independently derived.",
         adjustment_values: PIE_ADJUSTMENT_VALUES,
         guides: PIE_GUIDES,
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[whole_shape(PIE_STEPS)],
     },
     PresetShapeDefinition {
@@ -377,6 +471,8 @@ pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
                  way to write it, so this row is fully independent and proves the least.",
         adjustment_values: &[],
         guides: &[],
+        text_rectangle: Some(text_rectangle("l", "t", "r", "b")),
+        connection_sites: &[],
         paths: &[whole_shape(RECTANGLE_STEPS)],
     },
     PresetShapeDefinition {
@@ -394,6 +490,8 @@ pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
                  clockwise from the shaft's top-left corner.",
         adjustment_values: RIGHT_ARROW_ADJUSTMENT_VALUES,
         guides: RIGHT_ARROW_GUIDES,
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[whole_shape(RIGHT_ARROW_STEPS)],
     },
     PresetShapeDefinition {
@@ -409,6 +507,8 @@ pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
                  the left edge is drawn by the close, not by a lnTo.",
         adjustment_values: ROUNDED_RECTANGLE_ADJUSTMENT_VALUES,
         guides: ROUNDED_RECTANGLE_GUIDES,
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[whole_shape(ROUNDED_RECTANGLE_STEPS)],
     },
     PresetShapeDefinition {
@@ -422,6 +522,8 @@ pub const HAND_TRANSCRIBED_SHAPES: &[PresetShapeDefinition] = &[
                  points: bottom-left, apex, bottom-right.",
         adjustment_values: TRIANGLE_ADJUSTMENT_VALUES,
         guides: TRIANGLE_GUIDES,
+        text_rectangle: None,
+        connection_sites: &[],
         paths: &[whole_shape(TRIANGLE_STEPS)],
     },
 ];

@@ -15,18 +15,27 @@
 //!   is MJXOFF-203**, which will generate presets drawn as several closed contours. No seeded shape
 //!   has one, so it was found by mutation rather than by a test: deleting the pen's return to the
 //!   subpath start was a **green mutation**, and this file is what makes it red.
+//! * MJXOFF-204 added two more of exactly the same kind. [`preset_text_rectangle`]'s consumer is
+//!   **Phase R's text layout** and [`preset_connection_sites`]'s is **a later child's connector
+//!   routing**, and neither exists. So both are asked here the way their consumer will ask:
+//!   [`where_the_first_line_goes`] makes the call a text layout makes, including
+//!   [`TextRectangle::or_bounding_box`](mjx_geometry::TextRectangle::or_bounding_box), the named
+//!   fallback, and [`a_connector_gets_a_point_and_a_heading_and_not_just_a_point`] walks ten pixels
+//!   along each site's own `@ang` and requires the stub to leave the shape. Without the second,
+//!   `ConnectionPoint::angle` would be a field written once and read never.
 
 mod common;
 
-use common::{box_on_the_page, extents_of_the_box, StepTally};
+use common::{box_on_the_page, curve_bounds, extents_of_the_box, StepTally};
 use mjx_dml::geometry::{GeometryGuide, GeometryGuideList, PresetGeometry};
 use mjx_geometry::PathFillMode;
 use mjx_geometry::{
-    outline_of_definition, preset_outline, Derivation, PresetCoordinate, PresetPath,
-    PresetPathStep, PresetPoint, PresetShapeDefinition, PresetShapeType, ShapeOutline,
+    outline_of_definition, preset_connection_sites, preset_outline, preset_text_rectangle,
+    AdjustmentOverride, ConnectionPoint, Derivation, PresetCoordinate, PresetPath, PresetPathStep,
+    PresetPoint, PresetShapeDefinition, PresetShapeType, ShapeOutline,
 };
 use mjx_ooxml_core::Interner;
-use mjx_scene::PathCommand;
+use mjx_scene::{PathCommand, ScenePoint, SceneRect};
 
 // -------------------------------------------------------------------------------------------
 // The document's own `a:prstGeom`, into the registry
@@ -129,6 +138,8 @@ const TWO_CONTOURS_ONE_MOVE: PresetShapeDefinition = PresetShapeDefinition {
     source: "two contours sharing a start point, for the hand-off to MJXOFF-203",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -155,6 +166,8 @@ const A_PATH_WITH_NO_START: PresetShapeDefinition = PresetShapeDefinition {
     source: "a path that starts with a line, which is malformed and must not gain a start point",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -229,4 +242,155 @@ fn a_path_that_starts_with_a_line_does_not_gain_a_start_point() {
         "the leading line is carried through unchanged, for `mjx-scene` to drop: {:?}",
         outline.commands[0]
     );
+}
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-204's two hand-offs, asked the way their consumers will ask
+// -------------------------------------------------------------------------------------------
+
+/// Where a text layout would put the first line of a shape's text, in device pixels.
+///
+/// **This is the consumer, written out.** Phase R's text work is what reads
+/// [`preset_text_rectangle`], and it does not exist yet — so, exactly as
+/// `ShapeOutline::from_preset_geometry` was before this file, `TextRectangle` and its
+/// [`or_bounding_box`](TextRectangle::or_bounding_box) would otherwise be produced, exported,
+/// documented and called by nobody. This function is the smallest thing that has to make the call
+/// the way a real one will: ask for the rectangle, and fall back to the shape's box **by name**
+/// where there is none.
+fn where_the_first_line_goes(
+    preset: PresetShapeType,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> (ScenePoint, bool) {
+    let answer = preset_text_rectangle(preset, extents_of_the_box(), adjustments, within)
+        .unwrap_or_else(|error| panic!("`{}`: {error}", preset.to_wire()));
+    let laid_in = answer.or_bounding_box(within);
+    // A first line sits at the top-left of the text area, which is all a caller needs from this to
+    // be a different point for a different shape.
+    (
+        ScenePoint::new(laid_in.left, laid_in.top),
+        answer.declared().is_some(),
+    )
+}
+
+#[test]
+fn a_text_layout_gets_a_different_answer_for_a_shape_that_insets_its_text() {
+    // Three shapes, three answers, through the call a text layout will make.
+    let within = box_on_the_page();
+    let (rounded, rounded_declared) =
+        where_the_first_line_goes(PresetShapeType::RoundedRectangle, &[], within);
+    let (plain, plain_declared) =
+        where_the_first_line_goes(PresetShapeType::Rectangle, &[], within);
+    let (bare_line, line_declared) =
+        where_the_first_line_goes(PresetShapeType::StraightLine, &[], within);
+
+    // `roundRect` insets; `rect` declares the whole box; `line` declares nothing and falls back to
+    // it. The first is a different point from the other two — which is the whole hand-off — and the
+    // second and third are the same *point* reached for two different *reasons*, which is why
+    // `declared()` is carried beside it.
+    assert!(
+        rounded.x > plain.x + 1.0 && rounded.y > plain.y + 1.0,
+        "a rounded rectangle lays its first line at {rounded:?} and a plain one at {plain:?}"
+    );
+    assert_eq!(plain, bare_line, "the box is the box");
+    assert!(rounded_declared && plain_declared);
+    assert!(
+        !line_declared,
+        "`line` reports a text rectangle it does not declare, so a caller could not tell the \
+         fallback from a real answer"
+    );
+
+    // And it moves with the document: a wider corner radius moves the first line further in, which
+    // is what makes this a resolution rather than a lookup.
+    let (wide, _) = where_the_first_line_goes(
+        PresetShapeType::RoundedRectangle,
+        &[AdjustmentOverride::new("adj", 50_000.0)],
+        within,
+    );
+    assert!(
+        wide.x > rounded.x + 5.0,
+        "a corner radius three times the default moved the first line from {rounded:?} to {wide:?}"
+    );
+}
+
+#[test]
+fn a_connector_gets_a_point_and_a_heading_and_not_just_a_point() {
+    // The other hand-off, asked the way an elbow connector will ask it: leave shape A at one of its
+    // sites, travelling along that site's angle, and arrive at shape B. **Its consumer is the
+    // connector routing of a later child**, so without this the angle would be a field that is
+    // written and never read — the exact defect `SceneMesh::provenance` was.
+    let within = box_on_the_page();
+    let sites = preset_connection_sites(
+        PresetShapeType::RoundedRectangle,
+        extents_of_the_box(),
+        &[],
+        within,
+    )
+    .expect("`roundRect` has connection sites");
+    assert_eq!(sites.len(), 4, "`roundRect` has four sites");
+
+    // One stub per site, 10 device pixels along the site's own heading. `y` grows downward, so a
+    // clockwise angle turns that way too.
+    let stub = |site: &ConnectionPoint| {
+        let radians = site.angle.radians();
+        ScenePoint::new(
+            site.position.x + 10.0 * radians.cos() as f32,
+            site.position.y + 10.0 * radians.sin() as f32,
+        )
+    };
+
+    // The top site leaves **upward**, out of the shape — which is the whole point of `@ang`, and
+    // which a router that used the straight line to the other shape would get wrong.
+    let top = &sites[0];
+    assert!(
+        (top.position.x - (within.left + within.right) / 2.0).abs() < 0.01,
+        "the first site is not the top-edge midpoint: {:?}",
+        top.position
+    );
+    assert!(
+        stub(top).y < top.position.y - 9.0,
+        "the top site's stub goes to {:?} from {:?}, which is not upward",
+        stub(top),
+        top.position
+    );
+
+    // …and the four stubs go four different ways, so the angle is read per site rather than once.
+    let headings: Vec<(i64, i64)> = sites
+        .iter()
+        .map(|site| {
+            let end = stub(site);
+            (
+                (end.x - site.position.x).round() as i64,
+                (end.y - site.position.y).round() as i64,
+            )
+        })
+        .collect();
+    assert_eq!(
+        headings,
+        vec![(0, -10), (-10, 0), (0, 10), (10, 0)],
+        "the four sites do not leave up, left, down and right"
+    );
+
+    // Every stub leaves the shape: 10 pixels along the outgoing heading is outside the outline, in
+    // all four directions. A site whose angle pointed inward would fail here rather than draw a
+    // connector through the shape it started in.
+    let outline = preset_outline(
+        PresetShapeType::RoundedRectangle,
+        extents_of_the_box(),
+        &[],
+        within,
+    )
+    .expect("`roundRect` resolves");
+    let bounds = curve_bounds(&outline.commands);
+    for site in &sites {
+        let end = stub(site);
+        assert!(
+            end.x < bounds.left - 0.5
+                || end.x > bounds.right + 0.5
+                || end.y < bounds.top - 0.5
+                || end.y > bounds.bottom + 0.5,
+            "a stub from {:?} ended at {end:?}, still inside the shape's own bounds {bounds:?}",
+            site.position
+        );
+    }
 }

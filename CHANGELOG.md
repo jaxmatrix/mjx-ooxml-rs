@@ -58,6 +58,80 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.134] - 2026-09-07
+
+**The text rectangle and the connection sites — `a:rect` and `a:cxnLst`** (MJXOFF-204, Phase G
+position 3).
+
+A preset shape is more than its outline. `a:rect` says where text goes *inside* it and `a:cxnLst`
+says where a connector attaches and which way it leaves. Both live in the same file MJXOFF-203 read
+and are written in the same guide language, so both are extracted by the same parse and resolved
+through the same guide environment and the same affine map the paths use — not a second
+implementation of either.
+
+**181 of the 186 declare a text rectangle** (`chartPlus`, `chartStar`, `chartX`, `line` and
+`lineInv` do not), and **136 of those inset it from the shape's own box**. **173 declare connection
+sites**, 856 in all; the thirteen that do not are the nine connectors — a connector has nothing to
+connect to — plus the three `chart*` marks and `funnel`.
+
+### Absent, unresolvable and broken are three different answers
+
+The defect this had to avoid is invisible: a text rectangle that silently falls back to the bounding
+box still renders text, just in the wrong place, and every test that asks *"did text appear"*
+passes. So `mjx_geometry::preset_text_rectangle` answers with a four-armed `TextRectangle` —
+`Declared`, `NotDeclared`, `Singular { guide }`, `Inverted { crossed }` — and the bounding-box
+fallback is `or_bounding_box`, a **named call** a reviewer can grep for rather than a default
+buried in the resolver.
+
+All four arms occur in ECMA-376's own data. Three presets lose their rectangle to a singular `il` at
+`adj2 = 0`, that adjustment's own minimum (`leftRightUpArrow`, `leftUpArrow`, `quadArrow`), and both
+`ellipseRibbon`s cross their edges at `adj1`'s maximum, where the ribbon's body is squeezed to
+nothing.
+
+A connection site's list, by contrast, fails as a whole when one of its members has no value:
+a connector names a site by `a:cxn@idx`, so dropping the fourth would renumber the fifth and attach
+every connector after it to the wrong side.
+
+### Two more defects in ECMA-376's own geometry file
+
+MJXOFF-203 corrected eight malformed formulas. Two more turned up here, both found by a gate rather
+than by reading, and both corrected in `xtask` with the file's own sibling rows as evidence and its
+text guarded so a later edition cannot leave a silent rewrite behind:
+
+- **`pie`'s `a:rect` is transposed** — `t="ir" r="it"`, a horizontal guide used as the top edge and
+  a vertical one as the right. The rectangle it describes is inverted on both axes and reaches
+  16.6 points below a 120-point shape. Every one of the other 180 maps `l t r b` to
+  `il it ir ib`.
+- **`squareTabs`'s sixth connection site reads `y="x1"`** — again a horizontal guide as a vertical
+  coordinate. Its three siblings are the other three inner corners, the corrected point `(dx, y1)`
+  is a vertex of the shape's own second path, and as written the site sits ten points below the
+  shape's bottom edge.
+
+### Every census is now taken in two orientations
+
+`ss` is `min(w, h)`, so in a landscape box the shorter side is always the height — and every box and
+every non-degenerate extent `mjx-geometry`'s suites had was landscape or square. An implementation
+that read `h` where a formula says `ss` was therefore invisible to every gate in the crate. There is
+now a portrait box with the same `ss`, and every census is taken in both.
+
+It found two things a single aspect ratio had hidden, neither of them a defect: `chevron`'s text
+rectangle collapses to the whole box in portrait, because its `il` is a `?:` whose condition is
+`w - 2·x1` with `x1` a fraction of `ss` — **an else-arm no landscape box can reach** — and `chord`'s
+inscribed rectangle clears its own chord in landscape and does not in portrait.
+
+### Also
+
+- The extractor now treats an empty XML element as a start immediately followed by an end. A
+  self-closing `<gdLst/>` previously set a section flag that was never cleared, which would have made
+  every later element of that shape unreadable. ECMA-376's file writes none, so the output is
+  unchanged; the latent bug is closed.
+- `crate::seed`'s hand-written reference gains `rect`'s and `ellipse`'s text rectangles and
+  deliberately gains nothing else. A text rectangle is a design decision and a connection site's
+  placement a convention, so transcribing the other four would have been a copy of the file wearing
+  a different hat. `ellipse`'s is the exception worth having: the largest inscribed rectangle has
+  half-axes `a/√2`, `b/√2` — a theorem, and a second measurement the file could have disagreed with
+  while drawing the identical outline. It agrees to 0.0003 device pixels.
+
 ## [0.0.133] - 2026-09-07
 
 **All 186 preset shapes ECMA-376 defines, extracted from `presetShapeDefinitions.xml`**

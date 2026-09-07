@@ -200,6 +200,8 @@ const NARROW_BY_NINETY_FIVE_EMU: PresetShapeDefinition = PresetShapeDefinition {
     source: "a rectangle 95 EMU narrow, for the tolerance gate alone",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -224,6 +226,8 @@ const NARROW_BY_ONE_PER_CENT: PresetShapeDefinition = PresetShapeDefinition {
     source: "a rectangle one per cent narrow, for the tolerance gate alone",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -495,6 +499,8 @@ const A_CURVE: PresetShapeDefinition = PresetShapeDefinition {
     source: "a curve, for the two step kinds no seeded shape uses",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
@@ -796,6 +802,8 @@ const A_MISSING_GUIDE: PresetShapeDefinition = PresetShapeDefinition {
     source: "a path naming a guide that does not exist, for this gate alone",
     adjustment_values: &[],
     guides: &[],
+    text_rectangle: None,
+    connection_sites: &[],
     paths: &[PresetPath {
         width: None,
         height: None,
