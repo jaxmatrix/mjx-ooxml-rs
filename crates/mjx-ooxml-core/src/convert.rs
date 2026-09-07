@@ -84,8 +84,9 @@ pub trait ToXml {
 
 /// An error produced while parsing a typed value with [`FromXml::from_xml`].
 ///
-/// Non-exhaustive: later phases (attribute typing, required-child validation) add variants without a
-/// breaking change.
+/// Non-exhaustive, and it has already been added to once: attribute typing arrived and brought
+/// [`Attribute`](Self::Attribute) with it. Required-child validation is the one still expected, and
+/// it would arrive the same way — a variant, not a break.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum FromXmlError {
