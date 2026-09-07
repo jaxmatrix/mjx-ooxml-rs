@@ -58,6 +58,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.135] - 2026-09-07
+
+### The preservation gate: every fixture × every mutating API, asserting what changed and that nothing else did (MJXOFF-210, G5)
+
+**The rule this enforces:** *an edit changes what the caller asked to change, and nothing else* —
+the sharp form of Phase G's standing design rule, *supply a default only in the absence of the
+user's own, never in place of it*.
+
+Four tests in this workspace already stated that property, each for one method on one fixture. Every
+one of them was hand-written and per-feature, so **a method added later sat outside all of them by
+default** — which is how both destructive defects of Phase G got in. `crates/mjx-ooxml/tests/preservation/`
+now states it once, over the whole surface: **8,941 fixture × method pairs**, every one of the
+committed corpus's 54 packages against every public `&mut self` method of `Deck`, `Document` and
+`Workbook`.
+
+**The method list is derived from the facade's own source, not written down.** A hand-maintained
+list of methods is the `const FIXTURES` failure one level up, and it fails the same way: silently,
+on the next method added. `enumeration.rs` reads `crates/mjx-ooxml/src/{deck,document,workbook}` and
+the registry is compared against it **in both directions** — a method the facade grows and the suite
+does not register fails, and so does a registered case naming a method the facade no longer has.
+The predicate is `&mut self` rather than "looks like a mutator", which over-selects heavily and
+deliberately: more than half of the 452 are *readers* that need `&mut self` only because parts are
+parsed lazily, and a reader that left the part it read dirty would rewrite a part the caller merely
+looked at. They declare `NOTHING`, which is the strongest assertion in the file.
+
+**Three more both-directions comparisons carry the anti-vacuity weight**, because a floor over a
+total says the extractor is alive rather than complete: the corpus against the fixtures the sweep
+visited, `mjx_fixtures::PACKAGE_EXTENSIONS` against the surfaces that have a driver, and the
+`NEVER_EXERCISED` register — eleven methods the committed corpus cannot make do their job, each
+naming the fixture content that would retire it — against what the sweep actually saw.
+
+**A case may prepare the fixture first.** A `clear_*` on a shape with nothing to clear, or a
+`remove_chart_trendlines` on a chart with no trendline, succeeds and changes nothing, and a
+declaration is only checked in both directions when something happened. So a case may name an edit
+made *before* the snapshot, saved and reopened, whose effect lands in the `before` bytes and never in
+the diff. That took the methods proving nothing from 54 to 11 and the applied pairs from 1,832 to
+2,492.
+
+**Proved able to fail by re-introducing all three defects the unit locks in**, each pasted red and
+restored by re-editing: restoring MJXOFF-208's workbook regeneration reddens on the producer's
+`docProps` vanishing from the embedded package (the *removed* direction); removing MJXOFF-209's
+percent-decode reddens 46 pairs on `percent_encoded_targets.docx` with a package `save()` will not
+accept (the save guard); pointing MJXOFF-200's theme writer at the package unconditionally reddens 22
+pairs across 13 fixtures on a changed `theme1.xml` (the *changed* direction).
+
+### Fixed
+
+- **A chart refused by a tab that cannot hold one no longer leaves a theme part behind.**
+  `mjx_xlsx`'s `write_chart` authored the theme (MJXOFF-200's fix, three commits old) *before* the
+  step that resolves the drawing part, so `add_chart` aimed at a dialogsheet refused and had already
+  changed the package. The theme is now written last, after every step that can refuse.
+  `mjx_docx::Document::add_chart` had the same latent ordering and was moved with it.
+- **`crates/mjx-docx/tests/charts.rs`'s add-a-chart isolation case was structurally blind.** It
+  iterated the *before* map alone, so it could not see a part the edit added — MJXOFF-198 §5 named
+  it as a test that reads as proof and is not one. It now asserts the added and removed sets too, and
+  the general form of the property is the new sweep.
+
+### Found, ticketed, and registered rather than fixed
+
+Two defects the gate found on its first sweep. Both are recorded in `KNOWN_DEFECTS`, which is
+compared against the sweep **in both directions**: neither can be forgotten, and neither fix can land
+without deleting its entry.
+
+- **MJXOFF-212** — `Deck::remove_slide` on a deck where another slide hyperlinks to the removed one
+  leaves that relationship pointing at nothing, and `save()` then refuses: the file can never be
+  written back. The fix needs a decision about what becomes of the hyperlink.
+- **MJXOFF-213** — `Workbook::add_cell_comment` aimed at a dialogsheet refuses only after the
+  comments part and the sheet's relationship have been written.
+
 ## [0.0.134] - 2026-09-07
 
 ### Charts authored into Word and Excel had no data series: no theme part was ever written (MJXOFF-200, G4)
