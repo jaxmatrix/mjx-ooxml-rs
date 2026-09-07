@@ -44,8 +44,8 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   **Shared markup is not flat**, and neither are the foundations. `mjx-xml` is built on
   `mjx-ooxml-core`. `mjx-sml` sits between `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
-  makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
-  deleted. Excel is therefore **two** crates: `mjx-sml` (the markup) and `mjx-xlsx` (the package and
+  makes `mjx-chart → mjx-sml → mjx-dml` legal and is what let `mjx-chart`'s duplicate workbook writer
+  be deleted — MJXOFF-99 deleted it, and exactly one SpreadsheetML writer ships. Excel is therefore **two** crates: `mjx-sml` (the markup) and `mjx-xlsx` (the package and
   `Workbook` surface, format tier). **The bindings depend on `mjx-ooxml` alone** — never on a crate
   below it — and nothing depends on them.
 
@@ -115,7 +115,8 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   is renamed. The single exception is forced — the `None` *member* of fourteen enumerations is
   spelled `NONE`, because `None` is a Python keyword. (Nine until MJXOFF-137; Excel's own
   vocabulary added five more.) Committed `.pyi` + `py.typed`, checked by
-  `mypy --strict` and by `tests/test_stub_parity.py`, which compares the stub to the compiled module
+  `mypy --strict` and by `bindings/mjx-python/tests/test_stub_parity.py`, which compares the stub to
+  the compiled module
   in both directions.
 - **`bindings/mjx-wasm`** — wasm-bindgen, one npm package with conditional exports. Method names are
   **camelCase**, from an explicit `js_name` on every one, because a `snake_case` API is an immediate

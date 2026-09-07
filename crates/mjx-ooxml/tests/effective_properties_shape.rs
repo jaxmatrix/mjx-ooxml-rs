@@ -6,9 +6,9 @@
 //!
 //! | crate | page | module |
 //! |---|---|---|
-//! | `mjx-pptx` | `docs/effective_properties.md` | `mjx_pptx::effective_properties` |
-//! | `mjx-docx` | `docs/effective_properties.md` | `mjx_docx::effective_properties` |
-//! | `mjx-xlsx` | `docs/effective_properties.md` | `mjx_xlsx::effective_properties` |
+//! | `mjx-pptx` | `crates/mjx-pptx/docs/effective_properties.md` | `mjx_pptx::effective_properties` |
+//! | `mjx-docx` | `crates/mjx-docx/docs/effective_properties.md` | `mjx_docx::effective_properties` |
+//! | `mjx-xlsx` | `crates/mjx-xlsx/docs/effective_properties.md` | `mjx_xlsx::effective_properties` |
 //!
 //! Three pages written months apart by three agents drift in shape long before they drift in
 //! content, and a reader who has learned one should not have to re-learn where the answers are in

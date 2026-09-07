@@ -286,6 +286,8 @@ Nothing here reorders anything on read, ever, for either type.
   down the half of `sml.xsd` this workspace deliberately does not type.
 * **`styles.xml`'s font table** is MJXOFF-105 (D08), which reuses `font/` rather than copying it.
 * **The `t="str"` formula-result string** is MJXOFF-115 (D11); it is a cell value, not a table entry.
-* **`mjx-chart`'s duplicate `SharedStrings`** is still there. This table reproduces its output byte
-  for byte (`an_authored_table_matches_the_chart_writers_bytes_exactly` pins it), MJXOFF-112 (D10)
-  holds the parity gate from the other side, and MJXOFF-99 performs the deletion.
+* **`mjx-chart`'s duplicate `SharedStrings`** is gone. MJXOFF-112 (D10) routed the chart's embedded
+  workbook through this table and held a parity gate from the other side; MJXOFF-99 then deleted
+  both the duplicate and that gate, leaving this the workspace's one shared-string writer. What
+  remains of the pairing is `an_authored_table_writes_exactly_these_bytes`, which pins the whole
+  part byte for byte.

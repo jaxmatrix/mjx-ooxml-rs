@@ -16,7 +16,7 @@
 //! is projected. Nine are `#[non_exhaustive]` upstream and so cannot be matched exhaustively from
 //! here; for those, `fromModel` raises an `OoxmlError` with code `UnsupportedContent` rather than
 //! inventing a member. It has never fired — the projection is complete for every variant that
-//! exists today, and `tests/node/enums.mjs` checks the member counts.
+//! exists today, and `tests/node/surface.mjs` checks the member names.
 
 use wasm_bindgen::prelude::*;
 

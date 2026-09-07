@@ -1,7 +1,7 @@
 //! `Format`, `FormatFamily` and `detect_format` — what a package *is*, read from its main part.
 //!
 //! Both enumerations are `#[non_exhaustive]` upstream, so the inbound projections are fallible in
-//! the same way the open enumerations in [`crate::enums`] are; `tests/test_format.py` names every
+//! the same way the open enumerations in [`crate::enums`] are; `tests/test_enums.py` names every
 //! member that exists today and checks the round trip, so the fallback arm is proved unreachable
 //! rather than merely believed to be.
 
