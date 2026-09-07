@@ -1,0 +1,153 @@
+# Addressing
+
+Nothing on this surface is handed out. There is no `Slide`, no `Paragraph` and no `Sheet` to hold —
+you name what you want on every call. **Each of the three surfaces has its own vocabulary for
+naming, and each one is the shape of the thing it addresses**, which is why they differ.
+
+| Surface | What names the part | What names the thing on it |
+|---|---|---|
+| [`Deck`] | [`Surface`] — `Slide(0)`, `Layout(1)`, `Master(0)`, `Notes(0)`, `NotesMaster` | [`ShapePath`] — `2`, or `[2, 1]` into a group |
+| [`Document`] | nothing: a Word document has one body | [`BlockPath`] + [`RunPath`] — a paragraph, then a run in it |
+| [`Workbook`] | a `u32` tab index | A1 text — `"B7"`, `"A1:C3"` — or an anchor index |
+
+## `Deck`: a surface and a path
+
+A [`Surface`] says which shape-bearing part. All five carry the same `p:cSld > p:spTree`, so every
+shape method applies to each equally — and editing a **layout or master** is how one change reaches
+many slides.
+
+A [`ShapePath`] says which shape on it. A surface's shapes share **one index space covering every
+kind** — autoshapes, pictures, groups, graphic frames, connectors — in document order. A group is
+one entry on that space; its members are reached by descending into it, as deep as the groups nest.
+
+Both convert from a bare `u32`, so `slide.into()` is the whole ceremony for the common case.
+
+```
+use mjx_ooxml::{Deck, PresetShapeType, ShapeBounds, ShapePath, SlideSize, Surface};
+
+# fn main() -> Result<(), mjx_ooxml::Error> {
+let mut deck = Deck::blank(SlideSize::widescreen())?;
+let slide = Surface::Slide(deck.add_slide()?);   // `add_slide_from_layout` would copy the layout's placeholders too
+deck.add_shape(slide, PresetShapeType::Rectangle, ShapeBounds::from_inches(1.0, 1.0, 2.0, 1.0))?;
+deck.add_shape(slide, PresetShapeType::Ellipse, ShapeBounds::from_inches(4.0, 1.0, 2.0, 1.0))?;
+assert_eq!(deck.shape_count(slide)?, 2);
+
+let group: ShapePath = deck.group_shapes(slide, &[0.into(), 1.into()])?;
+assert!(group.is_top_level(), "the group itself is one entry on the surface's index space");
+
+let member = group.child(1);           // member 1 of that group, one step deeper
+assert_eq!(member.depth(), 2);
+assert_eq!(member.parent(), Some(group.clone()));
+assert!(!member.is_top_level());
+assert_eq!(member.indices().len(), 2);
+# Ok(())
+# }
+```
+
+A top-level path — one index, no descent — is stored inline and **never allocates**; only a path
+that descends into a group allocates, once, on its way down. That matters because these values are
+built on every call.
+
+`Surface::from(3)` is `Surface::Slide(3)`, because a bare index almost always means a slide, and
+`Surface::NotesMaster` is the one member with no index of its own —
+[`Surface::index`](crate::Surface::index) reports `0` for it. [`Surface::is_master_like`] is the
+question the inheritance readers ask: does this surface stand at the head of its own chain?
+
+## `Document`: a block and a run
+
+A Word document has one body, so nothing names the part. A [`BlockPath`] names a paragraph and a
+[`RunPath`] names a run inside it. Both convert from a bare index the same way, and both descend:
+a paragraph inside a table cell, inside a content control, inside another table, is a path with a
+segment per level.
+
+```
+use mjx_ooxml::{Document, PageSize};
+
+# fn main() -> Result<(), mjx_ooxml::Error> {
+let mut document = Document::blank(PageSize::a4())?;
+document.append_paragraph()?;
+document.append_run(0, "Quarterly ")?;
+document.append_run(0, "results")?;
+assert_eq!(document.run_count(0)?, 2);
+assert_eq!(document.run_text(0, 1)?, "results");
+assert_eq!(document.paragraph_text(0)?, "Quarterly results");
+# Ok(())
+# }
+```
+
+**Twenty-three of the `Document` methods take `impl Into<BlockPath>` rather than the concrete path**,
+which is how `document.append_run(0, "…")` above compiles with a bare integer where the `Deck`
+equivalent needs `slide.into()`. It is a deliberate difference from this crate's own stated
+translation rule, recorded in `crates/mjx-ooxml/src/document.rs`'s module documentation; it costs
+the bindings nothing, because a `BlockPath` satisfies `Into<BlockPath>`.
+
+## `Workbook`: a tab index and A1 text
+
+The one address that is **text**. `mjx_sml::CellReference` and `mjx_sml::CellRange` are the parsed
+forms, and both are re-exported here — but nothing on the [`Workbook`] surface takes one. Every
+address argument is the A1 string a spreadsheet user already spells, because an eight-byte address
+value would have to become a class in Python and a class in TypeScript for no gain.
+
+```
+use mjx_ooxml::{CellInput, CellWrite, Workbook};
+
+# fn main() -> Result<(), mjx_ooxml::Error> {
+let mut workbook = Workbook::blank()?;
+workbook.write_cells(0, &[
+    CellWrite::new("A1", CellInput::SharedText("Region".into())),
+    CellWrite::new("B1", CellInput::Number(12.5)),
+    CellWrite::new("$B$2", CellInput::Number(18.0)),   // the anchoring is data; both spell one cell
+])?;
+
+let block = workbook.read_range(0, "A1:B2")?;
+assert_eq!(block.first_row(), 0, "A1 is row 0, column 0");
+assert_eq!(block.first_column(), 0);
+assert_eq!(block.value(0, 0)?.text(), Some("Region"));
+assert_eq!(block.value(1, 1)?.number(), Some(18.0));
+assert_eq!(block.range().as_deref(), Some("A1:B2"));
+assert_eq!(workbook.used_range(0)?.as_deref(), Some("A1:B2"));
+# Ok(())
+# }
+```
+
+A [`CellBlock`] is **row-major over the whole requested rectangle, blanks included**, and its
+`row`/`column` arguments are offsets *into the block* rather than sheet coordinates —
+[`CellBlock::first_row`] and [`CellBlock::first_column`] say where the block sits. The two open-ended
+range forms `"A:C"` and `"1:3"` are clamped to the sheet's populated extent before anything is
+allocated, so `"A:A"` reads the column a file actually has rather than reserving 1,048,576 slots for
+one it does not.
+
+## Row first, except where the file says otherwise
+
+Forty-seven methods across these three surfaces take `(row, column)` — [`CellBlock::value`],
+`Deck::cell_text`, `Document::set_cell_text`, [`ErrorDetail`]'s own two fields — because each indexes
+a two-dimensional *body* of cells, where row-major is the ordinary convention.
+
+**Four take the column first**, and it is the same four:
+[`Workbook::add_chart`](crate::Workbook::add_chart),
+[`Workbook::add_range_chart`](crate::Workbook::add_range_chart),
+[`Workbook::add_one_cell_anchored_picture`] and [`Workbook::add_two_cell_anchored_picture`]. Each
+flattens an `xdr` anchor marker into plain numbers, and a marker is
+`<xdr:col><xdr:colOff><xdr:row><xdr:rowOff>` in the file — its two offsets interleave with its two
+indices, so taking the row first would put each offset beside the wrong one. The order reads straight
+down the element it writes, which is the same reason `mjx_sml::CellReference::relative` takes
+`(column, row)`.
+
+```
+use mjx_ooxml::{ChartData, ChartKind, ResizingBehavior, Workbook};
+
+# fn main() -> Result<(), mjx_ooxml::Error> {
+let mut workbook = Workbook::blank()?;
+let chart = ChartData::new(ChartKind::Bar)
+    .categories(["Q1", "Q2"])
+    .series("North", [12.5, 18.0]);
+// from column 1, row 1 (B2) to column 7, row 16 (H17) — column first, both times.
+let anchor = workbook.add_chart(0, &chart, 1, 1, 7, 16, "Revenue", ResizingBehavior::MoveAndResizeWithAnchorCells)?;
+assert_eq!(workbook.chart_anchor_indices(0)?, vec![anchor]);
+# Ok(())
+# }
+```
+
+There is no compiler that will catch a caller who transposes those, because both arguments are
+`u32`. That is the cost of the asymmetry, it is recorded rather than papered over, and changing it is
+the user's call rather than this library's.
