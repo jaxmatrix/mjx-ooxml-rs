@@ -1,5 +1,11 @@
 //! `xtask validation-artefacts` — the artefacts the human Office pass reads (MJXOFF-122).
 //!
+//! `--ingest <file>` runs the same command the other way: hand it something saved out of Office and
+//! it reports which entry the file answers, whether it round-trips, whether the package holds,
+//! whether its child order matches ours, whether it validates, and where it would be committed
+//! (MJXOFF-130). See [`ingest`] for the line between a finding that is this library's and one that
+//! is the file's.
+//!
 //! # What this command is for
 //!
 //! Every fixture in this repository was written by this project or by LibreOffice, and no test has
@@ -25,10 +31,12 @@
 //!   [`corpus::CORPUS_DIRECTORY`]. Authoring bugs and editing bugs are different bugs, and only this
 //!   variant exercises tier-3 edit isolation against markup we did not write.
 //!
-//! The corpus is empty until MJXOFF-130 fills it, so the edit variant **skips by name** — it prints
-//! the area it skipped and the path it looked for, never a silent absence. `MJX_REQUIRE_OFFICE_CORPUS=1`
-//! turns any such skip into a hard failure, exactly as `MJX_REQUIRE_SOFFICE=1` does for the
-//! `office_open` canary.
+//! The corpus is **empty**, and no agent may fill it — the value of an Office-authored file is
+//! entirely its provenance — so every edit variant **skips by name**: it prints the area it skipped
+//! and the path it looked for, never a silent absence. `MJX_REQUIRE_OFFICE_CORPUS=1` turns any such
+//! skip into a hard failure, exactly as `MJX_REQUIRE_SOFFICE=1` does for the `office_open` canary.
+//! `docs/validation/06-the-office-pass.md` §5 is how a person fills it, and [`ingest`] is the
+//! command that reports on a file before it goes in.
 //!
 //! # Everything goes through the facade
 //!
@@ -47,6 +55,7 @@
 
 mod corpus;
 mod document;
+mod ingest;
 mod presentation;
 mod workbook;
 
@@ -54,7 +63,13 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{bail, Context, Result};
 
-pub use corpus::{corpus_directory, original_for, original_path, CORPUS_DIRECTORY};
+pub use corpus::{
+    corpus_directory, corpus_files, original_for, original_path, CorpusFile, CORPUS_DIRECTORY,
+};
+pub use ingest::{
+    area_for_file_name, area_for_token, format_for_file_name, ingest, report, Finding,
+    IngestReport, Verdict,
+};
 
 /// Which of the three formats an area belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -403,6 +418,10 @@ struct Options {
     area: Option<String>,
     out: PathBuf,
     list: bool,
+    /// Files handed in for ingestion rather than areas to generate. **The other direction**: every
+    /// other option produces artefacts for a person to open, this one takes a file that person
+    /// saved out of Office and reports what it is and what it holds. See [`ingest`].
+    ingest: Vec<PathBuf>,
 }
 
 fn parse_options(arguments: &[String]) -> Result<Options> {
@@ -411,6 +430,7 @@ fn parse_options(arguments: &[String]) -> Result<Options> {
         area: None,
         out: workspace_root().join(DEFAULT_OUTPUT_DIRECTORY),
         list: false,
+        ingest: Vec::new(),
     };
     let mut rest = arguments.iter();
     while let Some(argument) = rest.next() {
@@ -434,9 +454,15 @@ fn parse_options(arguments: &[String]) -> Result<Options> {
                 options.out = PathBuf::from(value);
             }
             "--list" => options.list = true,
+            "--ingest" => {
+                let value = rest
+                    .next()
+                    .context("--ingest needs the path of a file saved out of Office")?;
+                options.ingest.push(PathBuf::from(value));
+            }
             other => bail!(
                 "unknown argument {other:?}. Usage: validation-artefacts [--format pptx|docx|xlsx] \
-                 [--area <id or number>] [--out <dir>] [--list]"
+                 [--area <id or number>] [--out <dir>] [--list] [--ingest <file>]"
             ),
         }
     }
@@ -481,6 +507,9 @@ pub fn run(arguments: &[String]) -> Result<()> {
     if options.list {
         list();
         return Ok(());
+    }
+    if !options.ingest.is_empty() {
+        return run_ingest(&options);
     }
 
     let chosen: Vec<&Area> = AREAS.iter().filter(|a| selected(a, &options)).collect();
@@ -544,6 +573,60 @@ pub fn run(arguments: &[String]) -> Result<()> {
             "note: the Office-authored corpus at {} is MJXOFF-130's to fill. Set \
              MJX_REQUIRE_OFFICE_CORPUS=1 to make its absence a failure.",
             corpus_directory().display()
+        );
+    }
+    Ok(())
+}
+
+/// Reports what one or more Office-saved files are, and what every check says about them.
+///
+/// **Nothing is copied into the corpus.** The report says where each file *would* live; putting it
+/// there is a person's decision, taken against the redistribution rule in
+/// `tests/office-authored/README.md`, and a command that filed the file itself would be taking that
+/// decision for them.
+///
+/// A failing check exits non-zero, so the command is usable in a script; a *reported* finding does
+/// not, because it is a statement about a file this project did not write. `ingest.rs` draws that
+/// line and says why.
+///
+/// # Errors
+/// If a file cannot be read or classified, or any check failed.
+fn run_ingest(options: &Options) -> Result<()> {
+    let mut failed = 0usize;
+    for path in &options.ingest {
+        let name = path
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .with_context(|| format!("{} names no file", path.display()))?;
+        // `--area` overrides what the name implies, so a file straight out of Office can be reported
+        // against the entry it answers before it is renamed.
+        let area = match options.area.as_deref() {
+            None => None,
+            Some(token) => {
+                let format = ingest::format_for_file_name(&name).with_context(|| {
+                    format!("{name} has no extension this pass covers: .pptx, .docx or .xlsx")
+                })?;
+                Some(ingest::area_for_token(token, format).with_context(|| {
+                    format!(
+                        "--area {token} names no {} area; `--list` prints the catalogue",
+                        format.extension()
+                    )
+                })?)
+            }
+        };
+        let report = ingest::ingest(path, area)?;
+        print!("{}", report.render());
+        failed += report.failures().len();
+    }
+    println!(
+        "validation-artefacts --ingest: {} file(s), {failed} failing check(s)",
+        options.ingest.len()
+    );
+    if failed > 0 {
+        bail!(
+            "{failed} check(s) failed. A failing check is about *this library*, never about the \
+             file: a package defect the file arrived with, or markup its producer wrote that the \
+             XSDs reject, is reported rather than failed"
         );
     }
     Ok(())
