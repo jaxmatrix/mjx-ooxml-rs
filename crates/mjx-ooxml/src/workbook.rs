@@ -55,22 +55,31 @@
 //!
 //! # What is left to `mjx_xlsx::Workbook`, and why
 //!
-//! `mjx_xlsx::Workbook` carries roughly seventy public methods. This facade selects the ones a
-//! caller opening, reading, editing and saving a workbook needs, and leaves the rest reachable
-//! through [`Workbook::workbook_mut`]:
+//! `mjx_xlsx::Workbook` carries a surface several times this one's size. This facade selects the
+//! ones a caller opening, reading, editing and saving a workbook needs, and leaves the rest
+//! reachable through [`Workbook::workbook_mut`]:
 //!
 //! - **The closure-taking markup doors** (`workbook_markup`, `edit_workbook_markup`,
-//!   `calculation_chain`, `worksheet_markup`, `write_worksheet_markup`, `table_markup`,
-//!   `edit_table_markup`, `conditional_rules_for`, `conditional_cell_format`, `auto_filter`,
-//!   `data_validations`) — every one takes a closure over an interner-bound reference, which is the
-//!   one shape a foreign function boundary cannot carry. Where a concrete answer exists, this
-//!   facade builds it by calling the closure-taking method *internally* (that is what
+//!   `calculation_chain`, `table_markup`, `edit_table_markup`, `conditional_rules_for`,
+//!   `auto_filter`, `data_validations`, `comments_markup`, `edit_comments_markup`,
+//!   `drawing_markup`, `edit_drawing_markup`, `vml_drawing_markup`, `edit_vml_drawing_markup`, the
+//!   three `with_vml_shape_for_*`) — every one takes a closure over an interner-bound reference,
+//!   which is the one shape a foreign function boundary cannot carry. Where a concrete answer
+//!   exists, this facade builds it by calling the closure-taking method *internally* (that is what
 //!   [`Workbook::auto_filter_range`] and [`Workbook::data_validation_ranges`] are).
-//! - **The borrowed views** (`worksheet`, `worksheet_by_name`, `sheet_formatting`, `package`,
-//!   `part_inventory`, `visible_sheets`) — each hands back a value borrowing the workbook for a
-//!   caller-controlled lifetime, which neither PyO3 nor wasm-bindgen can express. What they answer
-//!   is here as owned data: [`Workbook::sheets`], [`Workbook::effective_cell_format`],
-//!   [`Workbook::part_names`].
+//! - **The interner-bound models** (`worksheet_markup`, `write_worksheet_markup`,
+//!   `worksheet_markup_of`, `sheet_markup`, `sheet_markup_of`, `write_sheet_markup`,
+//!   `styles_markup`, `shared_strings`, `sheet_formatting`) — these take no closure and borrow
+//!   nothing; each hands back an owned `mjx-sml` model whose every string is an index into an
+//!   interner that stays behind, so the value is meaningless on the far side of a boundary. **This
+//!   group used to be listed above as closure doors, which none of them is** (MJXOFF-214). A Rust
+//!   caller reaching them through [`Workbook::workbook_mut`] is the per-sheet editing loop
+//!   [*Large workbooks*](mjx_xlsx::guide::large_workbooks) recommends.
+//! - **The borrowed views** (`worksheet`, `worksheet_by_name`, `sheet_by_name`, `visible_sheets`,
+//!   `parts`, `part_inventory`, `conditional_cell_format`, `package`) — each hands back a value
+//!   borrowing the workbook for a caller-controlled lifetime, which neither PyO3 nor wasm-bindgen
+//!   can express. What they answer is here as owned data: [`Workbook::sheets`],
+//!   [`Workbook::effective_cell_format`], [`Workbook::part_names`].
 //! - **The authoring vocabularies for conditional formatting, autofilters, data validation and
 //!   worksheet tables** (`add_conditional_formatting`, `append_differential_format`,
 //!   `set_auto_filter`, `add_data_validation`, `add_table`) — each takes an `mjx-sml` spec *tree*
@@ -85,6 +94,23 @@
 //!   cannot make a style index cannot use [`Workbook::set_cell_style`].
 //! - **`from_package`** — it takes an `mjx_opc::Package`, which this facade seals for the reason
 //!   [`crate::Deck::presentation_mut`]'s own documentation gives.
+//! - **`blank_with_properties`** — it takes an `mjx_opc::doc_props::CoreProperties` and an
+//!   `ExtendedProperties`, so an authored workbook can carry a title, a creator and a created time.
+//!   Nothing here sets them, and neither binding can — the one entry on this list that is a **gap
+//!   rather than a decision**, and [`crate::Deck`] and [`crate::Document`] have exactly the same one.
+//!
+//! **Six calls are renames rather than omissions**, and are here under a name that says which
+//! subject they belong to: `add_comment`, `comment_at`, `set_comment_text` and `remove_comment` are
+//! [`Workbook::add_cell_comment`], [`Workbook::cell_comment`],
+//! [`Workbook::set_cell_comment_text`] and [`Workbook::remove_cell_comment`]; `set_cell_hyperlink`
+//! is split into [`Workbook::set_cell_hyperlink_url`] and
+//! [`Workbook::set_cell_hyperlink_location`], because an external target and an internal one are
+//! two different records in the file; and `sheet_index_by_name` is [`Workbook::sheet_index`].
+//!
+//! **This list is checked, not trusted**, the same way [`crate::deck`]'s and [`crate::document`]'s
+//! are: `xtask/tests/facade_curation.rs` holds it to the real difference between the two surfaces
+//! in both directions. It replaced a sentence here that said *roughly seventy public methods* when
+//! `mjx_xlsx::Workbook` had **165** (MJXOFF-214).
 //!
 //! # One workbook, one thread
 //!
