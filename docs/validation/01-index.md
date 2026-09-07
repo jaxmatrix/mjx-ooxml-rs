@@ -71,12 +71,28 @@ somebody opens the fixture it names in real Microsoft Excel.
 
 ## What each entry's checks say
 
-Nothing yet. This child (MJXOFF-122) ships the method page, the generators, the artefacts and the
-index mechanism above; **MJXOFF-128 (F2) writes the checks** — the `V-…-NN.n` lines, each with what to
-look at and an unfilled result line, on per-format pages beside this one. Until then this page is the
-complete list of what the pass covers, and the mechanism that will bind those checks to files is
-already load-bearing: an id F2 invents that names no artefact fails the same test that guards the
-rows above.
+MJXOFF-122 shipped the method page, the generators, the artefacts and the index mechanism above;
+**MJXOFF-128 wrote the checks** — the `V-…-NN.n` lines, each with what to look at, the three call
+chains, and an unfilled result line — on four pages beside this one:
+
+| Page | What it holds |
+|---|---|
+| `docs/validation/02-risk-order.md` | the order to work through, R1 first, and the design questions that have no expected result |
+| `docs/validation/03-presentations.md` | `V-PPTX-01` … `V-PPTX-08` |
+| `docs/validation/04-documents.md` | `V-DOCX-01` … `V-DOCX-06` |
+| `docs/validation/05-workbooks.md` | `V-XLSX-01` … `V-XLSX-06` |
+
+Two of the areas above are MJXOFF-128's own: `V-PPTX-07` and `V-PPTX-08` exist because writing the
+checks found harvested expected results — a chevron's adjustment maximum, a slice exploded 25 %, a
+polynomial trendline of order 3, the sixteen plot types — with no file to check them against, and
+this page's own rule is that an entry may not describe an artefact nobody produces.
+
+Two gates hold those pages to this one. `xtask/tests/validation_index.rs` refuses an entry id that
+binds to no artefact, in either direction. `xtask/tests/validation_calls.rs` refuses a call chain
+naming a method the facade, the Python stub or the WebAssembly binding does not have — comparing the
+documented camelCase name against the `js_name` the binding publishes for that exact Rust method —
+and refuses an artefact name that is neither generated, nor a committed fixture, nor an example's
+source. A check with no artefact at all has to say **blocked** and name what would unblock it.
 
 ## Areas the harness deliberately does not cover, and why
 
