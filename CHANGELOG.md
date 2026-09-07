@@ -89,6 +89,16 @@ person reading carefully.
     *the corpus is this size*, so a floor cannot fire before the assertion it guards. Neutralising
     the code-span scanner turns three checks red with "the extractor has stopped matching" instead
     of a silent green — which is the failure this gate exists to prevent, applied to itself.
+  - **The crate set, derived twice and compared in both directions.** Three of the four checks are
+    keyed by crate, each key set built by a walk, and a total cannot see one crate leave: dropping
+    `mjx-sml` took 1,793 item names and every `mjx_sml::…` reference out of the symbol comparison
+    and left all four tests green, while dropping `mjx-pptx` from the resolver's crate-name table
+    took five path mentions out of 1,120 and did the same. A floor sized to catch the extractor
+    dying altogether cannot catch it losing one crate — and losing one crate, to a rename or a
+    parse tweak, is the failure this gate will actually meet. So every walk's crate set is held to
+    `Cargo.toml`'s own `members` list in both directions, a symbol whose head is a declared crate
+    missing from the map is a named failure rather than a skip, and every skipping arm is counted
+    and printed.
 - **`docs/api/README.md`** — one entry point, 69 rows, one per markdown page in the repository, with
   what it covers and which crate owns it. It is prose a person writes whose *row set* is derived and
   enforced: an index generated from the same walk a test compares it against would prove nothing and

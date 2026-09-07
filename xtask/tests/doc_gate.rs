@@ -18,10 +18,11 @@
 //! A path-checker that only fires on paths written one particular way checks almost nothing and
 //! reports green.
 //!
-//! Three things are done about it, and none of them is optional:
+//! Four things are done about it, and none of them is optional:
 //!
 //! 1. **Every check reports its counts.** A count is what distinguishes "ran" from "skipped
-//!    quietly", and it is printed on success, not only on failure.
+//!    quietly", and it is printed on success, not only on failure. Every arm that *skips* is
+//!    counted too, and printed beside them.
 //! 2. **Every check carries an anti-vacuity floor** stated as *the parser is still matching*,
 //!    never as *the corpus is exactly this size* — MJXOFF-118's precedent
 //!    (`assert!(types.len() > 100, "… the `pub use` parser has stopped matching")`) and
@@ -33,6 +34,18 @@
 //!    vendored tree without a hand-maintained skip list — the same reason `mjx-fixtures` exists and
 //!    the same reason `CLAUDE.md` forbids a `const FIXTURES` list. A new page is inside the corpus
 //!    the moment it is committed.
+//! 4. **The crate set is derived twice and compared in both directions** — see
+//!    [`declared_members`]. This one was added after the first version of this file shipped with
+//!    the hole it closes, and the hole is worth stating because it is the trap above at a
+//!    granularity a total cannot see. Three of these checks are keyed by crate; each key set is
+//!    built by a walk; and **a walk that loses one crate makes every claim about that crate
+//!    silently unchecked while every count stays plausible.** Dropping `mjx-sml` — the largest
+//!    crate here — took 1,793 item names and every `mjx_sml::…` reference out of the symbol
+//!    comparison and left all four tests green; dropping `mjx-pptx` from the resolver's crate-name
+//!    table took five path mentions out of 1,120 and did the same. Floors sized to catch the
+//!    extractor dying altogether cannot catch it losing one crate, and *losing one crate* — a
+//!    rename, a manifest edit, a parse tweak — is the failure this gate will actually meet. So the
+//!    walks are held against `Cargo.toml`'s own `members` list rather than against a number.
 //!
 //! # What is checked
 //!
@@ -159,6 +172,139 @@ struct Document {
     /// contents are compiled (a guide's ``` ```rust ``` block is a doctest) or are literal XML, and
     /// in neither case is a backtick inside them a code span.
     lines: Vec<(usize, String)>,
+}
+
+// ===============================================================================================
+// The workspace's crate set — the second, independent derivation
+// ===============================================================================================
+
+/// One workspace member, as the **root manifest declares it**.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+struct Member {
+    /// `mjx-sml`.
+    name: String,
+    /// `mjx_sml` — the library name a document writes in a path.
+    library: String,
+    /// `crates/mjx-sml`.
+    directory: String,
+}
+
+/// Every workspace member, read from `Cargo.toml`'s own `members = [ … ]`.
+///
+/// # Why this exists at all, and why it is a *second* derivation
+///
+/// Three of the four checks in this file are keyed by crate: the symbol map, the resolver's
+/// crate-name table, and the index's owner column. Each is built by a walk — over `git ls-files`,
+/// over `*/Cargo.toml`, over `.rs` files — and **a walk that loses one crate makes every claim
+/// about that crate silently unchecked**. That is §7's shape at a granularity the totals cannot
+/// see: dropping `mjx-sml`, the largest crate in the workspace, takes 1,793 item names and every
+/// `mjx_sml::…` reference out of the comparison while leaving 20 crates and ~1,200 references
+/// behind — comfortably above any floor sized to catch the extractor dying altogether.
+///
+/// So the crate set is derived a second time, from a source the walks do not touch, and the two are
+/// required to agree **in both directions** — the same shape as the index check, for the same
+/// reason. A crate that falls out of a walk is then impossible rather than merely improbable.
+///
+/// # Why the manifest's `members` list rather than `cargo metadata`
+///
+/// `xtask/tests/layering.rs` reads `cargo metadata` and says why: Cargo's own resolution is the
+/// authority on *dependency edges*, which manifests state only partially (inherited dependencies,
+/// feature unification). **Membership is not that question.** `members = [ … ]` is a literal list,
+/// it is what Cargo itself reads to answer "which crates are in this workspace", and reading it
+/// here avoids either invoking Cargo from inside a Cargo test or duplicating `layering.rs`'s
+/// hand-written JSON reader — and this workspace has spent fourteen deletions on not having two of
+/// something.
+///
+/// A glob entry (`crates/*`) would make this list stop naming crates individually, so it is
+/// rejected loudly rather than silently under-reporting.
+fn declared_members() -> Vec<Member> {
+    let manifest = std::fs::read_to_string(repository_root().join("Cargo.toml"))
+        .expect("reading the workspace Cargo.toml");
+    let mut members = Vec::new();
+    let mut inside = false;
+    for line in manifest.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("members") && trimmed.contains('[') {
+            inside = true;
+            continue;
+        }
+        if !inside {
+            continue;
+        }
+        if trimmed.starts_with(']') {
+            break;
+        }
+        let Some(directory) = trimmed
+            .strip_prefix('"')
+            .and_then(|rest| rest.split('"').next())
+        else {
+            continue; // a comment line inside the array
+        };
+        assert!(
+            !directory.contains('*'),
+            "Cargo.toml's `members` has the glob {directory:?}. This file reads that list as the \
+             authoritative crate set, and a glob does not name crates individually — expand it, or \
+             teach `declared_members` to expand it."
+        );
+        let name = directory.rsplit('/').next().unwrap_or(directory).to_owned();
+        members.push(Member {
+            library: name.replace('-', "_"),
+            name,
+            directory: directory.to_owned(),
+        });
+    }
+    assert!(
+        members.len() >= 15,
+        "only {} member(s) were parsed out of Cargo.toml's `members` list; the parser has stopped \
+         matching, and every crate-set comparison below would pass on almost nothing",
+        members.len()
+    );
+    members
+}
+
+/// **Both directions between the declared crate set and whatever a walk actually found.**
+///
+/// `found` is keyed however the caller keys it — by `mjx-sml` or by `mjx_sml` — so `key` says which
+/// field of a [`Member`] to compare against. `what` names the walk, so a failure says which of the
+/// three lost the crate.
+fn assert_every_workspace_crate_was_reached(
+    found: &BTreeSet<String>,
+    key: fn(&Member) -> &str,
+    what: &str,
+) {
+    let members = declared_members();
+    let expected: BTreeSet<&str> = members.iter().map(key).collect();
+
+    let missing: Vec<&str> = expected
+        .iter()
+        .copied()
+        .filter(|crate_name| !found.contains(*crate_name))
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "{what} reached {} of the {} crate(s) Cargo.toml declares, and lost {}: {}. Every claim a \
+         document makes about {} of them stopped being checked, and no total would show it — that \
+         is the exact failure this comparison exists to make impossible.",
+        found.len(),
+        expected.len(),
+        missing.len(),
+        missing.join(", "),
+        missing.len()
+    );
+
+    let stray: Vec<&str> = found
+        .iter()
+        .map(String::as_str)
+        .filter(|crate_name| !expected.contains(*crate_name))
+        .collect();
+    assert!(
+        stray.is_empty(),
+        "{what} holds {} entr(ies) that Cargo.toml's `members` list does not declare: {}. Either \
+         the workspace grew a crate nobody added to `members`, or this walk is matching something \
+         that is not a crate.",
+        stray.len(),
+        stray.join(", ")
+    );
 }
 
 /// The crate directories, longest first so `bindings/mjx-python` wins over any prefix of it.
@@ -677,7 +823,8 @@ const MINIMUM_PATH_MENTIONS: usize = 800;
 fn every_path_a_document_names_exists() {
     let documents = corpus();
     let root = repository_root();
-    let resolver = Resolver::new(&tracked_files());
+    let tracked = tracked_files();
+    let resolver = Resolver::new(&tracked);
     let retired: BTreeMap<&str, &str> = RETIRED_PATHS.iter().copied().collect();
     let excluded: BTreeMap<&str, &str> = DOCUMENTS_EXCLUDED_FROM_THE_CLAIM_CHECKS
         .iter()
@@ -780,6 +927,50 @@ fn every_path_a_document_names_exists() {
     }
 
     // ---- The floors, before the verdict ---------------------------------------------------------
+    // The crate set first, both directions. `Resolver::crates_by_name` is what resolves
+    // `mjx-pptx/src/presentation/` — the way the hand-off documents address a file — and a crate
+    // missing from it does not fail: the lookup misses, nothing else matches, and the claim is
+    // classified `NotOurs` and skipped. That is the same silent-skip shape the symbol check had,
+    // on a different lever, so it is closed the same way and against the same second derivation.
+    assert_every_workspace_crate_was_reached(
+        &resolver.crates_by_name.keys().cloned().collect(),
+        |member| &member.name,
+        "the resolver's crate-name table",
+    );
+    // And the walk that decides which crate *owns* each document, which is what lets a crate's own
+    // page cite a suite of its own by a bare crate-relative path. A crate missing here fails loudly rather than quietly — its
+    // documents' crate-relative citations stop resolving — but it is asserted anyway, because
+    // "fails loudly" was true of the resolver table too until the mutation was actually run.
+    assert_every_workspace_crate_was_reached(
+        &documents
+            .iter()
+            .filter_map(|document| document.crate_dir.clone())
+            .collect(),
+        |member| &member.directory,
+        "the document walk's crate-ownership map",
+    );
+    // The third lever of the same kind, and the last one: `top_level` is what decides whether a
+    // root-addressed path is *ours* at all, so an entry missing from it sends every path under that
+    // directory to `NotOurs` — skipped, uncounted, exactly as a missing crate used to be. It is
+    // derived from `read_dir`, and this holds it against a second derivation: every first segment
+    // of every tracked file must be reachable from the root.
+    let addressable: BTreeSet<&str> = tracked
+        .iter()
+        .filter_map(|file| file.split('/').next())
+        .collect();
+    let unreachable: Vec<&str> = addressable
+        .iter()
+        .copied()
+        .filter(|segment| !resolver.top_level.contains(*segment))
+        .collect();
+    assert!(
+        unreachable.is_empty(),
+        "the resolver's top-level table is missing {} entr(ies) that tracked files are addressed \
+         through: {}. Every path under them would be classified `NotOurs` and skipped.",
+        unreachable.len(),
+        unreachable.join(", ")
+    );
+
     // "No document names a path that is missing" is green precisely when no path was found, which
     // is this gate's own version of the failure it exists to catch.
     assert!(
@@ -1041,7 +1232,10 @@ const MINIMUM_CRATES_REFERENCED: usize = 12;
 /// * **A bare `Item` or `Item::member` with no crate.** `Workbook`, `Cell` and `Format` are
 ///   declared in several crates, and prose uses those words as words. Nothing distinguishes a
 ///   reference from a sentence, so a check over them would either be noise or would have to be
-///   silenced into vacuity.
+///   silenced into vacuity. These land in the same skip arm as an external crate's path, and both
+///   are counted and printed — but **a workspace crate can never land there**, because that arm is
+///   selected by testing the head against `Cargo.toml`'s `members` list and not against the symbol
+///   map. A crate missing from the map is a named failure, not a skip.
 /// * **`super::` and `self::`.** They resolve against the *module*, which a lexical pass does not
 ///   know. rustdoc resolves them wherever they are written as a link.
 /// * **Anything with a generic argument, a lifetime, a call or whitespace.** `Option<bool>` and
@@ -1053,16 +1247,23 @@ const MINIMUM_CRATES_REFERENCED: usize = 12;
 fn every_crate_qualified_symbol_a_document_names_resolves() {
     let documents = corpus();
     let symbols = workspace_symbols(&documents);
-    assert!(
-        symbols.len() >= 15,
-        "only {} crate(s) yielded symbols; the source walk is not reaching the workspace",
-        symbols.len()
+
+    // ---- The crate set, both directions, before anything is counted ------------------------------
+    // A total cannot see one crate go missing. Dropping `mjx-sml` — 1,793 item names, the largest
+    // crate here — leaves 20 crates and ~1,200 references, which clears every floor below while
+    // taking every `mjx_sml::…` claim in every document out of the comparison entirely. So the map's
+    // key set is required to equal Cargo.toml's own `members` list exactly, in both directions.
+    assert_every_workspace_crate_was_reached(
+        &symbols.keys().cloned().collect(),
+        |member| &member.library,
+        "the symbol map",
     );
+
     // Floored on the total rather than per crate: `mjx-derive` is a proc-macro crate whose whole
     // public surface is three `#[proc_macro_derive]` functions, and `mjx-fixtures` and
     // `mjx-allocation-counter` are smaller still, so a per-crate floor worth having for `mjx-sml`
     // would be a false failure on those three. What is floored per crate is only that the parser
-    // reached it at all.
+    // reached it at all — the *presence* of every crate is the assertion above, not a floor.
     let declared: usize = symbols.values().map(|table| table.items.len()).sum();
     assert!(
         declared >= MINIMUM_DECLARED_ITEMS,
@@ -1082,10 +1283,21 @@ fn every_crate_qualified_symbol_a_document_names_resolves() {
         .iter()
         .copied()
         .collect();
+    // Read from Cargo.toml, **not** from the symbol map: a crate that fell out of the map must
+    // still be recognised as a workspace crate at the use site, so that it fails loudly there
+    // instead of falling through to the "not ours" arm.
+    let declared_libraries: BTreeSet<String> = declared_members()
+        .into_iter()
+        .map(|member| member.library)
+        .collect();
     let mut failures: Vec<String> = Vec::new();
     let mut references = 0usize;
     let mut documents_naming_a_symbol = 0usize;
     let mut skipped_by_exclusion = 0usize;
+    let mut skipped_crate_at_repository_root = 0usize;
+    let mut skipped_module_relative = 0usize;
+    let mut skipped_standard_library = 0usize;
+    let mut skipped_not_a_workspace_crate = 0usize;
     let mut crates_referenced: BTreeSet<String> = BTreeSet::new();
 
     for document in &documents {
@@ -1111,22 +1323,46 @@ fn every_crate_qualified_symbol_a_document_names_resolves() {
                 let Some(segments) = rust_path(span) else {
                     continue;
                 };
-                // `crate::…` inside a crate's own sources, or inside a page under that crate's
-                // own `docs/` directory, means that crate. Everywhere else it is unresolvable and
-                // is skipped.
+                // Classify the head segment. Every arm is **counted**, so the ones that skip are
+                // measured rather than invisible — a skip nobody counts is how a check of this
+                // shape quietly stops checking anything.
                 let (library, rest) = if segments[0] == "crate" {
+                    // `crate::…` inside a crate's own sources, or inside a page under that crate's
+                    // own `docs/` directory. This arm has a real reason to skip: at the repository
+                    // root there is no crate for `crate` to mean.
                     let Some(library) = own_library.clone() else {
+                        skipped_crate_at_repository_root += 1;
                         continue;
                     };
                     (library, &segments[1..])
-                } else if symbols.contains_key(segments[0]) {
+                } else if declared_libraries.contains(segments[0]) {
                     (segments[0].to_owned(), &segments[1..])
+                } else if matches!(segments[0], "super" | "self" | "Self") {
+                    // Module-relative, and a lexical pass does not know the module. rustdoc
+                    // resolves these wherever they are written as a link.
+                    skipped_module_relative += 1;
+                    continue;
+                } else if matches!(segments[0], "std" | "core" | "alloc") {
+                    skipped_standard_library += 1;
+                    continue;
                 } else {
+                    // An external crate, or the `Type::member` form this check's stated subset
+                    // excludes. **A workspace crate can never land here**: the arm above tests
+                    // against Cargo.toml's own `members` list rather than against the symbol map,
+                    // so a crate that fell out of the map is caught by the `unwrap_or_else` below
+                    // and by the both-directions assertion at the top of this test — not silently
+                    // swallowed here, which is what it used to be.
+                    skipped_not_a_workspace_crate += 1;
                     continue;
                 };
-                let Some(table) = symbols.get(&library) else {
-                    continue;
-                };
+                let table = symbols.get(&library).unwrap_or_else(|| {
+                    panic!(
+                        "{}:{} names `{span}`, and `{library}` is a crate Cargo.toml declares but \
+                         the symbol map has no entry for it. The source walk lost a whole crate; \
+                         every claim about it would otherwise have gone unchecked.",
+                        document.path, block.first_line
+                    )
+                });
                 if rest.is_empty() {
                     continue;
                 }
@@ -1213,9 +1449,16 @@ fn every_crate_qualified_symbol_a_document_names_resolves() {
 
     println!(
         "symbols: {references} crate-qualified reference(s) across {documents_naming_a_symbol} \
-         document(s), resolved against {} crate(s) holding {declared} declared item(s), every one \
-         found; {skipped_by_exclusion} reference(s) skipped in {} excluded document(s)",
+         document(s), resolved against {} of the {} crate(s) Cargo.toml declares, holding \
+         {declared} declared item(s), every one found",
         crates_referenced.len(),
+        declared_libraries.len()
+    );
+    println!(
+        "symbols: skipped {skipped_not_a_workspace_crate} head(s) that are not a workspace crate, \
+         {skipped_module_relative} module-relative, {skipped_standard_library} standard-library, \
+         {skipped_crate_at_repository_root} `crate::` at the repository root, \
+         {skipped_by_exclusion} in {} excluded document(s)",
         DOCUMENTS_EXCLUDED_FROM_THE_CLAIM_CHECKS.len()
     );
 }
@@ -1326,6 +1569,10 @@ fn the_index_and_the_repository_agree_in_both_directions() {
     // ---- And every row says something ------------------------------------------------------------
     // A row with an empty description is a row that proves the file exists and tells a reader
     // nothing, which is the documentation form of a test with no assertion.
+    // The owner column's vocabulary is crate-keyed too, and it fails the other way from the two
+    // above: a crate missing from this set makes a row that names it *fail* rather than pass. That
+    // is safe, but it would fail for the wrong reason and name the wrong culprit, so the set is
+    // held to Cargo.toml's `members` list in both directions like the others.
     let crate_directories: BTreeSet<String> = crate_directories(&tracked)
         .into_iter()
         .map(|directory| {
@@ -1336,6 +1583,11 @@ fn the_index_and_the_repository_agree_in_both_directions() {
                 .to_owned()
         })
         .collect();
+    assert_every_workspace_crate_was_reached(
+        &crate_directories,
+        |member| &member.name,
+        "the index check's owner vocabulary",
+    );
     let mut thin: Vec<String> = Vec::new();
     for (page, (owner, description)) in &indexed {
         let owner_bare = owner.trim_matches('`').trim();
