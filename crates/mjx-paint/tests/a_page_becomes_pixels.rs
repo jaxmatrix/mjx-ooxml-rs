@@ -516,6 +516,88 @@ fn a_placeholder_shape_is_reported_and_is_painted_as_a_warning() {
 }
 
 #[test]
+fn a_real_frame_actually_uses_the_texture_pool_and_a_small_budget_makes_it_evict() {
+    // **The pool's own suite proves the pool works; this proves the painter uses it.** A budget
+    // exercised only by a test against a stand-in texture would be a budget the renderer never
+    // reaches — the same defect one layer up as a field that is written and never read, which is
+    // what MJXOFF-163 had to fix in `mjx-scene`.
+    let base = match common::painter() {
+        Ok(painter) => painter,
+        Err(why) => {
+            return common::skip(
+                "a_real_frame_actually_uses_the_texture_pool_and_a_small_budget_makes_it_evict",
+                &why,
+            )
+        }
+    };
+    common::announce(
+        "a_real_frame_actually_uses_the_texture_pool_and_a_small_budget_makes_it_evict",
+        &base,
+    );
+
+    // A budget of two full-viewport targets, against a page whose opacity group, effect group and
+    // blur intermediates need more than that at once.
+    const SIDE: u32 = 96;
+    let one_target = (SIDE * SIDE * 4) as usize;
+    let mut painter = base.with_texture_budget(one_target * 2);
+    let list = common::every_command(SIDE as f32, SIDE as f32);
+
+    let mut host = OffscreenSurface::new(SIDE, SIDE, 1.0);
+    let viewport = Viewport::covering(&host);
+    let mut glyphs = common::ChequeredAtlas::new();
+    let images = common::OnePicture::new();
+    let geometry = PlaceholderGeometry::new();
+
+    let mut last = None;
+    // Two frames, because the second is where a *hit* becomes possible: a pool that created every
+    // target afresh every frame would satisfy any single-frame assertion and be a pool in name only.
+    for _ in 0..2 {
+        let frame = painter.begin(&mut host, viewport).expect("a frame opens");
+        let mut resources = Resources::new(&mut glyphs, &geometry, &images);
+        painter
+            .draw(&frame, &list, &mut resources)
+            .expect("the page draws");
+        last = Some(painter.end(frame).expect("the frame ends"));
+    }
+    let report = last.expect("two frames were drawn");
+    let pool = report.pool;
+
+    assert!(
+        pool.misses > 0,
+        "the painter acquired no render target at all, so the pool is not on the rendering path"
+    );
+    assert!(
+        pool.hits > 0,
+        "the second frame reused nothing: {pool:?}. A pool that creates every target afresh is a \
+         pool in name only, and the byte budget then bounds something nobody allocates."
+    );
+    assert!(
+        pool.evictions > 0 || pool.oversized > 0,
+        "a budget of two targets against a page needing more did not force the pool to give \
+         anything up: {pool:?}"
+    );
+    assert!(
+        painter.retained_texture_bytes() <= one_target * 2,
+        "the pool retains {} bytes against a budget of {}",
+        painter.retained_texture_bytes(),
+        one_target * 2
+    );
+    // And the page still rendered: a pool that met its budget by refusing every target would
+    // satisfy every count above and draw nothing.
+    let pixels = painter
+        .read_pixels()
+        .expect("it reads back")
+        .expect("offscreen pixels");
+    assert!(
+        pixels.covered() > ((SIDE * SIDE) / 2) as usize,
+        "only {} of {} pixels were painted under a tight texture budget",
+        pixels.covered(),
+        SIDE * SIDE
+    );
+    println!("pool after two frames: {pool:?}");
+}
+
+#[test]
 fn a_frame_token_belongs_to_one_frame_and_one_painter() {
     let mut painter = match common::painter() {
         Ok(painter) => painter,
