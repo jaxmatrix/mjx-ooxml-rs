@@ -34,6 +34,8 @@ MJXOFF-130 fills the corpus, the same assertion starts requiring the file instea
 | `V-PPTX-04` | medium | `charts` | `v-pptx-04-authored.pptx` | `v-pptx-04-edited.pptx` |
 | `V-PPTX-05` | low | `pictures` | `v-pptx-05-authored.pptx` | `v-pptx-05-edited.pptx` |
 | `V-PPTX-06` | low | `notes-and-links` | `v-pptx-06-authored.pptx` | `v-pptx-06-edited.pptx` |
+| `V-PPTX-07` | medium | `geometry` | `v-pptx-07-authored.pptx` | `v-pptx-07-edited.pptx` |
+| `V-PPTX-08` | medium | `chart-decoration` | `v-pptx-08-authored.pptx` | `v-pptx-08-edited.pptx` |
 
 ## Documents
 

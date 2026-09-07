@@ -1,7 +1,7 @@
 // The validation artefacts, written through the WebAssembly binding (MJXOFF-122).
 //
-// `xtask/src/validation/` is the Rust original: eighteen areas across the three formats, each built
-// from a `blank` document through the facade and nothing below it. This file is the same eighteen,
+// `xtask/src/validation/` is the Rust original: twenty areas across the three formats, each built
+// from a `blank` document through the facade and nothing below it. This file is the same twenty,
 // call for call, and every one is compared against the Rust output **part by part, byte for byte**.
 //
 // That comparison is the point. A binding method wired to the wrong facade method, or an argument
@@ -27,6 +27,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
+  AdjustAngle,
+  AdjustCoordinate,
   Angle,
   BorderEdgeSpec,
   BorderSpec,
@@ -41,19 +43,32 @@ import {
   CharacterPropertiesSpec,
   ChartData,
   ChartKind,
+  ChartLabelScope,
   ChartRangeSeries,
   ChartWrap,
   Color,
   ColorSpec,
+  ConnectionSite,
+  CustomGeometrySpec,
+  DataLabelPosition,
+  DataLabelSpec,
   Deck,
   Document,
+  DrawCommand,
   EffectListSpec,
   Emu,
+  ErrorBarDirection,
+  ErrorBarSpec,
+  ErrorBarType,
+  ErrorValueType,
   FillSpec,
   FontProperties,
   Fraction,
+  Geometry,
   GlowEffect,
   GradientStopSpec,
+  GuideContext,
+  GuideSpec,
   HeaderFooterType,
   Hyperlink,
   HyperlinkTarget,
@@ -65,9 +80,12 @@ import {
   PageMargins,
   PageSize,
   ParagraphPropertiesSpec,
+  Path2DSpec,
   PatternFillSpec,
   PictureFillMode,
+  Point,
   PresetShapeType,
+  Rectangle,
   ResizingBehavior,
   SchemeColor,
   SectionLocation,
@@ -406,6 +424,312 @@ const vPptx06 = () =>
 // V-DOCX-01 … V-DOCX-06
 // -------------------------------------------------------------------------------------------
 
+
+// -------------------------------------------------------------------------------------------
+// V-PPTX-07 … V-PPTX-08
+// -------------------------------------------------------------------------------------------
+
+/** The four presets whose guide formulas take an arc-tangent argument through zero. */
+const ARC_TANGENT_PRESETS = [
+  PresetShapeType.Moon,
+  PresetShapeType.Arc,
+  PresetShapeType.CircularArrow,
+  PresetShapeType.Gear9,
+];
+
+/** The fifteen plot types that draw from one series, each with its `c:` element's local name. */
+const SINGLE_SERIES_KINDS = [
+  [ChartKind.Bar, "barChart"],
+  [ChartKind.Bar3D, "bar3DChart"],
+  [ChartKind.Line, "lineChart"],
+  [ChartKind.Line3D, "line3DChart"],
+  [ChartKind.Pie, "pieChart"],
+  [ChartKind.Pie3D, "pie3DChart"],
+  [ChartKind.OfPie, "ofPieChart"],
+  [ChartKind.Area, "areaChart"],
+  [ChartKind.Area3D, "area3DChart"],
+  [ChartKind.Scatter, "scatterChart"],
+  [ChartKind.Doughnut, "doughnutChart"],
+  [ChartKind.Radar, "radarChart"],
+  [ChartKind.Bubble, "bubbleChart"],
+  [ChartKind.Surface, "surfaceChart"],
+  [ChartKind.Surface3D, "surface3DChart"],
+];
+
+// The apex placed by the guide `apex` (formula `*/ w 1 2`) rather than by a number.
+function guideDrivenTriangle(keep) {
+  const guide = (name) => keep(AdjustCoordinate.guide(name));
+  const zero = () => keep(AdjustCoordinate.emu(keep(Emu.fromEmu(0))));
+  return keep(
+    new CustomGeometrySpec(
+      [
+        keep(
+          new Path2DSpec(
+            [
+              keep(DrawCommand.moveTo(keep(new Point(guide("apex"), zero())))),
+              keep(DrawCommand.lineTo(keep(new Point(guide("r"), guide("b"))))),
+              keep(DrawCommand.lineTo(keep(new Point(guide("l"), guide("b"))))),
+              keep(DrawCommand.close()),
+            ],
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+          ),
+        ),
+      ],
+      [keep(new GuideSpec("adj", "val 50000"))],
+      [keep(new GuideSpec("apex", "*/ w 1 2"))],
+      [],
+      [
+        keep(
+          new ConnectionSite(
+            keep(AdjustAngle.angle(keep(Angle.fromDegrees(270.0)))),
+            keep(new Point(guide("apex"), zero())),
+          ),
+        ),
+        keep(
+          new ConnectionSite(
+            keep(AdjustAngle.angle(keep(Angle.fromDegrees(0.0)))),
+            keep(new Point(guide("r"), guide("b"))),
+          ),
+        ),
+        keep(
+          new ConnectionSite(
+            keep(AdjustAngle.angle(keep(Angle.fromDegrees(180.0)))),
+            keep(new Point(guide("l"), guide("b"))),
+          ),
+        ),
+      ],
+      keep(new Rectangle(guide("l"), guide("vc"), guide("r"), guide("b"))),
+    ),
+  );
+}
+
+function writeGeometryAreas(deck, surface, keep) {
+  const squareChevron = deck.addShape(
+    surface,
+    PresetShapeType.Chevron,
+    keep(ShapeBounds.fromInches(0.4, 3.4, 2.5, 2.5)),
+  );
+  const wideChevron = deck.addShape(
+    surface,
+    PresetShapeType.Chevron,
+    keep(ShapeBounds.fromInches(3.2, 3.4, 2.5, 1.25)),
+  );
+  ARC_TANGENT_PRESETS.forEach((preset, position) => {
+    deck.addShape(
+      surface,
+      preset,
+      keep(ShapeBounds.fromInches(0.4 + 1.4 * position, 6.1, 1.2, 1.2)),
+    );
+  });
+  const custom = deck.addShape(
+    surface,
+    PresetShapeType.Rectangle,
+    keep(ShapeBounds.fromInches(6.2, 3.4, 3.0, 1.5)),
+  );
+  deck.setShapeGeometry(surface, custom, keep(Geometry.custom(guideDrivenTriangle(keep))));
+  deck.setShapeFill(surface, custom, keep(FillSpec.solid(keep(ColorSpec.scheme(SchemeColor.Accent2)))));
+  deck
+    .shapeAdjustments(
+      surface,
+      squareChevron,
+      keep(GuideContext.fromExtents(keep(Emu.fromEmu(2286000)), keep(Emu.fromEmu(2286000)))),
+    )
+    .forEach((value) => keep(value));
+  deck
+    .shapeAdjustments(
+      surface,
+      wideChevron,
+      keep(GuideContext.fromExtents(keep(Emu.fromEmu(2286000)), keep(Emu.fromEmu(1143000)))),
+    )
+    .forEach((value) => keep(value));
+  keep(deck.shapeGeometry(surface, custom));
+}
+
+const vPptx07 = () =>
+  owning((keep) => {
+    const deck = keep(Deck.blank(keep(SlideSize.standard())));
+    const slide = deck.addSlideFromLayout(0);
+    deck.setShapeTextContent(slide, 0, "4:3 — 10 x 7.5 in");
+    deck.setShapeTextContent(
+      slide,
+      1,
+      "The two placeholders above and beside this one were placed by the master, not by this code.",
+    );
+    writeGeometryAreas(deck, slide, keep);
+    return deck.save();
+  });
+
+function galleryBounds(position) {
+  const column = position % 2;
+  const row = Math.floor((position % 4) / 2);
+  return ShapeBounds.fromInches(0.4 + column * 6.4, 0.4 + row * 3.4, 6.0, 3.0);
+}
+
+function writeChartDecorationAreas(deck, surface, keep) {
+  const edited = deck.addChart(
+    surface,
+    keep(
+      keep(keep(new ChartData(ChartKind.Bar)).categories(["Jan", "Feb", "Mar"])).series(
+        "Sales",
+        [19.2, 21.4, 16.7],
+      ),
+    ),
+    keep(ShapeBounds.fromInches(0.4, 0.4, 5.8, 2.6)),
+  );
+  deck.setChartTitle(surface, edited, "Series values, rewritten");
+  deck.setChartSeriesValues(surface, edited, 0, [41.5, 42.5, 43.5]);
+
+  const labelled = deck.addChart(
+    surface,
+    keep(quarterlyChart(keep)),
+    keep(ShapeBounds.fromInches(6.6, 0.4, 6.2, 2.6)),
+  );
+  deck.setChartTitle(surface, labelled, "Labels, three tiers");
+  deck.setChartDataLabels(
+    surface,
+    labelled,
+    keep(ChartLabelScope.plot(0)),
+    keep(
+      keep(
+        keep(keep(new DataLabelSpec()).value(true)).position(DataLabelPosition.OutsideEnd),
+      ).separator("; "),
+    ).numberFormat("0.0"),
+  );
+  deck.setChartDataLabels(
+    surface,
+    labelled,
+    keep(ChartLabelScope.series(0)),
+    keep(keep(new DataLabelSpec()).categoryName(true)),
+  );
+  deck.suppressChartDataLabels(surface, labelled, keep(ChartLabelScope.point(0, 1)));
+  deck.suppressChartDataLabels(surface, labelled, keep(ChartLabelScope.series(1)));
+  deck.addChartTrendline(
+    surface,
+    labelled,
+    0,
+    keep(
+      keep(
+        keep(keep(new TrendlineSpec(TrendlineKind.Polynomial)).polynomialOrder(3)).projection(
+          2.0,
+          0.0,
+        ),
+      ).display(true, true),
+    ),
+  );
+
+  const pie = deck.addChart(
+    surface,
+    keep(
+      keep(
+        keep(new ChartData(ChartKind.Pie)).categories(["North", "South", "East", "West"]),
+      ).series("Share", [42.0, 28.0, 18.0, 12.0]),
+    ),
+    keep(ShapeBounds.fromInches(0.4, 3.4, 5.8, 3.4)),
+  );
+  deck.setChartTitle(surface, pie, "Slice 1 exploded, slice 0 recoloured");
+  deck.setChartPointExplosion(surface, pie, 0, 1, 25);
+  deck.setChartPointFill(surface, pie, 0, 0, keep(FillSpec.solid(keep(ColorSpec.srgb("2E75B6")))));
+
+  const scatter = deck.addChart(
+    surface,
+    keep(
+      keep(keep(new ChartData(ChartKind.Scatter)).categories(["1", "2", "3", "4"])).series(
+        "Measured",
+        [2.0, 4.5, 3.25, 6.0],
+      ),
+    ),
+    keep(ShapeBounds.fromInches(6.6, 3.4, 6.2, 3.4)),
+  );
+  deck.setChartTitle(surface, scatter, "Error bars on both axes");
+  deck.setChartErrorBars(
+    surface,
+    scatter,
+    0,
+    keep(
+      keep(ErrorBarSpec.fixed(ErrorBarType.Both, ErrorValueType.Percentage, 5.0)).direction(
+        ErrorBarDirection.X,
+      ),
+    ),
+  );
+  deck.setChartErrorBars(
+    surface,
+    scatter,
+    0,
+    keep(
+      keep(ErrorBarSpec.fixed(ErrorBarType.Both, ErrorValueType.FixedValue, 0.5)).direction(
+        ErrorBarDirection.Y,
+      ),
+    ),
+  );
+}
+
+function writeDanglingPointArea(deck, surface, keep) {
+  const shortened = deck.addChart(
+    surface,
+    keep(
+      keep(keep(new ChartData(ChartKind.Bar)).categories(["Q1", "Q2", "Q3"])).series(
+        "2026",
+        [4.0, 5.0, 6.0],
+      ),
+    ),
+    keep(ShapeBounds.fromInches(0.4, 0.4, 6.0, 3.0)),
+  );
+  deck.setChartTitle(surface, shortened, "A c:dPt left past the end of its series");
+  deck.setChartPointFill(
+    surface,
+    shortened,
+    0,
+    2,
+    keep(FillSpec.solid(keep(ColorSpec.srgb("C00000")))),
+  );
+  deck.setChartSeriesValues(surface, shortened, 0, [4.0, 5.0]);
+  deck.chartDanglingDecoration(surface, shortened, 0).forEach((value) => keep(value));
+}
+
+function writePlotTypeGallery(deck, keep) {
+  let slide = null;
+  SINGLE_SERIES_KINDS.forEach(([kind, name], position) => {
+    if (position % 4 === 0) {
+      slide = deck.addSlide();
+    }
+    const data = keep(
+      keep(keep(new ChartData(kind)).categories(["A", "B", "C"])).series("S", [1.0, 2.0, 3.0]),
+    );
+    const chart = deck.addChart(slide, data, keep(galleryBounds(position)));
+    deck.setChartTitle(slide, chart, name);
+  });
+  const stock = deck.addChart(
+    slide,
+    keep(
+      keep(
+        keep(
+          keep(keep(new ChartData(ChartKind.Stock)).categories(["Mon", "Tue", "Wed"])).series(
+            "High",
+            [7.0, 8.0, 9.0],
+          ),
+        ).series("Low", [3.0, 4.0, 5.0]),
+      ).series("Close", [5.0, 6.0, 7.0]),
+    ),
+    keep(galleryBounds(3)),
+  );
+  deck.setChartTitle(slide, stock, "stockChart");
+}
+
+const vPptx08 = () =>
+  owning((keep) => {
+    const deck = keep(Deck.blank(keep(SlideSize.widescreen())));
+    const slide = deck.addSlide();
+    writeChartDecorationAreas(deck, slide, keep);
+    writeDanglingPointArea(deck, deck.addSlide(), keep);
+    writePlotTypeGallery(deck, keep);
+    return deck.save();
+  });
+
+
 const vDocx01 = () =>
   owning((keep) => {
     const document = keep(Document.blank(keep(PageSize.a4())));
@@ -723,6 +1047,8 @@ const GENERATORS = {
   "v-pptx-04-authored.pptx": vPptx04,
   "v-pptx-05-authored.pptx": vPptx05,
   "v-pptx-06-authored.pptx": vPptx06,
+  "v-pptx-07-authored.pptx": vPptx07,
+  "v-pptx-08-authored.pptx": vPptx08,
   "v-docx-01-authored.docx": vDocx01,
   "v-docx-02-authored.docx": vDocx02,
   "v-docx-03-authored.docx": vDocx03,
@@ -752,7 +1078,7 @@ test("the WebAssembly generators and the Rust ones agree, part by part", () => {
   const directory = rustArtefacts();
   try {
     const produced = readdirSync(directory).sort();
-    assert.ok(produced.length >= 18, `only ${produced.length} artefact(s); the catalogue has shrunk`);
+    assert.ok(produced.length >= 20, `only ${produced.length} artefact(s); the catalogue has shrunk`);
     // Stated over the filesystem rather than over the list above, so an area added in Rust and not
     // here fails instead of being silently skipped.
     assert.deepEqual(

@@ -1,4 +1,4 @@
-//! The PresentationML areas — `V-PPTX-01` … `V-PPTX-06`.
+//! The PresentationML areas — `V-PPTX-01` … `V-PPTX-08`.
 //!
 //! Every function here is a `mjx_ooxml::Deck` caller and names no crate below the facade, which is
 //! what lets `bindings/mjx-python/tests/test_validation_artefacts.py` and
@@ -12,12 +12,15 @@
 
 use anyhow::{Context, Result};
 use mjx_ooxml::{
-    Angle, CellBorder, CellFormat, CellMargins, Cells, CharacterPropertiesSpec, ChartData,
-    ChartKind, ColorSpec, Deck, EffectListSpec, Emu, FillSpec, Fraction, GlowEffect,
-    GradientStopSpec, Hyperlink, LegendPosition, LineSpec, LineWidth, OuterShadowEffect,
-    ParagraphPropertiesSpec, PictureFillMode, PresetShapeType, SchemeColor, ShapeBounds, SlideSize,
-    Surface, TableStyleBorder, TableStyleFormat, TableStylePart, TextAlignment, TextAnchoring,
-    TrendlineKind, TrendlineSpec, DEFAULT_PLACEHOLDER_IMAGE,
+    AdjustAngle, AdjustCoordinate, Angle, CellBorder, CellFormat, CellMargins, Cells,
+    CharacterPropertiesSpec, ChartData, ChartKind, ChartLabelScope, ColorSpec, ConnectionSite,
+    CustomGeometrySpec, DataLabelPosition, DataLabelSpec, Deck, DrawCommand, EffectListSpec, Emu,
+    ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, FillSpec, Fraction, Geometry,
+    GlowEffect, GradientStopSpec, GuideContext, GuideSpec, Hyperlink, LegendPosition, LineSpec,
+    LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec, PictureFillMode, Point,
+    PresetShapeType, Rectangle, SchemeColor, ShapeBounds, SlideSize, Surface, TableStyleBorder,
+    TableStyleFormat, TableStylePart, TextAlignment, TextAnchoring, TrendlineKind, TrendlineSpec,
+    DEFAULT_PLACEHOLDER_IMAGE,
 };
 
 /// A deck with one slide, ready for an area to fill.
@@ -478,5 +481,450 @@ pub(crate) fn authored_notes_and_links() -> Result<Vec<u8>> {
 pub(crate) fn edit_notes_and_links(original: &[u8]) -> Result<Vec<u8>> {
     let (mut deck, slide) = opened(original)?;
     write_notes_and_link_areas(&mut deck, slide, 0)?;
+    Ok(deck.save()?)
+}
+
+// -------------------------------------------------------------------------------------------
+// V-PPTX-07 — geometry, on a 4:3 deck
+// -------------------------------------------------------------------------------------------
+
+/// The guide-driven triangle: its apex is placed by the guide `apex = */ w 1 2` rather than by a
+/// number, so the apex sits at the horizontal centre of whatever box the shape is given. It also
+/// carries the four auxiliary lists a hand-written `a:custGeom` has — `a:avLst`, `a:gdLst`,
+/// `a:cxnLst` and `a:rect` — because a `custGeom` that has only a path list exercises a quarter of
+/// the element.
+fn guide_driven_triangle() -> CustomGeometrySpec {
+    let guide = |name: &str| AdjustCoordinate::Guide(name.to_owned());
+    CustomGeometrySpec {
+        adjust_values: vec![GuideSpec {
+            name: "adj".to_owned(),
+            formula: "val 50000".to_owned(),
+        }],
+        guides: vec![GuideSpec {
+            name: "apex".to_owned(),
+            formula: "*/ w 1 2".to_owned(),
+        }],
+        connection_sites: vec![
+            ConnectionSite {
+                angle: AdjustAngle::Angle(Angle::from_degrees(270.0)),
+                position: Point {
+                    x: guide("apex"),
+                    y: AdjustCoordinate::Emu(Emu::from_emu(0)),
+                },
+            },
+            ConnectionSite {
+                angle: AdjustAngle::Angle(Angle::from_degrees(0.0)),
+                position: Point {
+                    x: guide("r"),
+                    y: guide("b"),
+                },
+            },
+            ConnectionSite {
+                angle: AdjustAngle::Angle(Angle::from_degrees(180.0)),
+                position: Point {
+                    x: guide("l"),
+                    y: guide("b"),
+                },
+            },
+        ],
+        text_rectangle: Some(Rectangle {
+            left: guide("l"),
+            top: guide("vc"),
+            right: guide("r"),
+            bottom: guide("b"),
+        }),
+        paths: vec![Path2DSpec {
+            commands: vec![
+                DrawCommand::MoveTo(Point {
+                    x: guide("apex"),
+                    y: AdjustCoordinate::Emu(Emu::from_emu(0)),
+                }),
+                DrawCommand::LineTo(Point {
+                    x: guide("r"),
+                    y: guide("b"),
+                }),
+                DrawCommand::LineTo(Point {
+                    x: guide("l"),
+                    y: guide("b"),
+                }),
+                DrawCommand::Close,
+            ],
+            ..Path2DSpec::default()
+        }],
+        ..CustomGeometrySpec::default()
+    }
+}
+
+/// The four presets whose guide formulas take an arc-tangent argument through zero — the ones whose
+/// evaluator was the point of MJXOFF-56.
+const ARC_TANGENT_PRESETS: [PresetShapeType; 4] = [
+    PresetShapeType::Moon,
+    PresetShapeType::Arc,
+    PresetShapeType::CircularArrow,
+    PresetShapeType::Gear9,
+];
+
+fn write_geometry_areas(deck: &mut Deck, surface: Surface) -> Result<()> {
+    // Two chevrons, one square and one 2:1. `shape_adjustments` resolves an adjustment's domain
+    // against a *concrete* size, so the same preset answers a different maximum for each.
+    let square_chevron = deck
+        .add_shape(
+            surface,
+            PresetShapeType::Chevron,
+            ShapeBounds::from_inches(0.4, 3.4, 2.5, 2.5),
+        )
+        .context("square chevron")?;
+    let wide_chevron = deck
+        .add_shape(
+            surface,
+            PresetShapeType::Chevron,
+            ShapeBounds::from_inches(3.2, 3.4, 2.5, 1.25),
+        )
+        .context("2:1 chevron")?;
+
+    // The four arc-tangent presets, in a row.
+    for (position, preset) in ARC_TANGENT_PRESETS.into_iter().enumerate() {
+        #[allow(clippy::cast_precision_loss)]
+        let left = 0.4 + 1.4 * position as f64;
+        deck.add_shape(
+            surface,
+            preset,
+            ShapeBounds::from_inches(left, 6.1, 1.2, 1.2),
+        )
+        .with_context(|| format!("preset {preset:?}"))?;
+    }
+
+    // The custom geometry, on a shape twice as wide as it is tall, so a guide-placed apex is
+    // visibly *not* where a literal coordinate would have put it.
+    let custom = deck
+        .add_shape(
+            surface,
+            PresetShapeType::Rectangle,
+            ShapeBounds::from_inches(6.2, 3.4, 3.0, 1.5),
+        )
+        .context("custom-geometry shape")?;
+    deck.set_shape_geometry(
+        surface,
+        custom.into(),
+        Geometry::Custom(guide_driven_triangle()),
+    )
+    .context("custom geometry")?;
+    deck.set_shape_fill(
+        surface,
+        custom.into(),
+        &FillSpec::solid(ColorSpec::Scheme(SchemeColor::Accent2)),
+    )?;
+
+    // Read both chevrons' adjustment domains back, so the harness output carries what this library
+    // believes before anybody drags a handle. Neither call is an assertion about PowerPoint, and
+    // reading geometry does not dirty the part.
+    let _square = deck
+        .shape_adjustments(
+            surface,
+            square_chevron.into(),
+            GuideContext::from_extents(Emu::from_emu(2_286_000), Emu::from_emu(2_286_000)),
+        )
+        .context("square chevron adjustments")?;
+    let _wide = deck
+        .shape_adjustments(
+            surface,
+            wide_chevron.into(),
+            GuideContext::from_extents(Emu::from_emu(2_286_000), Emu::from_emu(1_143_000)),
+        )
+        .context("2:1 chevron adjustments")?;
+    let _read_back = deck
+        .shape_geometry(surface, custom.into())
+        .context("reading the custom geometry back")?;
+    Ok(())
+}
+
+/// `V-PPTX-07` authored — **the one artefact built at 4:3**
+/// (`9_144_000` x `6_858_000`, `SlideSize::standard`), so the master's placeholders arrive
+/// rescaled rather than at the widescreen positions every other area shows.
+///
+/// # Errors
+/// If the facade refuses any call.
+pub(crate) fn authored_geometry() -> Result<Vec<u8>> {
+    let mut deck = Deck::blank(SlideSize::standard()).context("blank 4:3 deck")?;
+    // From the layout rather than `add_slide`, so the slide arrives with the master's title and
+    // body placeholders on it — which is what makes the rescale visible.
+    let slide = deck.add_slide_from_layout(0).context("add slide")?;
+    deck.set_shape_text_content(slide.into(), 0u32.into(), "4:3 — 10 x 7.5 in")
+        .context("title text")?;
+    deck.set_shape_text_content(
+        slide.into(),
+        1u32.into(),
+        "The two placeholders above and beside this one were placed by the master, not by this code.",
+    )
+    .context("body text")?;
+    write_geometry_areas(&mut deck, slide.into())?;
+    Ok(deck.save()?)
+}
+
+/// `V-PPTX-07` edited.
+///
+/// # Errors
+/// If the original cannot be opened or edited.
+pub(crate) fn edit_geometry(original: &[u8]) -> Result<Vec<u8>> {
+    let (mut deck, slide) = opened(original)?;
+    write_geometry_areas(&mut deck, slide)?;
+    Ok(deck.save()?)
+}
+
+// -------------------------------------------------------------------------------------------
+// V-PPTX-08 — chart decoration, and every plot type
+// -------------------------------------------------------------------------------------------
+
+/// The fifteen plot types that draw from one series, in the order `ChartKind` declares them.
+/// `Stock` is the sixteenth and is authored separately, because `c:stockChart` is the one plot
+/// type the schema will not accept with fewer than three series.
+/// Each is paired with its `c:` element's local name, spelled out rather than read off the value,
+/// because `ChartKind` publishes no name accessor through the bindings and the three languages
+/// have to write the same title byte for byte.
+const SINGLE_SERIES_KINDS: [(ChartKind, &str); 15] = [
+    (ChartKind::Bar, "barChart"),
+    (ChartKind::Bar3D, "bar3DChart"),
+    (ChartKind::Line, "lineChart"),
+    (ChartKind::Line3D, "line3DChart"),
+    (ChartKind::Pie, "pieChart"),
+    (ChartKind::Pie3D, "pie3DChart"),
+    (ChartKind::OfPie, "ofPieChart"),
+    (ChartKind::Area, "areaChart"),
+    (ChartKind::Area3D, "area3DChart"),
+    (ChartKind::Scatter, "scatterChart"),
+    (ChartKind::Doughnut, "doughnutChart"),
+    (ChartKind::Radar, "radarChart"),
+    (ChartKind::Bubble, "bubbleChart"),
+    (ChartKind::Surface, "surfaceChart"),
+    (ChartKind::Surface3D, "surface3DChart"),
+];
+
+/// A quarter-inch-precise four-up grid, so sixteen charts read as a gallery rather than a pile.
+fn gallery_bounds(position: usize) -> ShapeBounds {
+    #[allow(clippy::cast_precision_loss)]
+    let column = (position % 2) as f64;
+    #[allow(clippy::cast_precision_loss)]
+    let row = ((position % 4) / 2) as f64;
+    ShapeBounds::from_inches(0.4 + column * 6.4, 0.4 + row * 3.4, 6.0, 3.0)
+}
+
+fn write_chart_decoration_areas(deck: &mut Deck, surface: Surface) -> Result<()> {
+    // ---- The edited series -------------------------------------------------------------------
+    // Authored at the fixture's own figures, then overwritten. Both the chart and its embedded
+    // workbook must show the second set; the first must appear nowhere.
+    let edited = deck
+        .add_chart(
+            surface,
+            &ChartData::new(ChartKind::Bar)
+                .categories(["Jan", "Feb", "Mar"])
+                .series("Sales", [19.2, 21.4, 16.7]),
+            ShapeBounds::from_inches(0.4, 0.4, 5.8, 2.6),
+        )
+        .context("edited-series chart")?;
+    deck.set_chart_title(surface, edited.into(), Some("Series values, rewritten"))?;
+    deck.set_chart_series_values(surface, edited.into(), 0, &[41.5, 42.5, 43.5])
+        .context("rewriting the series values")?;
+
+    // ---- The three label tiers ---------------------------------------------------------------
+    let labelled = deck
+        .add_chart(
+            surface,
+            &quarterly_chart(),
+            ShapeBounds::from_inches(6.6, 0.4, 6.2, 2.6),
+        )
+        .context("labelled chart")?;
+    deck.set_chart_title(surface, labelled.into(), Some("Labels, three tiers"))?;
+    deck.set_chart_data_labels(
+        surface,
+        labelled.into(),
+        ChartLabelScope::Plot { plot_index: 0 },
+        &DataLabelSpec::new()
+            .value(true)
+            .position(DataLabelPosition::OutsideEnd)
+            .separator("; ")
+            .number_format("0.0"),
+    )
+    .context("plot-tier labels")?;
+    deck.set_chart_data_labels(
+        surface,
+        labelled.into(),
+        ChartLabelScope::Series { series_index: 0 },
+        &DataLabelSpec::new().category_name(true),
+    )
+    .context("series-tier labels")?;
+    deck.suppress_chart_data_labels(
+        surface,
+        labelled.into(),
+        ChartLabelScope::Point {
+            series_index: 0,
+            point_index: 1,
+        },
+    )
+    .context("point-tier suppression")?;
+    deck.suppress_chart_data_labels(
+        surface,
+        labelled.into(),
+        ChartLabelScope::Series { series_index: 1 },
+    )
+    .context("series-tier suppression")?;
+    deck.add_chart_trendline(
+        surface,
+        labelled.into(),
+        0,
+        &TrendlineSpec::new(TrendlineKind::Polynomial)
+            .polynomial_order(3)
+            .projection(2.0, 0.0)
+            .display(true, true),
+    )
+    .context("polynomial trendline")?;
+
+    // ---- Per-point formatting on a pie -------------------------------------------------------
+    let pie = deck
+        .add_chart(
+            surface,
+            &ChartData::new(ChartKind::Pie)
+                .categories(["North", "South", "East", "West"])
+                .series("Share", [42.0, 28.0, 18.0, 12.0]),
+            ShapeBounds::from_inches(0.4, 3.4, 5.8, 3.4),
+        )
+        .context("pie chart")?;
+    deck.set_chart_title(
+        surface,
+        pie.into(),
+        Some("Slice 1 exploded, slice 0 recoloured"),
+    )?;
+    deck.set_chart_point_explosion(surface, pie.into(), 0, 1, Some(25))
+        .context("slice explosion")?;
+    deck.set_chart_point_fill(
+        surface,
+        pie.into(),
+        0,
+        0,
+        &FillSpec::solid(ColorSpec::Srgb("2E75B6".into())),
+    )
+    .context("slice fill")?;
+
+    // ---- Two sets of error bars, one per axis ------------------------------------------------
+    let scatter = deck
+        .add_chart(
+            surface,
+            &ChartData::new(ChartKind::Scatter)
+                .categories(["1", "2", "3", "4"])
+                .series("Measured", [2.0, 4.5, 3.25, 6.0]),
+            ShapeBounds::from_inches(6.6, 3.4, 6.2, 3.4),
+        )
+        .context("scatter chart")?;
+    deck.set_chart_title(surface, scatter.into(), Some("Error bars on both axes"))?;
+    deck.set_chart_error_bars(
+        surface,
+        scatter.into(),
+        0,
+        &ErrorBarSpec::fixed(ErrorBarType::Both, ErrorValueType::Percentage, 5.0)
+            .direction(ErrorBarDirection::X),
+    )
+    .context("x error bars")?;
+    deck.set_chart_error_bars(
+        surface,
+        scatter.into(),
+        0,
+        &ErrorBarSpec::fixed(ErrorBarType::Both, ErrorValueType::FixedValue, 0.5)
+            .direction(ErrorBarDirection::Y),
+    )
+    .context("y error bars")?;
+    Ok(())
+}
+
+/// The dangling-anchor case, which needs a slide of its own because it ends with a chart whose
+/// `c:dPt` addresses a point the series no longer has.
+fn write_dangling_point_area(deck: &mut Deck, surface: Surface) -> Result<()> {
+    let shortened = deck
+        .add_chart(
+            surface,
+            &ChartData::new(ChartKind::Bar)
+                .categories(["Q1", "Q2", "Q3"])
+                .series("2026", [4.0, 5.0, 6.0]),
+            ShapeBounds::from_inches(0.4, 0.4, 6.0, 3.0),
+        )
+        .context("dangling-point chart")?;
+    deck.set_chart_title(
+        surface,
+        shortened.into(),
+        Some("A c:dPt left past the end of its series"),
+    )?;
+    // Format the last point, then shorten the series over it. `c:idx` is never renumbered by an
+    // edit that changes a series' length, so the anchor stays at 2 and now addresses nothing.
+    deck.set_chart_point_fill(
+        surface,
+        shortened.into(),
+        0,
+        2,
+        &FillSpec::solid(ColorSpec::Srgb("C00000".into())),
+    )
+    .context("last-point fill")?;
+    deck.set_chart_series_values(surface, shortened.into(), 0, &[4.0, 5.0])
+        .context("shortening the series")?;
+    let _dangling = deck
+        .chart_dangling_decoration(surface, shortened.into(), 0)
+        .context("reading the dangling decoration back")?;
+    Ok(())
+}
+
+/// The sixteen plot types, four to a slide.
+fn write_plot_type_gallery(deck: &mut Deck) -> Result<()> {
+    let mut slide = None;
+    for (position, (kind, name)) in SINGLE_SERIES_KINDS.into_iter().enumerate() {
+        if position % 4 == 0 {
+            slide = Some(deck.add_slide().context("gallery slide")?);
+        }
+        let surface: Surface = slide.expect("a gallery slide").into();
+        let data = ChartData::new(kind)
+            .categories(["A", "B", "C"])
+            .series("S", [1.0, 2.0, 3.0]);
+        let chart = deck
+            .add_chart(surface, &data, gallery_bounds(position))
+            .with_context(|| format!("gallery chart {kind:?}"))?;
+        deck.set_chart_title(surface, chart.into(), Some(name))?;
+    }
+    // The sixteenth: `c:stockChart` is high-low-close, and the schema will not take fewer than
+    // three series.
+    let surface: Surface = slide.expect("a gallery slide").into();
+    let stock = deck
+        .add_chart(
+            surface,
+            &ChartData::new(ChartKind::Stock)
+                .categories(["Mon", "Tue", "Wed"])
+                .series("High", [7.0, 8.0, 9.0])
+                .series("Low", [3.0, 4.0, 5.0])
+                .series("Close", [5.0, 6.0, 7.0]),
+            gallery_bounds(3),
+        )
+        .context("stock chart")?;
+    deck.set_chart_title(surface, stock.into(), Some("stockChart"))?;
+    Ok(())
+}
+
+/// `V-PPTX-08` authored.
+///
+/// # Errors
+/// If the facade refuses any call.
+pub(crate) fn authored_chart_decoration() -> Result<Vec<u8>> {
+    let (mut deck, slide) = one_slide_deck()?;
+    write_chart_decoration_areas(&mut deck, slide)?;
+    let dangling = deck.add_slide().context("dangling-point slide")?;
+    write_dangling_point_area(&mut deck, dangling.into())?;
+    write_plot_type_gallery(&mut deck)?;
+    Ok(deck.save()?)
+}
+
+/// `V-PPTX-08` edited.
+///
+/// # Errors
+/// If the original cannot be opened or edited.
+pub(crate) fn edit_chart_decoration(original: &[u8]) -> Result<Vec<u8>> {
+    let (mut deck, slide) = opened(original)?;
+    write_chart_decoration_areas(&mut deck, slide)?;
+    let dangling = deck.add_slide().context("dangling-point slide")?;
+    write_dangling_point_area(&mut deck, dangling.into())?;
+    write_plot_type_gallery(&mut deck)?;
     Ok(deck.save()?)
 }
