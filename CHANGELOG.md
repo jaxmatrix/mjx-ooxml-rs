@@ -58,6 +58,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.133] - 2026-09-07
+
+### A relationship target's percent-encoding is decoded, and three Word edits stop sweeping the package (MJXOFF-209, G3)
+
+**A legal OOXML file this library could open but refused to write back, and — through
+`save_unchecked` — deleted parts from.** ECMA-376 Part 2 §9.1.1 makes a part name an IRI: a character
+outside the `pchar` set is written percent-encoded in a relationship `Target` and in a content-type
+`Override`'s `PartName`, and the part it names is the *decoded* form. Real producers write these;
+LibreOffice 25.8 writes `Target=".../my%20image.png"` for an image whose file name holds a space.
+There was no percent-decoding anywhere in `mjx-opc`.
+
+So `../media/image%20one.png` resolved to `/word/media/image%20one.png`, which never matched the ZIP
+entry `word/media/image one.png`. `Package::validate` reported `RelationshipTargetMissing` and
+`Package::save` refused the file outright; `remove_unreferenced_parts` does not follow an edge it
+cannot resolve, so the real part was never marked reachable and was swept as an orphan.
+
+**The difficulty is not the decoding, it is not re-encoding.** Decode-then-encode is not the
+identity: `%2520` and `%20`, `%5f` and `%5F`, `%75` and `u` decode alike and re-encode differently. A
+library that normalised on write would change the bytes of `.rels` and `[Content_Types].xml` parts in
+files nobody asked it to touch — a far wider fidelity regression than the bug it fixed.
+
+### Fixed
+
+- **`PartName::resolve` / `resolve_from_root` decode the target**, and `ContentTypes::parse` decodes
+  an `Override`'s `PartName`. Decoding happens on the way *into* a `PartName` and nowhere else:
+  `Relationship::target` keeps the producer's exact text, and an unedited control part re-emits
+  verbatim, so a producer's own spelling survives a round trip byte for byte.
+- **Dot segments are folded before decoding** (RFC 3986 §5.2.4), so `%2E%2E` is an ordinary segment
+  named `..` rather than a climb above the package root, and the split into segments happens before
+  any escape can become a separator.
+- **A malformed escape is passed through, not refused.** `%ZZ`, a truncated `%4` and a trailing `%`
+  are all things a non-conforming producer writes — most often a file name that genuinely holds a `%`
+  and was never encoded (`100% margin.png`), which still resolves. Nothing in the decoder can panic
+  on any byte string, and a decoding that is not valid UTF-8 leaves the segment as written. A segment
+  that decodes to text containing `/` *is* refused with `OpcError::TargetResolution`: OPC forbids an
+  encoded separator because it would turn one segment into two, and naming a different part silently
+  is worse than reporting that it does not resolve.
+- **`remove_override_element` matches the decoded attribute**, so a rule spelled
+  `/word/my%20header.xml` is found for the part `/word/my header.xml`. Without it the element would
+  be left in the stream while the parsed view dropped it.
+- **Three `Document` edits no longer run the package-wide sweep.** `remove_header`/`remove_footer`,
+  removing the last comment, and `remove_drawing` each finished by calling
+  `Package::remove_unreferenced_parts`, which deletes every orphan it can find — including one the
+  *producer* left in the file. Removing a header would take an unrelated image with it. They now use
+  `Package::remove_part_if_unreferenced`, scoped to the part the edit itself orphaned. `mjx-pptx`
+  never had the problem: its sweep is the opt-in `Presentation::remove_unused_parts`, and these three
+  were the only automatic callers in the workspace.
+
+### Added
+
+- **`Package::remove_part_if_unreferenced`** — `remove_part_cascading` guarded by the same reference
+  check the sweep decides reachability with. The clean-up an edit performs on its own behalf, as
+  distinct from the package-wide garbage collection a *caller* asks for.
+- **`PartName::relative_target` and the `Override` writer percent-encode**, closing the pair: a part
+  the caller named `a picture.png` produces a conforming reference that reads back as itself. Every
+  name this library generates is already unreserved, so no authored package changes a byte.
+- **`tests/fixtures/percent_encoded_targets.docx`** — five parts addressed through an escape, in four
+  spellings (`%20`; `%2520` over a name that really holds `%20`; lowercase `%5f` against an uppercase
+  `%5F` in the other control stream; a gratuitous `%75` for `u`). It joins every byte-identity corpus
+  and the schema gate by being in the directory, so the no-re-encoding rule is held permanently. It
+  is **hand-built** and the suite says so: authored by this library, then post-processed to rename
+  five parts and spell their references as a conforming producer must. LibreOffice cannot serve as
+  the producer — it renames every embedded picture to `media/imageN.png`, so it never writes an
+  *internal* encoded target, though it does encode the external ones.
+- Tests: `crates/mjx-opc/tests/percent_encoded_targets.rs` (resolution, `validate`/`save`, the sweep
+  reaching all five, byte identity of every spelling across an edit, and the authored direction);
+  `crates/mjx-docx/tests/scoped_cleanup.rs` (each of the three edits removes what it orphaned and
+  leaves a part planted beforehand alone).
+
 ## [0.0.132] - 2026-09-07
 
 ### A chart data edit no longer discards the producer's embedded workbook (MJXOFF-208, G2)
