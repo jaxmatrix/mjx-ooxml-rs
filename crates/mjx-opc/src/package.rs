@@ -859,8 +859,30 @@ impl Package {
 
     /// Removes a part, its content-type `Override` (if any), and its own outgoing `.rels` part.
     ///
-    /// Shared `Default` content-type rules are left untouched. Inbound relationships *from other
-    /// parts* are not scanned (a graph operation left to a later phase); no bytes are corrupted.
+    /// Shared `Default` content-type rules are left untouched.
+    ///
+    /// # This is the one removal that can leave the package broken
+    ///
+    /// **Inbound relationships from other parts are not scanned, and outbound targets are not
+    /// followed.** Nothing here is a graph operation. If anything still points at `part`,
+    /// [`save`](Self::save) will now refuse the package — [`validate`](Self::validate) faults a
+    /// relationship whose target is absent — and whatever `part` alone referenced is left behind as
+    /// an orphan. That is deliberate: this is the primitive the other three are built out of, and it
+    /// is right exactly when the caller has already unwired the references itself.
+    ///
+    /// It was once the only removal there was, and its doc comment said the graph operation was
+    /// "left to a later phase". The later phase arrived, three times over, and which of the four to
+    /// call is the decision `crates/mjx-opc/docs/guide/removing_a_part.md` exists to make:
+    ///
+    /// | Call | Follows the graph | Guarded | Reaches parts the caller did not name |
+    /// |---|---|---|---|
+    /// | `remove_part` | no | no | no |
+    /// | [`remove_part_cascading`](Self::remove_part_cascading) | downward | no | only what `part` alone held |
+    /// | [`remove_part_if_unreferenced`](Self::remove_part_if_unreferenced) | downward | yes | only what `part` alone held |
+    /// | [`remove_unreferenced_parts`](Self::remove_unreferenced_parts) | from the root | n/a | **yes — the whole package** |
+    ///
+    /// An edit cleaning up after itself wants the third. The fourth is a caller's request, never an
+    /// edit's own clean-up: MJXOFF-209 is what happens when an edit runs it.
     ///
     /// # Errors
     /// Returns [`OpcError::UnknownPart`] if the part is absent, or an error while removing its
