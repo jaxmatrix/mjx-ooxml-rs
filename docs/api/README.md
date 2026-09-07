@@ -77,7 +77,19 @@ plus clippy's `-D warnings`), and intra-doc links are denied on CI, so `cargo do
 | [Fidelity and the part graph](../../crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md) | `mjx-xlsx` | Which parts are modelled, which are preserved, and what saving touches |
 | [Deliberate limitations](../../crates/mjx-xlsx/docs/guide/deliberate_limitations.md) | `mjx-xlsx` | What this library will not do to a workbook, and why each one is refused |
 
-## Shared markup and the facade
+## The facade — `mjx-ooxml`
+
+| Page | Crate | What it covers |
+|---|---|---|
+| [Guide index](../../crates/mjx-ooxml/docs/guide/README.md) | `mjx-ooxml` | The shape of the binding-ready surface and where each answer lives |
+| [Opening and saving](../../crates/mjx-ooxml/docs/guide/opening_and_saving.md) | `mjx-ooxml` | Detecting a format, opening or authoring it, and what saving refuses |
+| [Addressing](../../crates/mjx-ooxml/docs/guide/addressing.md) | `mjx-ooxml` | The three addressing vocabularies, and the four calls taking the column first |
+| [One vocabulary, three surfaces](../../crates/mjx-ooxml/docs/guide/one_vocabulary_three_surfaces.md) | `mjx-ooxml` | What a caller who learned one format already knows about the other two |
+| [Errors](../../crates/mjx-ooxml/docs/guide/errors.md) | `mjx-ooxml` | The eleven stable codes, the coordinates beside them, and the typed cause |
+| [The curated surface](../../crates/mjx-ooxml/docs/guide/the_curated_surface.md) | `mjx-ooxml` | What stays behind in each format crate, why, and the three escape hatches |
+| [Fidelity and the known gaps](../../crates/mjx-ooxml/docs/guide/fidelity_and_gaps.md) | `mjx-ooxml` | The round-trip contract through the facade, and what is absent |
+
+## Shared markup
 
 | Page | Crate | What it covers |
 |---|---|---|
