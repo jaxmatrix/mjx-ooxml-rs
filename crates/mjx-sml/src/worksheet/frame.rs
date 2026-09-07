@@ -1,13 +1,21 @@
 //! `xl/worksheets/sheetN.xml` — `CT_Worksheet`, the widest content model in the schema.
 //!
-//! # Thirty-nine slots, thirty-four modelled, five held
+//! # Thirty-nine slots, thirty-five modelled, four held
 //!
 //! `CT_Worksheet` (`sml.xsd:2170`) is a **39-slot `xsd:sequence`** — ten times `CT_Slide`'s and
-//! twice `CT_Workbook`'s. Five of those slots belong to a later child or to no ticket at all,
-//! and this type holds every one of them **in its schema position**, as the markup
-//! the file wrote. A worksheet
-//! whose `pageSetup` survives a round-trip is proof the frame works, not proof `pageSetup` was
-//! modelled.
+//! twice `CT_Workbook`'s. Four of those belong to a later child or to no ticket at all, and this
+//! type holds every one of them **in its schema position**, as the markup the file wrote. A
+//! worksheet whose `pageSetup` survives a round-trip is proof the frame works, not proof
+//! `pageSetup` was modelled.
+//!
+//! **The three numbers in that heading are derived, not written down.**
+//! [`tests::every_slot_of_the_generated_sequence_is_accounted_for`] reads a worksheet holding one
+//! of every slot the generated table names and asks [`read_slot`] which of them it typed;
+//! [`tests::the_rank_table_in_this_file_is_the_generated_sequence`] holds the table below to that
+//! answer row by row, and [`tests::every_count_this_module_spells_out_is_the_derived_one`] holds
+//! the sentences around it to the same answer. That is MJXOFF-88 §9 B2, closed by MJXOFF-220 —
+//! before it, this figure had been written down as 25/14, then 31/8, then 34/5, then 35/4, and
+//! three of those four were wrong when they were written.
 //!
 //! | rank | element | held as |
 //! |---|---|---|
@@ -55,7 +63,7 @@
 //! [`Slot::rank`], which is the one thing MJXOFF-117 had to fix in MJXOFF-102's frame rather than
 //! add beside it.
 //!
-//! # Who owns the five slots this type still holds raw
+//! # Who owns the four this type still holds raw
 //!
 //! MJXOFF-127 (D16) modelled seven of what were then fourteen, MJXOFF-129 (D17) six more,
 //! MJXOFF-107 (E3) three and MJXOFF-114 (E5) the last one that had an owner; this is what is
@@ -68,7 +76,7 @@
 //! | 38 `extLst` | the unknown bucket, by design — an `extLst` is markup no schema in this workspace types |
 //! | **15 `phoneticPr`, 31 `legacyDrawingHF`, 32 `drawingHF`** | **nobody**, and MJXOFF-133 confirmed it rather than closing it. `CT_PhoneticPr` is *already* modelled once, as [`PhoneticProperties`](crate::PhoneticProperties) — a value decoded from the shared-string store's packed bytes rather than a `RawElement`-backed slot — so giving this slot a type means unifying the two call sites, which is a design question and not a slot to fill. `legacyDrawingHF` and `drawingHF` are the header/footer half of the drawing family: their types are `CT_LegacyDrawing` and `CT_Drawing`, the same two ranks 30 and 29 carry, so modelling them here would model E3's and E5's types in a file that is neither |
 //!
-//! Every one of the five still round-trips byte-for-byte, in position: that is what
+//! Every one of the four still round-trips byte-for-byte, in position: that is what
 //! [`WorksheetContent::Raw`] is for, and it is unrelated to whether a slot is typed.
 //!
 //! The ranks are never written down. Every placement goes through
@@ -89,8 +97,8 @@
 //! `crates/mjx-sml/tests/cell_store_allocation.rs` bounds it at 48 with a counting global allocator.
 //! A frame that borrowed a cached tree would keep that tree alive for as long as the workbook is
 //! open, and the 25× would be given straight back. So this type **consumes** the document: it takes
-//! the interner and the shared source buffer, models the thirty-four slots it knows, keeps the other
-//! five as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
+//! the interner and the shared source buffer, models the thirty-five it knows, keeps the other
+//! four as moved [`RawNode`]s (a move, never a clone — `RawElement`'s `Clone` drops the
 //! verbatim source range and a move does not), and lets the tree drop.
 //!
 //! Consuming the document is what makes [`write_into`](WorksheetPart::write_into) a **byte** writer
@@ -144,7 +152,7 @@ use super::protection::{ProtectedRanges, SheetProtection};
 use super::scenarios::Scenarios;
 use super::views::{SheetProperties, SheetViews};
 
-/// One child of [`WorksheetPart`]: thirty-four modelled slots, and everything else.
+/// One child of [`WorksheetPart`]: thirty-five modelled slots, and everything else.
 #[derive(Debug)]
 pub enum WorksheetContent {
     /// `x:sheetPr` (rank 0).
@@ -250,7 +258,7 @@ pub enum WorksheetContent {
     /// relationship identifier this crate holds as the string the file wrote. Resolving one to a
     /// part is `mjx-xlsx`'s; see [`crate::features::tables`].
     TableParts(TableParts),
-    /// Everything this type does not model: the five remaining slots, any foreign element, any
+    /// Everything this type does not model: the four held, any foreign element, any
     /// `mc:AlternateContent`, and the text, comments and processing instructions between siblings.
     ///
     /// Preserved verbatim and in position: placement skips a node it cannot rank, so an unmodelled
@@ -422,9 +430,9 @@ impl Slot {
 
 /// `x:worksheet` (`CT_Worksheet`, `sml.xsd:2170`) — the whole worksheet part.
 ///
-/// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type owns its
-/// document rather than borrowing one, and for the slot-level copy-on-write that makes holding
-/// five unmodelled children cost nothing.
+/// See the [module documentation](crate::worksheet) for the thirty-nine slots, for why this type
+/// owns its document rather than borrowing one, and for the slot-level copy-on-write that makes
+/// holding the other four cost nothing.
 #[derive(Debug)]
 pub struct WorksheetPart {
     /// The interner every [`RawName`] below was interned in — moved out of the document this part
@@ -1513,8 +1521,8 @@ fn range_between(bounds: (u16, u32, u16, u32)) -> Option<CellRange> {
 /// Reads one child node of `x:worksheet` into a slot.
 ///
 /// A node is modelled only when it is an element **in the SpreadsheetML namespace** with one of the
-/// thirty-four local names this frame knows. An element merely *named* `sheetData` in somebody else's
-/// namespace is unmodelled markup, and goes into the bucket with its prefix intact.
+/// thirty-five local names this frame knows. An element merely *named* `sheetData` in somebody
+/// else's namespace is unmodelled markup, and goes into the bucket with its prefix intact.
 fn read_slot(
     node: RawNode,
     interner: &Interner,
@@ -1628,4 +1636,262 @@ fn read_slot(
         verbatim: Some(element),
         value,
     })
+}
+
+// ===============================================================================================
+// The slot ledger — MJXOFF-88 §9 B2, closed by MJXOFF-220
+// ===============================================================================================
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use super::*;
+    use crate::prose::{check_counts, contains_phrase, normalised_prose, NUMBER_WORDS};
+
+    /// This file's own source, so the prose above can be held against what the code below does.
+    ///
+    /// `include_str!` resolves relative to this file, so it is this file. Reading it at **compile**
+    /// time rather than from a path assembled at run time is what makes the check independent of the
+    /// working directory a test runner happens to have.
+    const WHOLE_FILE: &str = include_str!("frame.rs");
+
+    /// The banner this module sits under, and the end of the prose the two prose checks read.
+    ///
+    /// Everything below it is this module, whose own comments talk *about* the phrases being
+    /// scanned and would otherwise be scanned as claims — the first draft of
+    /// [`every_count_this_module_spells_out_is_the_derived_one`] failed on a sentence inside
+    /// [`contains_phrase`]'s own doc comment.
+    const LEDGER_BANNER: &str = "// The slot ledger \u{2014} MJXOFF-88 \u{a7}9 B2";
+
+    /// This file's documentation and code, without the test module below.
+    fn documented_source() -> &'static str {
+        let at = WHOLE_FILE
+            .find(LEDGER_BANNER)
+            .expect("the ledger banner introduces this module");
+        &WHOLE_FILE[..at]
+    }
+
+    /// `crates/mjx-sml/src/worksheet/mod.rs`, which states the same split in its own words.
+    const MODULE_FILE: &str = include_str!("mod.rs");
+
+    /// How `CT_Worksheet`'s slots divide, **derived from the read path** rather than written down.
+    struct Split {
+        /// The local name of every slot [`read_slot`] gives a typed [`WorksheetContent`] variant.
+        modelled: Vec<&'static str>,
+        /// The local name of every slot it leaves as a [`WorksheetContent::Raw`], in rank order.
+        held: Vec<&'static str>,
+    }
+
+    /// Reads a worksheet holding **every** slot the generated table names, and reports how the
+    /// frame classified each one.
+    ///
+    /// This is the derivation MJXOFF-88 §9 B2 asked for, and it is deliberately stronger than a list
+    /// compared against a length. The classification comes from [`read_slot`] itself — the same
+    /// function a real part goes through — so modelling a held slot flips a row here on the next
+    /// build, and adding a slot to `sml.xsd` and regenerating puts it in `held` rather than
+    /// anywhere silent.
+    fn split_derived_from_the_read_path() -> Split {
+        let mut markup = String::from(
+            r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
+        );
+        for slot in WORKSHEET.slots {
+            markup.push('<');
+            markup.push_str(slot.local);
+            markup.push_str("/>");
+        }
+        markup.push_str("</worksheet>");
+
+        let part = WorksheetPart::read_part(markup.as_bytes())
+            .expect("a worksheet holding one of every slot parses")
+            .expect("the root is an x:worksheet");
+        assert_eq!(
+            part.content.len(),
+            WORKSHEET.slots.len(),
+            "the frame read back a different number of children than the markup held — a slot was \
+             merged, dropped or split"
+        );
+
+        let mut split = Split {
+            modelled: Vec::new(),
+            held: Vec::new(),
+        };
+        for (slot, declared) in part.content.iter().zip(WORKSHEET.slots) {
+            let rank = slot
+                .rank(&part.interner)
+                .expect("every child of this markup is a ranked slot, modelled or not");
+            assert_eq!(
+                rank, declared.rank,
+                "the children came back in a different order than the file wrote them"
+            );
+            match slot.value.local() {
+                Some(local) => {
+                    assert_eq!(
+                        local, declared.local,
+                        "rank {rank} is `{}` in the generated table and `{local}` here",
+                        declared.local
+                    );
+                    split.modelled.push(declared.local);
+                }
+                None => split.held.push(declared.local),
+            }
+        }
+        split
+    }
+
+    /// **Every slot of `CT_Worksheet` is either modelled or named as held, and the two add up.**
+    ///
+    /// `crates/mjx-sml/src/styles/stylesheet.rs` has asserted this for `CT_Stylesheet`'s eleven
+    /// slots since MJXOFF-125, and its count has not drifted since. This type — the widest content
+    /// model in the schema — asserted nothing of the kind, and its figure was written down as
+    /// 25/14, then 31/8, then 34/5, then 35/4 across four children, three of which were wrong at the
+    /// time they were written. That is MJXOFF-88 §9 B2, and this is where it closes.
+    #[test]
+    fn every_slot_of_the_generated_sequence_is_accounted_for() {
+        assert_eq!(WORKSHEET.symbol, "CT_Worksheet");
+        let split = split_derived_from_the_read_path();
+
+        assert_eq!(
+            split.modelled.len() + split.held.len(),
+            WORKSHEET.slots.len(),
+            "a slot was classified as neither"
+        );
+        assert_eq!(
+            split.held,
+            vec!["phoneticPr", "legacyDrawingHF", "drawingHF", "extLst"],
+            "the slots this frame holds raw have changed — every artefact that states the split has \
+             to change with them, starting with this file's own module documentation"
+        );
+        println!(
+            "CT_Worksheet: {} slots, {} modelled, {} held",
+            WORKSHEET.slots.len(),
+            split.modelled.len(),
+            split.held.len()
+        );
+    }
+
+    /// The module documentation's rank table **is** the generated sequence, row for row, and marks
+    /// [`WorksheetContent::Raw`] on exactly the slots the read path holds raw.
+    ///
+    /// A table is the one part of prose that can be compared mechanically, and it is where the
+    /// per-slot claim lives. A row that names the wrong element, a row in the wrong place, a missing
+    /// row and a row that says `Raw` about a slot which is now modelled all fail here.
+    #[test]
+    fn the_rank_table_in_this_file_is_the_generated_sequence() {
+        let split = split_derived_from_the_read_path();
+        let held: BTreeSet<&str> = split.held.iter().copied().collect();
+
+        let mut rows = Vec::new();
+        for line in documented_source().lines() {
+            let Some(row) = line.trim().strip_prefix("//! |") else {
+                continue;
+            };
+            let cells: Vec<&str> = row.split('|').map(str::trim).collect();
+            // `| rank | element | held as |` splits into four cells, the last one empty.
+            if cells.len() != 4 {
+                continue;
+            }
+            let Ok(rank) = cells[0].parse::<u16>() else {
+                continue;
+            };
+            rows.push((
+                rank,
+                cells[1].trim_matches('`').to_owned(),
+                cells[2].to_owned(),
+            ));
+        }
+
+        assert_eq!(
+            rows.len(),
+            WORKSHEET.slots.len(),
+            "the rank table has {} rows for {} slots — a slot with no row is a slot nobody has to \
+             think about",
+            rows.len(),
+            WORKSHEET.slots.len()
+        );
+        for (row, slot) in rows.iter().zip(WORKSHEET.slots) {
+            assert_eq!(
+                (row.0, row.1.as_str()),
+                (slot.rank, slot.local),
+                "the rank table and the generated sequence disagree at rank {}",
+                slot.rank
+            );
+            let says_raw = row.2.contains("WorksheetContent::Raw");
+            assert_eq!(
+                says_raw,
+                held.contains(slot.local),
+                "rank {} (`{}`): the table says {} and the read path says {}",
+                slot.rank,
+                slot.local,
+                if says_raw { "held" } else { "modelled" },
+                if held.contains(slot.local) {
+                    "held"
+                } else {
+                    "modelled"
+                }
+            );
+        }
+    }
+
+    /// **Every count these two files spell out is the count the read path produces.**
+    ///
+    /// The table above is checkable because it is a table. The sentences around it are where the
+    /// figure actually rotted: at 0.0.138 this file's own heading said *thirty-four modelled, five
+    /// held* over a table listing thirty-five and four, and `mod.rs` said *eighteen* modelled and
+    /// *twenty-one* held — a figure three children out of date. Neither is a phrasing anyone would
+    /// notice while editing a slot.
+    ///
+    /// So each phrase form a count can appear in is checked against the derivation. A number word in
+    /// front of `modelled`, `held`, `slots` or `local names`, or behind `the other`, is a claim, and
+    /// this is what makes it fail.
+    #[test]
+    fn every_count_this_module_spells_out_is_the_derived_one() {
+        let split = split_derived_from_the_read_path();
+        let expected = [
+            ("modelled", split.modelled.len()),
+            ("local names", split.modelled.len()),
+            ("held", split.held.len()),
+        ];
+
+        // The heading states all three at once, so it is checked as one sentence rather than as
+        // three phrases. Capitalised, because it is a heading.
+        let mut heading = format!(
+            "# {} slots, {} modelled, {} held",
+            NUMBER_WORDS[WORKSHEET.slots.len()],
+            NUMBER_WORDS[split.modelled.len()],
+            NUMBER_WORDS[split.held.len()],
+        );
+        heading.replace_range(2..3, &heading[2..3].to_uppercase());
+        assert!(
+            documented_source().contains(&heading),
+            "this file's heading is not `{heading}`, which is what the read path says"
+        );
+
+        let mut checked = 1usize;
+        for (file, text) in [("frame.rs", documented_source()), ("mod.rs", MODULE_FILE)] {
+            checked += check_counts(file, text, &expected);
+            // `the other four`, the one phrase that names a count with no noun after it.
+            let prose = normalised_prose(text);
+            for (value, word) in NUMBER_WORDS.iter().enumerate() {
+                let phrase = format!("the other {word}");
+                if !contains_phrase(&prose, &phrase) {
+                    continue;
+                }
+                checked += 1;
+                assert_eq!(
+                    value,
+                    split.held.len(),
+                    "{file} says \"{phrase}\" of the slots it does not model, and the read path \
+                     holds {} raw",
+                    split.held.len()
+                );
+            }
+        }
+        assert!(
+            checked >= 6,
+            "only {checked} spelled-out counts were found across both files — the phrase scanner \
+             has stopped matching, and a scanner that matches nothing passes forever"
+        );
+        println!("worksheet module prose: {checked} spelled-out counts checked");
+    }
 }
