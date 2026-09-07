@@ -342,12 +342,12 @@ impl FromXml for Inline {
 
 impl ToXml for Inline {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        RawElement::rebuilt(
-            self.name,
-            self.attributes.clone(),
-            self.children.clone(),
-            false,
-        )
+        let children = self.children.clone();
+        // Preserve the self-closing flag, but never contradict "self-closing ⇒ no children" — the
+        // same formula `crate::build::fidelity_element_impls` uses. Hardcoding `false` here re-emitted
+        // a `<wp:inline/>` as `<wp:inline></wp:inline>` (MJXOFF-217).
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 
@@ -1010,12 +1010,10 @@ impl FromXml for Anchor {
 
 impl ToXml for Anchor {
     fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        RawElement::rebuilt(
-            self.name,
-            self.attributes.clone(),
-            self.children.clone(),
-            false,
-        )
+        let children = self.children.clone();
+        // See `Inline::to_xml` — the same self-closing invariant, for the same reason.
+        let empty = self.empty && children.is_empty();
+        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
     }
 }
 

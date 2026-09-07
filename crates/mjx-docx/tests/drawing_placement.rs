@@ -201,7 +201,7 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
             );
             let picture = inline
                 .graphic(interner)
-                .and_then(|graphic| graphic.data().picture().cloned())
+                .and_then(|graphic| graphic.data().and_then(|data| data.picture().cloned()))
                 .expect("the inline drawing wraps a pic:pic");
             assert_eq!(picture.image_rel_id(interner).as_deref(), Some("rId2"));
         })
@@ -238,7 +238,7 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
             assert_eq!(
                 anchor
                     .graphic(interner)
-                    .and_then(|graphic| graphic.data().picture().cloned())
+                    .and_then(|graphic| graphic.data().and_then(|data| data.picture().cloned()))
                     .and_then(|picture| picture.image_rel_id(interner)),
                 Some("rId3".to_owned())
             );
@@ -260,8 +260,9 @@ fn each_drawing_kind_reads_through_its_own_typed_model() {
             // picture-only reader that assumes `a:graphic` always holds `pic:pic` would misread
             // this drawing entirely.
             let graphic = anchor.graphic(interner).expect("a:graphic");
-            assert_eq!(graphic.data().uri(interner).as_deref(), Some(WP_NS));
-            assert!(graphic.data().picture().is_none());
+            let data = graphic.data().expect("a:graphicData");
+            assert_eq!(data.uri(interner).as_deref(), Some(WP_NS));
+            assert!(data.picture().is_none());
         })
         .expect("paragraph 2");
 

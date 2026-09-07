@@ -21,11 +21,9 @@
 //! `GraphicDataContent::Other`'s raw payload into its own `WordprocessingShape` on demand. See that
 //! crate's own module doc for the full argument.
 
-use mjx_ooxml_core::{
-    FromXml, FromXmlError, Interner, RawAttribute, RawElement, RawName, RawNode, Text, ToXml,
-};
+use mjx_ooxml_core::{Interner, RawAttribute, RawElement, RawName, RawNode, Text};
 
-use crate::build::{dml_child, dml_name};
+use crate::build::dml_name;
 use crate::picture::Picture;
 
 /// The `a:graphicData@uri` a picture's graphic frame declares (`http://schemas.openxmlformats.org/
@@ -59,24 +57,35 @@ fn namespace_declaration(interner: &mut Interner, prefix: &str, uri: &str) -> Ra
     }
 }
 
-/// One `a:graphicData` payload.
+/// One ordered child of a [`GraphicData`]: the one payload kind this crate types, or an opaque
+/// node kept exactly where it stood.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GraphicDataContent {
     /// `pic:pic` — a picture. The only payload kind this crate fully types; see this module's own
     /// doc comment for why every other kind (including the two other Word shape kinds this child
-    /// models the *placement* of) is [`GraphicDataContent::Other`] instead.
-    Picture(Box<Picture>),
-    /// Any other payload — a chart, a diagram, a table, an OLE object, a Word shape/group/canvas/
-    /// graphic frame — preserved verbatim as its own raw children.
-    Other(Vec<RawNode>),
+    /// models the *placement* of) stays [`Raw`](GraphicDataContent::Raw).
+    Picture(Picture),
+    /// Any other payload node — a chart's `c:chart`, a diagram's `dgm:relIds`, a table's `a:tbl`, an
+    /// OLE object, a Word shape/group/canvas/graphic frame, a comment, whitespace — preserved
+    /// verbatim.
+    Raw(RawNode),
 }
 
 /// `a:graphicData` (`CT_GraphicalObjectData`) — one required `@uri` naming the payload's schema, plus
 /// the payload itself.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// A `pic:pic` payload is typed; every other child keeps its position and its bytes. Since
+/// **MJXOFF-217** the element's own name and prefix and its self-closing flag are kept too: the
+/// hand-written [`ToXml`](mjx_ooxml_core::ToXml) this replaced synthesised an `a:graphicData` name,
+/// so a producer that bound DrawingML-main to any other prefix had it silently rewritten.
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
+#[xml(namespace = DML_PICTURE)]
 pub struct GraphicData {
+    name: RawName,
     attributes: Vec<RawAttribute>,
-    content: GraphicDataContent,
+    empty: bool,
+    #[xml(children, child(local = "pic", variant = Picture, ty = Picture))]
+    children: Vec<GraphicDataContent>,
 }
 
 impl GraphicData {
@@ -88,8 +97,10 @@ impl GraphicData {
         };
         attributes.set_uri(interner, PICTURE_GRAPHIC_URI);
         Self {
+            name: dml_name(interner, "graphicData"),
             attributes: attributes.attributes,
-            content: GraphicDataContent::Picture(Box::new(picture)),
+            empty: false,
+            children: vec![GraphicDataContent::Picture(picture)],
         }
     }
 
@@ -148,8 +159,10 @@ impl GraphicData {
         };
         attributes.set_uri(interner, CHART_GRAPHIC_URI);
         Self {
+            name: dml_name(interner, "graphicData"),
             attributes: attributes.attributes,
-            content: GraphicDataContent::Other(vec![RawNode::Element(chart)]),
+            empty: false,
+            children: vec![GraphicDataContent::Raw(RawNode::Element(chart))],
         }
     }
 
@@ -174,11 +187,8 @@ impl GraphicData {
         if self.uri(interner).as_deref() != Some(CHART_GRAPHIC_URI) {
             return None;
         }
-        let GraphicDataContent::Other(nodes) = &self.content else {
-            return None;
-        };
-        nodes.iter().find_map(|node| {
-            let RawNode::Element(element) = node else {
+        self.children.iter().find_map(|child| {
+            let GraphicDataContent::Raw(RawNode::Element(element)) = child else {
                 return None;
             };
             if interner.resolve(element.name.local) != "chart" {
@@ -204,19 +214,20 @@ impl GraphicData {
         .map(std::borrow::Cow::into_owned)
     }
 
-    /// The typed payload, when this graphic data is a picture.
+    /// The typed payload, when this graphic data holds a `pic:pic`.
     #[must_use]
     pub fn picture(&self) -> Option<&Picture> {
-        match &self.content {
+        self.children.iter().find_map(|child| match child {
             GraphicDataContent::Picture(picture) => Some(picture),
-            GraphicDataContent::Other(_) => None,
-        }
+            GraphicDataContent::Raw(_) => None,
+        })
     }
 
-    /// The payload's own content, typed or opaque.
+    /// The payload's own content, in document order — the typed `pic:pic` and every opaque node
+    /// beside it.
     #[must_use]
-    pub fn content(&self) -> &GraphicDataContent {
-        &self.content
+    pub fn content(&self) -> &[GraphicDataContent] {
+        &self.children
     }
 
     /// The raw, unparsed children of this graphic data — always available, even for a
@@ -225,12 +236,15 @@ impl GraphicData {
     /// re-derive them from a typed value.
     #[must_use]
     pub fn raw_content(&self, interner: &mut Interner) -> Vec<RawNode> {
-        match &self.content {
-            GraphicDataContent::Picture(picture) => {
-                vec![RawNode::Element(picture.to_xml(interner))]
-            }
-            GraphicDataContent::Other(nodes) => nodes.clone(),
-        }
+        self.children
+            .iter()
+            .map(|child| match child {
+                GraphicDataContent::Picture(picture) => {
+                    RawNode::Element(mjx_ooxml_core::ToXml::to_xml(picture, interner))
+                }
+                GraphicDataContent::Raw(node) => node.clone(),
+            })
+            .collect()
     }
 }
 
@@ -240,58 +254,30 @@ struct GraphicDataAttributes<A> {
     attributes: A,
 }
 
-impl FromXml for GraphicData {
-    fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let attributes = GraphicDataAttributes {
-            attributes: &element.attributes,
-        };
-        let uri = attributes.uri(interner)?.into_owned();
-        // `pic:pic` is declared inside `dml-picture.xsd` itself, so it is `pic:`-namespaced, not
-        // `a:` (DML-main) — matched by local name alone here, the same way `graphic_child` finds
-        // `a:graphic` regardless of namespace, since the `uri` check just above already establishes
-        // which schema this payload is.
-        let content = if uri == PICTURE_GRAPHIC_URI {
-            element
-                .children
-                .iter()
-                .find_map(|node| match node {
-                    RawNode::Element(child) if interner.resolve(child.name.local) == "pic" => {
-                        Some(child)
-                    }
-                    _ => None,
-                })
-                .and_then(|pic_element| Picture::from_xml(pic_element, interner).ok())
-                .map(Box::new)
-                .map(GraphicDataContent::Picture)
-        } else {
-            None
-        }
-        .unwrap_or_else(|| GraphicDataContent::Other(element.children.clone()));
-        Ok(Self {
-            attributes: element.attributes.clone(),
-            content,
-        })
-    }
-}
-
-impl ToXml for GraphicData {
-    fn to_xml(&self, interner: &mut Interner) -> RawElement {
-        let children = self.raw_content(interner);
-        RawElement::rebuilt(
-            dml_name(interner, "graphicData"),
-            self.attributes.clone(),
-            children,
-            false,
-        )
-    }
+/// One ordered child of a [`Graphic`]: the one payload envelope `CT_GraphicalObject` declares, or an
+/// opaque node kept exactly where it stood.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GraphicContent {
+    /// `a:graphicData` — the payload envelope.
+    Data(GraphicData),
+    /// Any other child — a comment, whitespace, or a foreign element — preserved verbatim.
+    Raw(RawNode),
 }
 
 /// `a:graphic` (`CT_GraphicalObject`) — one required `a:graphicData`.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// The one declared child is typed; anything else keeps its position and its bytes. Since
+/// **MJXOFF-217** the self-closing flag is kept too, and a child beside the `a:graphicData` is no
+/// longer discarded: the hand-written pair this replaced rebuilt the child list as exactly one
+/// element.
+#[derive(Debug, Clone, PartialEq, Eq, mjx_derive::FromXml, mjx_derive::ToXml)]
+#[xml(namespace = DML_MAIN)]
 pub struct Graphic {
     name: RawName,
     attributes: Vec<RawAttribute>,
-    data: GraphicData,
+    empty: bool,
+    #[xml(children, child(local = "graphicData", variant = Data, ty = GraphicData))]
+    children: Vec<GraphicContent>,
 }
 
 impl Graphic {
@@ -301,40 +287,26 @@ impl Graphic {
         Self {
             name: dml_name(interner, "graphic"),
             attributes: Vec::new(),
-            data,
+            empty: false,
+            children: vec![GraphicContent::Data(data)],
         }
     }
 
-    /// The graphic's one payload envelope (`a:graphicData`).
+    /// The graphic's one payload envelope (`a:graphicData`), or `None` when the element is malformed
+    /// (the schema requires exactly one).
     #[must_use]
-    pub fn data(&self) -> &GraphicData {
-        &self.data
+    pub fn data(&self) -> Option<&GraphicData> {
+        self.children.iter().find_map(|child| match child {
+            GraphicContent::Data(data) => Some(data),
+            GraphicContent::Raw(_) => None,
+        })
     }
 
     /// The graphic's one payload envelope (`a:graphicData`), mutably.
-    pub fn data_mut(&mut self) -> &mut GraphicData {
-        &mut self.data
-    }
-}
-
-impl FromXml for Graphic {
-    fn from_xml(element: &RawElement, interner: &Interner) -> Result<Self, FromXmlError> {
-        let data_element = dml_child(&element.children, interner, "graphicData").ok_or(
-            mjx_ooxml_core::AttributeError::Missing {
-                attribute: "a:graphicData",
-            },
-        )?;
-        Ok(Self {
-            name: element.name,
-            attributes: element.attributes.clone(),
-            data: GraphicData::from_xml(data_element, interner)?,
+    pub fn data_mut(&mut self) -> Option<&mut GraphicData> {
+        self.children.iter_mut().find_map(|child| match child {
+            GraphicContent::Data(data) => Some(data),
+            GraphicContent::Raw(_) => None,
         })
-    }
-}
-
-impl ToXml for Graphic {
-    fn to_xml(&self, interner: &mut Interner) -> RawElement {
-        let data_node = RawNode::Element(self.data.to_xml(interner));
-        RawElement::rebuilt(self.name, self.attributes.clone(), vec![data_node], false)
     }
 }
