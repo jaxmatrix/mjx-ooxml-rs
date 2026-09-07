@@ -17,7 +17,7 @@ count, not the element count, decides whether the library is usable.
 
 From `docs/BENCHMARKS.md` (MJXOFF-147), measured on:
 
-```
+```text
 CPU     Intel(R) Core(TM) i7-9750H CPU @ 2.60GHz, 12 logical cores (6 cores, 2 threads/core)
 RAM     32704624 kB (32 GiB)
 OS      Manjaro Linux, kernel 7.1.9-1-MANJARO
@@ -41,7 +41,7 @@ costs to *hold* rather than into per-cell edit latency.
 
 Three flat arrays and one byte arena.
 
-```
+```text
 rows:        Vec<PackedRow>     48 B each, at most 1,048,576 of them
 cells:       Vec<PackedCell>    36 B each, up to a million times more
 cell_extras: Vec<CellExtras>    40 B each, allocated only for a cell that carries something unusual
@@ -88,7 +88,7 @@ The same store read from the **real corpus file**, through MJXOFF-147's own harn
 parallel one — `cargo run --release -p xtask -- corpus --mem xlsx`, which gained a fifth checkpoint
 next to the four it already had:
 
-```
+```text
 open                                  14088 KiB peak RSS so far
 first-mutation materialisation       288196 KiB peak RSS so far
 cell store (tree still alive)        299760 KiB peak RSS so far

@@ -5,7 +5,7 @@ are, what was measured, which alternatives lost, and the two policies this child
 *decide* rather than to implement. The module documentation carries the same reasoning next to the
 code; this page is the record with the numbers and the machine attached.
 
-Its companion is `docs/CELL_STORE.md` (MJXOFF-95). The two halves fit together in one sentence: **the
+Its companion is [The cell store](the_cell_store) (MJXOFF-95). The two halves fit together in one sentence: **the
 cell store holds a shared-string cell as a `u32` index and no text at all, and this table is what
 that index means.**
 
@@ -25,7 +25,7 @@ says what that is.
 
 Two calls, one on each side of the index, and neither crate holds the other's data:
 
-```rust
+```rust,ignore
 let index = cell.shared_string_index()?;   // mjx_sml::Cell — MJXOFF-95
 let value = table.item(index)?;            // mjx_sml::SharedStringTable — this child
 let text  = value.text()?;                 // Cow<str>, borrowed from the part's own bytes
@@ -41,7 +41,7 @@ let text  = value.text()?;                 // Cow<str>, borrowed from the part's
 
 The **inline-string** path produces the same type from the same reader:
 
-```rust
+```rust,ignore
 let inline = InlineString::parse(cell.inline_string_markup()?)?;
 let text   = inline.item().text()?;        // the same StringItem, the same accessors
 ```
@@ -55,7 +55,7 @@ the way past.
 
 Four flat arrays over the same byte arena the cell store uses (`crates/mjx-sml/src/arena/`).
 
-```
+```text
 items:     Vec<PackedStringItem>    48 B each, one per <si>
 runs:      Vec<PackedRun>           36 B each, one per <r>
 phonetics: Vec<PackedPhoneticRun>   24 B each, one per <rPh>

@@ -121,13 +121,28 @@ written for a caller who has a shape rather than for a reader touring a thousand
 | [The theme](../../crates/mjx-dml/docs/guide/the_theme.md) | `mjx-dml` | Reading a theme, resolving a name into a colour, and the one rule for authoring one |
 | [Fidelity and the known gaps](../../crates/mjx-dml/docs/guide/fidelity_and_gaps.md) | `mjx-dml` | The four serialization mechanisms, what backs each, and every gap still open |
 
+## SpreadsheetML — `mjx-sml`
+
+The largest crate in the workspace, and **shared markup rather than Excel's**: an embedded workbook
+is SpreadsheetML inside a `.pptx` or a `.docx`, which is why the markup sits at rank 2.1 and the
+`Workbook` surface at 3.0. MJXOFF-95's and MJXOFF-97's design notes are two of the six pages rather
+than orphans beside them.
+
+| Page | Crate | What it covers |
+|---|---|---|
+| [Guide index](../../crates/mjx-sml/docs/guide/README.md) | `mjx-sml` | Why this is shared markup, where the crate sits, and the shape of the API in one page |
+| [Reaching SpreadsheetML](../../crates/mjx-sml/docs/guide/reaching_spreadsheetml.md) | `mjx-sml` | Who reaches in and for what, the line with `mjx-xlsx`, and writing a package from nothing |
+| [The slot frame](../../crates/mjx-sml/docs/guide/the_slot_frame.md) | `mjx-sml` | What *held* means, the derived modelled/held split of every part, and generated placement |
+| [The cell store](../../crates/mjx-sml/docs/guide/the_cell_store.md) | `mjx-sml` | The packed representation a worksheet's cells are held in, and its budget |
+| [Shared strings](../../crates/mjx-sml/docs/guide/shared_strings.md) | `mjx-sml` | The shared string table, its interner, and the fidelity rules on it |
+| [The stylesheet](../../crates/mjx-sml/docs/guide/the_stylesheet.md) | `mjx-sml` | The `xf` indirection, indices as identity, and the four spellings of a colour |
+| [Fidelity and the known gaps](../../crates/mjx-sml/docs/guide/fidelity_and_gaps.md) | `mjx-sml` | The four mechanisms, half a schema preserved, and what no gate here can see |
+
 ## Shared markup
 
 | Page | Crate | What it covers |
 |---|---|---|
 | [Shared markup reachability](../../crates/mjx-ooxml/docs/shared_markup_reachability.md) | `mjx-ooxml` | Which shared-markup types a facade caller can reach, and by which method |
-| [The cell store](../../crates/mjx-sml/docs/CELL_STORE.md) | `mjx-sml` | The packed representation a worksheet's cells are held in, and its budget |
-| [Shared strings](../../crates/mjx-sml/docs/SHARED_STRINGS.md) | `mjx-sml` | The shared string table, its interner, and the fidelity rules on it |
 | [Schema coverage](../../crates/mjx-ooxml-types/COVERAGE.md) | `mjx-ooxml-types` | Which ECMA-376 schemas the generator covers and which it does not |
 
 ## The bindings

@@ -602,41 +602,55 @@ mod tests {
 
     const SML_NS: &str = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
 
-    /// Every slot the generated table names is one this type models — or `extLst`, which is
-    /// deliberately raw. A slot added to `sml.xsd` and regenerated would fail here rather than be
-    /// silently dropped into the unknown bucket.
+    /// **Every slot of `CT_Workbook` is either modelled or held, and the two add up** — derived from
+    /// the read path rather than assumed.
+    ///
+    /// Until MJXOFF-220 this test walked ranks 0..18 and asserted each was *rankable*, which is a
+    /// property of the generated table rather than of this type: it would have passed unchanged if
+    /// the reader had stopped modelling one of them. Now it reads a part holding one of every slot
+    /// and asks the reader which it typed, which is the form
+    /// `crates/mjx-sml/src/worksheet/frame.rs` uses to close MJXOFF-88 §9 B2.
     #[test]
     fn every_slot_of_the_generated_sequence_is_accounted_for() {
         assert_eq!(WORKBOOK.symbol, "CT_Workbook");
-        assert_eq!(
-            WORKBOOK.slots.len(),
-            19,
-            "CT_Workbook is a nineteen-slot sequence"
-        );
-        let modelled: Vec<&'static str> = (0..18)
-            .map(|rank| {
-                WORKBOOK
-                    .slots
-                    .iter()
-                    .find(|slot| slot.rank == rank)
-                    .expect("every rank is occupied")
-                    .local
-            })
-            .collect();
-        for local in &modelled {
-            assert!(
-                WORKBOOK.rank_of(None, local).is_some(),
-                "{local} must be rankable"
-            );
+
+        let mut markup = format!(r#"<workbook xmlns="{SML_NS}">"#);
+        for slot in WORKBOOK.slots {
+            markup.push('<');
+            markup.push_str(slot.local);
+            markup.push_str("/>");
         }
-        let last = WORKBOOK
-            .slots
-            .iter()
-            .find(|slot| slot.rank == 18)
-            .expect("rank 18 is occupied");
+        markup.push_str("</workbook>");
+        let (_document, part) = read(&markup);
         assert_eq!(
-            last.local, "extLst",
-            "the one unmodelled slot must be the extension list"
+            part.content.len(),
+            WORKBOOK.slots.len(),
+            "the frame read back a different number of children than the markup held"
+        );
+
+        let mut modelled = Vec::new();
+        let mut held = Vec::new();
+        for (item, declared) in part.content.iter().zip(WORKBOOK.slots) {
+            match item.local() {
+                Some(local) => {
+                    assert_eq!(local, declared.local, "rank {} is misnamed", declared.rank);
+                    modelled.push(declared.local);
+                }
+                None => held.push(declared.local),
+            }
+        }
+        assert_eq!(modelled.len() + held.len(), WORKBOOK.slots.len());
+        assert_eq!(
+            held,
+            vec!["extLst"],
+            "the slots this frame holds raw have changed — every artefact that states the split has \
+             to change with them, starting with this file's own module documentation"
+        );
+        println!(
+            "CT_Workbook: {} slots, {} modelled, {} held",
+            WORKBOOK.slots.len(),
+            modelled.len(),
+            held.len()
         );
     }
 

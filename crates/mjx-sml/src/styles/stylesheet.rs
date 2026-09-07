@@ -141,14 +141,15 @@ impl StylesheetContent {
     /// This child's rank in `CT_Stylesheet`'s `xsd:sequence`, from the generated table — **for an
     /// unmodelled element too**.
     ///
-    /// This is the one place the styles frame cannot copy [`WorkbookPart`](crate::WorkbookPart) or
-    /// [`WorksheetPart`](crate::WorksheetPart), and the reason is arithmetic rather than taste.
-    /// Those two model a *prefix* of their sequence — ranks 0–17 of nineteen, and 0–6 of thirty-nine
-    /// — so every slot they model ranks below every slot they hold raw, and a new child always
-    /// belongs before all of them. This frame models ranks **0–9** and holds **10** raw: the two
-    /// sets interleave, so a `colors` (rank 9) inserted into a part that already writes an `extLst`
-    /// (rank 10) has to land *before* it. Treating an unmodelled element as unranked would put it
-    /// first, and `colors` would come out ahead of `numFmts`.
+    /// This frame models ranks **0–9** and holds rank **10** (`extLst`) raw, so a `colors` (rank 9)
+    /// inserted into a part that already writes an `extLst` has to land *before* it. Treating an
+    /// unmodelled element as unranked would put it first, and `colors` would come out ahead of
+    /// `numFmts`.
+    ///
+    /// [`WorksheetPart`](crate::WorksheetPart) once avoided the question by modelling a *prefix* of
+    /// its sequence, and no longer does: its held slots are ranks 15, 31, 32 and 38, interleaved
+    /// with thirty-five modelled ones. Its `Slot::rank` states the same rule this method states, and
+    /// `crates/mjx-sml/tests/sheet_grid.rs` pins the interleaved case there.
     ///
     /// MJXOFF-105 modelled 1, 2, 3, 7 and 9 and held 0, 4, 5, 6, 8 and 10; MJXOFF-108 took four of
     /// those six, and MJXOFF-125 took rank 8. **The interleaving survives even now that only
@@ -172,8 +173,8 @@ impl StylesheetContent {
 /// Declares one singleton slot: a borrowing getter, a mutable getter, and a setter that replaces the
 /// existing child in place or inserts a new one at its rank in `CT_Stylesheet`'s sequence.
 ///
-/// All nine slots share these three bodies, and writing them out nine times would be nine chances to
-/// reach for the wrong variant.
+/// All ten modelled slots share these three bodies, and writing them out ten times would be ten
+/// chances to reach for the wrong variant.
 macro_rules! singleton_slot {
     ($getter:ident, $getter_mut:ident, $setter:ident, $variant:ident, $ty:ty, $local:literal, $doc:literal) => {
         #[doc = $doc]
@@ -197,11 +198,9 @@ macro_rules! singleton_slot {
         #[doc = concat!("Sets `x:", $local, "`: `None` removes it; `Some(value)` replaces the \
             existing element **where it is**, or inserts a new one at its rank in \
             `CT_Stylesheet`'s `xsd:sequence`.\n\n\
-            Takes the interner because placement has to rank the part's **unmodelled** slots too — \
-            six of the eleven are held raw here, and they interleave with the five that are \
-            modelled, so a raw element is ranked through the generated table by its own name. \
-            Neither `WorkbookPart` nor `WorksheetPart` needs that: both model a prefix of their \
-            sequence.")]
+            Takes the interner because placement has to rank the part's **unmodelled** slots too: \
+            a raw element is ranked through the generated table by its own name, so a modelled \
+            child can never be placed on the wrong side of a held one.")]
         pub fn $setter(&mut self, interner: &Interner, value: Option<$ty>) {
             let is_target =
                 |item: &StylesheetContent| matches!(item, StylesheetContent::$variant(_));
@@ -428,38 +427,62 @@ impl StylesheetPart {
 mod tests {
     use super::*;
 
-    /// Every slot the generated table names is either modelled here or one of the six a later child
-    /// owns — and the six are named, so a slot added to `sml.xsd` and regenerated fails here rather
-    /// than being silently dropped into the unknown bucket.
+    /// **Every slot of `CT_Stylesheet` is either modelled or held, and the two add up** — derived
+    /// from the read path rather than from a list.
+    ///
+    /// This assertion is the one MJXOFF-88 §9 B2 held up as the thing `crates/mjx-sml/src/worksheet/frame.rs`
+    /// lacked, and MJXOFF-220 gave the worksheet the stronger form of it: read a part holding one of
+    /// every slot the generated table names, and ask the reader which of them it typed. That is what
+    /// this test does now too, so a slot modelled here without a note anywhere flips a row rather
+    /// than passing a length check.
     #[test]
     fn every_slot_of_the_generated_sequence_is_accounted_for() {
         assert_eq!(STYLESHEET.symbol, "CT_Stylesheet");
-        assert_eq!(
-            STYLESHEET.slots.len(),
-            11,
-            "CT_Stylesheet is an eleven-slot sequence"
+
+        let mut markup = String::from(
+            r#"<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
         );
-        let modelled = [
-            "numFmts",
-            "fonts",
-            "fills",
-            "borders",
-            "cellStyleXfs",
-            "cellXfs",
-            "cellStyles",
-            "dxfs",
-            "tableStyles",
-            "colors",
-        ];
-        let held = ["extLst"];
         for slot in STYLESHEET.slots {
-            assert!(
-                modelled.contains(&slot.local) || held.contains(&slot.local),
-                "`{}` is a child of CT_Stylesheet that this frame neither models nor names as held",
-                slot.local
-            );
+            markup.push('<');
+            markup.push_str(slot.local);
+            markup.push_str("/>");
+        }
+        markup.push_str("</styleSheet>");
+
+        let document = mjx_xml::fidelity::parse(markup.as_bytes()).expect("the part parses");
+        let part = StylesheetPart::read_part(&document)
+            .expect("the part reads")
+            .expect("the root is an x:styleSheet");
+        assert_eq!(
+            part.content.len(),
+            STYLESHEET.slots.len(),
+            "the frame read back a different number of children than the markup held"
+        );
+
+        let mut modelled = Vec::new();
+        let mut held = Vec::new();
+        for (item, declared) in part.content.iter().zip(STYLESHEET.slots) {
+            match item.local() {
+                Some(local) => {
+                    assert_eq!(local, declared.local, "rank {} is misnamed", declared.rank);
+                    modelled.push(declared.local);
+                }
+                None => held.push(declared.local),
+            }
         }
         assert_eq!(modelled.len() + held.len(), STYLESHEET.slots.len());
+        assert_eq!(
+            held,
+            vec!["extLst"],
+            "the slots this frame holds raw have changed — every artefact that states the split has \
+             to change with them, starting with this file's own module documentation"
+        );
+        println!(
+            "CT_Stylesheet: {} slots, {} modelled, {} held",
+            STYLESHEET.slots.len(),
+            modelled.len(),
+            held.len()
+        );
     }
 
     /// A new table lands at its **schema** rank, not at the end, and not where a comment happens to
