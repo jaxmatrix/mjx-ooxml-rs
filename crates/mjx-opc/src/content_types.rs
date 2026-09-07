@@ -7,6 +7,7 @@ use mjx_xml::{Event, Reader};
 
 use crate::error::OpcError;
 use crate::name::PartName;
+use crate::percent;
 
 /// The special container item that holds the content-type map. It is not itself a part.
 pub const CONTENT_TYPES_ZIP_NAME: &str = "[Content_Types].xml";
@@ -37,7 +38,9 @@ pub struct Default {
 /// An `<Override PartName=".." ContentType=".."/>` rule.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Override {
-    /// The specific part this rule applies to.
+    /// The specific part this rule applies to, percent-**decoded** — the same form every other part
+    /// name in this crate takes, so it compares equal to the name a relationship resolves to and to
+    /// the ZIP entry that carries it. The stream's own spelling is untouched.
     pub part_name: PartName,
     /// The content type applied to that part.
     pub content_type: String,
@@ -54,7 +57,8 @@ impl ContentTypes {
     /// Parses `[Content_Types].xml` from its raw bytes.
     ///
     /// # Errors
-    /// Returns [`OpcError`] on malformed XML or a rule missing a required attribute.
+    /// Returns [`OpcError`] on malformed XML, a rule missing a required attribute, or an `Override`
+    /// whose `PartName` encodes a path separator or does not validate as a part name.
     pub fn parse(xml: &[u8]) -> Result<Self, OpcError> {
         let mut reader = Reader::new(xml);
         let mut ct = ContentTypes::default();
@@ -88,8 +92,17 @@ impl ContentTypes {
                         .attr("ContentType")
                         .ok_or_else(|| OpcError::malformed("Override missing ContentType"))?
                         .to_owned();
+                    // `PartName` is a part name, so it carries the same percent-encoding a
+                    // relationship `Target` does: an `Override` for `/word/media/a b.png` is
+                    // written `/word/media/a%20b.png`. Decoding here is what makes it match the
+                    // part the rest of the package addresses.
+                    let decoded = percent::decode_part_reference(part_name).ok_or_else(|| {
+                        OpcError::malformed(format!(
+                            "Override PartName encodes a path separator: {part_name:?}"
+                        ))
+                    })?;
                     ct.overrides.push(Override {
-                        part_name: PartName::new(part_name)?,
+                        part_name: PartName::new(&decoded)?,
                         content_type,
                     });
                 }
@@ -213,6 +226,29 @@ mod tests {
         let text = std::str::from_utf8(&bytes).expect("utf-8");
         assert!(text.contains(&format!(r#"<Types xmlns="{CONTENT_TYPES_NS}">"#)));
         assert!(text.ends_with("</Types>"));
+    }
+
+    #[test]
+    fn an_override_part_name_is_decoded_like_every_other_part_name() {
+        // The `[Content_Types].xml` half of MJXOFF-209: `PartName` is a part name, so it carries the
+        // same escaping a relationship `Target` does. Read raw, the rule below would apply to a part
+        // called `/word/media/a%20b.png` that no relationship ever resolves to.
+        let xml = br#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Override PartName="/word/media/a%20b.png" ContentType="image/png"/>
+            </Types>"#;
+        let ct = ContentTypes::parse(xml).expect("parses");
+        let part = PartName::new("/word/media/a b.png").expect("valid");
+        assert_eq!(ct.overrides()[0].part_name, part);
+        assert_eq!(ct.content_type_of(&part), Some("image/png"));
+    }
+
+    #[test]
+    fn an_override_part_name_encoding_a_separator_is_refused() {
+        let xml = br#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+              <Override PartName="/word/media%2Fa.png" ContentType="image/png"/>
+            </Types>"#;
+        let err = ContentTypes::parse(xml).expect_err("an encoded separator names no part");
+        assert!(matches!(err, OpcError::Malformed(_)), "{err:?}");
     }
 
     #[test]
