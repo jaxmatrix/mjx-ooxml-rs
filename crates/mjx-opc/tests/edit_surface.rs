@@ -649,6 +649,62 @@ fn sweep_removes_a_lone_orphan_and_spares_the_live_deck() {
     Package::open(&pkg.save().expect("save")).expect("reopen");
 }
 
+/// The scoped counterpart of the sweep (MJXOFF-209): an edit cleaning up after itself must take the
+/// part *it* stranded and nothing else — least of all an orphan the producer had already left there.
+#[test]
+fn removing_an_orphan_by_name_spares_the_orphan_the_producer_left() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    let mine = part("/ppt/media/edited.png");
+    let theirs = part("/ppt/media/producer-orphan.png");
+    pkg.insert_part(&mine, "image/png", b"mine".to_vec())
+        .expect("insert mine");
+    pkg.insert_part(&theirs, "image/png", b"theirs".to_vec())
+        .expect("insert theirs");
+    relate(&mut pkg, &slide, &mine, "rId91");
+
+    // The edit: unwire the relationship it added, then clean up only what that stranded.
+    assert!(pkg
+        .remove_relationship(Some(&slide), "rId91")
+        .expect("remove"));
+    let removed = pkg
+        .remove_part_if_unreferenced(&mine)
+        .expect("scoped removal");
+
+    assert_eq!(removed, vec![mine.clone()]);
+    assert!(pkg.part_bytes(&mine).is_none());
+    assert!(
+        pkg.part_bytes(&theirs).is_some(),
+        "the package-wide sweep would have taken this one too; a scoped clean-up must not"
+    );
+}
+
+/// A part something still points at is not removed, and the call is not an error — the guard is the
+/// whole difference from [`Package::remove_part_cascading`].
+#[test]
+fn removing_a_still_referenced_part_by_name_does_nothing() {
+    let mut pkg = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    let shared = part("/ppt/media/shared.png");
+    pkg.insert_part(&shared, "image/png", b"shared".to_vec())
+        .expect("insert");
+    relate(&mut pkg, &slide, &shared, "rId92");
+
+    let removed = pkg
+        .remove_part_if_unreferenced(&shared)
+        .expect("scoped removal");
+
+    assert!(removed.is_empty(), "{removed:?}");
+    assert!(pkg.part_bytes(&shared).is_some());
+
+    // And a part that is not in the package at all is a no-op rather than `UnknownPart`.
+    let absent = part("/ppt/media/never-existed.png");
+    assert!(pkg
+        .remove_part_if_unreferenced(&absent)
+        .expect("no-op")
+        .is_empty());
+}
+
 /// An orphan that itself references a second orphan: neither is reachable from the root, so the whole
 /// chain is swept. Proves the walk is transitive-from-root, not a one-hop "is anything pointing at it".
 #[test]
