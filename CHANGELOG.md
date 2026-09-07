@@ -58,6 +58,86 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.129] - 2026-09-07
+
+### The validation checklist — every entry, all three formats, ordered by risk (MJXOFF-128, F2)
+
+**Phase F's second child. It writes every checklist entry and marks nothing.** 113 checks across
+`docs/validation/`, each a stable id, the MJXOFF id of the child that shipped the feature, an
+artefact, an object, an action, an expected result, a risk level, three call chains and a **blank**
+result line. Judging what real Office renders needs a person with Office in front of them; that pass
+is the user's, and nothing here stands in for it.
+
+### Added
+
+- **`docs/validation/02-risk-order.md`** — the order the pass is worked through, which is
+  deliberately not the order the pages are numbered in. **R1 first, and still the single
+  highest-risk item in the repository**: the 0.0.58 tier-5 change, where a non-placeholder shape
+  takes the master's `p:otherStyle` / `p:bodyStyle` per §19.3.1.35, real PowerPoint is believed to
+  match the *previous* behaviour, and the change is isolated in one revertible commit. Then R2
+  through R7 unchanged from MJXOFF-63, then Word's five risk areas (MJXOFF-74) and Excel's five
+  (MJXOFF-79). It also collects, in one table, the **six checks that are design questions rather
+  than checks** — each says *record which happens* and names the decision that follows, and none may
+  be marked `differs`, because there is nothing to differ from.
+- **`docs/validation/03-presentations.md`, `04-documents.md`, `05-workbooks.md`** — 62, 26 and 25
+  checks. Every harvested number from the Phase A children's own completion reports survives in the
+  terms its report used: 44 pt and 28 pt from `p:txStyles`, Widescreen 13.333 x 7.5 in, `accent1` =
+  `4472C4`, Calibri Light and Calibri, 41.5 / 42.5 / 43.5 rather than 19.2 / 21.4 / 16.7, **100000**
+  for a square chevron and **200000** for a 2:1 one, 45 degrees and ~3 pt out and ~4 pt blur, slice 1
+  exploded 25 % and slice 0 `2E75B6`, a polynomial trendline of order 3, a merged total row of one
+  row by two columns, and all sixteen plot types with `c:stockChart` drawing high-low-close from
+  three series.
+- **`V-PPTX-07` (`geometry`) and `V-PPTX-08` (`chart-decoration`)** — two new areas in
+  `xtask validation-artefacts`, in all three languages. They exist because writing the checks found
+  harvested expected results with no file to check them against, and MJXOFF-122's own rule is that
+  an entry may not describe an artefact nobody produces. `V-PPTX-07` is **the one artefact authored
+  at 4:3** (`9_144_000` x `6_858_000`) on a slide taken from the layout, so A3's rescaled-placeholder
+  question has a file at last; it also carries the two chevrons whose `maxAdj` guide (`*/ 100000 w
+  ss`) answers 100000 and 200000, the four arc-tangent presets `moon` / `arc` / `circularArrow` /
+  `gear9`, and a `custGeom` with all five of `a:avLst`, `a:gdLst`, `a:cxnLst`, `a:rect` and
+  `a:pathLst` whose apex is placed by the guide `apex = */ w 1 2`. `V-PPTX-08` carries the three
+  label tiers merged, the exploded and recoloured pie slices, the order-3 trendline extended two
+  categories forward with equation and R-squared, two sets of error bars on one scatter series (one
+  per axis), a `c:dPt` left dangling at index 2, a value axis bounded 0-25 and reversed — the only
+  artefact that writes a `CT_Scaling`, where `c:max` precedes `c:min` — a chart detached from its
+  embedded workbook, and the sixteen plot types four to a slide.
+- **`xtask/tests/validation_calls.rs`** — the gate that makes the two machine-checkable claims in a
+  page of prose actually checked. Every `Calls:` line is resolved against three surfaces that have
+  nothing to do with each other: every `pub fn` inside an `impl Deck` / `impl Document` /
+  `impl Workbook` in the facade, every `def` inside the three classes of the committed `.pyi`, and
+  every `#[wasm_bindgen(js_name = "…")]` in the same three `impl` blocks of the WebAssembly binding.
+  The TypeScript half is checked *against the Rust half of the same chain* — the documented
+  camelCase name must be the `js_name` the binding publishes for that exact `snake_case` method — so
+  a chain that renamed one half and not the other fails even though both names exist. And every
+  artefact a check names must be a file this repository produces: a name `validation-artefacts`
+  writes, a path under `tests/fixtures/`, or an example's source.
+
+### Fixed
+
+- **A three-language call chain named a method a default build does not publish.**
+  `Deck::vml_part_names` is `#[cfg(feature = "vml")]` in both bindings, so neither the Python stub
+  nor the WebAssembly surface has it; the entry that named it now says so and uses the modern half
+  of the same hop. Found by the new gate while it was being written, which is what it is for.
+
+### Notes
+
+- **Seven checks name no artefact and say **blocked**, each with the reason and what would unblock
+  it.** They are not padding: `ColorSpec` carries a colour's kind and value and **no transform
+  children**, so nothing can author the `comp` / `gray` / `gamma` / `invGamma` that R3 is about;
+  `CharacterPropertiesSpec` has no font setter, so nothing can author a `+mj-sym` reference;
+  `set_shape_transform` writes **only the fields its argument names** — an unset field means *leave
+  it alone*, never *clear it* — so nothing can author the rotation-only transform R7 is about; and
+  the facade has no `add_alt_chunk`. The rest wait on MJXOFF-130's Office-authored corpus.
+- **MJXOFF-108's 28-row comparison table is carried in untouched.** Its **Excel says** and
+  **Verdict** columns are still empty and unmarked. `V-XLSX-02.1` points at it and adds nothing.
+- **`MJXOFF-143` had already closed the whole-part re-flow limitation**, and PowerPoint's gaps page
+  had already moved that row to *What used to be here*. This child did not move it; it records the
+  closure in `V-PPTX-08.11` so a reviewer does not report a re-flow as a defect.
+- The Word and Excel area lists were derived from **the facade's own module structure** read against
+  each format's gaps page, not from ticket text. Excel's `features`, `names`, `preserved`, `print`
+  and `tables` modules carry readers and removers and no authoring call at all, which is why those
+  areas are recorded as deliberately uncovered.
+
 ## [0.0.128] - 2026-09-07
 
 ### The consolidated validation harness — the artefacts a human Office pass reads (MJXOFF-122, F1)
