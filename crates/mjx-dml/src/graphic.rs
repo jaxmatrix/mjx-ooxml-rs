@@ -9,7 +9,7 @@
 //! [`crate::picture::Picture`] (`pic:pic`). Everything else — a chart's `c:chart`, a diagram's
 //! `dgm:relIds`, a table's `a:tbl`, an OLE object's MCE-wrapped `p:oleObj`/`w:*`-shaped fallback, and
 //! (deliberately, see below) a Word shape/group/canvas/graphic-frame — stays
-//! [`GraphicDataContent::Other`], preserved byte-for-byte via its raw children.
+//! [`GraphicDataContent::Raw`], preserved byte-for-byte in its original position.
 //!
 //! **Why the Word shape kinds are not dispatched here even though this child models them**:
 //! `wp:wsp`'s own optional text box (`CT_TextboxInfo` → `CT_TxbxContent`) is `EG_BlockLevelElts` —
@@ -115,7 +115,7 @@ impl GraphicData {
     /// second time where the host already binds it is ordinary, valid XML — the same URI bound to
     /// the same prefix — and is what makes this one builder correct on every host.
     ///
-    /// The payload stays [`GraphicDataContent::Other`]: `c:chart` is ChartML, which this crate does
+    /// The payload stays [`GraphicDataContent::Raw`]: `c:chart` is ChartML, which this crate does
     /// not model and (being rank 2.0, beneath `mjx-chart`'s 2.2) could not reach if it wanted to.
     /// What is built here is the DrawingML *envelope*, which is this crate's own vocabulary.
     #[must_use]
