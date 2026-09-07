@@ -56,7 +56,8 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   against `mjx-ooxml-types`; every format crate dev-depends on the gate) but may still never reach a
   binding or `xtask`.
 - **Three test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema
-  and child-order gate, a `dev-dependency` of the three format crates), `mjx-fixtures` (the committed
+  and child-order gate, a `dev-dependency` of the three format crates and a dependency of `xtask`,
+  whose `validation-artefacts --ingest` *reports* the verdicts a suite asserts), `mjx-fixtures` (the committed
   corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can reach it
   without an upward edge) and `mjx-allocation-counter` (the counting global allocator, also with **no
   dependencies at all**, because its two consumers sit in different tiers — `xtask`'s fuzz campaign
@@ -173,6 +174,15 @@ cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem
 # set. MJX_REQUIRE_OFFICE_CORPUS=1 makes an empty tests/office-authored/ a failure rather than a skip.
 cargo run -p xtask -- validation-artefacts --list
 cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
+
+# The other direction (MJXOFF-130): hand it a file saved out of Office and it reports which entry the
+# file answers, whether it round-trips at the container and through the facade, whether the package
+# invariants hold, whether its child order matches ours, whether it validates, and where it would be
+# committed. It copies nothing. The corpus at tests/office-authored/ is EMPTY and no agent may fill
+# it: a file's value there is entirely its provenance. docs/validation/06-the-office-pass.md is the
+# hand-off that says how a person does.
+cargo run -p xtask -- validation-artefacts --ingest <file> --area 2
+cargo test -p xtask --test office_corpus
 
 # The ECMA-376 gate, one harness over all three formats. Skips without References/; MJX_REQUIRE_SCHEMA=1
 # turns any absence into a failure, which is what CI sets.

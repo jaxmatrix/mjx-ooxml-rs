@@ -21,8 +21,16 @@ reason.
 
 The `edited` column is checked as an **`if and only if`**: an edited artefact must exist exactly when
 `tests/office-authored/` holds an original for that area. The corpus is empty today, so every edited
-artefact is required to be *absent* and every edit variant is required to have skipped by name. When
-MJXOFF-130 fills the corpus, the same assertion starts requiring the file instead, with no edit here.
+artefact is required to be *absent* and every edit variant is required to have skipped by name. As
+files arrive the same assertion starts requiring the file instead, with no edit here.
+
+Whatever that directory holds is separately held to this library's own promise by
+`xtask/tests/office_corpus.rs` — byte identity across an edit-free save at both the container and the
+facade, every XML part through the fidelity tree, the package invariants, and the child-order audit
+against the generated `xsd:sequence` tables. It reports its file count on every run, so a green over
+an empty corpus never reads as a green over a corpus, and it proves itself able to fail by running
+the same engine over four deliberately broken packages. `docs/validation/06-the-office-pass.md` §5 is
+how a file gets in; `tests/office-authored/README.md` is the redistribution rule it has to satisfy.
 
 ## Presentations
 
@@ -81,6 +89,7 @@ chains, and an unfilled result line — on four pages beside this one:
 | `docs/validation/03-presentations.md` | `V-PPTX-01` … `V-PPTX-08` |
 | `docs/validation/04-documents.md` | `V-DOCX-01` … `V-DOCX-06` |
 | `docs/validation/05-workbooks.md` | `V-XLSX-01` … `V-XLSX-06` |
+| `docs/validation/06-the-office-pass.md` | **how to run the pass**: the order, what a failure looks like against a documented gap, what to save out of Office and where to put it, and the decisions the pass settles rather than checks (MJXOFF-130) |
 
 Two of the areas above are MJXOFF-128's own: `V-PPTX-07` and `V-PPTX-08` exist because writing the
 checks found harvested expected results — a chevron's adjustment maximum, a slice exploded 25 %, a

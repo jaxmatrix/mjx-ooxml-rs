@@ -141,7 +141,10 @@ rule is unaffected.
 
 `mjx-schema-gate` is the shared ECMA-376 schema and child-order gate; `mjx-pptx`, `mjx-docx` and
 `mjx-xlsx` reach it as a `dev-dependency`, and it exists because an integration test compiles only
-into its own crate — a harness in one crate's `tests/` is unreachable from another's.
+into its own crate — a harness in one crate's `tests/` is unreachable from another's. `xtask` reaches
+it as an ordinary dependency, because `validation-artefacts --ingest` *reports* the same verdicts a
+suite asserts and a command is not a test; `xtask` is host-only, never published and outside the
+ranked graph, so nothing shipped acquires an edge to a test-only crate.
 `mjx-fixtures` holds the committed corpus at `tests/fixtures/` and has **no dependencies at all**,
 so `mjx-opc`'s byte-identity suites — which sit below the gate — read the same corpus without any
 edge pointing upwards. Neither is published and nothing shipped depends on either.
