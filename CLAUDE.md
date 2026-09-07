@@ -90,8 +90,24 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 
 - **Part-level laziness + copy-on-write:** parts stay raw bytes until first mutation; untouched parts
   re-emit verbatim; on first edit, serialize from the model and drop raw bytes.
-- **Unknown bucket:** every modeled complex type carries `extra: Vec<RawNode>` for unknown children,
-  and preserves unknown attributes, attribute order, and namespace prefixes.
+- **Unknown bucket:** every modeled complex type keeps a `Vec<RawNode>` for the content it does not
+  model, and preserves unknown attributes, attribute order, and namespace prefixes. The field is
+  spelled three ways — `extra` (only the unmodelled children), `children` (all of them, with typed
+  accessors reading out of it), or a typed content vector with a `Raw(RawNode)` variant (so an
+  unmodelled child keeps its position) — and searching for `extra` alone finds one of the three.
+  What holds it up is `mjx-derive`'s codegen rather than a convention, so one test failure reaches
+  every type that derives it. **The exceptions are named in
+  `crates/mjx-opc/docs/guide/the_round_trip_contract.md`**, and a hand-written `FromXml`/`ToXml` pair
+  is outside the codegen's guarantee by definition.
+- **`#[xml(text)]` re-escapes minimally on write.** A text leaf that goes through the derive decodes
+  its character data on read and writes it back escaping only `<` and `&`, so an entity spelling, a
+  character reference, a CDATA section or an interleaved comment does not survive a rebuild — and a
+  text node that differs from the original denies its element, *and every ancestor of it*, the
+  verbatim source range subtree copy-on-write would otherwise give it. This is a **write-path**
+  property of the derive: `mjx-xml`'s reader never decodes text, so an untouched part round-trips
+  byte for byte regardless. Five types in `mjx-sml` decline the derive because of it and hand-write
+  the pair instead. Fixing it in the derive is a foundation change across every text leaf and **no
+  work item owns it**.
 - **MCE** (`mc:AlternateContent`/`Ignorable`/`ProcessContent`) is handled in `mjx-mce`, preserved on
   write and resolved (non-mutating) on read/render.
 - **Round-trip contract:** per-part decompressed-payload byte identity + structural container identity
