@@ -94,6 +94,8 @@
 
 pub(crate) mod arena;
 pub(crate) mod leaf;
+#[cfg(test)]
+pub(crate) mod prose;
 
 pub mod address;
 pub mod cells;
