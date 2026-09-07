@@ -124,11 +124,14 @@ const SINGULAR_AT_SOME_SIZE_AND_STOP: &[&str] = &[
 ///
 /// **Four, and four is a whole turn** — `MAXIMUM_ARC_SEGMENT_RADIANS` is a quarter turn, so this
 /// says no arc in ECMA-376's geometry file ever sweeps past 360°, at any adjustment either of its
-/// stops allows. `blockArc` and the circular arrows are the shapes that reach it, and they reach it
-/// exactly. Asserted as an equality rather than as a ceiling, because a bound nothing touches is a
-/// bound that measures nothing; and asserted at all because an arc decomposing into dozens of
-/// segments is what a swing computed in the wrong unit produces, and it is otherwise invisible —
-/// the shape still closes and still fills its box.
+/// stops allows. Asserted as an **equality** rather than as a ceiling, because a bound nothing
+/// touches is a bound that measures nothing; and asserted at all because an arc decomposing into
+/// dozens of segments is what a swing computed in the wrong unit produces, and it is otherwise
+/// invisible — the shape still closes and still fills its box.
+///
+/// [`every_resolved_command_is_a_step_the_table_asks_for`] **prints which presets reach it**
+/// rather than this comment claiming to know, because a shape named in a doc comment and a shape
+/// the data actually contains are two different things and only one of them stays true.
 const MOST_CUBICS_ONE_ARC_BECOMES: usize = 4;
 
 /// How far, in device pixels, two resolutions of one shape may disagree after the affine map
@@ -417,6 +420,7 @@ fn walk(
 fn every_resolved_command_is_a_step_the_table_asks_for() {
     let mut walked = 0usize;
     let mut widest_single_arc = 0usize;
+    let mut widest_single_arc_shapes: BTreeSet<&'static str> = BTreeSet::new();
     let mut single_arcs = 0usize;
     let mut widest_run = 0usize;
     let mut reopened: BTreeSet<&'static str> = BTreeSet::new();
@@ -449,7 +453,13 @@ fn every_resolved_command_is_a_step_the_table_asks_for() {
                     let result = walk(shape, size, &case, index, path, &contour.commands)
                         .unwrap_or_else(|why| panic!("{why}"));
                     walked += 1;
-                    widest_single_arc = widest_single_arc.max(result.widest_single_arc);
+                    if result.widest_single_arc >= widest_single_arc {
+                        if result.widest_single_arc > widest_single_arc {
+                            widest_single_arc_shapes.clear();
+                        }
+                        widest_single_arc = result.widest_single_arc;
+                        widest_single_arc_shapes.insert(shape);
+                    }
                     single_arcs += result.single_arcs;
                     widest_run = widest_run.max(result.widest_run);
                     suppressed += result.suppressed_closes;
@@ -516,7 +526,8 @@ fn every_resolved_command_is_a_step_the_table_asks_for() {
     println!(
         "{walked} (shape, size, adjustment, path) walks; every resolved command is a step the \
          table asks for. {single_arcs} arcs stood alone and the widest became \
-         {widest_single_arc} cubics; the longest run of consecutive arcs is {widest_run}. \
+         {widest_single_arc} cubics ({widest_single_arc_shapes:?}); the longest run of \
+         consecutive arcs is {widest_run}. \
          {} presets reopen a closed contour, {} are singular somewhere",
         reopened.len(),
         singular.len()
