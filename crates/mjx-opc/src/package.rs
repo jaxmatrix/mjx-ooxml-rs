@@ -1142,39 +1142,47 @@ fn make_empty_element(
 
 /// Removes any `<Override>` child of the content-types root whose `PartName` names `part`.
 ///
-/// The comparison is on the percent-**decoded** attribute, because that is the form
-/// [`ContentTypes::parse`] stored and the form `part` is in: a stream that spells the rule
-/// `/word/media/a%20b.png` must still be found when the part it names is `/word/media/a b.png`.
-/// Matching the raw bytes alone would leave the element behind while the parsed view dropped it,
-/// which is exactly the drift the tandem edit exists to prevent.
+/// A rule has to be found however it is spelled, because failing to find it leaves the element in
+/// the stream while the parsed view drops it — exactly the drift the tandem edit exists to prevent,
+/// and it would surface as a package carrying a rule for a part that is gone. So both spellings this
+/// crate can meet are prepared and [`names_part`] takes them together.
 fn remove_override_element(tree: &mut RawDocument, part: &PartName) {
-    let target = escape_attribute_bytes(part.as_str());
+    let plain = escape_attribute_bytes(part.as_str());
+    let encoded = escape_attribute_bytes(&crate::percent::encode_part_reference(part.as_str()));
     let RawDocument { interner, root, .. } = tree;
     root.children.retain(|child| {
         let RawNode::Element(el) = child else {
             return true;
         };
         let is_override = interner.resolve(el.name.local) == "Override";
-        let matches_part = el
-            .attributes
-            .iter()
-            .any(|a| interner.resolve(a.name.local) == "PartName" && names_part(&a.value, &target));
+        let matches_part = el.attributes.iter().any(|a| {
+            interner.resolve(a.name.local) == "PartName" && names_part(&a.value, &plain, &encoded)
+        });
         !(is_override && matches_part)
     });
 }
 
-/// Whether an attribute holding a part name refers to the part whose escaped name is `target`.
+/// Whether an attribute holding a part name refers to `part`, given its name in both the forms that
+/// can appear in the stream: `plain`, XML-escaped only, and `encoded`, percent-encoded first and
+/// then XML-escaped — what [`upsert_override_element`] writes.
 ///
-/// `raw` and `target` are both XML-escaped, so the two alphabets do not overlap and the escaped form
-/// can be percent-decoded directly. Non-UTF-8 attribute bytes simply do not match.
-fn names_part(raw: &[u8], target: &[u8]) -> bool {
-    if raw == target {
+/// **Two escaping systems meet in this attribute and they do not commute.** Percent-encoding runs
+/// first, so a part name holding `&` is written `%26` and the XML escaper never sees it, while the
+/// part name itself still holds a bare `&` whose XML-escaped form is `&amp;`. Percent-decoding the
+/// raw bytes therefore cannot reach `plain` for that name — hence `encoded` as a second candidate
+/// rather than a cleverer single comparison.
+///
+/// The three cases, in the order they are tried: a producer who encoded nothing (`plain`); this
+/// crate's own writer (`encoded`); and a producer who chose some other encoding of the same name,
+/// which only percent-decoding can recognise. Non-UTF-8 attribute bytes simply do not match.
+fn names_part(raw: &[u8], plain: &[u8], encoded: &[u8]) -> bool {
+    if raw == plain || raw == encoded {
         return true;
     }
     std::str::from_utf8(raw)
         .ok()
         .and_then(crate::percent::decode_part_reference)
-        .is_some_and(|decoded| decoded.as_bytes() == target)
+        .is_some_and(|decoded| decoded.as_bytes() == plain)
 }
 
 /// Inserts (replacing any existing) the `<Override>` for `part`, setting its content type.

@@ -237,6 +237,34 @@ fn removing_the_content_type_of_an_encoded_part_finds_the_rule_that_names_it() {
 }
 
 #[test]
+fn a_name_holding_an_ampersand_survives_both_escaping_systems_at_once() {
+    // Two escaping systems meet in a `PartName` attribute and they do not commute. The writer
+    // percent-encodes first, so `&` leaves as `%26` and the XML escaper never sees it — while the
+    // part name itself still holds a bare `&`, whose XML-escaped form is `&amp;`. A matcher that
+    // compared only the XML-escaped name would not find the rule it had just written, and the next
+    // upsert would leave two `Override`s for one part: the stale one first, so the content type
+    // that comes back would be the one that was replaced.
+    let mut package = Package::empty();
+    let media = part("/word/media/a&b.png");
+    package
+        .insert_part(&media, "image/png", b"bytes".to_vec())
+        .expect("the part is inserted with its first content type");
+
+    package
+        .set_content_type_override(&media, "image/jpeg")
+        .expect("and the rule is replaced");
+
+    let reopened = Package::open(&package.save_unchecked().expect("it saves")).expect("it reopens");
+    let types = content_types_text(&reopened);
+    assert_eq!(
+        types.matches("a%26b.png").count(),
+        1,
+        "one part, one rule:\n{types}"
+    );
+    assert_eq!(reopened.content_type_of(&media), Some("image/jpeg"));
+}
+
+#[test]
 fn a_part_this_library_authors_with_an_awkward_name_reads_back_as_itself() {
     // The write direction. `relative_target` and the `Override` writer encode, `resolve` and
     // `ContentTypes::parse` decode, and the pair has to be exact for a name the caller chose.
@@ -254,6 +282,7 @@ fn a_part_this_library_authors_with_an_awkward_name_reads_back_as_itself() {
         "/word/media/a picture.png",
         "/word/media/100% margin.png",
         "/word/media/caf\u{e9}.png",
+        "/word/media/a&b.png",
     ]
     .into_iter()
     .enumerate()
@@ -304,6 +333,7 @@ fn a_part_this_library_authors_with_an_awkward_name_reads_back_as_itself() {
             "/word/media/a picture.png",
             "/word/media/100% margin.png",
             "/word/media/caf\u{e9}.png",
+            "/word/media/a&b.png",
         ]
     );
     for name in &resolved {
