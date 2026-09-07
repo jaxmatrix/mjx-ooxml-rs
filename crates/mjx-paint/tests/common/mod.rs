@@ -836,7 +836,7 @@ pub fn one_unresolved_shape(width: f32, height: f32) -> DisplayList {
 /// taste: `plan.rs` increments `DrawReport::placeholders` under `Command::FillPath` **and** under
 /// `Command::StrokePath`, and those are two lines. A suite whose every stand-in is filled proves
 /// one of them. Outlined shapes are not exotic — a `straightConnector1` has no interior at all and
-/// sixty-four of the presets end a contour without an `a:close` — so the stroked stand-in is a case
+/// sixty-three of the presets end a contour without an `a:close` — so the stroked stand-in is a case
 /// a real deck reaches.
 pub fn one_unresolved_stroked_shape(width: f32, height: f32) -> DisplayList {
     let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);

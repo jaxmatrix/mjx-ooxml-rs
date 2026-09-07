@@ -226,7 +226,7 @@ fn a_stand_in_shape_is_counted_and_painted_as_a_warning() {
     // `plan.rs`, once for a fill and once for a stroke, and until that child every stand-in in this
     // workspace was filled: replacing the stroke increment with `std::process::abort()` left the
     // whole of `mjx-paint`, `mjx-scene` and `mjx-geometry` green. A shape with no interior — a
-    // connector, or any of the sixty-four presets that end a contour without an `a:close` — is
+    // connector, or any of the sixty-three presets that end a contour without an `a:close` — is
     // exactly what reaches the second line.
     let list = common::one_unresolved_shape(WIDTH as f32, HEIGHT as f32);
     let (pixels, drawn) = render(&list).expect("the page draws");

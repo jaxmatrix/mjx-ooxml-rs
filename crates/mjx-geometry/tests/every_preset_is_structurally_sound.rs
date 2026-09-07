@@ -81,6 +81,19 @@ const QUADRATICS_IN_THE_TABLE: usize = 33;
 /// disappearing fails here.
 const PATHS_THE_FILE_LEAVES_OPEN: usize = 70;
 
+/// How many **presets** have at least one such path.
+///
+/// A different quantity from [`PATHS_THE_FILE_LEAVES_OPEN`], and worth a constant of its own
+/// because it is the one a *renderer* wants: it says how many shapes a page that only ever fills
+/// would draw wrongly or not at all. A preset may hold several paths and several of them may be
+/// open, so the two numbers are not each other and neither can be derived from the other.
+///
+/// **Counted here because it was prose everywhere else, and the prose was wrong.** Comments across
+/// this crate and `mjx-paint` stated it as *"sixty-four of the presets"*, sourced from no assertion.
+/// MJXOFF-206 measured it while writing a hand-off: it is **63**. Nothing depended on the wrong
+/// number, which is exactly why it survived — an unchecked figure is not caught by being read.
+const PRESETS_WITH_AN_OPEN_PATH: usize = 63;
+
 /// The presets with a drawing step after an `a:close` and no `a:moveTo` between them.
 ///
 /// Six, all of them accent callouts, and every one is the case `emit_path`'s reopen rule exists for:
@@ -541,6 +554,7 @@ fn a_contour_the_table_closes_is_closed_and_one_it_leaves_open_is_open() {
     // paths are deliberately open — a `fill="none"` stroke — and a suite that asserted "every shape
     // closes" would have to except a third of the file.
     let mut open_paths = 0usize;
+    let mut shapes_with_an_open_path: BTreeSet<&'static str> = BTreeSet::new();
     for (size, extents, within) in sizes() {
         for definition in seeded_shapes() {
             let shape = definition.preset.to_wire();
@@ -569,6 +583,7 @@ fn a_contour_the_table_closes_is_closed_and_one_it_leaves_open_is_open() {
                 );
                 if size == "landscape" && !closes_in_the_table {
                     open_paths += 1;
+                    shapes_with_an_open_path.insert(shape);
                 }
                 // And no contour draws before its first `MoveTo`, at any size. **Not** "no contour
                 // opens a subpath while one is still open": one `a:path` may hold several
@@ -589,6 +604,16 @@ fn a_contour_the_table_closes_is_closed_and_one_it_leaves_open_is_open() {
         }
     }
     assert_eq!(open_paths, PATHS_THE_FILE_LEAVES_OPEN);
+    // And the same census by *shape*, which is the number a renderer reads: see
+    // `PRESETS_WITH_AN_OPEN_PATH` for why it is a constant rather than a sentence.
+    assert_eq!(
+        shapes_with_an_open_path.len(),
+        PRESETS_WITH_AN_OPEN_PATH,
+        "{} of the {} presets have at least one path the file leaves open, not {}",
+        shapes_with_an_open_path.len(),
+        seeded_shapes().len(),
+        PRESETS_WITH_AN_OPEN_PATH
+    );
 }
 
 // -------------------------------------------------------------------------------------------

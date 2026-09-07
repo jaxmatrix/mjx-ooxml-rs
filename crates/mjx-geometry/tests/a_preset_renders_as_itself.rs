@@ -98,7 +98,7 @@ fn each_hand_transcribed_shape_is_one_closed_contour() {
     // that is a claim about the *shapes* rather than about the table: a rectangle, an ellipse, a
     // triangle, a rounded rectangle, a right arrow and a pie wedge are all one contour, closed.
     //
-    // It is deliberately **not** stated of all 186. Sixty-four of the presets end a contour without
+    // It is deliberately **not** stated of all 186. Sixty-three of the presets end a contour without
     // an `a:close`, which is what a stroked, unfilled outline is — `straightConnector1` is a line
     // segment — and the universal invariants that *do* hold over the whole table are asserted in
     // `the_generated_table_is_the_spec_file.rs`.

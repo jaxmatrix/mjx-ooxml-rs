@@ -453,7 +453,7 @@ fn the_resolver_neither_loses_a_step_nor_invents_one() {
 #[test]
 fn every_shape_opens_a_contour_before_it_draws_and_never_closes_one_twice() {
     // The universal structural invariants, and the only ones that *are* universal over 186 shapes.
-    // A subpath left open is not one of them: 64 of the presets end a contour without an `a:close`,
+    // A subpath left open is not one of them: 63 of the presets end a contour without an `a:close`,
     // which is what a stroked outline (`fill="none"`) is, and `line` is literally a line segment.
     let (within, extents) = (box_on_the_page(), extents_of_the_box());
     let mut contours = 0usize;

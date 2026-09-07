@@ -77,8 +77,8 @@ and did not.
 
 That is the exact shape of the defect the field exists to prevent, one level down: a counter that
 never increments satisfies *"zero placeholders"* perfectly. An outlined shape is not exotic —
-`straightConnector1` has no interior at all, and sixty-four of the 186 presets end a contour without
-an `a:close` — so a deck of connectors would have reported a clean fidelity render while drawing
+`straightConnector1` has no interior at all, and **63 of the 186 presets** end a contour without an
+`a:close` — so a deck of connectors would have reported a clean fidelity render while drawing
 framed, crossed rounded rectangles. The stroke arm is now asserted in five places: the software
 painter, the GPU painter, both document exporters, and `mjx-geometry`'s own wiring suite. Mutating
 the line now aborts.
@@ -138,6 +138,18 @@ through `SvgPainter` — whose root carries `data-mjx-placeholders="0"`, so the 
 count — and a PNG through the pure-Rust `SoftwarePainter`, and it **refuses to write either** if the
 report is not zero or the sheet is missing shapes. It is an aid for a person, not a gate: MJXOFF-201
 §6 is unchanged, and the authoritative visual check is PowerPoint on Windows.
+
+### Fixed — a count four comments quoted and nothing checked
+
+Writing G06's hand-off meant restating *"sixty-four of the presets end a contour without an
+`a:close`"*, which appears in four comments across `mjx-geometry` and `mjx-paint` and is sourced from
+**no assertion at all**. The crate asserts a different quantity — `PATHS_THE_FILE_LEAVES_OPEN`, 70 of
+the file's 319 *paths* — and a path count is not a shape count.
+
+Measured: it is **63**. `every_preset_is_structurally_sound.rs` now carries
+`PRESETS_WITH_AN_OPEN_PATH` beside the path-level constant and counts both in the same walk, so the
+shape-level figure is checked where it was quoted. Nothing depended on the wrong number, which is
+precisely why it survived four readings: an unchecked figure is not caught by being read.
 
 ### Documentation corrected
 
