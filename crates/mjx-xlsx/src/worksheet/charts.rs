@@ -848,6 +848,14 @@ impl Workbook {
     /// workbook keeps it, and an external reference names no part of this package to remove.
     /// Dirties the chart part, and removes at most the one part the detached relationship named.
     ///
+    ///
+    /// # Its role since MJXOFF-208
+    ///
+    /// It used to be the escape hatch from a data edit that would otherwise **rebuild** the embedded
+    /// workbook and throw its contents away. It is not that any more: a data edit now *patches* the
+    /// cells the chart's own `c:f` names and leaves the rest of that workbook alone, so detaching to
+    /// protect its contents is no longer something a caller has to think of. What is left is what
+    /// the name says — cut the chart loose from a workbook it should not be carrying at all.
     /// # Errors
     /// [`XlsxError::AnchorIsNotAChart`] if the anchor frames no chart,
     /// [`XlsxError::ChartHasNoExternalData`] if the chart references no workbook — which is the
