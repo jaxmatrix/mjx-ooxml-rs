@@ -1,5 +1,13 @@
 # Handoff — slide layouts and masters — COMPLETE
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-21.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 The last Phase 3 workstream, and with it the PowerPoint slice. Read after `docs/PHASE2_HANDOFF.md`
 (§3 guardrails); the images workstream (`docs/IMAGES_HANDOFF.md`) is the immediately preceding one and
 settled the shape-addressing model this builds on.

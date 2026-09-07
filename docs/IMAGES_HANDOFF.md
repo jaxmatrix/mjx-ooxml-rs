@@ -108,7 +108,7 @@ could not put a picture on a slide at all. The fill workstream deliberately defe
 **Key reuse:** `p:pic`'s `blipFill` is the very `a:CT_BlipFillProperties` that `mjx-dml::PictureFill`
 already models — but inside `p:pic` the element is **`p:blipFill`** (PML namespace, DML type), so build
 it with the `mjx-pptx::build` prefixed builders (the crate already constructs whole `p:sp` subtrees
-itself; see `build_shape`/`build_sp_pr` in `presentation.rs`). `PictureFill::from_xml` reads it back fine —
+itself; see `build_shape`/`build_sp_pr` in `crates/mjx-pptx/src/presentation/`). `PictureFill::from_xml` reads it back fine —
 the fidelity wrapper is name-agnostic.
 
 Well-known strings (not in the XSD; from ECMA-376 Part 1 / OPC):
@@ -148,6 +148,6 @@ docs each land as their own commit (see the git-workflow memory).
 
 ## Where to look
 
-`crates/mjx-pptx/src/presentation.rs` (`add_image`, `add_picture`, `build_picture`, the `picture_*`
+`crates/mjx-pptx/src/presentation/` (`add_image`, `add_picture`, `build_picture`, the `picture_*`
 readers), `crates/mjx-pptx/src/slide.rs` (`ShapeKind`, `shapes`, `nth_shape_mut`),
 `crates/mjx-opc/src/media.rs` (`ImageFormat`), and the tests named above.

@@ -1,5 +1,13 @@
 # Handoff — the shape transform (`a:xfrm`) — COMPLETE
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-21.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 Where a shape sits, how big it is, and which way up. Read after `docs/PHASE2_HANDOFF.md` (§3
 guardrails); `docs/TEXT_FORMATTING_HANDOFF.md` is the immediately preceding workstream.
 
@@ -131,5 +139,5 @@ Standard project rules (`CLAUDE.md`, `PHASE2_HANDOFF.md` §3). The ones this wor
 `crates/mjx-dml/src/geometry/transform.rs` (the model), `crates/mjx-dml/src/build.rs` (the shared
 measure attribute helpers), `crates/mjx-pptx/src/slide.rs` (`shape_transform`,
 `shape_transform_slot_mut` — the per-kind knowledge), `crates/mjx-pptx/src/geometry.rs`
-(`ShapeBounds` ↔ `Transform2D`), and `crates/mjx-pptx/src/presentation.rs` (the surface, the
+(`ShapeBounds` ↔ `Transform2D`), and `crates/mjx-pptx/src/presentation/` (the surface, the
 `effective_*` family, and `placeholder_candidates` / `candidate_shape`).
