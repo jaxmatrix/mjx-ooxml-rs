@@ -815,6 +815,10 @@ fn the_whole_chart_family_is_reachable_naming_only_the_facade() {
     assert_eq!(workbooks[0].anchor, anchor);
     assert!(!workbooks[0].external);
     assert!(workbook.refresh_chart_workbook(0, anchor).expect("refresh"));
+    // MJXOFF-208's explicit opt-in, reachable from the facade beside the patching default.
+    assert!(workbook
+        .regenerate_chart_workbook(0, anchor)
+        .expect("regenerate"));
 
     workbook
         .set_chart_title(0, anchor, Some("Regional revenue"))

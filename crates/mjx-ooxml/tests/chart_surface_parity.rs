@@ -633,11 +633,18 @@ fn only_the_workbook_surface_has_a_chart_whose_data_is_a_live_range() {
         )
         .expect("three cells");
 
-    // Every chart the other two surfaces can author carries a workbook, and `refresh` rewrites it.
+    // Every chart the other two surfaces can author carries a workbook, and `refresh` patches it in
+    // place (MJXOFF-208). `regenerate` is the explicit opt-in that replaces it instead, and all
+    // three surfaces carry both — a binding that projects one of the pair would be a surface two
+    // languages could only half use.
     assert!(deck
         .refresh_chart_workbook(Surface::Slide(0), shape.into())
         .unwrap());
     assert!(document.refresh_chart_workbook(drawing).unwrap());
+    assert!(deck
+        .regenerate_chart_workbook(Surface::Slide(0), shape.into())
+        .unwrap());
+    assert!(document.regenerate_chart_workbook(drawing).unwrap());
 
     // A chart over a live range has none, and `refresh` says so rather than making one — the same
     // method, the same `false` a document answers for an external link, on a chart that is

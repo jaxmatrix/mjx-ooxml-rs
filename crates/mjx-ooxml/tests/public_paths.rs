@@ -749,6 +749,11 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
     let _ = deck
         .refresh_chart_workbook(slide, chart.clone())
         .expect("refreshing");
+    // MJXOFF-208's explicit opt-in reaches the facade too, and is not the same method under a second
+    // name: `refresh` patches the cells the chart's own `c:f` names, this one replaces the package.
+    let _ = deck
+        .regenerate_chart_workbook(slide, chart.clone())
+        .expect("regenerating");
 
     // --- chart decoration -------------------------------------------------------------------------------
     deck.set_chart_series_fill(slide, chart.clone(), 0, &FillSpec::solid(navy()))
