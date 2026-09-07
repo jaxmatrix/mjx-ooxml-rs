@@ -58,6 +58,54 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.138] - 2026-09-08
+
+### `mjx-dml`'s guide, and the six hand-written pairs the audit for it found (MJXOFF-217, G8)
+
+**The largest crate in the workspace had no guide at all, and one countable question outranked
+writing one.** MJXOFF-216 found `mjx_dml::Picture` and `PictureNonVisual` destroying every attribute,
+every unmodelled child and the element's own prefix, and asked how many of this crate's hand-written
+`FromXml`/`ToXml` pairs did the same. **Of the eight pairs `mjx-dml` held at 0.0.137, four lost
+content and two more lost the self-closing flag.**
+
+The four that lost content are `Picture`, `PictureNonVisual`, `Graphic` (any child beside the
+`a:graphicData`) and `GraphicData` (its own name and prefix — so a producer that bound
+DrawingML-main to any prefix but `a:` had it rewritten — plus any node beside a typed `pic:pic`
+payload). All four move **onto `mjx-derive`**, which is the point rather than a convenience: the
+derive's `#[xml(children, child(..))]` arm emits the `Raw` fallthrough unconditionally, so they are
+now inside the same codegen guarantee that one test file backs for every derived type at once, and an
+unmodelled child keeps its *position* among its modelled siblings. The two that lost the self-closing
+flag — `wordprocessing_drawing::Inline` and its `Anchor` — take the formula
+`fidelity_element_impls!` already used. Every one of the six is pinned by a case in
+`crates/mjx-dml/tests/in_context_roundtrip.rs` that fails against 0.0.137.
+
+All six were **latent**: no shipped write path reaches a parsed value of any of these types, because
+every `mjx_dml::Graphic` this workspace writes is freshly built for a chart or a picture. Latent is
+not fixed — MJXOFF-216 states plainly that it goes live the day anyone adds a picture-editing method.
+
+**The class, not the instance.** `crates/mjx-dml/tests/serialization_ledger.rs` reads the crate's own
+sources and requires every hand-written `FromXml`/`ToXml` to be on a ledger with an idiom and a
+reason — **and checks the idiom against the impl body**, so a row claiming to preserve everything
+while handing `RawElement::rebuilt` a fresh `Vec::new()` fails, which is exactly the shape
+`Picture::to_xml` had. It reports 41 derived types, 57 via the shared macro and 13 hand-written impls
+over 9 types. `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside it and tracked
+separately.
+
+**Then the guide**: six pages under `crates/mjx-dml/docs/guide/`, reachable from `docs/api/README.md`
+and from `mjx_dml::guide`. Written for a caller who has a shape and wants it filled, outlined,
+positioned or coloured — not a tour of a thousand items — around the four facts that explain the
+crate: every type is a view over one element, an interner-bound value has an interner-free `*Spec`
+twin, `spec()` reads while `to_*()` builds fresh and `apply()` merges, and the measures name their
+own units. They give the documentation gate 150 crate-qualified symbol references over 114 distinct
+symbols and 37 repository-path mentions.
+
+Three things the audit found and did **not** change, each recorded with its reason:
+`mjx_dml::ColorSpec` still carries no colour transform, so nothing can author a `comp`/`gray`/
+`gamma`/`invGamma` and validation entry `V-PPTX-02.4` still has no artefact — a write-path gap whose
+fix is a code change; `teardrop` and `sun` stay `ShapeGeometry::Unmodeled`, the Phase A deferral for
+spec-ambiguity; and `mjx-pptx` keeps navigating `p:spPr` by hand rather than through
+`mjx_dml::ShapeProperties`.
+
 ## [0.0.137] - 2026-09-08
 
 ### The packaging tier's guide, and the four fidelity claims answered (MJXOFF-215, G7)
