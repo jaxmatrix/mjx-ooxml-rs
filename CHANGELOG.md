@@ -58,6 +58,70 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.136] - 2026-09-07
+
+### The facade's guide, and the audit that had to come first (MJXOFF-214, G6)
+
+**Phase G's first documentation unit, and the audit still led.** Five units preceded it and none
+wrote documentation, because auditing first kept finding defects the planned guides would have
+described as working. This one found no defect that destroys content — it found five claims the
+facade makes about itself that were false, and one class of claim that cannot stay true.
+
+**Four counts had rotted, all in the same way.** `crates/mjx-ooxml/src/deck.rs` said *sixteen*
+`Presentation` methods were deliberately absent when the difference was **eighteen** — the two it had
+never named being `blank_with_properties` and `from_package`. `crates/mjx-ooxml/src/workbook.rs` said
+`mjx_xlsx::Workbook` carried *roughly seventy* public methods when it carried **165**, and filed
+**nine** entries under *the closure-taking markup doors* that take no closure at all
+(`worksheet_markup`, `write_worksheet_markup`, `sheet_formatting` and six siblings hand back an
+owned but interner-bound model, which is a different reason with a different consequence). Both
+module docs quoted an error-variant count that had grown — 65 → **67** for `PptxError`, 35 → **41**
+for `DocxError`. And `mjx_sml::CellReference`'s own doc comment was headed *"the constructors take
+`(column, row)`, and everything else in the workspace takes `(row, column)`"*, which is false: five
+other public sites take the column first, four of them on this facade
+(`Workbook::add_chart`, `add_range_chart`, `add_one_cell_anchored_picture`,
+`add_two_cell_anchored_picture`), every one for the same good reason — an `xdr` marker is
+`<xdr:col><xdr:colOff><xdr:row><xdr:rowOff>`, so its offsets interleave with its indices — and none
+of them said so anywhere.
+
+**The cure is not a fresher number.** `xtask/tests/facade_curation.rs` is new: it walks the inherent
+`pub fn` items of `Deck`/`Document`/`Workbook` and of the three types below them, and requires the
+difference to equal a written ledger **in both directions**, with a stated reason on every entry
+from a closed set of eight. A method added to `mjx_pptx::Presentation` and not projected fails there
+until somebody decides which it is — projected, renamed, or deliberately left behind. The counts came
+out of the prose; the list went into the gate. *A number in prose can only be right on the day it is
+written; a list can be compared.*
+
+**One behaviour was undocumented and is now on the method itself.** `Workbook::write_cells` into a
+cell that carries a formula keeps the `<f>` and replaces only the cached `<v>` — so the written value
+does not survive Excel's next recalculation. Verified by running it, not by reading the code. The
+decision is right (dropping the `<f>` would destroy a formula the caller did not name, in a file they
+opened to change a number) and it was written down nowhere.
+
+**Then the guide: seven pages under `crates/mjx-ooxml/docs/guide/`**, matching the shape of the three
+existing sets and deliberately not repeating any of them. Those three describe one format each; this
+one describes the surface all three are reached through — [Opening and saving], [Addressing], [One
+vocabulary, three surfaces], [Errors], [The curated surface], [Fidelity and the known gaps]. Every
+snippet is a compiled doctest that asserts on a value it computed, and the set gives `doc_gate`
+**+86 crate-qualified symbol references and +30 path mentions over 7 new distinct paths** to check —
+which is the point of writing a page that names things: *a guide that names no symbol cannot go
+stale, and cannot be checked.*
+
+**Recorded, not fixed** — each is a judgement call rather than a small correction, and each is in
+the ticket: twenty-five chart methods spell the same parameter `series_idx`/`point_idx` on `Deck`
+and `Document` and `series`/`point` on `Workbook` (a keyword-visible difference in Python);
+twenty-three `Document` methods still take `impl Into<BlockPath>` against the facade's own stated
+rule; `table_dimensions`/`cell_span`/`merged_cell_anchor` return an anonymous `(u32, u32)` that
+Python gets as a tuple and TypeScript as a `CellExtent` class; `blank_with_properties` exists on all
+three model types and on none of the three facade surfaces, so no caller in any language can set a
+document's title or author.
+
+[Opening and saving]: crates/mjx-ooxml/docs/guide/opening_and_saving.md
+[Addressing]: crates/mjx-ooxml/docs/guide/addressing.md
+[One vocabulary, three surfaces]: crates/mjx-ooxml/docs/guide/one_vocabulary_three_surfaces.md
+[Errors]: crates/mjx-ooxml/docs/guide/errors.md
+[The curated surface]: crates/mjx-ooxml/docs/guide/the_curated_surface.md
+[Fidelity and the known gaps]: crates/mjx-ooxml/docs/guide/fidelity_and_gaps.md
+
 ## [0.0.135] - 2026-09-07
 
 ### The preservation gate: every fixture × every mutating API, asserting what changed and that nothing else did (MJXOFF-210, G5)
