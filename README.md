@@ -204,7 +204,9 @@ It is stable Rust with no extra dependency (`cargo-fuzz` would need nightly), it
 rather than on every push**, and it asserts the round-trip oracle rather than merely the absence of a
 crash: whatever the reader accepts must come back byte-for-byte, a package written back and reopened
 must hold the same part bytes, and each execution's allocation is measured against a ceiling. Every
-finding is a committed regression test in `tests/untrusted_input.rs` of the crate that owns the path.
+finding is a committed regression test in the `untrusted_input.rs` suite of the crate that owns the
+path — `crates/mjx-xml/tests/untrusted_input.rs`, `crates/mjx-opc/tests/untrusted_input.rs` and
+`crates/mjx-mce/tests/untrusted_input.rs`.
 See [`CONTRIBUTING.md`](CONTRIBUTING.md#the-fuzz-campaign).
 
 Round-tripping proves we do not *corrupt* a file; it does not prove the markup we *write* is legal, and
@@ -222,6 +224,11 @@ cargo doc --workspace --no-deps --open   # start at the `mjx-ooxml` crate — th
 ```
 
 Every public item is documented; the `missing_docs` lint and a strict rustdoc CI job keep it that way.
+
+**[The documentation index](docs/api/README.md)** lists every prose page in the repository with what
+it covers and which crate owns it. It is machine-checked in both directions — a page committed
+without a row there fails the build, and so does a row naming a page that does not exist — along with
+every file path and crate-qualified symbol those pages name (`xtask/tests/doc_gate.rs`).
 
 ### Guides
 
