@@ -58,6 +58,128 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.130] - 2026-09-07
+
+### The Office-authored corpus — the ingestion path, and the weakness it retires (MJXOFF-130, F3)
+
+**Phase F's third child, and the last of the sixty-two-child programme. It builds the road; it
+cannot supply the traffic.** No test in this repository has ever read a file Microsoft Office wrote —
+the deepest weakness the project has, recorded as `R2` — and the one an agent may not close, because
+the value of an Office-authored file is entirely its provenance. **The corpus ships empty, nothing is
+marked, and nothing is tagged.**
+
+### Added
+
+- **`xtask/tests/office_corpus.rs`** — the corpus suite. It walks `tests/office-authored/` (**the
+  corpus is the directory**, the same rule `mjx-fixtures` makes for every byte-identity corpus) and
+  holds every file it finds to: per-part decompressed-payload identity and container-structure
+  identity across an edit-free save (`mjx-opc`'s `roundtrip` semantics); every XML part through the
+  fidelity tree (`tree_roundtrip`'s); **the same round-trip through the facade**, so `Deck`,
+  `Document` and `Workbook` are held to markup nobody here wrote; `Package::validate` before and
+  after; and A7c's child-order audit over Office's own output, which is the strongest available check
+  that the generated `ChildOrder` tables say what Office actually writes.
+- **`cargo run -p xtask -- validation-artefacts --ingest <file>`** — the other direction of the
+  artefact command. Hand it something saved out of Office and it reports which validation entry the
+  file answers, every check above, and **where it would be committed**. It copies nothing: committing
+  a file is a decision taken against the redistribution rule, and a command that filed it would be
+  taking that decision for the person running it.
+- **`docs/validation/06-the-office-pass.md`** — the hand-off. The order to work through (`R1` first,
+  and stop there if PowerPoint disagrees), what a failure looks like against a documented gap, what
+  to save out of which application and where to put it, the six checks that settle a **decision**
+  rather than report a fact, the seven that are **blocked** and whether the corpus unblocks each, and
+  the two escalations and three unfixed defects the programme is handing over.
+- **`mjx_schema_gate::audit_order_report`** and `OrderAudit` — the child-order walk without the
+  panic, so a *reporter* can print the round-trip and package verdicts too.
+  `audit_deck_order` and `assert_deck_is_in_schema_order` are now written on top of it: one walk,
+  three callers, and the second of those opens the package once instead of twice.
+
+### Changed
+
+- **`tests/office-authored/README.md`** now carries the **redistribution rule** — a committed file
+  must be one whose *content* we authored, started from *Blank* rather than from one of Office's
+  templates, carrying nothing from anywhere else and no personal data, with rights that need no
+  argument. It is checked per file, before committing, and **recorded in a table in that file**; an
+  unclear case is left out and *said* to have been left out.
+- **Three verification blocks, rewritten conditioned on the corpus rather than ahead of it.** The
+  PowerPoint and Word gaps pages say what now exists and that it is empty; the Excel guide grows the
+  *Built, not yet verified against Excel* section it never had, with the six rows MJXOFF-79's risk
+  list implies and the entry id that checks each.
+- **`mjx-schema-gate` is a dependency of `xtask`** rather than a dev-dependency of it. The ingest
+  command reports the same schema and child-order verdicts a suite asserts, and it is a command
+  rather than a test; the alternative was a second child-order walk inside `xtask`. Nothing shipped
+  depends on the gate, and `xtask` is host-only, `publish = false` and outside the ranked graph —
+  which `xtask/tests/layering.rs` already distinguishes. The gate's own documentation said it was a
+  dev-dependency "of nothing else", which had been untrue since MJXOFF-122; it now says what is true.
+
+### Fixed
+
+- **`two_runs_produce_byte_identical_artefacts` no longer assumes an empty corpus.** It asserted
+  `names.len() == AREAS.len()`, which would have started failing the day the first Office-authored
+  original landed — a gate that breaks on the work it is waiting for. The expected count is now
+  derived from how many areas have an original.
+- **`docs/validation/02-risk-order.md` said "five" design questions and listed six.** The 0.0.129
+  entry below already said six.
+- **Three gates in `xtask/tests/validation_harness.rs` would have gone red the day the first
+  Office-authored original landed**, and none of them for a reason that is this library's. Measured,
+  not predicted: with a stand-in file in the corpus slot, `every_generated_artefact_is_a_valid_package`
+  failed on `21 != 20` (a second hard-coded `AREAS.len()` beside the determinism one) and
+  `every_generated_artefact_is_schema_valid_and_in_child_order` failed on `v-xlsx-02-edited.xlsx` for
+  a `workbookPr@dateCompatibility` **LibreOffice** wrote — a deviation `tolerances.rs` already
+  records for that fixture, reaching the gate through a path that consults no tolerance list. An
+  `edited` artefact is mostly somebody else's file, re-emitted verbatim, so it is now held to **no
+  *new* defect**: what the original arrived with is subtracted, and anything left is ours. The
+  authored artefacts are unchanged — nothing in a file we wrote is excused.
+- **The validation harness's schema half was skipping in every CI run.** `xtask/tests/` is reached
+  only by `lint-test`, which has no `References/`, so
+  `every_generated_artefact_is_schema_valid_and_in_child_order` validated **nothing** on CI and the
+  child-order half carried the job alone. The `schema-validity` job now runs
+  `cargo test -p xtask --test validation_harness --test office_corpus` under `MJX_REQUIRE_SCHEMA=1`,
+  where the schemas are. Both suites are green there; the point is that nobody knew.
+
+### The `mc:Ignorable` / `CT_Extension` seam — diagnosed, reproduced, and deliberately not tolerated
+
+**The first real Excel workbook, and any file carrying an Office chart, will report a schema
+deviation, and it is a defect of this project rather than of the file.** The gate validates the
+markup-compatibility-*resolved* view of a part, because `mc:Ignorable` names attributes the base
+schema has no declaration for; resolution removes an ignorable element together with its content; and
+`sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their wildcard as a bare
+`<xsd:any processContents="lax"/>`, whose `minOccurs` therefore defaults to **1**. The emptied
+`<ext>` is then rejected with *Missing child element(s)*.
+
+`xtask/tests/office_corpus.rs` reproduces **three views** of one worksheet, authored there for the
+purpose and presented as nothing else: as a producer writes it (rejected — `mc:Ignorable` is not
+allowed, which is why the gate resolves at all), with the compatibility attributes removed and the
+ignorable content kept (**validates**), and fully resolved (rejected). So the schema does not object
+to the extension; it objects to the **hole** resolution leaves. `pml.xsd`'s own `CT_Extension` and
+`dml-main.xsd`'s `CT_OfficeArtExtension` both say `minOccurs="0"`, which is why the defect reaches
+presentations and documents through their *charts* rather than through their main parts — it is not
+Excel's alone.
+
+**It is not recorded as a tolerance.** A tolerance is for one file and one message and never for a
+defect of ours; recording this one would file a gate defect as a quirk of somebody's spreadsheet, and
+it would then look for ever like a property of the corpus. It is filed as **MJXOFF-196** with the
+reproduction, the schema sweep behind it and three candidate fixes, and it is the one thing that goes
+red when the first original lands: the `-edited` artefact built from it reaches
+`assert_authored_deck_is_schema_valid`, which tolerates nothing. The reproduction fails the day the
+seam is fixed, which is the signal to delete it.
+
+### Where the line is drawn on an ingested file
+
+An ingested file is **not ours**, and that decides what may fail a build. Byte identity at the
+container and through the facade, the fidelity tree, a package defect *we* introduced by saving, and
+a part out of `xsd:sequence` all **fail**. A defect the file **arrived** with is *reported* — A7b's
+scope rule is that such a file must still open and re-save unchanged — and so is a part its producer
+wrote that the ECMA-376 XSDs reject, because MJXOFF-103 measured Apache POI 5.5.1 writing an empty
+`<c:tx/>` that `dml-chart.xsd` refuses, and reddening a build over somebody else's markup teaches
+nobody anything.
+
+The suite proves itself able to fail rather than asserting that it can: the same engine is run over
+four deliberately broken packages — bytes that are not a ZIP, a package cut in half, a worksheet
+renamed at the root, and a relationship with no target — and each must be caught by the check that
+owns it, with a sound package as the control. The first spelling of the last one pointed at
+`xl/theme/theme1.xml`, which `sample.xlsx` *has*: it was not a corruption at all, and `Package::validate`
+was right to hold. A mutation has to be reachable before its verdict means anything.
+
 ## [0.0.129] - 2026-09-07
 
 ### The validation checklist — every entry, all three formats, ordered by risk (MJXOFF-128, F2)
