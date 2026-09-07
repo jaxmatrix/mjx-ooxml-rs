@@ -115,8 +115,8 @@ them**, which is the opposite of per-fixture coverage:
    hand-write `FromXml`/`ToXml` with no raw remainder, no `attributes` field, and a synthesised
    element name. `from_xml` reads three children by name and discards everything else; `to_xml`
    rebuilds with an empty attribute vector. An attribute on `<pic:pic>`, a foreign child beside the
-   three, and the source's own prefix binding are all destroyed. This is recorded as an audit finding
-   of MJXOFF-215 and belongs to `mjx-dml`; it is **latent rather than live**, because no shipped write
+   three, and the source's own prefix binding are all destroyed. This is **MJXOFF-216**, raised by
+   MJXOFF-215's audit and owned by `mjx-dml`; it is **latent rather than live**, because no shipped write
    path reaches it — `mjx_dml::GraphicData`'s `ToXml` is its only caller, and the only shipped code
    that writes a `mjx_dml::Graphic` builds a fresh one for a chart. It becomes live the day anyone
    writes a picture-editing method on the typed value.
