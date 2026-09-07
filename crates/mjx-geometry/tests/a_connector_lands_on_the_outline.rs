@@ -50,15 +50,12 @@ mod common;
 
 use std::collections::BTreeSet;
 
-use common::{
-    box_on_the_page, distance_to_outline, extents_of_the_box, portrait_box_on_the_page,
-    portrait_extents,
-};
+use common::{box_on_the_page, distance_to_outline, extents_of_the_box, orientations};
 use mjx_geometry::{
     adjustment_domains, connection_sites_of_definition, preset_connection_sites, preset_outline,
     seeded_shapes, AdjustmentOverride, Derivation, GeometryError, PathFillMode, PresetAngle,
     PresetConnectionSite, PresetCoordinate, PresetPath, PresetPathStep, PresetPoint,
-    PresetShapeDefinition, PresetShapeType, Size,
+    PresetShapeDefinition, PresetShapeType,
 };
 use mjx_ooxml_types::drawingml::PresetGuide;
 
@@ -182,21 +179,6 @@ const SITES_SINGULAR_SOMEWHERE: &[PresetShapeType] = &[
 /// The wire tokens of a set of presets, sorted — what a failure message prints.
 fn tokens(presets: impl IntoIterator<Item = PresetShapeType>) -> BTreeSet<&'static str> {
     presets.into_iter().map(PresetShapeType::to_wire).collect()
-}
-
-/// The two orientations every census below is taken in, labelled for a failure message.
-///
-/// **Two, and not one, because `ss` is `min(w, h)`.** A great many preset guides are written in the
-/// shorter side, and in a landscape box the shorter side is always the height — so a census taken
-/// there alone cannot tell `ss` from `h`. `text_goes_inside_the_shape.rs`'s
-/// `the_shorter_side_is_the_shorter_side_in_both_orientations` is the probe that pins the
-/// distinction; these are the censuses that would otherwise all have been taken at one aspect
-/// ratio.
-fn orientations() -> [(&'static str, mjx_scene::SceneRect, Size); 2] {
-    [
-        ("landscape", box_on_the_page(), extents_of_the_box()),
-        ("portrait", portrait_box_on_the_page(), portrait_extents()),
-    ]
 }
 
 // -------------------------------------------------------------------------------------------

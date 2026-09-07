@@ -62,10 +62,7 @@ mod common;
 
 use std::collections::BTreeSet;
 
-use common::{
-    box_on_the_page, curve_bounds, extents_of_the_box, portrait_box_on_the_page, portrait_extents,
-    reaches_outside,
-};
+use common::{box_on_the_page, curve_bounds, extents_of_the_box, orientations, reaches_outside};
 use mjx_geometry::{
     adjustment_domains, preset_outline, preset_text_rectangle, seeded_shapes,
     text_rectangle_of_definition, AdjustmentOverride, Derivation, GeometryError, PathFillMode,
@@ -253,21 +250,6 @@ const INVERTED_SOMEWHERE: &[PresetShapeType] = &[
 /// The wire tokens of a set of presets, sorted — what a failure message prints.
 fn tokens(presets: impl IntoIterator<Item = PresetShapeType>) -> BTreeSet<&'static str> {
     presets.into_iter().map(PresetShapeType::to_wire).collect()
-}
-
-/// The two orientations every census below is taken in, labelled for a failure message.
-///
-/// **Two, and not one, because `ss` is `min(w, h)`.** A great many preset guides — including the
-/// corner radius a rounded rectangle's text inset is a fraction of — are written in the shorter
-/// side, and in a landscape box the shorter side is always the height, so a census taken only there
-/// cannot tell `ss` from `h`. [`the_shorter_side_is_the_shorter_side_in_both_orientations`] is the
-/// probe that pins it; these are the censuses that would otherwise all have been taken at one value
-/// of one thing.
-fn orientations() -> [(&'static str, SceneRect, Size); 2] {
-    [
-        ("landscape", box_on_the_page(), extents_of_the_box()),
-        ("portrait", portrait_box_on_the_page(), portrait_extents()),
-    ]
 }
 
 /// The text rectangle of `preset` in the landscape box.
