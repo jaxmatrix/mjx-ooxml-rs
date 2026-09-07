@@ -28,6 +28,7 @@ import pytest
 
 from mjx_ooxml import (
     Angle,
+    AxisOrientation,
     BorderEdgeSpec,
     BorderSpec,
     BorderStyle,
@@ -96,6 +97,7 @@ from mjx_ooxml import (
     TableStylePart,
     TextAlignment,
     TextAnchoring,
+    Transform2D,
     TrendlineKind,
     TrendlineSpec,
     WrapText,
@@ -441,6 +443,11 @@ def _write_geometry_areas(deck: Deck, surface: int) -> None:
         surface, wide_chevron, GuideContext.from_extents(Emu.from_emu(2_286_000), Emu.from_emu(1_143_000))
     )
     deck.shape_geometry(surface, custom)
+    rotated = deck.add_shape(
+        surface, PresetShapeType.Rectangle, ShapeBounds.from_inches(6.2, 5.2, 1.6, 1.0)
+    )
+    deck.set_shape_transform(surface, rotated, Transform2D(rotation=Angle.from_degrees(30.0)))
+    deck.effective_shape_bounds(surface, rotated)
 
 
 def v_pptx_07() -> bytes:
@@ -537,6 +544,30 @@ def _write_chart_decoration_areas(deck: Deck, surface: int) -> None:
     )
 
 
+def _write_axes_and_detached_workbook_area(deck: Deck, surface: int) -> None:
+    axes = deck.add_chart(surface, quarterly_chart(), ShapeBounds.from_inches(0.4, 0.4, 6.0, 3.0))
+    deck.set_chart_title(surface, axes, "Bounded 0-25, reversed, ruled")
+    deck.set_chart_axis_title(surface, axes, 0, "Quarter")
+    deck.set_chart_axis_title(surface, axes, 1, "Revenue")
+    deck.set_chart_axis_scale(surface, axes, 1, 0.0, 25.0)
+    deck.set_chart_axis_orientation(surface, axes, 1, AxisOrientation.MaximumToMinimum)
+    deck.set_chart_axis_gridlines(surface, axes, 0, True, False)
+    deck.set_chart_axis_gridlines(surface, axes, 1, True, True)
+    deck.set_chart_series_fill(surface, axes, 0, FillSpec.solid(ColorSpec.srgb("4472C4")))
+    deck.set_chart_series_line(
+        surface,
+        axes,
+        1,
+        LineSpec.solid(LineWidth.from_points(2.0), ColorSpec.srgb("ED7D31")),
+    )
+    detached = deck.add_chart(
+        surface, quarterly_chart(), ShapeBounds.from_inches(6.8, 0.4, 6.0, 3.0)
+    )
+    deck.set_chart_title(surface, detached, "This chart has no embedded workbook")
+    deck.detach_chart_workbook(surface, detached)
+    deck.chart_workbooks(surface)
+
+
 def _write_dangling_point_area(deck: Deck, surface: int) -> None:
     shortened = deck.add_chart(
         surface,
@@ -574,6 +605,7 @@ def _write_plot_type_gallery(deck: Deck) -> None:
 def v_pptx_08() -> bytes:
     deck, slide = _one_slide_deck()
     _write_chart_decoration_areas(deck, slide)
+    _write_axes_and_detached_workbook_area(deck, deck.add_slide())
     _write_dangling_point_area(deck, deck.add_slide())
     _write_plot_type_gallery(deck)
     return deck.save()

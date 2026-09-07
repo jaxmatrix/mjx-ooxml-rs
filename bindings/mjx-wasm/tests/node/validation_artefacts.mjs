@@ -30,6 +30,7 @@ import {
   AdjustAngle,
   AdjustCoordinate,
   Angle,
+  AxisOrientation,
   BorderEdgeSpec,
   BorderSpec,
   BorderStyle,
@@ -96,6 +97,7 @@ import {
   TableStylePart,
   TextAlignment,
   TextAnchoring,
+  Transform2D,
   TrendlineKind,
   TrendlineSpec,
   Workbook,
@@ -459,7 +461,7 @@ const SINGLE_SERIES_KINDS = [
 // The apex placed by the guide `apex` (formula `*/ w 1 2`) rather than by a number.
 function guideDrivenTriangle(keep) {
   const guide = (name) => keep(AdjustCoordinate.guide(name));
-  const zero = () => keep(AdjustCoordinate.emu(keep(Emu.fromEmu(0))));
+  const zero = () => keep(AdjustCoordinate.emu(keep(Emu.fromEmu(0n))));
   return keep(
     new CustomGeometrySpec(
       [
@@ -536,17 +538,38 @@ function writeGeometryAreas(deck, surface, keep) {
     .shapeAdjustments(
       surface,
       squareChevron,
-      keep(GuideContext.fromExtents(keep(Emu.fromEmu(2286000)), keep(Emu.fromEmu(2286000)))),
+      keep(GuideContext.fromExtents(keep(Emu.fromEmu(2286000n)), keep(Emu.fromEmu(2286000n)))),
     )
     .forEach((value) => keep(value));
   deck
     .shapeAdjustments(
       surface,
       wideChevron,
-      keep(GuideContext.fromExtents(keep(Emu.fromEmu(2286000)), keep(Emu.fromEmu(1143000)))),
+      keep(GuideContext.fromExtents(keep(Emu.fromEmu(2286000n)), keep(Emu.fromEmu(1143000n)))),
     )
     .forEach((value) => keep(value));
   keep(deck.shapeGeometry(surface, custom));
+  const rotated = deck.addShape(
+    surface,
+    PresetShapeType.Rectangle,
+    keep(ShapeBounds.fromInches(6.2, 5.2, 1.6, 1.0)),
+  );
+  deck.setShapeTransform(
+    surface,
+    rotated,
+    keep(
+      new Transform2D(
+        undefined,
+        undefined,
+        keep(Angle.fromDegrees(30.0)),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+      ),
+    ),
+  );
+  keep(deck.effectiveShapeBounds(surface, rotated));
 }
 
 const vPptx07 = () =>
@@ -667,6 +690,36 @@ function writeChartDecorationAreas(deck, surface, keep) {
   );
 }
 
+function writeAxesAndDetachedWorkbookArea(deck, surface, keep) {
+  const axes = deck.addChart(
+    surface,
+    keep(quarterlyChart(keep)),
+    keep(ShapeBounds.fromInches(0.4, 0.4, 6.0, 3.0)),
+  );
+  deck.setChartTitle(surface, axes, "Bounded 0-25, reversed, ruled");
+  deck.setChartAxisTitle(surface, axes, 0, "Quarter");
+  deck.setChartAxisTitle(surface, axes, 1, "Revenue");
+  deck.setChartAxisScale(surface, axes, 1, 0.0, 25.0);
+  deck.setChartAxisOrientation(surface, axes, 1, AxisOrientation.MaximumToMinimum);
+  deck.setChartAxisGridlines(surface, axes, 0, true, false);
+  deck.setChartAxisGridlines(surface, axes, 1, true, true);
+  deck.setChartSeriesFill(surface, axes, 0, keep(FillSpec.solid(keep(ColorSpec.srgb("4472C4")))));
+  deck.setChartSeriesLine(
+    surface,
+    axes,
+    1,
+    keep(LineSpec.solid(keep(LineWidth.fromPoints(2.0)), keep(ColorSpec.srgb("ED7D31")))),
+  );
+  const detached = deck.addChart(
+    surface,
+    keep(quarterlyChart(keep)),
+    keep(ShapeBounds.fromInches(6.8, 0.4, 6.0, 3.0)),
+  );
+  deck.setChartTitle(surface, detached, "This chart has no embedded workbook");
+  deck.detachChartWorkbook(surface, detached);
+  deck.chartWorkbooks(surface).forEach((value) => keep(value));
+}
+
 function writeDanglingPointArea(deck, surface, keep) {
   const shortened = deck.addChart(
     surface,
@@ -724,6 +777,7 @@ const vPptx08 = () =>
     const deck = keep(Deck.blank(keep(SlideSize.widescreen())));
     const slide = deck.addSlide();
     writeChartDecorationAreas(deck, slide, keep);
+    writeAxesAndDetachedWorkbookArea(deck, deck.addSlide(), keep);
     writeDanglingPointArea(deck, deck.addSlide(), keep);
     writePlotTypeGallery(deck, keep);
     return deck.save();
