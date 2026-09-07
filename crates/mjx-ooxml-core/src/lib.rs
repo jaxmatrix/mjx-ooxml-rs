@@ -56,7 +56,7 @@
 //! owned trees for small structures — and this crate was long expected to grow the arena half. It
 //! did not, and that is now a decision rather than a gap: the one model that needed bulk storage
 //! built it against its own data instead, and the reasoning is recorded in
-//! `crates/mjx-sml/docs/CELL_STORE.md`. A packed store measured against worksheet cells does not
+//! `crates/mjx-sml/docs/guide/the_cell_store.md`. A packed store measured against worksheet cells does not
 //! generalise to slides or paragraphs, and a primitive here that no second caller wanted would be
 //! carried by every crate in the workspace. The owned-tree half is the whole of what this crate
 //! provides.
