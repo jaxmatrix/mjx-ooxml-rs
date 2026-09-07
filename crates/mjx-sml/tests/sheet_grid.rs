@@ -1374,3 +1374,49 @@ fn each_promoted_slot_is_placed_by_the_generated_rank() {
         "ranks 5, 7, 8, 9, 14, 23, 24 — from `mjx_ooxml_types::child_order::WORKSHEET`"
     );
 }
+
+/// **Editing a `mergeCells` keeps every attribute the file wrote on it, including one no schema
+/// here declares** (MJXOFF-220).
+///
+/// The behavioural half of `crates/mjx-sml/tests/serialization_ledger.rs`. That file reads the
+/// shape of every `as_raw_element` in the crate; this one runs one of them. Both exist because a
+/// rebuilder is only reached once a slot has given up its verbatim bytes, so every round-trip
+/// assertion in this crate — and there are many — is green whether the rebuild preserves anything
+/// or not: the part still writes from its source until something edits it.
+///
+/// Replacing `&self.attributes` with a fresh vector in `MergedCells::as_raw_element` leaves all
+/// 163 unit tests and all twenty suites in this crate green and destroys both attributes below.
+/// That is MJXOFF-216's exact shape, and this is the arm that would have caught it here.
+#[test]
+fn editing_the_merges_keeps_the_attributes_the_file_wrote_on_the_element() {
+    let markup = concat!(
+        r#"<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">"#,
+        r#"<sheetData/>"#,
+        r#"<mergeCells count="1" xmlns:q="urn:example:q" q:note="keep me">"#,
+        r#"<mergeCell ref="A1:B2"/></mergeCells>"#,
+        "</worksheet>"
+    );
+    let mut sheet = read(markup.as_bytes());
+    sheet
+        .merge_cells(CellRange::Cells {
+            start: CellReference::parse("C1").expect("C1"),
+            end: CellReference::parse("D2").expect("D2"),
+        })
+        .expect("the ranges do not overlap");
+
+    let emitted = String::from_utf8(sheet.to_markup()).expect("the markup is UTF-8");
+    assert!(
+        emitted.contains(r#"q:note="keep me""#),
+        "the foreign attribute was destroyed by the rebuild: {emitted}"
+    );
+    assert!(
+        emitted.contains(r#"xmlns:q="urn:example:q""#),
+        "the namespace declaration was destroyed by the rebuild: {emitted}"
+    );
+    // `@count` was declared, so it is *updated* rather than dropped — the rule every counted table
+    // in this crate follows, and the reason the attribute list is rebuilt rather than replayed.
+    assert!(
+        emitted.contains(r#"count="2""#),
+        "the declared count was not updated: {emitted}"
+    );
+}
