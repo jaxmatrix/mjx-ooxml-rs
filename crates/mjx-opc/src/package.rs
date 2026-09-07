@@ -933,7 +933,7 @@ impl Package {
     ///
     /// This is the *scoped* clean-up: the one an edit performs on its own behalf, having just
     /// unwired the relationship that named `part`. [`remove_unreferenced_parts`] is the package-wide
-    /// sweep, and the difference matters to a caller's file. The sweep deletes every orphan it can
+    /// sweep, and the difference matters to a caller's file. The sweep removes every orphan it can
     /// find, including one the *producer* left there — so an edit that ran it would change something
     /// the caller never asked about, which is precisely what an editing library must not do. This
     /// touches nothing but the subtree the caller's own edit stranded.
@@ -964,7 +964,7 @@ impl Package {
     /// downward from one part the caller names, and
     /// [`remove_part_if_unreferenced`](Self::remove_part_if_unreferenced) is the same walk guarded
     /// by a reference check — the clean-up an edit does on its own behalf. This is the
-    /// *package-wide* garbage collection, and it deletes an orphan the producer left in the file
+    /// *package-wide* garbage collection, and it removes an orphan the producer left in the file
     /// just as readily as one an edit stranded, so it belongs to a caller who asked for it rather
     /// than inside an editing method:
     /// replacing an image, deleting a slide, or any edit that unwires a relationship can leave a part
