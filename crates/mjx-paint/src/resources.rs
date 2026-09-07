@@ -33,7 +33,7 @@
 //! frame's new glyph coverage, made only to be copied again into a staging buffer. The visitor
 //! borrows, and the source is free to drop its delta the moment the call returns.
 
-use mjx_scene::{BitmapFormat, GeometryProvider};
+use mjx_scene::{BitmapFormat, GeometryProvider, PathCommand};
 
 use crate::error::PaintError;
 
@@ -176,6 +176,112 @@ impl ImageSource for NoImages {
     }
 }
 
+/// A face, cut down to the glyphs a document used, with the numbers a document format needs.
+///
+/// # Why an exporter needs this and a rasteriser does not
+///
+/// A rasteriser is handed **pixels**: a display list records where each glyph's image is in the
+/// atlas, and the atlas hands over its delta. A *vector exporter* has neither — a PDF embeds a font
+/// file and addresses glyphs by id, and an SVG draws their outlines — so it needs the face itself,
+/// and the metrics a `/FontDescriptor` is made of.
+///
+/// The bytes are **owned** because a subset is computed rather than borrowed. See
+/// [`mjx_text::subset_truetype`] for what is cut and what is kept, and why a face that cannot be cut
+/// comes back whole rather than empty.
+#[derive(Clone, PartialEq, Debug)]
+pub struct EmbeddableFace {
+    /// The font file to embed.
+    pub data: Vec<u8>,
+    /// What to call it in the document.
+    pub name: String,
+    /// The em square every number below is measured in.
+    pub units_per_em: u16,
+    /// How far above the baseline the face reaches.
+    pub ascender: i16,
+    /// How far below, negative.
+    pub descender: i16,
+    /// The face's global bounding box: left, bottom, right, top.
+    pub bounding_box: [i16; 4],
+    /// How far the face leans, in degrees, negative for a forward lean.
+    pub italic_angle: f32,
+    /// The height of a capital letter.
+    pub cap_height: i16,
+    /// Whether every glyph has the same advance.
+    pub fixed_pitch: bool,
+    /// Whether the face leans.
+    pub italic: bool,
+    /// Whether the whole face was embedded because it could not be cut.
+    ///
+    /// Reported rather than hidden: an exporter may want to say so, and a suite asserting that a
+    /// subset is smaller than the face has to know when the answer is legitimately "it is the face".
+    pub whole_face: bool,
+}
+
+/// Where a *document* exporter's faces come from.
+///
+/// # Why this is a second contract beside [`AtlasSource`], rather than the same one
+///
+/// They answer different questions. An [`AtlasSource`] answers *"what glyph pixels changed since
+/// you last asked"*, which is what a rasteriser needs and is a per-frame delta. This answers
+/// *"which face is run 3 in, what does glyph 42 of it look like, and what would I have to embed to
+/// draw it elsewhere"*, which is a property of the document rather than of the frame.
+///
+/// Both live in **this crate's** vocabulary for the same reason: `crates/mjx-paint/tests/the_seam_holds.rs`
+/// confines the font engine to the files that adapt it, and a painter that named
+/// `mjx_text::FontFace` in its exporter would have crossed the seam in a second place. The adapter
+/// is [`crate::font_source::FaceLibrary`], and the gate names the file it lives in.
+pub trait FontSource {
+    /// The face behind a run's face number, cut down to `glyphs`.
+    ///
+    /// `None` for a face the caller does not have — an exporter then writes the run's metadata and
+    /// no text, rather than failing the page or drawing a picture of it.
+    fn face(&self, face: u32, glyphs: &[u16]) -> Option<EmbeddableFace>;
+
+    /// One glyph's advance, in the face's own units.
+    fn advance(&self, face: u32, glyph: u16) -> Option<u16>;
+
+    /// A character the glyph stands for, for a `/ToUnicode` map.
+    ///
+    /// The face's `cmap`, read backwards. Several characters legitimately map to one glyph, so this
+    /// answers **one** of them — the lowest, so that two runs of the same text produce the same
+    /// map and an export can be compared against itself.
+    fn character(&self, face: u32, glyph: u16) -> Option<char>;
+
+    /// One glyph's outline at a size, in device pixels with **y increasing downward** from the
+    /// glyph's own origin — the convention every other coordinate in this platform uses.
+    fn outline(&self, face: u32, glyph: u16, pixels_per_em: f32) -> Option<Vec<PathCommand>>;
+}
+
+/// A font source with nothing in it.
+///
+/// What [`Resources`] carries unless a caller supplies one, and what a rasteriser uses: a painter
+/// that draws atlas rectangles never asks any of the four questions above. An exporter handed this
+/// writes a page with the shapes on it and the text's metadata recorded but no glyphs drawn, which
+/// is visible in its output rather than silent.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct NoFonts;
+
+impl FontSource for NoFonts {
+    fn face(&self, _face: u32, _glyphs: &[u16]) -> Option<EmbeddableFace> {
+        None
+    }
+
+    fn advance(&self, _face: u32, _glyph: u16) -> Option<u16> {
+        None
+    }
+
+    fn character(&self, _face: u32, _glyph: u16) -> Option<char> {
+        None
+    }
+
+    fn outline(&self, _face: u32, _glyph: u16, _pixels_per_em: f32) -> Option<Vec<PathCommand>> {
+        None
+    }
+}
+
+/// The empty font source, as something a borrow can point at.
+static NO_FONTS: NoFonts = NoFonts;
+
 /// An atlas source that reports nothing ever changed.
 ///
 /// For a page with no text, and for a painter driven against a display list whose glyph pixels are
@@ -198,10 +304,15 @@ pub struct Resources<'a> {
     glyphs: &'a mut dyn AtlasSource,
     geometry: &'a dyn GeometryProvider,
     images: &'a dyn ImageSource,
+    fonts: &'a dyn FontSource,
 }
 
 impl<'a> Resources<'a> {
-    /// The three sources a frame is drawn from.
+    /// The three sources a frame is **drawn** from.
+    ///
+    /// Faces are not among them, and that is not an omission: a rasteriser is handed glyph pixels
+    /// and never opens a font. An exporter adds them with [`Resources::with_fonts`], and one that
+    /// was not given any writes a page with its text's metadata recorded and no glyphs drawn.
     pub fn new(
         glyphs: &'a mut dyn AtlasSource,
         geometry: &'a dyn GeometryProvider,
@@ -211,7 +322,21 @@ impl<'a> Resources<'a> {
             glyphs,
             geometry,
             images,
+            fonts: &NO_FONTS,
         }
+    }
+
+    /// The same, with faces an exporter can embed.
+    #[must_use]
+    pub fn with_fonts(mut self, fonts: &'a dyn FontSource) -> Self {
+        self.fonts = fonts;
+        self
+    }
+
+    /// Where faces come from.
+    #[must_use]
+    pub fn fonts(&self) -> &dyn FontSource {
+        self.fonts
     }
 
     /// The glyph atlas, mutably, because taking a delta changes it.
@@ -236,6 +361,6 @@ impl core::fmt::Debug for Resources<'_> {
     fn fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         // None of the three members is `Debug`, and requiring it of them would put a bound on every
         // shell's own atlas for the sake of a log line.
-        formatter.write_str("Resources { glyphs, geometry, images }")
+        formatter.write_str("Resources { glyphs, geometry, images, fonts }")
     }
 }

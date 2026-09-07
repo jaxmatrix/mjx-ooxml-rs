@@ -35,6 +35,13 @@ wgpu.workspace = true
 # target; on native they are already complete when returned, and this crate has no runtime of its
 # own to drive them with.
 pollster.workspace = true
+# The software rasteriser. **Pure Rust, no graphics stack, no window** — which is what makes every
+# golden image in R10 and R11 takeable on a machine with no GPU, and what makes the amendment that
+# let `wgpu` into this workspace a boundary rather than a concession. It is used for scan conversion
+# and for pixel storage only: the *shading* is this crate's own, mirroring `backend/shaders.wgsl`
+# line for line, because a second painter that shaded differently would make the cross-painter
+# comparison compare two shaders rather than two rasterisers.
+tiny-skia.workspace = true
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 # WebGL2 is the baseline in a browser and WebGPU is the opportunistic upgrade, so the browser build

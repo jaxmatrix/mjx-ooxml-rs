@@ -69,6 +69,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "arrayref"
+version = "0.3.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76a2e8124351fda1ef8aaaa3bbd7ebbcb486bbcd4225aca0aa0d84bb2db8fecb"
+
+[[package]]
 name = "arrayvec"
 version = "0.7.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -752,11 +758,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-allocation-counter"
-version = "0.0.129"
+version = "0.0.130"
 
 [[package]]
 name = "mjx-chart"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-derive",
  "mjx-dml",
@@ -770,7 +776,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-derive"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-ooxml-types",
@@ -782,7 +788,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-dml"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-derive",
  "mjx-fixtures",
@@ -796,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-docx"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "anyhow",
  "criterion",
@@ -816,11 +822,11 @@ dependencies = [
 
 [[package]]
 name = "mjx-fixtures"
-version = "0.0.129"
+version = "0.0.130"
 
 [[package]]
 name = "mjx-layout"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-text",
@@ -829,7 +835,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-mce"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-ooxml-core",
  "mjx-xml",
@@ -838,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-omml"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -848,7 +854,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "criterion",
  "mjx-allocation-counter",
@@ -867,18 +873,18 @@ dependencies = [
 
 [[package]]
 name = "mjx-ooxml-core"
-version = "0.0.129"
+version = "0.0.130"
 
 [[package]]
 name = "mjx-ooxml-types"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-ooxml-core",
 ]
 
 [[package]]
 name = "mjx-opc"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -889,7 +895,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-paint"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-scene",
@@ -897,12 +903,13 @@ dependencies = [
  "mjx-tokens",
  "pollster",
  "thiserror",
+ "tiny-skia",
  "wgpu",
 ]
 
 [[package]]
 name = "mjx-pptx"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "anyhow",
  "criterion",
@@ -923,7 +930,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-python"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-ooxml",
  "pyo3",
@@ -931,7 +938,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-scene"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "lyon_tessellation",
  "mjx-allocation-counter",
@@ -945,7 +952,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-schema-gate"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-fixtures",
  "mjx-mce",
@@ -957,7 +964,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-sml"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-allocation-counter",
  "mjx-derive",
@@ -973,7 +980,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-text"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "fontdb",
  "mjx-allocation-counter",
@@ -991,14 +998,14 @@ dependencies = [
 
 [[package]]
 name = "mjx-tokens"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "thiserror",
 ]
 
 [[package]]
 name = "mjx-vml"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-derive",
  "mjx-ooxml-core",
@@ -1009,7 +1016,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-wasm"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "js-sys",
  "mjx-ooxml",
@@ -1019,7 +1026,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xlsx"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "anyhow",
  "criterion",
@@ -1039,7 +1046,7 @@ dependencies = [
 
 [[package]]
 name = "mjx-xml"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "mjx-fixtures",
  "mjx-ooxml-core",
@@ -1662,6 +1669,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
+name = "strict-num"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6637bab7722d379c8b41ba849228d680cc12d0a45ba1fa2b48f2a30577a06731"
+
+[[package]]
 name = "swash"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1727,6 +1740,31 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.118",
+]
+
+[[package]]
+name = "tiny-skia"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea"
+dependencies = [
+ "arrayref",
+ "arrayvec",
+ "bytemuck",
+ "cfg-if",
+ "log",
+ "tiny-skia-path",
+]
+
+[[package]]
+name = "tiny-skia-path"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "edca365c3faccca67d06593c5980fa6c57687de727a03131735bb85f01fdeeb9"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "strict-num",
 ]
 
 [[package]]
@@ -2290,7 +2328,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.0.129"
+version = "0.0.130"
 dependencies = [
  "anyhow",
  "mjx-allocation-counter",
