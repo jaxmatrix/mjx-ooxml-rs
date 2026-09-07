@@ -117,6 +117,16 @@ pub const OPC_CORE_PROPERTIES_NS: &str =
 pub const INKML_NS: &str = "http://www.w3.org/2003/InkML";
 /// `ax:` — the Microsoft ActiveX control markup an `activeX*.xml` part carries.
 pub const ACTIVEX_NS: &str = "http://schemas.microsoft.com/office/2006/activeX";
+
+/// The namespace of Excel 2010's SpreadsheetML extensions, in which a **form control's properties
+/// part** (`xl/ctrlPropsN.xml`) is rooted.
+///
+/// A Microsoft extension namespace, not an ECMA-376 one: the Transitional schema set ships nothing
+/// that declares `x14:formControlPr`, so there is no schema this gate could validate such a part
+/// against. It reaches the corpus with MJXOFF-114's `legacy_form_control.xlsx`, which LibreOffice
+/// writes beside every `x:control` it exports.
+pub const EXCEL_2010_EXTENSIONS_NS: &str =
+    "http://schemas.microsoft.com/office/spreadsheetml/2009/9/main";
 /// `ds:` — the Custom XML Data Storage Properties namespace (`shared-customXmlDataProperties.xsd`,
 /// ECMA-376 Part 1 §15.2.6), the root of every `customXml/itemPropsN.xml` part (MJXOFF-138).
 pub const CUSTOM_XML_DATA_PROPS_NS: &str =
@@ -181,6 +191,23 @@ pub const MODELED_SCHEMAS: &[ModeledSchema] = &[
         // than emitted from a fixed template with no writer checking its sequence.
         ordering: OrderingCoverage::Generated,
         probe_root_element: "dataModel",
+    },
+    ModeledSchema {
+        namespace: namespaces::DML_SPREADSHEET_DRAWING.transitional,
+        label: "DrawingML spreadsheet drawings",
+        schema: SchemaRef {
+            set: SchemaSet::Markup,
+            file: "dml-spreadsheetDrawing.xsd",
+        },
+        // MJXOFF-107 (E3) added `dml-spreadsheetDrawing` to `CHILD_ORDER_SCHEMAS` — it **moved**
+        // there out of `CHILD_ORDER_SCHEMA_DEPENDENCIES`, where MJXOFF-132 had put it so that
+        // `sml.xsd`'s `CT_ObjectAnchor` could place `xdr:from`/`xdr:to` — and modelled `xdr:wsDr`
+        // and the three anchors in `mjx-dml::spreadsheet_drawing`. Without this row a drawing part
+        // reports `Uncategorised`, which is the false green MJXOFF-110 exists to close: it is
+        // exactly how `mjx-vml` sat unvalidated. `tests/fixtures/worksheet_drawings.xlsx` is what
+        // reaches the arm, and `assert_every_modeled_schema_was_exercised` fails if nothing does.
+        ordering: OrderingCoverage::Generated,
+        probe_root_element: "wsDr",
     },
     ModeledSchema {
         namespace: namespaces::SML.transitional,
@@ -333,6 +360,16 @@ pub const PRESERVED_FOREIGN_MARKUP: &[PreservedForeignMarkup] = &[
         reason: "a Microsoft vocabulary describing a COM control's persisted state. \
                  `add_activex_control` writes the caller's class id and state through; the payload \
                  is opaque to this project",
+    },
+    PreservedForeignMarkup {
+        key: ForeignMarkupKey::Namespace(EXCEL_2010_EXTENSIONS_NS),
+        label: "a form control's properties part",
+        reason: "`xl/ctrlPropsN.xml` is rooted in `x14:formControlPr` — Excel 2010's SpreadsheetML \
+                 extension namespace, which ECMA-376 does not define and the Transitional schema \
+                 set ships nothing for. Every `x:control` on a sheet names one through a required \
+                 `@r:id`, so a workbook with a form control cannot avoid carrying it. `mjx-sml` \
+                 holds the `control@r:id` (MJXOFF-107) and nothing here opens the part; MJXOFF-114 \
+                 is the child that brought one into the corpus",
     },
     PreservedForeignMarkup {
         key: ForeignMarkupKey::Namespace(CUSTOM_XML_DATA_PROPS_NS),

@@ -82,6 +82,56 @@ fn is_xml_content_type(content_type: &str) -> bool {
         || content_type.ends_with("vmlDrawing")
 }
 
+/// What one child-order audit found, **without panicking on any of it**.
+///
+/// [`audit_deck_order`] and [`assert_deck_is_in_schema_order`] are both written on top of this, so
+/// there is one walk rather than two spellings of it. The reporting form exists because a *reporter*
+/// — `xtask validation-artefacts --ingest`, which hands an Office-authored file back with every check
+/// answered — must print the round-trip and package verdicts too, and a panic on the first ordering
+/// defect would take the rest of the report with it (MJXOFF-130).
+#[derive(Debug, Default)]
+pub struct OrderAudit {
+    /// One entry per part the walk actually audited.
+    pub audited: Vec<AuditedPart>,
+    /// Every ordering defect found, each already phrased as the message the assertion raises.
+    /// **All of them**, not the first: a reporter wants the whole list.
+    pub defects: Vec<String>,
+}
+
+impl OrderAudit {
+    /// The parts that *had* to be audited and were not — a codegen gap rather than a permitted skip.
+    /// `required` comes from [`parts_that_must_be_audited`], which is deliberately derived from the
+    /// category table rather than from the audit's own lookup.
+    #[must_use]
+    pub fn missed<'a>(&self, required: &'a [String]) -> Vec<&'a String> {
+        required
+            .iter()
+            .filter(|part| !self.audited.iter().any(|entry| &entry.name == *part))
+            .collect()
+    }
+
+    /// The audited parts whose walk visited less than their [`AuditedPart::floor`] — a vacuous audit.
+    #[must_use]
+    pub fn vacuous(&self) -> Vec<&AuditedPart> {
+        self.audited
+            .iter()
+            .filter(|part| part.elements_visited < part.floor())
+            .collect()
+    }
+}
+
+/// Runs the child-order audit over every part of `bytes` whose root element the generated tables
+/// name, reporting every defect instead of panicking on the first.
+///
+/// A package that cannot be opened — the outer one or an embedded workbook — is itself reported as a
+/// defect rather than raised, for the same reason: the caller is a reporter.
+#[must_use]
+pub fn audit_order_report(label: &str, bytes: &[u8]) -> OrderAudit {
+    let mut report = OrderAudit::default();
+    audit_package_order(label, bytes, "", &mut report);
+    report
+}
+
 /// Runs the child-order audit over every part of `bytes` whose root element the generated tables
 /// name, panicking on the first defect. Returns one [`AuditedPart`] per audited part, so a caller
 /// can prove the walk is not passing vacuously.
@@ -90,14 +140,59 @@ fn is_xml_content_type(content_type: &str) -> bool {
 /// If the package cannot be opened, or a part carries a child out of its `xsd:sequence`.
 #[must_use]
 pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
-    let mut audited = Vec::new();
-    let mut package =
-        Package::open(bytes).unwrap_or_else(|e| panic!("{label}: opening package: {e}"));
+    let report = audit_order_report(label, bytes);
+    if let Some(defect) = report.defects.first() {
+        panic!("{defect}");
+    }
+    report.audited
+}
+
+/// The content type of an embedded Office package — a chart's workbook. Restated from
+/// `inspect.rs`'s own list rather than shared, for the reason that module's copy gives: each half of
+/// the gate states the fact it acts on.
+const EMBEDDED_PACKAGE_CONTENT_TYPES: [&str; 1] =
+    ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"];
+
+/// Audits one package, appending to `audited`, and descends into any package embedded in it.
+///
+/// `prefix` names where the package sits: empty for the document itself, and
+/// `/word/embeddings/Microsoft_Excel_Sheet1.xlsx!` for a chart's workbook — the **same naming the
+/// validation half uses** (`inspect_package`), so a part appears under one name in both halves of
+/// the gate's report.
+///
+/// # Why the descent exists (MJXOFF-103)
+///
+/// Until this child the ordering audit walked the outer package only, while the validation half had
+/// descended into an embedded workbook since A5. That asymmetry meant **no chart's embedded
+/// workbook was ever audited for child order, in any format** — `xmllint` checked its SpreadsheetML
+/// and the generated `sml` tables checked nothing, even though `sml` has been in
+/// `CHILD_ORDER_SCHEMAS` since MJXOFF-132 and `mjx-sml`'s writer is what composes those parts. It
+/// was found by a Word case asserting the nested worksheet was audited and discovering it was not
+/// in the list at all; the hole was never Word-specific, and closing it here closes it for
+/// `mjx-pptx` in the same commit.
+fn audit_package_order(label: &str, bytes: &[u8], prefix: &str, report: &mut OrderAudit) {
+    let mut package = match Package::open(bytes) {
+        Ok(package) => package,
+        Err(e) => {
+            report
+                .defects
+                .push(format!("{label}: opening package: {e}"));
+            return;
+        }
+    };
     let parts: Vec<PartName> = package.part_names().collect();
     for part in parts {
         let Some(content_type) = package.content_type_of(&part).map(str::to_owned) else {
             continue;
         };
+        if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
+            let Some(payload) = package.part_bytes(&part).map(<[u8]>::to_vec) else {
+                continue;
+            };
+            let nested = format!("{prefix}{}!", part.as_str());
+            audit_package_order(label, &payload, &nested, report);
+            continue;
+        }
         if !is_xml_content_type(&content_type) {
             continue;
         }
@@ -118,13 +213,14 @@ pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
         };
         let audit = child_order::audit_tree(order, root, interner);
         if let Some(defect) = audit.defect {
-            panic!(
-                "{label}: {} is out of schema order — {defect}",
+            report.defects.push(format!(
+                "{label}: {prefix}{} is out of schema order — {defect}",
                 part.as_str()
-            );
+            ));
+            continue;
         }
-        audited.push(AuditedPart {
-            name: part.as_str().to_owned(),
+        report.audited.push(AuditedPart {
+            name: format!("{prefix}{}", part.as_str()),
             elements_visited: audit.elements_visited,
             root_child_elements: root
                 .children
@@ -133,7 +229,6 @@ pub fn audit_deck_order(label: &str, bytes: &[u8]) -> Vec<AuditedPart> {
                 .count(),
         });
     }
-    audited
 }
 
 /// Every part of `bytes` the ordering audit **must** have reached: one whose root namespace is a
@@ -199,7 +294,11 @@ pub fn parts_that_must_be_audited(label: &str, bytes: &[u8]) -> Vec<String> {
 /// On an ordering defect, a part the tables could audit but the walk missed, a vacuous audit, or a
 /// deck in which nothing at all was audited.
 pub fn assert_deck_is_in_schema_order(label: &str, bytes: &[u8]) {
-    let audited = audit_deck_order(label, bytes);
+    let report = audit_order_report(label, bytes);
+    if let Some(defect) = report.defects.first() {
+        panic!("{defect}");
+    }
+    let audited = report.audited;
     let expected = parts_that_must_be_audited(label, bytes);
 
     let missed: Vec<&String> = expected

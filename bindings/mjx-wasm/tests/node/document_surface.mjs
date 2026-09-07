@@ -7,16 +7,41 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  AxisOrientation,
   CellBorderEdge,
+  ChartData,
+  ChartKind,
+  ChartLabelScope,
+  ChartWrap,
+  ColorSpec,
+  DataLabelSpec,
   Document,
+  ErrorBarSpec,
+  ErrorBarType,
+  ErrorValueType,
+  FillSpec,
   Format,
   HeaderFooterType,
   HyperlinkTarget,
+  LegendPosition,
+  LineSpec,
+  LineWidth,
   MergedCellType,
   PageOrientation,
   PageSize,
   SectionLocation,
+  TrendlineKind,
+  TrendlineSpec,
+  WrapText,
 } from "../../npm/dist/bundler/mjx_ooxml.js";
+
+/** The two-series chart every chart case below adds. */
+function sampleChart() {
+  return new ChartData(ChartKind.Bar)
+    .categories(["Q1", "Q2", "Q3"])
+    .series("North", [12.5, 18.0, 21.5])
+    .series("South", [9.0, 11.5, 14.0]);
+}
 
 /** A blank document, plus the freeing every caller owes. */
 function withDocument(body) {
@@ -242,6 +267,198 @@ test("removing a Document binding is caught by this suite", () => {
   const document = Document.blank(PageSize.a4());
   try {
     assert.equal(typeof document.paragraphCount, "function");
+  } finally {
+    document.free();
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// Charts (MJXOFF-103) — the TypeScript half of A10's parity rule
+// ---------------------------------------------------------------------------------------------
+
+test("the whole Word chart family is bound and reads back", () => {
+  // A facade method without a Python *and* a TypeScript equivalent is an incomplete task. A method
+  // missing from this binding is a `TypeError: not a function` here; a method bound to the wrong
+  // delegate is a wrong value, which is why every assertion reads something back.
+  withDocument((document) => {
+    const drawing = document.addChart(0, sampleChart(), 4572000, 2743200, "Revenue");
+    assert.deepEqual(Array.from(document.chartDrawingIds()), [drawing]);
+    assert.notEqual(document.chartRelId(drawing), undefined);
+    assert.notEqual(document.chartPartBytes(drawing), undefined);
+    assert.deepEqual(Array.from(document.chartKinds(drawing)), [ChartKind.Bar]);
+
+    const series = document.chartSeries(drawing);
+    assert.equal(series.length, 2);
+    assert.equal(series[0].name, "North");
+    assert.deepEqual(Array.from(series[0].values), [12.5, 18.0, 21.5]);
+    for (const entry of series) entry.free();
+
+    const workbooks = document.chartWorkbooks();
+    assert.equal(workbooks.length, 1);
+    assert.equal(workbooks[0].drawingId, drawing);
+    assert.equal(workbooks[0].external, false);
+    for (const entry of workbooks) entry.free();
+    assert.equal(document.refreshChartWorkbook(drawing), true);
+
+    document.setChartTitle(drawing, "Regional revenue");
+    assert.equal(document.chartTitle(drawing), "Regional revenue");
+
+    document.setChartLegend(drawing, LegendPosition.Right);
+    const legend = document.chartLegend(drawing);
+    assert.equal(legend.position, LegendPosition.Right);
+    legend.free();
+
+    document.setChartSeriesValues(drawing, 0, new Float64Array([40, 41, 42]));
+    const rewritten = document.chartSeries(drawing);
+    assert.deepEqual(Array.from(rewritten[0].values), [40, 41, 42]);
+    for (const entry of rewritten) entry.free();
+
+    document.setChartSeriesCategories(drawing, 1, ["A", "B", "C"]);
+    const recategorised = document.chartSeries(drawing);
+    assert.deepEqual(Array.from(recategorised[1].categories), ["A", "B", "C"]);
+    for (const entry of recategorised) entry.free();
+
+    document.setChartAxisScale(drawing, 1, 0, 50);
+    document.setChartAxisTitle(drawing, 1, "Millions");
+    document.setChartAxisGridlines(drawing, 1, true, false);
+    document.setChartAxisOrientation(drawing, 1, AxisOrientation.MaximumToMinimum);
+    const axes = document.chartAxes(drawing);
+    assert.equal(axes[1].minimum, 0);
+    assert.equal(axes[1].maximum, 50);
+    assert.equal(axes[1].title, "Millions");
+    assert.equal(axes[1].majorGridlines, true);
+    assert.equal(axes[1].orientation, AxisOrientation.MaximumToMinimum);
+    for (const axis of axes) axis.free();
+
+    const blue = FillSpec.solid(ColorSpec.srgb("1F77B4"));
+    document.setChartSeriesFill(drawing, 0, blue);
+    const readFill = document.chartSeriesFill(drawing, 0);
+    assert.equal(readFill.kind, "solid");
+    readFill.free();
+    const outline = LineSpec.solid(LineWidth.fromPoints(1), ColorSpec.srgb("000000"));
+    document.setChartSeriesLine(drawing, 0, outline);
+
+    const seriesScope = ChartLabelScope.series(0);
+    document.setChartDataLabels(drawing, seriesScope, new DataLabelSpec().value(true));
+    const inForce = document.chartDataLabels(drawing, 0, undefined);
+    assert.equal(inForce.showsValue, true);
+    inForce.free();
+    const tier = document.chartDataLabelTier(drawing, seriesScope);
+    assert.equal(tier.showsValue, true);
+    tier.free();
+    assert.equal(document.chartPointLabelText(drawing, 0, 0), undefined);
+
+    document.setChartPointFill(drawing, 0, 1, blue);
+    document.setChartPointExplosion(drawing, 0, 1, 25);
+    document.setChartPointLine(drawing, 0, 1, outline);
+    const formats = document.chartPointFormats(drawing, 0);
+    assert.equal(formats.length, 1);
+    assert.equal(formats[0].index, 1);
+    assert.equal(formats[0].explosion, 25);
+    for (const entry of formats) entry.free();
+
+    document.addChartTrendline(drawing, 0, new TrendlineSpec(TrendlineKind.Linear));
+    const trendlines = document.chartTrendlines(drawing, 0);
+    assert.equal(trendlines.length, 1);
+    for (const entry of trendlines) entry.free();
+    document.setChartTrendline(drawing, 0, 0, new TrendlineSpec(TrendlineKind.Logarithmic));
+    assert.equal(document.removeChartTrendlines(drawing, 0), 1);
+
+    document.setChartErrorBars(
+      drawing,
+      0,
+      ErrorBarSpec.fixed(ErrorBarType.Both, ErrorValueType.FixedValue, 1.5),
+    );
+    const bars = document.chartErrorBars(drawing, 0);
+    assert.equal(bars.length, 1);
+    for (const entry of bars) entry.free();
+    assert.equal(document.removeChartErrorBars(drawing, 0), 1);
+
+    assert.equal(document.chartDanglingDecoration(drawing, 0).length, 0);
+    assert.equal(document.dropChartDanglingDecoration(drawing, 0), 0);
+    assert.equal(document.removeChartPointFormat(drawing, 0, 1), true);
+    document.suppressChartDataLabels(drawing, ChartLabelScope.series(1));
+    assert.equal(document.removeChartDataLabels(drawing, seriesScope), true);
+    assert.equal(document.chartStyleId(drawing), undefined);
+
+    document.detachChartWorkbook(drawing);
+    assert.equal(document.chartWorkbooks().length, 0);
+
+    blue.free();
+    outline.free();
+    seriesScope.free();
+  });
+});
+
+test("a floating Word chart takes each of the three wraps", () => {
+  for (const wrap of [ChartWrap.none(), ChartWrap.square(WrapText.BothSides), ChartWrap.topAndBottom()]) {
+    withDocument((document) => {
+      const drawing = document.addFloatingChart(
+        0,
+        sampleChart(),
+        228600,
+        114300,
+        4572000,
+        2743200,
+        wrap,
+        "Floating",
+      );
+      assert.deepEqual(Array.from(document.chartDrawingIds()), [drawing]);
+      assert.deepEqual(Array.from(document.chartKinds(drawing)), [ChartKind.Bar]);
+    });
+    wrap.free();
+  }
+  const square = ChartWrap.square(WrapText.Left);
+  assert.equal(square.kind, "square");
+  assert.equal(square.wrapText, WrapText.Left);
+  square.free();
+  const none = ChartWrap.none();
+  assert.equal(none.wrapText, undefined);
+  none.free();
+});
+
+test("a Word chart refusal carries the same code the Deck surface uses", () => {
+  withDocument((document) => {
+    const drawing = document.addChart(0, sampleChart(), 914400, 914400, "Revenue");
+    assert.throws(
+      () => document.chartSeriesFill(drawing, 7),
+      (error) => error.code === "IndexOutOfRange",
+    );
+    assert.throws(
+      () => document.chartSeries(9999),
+      (error) => error.code === "WrongKind",
+    );
+  });
+});
+
+test("removing a Word chart binding is caught by this suite", () => {
+  // The parity clause's own guard: **remove one binding and this case goes red.** A clause nothing
+  // checks quietly stops being true, so this names the bindings explicitly rather than trusting
+  // that some other case would have called them. Delete `Document::chart_drawing_ids` from
+  // `bindings/mjx-wasm/src/document.rs` and this fails before any chart case above runs.
+  const document = Document.blank(PageSize.a4());
+  try {
+    for (const method of [
+      "chartDrawingIds",
+      "addChart",
+      "addFloatingChart",
+      "chartSeries",
+      "chartSeriesReferences",
+      "chartKinds",
+      "chartAxes",
+      "chartTitle",
+      "chartLegend",
+      "chartWorkbooks",
+      "refreshChartWorkbook",
+      "detachChartWorkbook",
+      "setChartSeriesValues",
+      "setChartDataLabels",
+      "addChartTrendline",
+      "setChartErrorBars",
+      "dropChartDanglingDecoration",
+    ]) {
+      assert.equal(typeof document[method], "function", `Document.${method} is not bound`);
+    }
   } finally {
     document.free();
   }

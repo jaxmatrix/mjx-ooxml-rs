@@ -360,3 +360,136 @@ fn a_workbook_with_an_authored_table_opens() {
 
     let _ = convert_opens(&workbook.save().expect("saves"), "authored_table");
 }
+
+#[test]
+fn a_workbook_with_an_authored_drawing_opens() {
+    // MJXOFF-107's equivalent of the table case above, and a genuinely different question from
+    // schema validity for the same reason: a drawing is **six** things that have to agree, and three
+    // of the six are packaging rather than markup. A missing content-type override, a `drawing`
+    // relationship written from the workbook part instead of the sheet, or — the one this project
+    // got wrong in its own first draft — an image relationship written from the *sheet* instead of
+    // from the drawing part, all produce markup `dml-spreadsheetDrawing.xsd` accepts and a renderer
+    // still draws nothing for.
+    //
+    // All three anchor modes, because they are three different elements with three different
+    // content models, and a renderer that rejects one of them would otherwise go unnoticed.
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_dml::{Position, Size};
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+
+    // A 1x1 truecolour PNG: every chunk CRC is correct and its `IDAT` inflates to one filter byte
+    // plus three colour bytes, so a renderer really does get an image rather than a refusal.
+    const PNG: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D',
+        b'R', 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, b'I', b'D', b'A', b'T', 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00,
+        0x00, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82,
+    ];
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let mut workbook = Workbook::blank().expect("authored");
+    workbook
+        .set_cell_value(0, at("A1"), CellValue::InlineString("Region"))
+        .expect("the store accepts the value");
+
+    workbook
+        .add_two_cell_anchored_picture(
+            0,
+            PNG,
+            "two-cell",
+            CellMarker::new(1, 190_500, 2, 47_625),
+            CellMarker::new(3, 95_250, 5, 19_050),
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a two-cell anchored picture");
+    workbook
+        .add_one_cell_anchored_picture(
+            0,
+            PNG,
+            "one-cell",
+            CellMarker::new(4, 76_200, 1, 38_100),
+            Size::from_emu(914_400, 457_200),
+        )
+        .expect("a one-cell anchored picture");
+    workbook
+        .add_absolute_anchored_picture(
+            0,
+            PNG,
+            "absolute",
+            Position::from_emu(1_905_000, 952_500),
+            Size::from_emu(685_800, 342_900),
+        )
+        .expect("an absolute anchored picture");
+
+    let _ = convert_opens(&workbook.save().expect("saves"), "authored_drawing");
+}
+
+#[test]
+fn a_workbook_with_authored_charts_opens() {
+    // MJXOFF-111's equivalent of the drawing case above, and a different question again. A chart is
+    // **five** things that have to agree and three of them are packaging: the chart part's own
+    // content-type override, the `chart` relationship written from the *drawing* part rather than
+    // from the sheet, and — for the embedded-workbook case — the `package` relationship from the
+    // chart part to a whole `.xlsx` inside this one. Every one of those produces markup
+    // `dml-chart.xsd` accepts and a renderer draws nothing for.
+    //
+    // Both authoring calls, because they write genuinely different files: `add_chart` writes a chart
+    // whose `c:f` name an embedded workbook, `add_range_chart` one whose `c:f` name cells in *this*
+    // workbook and which carries no `c:externalData` at all. A renderer that resolved only the first
+    // shape would otherwise go unnoticed.
+    use mjx_chart::{ChartData, ChartKind, LegendPosition};
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+    use mjx_xlsx::{SheetChartSeries, SheetChartSource};
+
+    let at = |address: &str| CellReference::parse(address).expect("a literal address");
+    let mut workbook = Workbook::blank().expect("authored");
+    workbook.rename_sheet(0, "Data").expect("renamed");
+    workbook
+        .set_cell_value(0, at("A1"), CellValue::InlineString("Revenue"))
+        .expect("the store accepts the header");
+    for (address, value) in [("A2", 10.0), ("A3", 20.0), ("A4", 30.0)] {
+        workbook
+            .set_cell_value(0, at(address), CellValue::Number(value))
+            .expect("the store accepts the value");
+    }
+
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Plan", [10.0, 20.0, 30.0])
+        .title("Quarterly plan")
+        .legend(LegendPosition::Bottom);
+    workbook
+        .add_chart(
+            0,
+            &chart,
+            CellMarker::new(2, 0, 1, 0),
+            CellMarker::new(9, 0, 16, 0),
+            "Plan",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart with an embedded workbook");
+
+    let source = SheetChartSource {
+        categories: None,
+        series: vec![SheetChartSeries {
+            name_cell: Some("Data!$A$1".to_owned()),
+            name: "Actual".to_owned(),
+            values: "Data!$A$2:$A$4".to_owned(),
+        }],
+    };
+    workbook
+        .add_range_chart(
+            0,
+            ChartKind::Line,
+            &source,
+            CellMarker::new(2, 0, 18, 0),
+            CellMarker::new(9, 0, 33, 0),
+            "Actual",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a live-range chart");
+
+    let _ = convert_opens(&workbook.save().expect("saves"), "authored_charts");
+}

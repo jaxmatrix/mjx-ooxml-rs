@@ -58,10 +58,15 @@ MEMBER_COUNTS = {
     "SpreadsheetPatternType": 19,
     "SpreadsheetFontScheme": 3,
     "TotalsRowFunction": 10,
+    # Worksheet drawings (MJXOFF-107). `ResizingBehavior` is the one worth reading twice: its three
+    # members are the three things an anchored object can do when the grid under it moves, and a
+    # dropped one is a `@editAs` value a caller cannot express.
+    "ResizingBehavior": 3,
+    "GeometrySource": 3,
     "CalculationMode": 3,
     "ReferenceMode": 2,
     "SheetKind": 3,
-    "PartKind": 27,
+    "PartKind": 28,
     "HyperlinkKind": 4,
     "DateSystem": 2,
     "TableStyleOrigin": 3,

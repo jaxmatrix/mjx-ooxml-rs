@@ -1191,6 +1191,15 @@ class ShapeKind:
     def __int__(self) -> int: ...
 
 @final
+class WrapText:
+    """The projection of [`mjx_ooxml::WrapText`], whose documentation is authoritative."""
+    BothSides: WrapText
+    Left: WrapText
+    Right: WrapText
+    Largest: WrapText
+    def __int__(self) -> int: ...
+
+@final
 class TablePart:
     """The projection of [`mjx_ooxml::TablePart`], whose documentation is authoritative."""
     FirstRow: TablePart
@@ -1602,6 +1611,49 @@ class ChartWorkbook:
     """Where the workbook is — a part name inside the package, or a URI outside it."""
     external: bool
     """Whether the workbook lies outside the package."""
+
+@final
+class DocumentChartWorkbook:
+    """A Word chart's backing workbook: which drawing holds the chart, where the workbook is, and
+    whether it lies outside the package. The Word counterpart of `ChartWorkbook`, which names a
+    slide shape instead of a drawing id.
+    """
+    drawing_id: int
+    """The `wp:docPr` id of the drawing that frames the chart."""
+    target: str
+    """Where the workbook is — a part name inside the package, or a URI outside it."""
+    external: bool
+    """Whether the workbook lies outside the package."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class ChartWrap:
+    """How text flows around a floating Word chart (`Document.add_floating_chart`)."""
+    @staticmethod
+    def none() -> ChartWrap:
+        """The chart floats over or under the text and nothing reflows around it
+        (`wp:wrapNone`).
+        """
+        ...
+    @staticmethod
+    def square(wrap_text: WrapText) -> ChartWrap:
+        """Text wraps around the chart's bounding box, on the sides `wrap_text` names
+        (`wp:wrapSquare`).
+        """
+        ...
+    @staticmethod
+    def top_and_bottom() -> ChartWrap:
+        """Text wraps above and below the chart only, never beside it
+        (`wp:wrapTopAndBottom`).
+        """
+        ...
+    kind: str
+    """Which wrap this is: `"none"`, `"square"` or `"top_and_bottom"`."""
+    wrap_text: WrapText | None
+    """Which sides text flows down, when this is a square wrap."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
 
 @final
 class DanglingPointReference:
@@ -2308,6 +2360,12 @@ class Deck:
         """The series of the chart the frame `shape_idx` on `surface` references — for each, its
         name, category labels and values (for a scatter series, its X labels and Y values),
         flattened across the chart's plots. Reading does not dirty the part.
+        """
+        ...
+    def chart_series_references(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath) -> list[ChartSeriesReferences]:
+        """Where every series of that chart says its data lives — the formula beside each cache, as
+        the file wrote it. The companion of `chart_series`: that answers what the caches *hold*,
+        this answers what the references *name*. Reading does not dirty the part.
         """
         ...
     def set_chart_series_values(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, series_idx: int, values: Sequence[float]) -> None:
@@ -3856,6 +3914,171 @@ class Document:
     def remove_drawing(self, doc_pr_id: int) -> bool:
         """Removes the drawing whose `wp:docPr@id` is `doc_pr_id`. Returns whether one was
         removed.
+        """
+        ...
+    def chart_drawing_ids(self) -> list[int]:
+        """The `wp:docPr` id of every drawing in the document body that frames a chart, in
+        document order.
+        """
+        ...
+    def chart_rel_id(self, drawing_id: int) -> str | None:
+        """The relationship id the drawing `drawing_id` names as its chart part, or `None` when
+        that drawing frames no chart.
+        """
+        ...
+    def chart_part_bytes(self, drawing_id: int) -> bytes | None:
+        """The raw XML bytes of the chart part the drawing `drawing_id` references, or `None`."""
+        ...
+    def add_chart(self, paragraph: int | Sequence[int] | BlockPath, chart: ChartData, width_emu: int, height_emu: int, name: str) -> int:
+        """Adds `chart` as a new inline chart at the end of `paragraph`. Returns its `wp:docPr`
+        id.
+        """
+        ...
+    def add_floating_chart(self, paragraph: int | Sequence[int] | BlockPath, chart: ChartData, offset_x_emu: int, offset_y_emu: int, width_emu: int, height_emu: int, wrap: ChartWrap, name: str) -> int:
+        """Adds `chart` as a floating chart, offset from the paragraph's own origin, with the
+        text wrapping around it as `wrap` says. Returns its `wp:docPr` id.
+        """
+        ...
+    def chart_workbooks(self) -> list[DocumentChartWorkbook]:
+        """Every chart in the document that references a backing workbook."""
+        ...
+    def refresh_chart_workbook(self, drawing_id: int) -> bool:
+        """Rewrites the embedded workbook of the chart `drawing_id` frames. Answers whether it
+        rewrote one.
+        """
+        ...
+    def detach_chart_workbook(self, drawing_id: int) -> None:
+        """Detaches the backing workbook, leaving the chart to render from its cached values."""
+        ...
+    def chart_series(self, drawing_id: int) -> list[ChartSeriesData]:
+        """The series of the chart the drawing `drawing_id` frames."""
+        ...
+    def chart_series_references(self, drawing_id: int) -> list[ChartSeriesReferences]:
+        """Where every series says its data lives — the formula beside each cache, as written. The
+        companion of `chart_series`: that answers what the caches *hold*, this answers what the
+        references *name*.
+        """
+        ...
+    def chart_kinds(self, drawing_id: int) -> list[ChartKind]:
+        """The kind of every plot the chart draws, in document order."""
+        ...
+    def chart_axes(self, drawing_id: int) -> list[ChartAxisData]:
+        """The axes of the chart, in document order."""
+        ...
+    def chart_title(self, drawing_id: int) -> str | None:
+        """The heading of the chart, or `None` when it has none."""
+        ...
+    def chart_legend(self, drawing_id: int) -> ChartLegendData | None:
+        """The legend of the chart, or `None` when it has none."""
+        ...
+    def chart_style_id(self, drawing_id: int) -> int | None:
+        """The built-in style id the chart names, or `None`."""
+        ...
+    def chart_series_fill(self, drawing_id: int, series_idx: int) -> FillSpec | None:
+        """The fill of series `series_idx`, or `None` when it takes its colour from the chart
+        style.
+        """
+        ...
+    def chart_data_labels(self, drawing_id: int, series_idx: int, point_idx: int | None = None) -> DataLabelSettings:
+        """The data-label settings in force for one point of series `series_idx`."""
+        ...
+    def chart_data_label_tier(self, drawing_id: int, scope: ChartLabelScope) -> DataLabelSettings | None:
+        """The data-label settings one tier states in its own right."""
+        ...
+    def chart_point_label_text(self, drawing_id: int, series_idx: int, point_idx: int) -> str | None:
+        """The words one point's label shows in place of its value, or `None`."""
+        ...
+    def chart_point_formats(self, drawing_id: int, series_idx: int) -> list[ChartPointFormatData]:
+        """Every point of series `series_idx` that carries its own formatting."""
+        ...
+    def chart_trendlines(self, drawing_id: int, series_idx: int) -> list[ChartTrendlineData]:
+        """Every trendline fitted through series `series_idx`."""
+        ...
+    def chart_error_bars(self, drawing_id: int, series_idx: int) -> list[ChartErrorBarData]:
+        """Every set of error bars series `series_idx` carries."""
+        ...
+    def chart_dangling_decoration(self, drawing_id: int, series_idx: int) -> list[DanglingPointReference]:
+        """Every decoration of series `series_idx` naming a point the series no longer has."""
+        ...
+    def set_chart_series_values(self, drawing_id: int, series_idx: int, values: Sequence[float]) -> None:
+        """Rewrites the values of series `series_idx`, refreshing the embedded workbook in the
+        same call.
+        """
+        ...
+    def set_chart_series_categories(self, drawing_id: int, series_idx: int, labels: Sequence[str]) -> None:
+        """Rewrites the category labels of series `series_idx`, refreshing the workbook
+        alongside.
+        """
+        ...
+    def set_chart_axis_scale(self, drawing_id: int, axis_idx: int, minimum: float | None = None, maximum: float | None = None) -> None:
+        """Sets or clears the explicit bounds of axis `axis_idx`."""
+        ...
+    def set_chart_axis_orientation(self, drawing_id: int, axis_idx: int, orientation: AxisOrientation) -> None:
+        """Sets the direction of axis `axis_idx`."""
+        ...
+    def set_chart_axis_title(self, drawing_id: int, axis_idx: int, text: str | None = None) -> None:
+        """Sets or removes the title of axis `axis_idx`."""
+        ...
+    def set_chart_axis_gridlines(self, drawing_id: int, axis_idx: int, major: bool, minor: bool) -> None:
+        """Turns the gridlines of axis `axis_idx` on or off."""
+        ...
+    def set_chart_title(self, drawing_id: int, text: str | None = None) -> None:
+        """Sets or removes the chart's heading."""
+        ...
+    def set_chart_legend(self, drawing_id: int, position: LegendPosition | None = None) -> None:
+        """Places the chart's legend at `position`, or removes it."""
+        ...
+    def set_chart_series_fill(self, drawing_id: int, series_idx: int, fill: FillSpec) -> None:
+        """Sets the fill of series `series_idx`."""
+        ...
+    def set_chart_series_line(self, drawing_id: int, series_idx: int, line: LineSpec) -> None:
+        """Sets the outline of series `series_idx`."""
+        ...
+    def set_chart_data_labels(self, drawing_id: int, scope: ChartLabelScope, spec: DataLabelSpec) -> None:
+        """Applies `spec` at one tier of the chart's data labels."""
+        ...
+    def suppress_chart_data_labels(self, drawing_id: int, scope: ChartLabelScope) -> None:
+        """Suppresses the labels at one tier."""
+        ...
+    def remove_chart_data_labels(self, drawing_id: int, scope: ChartLabelScope) -> bool:
+        """Removes the labels at one tier entirely. Answers whether one was there."""
+        ...
+    def set_chart_point_fill(self, drawing_id: int, series_idx: int, point_idx: int, fill: FillSpec) -> None:
+        """Colours point `point_idx` of series `series_idx` differently from the rest of its
+        series.
+        """
+        ...
+    def set_chart_point_line(self, drawing_id: int, series_idx: int, point_idx: int, line: LineSpec) -> None:
+        """Outlines point `point_idx` of series `series_idx` differently from the rest of its
+        series.
+        """
+        ...
+    def set_chart_point_explosion(self, drawing_id: int, series_idx: int, point_idx: int, percent: int | None = None) -> None:
+        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it
+        back.
+        """
+        ...
+    def remove_chart_point_format(self, drawing_id: int, series_idx: int, point_idx: int) -> bool:
+        """Removes the formatting of point `point_idx` of series `series_idx`."""
+        ...
+    def add_chart_trendline(self, drawing_id: int, series_idx: int, spec: TrendlineSpec) -> None:
+        """Fits a trendline through series `series_idx`, appending to any it already carries."""
+        ...
+    def set_chart_trendline(self, drawing_id: int, series_idx: int, trendline_idx: int, spec: TrendlineSpec) -> None:
+        """Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, in place."""
+        ...
+    def remove_chart_trendlines(self, drawing_id: int, series_idx: int) -> int:
+        """Removes every trendline from series `series_idx`, answering how many went."""
+        ...
+    def set_chart_error_bars(self, drawing_id: int, series_idx: int, spec: ErrorBarSpec) -> None:
+        """Gives series `series_idx` error bars, replacing an existing set along the same axis."""
+        ...
+    def remove_chart_error_bars(self, drawing_id: int, series_idx: int) -> int:
+        """Removes every set of error bars from series `series_idx`, answering how many went."""
+        ...
+    def drop_chart_dangling_decoration(self, drawing_id: int, series_idx: int) -> int:
+        """Removes every decoration of series `series_idx` past the end of its data, answering
+        how many went.
         """
         ...
 
@@ -5962,6 +6185,7 @@ class PartKind:
     Table: PartKind
     Comments: PartKind
     Drawing: PartKind
+    Chart: PartKind
     VmlDrawing: PartKind
     PrinterSettings: PartKind
     Theme: PartKind
@@ -6060,6 +6284,22 @@ class UnderlineType:
     SingleAccounting: UnderlineType
     DoubleAccounting: UnderlineType
     NONE: UnderlineType
+    def __int__(self) -> int: ...
+
+@final
+class ResizingBehavior:
+    """The projection of `mjx_ooxml::ResizingBehavior`, whose documentation is authoritative."""
+    MoveAndResizeWithAnchorCells: ResizingBehavior
+    MoveWithCellsButDoNotResize: ResizingBehavior
+    DoNotMoveOrResizeWithRowsOrColumns: ResizingBehavior
+    def __int__(self) -> int: ...
+
+@final
+class GeometrySource:
+    """The projection of `mjx_ooxml::GeometrySource`, whose documentation is authoritative."""
+    Stated: GeometrySource
+    SheetDefault: GeometrySource
+    BaseColumnWidth: GeometrySource
     def __int__(self) -> int: ...
 
 @final
@@ -6227,6 +6467,40 @@ class SheetHyperlinkInfo:
     """`@display` — never kept in step with the cell's own value."""
 
 @final
+class SheetCommentInfo:
+    """One cell comment, resolved across both of the parts it lives in."""
+    cell: str
+    """The cell the comment is attached to, as A1 text."""
+    author_index: int
+    """`@authorId` — an index into the part's author list, not a name."""
+    author: str | None
+    """The name at that index, or `None`."""
+    text: str
+    """The displayed text: the plain `t`, then each formatted run's `t`, concatenated."""
+    shape_id: int | None
+    """`@shapeId`, when the file states one."""
+    comment_box: CommentBoxInfo | None
+    """The box that draws it, or `None`."""
+
+@final
+class CommentBoxInfo:
+    """The `v:shape` that draws one comment's pop-up box."""
+    identifier: str | None
+    """The shape's own `@id`, as the file wrote it."""
+    application_identifier: str | None
+    """`@o:spid`, the application's identifier for the shape."""
+    is_visible: bool
+    """Whether the box is showing without the pointer over the cell."""
+    anchor_text: str | None
+    """`x:ClientData/x:Anchor` exactly as written. Never decoded."""
+    row: int | None
+    """`x:ClientData/x:Row` — the zero-based row the box states."""
+    column: int | None
+    """`x:ClientData/x:Column` — the zero-based column."""
+    style: str | None
+    """The shape's CSS2 `@style`, verbatim."""
+
+@final
 class SheetTableInfo:
     """One table on a sheet, resolved to its part."""
     part: str
@@ -6267,6 +6541,70 @@ class SheetTableColumnInfo:
     """`x:calculatedColumnFormula`, exactly as the file wrote it."""
     totals_row_formula: str | None
     """`x:totalsRowFormula`, on the same terms."""
+
+@final
+class SheetDrawingInfo:
+    """One sheet's drawing part, and what is anchored in it."""
+    part: str
+    """The part the anchors live in."""
+    relationship_id: str
+    """The `x:drawing@r:id` the sheet reached it through."""
+    objects: list[SheetDrawingObjectInfo]
+    """Every anchored object, in paint order."""
+
+@final
+class SheetDrawingObjectInfo:
+    """One anchored object on a sheet."""
+    index: int
+    """The object's position in the drawing part, which is also its paint order."""
+    anchor: str
+    """`"twoCellAnchor"`, `"oneCellAnchor"` or `"absoluteAnchor"`."""
+    object: str | None
+    """`"sp"`, `"pic"`, `"graphicFrame"`, `"grpSp"`, `"cxnSp"`, `"contentPart"`, or `None`."""
+    resizing: ResizingBehavior
+    """What the anchor promises to do when the cells under it move."""
+    id: int | None
+    """The object's `cNvPr@id`, or `None`."""
+    name: str | None
+    """The object's `cNvPr@name`, or `None`."""
+    image: str | None
+    """The image part a picture shows, or `None` for every other object kind."""
+    prints_with_sheet: bool
+    """Whether the object prints with the sheet — which **defaults to true**."""
+
+@final
+class AnchorBoundsInfo:
+    """Where an anchor puts its object, in EMU, and what the answer rests on."""
+    x_emu: int
+    """The object's left edge, in EMU from the sheet origin."""
+    y_emu: int
+    """The object's top edge, in EMU from the sheet origin."""
+    width_emu: int
+    """The object's width, in EMU."""
+    height_emu: int
+    """The object's height, in EMU."""
+    row_source: GeometrySource
+    """Where the vertical half of this answer came from."""
+    column_source: GeometrySource
+    """Where the horizontal half came from."""
+    maximum_digit_width_pixels: float
+    """The maximum digit width, in pixels, the horizontal half was computed through."""
+    pixels_per_inch: float
+    """The pixels per inch that width was stated at."""
+
+@final
+class AnchorShiftInfo:
+    """What one anchor did when rows or columns moved under it."""
+    index: int
+    """The anchor's position in the drawing part."""
+    promise: ResizingBehavior
+    """What the anchor promises to do when the cells under it move."""
+    moved: bool
+    """Whether the object's top-left corner moved."""
+    resized: bool
+    """Whether the object's extent changed."""
+    promise_kept: bool
+    """Whether the markers alone could keep the anchor's own promise."""
 
 @final
 class GridAnomalyInfo:
@@ -6637,6 +6975,108 @@ class ResolvedAspect:
     """Whether anything stated this aspect at all."""
 
 @final
+class ChartSeriesReferences:
+    """Where one series says its data lives — the formula beside each cache, as the file wrote it."""
+    name: str | None
+    """The cell the series' name comes from, or `None` when the name is a literal."""
+    categories: str | None
+    """The cells its category labels come from, or `None` when they are a literal."""
+    values: str | None
+    """The cells its values come from, or `None` when they are a literal."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class ChartRangeSeries:
+    """Where one series of an Excel range chart takes its data from (`Workbook.add_range_chart`)."""
+    def __init__(self, name: str, values: str) -> None:
+        """A series taking its values from `values` and its name from the literal `name`."""
+        ...
+    def named_by_cell(self, reference: str) -> ChartRangeSeries:
+        """The same series, taking its name from the cell `reference` names instead."""
+        ...
+    name_cell: str | None
+    """The cell the series takes its name from, or `None` for a literal name."""
+    name: str
+    """The name to use when no cell names it, or when the cell it names holds nothing."""
+    values: str
+    """The cells the series' values come from."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class SheetChartWorkbookInfo:
+    """An Excel chart's backing workbook: which anchor on which tab holds the chart, where the
+    workbook is, and whether it lies outside the package.
+    """
+    sheet: int
+    """The tab the chart is anchored on."""
+    anchor: int
+    """The anchor that frames it, in the drawing part's paint order."""
+    target: str
+    """Where the workbook is — a part name inside the package, or a URI outside it."""
+    external: bool
+    """Whether the workbook lies outside the package."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class ChartSeriesFreshnessInfo:
+    """One series' cache set beside what its cells actually say, with each named."""
+    series_index: int
+    """Which series this is, in the order `Workbook.chart_series` reports them."""
+    cached: ChartSeriesData
+    """What the chart draws today — its caches."""
+    references: ChartSeriesReferences
+    """The formula of each of the series' sources, as the file wrote them."""
+    from_cells: ChartSeriesData
+    """What the cells say, for the sources that are references and resolved."""
+    values_problem: str | None
+    """Why the values reference did not resolve, in words, or `None` when it did."""
+    categories_problem: str | None
+    """Why the categories reference did not resolve, in words, or `None`."""
+    values_agree: bool | None
+    """Whether the cached values and the cells agree. `None` means *cannot say* — the values are a
+    literal, or the reference did not resolve.
+    """
+    categories_agree: bool | None
+    """Whether the cached category labels and the cells agree. `None` as above."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class RangeCellInfo:
+    """One cell a chart's formula reaches, and where it sits in that reference."""
+    offset: int
+    """The cell's zero-based position within the whole reference — the index a cache uses."""
+    sheet: int
+    """The tab the cell is on."""
+    reference: str
+    """Where on that tab, in A1 text."""
+    number: float | None
+    """The cell's value as a number, or `None` for one that is not a number."""
+    label: str
+    """What a category axis would show for the cell."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
+class ResolvedRangeInfo:
+    """A chart's formula, resolved against a workbook's cells."""
+    reference: str
+    """The reference exactly as the chart wrote it."""
+    addressed_cells: int
+    """How many cells the reference addresses, blanks included."""
+    fully_resolved: bool
+    """Whether every area of the reference resolved."""
+    problem: str | None
+    """Why the first area that failed did, in words, or `None` when none did."""
+    cells: list[RangeCellInfo]
+    """The cells that hold something, in reference order. A blank cell is absent rather than zero."""
+    def __repr__(self) -> str: ...
+    def __eq__(self, other: object) -> bool: ...
+
+@final
 class Workbook:
     """An open Excel workbook."""
     @staticmethod
@@ -6767,6 +7207,104 @@ class Workbook:
     def remove_cell_hyperlink(self, sheet: int, reference: str) -> bool:
         """Removes the hyperlink covering `reference`, and the relationship it named."""
         ...
+    def sheet_comments(self, sheet: int) -> list[SheetCommentInfo]:
+        """Every comment on one sheet, in the order the comments part lists them."""
+        ...
+    def cell_comment(self, sheet: int, reference: str) -> SheetCommentInfo | None:
+        """The comment attached to `reference`, or `None`."""
+        ...
+    def add_cell_comment(self, sheet: int, reference: str, author: str, text: str) -> int:
+        """Attaches a comment to `reference`, writing both halves, and answers its shape identifier."""
+        ...
+    def set_cell_comment_text(self, sheet: int, reference: str, text: str) -> bool:
+        """Replaces the text of the comment on `reference`, leaving its box as it was."""
+        ...
+    def remove_cell_comment(self, sheet: int, reference: str) -> bool:
+        """Removes the comment on `reference` — both halves."""
+        ...
+    def vml_shape_id_for_ole_object(self, sheet: int, object: int) -> str | None:
+        """The `@id` of the legacy VML shape an OLE object on a sheet is drawn as, or `None`."""
+        ...
+    def vml_shape_id_for_form_control(self, sheet: int, control: int) -> str | None:
+        """The `@id` of the legacy VML shape a form control on a sheet is drawn as, or `None`."""
+        ...
+    def sheet_vml_part_bytes(self, sheet: int) -> bytes | None:
+        """The verbatim bytes of the legacy VML drawing part behind one sheet, or `None`."""
+        ...
+    def sheet_drawing(self, sheet: int) -> SheetDrawingInfo | None:
+        """The drawing part behind one sheet, and everything anchored in it."""
+        ...
+    def sheet_anchor_bounds(
+        self,
+        sheet: int,
+        anchor: int,
+        maximum_digit_width_pixels: float,
+        pixels_per_inch: float,
+    ) -> AnchorBoundsInfo | None:
+        """Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own worked example, for 11-point Calibri."""
+        ...
+    def add_two_cell_anchored_picture(
+        self,
+        sheet: int,
+        image_bytes: bytes,
+        name: str,
+        from_column: int,
+        from_column_offset_emu: int,
+        from_row: int,
+        from_row_offset_emu: int,
+        to_column: int,
+        to_column_offset_emu: int,
+        to_row: int,
+        to_row_offset_emu: int,
+        resizing: ResizingBehavior,
+    ) -> int:
+        """Anchors a picture between two cells, and answers its position in the paint order."""
+        ...
+    def add_one_cell_anchored_picture(
+        self,
+        sheet: int,
+        image_bytes: bytes,
+        name: str,
+        from_column: int,
+        from_column_offset_emu: int,
+        from_row: int,
+        from_row_offset_emu: int,
+        width_emu: int,
+        height_emu: int,
+    ) -> int:
+        """Anchors a picture to one cell, at its own size."""
+        ...
+    def add_absolute_anchored_picture(
+        self,
+        sheet: int,
+        image_bytes: bytes,
+        name: str,
+        x_emu: int,
+        y_emu: int,
+        width_emu: int,
+        height_emu: int,
+    ) -> int:
+        """Anchors a picture to the sheet, at an absolute position and size in EMU."""
+        ...
+    def remove_sheet_drawing_object(self, sheet: int, anchor: int) -> bool:
+        """Removes one anchored object from a sheet, reporting whether there was one."""
+        ...
+    def insert_rows_into_drawing(self, sheet: int, at: int, rows: int) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `rows` inserted at the zero-based `at`."""
+        ...
+    def remove_rows_from_drawing(self, sheet: int, at: int, rows: int) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `rows` removed at the zero-based `at`."""
+        ...
+    def insert_columns_into_drawing(
+        self, sheet: int, at: int, columns: int
+    ) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `columns` inserted at the zero-based `at`."""
+        ...
+    def remove_columns_from_drawing(
+        self, sheet: int, at: int, columns: int
+    ) -> list[AnchorShiftInfo]:
+        """Moves every anchor on a sheet for `columns` removed at the zero-based `at`."""
+        ...
     def sheet_tables(self, sheet: int) -> list[SheetTableInfo]:
         """Every table on one sheet."""
         ...
@@ -6847,4 +7385,392 @@ class Workbook:
         ...
     def part_bytes(self, part: str) -> bytes:
         """The bytes of one part, exactly as the package holds them. Reading never dirties a part."""
+        ...
+    def chart_anchor_indices(self, sheet: int) -> list[int]:
+        """The index of every anchor on `sheet` that frames a chart, in paint order."""
+        ...
+
+    def chart_rel_id(self, sheet: int, anchor: int) -> str | None:
+        """The relationship id the anchor names as its chart part, or `None` when it frames no chart.
+        """
+        ...
+
+    def chart_part_bytes(self, sheet: int, anchor: int) -> bytes | None:
+        """The raw XML of the chart part the anchor frames, or `None` when it frames no chart."""
+        ...
+
+    def add_chart(
+        self,
+        sheet: int,
+        chart: ChartData,
+        from_column: int,
+        from_row: int,
+        to_column: int,
+        to_row: int,
+        name: str,
+        resizing: ResizingBehavior,
+    ) -> int:
+        """Anchors `chart` between two cells, with the embedded workbook Office's *Edit Data* opens.
+        Answers its position in the paint order.
+        """
+        ...
+
+    def add_range_chart(
+        self,
+        sheet: int,
+        kind: ChartKind,
+        categories: str | None,
+        series: list[ChartRangeSeries],
+        from_column: int,
+        from_row: int,
+        to_column: int,
+        to_row: int,
+        name: str,
+        resizing: ResizingBehavior,
+    ) -> int:
+        """Anchors a chart taking its data from cells in this workbook — no embedded copy at all.
+        Answers its position in the paint order.
+        """
+        ...
+
+    def chart_workbooks(self) -> list[SheetChartWorkbookInfo]:
+        """Every chart in the workbook that references a backing workbook. A chart whose data is a
+        live range has none, and is absent from this list.
+        """
+        ...
+
+    def refresh_chart_workbook(self, sheet: int, anchor: int) -> bool:
+        """Rewrites the embedded workbook of the chart. Answers `False` — changing nothing — when there
+        is none, which is the ordinary state of a chart on a sheet.
+        """
+        ...
+
+    def detach_chart_workbook(self, sheet: int, anchor: int) -> None:
+        """Detaches the backing workbook, leaving the chart to render from its cached values. The
+        workbook part goes with it unless another chart still names it.
+        """
+        ...
+
+    def chart_series_references(self, sheet: int, anchor: int) -> list[ChartSeriesReferences]:
+        """Where every series says its data lives — the formula beside each cache, as written."""
+        ...
+
+    def chart_series_from_cells(self, sheet: int, anchor: int) -> list[ChartSeriesData]:
+        """Every series of the chart, read from the cells its formulas name rather than from its
+        caches.
+        """
+        ...
+
+    def chart_series_freshness(self, sheet: int, anchor: int) -> list[ChartSeriesFreshnessInfo]:
+        """Every series' cache set beside what its cells say, with each named. The cache is what draws
+        until a consumer recalculates; neither is silently preferred.
+        """
+        ...
+
+    def refresh_chart_cache_from_cells(self, sheet: int, anchor: int) -> int:
+        """Rewrites the chart's caches from the cells its formulas name, answering how many series
+        changed. The opt-in repair — writing a cell never does this for you.
+        """
+        ...
+
+    def resolve_range_reference(self, sheet: int, reference: str) -> ResolvedRangeInfo:
+        """Resolves a reference — a chart's formula, a defined name — against this workbook's cells,
+        with `sheet` as the tab an area that names none means.
+        """
+        ...
+
+    def chart_series(self, sheet: int, anchor: int) -> list[ChartSeriesData]:
+        """The series of the chart, from its caches."""
+        ...
+
+    def chart_kinds(self, sheet: int, anchor: int) -> list[ChartKind]:
+        """The kind of every plot the chart draws, in document order."""
+        ...
+
+    def chart_axes(self, sheet: int, anchor: int) -> list[ChartAxisData]:
+        """The axes of the chart, in document order."""
+        ...
+
+    def chart_title(self, sheet: int, anchor: int) -> str | None:
+        """The heading of the chart, or `None` when it has none."""
+        ...
+
+    def chart_legend(self, sheet: int, anchor: int) -> ChartLegendData | None:
+        """The legend of the chart, or `None` when it has none."""
+        ...
+
+    def chart_style_id(self, sheet: int, anchor: int) -> int | None:
+        """The built-in style id the chart names, or `None`."""
+        ...
+
+    def chart_series_fill(self, sheet: int, anchor: int, series_idx: int) -> FillSpec | None:
+        """The fill of series `series_idx`, or `None` when it takes its colour from the chart style.
+        """
+        ...
+
+    def chart_data_labels(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        point_idx: int | None = None,
+    ) -> DataLabelSettings:
+        """The data-label settings in force for one point of series `series_idx`."""
+        ...
+
+    def chart_data_label_tier(
+        self,
+        sheet: int,
+        anchor: int,
+        scope: ChartLabelScope,
+    ) -> DataLabelSettings | None:
+        """The data-label settings one tier states in its own right."""
+        ...
+
+    def chart_point_label_text(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        point_idx: int,
+    ) -> str | None:
+        """The words one point's label shows in place of its value, or `None`."""
+        ...
+
+    def chart_point_formats(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+    ) -> list[ChartPointFormatData]:
+        """Every point of series `series_idx` that carries its own formatting."""
+        ...
+
+    def chart_trendlines(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+    ) -> list[ChartTrendlineData]:
+        """Every trendline fitted through series `series_idx`."""
+        ...
+
+    def chart_error_bars(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+    ) -> list[ChartErrorBarData]:
+        """Every set of error bars series `series_idx` carries."""
+        ...
+
+    def chart_dangling_decoration(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+    ) -> list[DanglingPointReference]:
+        """Every decoration of series `series_idx` naming a point the series no longer has."""
+        ...
+
+    def set_chart_series_values(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        values: list[float],
+    ) -> None:
+        """Rewrites the values of series `series_idx`, refreshing the embedded workbook in the same
+        call.
+        """
+        ...
+
+    def set_chart_series_categories(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        labels: list[str],
+    ) -> None:
+        """Rewrites the category labels of series `series_idx`, refreshing the workbook alongside.
+        """
+        ...
+
+    def set_chart_axis_scale(
+        self,
+        sheet: int,
+        anchor: int,
+        axis_idx: int,
+        minimum: float | None = None,
+        maximum: float | None = None,
+    ) -> None:
+        """Sets or clears the explicit bounds of axis `axis_idx`."""
+        ...
+
+    def set_chart_axis_orientation(
+        self,
+        sheet: int,
+        anchor: int,
+        axis_idx: int,
+        orientation: AxisOrientation,
+    ) -> None:
+        """Sets the direction of axis `axis_idx`."""
+        ...
+
+    def set_chart_axis_title(
+        self,
+        sheet: int,
+        anchor: int,
+        axis_idx: int,
+        text: str | None = None,
+    ) -> None:
+        """Sets or removes the title of axis `axis_idx`."""
+        ...
+
+    def set_chart_axis_gridlines(
+        self,
+        sheet: int,
+        anchor: int,
+        axis_idx: int,
+        major: bool,
+        minor: bool,
+    ) -> None:
+        """Turns the gridlines of axis `axis_idx` on or off."""
+        ...
+
+    def set_chart_title(self, sheet: int, anchor: int, text: str | None = None) -> None:
+        """Sets or removes the chart's heading."""
+        ...
+
+    def set_chart_legend(self, sheet: int, anchor: int, position: LegendPosition | None = None) -> None:
+        """Places the chart's legend at `position`, or removes it."""
+        ...
+
+    def set_chart_series_fill(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        fill: FillSpec,
+    ) -> None:
+        """Sets the fill of series `series_idx`."""
+        ...
+
+    def set_chart_series_line(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        line: LineSpec,
+    ) -> None:
+        """Sets the outline of series `series_idx`."""
+        ...
+
+    def set_chart_data_labels(
+        self,
+        sheet: int,
+        anchor: int,
+        scope: ChartLabelScope,
+        spec: DataLabelSpec,
+    ) -> None:
+        """Applies `spec` at one tier of the chart's data labels."""
+        ...
+
+    def suppress_chart_data_labels(self, sheet: int, anchor: int, scope: ChartLabelScope) -> None:
+        """Suppresses the labels at one tier."""
+        ...
+
+    def remove_chart_data_labels(self, sheet: int, anchor: int, scope: ChartLabelScope) -> bool:
+        """Removes the labels at one tier entirely. Answers whether one was there."""
+        ...
+
+    def set_chart_point_fill(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        point_idx: int,
+        fill: FillSpec,
+    ) -> None:
+        """Colours point `point_idx` of series `series_idx` differently from the rest of its series.
+        """
+        ...
+
+    def set_chart_point_line(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        point_idx: int,
+        line: LineSpec,
+    ) -> None:
+        """Outlines point `point_idx` of series `series_idx` differently from the rest of its series.
+        """
+        ...
+
+    def set_chart_point_explosion(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        point_idx: int,
+        percent: int | None = None,
+    ) -> None:
+        """Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back.
+        """
+        ...
+
+    def remove_chart_point_format(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        point_idx: int,
+    ) -> bool:
+        """Removes the formatting of point `point_idx` of series `series_idx`."""
+        ...
+
+    def add_chart_trendline(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        spec: TrendlineSpec,
+    ) -> None:
+        """Fits a trendline through series `series_idx`, appending to any it already carries."""
+        ...
+
+    def set_chart_trendline(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        trendline_idx: int,
+        spec: TrendlineSpec,
+    ) -> None:
+        """Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, in place."""
+        ...
+
+    def remove_chart_trendlines(self, sheet: int, anchor: int, series_idx: int) -> int:
+        """Removes every trendline from series `series_idx`, answering how many went."""
+        ...
+
+    def set_chart_error_bars(
+        self,
+        sheet: int,
+        anchor: int,
+        series_idx: int,
+        spec: ErrorBarSpec,
+    ) -> None:
+        """Gives series `series_idx` error bars, replacing an existing set along the same axis."""
+        ...
+
+    def remove_chart_error_bars(self, sheet: int, anchor: int, series_idx: int) -> int:
+        """Removes every set of error bars from series `series_idx`, answering how many went."""
+        ...
+
+    def drop_chart_dangling_decoration(self, sheet: int, anchor: int, series_idx: int) -> int:
+        """Removes every decoration of series `series_idx` past the end of its data, answering how many
+        went.
+        """
         ...

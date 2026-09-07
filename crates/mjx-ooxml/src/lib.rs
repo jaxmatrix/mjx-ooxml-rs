@@ -136,7 +136,7 @@
 //! [`mjx_docx::effective_properties`] is Word's own deep reference on the ladders
 //! [`Document::effective_run_properties`]/[`Document::effective_paragraph_properties`] walk.
 //!
-//! For Excel, [`mjx_xlsx::guide`] carries fourteen pages. It is written against
+//! For Excel, [`mjx_xlsx::guide`] carries a page per feature area. It is written against
 //! [`mjx_xlsx::Workbook`]; every call translates to [`Workbook`] — this crate's own facade type,
 //! curated rather than a full re-export — the same way the PowerPoint guide translates to [`Deck`],
 //! except in one place, and the exception is the point:
@@ -157,7 +157,18 @@
 //! Beside them, [Large workbooks](mjx_xlsx::guide::large_workbooks) is the one to read before
 //! writing a loop that touches a lot of cells — and
 //! [Through the facade and the bindings](mjx_xlsx::guide::through_the_facade) is what this crate
-//! does about it.
+//! does about it. [`mjx_xlsx::effective_properties`] is Excel's own deep reference, the third of
+//! three pages in one shape: it is the `xf` indirection [`Workbook::effective_cell_format`] walks,
+//! and it is the page that explains why Excel reports *which layer* an answer came from where the
+//! other two report only a value.
+//!
+//! # Where one idea lives in three formats
+//!
+//! Five crates in this workspace hold markup that is no single format's — `mjx-dml`, `mjx-sml`,
+//! `mjx-chart`, `mjx-vml` and `mjx-omml` — and
+//! [Shared-markup reachability](crate::shared_markup_reachability) is the table of what each of
+//! [`Deck`], [`Document`] and [`Workbook`] can reach of them, with a written reason beside every
+//! asymmetry and a test that fails when the table and the code disagree.
 //!
 //! # Status
 //!
@@ -175,6 +186,7 @@ mod error;
 mod format;
 mod index;
 mod references;
+pub mod shared_markup_reachability;
 pub mod workbook;
 
 pub use address::{ShapePath, Surface};
@@ -186,10 +198,12 @@ pub use error::{Error, ErrorCode, ErrorDetail};
 pub use format::{detect_format, Format, FormatFamily};
 pub use references::{DiagramParts, ExternalLink, InkReference};
 pub use workbook::{
-    CellBlock, CellData, CellInput, CellWrite, DefinedName, GridAnomalyInfo, GridAnomalyKind,
-    PreservedPart, PreservedPartsSummary, RevisionSessionInfo, SharedWorkbookUserInfo,
-    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary,
-    SheetTableColumnInfo, SheetTableInfo, Workbook, WorkbookConnectionInfo,
+    AnchorBoundsInfo, AnchorShiftInfo, CellBlock, CellData, CellInput, CellWrite, ChartRangeSeries,
+    ChartSeriesFreshnessInfo, CommentBoxInfo, DefinedName, GridAnomalyInfo, GridAnomalyKind,
+    PreservedPart, PreservedPartsSummary, RangeCellInfo, ResolvedRangeInfo, RevisionSessionInfo,
+    SharedWorkbookUserInfo, SheetChartWorkbookInfo, SheetCommentInfo, SheetDrawingInfo,
+    SheetDrawingObjectInfo, SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo,
+    SheetSummary, SheetTableColumnInfo, SheetTableInfo, Workbook, WorkbookConnectionInfo,
     WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
     XmlMapInfo,
 };
@@ -225,13 +239,11 @@ pub use mjx_pptx::Presentation;
 // --- PresentationML: addressing, geometry, and the read structures -------------------------------
 pub use mjx_pptx::{
     default_placeholder_audio, default_placeholder_ole, default_placeholder_video,
-    ActiveXControlSpec, ActiveXPersistence, CellFormat, CellMargins, Cells, ChartAxisData,
-    ChartErrorBarData, ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData,
-    ChartTrendlineData, ChartWorkbook, DiagramContent, DiagramPartKind, DiagramRelationshipIds,
-    Geometry, GraphicFrameKind, Hyperlink, LayoutInfo, LinkedImage, MediaKind, MediaReference,
-    OleObject, OleObjectData, OleObjectSpec, PlaceholderInfo, PresentationDefect, ShapeBounds,
-    ShapeInfo, ShapeKind, SlideSize, TableStyleDefinition, TableStyleFormat, TargetMode,
-    DEFAULT_PLACEHOLDER_IMAGE,
+    ActiveXControlSpec, ActiveXPersistence, CellFormat, CellMargins, Cells, ChartWorkbook,
+    DiagramContent, DiagramPartKind, DiagramRelationshipIds, Geometry, GraphicFrameKind, Hyperlink,
+    LayoutInfo, LinkedImage, MediaKind, MediaReference, OleObject, OleObjectData, OleObjectSpec,
+    PlaceholderInfo, PresentationDefect, ShapeBounds, ShapeInfo, ShapeKind, SlideSize,
+    TableStyleDefinition, TableStyleFormat, TargetMode, DEFAULT_PLACEHOLDER_IMAGE,
 };
 
 // --- DrawingML: the interner-free authoring specs and every simple type they take ----------------
@@ -259,9 +271,16 @@ pub use mjx_dml::{
 };
 
 // --- ChartML: the chart description and every enum its parts take --------------------------------
+// The seven read summaries (`ChartAxisData` and friends) were re-exported from `mjx_pptx` until
+// MJXOFF-103, because that is where they were declared — a chart was reachable from one surface, so
+// the type belonged to that surface's crate. Now that a Word document reaches the same chart, they
+// live in `mjx-chart` and are named here from their real home. `mjx_pptx` still re-exports each of
+// them, so nothing downstream moved.
 pub use mjx_chart::{
-    AxisKind, AxisOrientation, AxisPosition, BarDirection, BarGrouping, BlankDisplay, ChartData,
-    ChartDataError, ChartKind, DanglingPointReference, DataLabelPosition, DataLabelSettings,
+    AxisKind, AxisOrientation, AxisPosition, BarDirection, BarGrouping, BlankDisplay,
+    ChartAccessError, ChartAxisData, ChartData, ChartDataError, ChartErrorBarData, ChartKind,
+    ChartLabelScope, ChartLegendData, ChartPointFormatData, ChartSeriesData, ChartSeriesReferences,
+    ChartTrendlineData, DanglingPointReference, DataLabelPosition, DataLabelSettings,
     DataLabelSpec, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, LegendPosition,
     OfPieType, RadarStyle, ScatterStyle, SeriesGrouping, TickLabelPosition, TickMark,
     TrendlineKind, TrendlineSpec,
@@ -275,11 +294,12 @@ pub use mjx_chart::{
 // destructuring an `EffectiveCharacterProperties` or matching on a `HyperlinkTarget` must be able to
 // name every type that appears, without depending on `mjx-docx` directly.
 pub use mjx_docx::{
-    CellBorderEdge, EffectiveBorder, EffectiveCharacterProperties, EffectiveColor,
-    EffectiveEastAsianLayout, EffectiveFonts, EffectiveLanguages, EffectiveManualRunWidth,
-    EffectiveParagraphProperties, EffectiveShading, EffectiveTabStop, EffectiveUnderline, Field,
-    FieldForm, GridDiscrepancy, HeaderFooterType, HyperlinkTarget, MergedCellType, PageMargins,
-    PageOrientation, PageSize, RevisionInfo, RevisionKind,
+    CellBorderEdge, ChartWrap, DocumentChartWorkbook, EffectiveBorder,
+    EffectiveCharacterProperties, EffectiveColor, EffectiveEastAsianLayout, EffectiveFonts,
+    EffectiveLanguages, EffectiveManualRunWidth, EffectiveParagraphProperties, EffectiveShading,
+    EffectiveTabStop, EffectiveUnderline, Field, FieldForm, GridDiscrepancy, HeaderFooterType,
+    HyperlinkTarget, MergedCellType, PageMargins, PageOrientation, PageSize, RevisionInfo,
+    RevisionKind,
 };
 
 // --- SpreadsheetML: the package reports and the interner-free authoring vocabulary ---------------
@@ -303,7 +323,8 @@ pub use mjx_xlsx::{CalculationSettings, DateSystem, HyperlinkKind, PartKind, She
 pub use mjx_sml::{
     AddressText, Anchoring, ApplyFlag, BorderEdgeSpec, BorderSpec, CellFormatSpec,
     CellFormatTarget, CellRange, CellReference, Color, EffectiveCellFormat, FontProperties,
-    FormatAspect, FormatLayer, PatternFillSpec, ResolvedAspect, StyleIndexSource, TableStyleOrigin,
+    FormatAspect, FormatLayer, GeometrySource, PatternFillSpec, ResolvedAspect, StyleIndexSource,
+    TableStyleOrigin,
 };
 
 // --- Generated schema simple types the signatures above name -------------------------------------
@@ -314,9 +335,14 @@ pub use mjx_ooxml_types::presentationml::{
     Orientation, PlaceholderSize, PlaceholderType, SlideLayoutKind, SlideSizeKind,
 };
 pub use mjx_ooxml_types::shared::{ConformanceClass, VerticalTextPosition};
+// `ST_WrapText` — which sides of a floating drawing text flows down. It belongs to
+// `dml-wordprocessingDrawing`, not to `wml`, and appears on this surface only as the payload of
+// [`ChartWrap::Square`], which `Document::add_floating_chart` takes (MJXOFF-103).
+pub use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
 pub use mjx_ooxml_types::spreadsheetml::{
     BorderStyle, CalculationMode, ReferenceMode, TotalsRowFunction, UnderlineType,
 };
+pub use mjx_ooxml_types::wordprocessingdrawing::WrapText;
 // Two SpreadsheetML simple types share a bare name with a DrawingML one already frozen in this
 // vocabulary — `ST_PatternType` (a cell fill's pattern) against `a:pattFill@prst`, and
 // `ST_FontScheme` (which theme slot a font *is*) against DrawingML's own. They are different

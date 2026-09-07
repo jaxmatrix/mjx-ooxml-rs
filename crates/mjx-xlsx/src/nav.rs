@@ -17,7 +17,7 @@
 //! narrow copy of it, holding only what SpreadsheetML's package layer actually needs.
 
 use mjx_ooxml_core::{Interner, RawAttribute, RawElement, RawName, RawNode, Symbol};
-use mjx_ooxml_types::namespaces::SchemaNamespace;
+use mjx_ooxml_types::namespaces::{SchemaNamespace, SML};
 use mjx_opc::PartName;
 use mjx_xml::text::unescape_text;
 use mjx_xml::XmlError;
@@ -63,6 +63,121 @@ pub(crate) fn children<'a>(
         RawNode::Element(element) if name_is(&element.name, interner, ns, local) => Some(element),
         _ => None,
     })
+}
+
+/// The Markup Compatibility namespace as a [`SchemaNamespace`] (one URI, no Strict variant), so the
+/// helpers above match `mc:AlternateContent` / `mc:Choice` / `mc:Fallback` the way they match a
+/// schema element.
+///
+/// `mjx-pptx` declares the same constant for the same reason — *"an OLE object's `p:oleObj` is
+/// wrapped in this MCE machinery in real decks"* — and SpreadsheetML is no different: LibreOffice
+/// wraps a worksheet's `x:controls` in an `mc:AlternateContent` requiring `x14`, because Excel 2010
+/// form controls need that namespace.
+pub(crate) const MCE: SchemaNamespace = SchemaNamespace {
+    transitional: mjx_mce::MARKUP_COMPATIBILITY_2006,
+    strict: None,
+};
+
+/// The `@shapeId` of the `entry_index`-th `list`/`entry` element among `children`, looking **inside**
+/// any `mc:AlternateContent` wrapper.
+///
+/// `WorksheetPart` types the unwrapped `x:oleObjects` and `x:controls` slots; a wrapped one arrives
+/// as an unmodelled child, so this is the path a file like `legacy_form_control.xlsx` takes. Both
+/// `mc:Choice` and `mc:Fallback` branches are searched, and LibreOffice's *doubled* wrapper — an
+/// `mc:AlternateContent` around the list **and** another around each entry — is walked through, so
+/// the count is over the entries a consumer would see rather than over the wrappers.
+///
+/// Reading only: nothing here resolves which branch a consumer would pick, because the identifier is
+/// the same in every branch that states one and choosing between them is a rendering decision.
+pub(crate) fn mce_shape_id(
+    children: &[RawNode],
+    interner: &Interner,
+    list_local: &str,
+    entry_local: &str,
+    entry_index: usize,
+) -> Option<u32> {
+    let mut entries = Vec::new();
+    for node in children {
+        let RawNode::Element(element) = node else {
+            continue;
+        };
+        if name_is(&element.name, interner, MCE, "AlternateContent") {
+            collect_entries(element, interner, list_local, entry_local, &mut entries);
+        } else if name_is(&element.name, interner, SML, list_local) {
+            collect_from_list(element, interner, entry_local, &mut entries);
+        }
+    }
+    let entry = entries.get(entry_index)?;
+    attr_value(entry, interner, "shapeId")?
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
+/// Walks an `mc:AlternateContent`'s branches for the list, then for its entries.
+fn collect_entries<'a>(
+    alternate: &'a RawElement,
+    interner: &Interner,
+    list_local: &str,
+    entry_local: &str,
+    found: &mut Vec<&'a RawElement>,
+) {
+    for branch in &alternate.children {
+        let RawNode::Element(branch) = branch else {
+            continue;
+        };
+        if !name_is(&branch.name, interner, MCE, "Choice")
+            && !name_is(&branch.name, interner, MCE, "Fallback")
+        {
+            continue;
+        }
+        for child in &branch.children {
+            let RawNode::Element(child) = child else {
+                continue;
+            };
+            if name_is(&child.name, interner, SML, list_local) {
+                collect_from_list(child, interner, entry_local, found);
+            } else if name_is(&child.name, interner, MCE, "AlternateContent") {
+                collect_entries(child, interner, list_local, entry_local, found);
+            }
+        }
+    }
+}
+
+/// Every entry of one list element, including the ones an `mc:AlternateContent` wraps.
+fn collect_from_list<'a>(
+    list: &'a RawElement,
+    interner: &Interner,
+    entry_local: &str,
+    found: &mut Vec<&'a RawElement>,
+) {
+    for node in &list.children {
+        let RawNode::Element(element) = node else {
+            continue;
+        };
+        if name_is(&element.name, interner, SML, entry_local) {
+            found.push(element);
+        } else if name_is(&element.name, interner, MCE, "AlternateContent") {
+            for branch in &element.children {
+                let RawNode::Element(branch) = branch else {
+                    continue;
+                };
+                if !name_is(&branch.name, interner, MCE, "Choice")
+                    && !name_is(&branch.name, interner, MCE, "Fallback")
+                {
+                    continue;
+                }
+                for candidate in &branch.children {
+                    if let RawNode::Element(candidate) = candidate {
+                        if name_is(&candidate.name, interner, SML, entry_local) {
+                            found.push(candidate);
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// The prefix (as an interned [`Symbol`]) that `element` binds to `ns` through an

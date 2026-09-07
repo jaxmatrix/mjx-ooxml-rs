@@ -9,9 +9,12 @@ macro_rules! guide_vocabulary {
     () => {
         #[allow(unused_imports)]
         use crate::{
-            HyperlinkKind, HyperlinkTarget, PartClassification, PartInventoryEntry, PartKind,
-            Sheet, SheetHyperlink, SheetKind, SheetMarkup, SheetTable, SheetTableColumn,
-            SpreadsheetDefect, Workbook, WorkbookParts, Worksheet, WorksheetParts, XlsxError,
+            ChartSeriesFreshness, CommentBox, HyperlinkKind, HyperlinkTarget, PartClassification,
+            PartInventoryEntry, PartKind, RangeCellValue, RangeProblem, ResolvedArea,
+            ResolvedRange, ResolvedRangeCell, Sheet, SheetChartSeries, SheetChartSource,
+            SheetChartWorkbook, SheetComment, SheetHyperlink, SheetKind, SheetMarkup, SheetTable,
+            SheetTableColumn, SpreadsheetDefect, Workbook, WorkbookParts, Worksheet,
+            WorksheetParts, XlsxError,
         };
     };
 }
@@ -62,6 +65,20 @@ pub mod filters_and_data_validation {
     guide_vocabulary!();
 }
 
+/// Everything on a sheet that is not a cell — the three anchors, what each promises when the grid
+/// moves, and which half of an anchor's resolved rectangle is a measurement.
+pub mod worksheet_drawings {
+    #![doc = include_str!("../docs/guide/worksheet_drawings.md")]
+    guide_vocabulary!();
+}
+
+/// A chart on a sheet — the one chart in this library whose data is a live range, and what happens
+/// when its cache and its cells disagree.
+pub mod charts {
+    #![doc = include_str!("../docs/guide/charts.md")]
+    guide_vocabulary!();
+}
+
 /// A table is a part of its own — the four things that have to agree, and why a preset style name
 /// is not a missing style.
 pub mod worksheet_tables {
@@ -73,6 +90,12 @@ pub mod worksheet_tables {
 /// has no cells at all.
 pub mod print_setup_and_sheet_kinds {
     #![doc = include_str!("../docs/guide/print_setup_and_sheet_kinds.md")]
+    guide_vocabulary!();
+}
+
+/// A cell comment is two parts in two vocabularies — and half of one is a file Excel repairs.
+pub mod cell_comments_and_legacy_content {
+    #![doc = include_str!("../docs/guide/cell_comments_and_legacy_content.md")]
     guide_vocabulary!();
 }
 

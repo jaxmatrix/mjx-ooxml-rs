@@ -22,6 +22,8 @@
 //! | [`features`](self::features) | **MJXOFF-120 (D13) — done**: conditional formatting, which spans the worksheet and `xl/styles.xml`; **MJXOFF-123 (D14) — done**: autofilters, sort state and data validation, all recorded and none applied |
 //! | [`hyperlinks`](self::hyperlinks) | **MJXOFF-127 (D16) — done**: hyperlinks — the entry, the relationship, and the rule that they are one thing |
 //! | [`print`](self::print) | **MJXOFF-129 (D17) — done**: the other three sheet kinds as [`crate::SheetMarkup`], and the two `r:id`s a print block reaches |
+//! | [`drawings`](self::drawings) | **MJXOFF-107 (E3) — done**: `xl/drawings/drawingN.xml`, the six things a drawing is, the image parts an anchored picture names, and the anchor-to-EMU surface |
+//! | [`comments`](self::comments) | **MJXOFF-114 (E5) — done**: cell comments — the two parts one is, the `shapeId` hop to the legacy shape that draws it, and the surface that keeps both halves consistent |
 //!
 //! # What this is not
 //!
@@ -33,6 +35,10 @@
 //! The division is the crate split restated: `mjx-sml` answers *what a row is*, and this module
 //! answers *which part in this package holds row 7*.
 
+pub(crate) mod chart_ranges;
+pub(crate) mod charts;
+pub(crate) mod comments;
+pub(crate) mod drawings;
 pub(crate) mod features;
 pub(crate) mod formatting;
 pub(crate) mod geometry;

@@ -41,8 +41,9 @@ use mjx_ooxml as ooxml;
 use crate::address::{ShapePath, ShapePathArg, SurfaceArg};
 use crate::charts::{
     ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
-    ChartPointFormatData, ChartSeriesData, ChartTrendlineData, ChartWorkbook,
-    DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec, TrendlineSpec,
+    ChartPointFormatData, ChartSeriesData, ChartSeriesReferences, ChartTrendlineData,
+    ChartWorkbook, DanglingPointReference, DataLabelSettings, DataLabelSpec, ErrorBarSpec,
+    TrendlineSpec,
 };
 use crate::content::{
     ActiveXControlSpec, DiagramContent, DiagramParts, DiagramRelationshipIds, ExternalLink,
@@ -1432,6 +1433,23 @@ impl Deck {
             .chart_series(surface.0, shape_idx.0)
             .map_err(to_py_err)
             .map(|values| values.into_iter().map(ChartSeriesData).collect())
+    }
+
+    /// Where every series of that chart says its data lives — the formula beside each cache, as
+    /// the file wrote it. The companion of `chart_series`: that answers what the caches *hold*,
+    /// this answers what the references *name*. Reading does not dirty the part.
+    fn chart_series_references(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+    ) -> PyResult<Vec<ChartSeriesReferences>> {
+        Ok(self
+            .inner
+            .chart_series_references(surface.0, shape_idx.0)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesReferences)
+            .collect())
     }
 
     /// Rewrites the values of series `series_idx` (0-based across the chart's plots) of the chart

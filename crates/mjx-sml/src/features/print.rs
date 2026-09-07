@@ -63,13 +63,14 @@
 //! because there is no second representation.
 
 use mjx_ooxml_core::{
-    Enumeration, FromXml, FromXmlError, Interner, Number, RawAttribute, RawElement, RawName,
-    RawNode, Text, ToXml,
+    Enumeration, Interner, Number, RawAttribute, RawElement, RawName, RawNode, Text, ToXml,
 };
 use mjx_ooxml_types::spreadsheetml::{CellComments, PageOrder, PrintError, PrintOrientation};
 use mjx_ooxml_types::support::OnOff;
 
-use crate::leaf::{attribute_bag, bag_without_declared_attributes, relationship_reference};
+use crate::leaf::{
+    attribute_bag, bag_without_declared_attributes, character_data_body, relationship_reference,
+};
 use crate::worksheet::rebuild_element;
 
 attribute_bag! {
@@ -264,102 +265,43 @@ impl HeaderFooterSection {
     }
 }
 
-/// One of `CT_HeaderFooter`'s six `s:ST_Xstring` children — `x:oddHeader`, `x:oddFooter`,
-/// `x:evenHeader`, `x:evenFooter`, `x:firstHeader` or `x:firstFooter`.
-///
-/// # Never re-serialised
-///
-/// The string is Excel's formatting-code language and the *bytes* are what matters, so this type has
-/// exactly one representation of its content: the decoded [`text`](Self::text), plus the element's
-/// original children replayed verbatim until [`set_text`](Self::set_text) replaces them. There is no
-/// parsed form to write back from, so there is no way for a round trip to change a code.
-///
-/// # Why this is not `#[derive(FromXml, ToXml)]` with `#[xml(text)]`
-///
-/// `mjx-derive`'s `#[xml(text)]` grammar decodes character data on read and re-escapes it
-/// **minimally** on write — only `<` and `&`. That is right for authoring and lossy for
-/// preservation: a producer that wrote `&amp;amp;L` gets `&amp;L` back, and one that wrote
-/// `&amp;#38;L` gets `&amp;L` too. Same string, different bytes — and a rebuilt text node that
-/// differs from the original denies its element, *and every ancestor of it*, the verbatim source
-/// range subtree copy-on-write would otherwise give it.
-///
-/// Nothing notices while a part is untouched, because then the model never writes at all. It becomes
-/// visible the moment anything **else** in the part changes. [`DefinedName`](crate::DefinedName)
-/// found this first (MJXOFF-100) and solved it the same way; the epic records the gap as latent
-/// until here, and a header string is `s:ST_Xstring` exactly as a defined name's content is. The
-/// fix belongs in the derive and no work item owns it, so the two hand-written pairs stand — and
-/// this documentation is the second half of that record.
-///
-/// # The reading accessors are read-only *by construction*
-///
-/// [`section_runs`](Self::section_runs) and [`unsectioned_text`](Self::unsectioned_text) return
-/// `&str` **slices of the stored string**. They allocate nothing, own nothing, and cannot be handed
-/// back: there is no `from_sections` constructor and there will not be one, because assembling a
-/// code string from segments is precisely the re-emission this type exists to prevent.
-/// # No attribute is declared, because the schema declares none
-///
-/// The six children are `type="s:ST_Xstring"` — a *simple* type, which permits no attributes at
-/// all. An `xml:space` on one is the same producer divergence `mjx-schema-gate` records as a
-/// tolerated deviation on `sample.xlsx`'s `sharedStrings.xml`, so this type preserves the attribute
-/// vector verbatim and declares no accessor over it: a typed getter would read as a claim that the
-/// attribute is legal here.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HeaderFooterText {
-    name: RawName,
-    attributes: Vec<RawAttribute>,
-    empty: bool,
-    /// The character data, decoded — what [`text`](Self::text) answers with.
-    text: String,
-    /// The element's children exactly as the file wrote them, or `None` once the text has been
-    /// replaced and there is nothing left to preserve.
-    verbatim: Option<Vec<RawNode>>,
-}
-
-impl FromXml for HeaderFooterText {
-    fn from_xml(element: &RawElement, _interner: &Interner) -> Result<Self, FromXmlError> {
-        let mut text = String::new();
-        for child in &element.children {
-            match child {
-                RawNode::Text(bytes) => {
-                    let raw = core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?;
-                    let decoded = mjx_xml::text::unescape_text(raw)
-                        .map_err(|error| FromXmlError::InvalidEntity(error.to_string()))?;
-                    text.push_str(&decoded);
-                }
-                RawNode::CData(bytes) => {
-                    text.push_str(
-                        core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?,
-                    );
-                }
-                _ => {}
-            }
-        }
-        Ok(Self {
-            name: element.name,
-            attributes: element.attributes.clone(),
-            empty: element.empty,
-            text,
-            verbatim: Some(element.children.clone()),
-        })
-    }
+character_data_body! {
+    /// One of `CT_HeaderFooter`'s six `s:ST_Xstring` children — `x:oddHeader`, `x:oddFooter`,
+    /// `x:evenHeader`, `x:evenFooter`, `x:firstHeader` or `x:firstFooter`.
+    ///
+    /// # Never re-serialised
+    ///
+    /// The string is Excel's formatting-code language and the *bytes* are what matters, so this type
+    /// has exactly one representation of its content: the decoded [`text`](Self::text), plus the
+    /// element's original children replayed verbatim until [`set_text`](Self::set_text) replaces
+    /// them. There is no parsed form to write back from, so there is no way for a round trip to
+    /// change a code.
+    ///
+    /// It is hand-written rather than `#[derive(FromXml, ToXml)]` with `#[xml(text)]` because that
+    /// grammar re-escapes character data **minimally** on write, losing entity spellings, character
+    /// references and CDATA sections — the gap `CLAUDE.md` records. One `s:ST_Xstring` shape is
+    /// declared once in `crate::leaf` and shared with [`CommentAuthor`](crate::CommentAuthor), so
+    /// the six element names this type stands for cost one implementation rather than six.
+    ///
+    /// # The reading accessors are read-only *by construction*
+    ///
+    /// [`section_runs`](Self::section_runs) and [`unsectioned_text`](Self::unsectioned_text) return
+    /// `&str` **slices of the stored string**. They allocate nothing, own nothing, and cannot be
+    /// handed back: there is no `from_sections` constructor and there will not be one, because
+    /// assembling a code string from segments is precisely the re-emission this type exists to
+    /// prevent.
+    ///
+    /// # No attribute is declared, because the schema declares none
+    ///
+    /// The six children are `type="s:ST_Xstring"` — a *simple* type, which permits no attributes at
+    /// all. An `xml:space` on one is the same producer divergence `mjx-schema-gate` records as a
+    /// tolerated deviation on `sample.xlsx`'s `sharedStrings.xml`, so this type preserves the
+    /// attribute vector verbatim and declares no accessor over it: a typed getter would read as a
+    /// claim that the attribute is legal here.
+    HeaderFooterText
 }
 
 impl HeaderFooterText {
-    /// Builds a new header or footer string element named `local`, bound to `prefix` or to the
-    /// default namespace, holding `text`.
-    ///
-    /// `local` must be one of `CT_HeaderFooter`'s six child names; nothing checks it, because the
-    /// six constructors below are how a caller reaches this and each supplies its own.
-    fn new(interner: &mut Interner, prefix: Option<&str>, local: &str, text: &str) -> Self {
-        Self {
-            name: crate::leaf::sml_name(interner, prefix, local),
-            attributes: Vec::new(),
-            empty: text.is_empty(),
-            text: text.to_owned(),
-            verbatim: None,
-        }
-    }
-
     /// Builds the element `slot` names, bound to `prefix` or to the default namespace, holding
     /// `text`.
     ///
@@ -372,74 +314,43 @@ impl HeaderFooterText {
         slot: HeaderFooterSlot,
         text: &str,
     ) -> Self {
-        Self::new(interner, prefix, slot.wire_local(), text)
+        Self::with_local(interner, prefix, slot.wire_local(), text)
     }
 
     /// Builds an `x:oddHeader` holding `text`.
     #[must_use]
     pub fn odd_header(interner: &mut Interner, prefix: Option<&str>, text: &str) -> Self {
-        Self::new(interner, prefix, "oddHeader", text)
+        Self::with_local(interner, prefix, "oddHeader", text)
     }
 
     /// Builds an `x:oddFooter` holding `text`.
     #[must_use]
     pub fn odd_footer(interner: &mut Interner, prefix: Option<&str>, text: &str) -> Self {
-        Self::new(interner, prefix, "oddFooter", text)
+        Self::with_local(interner, prefix, "oddFooter", text)
     }
 
     /// Builds an `x:evenHeader` holding `text`.
     #[must_use]
     pub fn even_header(interner: &mut Interner, prefix: Option<&str>, text: &str) -> Self {
-        Self::new(interner, prefix, "evenHeader", text)
+        Self::with_local(interner, prefix, "evenHeader", text)
     }
 
     /// Builds an `x:evenFooter` holding `text`.
     #[must_use]
     pub fn even_footer(interner: &mut Interner, prefix: Option<&str>, text: &str) -> Self {
-        Self::new(interner, prefix, "evenFooter", text)
+        Self::with_local(interner, prefix, "evenFooter", text)
     }
 
     /// Builds an `x:firstHeader` holding `text`.
     #[must_use]
     pub fn first_header(interner: &mut Interner, prefix: Option<&str>, text: &str) -> Self {
-        Self::new(interner, prefix, "firstHeader", text)
+        Self::with_local(interner, prefix, "firstHeader", text)
     }
 
     /// Builds an `x:firstFooter` holding `text`.
     #[must_use]
     pub fn first_footer(interner: &mut Interner, prefix: Option<&str>, text: &str) -> Self {
-        Self::new(interner, prefix, "firstFooter", text)
-    }
-
-    /// The element's own qualified name, as the file wrote it.
-    #[must_use]
-    pub fn element_name(&self) -> RawName {
-        self.name
-    }
-
-    /// The header or footer string, with entity references decoded and **nothing else changed**.
-    ///
-    /// Every formatting code is still in it, in the file's own order and spelling: `&&` is still two
-    /// characters, `&"Arial,Bold"` still carries its quotes, and a code this library has never heard
-    /// of is still there.
-    #[must_use]
-    pub fn text(&self) -> &str {
-        &self.text
-    }
-
-    /// Replaces the whole string.
-    ///
-    /// **The only mutator, and deliberately the only one.** There is no `set_section`, because
-    /// writing one section back means re-emitting the other two, which is the re-serialisation this
-    /// type exists to prevent. A caller that wants to change one section reads
-    /// [`section_runs`](Self::section_runs), builds the string it wants, and states it here.
-    ///
-    /// This is the point at which the preserved character data is given up; the element's name, its
-    /// attributes, their order and their quoting are untouched.
-    pub fn set_text(&mut self, text: impl Into<String>) {
-        self.text = text.into();
-        self.verbatim = None;
-        self.empty = false;
+        Self::with_local(interner, prefix, "firstFooter", text)
     }
 
     /// Every run of text belonging to `section`, in the order the string lists them.
@@ -485,30 +396,6 @@ impl HeaderFooterText {
     #[must_use]
     pub fn contains_drawing_reference(&self) -> bool {
         contains_code(&self.text, 'G')
-    }
-
-    /// This element rebuilt as a [`RawElement`], without an interner.
-    ///
-    /// An untouched value replays the children the file held — entity spellings, CDATA sections and
-    /// any comment between them included. One that [`set_text`](Self::set_text) has reached writes a
-    /// single freshly escaped text node, which is what authoring should write.
-    #[must_use]
-    pub fn as_raw_element(&self) -> RawElement {
-        let children = match &self.verbatim {
-            Some(children) => children.clone(),
-            None if self.text.is_empty() => Vec::new(),
-            None => vec![RawNode::Text(
-                mjx_xml::text::escape_text(&self.text).as_bytes().into(),
-            )],
-        };
-        let empty = self.empty && children.is_empty();
-        RawElement::rebuilt(self.name, self.attributes.clone(), children, empty)
-    }
-}
-
-impl ToXml for HeaderFooterText {
-    fn to_xml(&self, _interner: &mut Interner) -> RawElement {
-        self.as_raw_element()
     }
 }
 

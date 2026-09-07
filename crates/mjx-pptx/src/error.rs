@@ -3,6 +3,7 @@
 use mjx_dml::GuideError;
 use mjx_ooxml_core::FromXmlError;
 use mjx_opc::OpcError;
+use mjx_sml::SmlError;
 use mjx_xml::XmlError;
 
 use crate::legacy::DiagramPartKind;
@@ -35,6 +36,16 @@ pub enum PptxError {
     /// A modeled element (e.g. a text body) was malformed.
     #[error(transparent)]
     Model(#[from] FromXmlError),
+
+    /// The embedded workbook behind a chart could not be written.
+    ///
+    /// A chart carries a whole `.xlsx` package at `/ppt/embeddings/*.xlsx`, and `mjx-sml` is what
+    /// writes it (MJXOFF-99 retired this workspace's second SpreadsheetML writer). The reachable
+    /// failure is a grid that does not fit a sheet — more series than SpreadsheetML has columns,
+    /// more categories than it has rows; the rest of [`SmlError`] is packaging, which cannot fail
+    /// for part names that are constants.
+    #[error(transparent)]
+    Sml(#[from] SmlError),
 
     /// A shape's geometry guide (`a:gd@fmla`) could not be evaluated — a malformed formula, a name
     /// nothing defines, or arithmetic that leaves the reals (a degenerate shape size divides by
@@ -539,5 +550,38 @@ pub enum PptxError {
 impl From<crate::validate::PresentationDefect> for PptxError {
     fn from(defect: crate::validate::PresentationDefect) -> Self {
         Self::InvalidPresentation(Box::new(defect))
+    }
+}
+
+impl From<mjx_chart::ChartAccessError> for PptxError {
+    /// Lifts a chart-level failure into this crate's own error type.
+    ///
+    /// `mjx-chart`'s [`ChartAccessError`](mjx_chart::ChartAccessError) names the failures that are
+    /// about the *chart* — an index past the end, a series with nothing editable, a part with no
+    /// `c:chart` — and MJXOFF-103 made it the single source of those verdicts for both host
+    /// surfaces. Every one of them already had a `PptxError` variant, because this crate wrote them
+    /// first, so the mapping is a rename and no caller sees a change.
+    ///
+    /// The `match` is **exhaustive with no wildcard**, per A9's rule: a variant added to
+    /// `ChartAccessError` must break this build rather than collapse into a catch-all that says
+    /// less than it knows.
+    fn from(error: mjx_chart::ChartAccessError) -> Self {
+        use mjx_chart::ChartAccessError as Chart;
+        match error {
+            Chart::SeriesOutOfRange { index, count } => {
+                Self::ChartSeriesOutOfRange { index, count }
+            }
+            Chart::SeriesNotEditable { index, kind } => {
+                Self::ChartSeriesNotEditable { index, kind }
+            }
+            Chart::TrendlineOutOfRange { index, count } => {
+                Self::ChartTrendlineOutOfRange { index, count }
+            }
+            Chart::PlotOutOfRange { index, count } => Self::ChartPlotOutOfRange { index, count },
+            Chart::AxisOutOfRange { index, count } => Self::ChartAxisOutOfRange { index, count },
+            Chart::NoChartElement => Self::ChartHasNoChartElement,
+            Chart::FillNotSupported => Self::ChartFillNotSupported,
+            Chart::Data(problem) => Self::ChartData(problem),
+        }
     }
 }

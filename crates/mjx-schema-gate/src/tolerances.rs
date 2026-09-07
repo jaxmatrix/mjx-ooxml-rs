@@ -5,11 +5,12 @@
 //! the same part is still a failure. A tolerance never applies to a deck this library authors: the
 //! authoring paths are handed an empty tolerance list.
 //!
-//! Every entry names a producer and says why the markup is not ours to correct. There are five:
-//! three are in fixtures written by LibreOffice or python-pptx, one reproduces a producer-wide
-//! divergence in a fixture MJXOFF-97 authored on purpose, and the fifth (MJXOFF-133's
-//! `xl/xmlMaps.xml`) records a place where **the specification contradicts its own schema** — see
-//! that entry's reason.
+//! Every entry names a producer and says why the markup is not ours to correct. Almost all of them
+//! are one divergence seen many times over — `xml:space="preserve"` on an `s:t`, which every
+//! producer writes and the Transitional `sml.xsd` forbids — in fixtures written by LibreOffice,
+//! python-pptx or XlsxWriter. Two are not: one reproduces a producer-wide divergence in a fixture
+//! MJXOFF-97 authored on purpose, and MJXOFF-133's `xl/xmlMaps.xml` records a place where **the
+//! specification contradicts its own schema** — see that entry's reason.
 
 /// A schema deviation carried by an *input* rather than by markup this project writes.
 #[derive(Debug, Clone, Copy)]
@@ -62,6 +63,26 @@ pub const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[
                  schema-valid",
     },
     ToleratedDeviation {
+        fixture: "chart_in_sheet.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The same producer-wide divergence `sample.xlsx` carries, in the workbook MJXOFF-111 \
+                 (E4) had LibreOffice 25.8.7.3 author so that a chart on a sheet could be read from \
+                 a file this project did not write. Nothing here is ours to fix: the chart part and \
+                 the drawing part of this fixture both validate, and it is the string table — a \
+                 part LibreOffice writes the same way in every workbook it saves — that the \
+                 Transitional `sml.xsd` refuses. **A third-party file is not necessarily \
+                 schema-valid**, and preserving what it wrote is the contract",
+    },
+    ToleratedDeviation {
+        fixture: "chart_stale_cache.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "As `chart_in_sheet.xlsx`, which this fixture is built from: every part of it was \
+                 written by LibreOffice 25.8.7.3, and its string table carries the same \
+                 `xml:space` the producer writes on every `s:t`",
+    },
+    ToleratedDeviation {
         fixture: "sample.xlsx",
         part: "/xl/workbook.xml",
         error_contains: "The attribute 'dateCompatibility' is not allowed",
@@ -85,6 +106,96 @@ pub const TOLERATED_DEVIATIONS: &[ToleratedDeviation] = &[
                  preserves verbatim and never writes, and a gap the specification leaves is not a \
                  gap a fixture should paper over. The same shape as the `CT_Extension` \
                  `xsd:any minOccurs=\"1\"` trap MJXOFF-120 recorded against `mc:Ignorable`",
+    },
+    ToleratedDeviation {
+        fixture: "cell_comments.xlsx",
+        part: "/xl/comments1.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The `xml:space=\"preserve\"` every producer writes on an `s:t`, in the part \
+                 MJXOFF-114 (E5) added it to the list of: a **comment's** `CT_Rst`, which is the \
+                 same complex type a shared string is and carries the same attribute for the same \
+                 reason. `sml.xsd` types `t` as the simple type `ST_Xstring`, which can carry no \
+                 attribute at all. `tests/fixtures/cell_comments.xlsx` and \
+                 `tests/fixtures/legacy_form_control.xlsx` were written by LibreOffice 25.8.7.3 and \
+                 `tests/fixtures/comments_third_party.xlsx` by XlsxWriter 3.2.9 — **three parts, \
+                 two producers, one divergence**, and none of it ours to fix. `mjx-sml` writes the \
+                 attribute only where its absence would change the string, so a comment this \
+                 library authors is schema-valid",
+    },
+    ToleratedDeviation {
+        fixture: "cell_comments.xlsx",
+        part: "/xl/comments2.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The `xml:space=\"preserve\"` every producer writes on an `s:t`, in the part \
+                 MJXOFF-114 (E5) added it to the list of: a **comment's** `CT_Rst`, which is the \
+                 same complex type a shared string is and carries the same attribute for the same \
+                 reason. `sml.xsd` types `t` as the simple type `ST_Xstring`, which can carry no \
+                 attribute at all. `tests/fixtures/cell_comments.xlsx` and \
+                 `tests/fixtures/legacy_form_control.xlsx` were written by LibreOffice 25.8.7.3 and \
+                 `tests/fixtures/comments_third_party.xlsx` by XlsxWriter 3.2.9 — **three parts, \
+                 two producers, one divergence**, and none of it ours to fix. `mjx-sml` writes the \
+                 attribute only where its absence would change the string, so a comment this \
+                 library authors is schema-valid",
+    },
+    ToleratedDeviation {
+        fixture: "legacy_form_control.xlsx",
+        part: "/xl/comments1.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The `xml:space=\"preserve\"` every producer writes on an `s:t`, in the part \
+                 MJXOFF-114 (E5) added it to the list of: a **comment's** `CT_Rst`, which is the \
+                 same complex type a shared string is and carries the same attribute for the same \
+                 reason. `sml.xsd` types `t` as the simple type `ST_Xstring`, which can carry no \
+                 attribute at all. `tests/fixtures/cell_comments.xlsx` and \
+                 `tests/fixtures/legacy_form_control.xlsx` were written by LibreOffice 25.8.7.3 and \
+                 `tests/fixtures/comments_third_party.xlsx` by XlsxWriter 3.2.9 — **three parts, \
+                 two producers, one divergence**, and none of it ours to fix. `mjx-sml` writes the \
+                 attribute only where its absence would change the string, so a comment this \
+                 library authors is schema-valid",
+    },
+    ToleratedDeviation {
+        fixture: "comments_third_party.xlsx",
+        part: "/xl/comments1.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The `xml:space=\"preserve\"` every producer writes on an `s:t`, in the part \
+                 MJXOFF-114 (E5) added it to the list of: a **comment's** `CT_Rst`, which is the \
+                 same complex type a shared string is and carries the same attribute for the same \
+                 reason. `sml.xsd` types `t` as the simple type `ST_Xstring`, which can carry no \
+                 attribute at all. `tests/fixtures/cell_comments.xlsx` and \
+                 `tests/fixtures/legacy_form_control.xlsx` were written by LibreOffice 25.8.7.3 and \
+                 `tests/fixtures/comments_third_party.xlsx` by XlsxWriter 3.2.9 — **three parts, \
+                 two producers, one divergence**, and none of it ours to fix. `mjx-sml` writes the \
+                 attribute only where its absence would change the string, so a comment this \
+                 library authors is schema-valid",
+    },
+    ToleratedDeviation {
+        fixture: "cell_comments.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The same producer-wide divergence `sample.xlsx` carries, in the workbooks MJXOFF-114 \
+                 (E5) had LibreOffice 25.8.7.3 and XlsxWriter 3.2.9 author so that a cell comment \
+                 and its legacy VML box could be read from files this project did not write. A \
+                 third-party file is not necessarily schema-valid, and preserving what it wrote is \
+                 the contract",
+    },
+    ToleratedDeviation {
+        fixture: "legacy_form_control.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The same producer-wide divergence `sample.xlsx` carries, in the workbooks MJXOFF-114 \
+                 (E5) had LibreOffice 25.8.7.3 and XlsxWriter 3.2.9 author so that a cell comment \
+                 and its legacy VML box could be read from files this project did not write. A \
+                 third-party file is not necessarily schema-valid, and preserving what it wrote is \
+                 the contract",
+    },
+    ToleratedDeviation {
+        fixture: "comments_third_party.xlsx",
+        part: "/xl/sharedStrings.xml",
+        error_contains: "The attribute '{http://www.w3.org/XML/1998/namespace}space' is not allowed",
+        reason: "The same producer-wide divergence `sample.xlsx` carries, in the workbooks MJXOFF-114 \
+                 (E5) had LibreOffice 25.8.7.3 and XlsxWriter 3.2.9 author so that a cell comment \
+                 and its legacy VML box could be read from files this project did not write. A \
+                 third-party file is not necessarily schema-valid, and preserving what it wrote is \
+                 the contract",
     },
 ];
 

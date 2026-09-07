@@ -239,13 +239,6 @@ loses. A deck carrying any of it round-trips unchanged.
 | **No rendering, of any kind** | Measurement: resolved geometry, effective properties, absolute bounds | No layout engine, no SVG, no PDF. Rendering is a separate phase with no date |
 | **Encrypted and password-protected packages are out of scope**; digital signatures are preserved, not processed | A typed error rather than a guess | Decrypting an ECMA-376 Part 2 protected package is a cryptography project, and validating a signature this library may then invalidate by rewriting the container would be worse than not claiming to |
 
-The embedded workbook a chart authors is written by a **minimal SpreadsheetML writer inside
-`mjx-chart`** — one sheet, a shared-string table and a styles skeleton, and deliberately nothing else.
-It is scheduled for removal, and **its condition is now met**: `mjx-sml` writes SpreadsheetML and
-sits beneath `mjx-chart`, so the duplicate writer has somewhere to go. Deleting it is
-[MJXOFF-99](https://github.com/jaxmatrix/mjx-ooxml-rs)'s own unit of work rather than something this
-page can claim; until it lands, the writer above is what a chart's workbook comes from.
-
 ### Built, not yet verified against Office
 
 Everything here works and is tested against markup **we wrote**. What none of it has is a run through
@@ -253,9 +246,9 @@ real PowerPoint, and saying so is the point of this section.
 
 | Not yet verified | What is in place | Who verifies it |
 |---|---|---|
-| **Every fixture is hand-crafted** | No test in this repository reads a file that Microsoft PowerPoint wrote. LibreOffice confirms decks *open*; nothing yet confirms they *render as intended* | The Office-authored fixture corpus (A12), which retires this weakness for every other row at once |
-| `comp` / `gray` / `gamma` / `invGamma` **colour transforms** | Implemented from the ECMA-376 prose and unit-tested against it | Validation against real PowerPoint (MJX-211 R3) |
-| **The 0.0.58 text-inheritance change** | A non-placeholder shape now takes the master's `p:otherStyle` / `p:bodyStyle` per ECMA-376 §19.3.1.35. This follows the spec, but real PowerPoint is believed to match the *previous* behaviour, so it is isolated in one revertible commit | Validation against real PowerPoint (MJX-211 R1, MJX-208) |
+| **Every fixture is hand-crafted** | No test in this repository reads a file that Microsoft PowerPoint wrote. LibreOffice confirms decks *open*; nothing yet confirms they *render as intended*. What now exists is the **road**: `tests/office-authored/` with its redistribution rule, `cargo run -p xtask -- validation-artefacts --ingest` to report on a file before it is committed, and `xtask/tests/office_corpus.rs`, which holds whatever lands there to per-part byte identity at the container *and* through `Deck`, to the fidelity tree, to `Package::validate` and to the child-order audit — reporting its file count on every run so that green over an empty corpus never reads as green over a corpus | A person with PowerPoint, working `docs/validation/06-the-office-pass.md`. **The corpus is empty**, and no agent may fill it: the value of an Office-authored file is entirely its provenance |
+| `comp` / `gray` / `gamma` / `invGamma` **colour transforms** | Implemented from the ECMA-376 prose and unit-tested against it | Validation against real PowerPoint (MJX-211 R3) — **and the corpus does not unblock this one.** `ColorSpec` carries a colour's kind and value and no transform children, so no facade call authors one and no committed fixture has one; PowerPoint's own interface exposes none of the four either, so a saved deck is unlikely to contain one. Closing it needs a colour-transform surface, which is a code change rather than a file |
+| **The 0.0.58 text-inheritance change** | A non-placeholder shape now takes the master's `p:otherStyle` / `p:bodyStyle` per ECMA-376 §19.3.1.35. This follows the spec, but real PowerPoint is believed to match the *previous* behaviour, so it is isolated in one revertible commit | Validation against real PowerPoint (MJX-211 R1, MJX-208). It is `R1`, the first entry of the pass, and the pass stops at it if PowerPoint disagrees |
 
 ### Whole formats
 
@@ -286,6 +279,14 @@ tell the difference between "gone" and "quietly dropped":
   had no setter. It now has six: read, set and clear, for a level and for the `a:defPPr` beneath the
   levels, plus [`clear_shape_list_style`](Presentation::clear_shape_list_style) for the whole element.
   See [list formatting for the whole shape](crate::guide::shapes_and_text).
+- **The duplicate SpreadsheetML writer is gone.** A chart's embedded workbook used to be written by
+  a minimal writer inside `mjx-chart` — one sheet, a shared-string table and a styles skeleton — which
+  existed only because no SpreadsheetML crate did, and which carried a note naming its own executioner.
+  It is deleted. The workbook is now written by **`mjx-sml`** (`mjx_sml::write::WorkbookPackage`), not
+  by `mjx-xlsx`: `mjx-chart` is shared markup and `mjx-xlsx` is a format crate above it, so the
+  original sentence on this page named the wrong crate and the edge it implied was illegal.
+  `mjx-chart` now only decides *which cell* a chart's data belongs in, and holds no SpreadsheetML at
+  all. What a chart's workbook contains has not changed by a byte (MJXOFF-99).
 - **A chart's decoration is modelled.** `c:dLbls`, `c:dLbl`, `c:dPt`, `c:trendline` and `c:errBars`
   had no typed surface: a caller could not ask what a label said, could not switch a series from
   value to percentage, and could not author a chart that labelled itself. All five now read, author

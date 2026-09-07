@@ -42,6 +42,10 @@ reconstructed afterwards.
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
 | `mjx_sml::ConditionalFormattingFormula` | `mjx_sml::FormulaElement` (module `mjx_sml::formula::element`) | MJXOFF-123. `sml.xsd` hangs three elements off `ST_Formula` — `cfRule/formula`, `dataValidation/formula1` and `dataValidation/formula2` — whose content model, escaping rules and no-evaluation contract are identical, so the type carries its own local name and there is one implementation rather than three. `new` gains a `local: &str` parameter for the same reason. The answer to a second consumer is one helper both can reach, not a copy with a different doc comment. |
 | `mjx_docx::{RunPropertyContent, ParagraphMarkRunPropertyContent, ParagraphPropertyContent, StyleParagraphPropertyContent, SectionPropertyContent, NumberingPropertyContent}::Change`/`Inserted`/`Deleted`/`MovedFrom`/`MovedTo`, `FieldCharacterContent::NumberingChange` | inner type `Unmodeled` → the real revision type (`RunPropertiesChange`, `ParagraphMarkPropertiesChange`, `ParagraphPropertiesChange`, `TrackChangeMarker`, `SectionPropertiesChange`, `TrackChangeNumbering`) | MJXOFF-126. `ParagraphProperties::change()` already had a public accessor returning `Option<&Unmodeled>` — this one is a real, consumer-visible signature change, not only a formal one; every other listed variant had no accessor before this child, matching the row above. |
+| `mjx_chart::EmbeddedWorkbook` (`new`, `Default`, `push_row`, `sheet_name`, `rows`, `for_chart_data`, `for_chart_space`, `to_package_bytes`), `mjx_chart::WorkbookCell` (`Blank`, `Number`, `Text`, `text`), `mjx_chart::CONTENT_TYPE_WORKBOOK_PACKAGE`, `mjx_chart::DEFAULT_SHEET_NAME` | **removed.** The two layout entry points become the free functions `mjx_chart::embedded_workbook_for_chart_data(&ChartData) -> Result<Vec<u8>, mjx_sml::SmlError>` and `mjx_chart::embedded_workbook_for_chart_space(&ChartSpace) -> Result<Vec<u8>, SmlError>`; the two constants become `mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE` and `mjx_sml::write::DEFAULT_SHEET_NAME`; the grid type has no replacement, because `mjx-chart` no longer holds a spreadsheet model | MJXOFF-99. `mjx-chart` carried a minimal SpreadsheetML writer because a chart embeds a real `.xlsx` and no SpreadsheetML crate existed — the workspace's one sanctioned duplicate, with a note in its own header naming this child as its executioner. `mjx-sml` (rank 2.1) now writes it and `mjx-chart` (2.2) reaches down to it; `mjx-chart → mjx-xlsx`, which the old note proposed, would have been an upward edge the layering forbids. What a chart's workbook *contains* did not change by a byte. |
+| `mjx_pptx::PptxError` gains `Sml(mjx_sml::SmlError)` | — | The same removal: a chart's embedded workbook is now written by `mjx-sml`, so its failures reach a PresentationML caller as themselves rather than being flattened into `Opc`. `PptxError` is deliberately not `#[non_exhaustive]`, so this is a breaking addition; `mjx_ooxml::Error` classifies it through the same `sml_code` that `mjx-xlsx`'s errors go through, and no `ErrorCode` was added — nothing changes for either binding. |
+| `mjx_chart::ChartLabelScope::Plot { plot_idx: usize }`, `Series { series_idx: usize }`, `Point { series_idx: usize, point_idx: u32 }` | `Plot { plot_index: u32 }`, `Series { series_index: u32 }`, `Point { series_index: u32, point_index: u32 }` | MJXOFF-118. These were the **last three public fields in the workspace spelled `*_idx`** — an abbreviation named after `c:idx`, which is exactly the case 0.0.69 already settled for `mjx_dml::StyleMatrixReference::idx`. The width goes with the name: this type crosses the facade to both bindings, and **both already published these three as `u32` and cast on the way in and out**, so the rename and the narrowing change nothing in Python or TypeScript and delete five casts (two of them `usize as u32`, which truncate rather than fail). |
+| `mjx_pptx::ShapeInfo::index`, `mjx_pptx::LayoutInfo::index`, `mjx_pptx::LayoutInfo::master_index` — `usize` | `u32` | MJXOFF-118, finishing A9's own recorded loose end (*"better normalised once at v0.1"*). All three structs are re-exported **verbatim** by `mjx-ooxml` and by both bindings, which means they bypass `crates/mjx-ooxml/src/index.rs` — the one place the facade's `u32`/model `usize` width difference is meant to be crossed — and carried a host-dependent width into a foreign-function-facing type. Both bindings already read all three as `u32`; those casts are gone. A `mjx-pptx` caller feeding one of these back into a `Presentation` method converts once (`usize::try_from`), which `crates/mjx-pptx/src/index.rs` documents; a `mjx-ooxml` caller can now pass `ShapeInfo::index` straight to a `Deck` method, which was not possible before. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -55,6 +59,20 @@ whole rather than in part: renaming only the `mjx-pptx` method would have traded
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
 ## [0.0.130] - 2026-09-07
+
+## [0.0.131] - 2026-09-07
+
+### Merged `main` into the client-platform phase branch
+
+**Two programmes ran concurrently and numbered independently, so `0.0.122` through `0.0.130` each
+appear TWICE below** — once for the client-platform renderer (MJXOFF-155, `mjx-tokens` through
+`mjx-paint`) and once for the validation and corpus work on `main` (MJXOFF-128, MJXOFF-130 and the
+Phases B–F programme). Neither set is wrong and neither is renumbered: nothing here is published,
+the two histories describe disjoint crates, and rewriting either would break the commit trail that
+`MJXOFF-<n>` references depend on. **This entry is the seam.** From here the numbering is single
+again, and the renderer side is the one that renumbered.
+
+The client-platform entries come first, then `main`'s.
 
 **`mjx-paint` part 2: the `tiny-skia` software painter, the PDF and SVG exporters, and the
 cross-painter gate they exist to make possible** (MJXOFF-164, Phase R position 9).
@@ -711,7 +729,707 @@ colours built on it, are `fill-only`.
   ordered-member accessor. It was a private module of `xtask/tests/layering.rs` while that gate was
   its only consumer; the token generator is a second one, and an integration test cannot reach a
   binary crate's private modules, so the gate now pulls the one file in by path rather than keeping
-  a copy. A workspace with two JSON readers in it has one reader too many.
+  a copy. A workspace with two JSON readers in it has one reader too many.### The Office-authored corpus — the ingestion path, and the weakness it retires (MJXOFF-130, F3)
+
+**Phase F's third child, and the last of the sixty-two-child programme. It builds the road; it
+cannot supply the traffic.** No test in this repository has ever read a file Microsoft Office wrote —
+the deepest weakness the project has, recorded as `R2` — and the one an agent may not close, because
+the value of an Office-authored file is entirely its provenance. **The corpus ships empty, nothing is
+marked, and nothing is tagged.**
+
+### Added
+
+- **`xtask/tests/office_corpus.rs`** — the corpus suite. It walks `tests/office-authored/` (**the
+  corpus is the directory**, the same rule `mjx-fixtures` makes for every byte-identity corpus) and
+  holds every file it finds to: per-part decompressed-payload identity and container-structure
+  identity across an edit-free save (`mjx-opc`'s `roundtrip` semantics); every XML part through the
+  fidelity tree (`tree_roundtrip`'s); **the same round-trip through the facade**, so `Deck`,
+  `Document` and `Workbook` are held to markup nobody here wrote; `Package::validate` before and
+  after; and A7c's child-order audit over Office's own output, which is the strongest available check
+  that the generated `ChildOrder` tables say what Office actually writes.
+- **`cargo run -p xtask -- validation-artefacts --ingest <file>`** — the other direction of the
+  artefact command. Hand it something saved out of Office and it reports which validation entry the
+  file answers, every check above, and **where it would be committed**. It copies nothing: committing
+  a file is a decision taken against the redistribution rule, and a command that filed it would be
+  taking that decision for the person running it.
+- **`docs/validation/06-the-office-pass.md`** — the hand-off. The order to work through (`R1` first,
+  and stop there if PowerPoint disagrees), what a failure looks like against a documented gap, what
+  to save out of which application and where to put it, the six checks that settle a **decision**
+  rather than report a fact, the seven that are **blocked** and whether the corpus unblocks each, and
+  the two escalations and three unfixed defects the programme is handing over.
+- **`mjx_schema_gate::audit_order_report`** and `OrderAudit` — the child-order walk without the
+  panic, so a *reporter* can print the round-trip and package verdicts too.
+  `audit_deck_order` and `assert_deck_is_in_schema_order` are now written on top of it: one walk,
+  three callers, and the second of those opens the package once instead of twice.
+
+### Changed
+
+- **`tests/office-authored/README.md`** now carries the **redistribution rule** — a committed file
+  must be one whose *content* we authored, started from *Blank* rather than from one of Office's
+  templates, carrying nothing from anywhere else and no personal data, with rights that need no
+  argument. It is checked per file, before committing, and **recorded in a table in that file**; an
+  unclear case is left out and *said* to have been left out.
+- **Three verification blocks, rewritten conditioned on the corpus rather than ahead of it.** The
+  PowerPoint and Word gaps pages say what now exists and that it is empty; the Excel guide grows the
+  *Built, not yet verified against Excel* section it never had, with the six rows MJXOFF-79's risk
+  list implies and the entry id that checks each.
+- **`mjx-schema-gate` is a dependency of `xtask`** rather than a dev-dependency of it. The ingest
+  command reports the same schema and child-order verdicts a suite asserts, and it is a command
+  rather than a test; the alternative was a second child-order walk inside `xtask`. Nothing shipped
+  depends on the gate, and `xtask` is host-only, `publish = false` and outside the ranked graph —
+  which `xtask/tests/layering.rs` already distinguishes. The gate's own documentation said it was a
+  dev-dependency "of nothing else", which had been untrue since MJXOFF-122; it now says what is true.
+
+### Fixed
+
+- **`two_runs_produce_byte_identical_artefacts` no longer assumes an empty corpus.** It asserted
+  `names.len() == AREAS.len()`, which would have started failing the day the first Office-authored
+  original landed — a gate that breaks on the work it is waiting for. The expected count is now
+  derived from how many areas have an original.
+- **`docs/validation/02-risk-order.md` said "five" design questions and listed six.** The 0.0.129
+  entry below already said six.
+- **Three gates in `xtask/tests/validation_harness.rs` would have gone red the day the first
+  Office-authored original landed**, and none of them for a reason that is this library's. Measured,
+  not predicted: with a stand-in file in the corpus slot, `every_generated_artefact_is_a_valid_package`
+  failed on `21 != 20` (a second hard-coded `AREAS.len()` beside the determinism one) and
+  `every_generated_artefact_is_schema_valid_and_in_child_order` failed on `v-xlsx-02-edited.xlsx` for
+  a `workbookPr@dateCompatibility` **LibreOffice** wrote — a deviation `tolerances.rs` already
+  records for that fixture, reaching the gate through a path that consults no tolerance list. An
+  `edited` artefact is mostly somebody else's file, re-emitted verbatim, so it is now held to **no
+  *new* defect**: what the original arrived with is subtracted, and anything left is ours. The
+  authored artefacts are unchanged — nothing in a file we wrote is excused.
+- **The validation harness's schema half was skipping in every CI run.** `xtask/tests/` is reached
+  only by `lint-test`, which has no `References/`, so
+  `every_generated_artefact_is_schema_valid_and_in_child_order` validated **nothing** on CI and the
+  child-order half carried the job alone. The `schema-validity` job now runs
+  `cargo test -p xtask --test validation_harness --test office_corpus` under `MJX_REQUIRE_SCHEMA=1`,
+  where the schemas are. Both suites are green there; the point is that nobody knew.
+
+### The `mc:Ignorable` / `CT_Extension` seam — diagnosed, reproduced, and deliberately not tolerated
+
+**The first real Excel workbook, and any file carrying an Office chart, will report a schema
+deviation, and it is a defect of this project rather than of the file.** The gate validates the
+markup-compatibility-*resolved* view of a part, because `mc:Ignorable` names attributes the base
+schema has no declaration for; resolution removes an ignorable element together with its content; and
+`sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their wildcard as a bare
+`<xsd:any processContents="lax"/>`, whose `minOccurs` therefore defaults to **1**. The emptied
+`<ext>` is then rejected with *Missing child element(s)*.
+
+`xtask/tests/office_corpus.rs` reproduces **three views** of one worksheet, authored there for the
+purpose and presented as nothing else: as a producer writes it (rejected — `mc:Ignorable` is not
+allowed, which is why the gate resolves at all), with the compatibility attributes removed and the
+ignorable content kept (**validates**), and fully resolved (rejected). So the schema does not object
+to the extension; it objects to the **hole** resolution leaves. `pml.xsd`'s own `CT_Extension` and
+`dml-main.xsd`'s `CT_OfficeArtExtension` both say `minOccurs="0"`, which is why the defect reaches
+presentations and documents through their *charts* rather than through their main parts — it is not
+Excel's alone.
+
+**It is not recorded as a tolerance.** A tolerance is for one file and one message and never for a
+defect of ours; recording this one would file a gate defect as a quirk of somebody's spreadsheet, and
+it would then look for ever like a property of the corpus. It is filed as **MJXOFF-196** with the
+reproduction, the schema sweep behind it and three candidate fixes, and it is the one thing that goes
+red when the first original lands: the `-edited` artefact built from it reaches
+`assert_authored_deck_is_schema_valid`, which tolerates nothing. The reproduction fails the day the
+seam is fixed, which is the signal to delete it.
+
+### Where the line is drawn on an ingested file
+
+An ingested file is **not ours**, and that decides what may fail a build. Byte identity at the
+container and through the facade, the fidelity tree, a package defect *we* introduced by saving, and
+a part out of `xsd:sequence` all **fail**. A defect the file **arrived** with is *reported* — A7b's
+scope rule is that such a file must still open and re-save unchanged — and so is a part its producer
+wrote that the ECMA-376 XSDs reject, because MJXOFF-103 measured Apache POI 5.5.1 writing an empty
+`<c:tx/>` that `dml-chart.xsd` refuses, and reddening a build over somebody else's markup teaches
+nobody anything.
+
+The suite proves itself able to fail rather than asserting that it can: the same engine is run over
+four deliberately broken packages — bytes that are not a ZIP, a package cut in half, a worksheet
+renamed at the root, and a relationship with no target — and each must be caught by the check that
+owns it, with a sound package as the control. The first spelling of the last one pointed at
+`xl/theme/theme1.xml`, which `sample.xlsx` *has*: it was not a corruption at all, and `Package::validate`
+was right to hold. A mutation has to be reachable before its verdict means anything.
+
+## [0.0.129] - 2026-09-07
+
+### The validation checklist — every entry, all three formats, ordered by risk (MJXOFF-128, F2)
+
+**Phase F's second child. It writes every checklist entry and marks nothing.** 113 checks across
+`docs/validation/`, each a stable id, the MJXOFF id of the child that shipped the feature, an
+artefact, an object, an action, an expected result, a risk level, three call chains and a **blank**
+result line. Judging what real Office renders needs a person with Office in front of them; that pass
+is the user's, and nothing here stands in for it.
+
+### Added
+
+- **`docs/validation/02-risk-order.md`** — the order the pass is worked through, which is
+  deliberately not the order the pages are numbered in. **R1 first, and still the single
+  highest-risk item in the repository**: the 0.0.58 tier-5 change, where a non-placeholder shape
+  takes the master's `p:otherStyle` / `p:bodyStyle` per §19.3.1.35, real PowerPoint is believed to
+  match the *previous* behaviour, and the change is isolated in one revertible commit. Then R2
+  through R7 unchanged from MJXOFF-63, then Word's five risk areas (MJXOFF-74) and Excel's five
+  (MJXOFF-79). It also collects, in one table, the **six checks that are design questions rather
+  than checks** — each says *record which happens* and names the decision that follows, and none may
+  be marked `differs`, because there is nothing to differ from.
+- **`docs/validation/03-presentations.md`, `04-documents.md`, `05-workbooks.md`** — 62, 26 and 25
+  checks. Every harvested number from the Phase A children's own completion reports survives in the
+  terms its report used: 44 pt and 28 pt from `p:txStyles`, Widescreen 13.333 x 7.5 in, `accent1` =
+  `4472C4`, Calibri Light and Calibri, 41.5 / 42.5 / 43.5 rather than 19.2 / 21.4 / 16.7, **100000**
+  for a square chevron and **200000** for a 2:1 one, 45 degrees and ~3 pt out and ~4 pt blur, slice 1
+  exploded 25 % and slice 0 `2E75B6`, a polynomial trendline of order 3, a merged total row of one
+  row by two columns, and all sixteen plot types with `c:stockChart` drawing high-low-close from
+  three series.
+- **`V-PPTX-07` (`geometry`) and `V-PPTX-08` (`chart-decoration`)** — two new areas in
+  `xtask validation-artefacts`, in all three languages. They exist because writing the checks found
+  harvested expected results with no file to check them against, and MJXOFF-122's own rule is that
+  an entry may not describe an artefact nobody produces. `V-PPTX-07` is **the one artefact authored
+  at 4:3** (`9_144_000` x `6_858_000`) on a slide taken from the layout, so A3's rescaled-placeholder
+  question has a file at last; it also carries the two chevrons whose `maxAdj` guide (`*/ 100000 w
+  ss`) answers 100000 and 200000, the four arc-tangent presets `moon` / `arc` / `circularArrow` /
+  `gear9`, and a `custGeom` with all five of `a:avLst`, `a:gdLst`, `a:cxnLst`, `a:rect` and
+  `a:pathLst` whose apex is placed by the guide `apex = */ w 1 2`. `V-PPTX-08` carries the three
+  label tiers merged, the exploded and recoloured pie slices, the order-3 trendline extended two
+  categories forward with equation and R-squared, two sets of error bars on one scatter series (one
+  per axis), a `c:dPt` left dangling at index 2, a value axis bounded 0-25 and reversed — the only
+  artefact that writes a `CT_Scaling`, where `c:max` precedes `c:min` — a chart detached from its
+  embedded workbook, and the sixteen plot types four to a slide.
+- **`xtask/tests/validation_calls.rs`** — the gate that makes the two machine-checkable claims in a
+  page of prose actually checked. Every `Calls:` line is resolved against three surfaces that have
+  nothing to do with each other: every `pub fn` inside an `impl Deck` / `impl Document` /
+  `impl Workbook` in the facade, every `def` inside the three classes of the committed `.pyi`, and
+  every `#[wasm_bindgen(js_name = "…")]` in the same three `impl` blocks of the WebAssembly binding.
+  The TypeScript half is checked *against the Rust half of the same chain* — the documented
+  camelCase name must be the `js_name` the binding publishes for that exact `snake_case` method — so
+  a chain that renamed one half and not the other fails even though both names exist. And every
+  artefact a check names must be a file this repository produces: a name `validation-artefacts`
+  writes, a path under `tests/fixtures/`, or an example's source.
+
+### Fixed
+
+- **A three-language call chain named a method a default build does not publish.**
+  `Deck::vml_part_names` is `#[cfg(feature = "vml")]` in both bindings, so neither the Python stub
+  nor the WebAssembly surface has it; the entry that named it now says so and uses the modern half
+  of the same hop. Found by the new gate while it was being written, which is what it is for.
+
+### Notes
+
+- **Seven checks name no artefact and say **blocked**, each with the reason and what would unblock
+  it.** They are not padding: `ColorSpec` carries a colour's kind and value and **no transform
+  children**, so nothing can author the `comp` / `gray` / `gamma` / `invGamma` that R3 is about;
+  `CharacterPropertiesSpec` has no font setter, so nothing can author a `+mj-sym` reference;
+  `set_shape_transform` writes **only the fields its argument names** — an unset field means *leave
+  it alone*, never *clear it* — so nothing can author the rotation-only transform R7 is about; and
+  the facade has no `add_alt_chunk`. The rest wait on MJXOFF-130's Office-authored corpus.
+- **MJXOFF-108's 28-row comparison table is carried in untouched.** Its **Excel says** and
+  **Verdict** columns are still empty and unmarked. `V-XLSX-02.1` points at it and adds nothing.
+- **`MJXOFF-143` had already closed the whole-part re-flow limitation**, and PowerPoint's gaps page
+  had already moved that row to *What used to be here*. This child did not move it; it records the
+  closure in `V-PPTX-08.11` so a reviewer does not report a re-flow as a defect.
+- The Word and Excel area lists were derived from **the facade's own module structure** read against
+  each format's gaps page, not from ticket text. Excel's `features`, `names`, `preserved`, `print`
+  and `tables` modules carry readers and removers and no authoring call at all, which is why those
+  areas are recorded as deliberately uncovered.
+
+## [0.0.128] - 2026-09-07
+
+### The consolidated validation harness — the artefacts a human Office pass reads (MJXOFF-122, F1)
+
+**Phase F's first child, and the first thing in this repository that admits what it cannot check.**
+Every fixture here was written by this project or by LibreOffice; no test has ever read a file
+Microsoft Office wrote, and no gate in this workspace can answer *does real Office render what we
+intended?* This child builds everything that question needs except the answer.
+
+**It marks nothing.** There is no `pass` in any result line, no verdict inferred from a LibreOffice
+conversion, and no place where an agent stands in for a person with Office in front of them. A test
+asserts that, over every page of `docs/validation/`.
+
+#### `xtask` grows a fourth command
+
+`cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
+[--out <dir>] [--list]` writes two artefacts for each of **eighteen** validation areas — six per
+format. Every one is produced through `mjx-ooxml` and names no crate below it, so the human pass
+validates the facade and its error mapping as a side effect.
+
+* The **authored** variant is built from `Deck::blank`, `Document::blank` or `Workbook::blank`:
+  nothing is read from disk, so every byte is one this library wrote.
+* The **edited** variant is built by editing an Office-authored original from
+  `tests/office-authored/`. That corpus is MJXOFF-130's to fill and is empty, so every edit variant
+  **skips by name** — the area and the exact path it looked for — and `MJX_REQUIRE_OFFICE_CORPUS=1`
+  turns any such skip into a failure, the arrangement `MJX_REQUIRE_SOFFICE=1` already makes for the
+  `office_open` canary.
+
+The command lives in a new **library target** for `xtask`, because `xtask/tests/validation_index.rs`
+is written against the area catalogue and an integration test cannot see a binary's modules. The
+alternative — parsing the binary's `--list` output — would have made a text format the contract
+instead of a type. `codegen`, `fuzz` and `corpus` stay private to the binary; nothing depends on
+`xtask`, and `xtask/tests/layering.rs` still says so.
+
+#### The same eighteen artefacts, in three languages
+
+`bindings/mjx-python/tests/test_validation_artefacts.py` and
+`bindings/mjx-wasm/tests/node/validation_artefacts.mjs` are the same eighteen generators, call for
+call, and each compares its output against the Rust one **part by part, byte for byte**. That is
+A10's acceptance test generalised from one walkthrough to the whole catalogue: a binding method
+wired to the wrong facade method changes one part payload, and a human reading the file in Office
+would never know why it looked wrong.
+
+Both comparisons state their artefact set over the *filesystem* rather than over a list in their own
+file, so an area added in Rust and not in a binding fails rather than being silently skipped.
+
+#### The index, and why it is not a tautology
+
+`docs/validation/01-index.md` binds every entry id to the artefacts it is read against, and
+`xtask/tests/validation_index.rs` compares two lists that cannot drift together: the **entry** side
+is parsed out of hand-written markdown, the **artefact** side is a `read_dir` of the directory the
+`xtask` binary has just written. Both are floored against the catalogue before either comparison
+runs, so a parser that stopped matching table rows fails rather than passing an empty comparison.
+The edited column is checked as an *if and only if* against the Office corpus, so an empty corpus is
+still an assertion.
+
+#### Every artefact through the gates a machine can answer
+
+`xtask/tests/validation_harness.rs` runs the ECMA-376 schema gate, `Package::validate` and the
+child-order audit over all eighteen, and quotes the audit's per-part `elements_visited` counts —
+89 parts audited, none of them vacuous. Preserved-foreign skips are pinned by *label*, so a part
+that starts skipping under a new one fails rather than quietly widening what the gate tolerates. Two
+runs of the command are asserted **byte-identical**, without which the three-language comparison
+means nothing. One artefact per format is converted by LibreOffice as a canary — one conversion,
+never a sweep, and never a verdict.
+
+#### Documentation
+
+* `docs/validation/00-method.md` — the entry-id scheme, the three risk levels, the result
+  convention, how to file an issue, and the rule that keeps the exercise honest: **a documented gap
+  is never a validation failure**.
+* `docs/validation/01-index.md` — the eighteen entries, and the areas the harness deliberately does
+  not cover, each with its reason.
+* `tests/office-authored/README.md` — the corpus slot, its naming convention, and why it is not
+  under `tests/fixtures/`.
+
+MJXOFF-108's 28-row effective-cell-format table is carried in **unchanged**: its *Excel says* and
+*Verdict* columns are still empty and unmarked, and nothing here touched them.
+
+## [0.0.127] - 2026-09-07
+
+### The cross-format consistency pass — one reading of the whole public surface (MJXOFF-118, E6)
+
+**Phase E's last child, and the last cheap moment to rename anything.** Three formats were built in
+three phases, months apart, by different agents following the same rules; rules produce consistency
+locally, and only a deliberate cross-cutting read produces it globally. This is that read. Nothing
+here changes a byte any file receives.
+
+#### The shared-markup reachability table, and the test that keeps it true
+
+The gate MJXOFF-82 named: **nothing in `mjx-dml`, `mjx-sml`, `mjx-chart`, `mjx-vml` or `mjx-omml` is
+reachable from one format's facade surface but not another's without a written reason.**
+`crates/mjx-ooxml/docs/shared_markup_reachability.md` (rendered as
+`mjx_ooxml::shared_markup_reachability`) is that table, and
+`crates/mjx-ooxml/tests/shared_markup_reachability.rs` re-derives it from the workspace on every
+`cargo test` — the crate-level grid out of three `Cargo.toml`s, the 102-capability grid out of the
+facade's own `src/`. A method added to one surface and not the others, a note no row cites, a format
+crate that starts modelling a shared markup: each fails naming the row it is about.
+
+What the derivation found:
+
+- **`mjx-chart` came out symmetric.** 25 of 28 chart capabilities are on all three surfaces — and
+  read the other way, *every* capability on all three surfaces is a chart capability. The three that
+  are not each have a reason in the file format, not in this library.
+- **Sixty-seven DrawingML capabilities reach `Deck` alone**, in four groups with four different
+  reasons. The shape-properties one names an open seam rather than hiding it: `mjx-docx` already
+  models `wp:spPr` as `mjx_dml::ShapeProperties`, but that type is interner-bound and the facade's
+  boundary is not, and only `mjx-pptx` built the interner-free spec layer that crosses it.
+- **`theme`/`color_map` reaching `Deck` alone is the clearest gap.** `mjx-sml` resolves
+  `<color theme="N"/>` to a slot number and says the theme part is `mjx-xlsx`'s to fetch;
+  `mjx-xlsx` does not fetch it, so an Excel theme colour comes back as a position where the same
+  colour in a `.pptx` comes back as `RRGGBB`. No ticket owned this before the table did.
+- **`mjx-vml` and `mjx-omml` reach no surface as types** — both interner-bound trees with no
+  binding-friendly projection — and the bytes-and-identifiers surface that does exist is not
+  symmetric either: `Deck` and `Workbook` have one, `Document` has none.
+
+#### Excel's effective-properties guide — the third page, in one shape
+
+`crates/mjx-xlsx/docs/effective_properties.md` joins `mjx-pptx`'s and `mjx-docx`'s, wired the same
+way (a documentation-only module over `include_str!`, so its three examples are doctests and its
+links are checked). It says the thing that makes Excel different rather than restating the others:
+**Excel inherits nothing** — a cell carries an index, that index names a record, and that record
+carries four more plus a fifth into a second table of the same records — which is why an
+`EffectiveCellFormat` reports *which layer* answered where the other two report only a value.
+
+`crates/mjx-ooxml/tests/effective_properties_shape.rs` is what keeps the three one shape: same
+opening sentence, the same four load-bearing sections in the same order, real compiled examples on
+each, each wired into its crate. Two `mjx-docx` headings were renamed to the shared spelling.
+
+#### Binding parity, in both directions
+
+`chart_series_references` was bound for `Workbook` and for neither `Deck` nor `Document` — a facade
+method two languages could not reach. Both bindings grow it, the `.pyi` grows two entries, and with
+those four **every `pub fn` on all three facade surfaces is bound in both languages**, the escape
+hatches excepted.
+
+The reason nothing caught it is the more useful finding: three of the six coverage suites carried an
+explicit *"remove one binding and this goes red"* case and three did not — including **both halves
+of the `Deck` pair**, which is the pair the specification names. The two missing guards are added.
+
+#### Naming and shape
+
+- `ChartLabelScope`'s `plot_idx`/`series_idx`/`point_idx` are spelled out and are `u32`; so are
+  `ShapeInfo::index` and `LayoutInfo::{index, master_index}`. Both rows are in the *Unreleased —
+  0.1.0* ledger. Python and TypeScript are unchanged: **both bindings already published these
+  names and this width**, and five conversions are gone.
+- `ErrorDetail` now states, as a table, what each of its five fields means for a slide, a paragraph
+  and a cell — including the two Excel answers a caller would otherwise have to discover by
+  experiment (a sheet is reported through `index`, and an Excel cell address populates neither `row`
+  nor `column`).
+- `mjx_sml::CellReference`'s constructors take `(column, row)` where thirty-odd methods elsewhere
+  take `(row, column)`; the reason is now on the type rather than in a ticket. **Reordering remains
+  the user's call.**
+
+#### Counts that had already expired
+
+Every count this child quotes was measured, and several it found were not: the Excel guide's page
+count was written in three places as thirteen, fourteen and fifteen (it is seventeen — the numeral
+is now in none of the three); `error.rs` under-counted `DocxError` by six variants and `XlsxError`
+by seven; `README.md` still called the project PowerPoint-first and listed two test-only crates
+where there are three; and three rustdoc sites still described
+`crates/mjx-chart/src/workbook.rs`, which MJXOFF-99 deleted, one of them as the live rationale of a
+test.
+
+## [0.0.126] - 2026-09-07
+
+**Excel's legacy surfaces** (MJXOFF-114, Phase E position 5): a cell comment, the Transitional VML
+box that draws it, and the identifier hop from a sheet's modern markup to the legacy shape an OLE
+object or a form control is drawn as.
+
+### Added
+
+- **`mjx_sml::comments`** — `CT_Comments`, `CT_Authors`, `CT_CommentList`, `CT_Comment`,
+  `CT_CommentPr` and `CT_LegacyDrawing`, the last slot of `CT_Worksheet` that had an owner
+  (rank 30). `commentPr@anchor` consumes MJXOFF-127's `ObjectAnchor` rather than modelling
+  `CT_ObjectAnchor` a second time, and every placement goes through a generated child-order table.
+- **The comment family on `mjx_xlsx::Workbook`** — `sheet_comments`, `comment_at`,
+  `comments_markup`, `edit_comments_markup`, `add_comment`, `set_comment_text`, `remove_comment`,
+  and the VML side: `sheet_vml_drawing_part`, `vml_drawing_markup`, `edit_vml_drawing_markup`,
+  `with_vml_shape_for_comment`, `with_vml_shape_for_ole_object`,
+  `with_vml_shape_for_form_control`. A comment is **two parts**, and `add_comment` writes all seven
+  things that have to agree while `remove_comment` takes them away.
+- **`SpreadsheetDefect::CommentWithoutABox` and `CommentBoxWithoutAComment`** — the two-halves
+  invariant, checked by `Workbook::validate` over a saved package rather than asserted by the
+  surface that writes it. Neither half of a comment names the other by relationship, so nothing in
+  the packaging layer could ever have noticed half of one.
+- **`mjx_vml::Drawing::shape_by_numeric_identifier`** and **`mjx_vml::shape_identifier_for_number`**
+  — the shared half of the hop. SpreadsheetML names a shape by a *number* (`x:oleObject@shapeId`,
+  `x:control@shapeId`, `x:comment@shapeId`) where PresentationML names it by the string that number
+  appears in; the `_x0000_s` spelling and the three attributes producers put it in are stated once,
+  in the crate both formats reach.
+- **The same surface on `mjx_ooxml::Workbook` and on both bindings** — `sheet_comments`,
+  `cell_comment`, `add_cell_comment`, `set_cell_comment_text`, `remove_cell_comment`,
+  `vml_shape_id_for_ole_object`, `vml_shape_id_for_form_control`, `sheet_vml_part_bytes`, with
+  `SheetCommentInfo` and `CommentBoxInfo`.
+- **Three producer-written fixtures**, none of them this project's: `cell_comments.xlsx` and
+  `legacy_form_control.xlsx` from **LibreOffice 25.8.7.3** driven headless over UNO, and
+  `comments_third_party.xlsx` from **XlsxWriter 3.2.9**. The Excel guide gains
+  *Cell comments and legacy content*, whose every snippet is a compiled doctest.
+
+### Fixed
+
+- **`mjx-opc` treated an edited VML part as though it were not XML.**
+  `XML_CONTENT_TYPES_WITHOUT_SUFFIX` spelled its one entry `…vmlDrawing` while `is_xml_content_type`
+  folds its argument to lower case, so the entry matched nothing and an authored `.vml` sat outside
+  `Package::authored_xml_parts` — outside `Package::validate`'s relationship checks and outside
+  every format layer's markup checks — from the day the list was written. A test now fails on any
+  entry written in a spelling the fold would swallow.
+- **Deleting one comment could delete every comment box on the sheet.** Removal matched the shape by
+  its `@id`, and LibreOffice gives every comment shape in a part the same one. It matches by
+  position now; the fixture that found it is the producer file, and the two-halves invariant is what
+  reported it.
+
+## [0.0.125] - 2026-09-06
+
+**Charts on the Excel surface** (MJXOFF-111, Phase E position 4): the third host for one body of
+chart logic, and the one chart case that exists nowhere else in this library — a chart whose data
+source is a **live range in the same workbook** rather than an embedded copy.
+
+### Added
+
+- **The chart family on `mjx_xlsx::Workbook`** — fifty methods, every one of which resolves
+  `(sheet, anchor)` to a chart part and then calls the identically-named function in
+  `mjx_chart::chart_ops`. MJXOFF-103 moved that body down for Word; Excel is the third wrapper
+  around it and adds no Excel-local chart path. The address is MJXOFF-107's anchor index, so
+  `add_chart`'s return value is accepted by `remove_sheet_drawing_object` exactly as
+  `add_two_cell_anchored_picture`'s is.
+- **`Workbook::resolve_range_reference`** and the `ResolvedRange` / `ResolvedArea` /
+  `ResolvedRangeCell` / `RangeCellValue` / `RangeProblem` report — a chart's `c:f`, resolved against
+  this workbook's cells. It resolves a **reference** and does not evaluate a formula; a cell holding
+  one answers with its cached value, as `cell_text` does. A quoted sheet name, absolute markers, a
+  multi-area union, a 3-D span and a defined name (sheet-scoped winning over workbook-scoped, as
+  §18.2.6 says) all resolve; every unresolvable case is a typed `RangeProblem` on the area it came
+  from rather than a failure of the whole call.
+- **`Workbook::chart_series_freshness`** — each series' cache set beside what its cells actually
+  say, with **each named**. `values_agree` has three answers: `Some(true)`, `Some(false)`, and
+  `None` for *cannot say* — the values are a literal, or the reference resolved to nothing. "The
+  cells disagree" and "there are no cells" are different facts.
+- **`Workbook::refresh_chart_cache_from_cells`** — the opt-in repair, and the exact counterpart of
+  `refresh_chart_workbook` pointing the other way. Writing a cell deliberately leaves a chart's
+  caches alone (this library recalculates nothing), so this is how a caller makes the chart draw
+  what the sheet now says.
+- **`Workbook::add_range_chart`** with `SheetChartSource` / `SheetChartSeries` — a chart whose `c:f`
+  name cells in this workbook, whose caches are seeded from those cells, and which carries **no
+  embedded workbook at all**. `Workbook::add_chart` writes the other kind, taking the same
+  `ChartData` a slide and a document take.
+- **`mjx_chart::ChartData::ranges`**, `ChartRanges` and `ChartSeriesRange` — where a chart's data
+  lives, when it is not the companion embedded workbook. A source no range names is written as a
+  **literal** (`c:numLit` / `c:strLit`) rather than falling back to `Sheet1!$A$2:$A$N`, which would
+  name a part that is not in the package.
+- **`mjx_chart::chart_ops::series_references`** and `ChartSeriesReferences` — where each series says
+  its data lives, as against what its cache holds. On **all three** surfaces: `Deck`, `Document` and
+  `Workbook` each gained `chart_series_references`.
+- **`mjx_dml::spreadsheet_drawing::new_anchored_graphic_frame`** — the frame a chart sits in on a
+  sheet. `CT_GraphicalObjectFrame` declares `xdr:xfrm` `minOccurs="1"`, unlike the `a:xfrm` a picture
+  may omit, so it is written (all-zero, as Excel and LibreOffice both write for a two-cell anchor).
+- **`mjx_sml::ReferenceAreas`** — the areas of a reference that names more than one, split on the
+  commas that are not inside a quoted sheet name or an external-book bracket. `Copy` and
+  allocation-free, like the rest of that module.
+- **`PartKind::Chart`**, with `REL_CHART`, `REL_PACKAGE` and `CONTENT_TYPE_CHART`. The part
+  inventory names a chart part instead of leaving it unclassified; twenty-seven part kinds became
+  twenty-eight.
+- **`tests/fixtures/chart_in_sheet.xlsx` and `chart_stale_cache.xlsx`** — two workbooks **written by
+  LibreOffice 25.8.7.3**, not by this project. The first carries a chart over a live range with no
+  `c:externalData` at all; the second is the same package with the sheet and string table of a
+  second run spliced in, so its **caches and its cells disagree on every point**. A fixture whose
+  cached values equalled its cell values would prove nothing about which source a reader used.
+- **The Excel guide's chart page** (`crates/mjx-xlsx/docs/guide/charts.md`), four compiled
+  doctests, and `examples/chart_range_cost.rs`, which asserts with the counting allocator that a
+  resolution is bounded by the range rather than by the sheet: on a 30,000-cell sheet a three-cell
+  range costs **2,109 bytes** beyond the sheet's own read, and four areas in one call cost one sheet
+  parse where four calls cost four.
+- **Both bindings** gain the family: `workbook.add_range_chart(...)` in Python,
+  `workbook.addRangeChart(...)` in TypeScript, with `ChartRangeSeries`, `ChartSeriesReferences`,
+  `ChartSeriesFreshnessInfo`, `SheetChartWorkbookInfo`, `ResolvedRangeInfo` and `RangeCellInfo`
+  projected alongside.
+
+### Fixed
+
+- **`crates/mjx-ooxml/tests/chart_surface_parity.rs`'s strongest assertion was vacuous.** It compared
+  `deck.chart_part_bytes(...)` against `document.chart_part_bytes(...)` after twelve edits, and
+  `mjx_opc::Package::part_bytes` answers `None` for a part whose body is `Edited` — so the comparison
+  had been `None == None` since MJXOFF-103 wrote it, and a chart part wired to the wrong bytes would
+  have satisfied it. It now compares the parts of the **saved** packages and asserts all three are
+  really there. The three surfaces do agree, byte for byte.
+
+### Changed
+
+- **`Workbook::detach_chart_workbook` removes the embedded workbook part**, unless another chart
+  still names it. `mjx_docx::Document::detach_chart_workbook` leaves it in the package and says so;
+  this surface cannot, because `Workbook::save` runs `Package::validate`, which refuses a package
+  holding a SpreadsheetML part no relationship chain reaches — so a detach that left it behind would
+  hand back a workbook this library then declines to write.
+- **`XlsxError` gains five variants**: `ChartAccess` (wrapping `mjx_chart::ChartAccessError` whole,
+  the `mjx-docx` shape rather than `mjx-pptx`'s eight restated variants), `ChartData`,
+  `InvalidChartData`, `AnchorIsNotAChart` and `ChartHasNoExternalData`. The facade's `classify_xlsx`
+  routes the first through the *same* `chart_access_code` `DocxError::ChartAccess` goes through, so
+  the same index refused from a workbook, a document and a presentation answers the same
+  `ErrorCode`.
+
+## [0.0.124] - 2026-09-06
+
+**Worksheet drawings** (MJXOFF-107, Phase E position 3): the `xl/drawings` part, the three anchor
+modes, and the last place DrawingML reaches that this workspace had not.
+
+### Added
+
+- **`mjx_dml::spreadsheet_drawing`** — all seventeen complex types of
+  `dml-spreadsheetDrawing.xsd`, as fidelity wrappers: `WorksheetDrawing` (`xdr:wsDr`), the three
+  anchors, `CellMarker` (`xdr:from`/`xdr:to`), `AnchorClientData`, and the six things an anchor can
+  hold. It sits in `mjx-dml` for the reason `wordprocessing_drawing` does — `xdr` is a DrawingML
+  satellite schema whose content is DrawingML — and knows nothing about packages.
+- **`WorksheetDrawing::insert_rows` and its three axis siblings** — each anchor mode does what it
+  promises: a two-cell anchor moves *and* sizes, a one-cell anchor moves and keeps its size, an
+  absolute anchor does neither. The returned `AnchorShift` per anchor includes `promise_kept`, which
+  is `false` in exactly one case — a two-cell anchor resized while its own `@editAs` forbids it —
+  rather than leaving that anchor silently wrong.
+- **`mjx_sml::SheetAnchors`, `ColumnMetrics`, `GeometrySource` and `ResolvedAnchorBounds`** — an
+  anchor resolved to a rectangle in EMU against a sheet's own column widths and row heights, and the
+  honesty half of that answer. A row height is exact (points are 12,700 EMU); **a column width is a
+  character count and cannot be a length** without a font measurement this library never makes, so
+  the metrics are the caller's and every answer carries them. Where the sheet states nothing that
+  could place the object — no `x:sheetFormatPr`, so no `@defaultRowHeight` — the answer is `None`.
+- **`CT_Worksheet`'s last three owned slots**: rank 29 `drawing` (reusing MJXOFF-129's
+  `SheetDrawing`), rank 34 `oleObjects` and rank 35 `controls`, with `EmbeddedObjects`,
+  `EmbeddedObject`, `FormControls`, `FormControl` and `FormControlProperties`. Thirty-nine slots,
+  **thirty-four modelled, five held**. `CT_ControlPr` repeats MJXOFF-127's trap exactly: six of its
+  booleans default to `true`.
+- **`mjx_xlsx::Workbook`'s drawing surface** — `sheet_drawing`, `drawing_markup`,
+  `edit_drawing_markup`, `sheet_anchor_bounds`, the three `add_*_anchored_picture` calls,
+  `remove_sheet_drawing_object` and the four axis shifts. Adding a picture writes six things
+  together, including the image relationship **from the drawing part** rather than from the sheet:
+  an `a:blip@r:embed` is resolved against the part that contains it. Every edit goes back through
+  `ToXml::write_back` and the document the part was parsed from, so a shift that moves nothing
+  re-emits the part byte for byte — prologue included, which for a file Apache POI wrote is
+  `<?xml version="1.0" encoding="UTF-8"?>` and not this project's own declaration.
+- **The whole of it on `mjx_ooxml::Workbook` and both bindings** (A10's rule) — twelve methods, four
+  value types and two enumerations, with the committed `.pyi` stub extended.
+- **`mjx_ooxml_types::spreadsheetdrawing`** — `ResizingBehavior`, `ColumnIdentifier` and
+  `RowIdentifier`, generated. `ST_EditAs`'s members are named from §20.5.3.2's own enumeration-value
+  titles (`MoveAndResizeWithAnchorCells`, `MoveWithCellsButDoNotResize`,
+  `DoNotMoveOrResizeWithRowsOrColumns`), which say what happens to the object rather than naming the
+  anchor shape the wire token is spelled after.
+- **`tests/fixtures/worksheet_drawings.xlsx`** — a workbook with all three anchor modes, **written
+  by Apache POI 5.5.1**, not by this project. Its `twoCellAnchor` carries `editAs="oneCell"`, a value
+  that disagrees with the element's own name; its columns are 3.5, 20.75 and 12 characters wide and
+  it states no `defaultColWidth`; its picture starts mid-cell; and it anchors a PNG on two anchors
+  and a JPEG on the third. The extent POI computed for that first anchor — `cx="2085975"
+  cy="885825"` — is what this project's own resolver is asserted against.
+- **A guide page**, `Worksheet drawings`, whose every snippet is a compiled doctest.
+
+### Changed
+
+- **`dml-spreadsheetDrawing` moved from `CHILD_ORDER_SCHEMA_DEPENDENCIES` to
+  `CHILD_ORDER_SCHEMAS`** — the third schema to make that move, after `dml-wordprocessingDrawing`
+  and `shared-math` — and its `UNCOVERED_SCHEMAS` row is gone, because a schema covered in both
+  tables has no row there.
+- **`mjx-schema-gate` gains the `xdr` arm.** Without it a drawing part reports `Uncategorised`,
+  which reads like a pass; that is how `mjx-vml` sat unvalidated. Both halves are proved live: a
+  stray `xdr:col` inside a `twoCellAnchor` fails validation naming the part, and moving
+  `xdr:clientData` to the front of an anchor turns the ordering audit red naming
+  `CT_TwoCellAnchor`.
+- **`NON_XML_CONTENT_TYPES_UNDER_XL` gains `image/jpeg`**, and `image/png`'s reason now names two
+  kinds of part rather than one. The list is keyed on the content type rather than on where the part
+  sits, so a PNG under `xl/media/` needed no row of its own — the fixture carries a JPEG so that the
+  media path is not proved by one format and assumed for the rest.
+- **`XlsxError::UnrecognizedImageFormat`** is new; A9's exhaustive `classify_xlsx` refused to compile
+  without an arm for it.
+
+## [0.0.123] - 2026-09-06
+
+**Charts reach the Word surface** (MJXOFF-103, Phase E position 2): a `c:chart` inside a
+`w:drawing`, read, authored and edited, under the method names `mjx-pptx` already uses.
+
+### Added
+
+- **`Document`'s chart family — 42 methods**, in `crates/mjx-docx/src/document/charts.rs`. Reading
+  (`chart_series`, `chart_kinds`, `chart_axes`, `chart_title`, `chart_legend`, `chart_style_id`,
+  `chart_data_labels`, `chart_point_formats`, `chart_trendlines`, `chart_error_bars`,
+  `chart_dangling_decoration`), authoring (`add_chart`, `add_chart_placed`), the embedded workbook
+  (`chart_workbooks`, `refresh_chart_workbook`, `detach_chart_workbook`) and the whole edit and
+  decoration tier. A chart is addressed by its drawing's own `wp:docPr` id — the address MJXOFF-131
+  already gave every Word drawing — rather than by a second scheme.
+- **`mjx_chart::chart_ops`** — every read and every edit a host surface performs on a chart, stated
+  **once**, over a `ChartSpace`. `mjx-pptx` and `mjx-docx` are both rank 3.0, so neither may reach
+  the other; the shared body had to move *down* to the crate that owns `c:chartSpace` or be written
+  twice and kept in step by hand. Both surfaces are now thin wrappers around it: resolve an address
+  to a chart part, call the identically-named function, refresh the workbook. `ChartAccessError` is
+  its error type, deliberately **not** `#[non_exhaustive]` so both hosts must map it exhaustively.
+- **`mjx_dml::GraphicData::for_chart` / `chart_relationship_id`, and `CHART_GRAPHIC_URI`** — the
+  DrawingML envelope a chart reference sits in, which is the same envelope in every format.
+- **`ChartPlacement` / `ChartWrap`** — inline or floating, with three of `EG_WrapType`'s five wrap
+  modes. `wrapTight`/`wrapThrough` are left off the authoring surface deliberately: both need a
+  `wp:wrapPolygon` whose coordinate space ECMA-376 does not state for `CT_WrapPath`, and guessing one
+  would put a wrong polygon in every document. Reading either is unaffected.
+- **`mjx_dml::wordprocessing_drawing::WrapSquare::new` and `WrapTopAndBottom::new`** — MJXOFF-131
+  modelled all five wrap modes and gave constructors to two of them; `Anchor::new` had no caller at
+  all until this child became its first.
+- **`tests/fixtures/chart_in_word.docx`** — a `.docx` carrying a chart, **written by Apache POI
+  5.5.1**, not by this project. It numbers its drawing `0`, ships no `word/styles.xml`, spells
+  booleans `false` where this library writes `0`, and names its workbook
+  `Microsoft_Excel_Worksheet1.xlsx` where this library writes `Microsoft_Excel_Sheet1.xlsx`.
+- **The Word guide's chart page** (`crates/mjx-docx/docs/guide/charts.md`), three compiled doctests.
+- **Both bindings** gain the family: `document.add_chart(...)` in Python,
+  `document.addChart(...)` in TypeScript, with `ChartWrap`, `DocumentChartWorkbook` and `WrapText`
+  projected alongside.
+
+### Fixed
+
+- **`Document::remove_drawing` left a chart's relationship dangling.** It looked only for a
+  *picture's* image relationship, so removing a chart drawing left `word/_rels/document.xml.rels`
+  pointing at a chart part nothing referenced — which `Package::validate` reports as a defect on the
+  next `save`. It now sweeps a chart's relationship, and with it the workbook that chart part alone
+  referenced.
+- **The child-order audit never descended into an embedded workbook, in any format.** The validation
+  half of the schema gate has opened a chart's `.xlsx` since A5; the ordering half walked the outer
+  package only. `sml` has been in `CHILD_ORDER_SCHEMAS` since MJXOFF-132 and `mjx-sml`'s writer
+  composes those parts, so nothing was checking the order of markup this project writes.
+  `audit_deck_order` now descends, under the same `…xlsx!/…` naming the validation half uses — which
+  closes the hole for `mjx-pptx` in the same commit that found it from Word.
+
+### Changed
+
+- **`ChartSeriesData`, `ChartAxisData`, `ChartLegendData`, `ChartLabelScope`,
+  `ChartPointFormatData`, `ChartTrendlineData` and `ChartErrorBarData` moved from `mjx-pptx` to
+  `mjx-chart`** (`mjx_chart::view`). They were declared in `mjx-pptx` because a chart was reachable
+  from one surface; two surfaces at the same rank cannot share a type that lives in either. **No
+  public path changed**: `mjx-pptx` re-exports all seven, and `mjx-ooxml` now names them from
+  `mjx-chart` instead.
+- **`mjx-pptx`'s chart methods are delegations.** Every one keeps its signature, its error variants
+  and its documentation, and calls `mjx_chart::chart_ops` for the body. `PptxError` gains an
+  exhaustive `From<ChartAccessError>`.
+- **A7d's chart-part re-flow limitation is gone, and the Word path inherits that.** MJXOFF-143
+  carried the source span through `FromXml`/`ToXml`; measured here on a producer-written part,
+  moving a chart's legend changes the one attribute and leaves the other 2,962 bytes identical.
+  `crates/mjx-docx/tests/charts.rs` asserts it rather than the CHANGELOG claiming it.
+
+## [0.0.122] - 2026-09-06
+
+**The workspace's one sanctioned duplicate is deleted: a chart's embedded workbook is written by
+`mjx-sml`** (MJXOFF-99, Phase E position 1).
+
+### Removed
+
+- **`crates/mjx-chart/src/workbook.rs`** — 686 lines of minimal SpreadsheetML writer, and the public
+  items listed under *Unreleased — 0.1.0* above. It opened by naming its own executioner: *"a
+  duplicate with a scheduled removal is a debt; a duplicate nobody removes is an architecture."*
+  Written because a chart embeds a whole `.xlsx` package at `/ppt/embeddings/*.xlsx` and no
+  SpreadsheetML crate existed, it proposed `mjx-xlsx` as its replacement — which would have been an
+  **upward** edge (2.2 → 3.0). `mjx-sml` is rank 2.1, so `mjx-chart → mjx-sml` points down, and that
+  is the edge the deletion rides on.
+- **`crates/mjx-chart/tests/workbook_parity.rs`** — MJXOFF-112's gate, which existed only to compare
+  the two writers byte for byte. With one writer left there is nothing to compare; everything it
+  asserted about the surviving writer is also asserted in `crates/mjx-sml/tests/package_writer.rs`.
+- **`mjx_chart`'s private `column_letters`.** A chart's `c:f` formulas name their columns through
+  `mjx_sml::address::column_letters`, so the chart and its workbook cannot disagree about which
+  column is which.
+
+### Changed
+
+- **`mjx-chart` holds no SpreadsheetML at all** — not an element name, not an `xl/` part name, not a
+  namespace constant, not in a test. `crates/mjx-chart/src/embedding.rs` decides only *which cell* a
+  chart's data belongs in and hands the rows to `mjx_sml::write::WorkbookPackage`. That is the whole
+  crate's involvement with spreadsheets now.
+- **`mjx-pptx` registers an embedded workbook with `mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE`**
+  and gained a direct `mjx-sml` dependency for it (3.0 → 2.1, downward). `add_chart` and
+  `refresh_chart_workbook` keep their shape exactly: everything fallible that does not touch the
+  package still happens first, and a refresh still answers `false` rather than erroring for a chart
+  with no `c:externalData`, an unresolvable relationship, an `External` target mode or a missing part.
+- **`mjx_sml::write::WorkbookPackage::push_row` advances past a row that writes nothing.** Fixed
+  forward here rather than worked around in `mjx-chart`. `Blank` and a non-finite number write no
+  cell, so a row of them left no `<row>` behind — and the next row's number was measured off the
+  *populated* rows, so it took the empty row's place and slid the whole grid up by one. A chart read
+  back from a file whose series carry no `c:tx` has exactly that header row, and its own `c:f` says
+  `Sheet1!$A$2:$A$3`. `AuthoredWorksheet::appended_row_count` is the new cursor, public and
+  documented, and `set_cell_value` still counts, so mixing the two doors never overwrites.
+
+### Fixed
+
+- **`the_refreshed_workbook_holds_the_edited_values` could not fail for the thing it names.** It set
+  a series' values *and* its categories, and `set_chart_series_categories` refreshes the workbook
+  too — so removing `set_chart_series_values`'s refresh entirely left it green. Found by mutation
+  while rerouting the writer. It is now one test per setter, each asserting that the labels or the
+  numbers the fixture carried are *gone*, and each independently red when its own refresh is removed.
+  A11's R4 (`editing_a_chart_dirties_only_the_chart_xml_and_its_workbook`) always caught the values
+  case, so nothing was unguarded; one of the two guards was simply not the guard it read as.
+
+### Documentation
+
+- **The gaps page's standing paragraph is a closed *What used to be here* row**, naming `mjx-sml`
+  rather than `mjx-xlsx` — the original sentence named the wrong crate, and the edge it implied was
+  illegal.
+- **`xtask/src/corpus/xlsx.rs` states, at the call site, why its hand-written worksheet stays.** It is
+  the fourth writer of SpreadsheetML in this repository and the only one left; MJXOFF-93 reported it
+  and left the decision open. It is kept on purpose: it is the *input* to a benchmark of the library's
+  reader, so generating it through the library would make `docs/BENCHMARKS.md` a measurement of our
+  reader against our own writer; it writes a file `WorkbookPackage` cannot (no shared strings, no
+  styles, `t="inlineStr"`, `spans` on every row); building it through the model would pay the cost
+  the harness exists to measure; and `xtask` is a host-only binary outside the ranked graph that
+  ships nowhere. **So the workspace's "one sanctioned duplicate" claim is retired with the writer it
+  described: exactly one SpreadsheetML writer ships, and the remaining hand-written one is tooling.**
 
 ## [0.0.121] - 2026-09-06
 

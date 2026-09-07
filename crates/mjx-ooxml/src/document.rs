@@ -83,6 +83,7 @@ use mjx_docx::PageSize;
 use crate::error::{Error, ErrorCode};
 use crate::format::{format_of, Format};
 
+mod charts;
 mod comments;
 mod drawings;
 mod effective;

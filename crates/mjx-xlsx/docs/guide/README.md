@@ -1,6 +1,9 @@
 # Guide
 
-Fourteen pages. Excel is the last of the three formats this workspace takes on: MJXOFF-91 built the
+One page per feature area, listed in the table below — a count is not written here because three
+places in this workspace once carried three different ones for this guide (fifteen, fourteen and
+thirteen) and none of them was right. Excel is the last of the three formats this workspace takes
+on: MJXOFF-91 built the
 **package** — the container, the part graph, and a `Workbook` that opens and saves without touching a
 byte — and the Phase D children after it are building the model reached through it. MJXOFF-102 (D07)
 adds the worksheet: a sheet's cells can now be read and one of them written. MJXOFF-112 (D10) adds
@@ -15,9 +18,13 @@ in two parts that this library writes and removes together. MJXOFF-129 (D17) add
 opaque header/footer strings and the three sheet kinds that are not worksheets. MJXOFF-133 (D18)
 writes down the half of `sml.xsd` this project deliberately does not model, and proves it survives.
 MJXOFF-135 (D19) adds the two pages that were missing and the six runnable examples. MJXOFF-137
-(D20) — this child — projects the whole of it through `mjx-ooxml` and both bindings, and adds the one
-page about what changes on the way. This guide says exactly that much and no more, so that nobody
-plans around a surface that is not here.
+(D20) projects the whole of it through `mjx-ooxml` and both bindings, and adds the one page about
+what changes on the way. MJXOFF-107 (E3) adds worksheet drawings, the last place DrawingML
+reaches that it had not: the `xl/drawings` part, the three anchor modes, and the one answer on this
+surface that has to say which half of itself was defaulted. MJXOFF-111 (E4) — this child — puts a
+chart in one of those anchors, and with it the one chart in this library whose data source is a
+**live range in the same workbook** rather than an embedded copy. This guide says exactly that much
+and no more, so that nobody plans around a surface that is not here.
 
 | Page | Read it when |
 |---|---|
@@ -29,19 +36,27 @@ plans around a surface that is not here.
 | [Conditional formatting](conditional_formatting) | You want to know which rules apply to a cell — and what this library will not tell you about them |
 | [Filters and data validation](filters_and_data_validation) | You want to read or write an autofilter, a sort state or a validation rule — and to know what none of them will do |
 | [Worksheet tables](worksheet_tables) | You want to read or create a table, and to know why a preset style name is not a missing style |
+| [Worksheet drawings](worksheet_drawings) | You want a picture or a shape on a sheet, or you want to know where one already is |
+| [Charts on a sheet](charts) | You want to read, author or edit a chart — and to know which of its two data sources answered |
 | [Hyperlinks](hyperlinks) | You want to read, add or remove a link — and to know what this library will never do to a target |
+| [Cell comments and legacy content](cell_comments_and_legacy_content) | You want a cell comment, or the legacy VML shape an OLE object or a form control is drawn as |
 | [Print setup and sheet kinds](print_setup_and_sheet_kinds) | You want a sheet's margins, page setup or header/footer, or a tab that is not a grid of cells |
 | [Fidelity and the part graph](fidelity_and_the_part_graph) | Before you rely on anything here in production |
 | [Large workbooks](large_workbooks) | Before you write a loop that touches a lot of cells |
 | [Deliberate limitations](deliberate_limitations) | **Before you file a bug** — every standing refusal, its reason and its workaround |
 | [Through the facade and the bindings](through_the_facade) | You are calling this from `mjx-ooxml`, Python or TypeScript rather than from here |
 
+Beside the pages above, [the effective-properties guide](crate::effective_properties) is the deep
+reference on what a cell *states* versus what Excel *shows* — the two-level `xf` indirection every
+`effective_*` reader walks — and it is the third of three pages in one shape, alongside
+`mjx_pptx::effective_properties` and `mjx_docx::effective_properties`.
+
 Every snippet on every page is a compiled doctest that `cargo test` runs, and every one asserts on a
 value it computed — the same rule `mjx-pptx`'s and `mjx-docx`'s guides are held to, and what keeps a
 guide from drifting away from the API it describes. Rename a public method without updating the page
 that names it and `cargo test` goes red, which is what makes this a test rather than a document.
 
-Beside them are **six runnable examples** under `crates/mjx-xlsx/examples/`, each of which reopens
+Beside them are **seven runnable examples** under `crates/mjx-xlsx/examples/`, each of which reopens
 what it wrote and asserts something about it. CI runs every one on every push.
 
 ```sh

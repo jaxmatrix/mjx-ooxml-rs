@@ -763,3 +763,224 @@ fn a_fractions_missing_required_numerator_turns_the_schema_gate_red_naming_the_p
     );
     println!("the shared-math schema arm, proved live:\n{report}");
 }
+
+// -------------------------------------------------------------------------------------------------
+// MJXOFF-103 (E2) — a chart inside w:drawing, its own chart part, and the whole .xlsx package it
+// embeds. Three schemas in one document: `wml.xsd` for the drawing, `dml-chart.xsd` for the chart
+// part, and `sml.xsd` for every part of the nested workbook.
+// -------------------------------------------------------------------------------------------------
+
+/// A blank A4 document with one inline chart added via `Document::add_chart`.
+fn document_with_a_chart() -> Document {
+    let mut document = Document::blank(PageSize::a4()).expect("blank");
+    document
+        .add_chart(
+            0,
+            &mjx_chart::ChartData::new(mjx_chart::ChartKind::Bar)
+                .categories(["Q1", "Q2", "Q3"])
+                .series("North", [12.5, 18.0, 21.5])
+                .series("South", [9.0, 11.5, 14.0]),
+            4_572_000,
+            2_743_200,
+            "Revenue",
+        )
+        .expect("add_chart");
+    document
+}
+
+#[test]
+fn a_document_with_a_chart_is_schema_valid_down_to_the_nested_workbook() {
+    // "Done when" #2. The gate descends into an embedded `.xlsx` and validates each of its parts
+    // against `sml.xsd` (`categories.rs`'s own doc comment says why SpreadsheetML is category 1),
+    // so this asserts *per part* that the nested package was reached rather than trusting that
+    // "the document is valid" covered it — a claim that is true of a document whose workbook was
+    // skipped entirely.
+    let saved = document_with_a_chart().save().expect("save");
+    assert_authored_deck_is_schema_valid("document with an inline chart", &saved);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "document with an inline chart", &saved, &[]);
+    println!("{}", outcome_table("document with an inline chart", &rows));
+
+    for (part, schema) in [
+        ("/word/document.xml", "wml.xsd"),
+        ("/word/charts/chart1.xml", "dml-chart.xsd"),
+        (
+            "/word/embeddings/Microsoft_Excel_Sheet1.xlsx!/xl/workbook.xml",
+            "sml.xsd",
+        ),
+        (
+            "/word/embeddings/Microsoft_Excel_Sheet1.xlsx!/xl/worksheets/sheet1.xml",
+            "sml.xsd",
+        ),
+    ] {
+        let row = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep; rows: {rows:#?}"));
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated(named) if named == schema),
+            "{part} must be validated against {schema}; it reported: {}",
+            row.outcome.describe()
+        );
+    }
+}
+
+/// `document_with_a_chart`'s embedded workbook, with the worksheet's `<sheetData>` renamed to an
+/// element `sml.xsd` does not admit there — well-formed XML, invalid against `CT_Worksheet`.
+///
+/// The mutation is deliberately made **inside the nested package**, because that is the only place
+/// it proves what this case claims: a gate that validated the document and the chart part but
+/// skipped the workbook stays green through it.
+fn document_with_a_chart_whose_nested_worksheet_is_invalid() -> Vec<u8> {
+    let saved = document_with_a_chart().save().expect("save");
+    let mut package = Package::open(&saved).expect("reopen the saved bytes");
+    let workbook_part =
+        PartName::new("/word/embeddings/Microsoft_Excel_Sheet1.xlsx").expect("a valid part name");
+
+    let mut workbook = Package::open(
+        package
+            .part_bytes(&workbook_part)
+            .expect("the chart's embedded workbook"),
+    )
+    .expect("the embedded workbook opens");
+    let sheet_part = PartName::new("/xl/worksheets/sheet1.xml").expect("a valid part name");
+    let xml = std::str::from_utf8(
+        workbook
+            .part_bytes(&sheet_part)
+            .expect("the workbook always carries sheet1.xml"),
+    )
+    .expect("authored markup is UTF-8")
+    .to_owned();
+    assert!(
+        xml.contains("<sheetData>"),
+        "the authored worksheet does not carry <sheetData> to rename:\n{xml}"
+    );
+    let corrupted = xml
+        .replacen("<sheetData>", "<sheetDataX>", 1)
+        .replacen("</sheetData>", "</sheetDataX>", 1)
+        .into_bytes();
+    workbook
+        .replace_part_bytes(&sheet_part, corrupted)
+        .expect("replace the worksheet");
+    package
+        .replace_part_bytes(
+            &workbook_part,
+            workbook.save_unchecked().expect("save the workbook"),
+        )
+        .expect("replace the embedded workbook");
+    package
+        .save_unchecked()
+        .expect("save the corrupted document")
+}
+
+#[test]
+fn an_invalid_element_inside_the_nested_workbook_turns_the_gate_red_naming_that_part() {
+    // A5's mutation, in this child's own terms: writing an element `sml.xsd` rejects must turn the
+    // gate red with an error naming `…xlsx!/xl/worksheets/sheet1.xml`. Without this, "the Word
+    // chart path reaches the nested package" is a claim nothing checks — and the gate's own history
+    // (§7) is exactly of clauses that were green because the thing they named was skipped.
+    let Some(harness) = harness() else { return };
+    let corrupted = document_with_a_chart_whose_nested_worksheet_is_invalid();
+    let rows = inspect_deck(
+        &harness,
+        "chart workbook with an element sml.xsd rejects",
+        &corrupted,
+        &[],
+    );
+
+    let part = "/word/embeddings/Microsoft_Excel_Sheet1.xlsx!/xl/worksheets/sheet1.xml";
+    let row = rows
+        .iter()
+        .find(|row| row.name == part)
+        .unwrap_or_else(|| panic!("{part} is not in the sweep; rows: {rows:#?}"));
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "an element sml.xsd rejects must fail; {part} reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "sml.xsd");
+    assert!(
+        report.contains(part),
+        "the failure must name the nested part:\n{report}"
+    );
+    println!("the Word chart path reaches the nested workbook:\n{report}");
+}
+
+#[test]
+fn a_chart_drawings_missing_extent_cy_turns_the_schema_gate_red_naming_the_document_part() {
+    // The `wp:` half of the same proof, on the chart's own placement rather than a picture's: the
+    // chart is reached through the identical `w:drawing`/`wp:inline` container MJXOFF-131 built, so
+    // an invalid `wp:extent` must be caught in `word/document.xml`'s own `wml.xsd` pass.
+    let Some(harness) = harness() else { return };
+    let saved = document_with_a_chart().save().expect("save");
+    let mut package = Package::open(&saved).expect("reopen the saved bytes");
+    let part = PartName::new("/word/document.xml").expect("a valid part name");
+    let xml = std::str::from_utf8(package.part_bytes(&part).expect("the document part"))
+        .expect("authored markup is UTF-8")
+        .to_owned();
+    let needle = r#"<wp:extent cx="4572000" cy="2743200"/>"#;
+    assert!(
+        xml.contains(needle),
+        "the authored chart does not carry {needle:?} to strip:\n{xml}"
+    );
+    package
+        .replace_part_bytes(
+            &part,
+            xml.replacen(needle, r#"<wp:extent cx="4572000"/>"#, 1)
+                .into_bytes(),
+        )
+        .expect("replace word/document.xml");
+    let corrupted = package.save_unchecked().expect("save");
+
+    let rows = inspect_deck(
+        &harness,
+        "chart drawing missing wp:extent cy",
+        &corrupted,
+        &[],
+    );
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/word/document.xml")
+        .expect("word/document.xml is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a wp:extent missing cy must fail against wml.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "wml.xsd");
+    assert!(
+        report.contains("/word/document.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    println!("the chart's own wp:inline is validated too:\n{report}");
+}
+
+#[test]
+fn the_chart_and_workbook_parts_are_audited_for_child_order_not_merely_validated() {
+    // A7c's tables reach the parts this child writes: `dml-chart` and `sml` are both in
+    // `CHILD_ORDER_SCHEMAS`, so an authored chart is ordered by construction. A count of zero here
+    // would mean the audit never descended into either part — the "green because it was skipped"
+    // shape again.
+    let saved = document_with_a_chart().save().expect("save");
+    let audited = audit_deck_order("document with an inline chart order coverage", &saved);
+    if audited.is_empty() {
+        return; // no schemas available; `every_docx_fixture_is_schema_valid` already skips
+    }
+    for part in [
+        "/word/charts/chart1.xml",
+        "/word/embeddings/Microsoft_Excel_Sheet1.xlsx!/xl/worksheets/sheet1.xml",
+    ] {
+        let audited_part = audited
+            .iter()
+            .find(|audited| audited.name == part)
+            .unwrap_or_else(|| panic!("{part} is not audited for child order"));
+        assert!(
+            audited_part.elements_visited > 1,
+            "{part}: the order audit visited only {} element(s) — it is not descending",
+            audited_part.elements_visited
+        );
+    }
+}

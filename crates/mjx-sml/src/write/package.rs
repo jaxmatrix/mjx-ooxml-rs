@@ -11,8 +11,10 @@
 //! `crates/mjx-sml/tests/package_writer.rs` proves the writer works with nothing above it by using
 //! it from a crate whose dependency graph contains no `mjx-xlsx` at all.
 //!
-//! That is the whole reason MJXOFF-132 created this crate, and it is what makes MJXOFF-99 a
+//! That is the whole reason MJXOFF-132 created this crate, and it is what made MJXOFF-99 a
 //! *deletion* of `crates/mjx-chart/src/workbook.rs` rather than a migration of it.
+//! `mjx_chart::embedded_workbook_for_chart_data` is the caller: it lays out the grid and this
+//! module writes every byte of the file.
 //!
 //! # The part graph this writes
 //!
@@ -33,7 +35,7 @@
 //! # What is deliberately not written
 //!
 //! * **A theme.** No schema or OPC rule requires one in a SpreadsheetML package, and
-//!   `mjx_chart::EmbeddedWorkbook` has shipped without one through every release — its packages open
+//!   `mjx-chart`'s retired writer shipped without one through every release — its packages open
 //!   in PowerPoint and in LibreOffice. Authoring one here would put a **third** hand-written
 //!   `a:theme` in this workspace, beside `mjx-pptx`'s, on the very child whose premise is that a
 //!   duplicated markup writer is a debt. A caller that wants one relates it itself.
@@ -45,7 +47,7 @@
 //! Document properties **are** written when [`set_document_properties`](WorkbookPackage::set_document_properties)
 //! asks for them, through [`mjx_opc::doc_props`] — the one module every format's `blank` constructor
 //! shares, so this adds no fourth copy either. They are off by default because
-//! `EmbeddedWorkbook` wrote none and the parity gate compares part lists.
+//! `EmbeddedWorkbook` wrote none and MJXOFF-112's parity gate compared part lists.
 
 use mjx_opc::doc_props::{self, CoreProperties, ExtendedProperties};
 use mjx_opc::{OpcError, Package, PartName, Relationship, TargetMode};
@@ -76,7 +78,7 @@ use super::workbook::AuthoredWorkbook;
 /// # Nothing is written for a value there is nothing to write for
 ///
 /// [`Blank`](Self::Blank) writes **no cell**, and so does a [`Number`](Self::Number) that is not
-/// finite. Both are what `mjx_chart::EmbeddedWorkbook` did, and both are right for a grid: a chart's
+/// finite. Both are what `mjx-chart`'s retired writer did, and both are right for a grid: a chart's
 /// header row starts with an empty corner, and a series with no value at a category has no data
 /// point there. `NaN` and the infinities have no numeric spelling in SpreadsheetML at all — see
 /// [`SmlError::UnrepresentableNumber`], which is what the *cell-at-a-time* door
@@ -277,11 +279,15 @@ impl WorkbookPackage {
     /// Appends a row of cells to the tab at `index`, starting at column `A` of the row after the
     /// last one written, and answers the one-based row number it landed on.
     ///
-    /// **This is the door a grid goes through**, and the one
-    /// [`mjx_chart::EmbeddedWorkbook::to_package_bytes`](https://docs.rs/mjx-chart) is replaced by:
-    /// text is interned into the shared-string table in first-use order, a
-    /// [`Blank`](AuthoredCellValue::Blank) and a non-finite number write nothing at all, and a row
-    /// with nothing in it writes no `<row>` either.
+    /// **This is the door a grid goes through**, and the one `mjx_chart`'s retired
+    /// `EmbeddedWorkbook::to_package_bytes` was replaced by (MJXOFF-99): text is interned into the
+    /// shared-string table in first-use order, a [`Blank`](AuthoredCellValue::Blank) and a
+    /// non-finite number write nothing at all, and a row with nothing in it writes no `<row>`
+    /// either.
+    ///
+    /// **A row that writes nothing still occupies its number.** The next appended row lands after
+    /// it, not on it — see [`AuthoredWorksheet::appended_row_count`](crate::write::AuthoredWorksheet::appended_row_count)
+    /// for the grid this keeps aligned.
     ///
     /// # Errors
     /// [`SmlError::SheetIndexOutOfRange`] if `index` names no tab,
@@ -317,15 +323,21 @@ impl WorkbookPackage {
                 }
             }
         }
+        // Whether or not anything was written, the row is spent: the next one goes after it.
+        if let Some(sheet) = self.sheets.get_mut(index) {
+            sheet.note_appended_row(row);
+        }
         Ok(row.saturating_add(1))
     }
 
     /// Writes `docProps/core.xml` and `docProps/app.xml` into the package, and relates both from the
     /// package root.
     ///
-    /// Off until this is called, because `mjx_chart::EmbeddedWorkbook` wrote neither and the parity
-    /// gate compares part lists. `mjx_xlsx::Workbook::blank` calls it: MJXOFF-149 decided this
+    /// Off until this is called, because `mjx-chart`'s retired writer wrote neither and MJXOFF-112's
+    /// parity gate compared part lists. `mjx_xlsx::Workbook::blank` calls it: MJXOFF-149 decided this
     /// project authors document properties, and every file real Office writes has them.
+    /// `mjx_chart::embedded_workbook_for_chart_data` still must not — a chart's workbook gained no
+    /// part when the writer moved.
     pub fn set_document_properties(&mut self, core: CoreProperties, extended: ExtendedProperties) {
         self.document_properties = Some((core, extended));
     }
@@ -367,7 +379,7 @@ impl WorkbookPackage {
             package.insert_part(&part, CONTENT_TYPE_WORKSHEET, sheet.to_part_bytes())?;
         }
         // Shared strings before styles, which is the order `[Content_Types].xml` then lists the two
-        // overrides in — and the order `mjx_chart::EmbeddedWorkbook` wrote, so that the part is
+        // overrides in — and the order `mjx-chart`'s retired writer wrote, so that the part is
         // byte-identical to the one it produced. Nothing reads a content-type list positionally; the
         // parity gate compares bytes, and a gate that had to normalise before comparing would be a
         // weaker gate.
@@ -457,12 +469,17 @@ impl WorkbookPackage {
         let Some(sheet) = self.sheets.get(index) else {
             return 0;
         };
-        sheet
+        let last_populated = sheet
             .part()
             .rows()
             .filter_map(|row| row.number())
             .max()
-            .unwrap_or(0)
+            .unwrap_or(0);
+        // The later of "one past the last row that holds a cell" and "one past the last row that was
+        // appended". They differ whenever an appended row wrote nothing — a header row of blanks, a
+        // series with no value at a category — and taking only the first would hand that row's
+        // number to the next one. `AuthoredWorksheet::appended_row_count` says why that matters.
+        last_populated.max(sheet.appended_row_count())
     }
 }
 
@@ -479,7 +496,7 @@ fn relationship_id(index: usize) -> String {
 /// Parses a part name that is a constant in this crate.
 ///
 /// A failure is a bug here rather than bad input, so it surfaces as a packaging error rather than a
-/// panic — the same shape `mjx_chart::EmbeddedWorkbook` used, and for the same reason.
+/// panic — the same shape `mjx-chart`'s retired writer used, and for the same reason.
 fn part_name(name: &str) -> Result<PartName, SmlError> {
     PartName::new(name)
         .map_err(|_| SmlError::Opc(OpcError::Malformed(format!("invalid part name: {name}"))))

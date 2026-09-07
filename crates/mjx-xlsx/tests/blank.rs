@@ -70,7 +70,7 @@ fn a_blank_workbook_has_the_one_sheet_the_schema_requires() {
 /// The part list is the one a workbook Office wrote carries, minus the theme.
 ///
 /// The theme is **deliberately** absent: no schema or OPC rule requires one in a SpreadsheetML
-/// package, `mjx_chart::EmbeddedWorkbook` has shipped without one, and authoring one here would put
+/// package, `mjx-chart`'s retired writer shipped without one, and authoring one here would put
 /// a third hand-written `a:theme` in this workspace on the very child whose premise is that a
 /// duplicated markup writer is a debt.
 #[test]

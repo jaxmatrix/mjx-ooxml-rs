@@ -102,7 +102,8 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   rank can do the same job for a painter, in either direction.** A reader who assumes the rank is
   protecting the painter's own edges has it backwards.
 - **Three test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema
-  and child-order gate, a `dev-dependency` of the three format crates), `mjx-fixtures` (the committed
+  and child-order gate, a `dev-dependency` of the three format crates and a dependency of `xtask`,
+  whose `validation-artefacts --ingest` *reports* the verdicts a suite asserts), `mjx-fixtures` (the committed
   corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can reach it
   without an upward edge) and `mjx-allocation-counter` (the counting global allocator, also with **no
   dependencies at all**, because its two consumers sit in different tiers — `xtask`'s fuzz campaign
@@ -222,11 +223,14 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   `FillSpec`/`ColorSpec` in the *shipped* `mjx-dml`, contradicting the hand-written-de/serialization
   decision above.
 
-The acceptance test for both is the same: `crates/mjx-ooxml/examples/build_a_deck.rs` exists a second
-time as `bindings/mjx-python/tests/test_build_a_deck.py` and a third as
-`bindings/mjx-wasm/tests/node/build_a_deck.mjs`, and each compares its deck against the Rust one
-**part by part, byte for byte**. A method wired to the wrong `Deck` method changes one payload and
-fails there.
+The acceptance test for both is the same, and there are now four of it. Each of the three
+walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`, `build_a_document.rs`,
+`build_a_workbook.rs` — exists a second time under `bindings/mjx-python/tests/` and a third under
+`bindings/mjx-wasm/tests/node/`, and so does the whole validation catalogue
+(`xtask/src/validation/` ↔ `bindings/mjx-python/tests/test_validation_artefacts.py` ↔
+`bindings/mjx-wasm/tests/node/validation_artefacts.mjs`). Every one compares its output against the
+Rust one **part by part, byte for byte**. A method wired to the wrong `Deck` method changes one
+payload and fails there.
 
 When the facade grows a method, both bindings grow it: a binding that projects part of the surface is
 a surface two languages cannot use.
@@ -264,6 +268,22 @@ cargo run -p xtask -- tokens         # regenerate the three design-token artefac
                                      #   docs/client-platform/data/tokens.json; `--check` refuses
                                      #   instead of writing, which is what the tests run
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
+cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
+
+# The artefacts the human Microsoft Office pass reads (MJXOFF-122). It marks nothing: see
+# docs/validation/00-method.md. Two runs are byte-identical, and the two bindings produce the same
+# set. MJX_REQUIRE_OFFICE_CORPUS=1 makes an empty tests/office-authored/ a failure rather than a skip.
+cargo run -p xtask -- validation-artefacts --list
+cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
+
+# The other direction (MJXOFF-130): hand it a file saved out of Office and it reports which entry the
+# file answers, whether it round-trips at the container and through the facade, whether the package
+# invariants hold, whether its child order matches ours, whether it validates, and where it would be
+# committed. It copies nothing. The corpus at tests/office-authored/ is EMPTY and no agent may fill
+# it: a file's value there is entirely its provenance. docs/validation/06-the-office-pass.md is the
+# hand-off that says how a person does.
+cargo run -p xtask -- validation-artefacts --ingest <file> --area 2
+cargo test -p xtask --test office_corpus
 
 # The ECMA-376 gate, one harness over all three formats. Skips without References/; MJX_REQUIRE_SCHEMA=1
 # turns any absence into a failure, which is what CI sets.

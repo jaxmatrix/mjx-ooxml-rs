@@ -96,6 +96,9 @@ use crate::error::{Error, ErrorCode};
 use crate::format::{format_of, Format};
 
 mod cells;
+mod charts;
+mod comments;
+mod drawings;
 mod features;
 mod grid;
 mod hyperlinks;
@@ -108,6 +111,12 @@ mod styles;
 mod tables;
 
 pub use cells::{CellBlock, CellData, CellInput, CellWrite};
+pub use charts::{
+    ChartRangeSeries, ChartSeriesFreshnessInfo, RangeCellInfo, ResolvedRangeInfo,
+    SheetChartWorkbookInfo,
+};
+pub use comments::{CommentBoxInfo, SheetCommentInfo};
+pub use drawings::{AnchorBoundsInfo, AnchorShiftInfo, SheetDrawingInfo, SheetDrawingObjectInfo};
 pub use grid::{GridAnomalyInfo, GridAnomalyKind};
 pub use hyperlinks::SheetHyperlinkInfo;
 pub use names::DefinedName;

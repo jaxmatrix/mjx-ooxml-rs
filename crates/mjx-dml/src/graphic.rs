@@ -34,6 +34,31 @@ use crate::picture::Picture;
 /// every kind this workspace has met so far.
 pub const PICTURE_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/picture";
 
+/// The `a:graphicData@uri` a chart's graphic frame declares (`http://schemas.openxmlformats.org/
+/// drawingml/2006/chart`) — again the same URI as the schema's own transitional namespace,
+/// [`mjx_ooxml_types::namespaces::DML_CHART`].
+///
+/// A chart is the one payload kind whose *envelope* this crate can build even though it cannot type
+/// the payload: `c:chart` is a self-closing leaf carrying nothing but `r:id`, so building one needs
+/// the chart namespace and the relationships namespace and no chart markup at all. Both host crates
+/// place a chart this way — `mjx-pptx` inside a `p:graphicFrame`, `mjx-docx` inside a
+/// `wp:inline`/`wp:anchor` — so the URI and the builder live here rather than once per format.
+pub const CHART_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+/// An `xmlns:prefix="uri"` declaration, for a subtree whose root introduces a prefix the
+/// surrounding part does not already bind — see [`GraphicData::for_chart`]'s own doc comment.
+fn namespace_declaration(interner: &mut Interner, prefix: &str, uri: &str) -> RawAttribute {
+    RawAttribute {
+        name: RawName {
+            prefix: Some(interner.intern("xmlns")),
+            local: interner.intern(prefix),
+            namespace: None,
+        },
+        value: uri.as_bytes().into(),
+        quote: mjx_ooxml_core::QuoteStyle::Double,
+    }
+}
+
 /// One `a:graphicData` payload.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum GraphicDataContent {
@@ -68,8 +93,107 @@ impl GraphicData {
         }
     }
 
+    /// Builds `<a:graphicData uri="{CHART_GRAPHIC_URI}"><c:chart xmlns:c="…" xmlns:r="…"
+    /// r:id="{relationship_id}"/></a:graphicData>` — a reference to a chart part, which is all a
+    /// chart's graphic data ever holds.
+    ///
+    /// The `c:chart` leaf declares both prefixes on itself rather than assuming the surrounding part
+    /// binds them, exactly as `mjx-pptx`'s own `build_chart_frame` does and for the same reason: a
+    /// blank `word/document.xml` binds `w`/`r` and a slide binds `p`/`a`/`r`, so neither binds `c`,
+    /// and a spliced subtree that assumed otherwise would emit unbound markup. Declaring `r:` a
+    /// second time where the host already binds it is ordinary, valid XML — the same URI bound to
+    /// the same prefix — and is what makes this one builder correct on every host.
+    ///
+    /// The payload stays [`GraphicDataContent::Other`]: `c:chart` is ChartML, which this crate does
+    /// not model and (being rank 2.0, beneath `mjx-chart`'s 2.2) could not reach if it wanted to.
+    /// What is built here is the DrawingML *envelope*, which is this crate's own vocabulary.
+    #[must_use]
+    pub fn for_chart(interner: &mut Interner, relationship_id: &str) -> Self {
+        let chart = RawElement::rebuilt(
+            RawName {
+                prefix: Some(interner.intern("c")),
+                local: interner.intern("chart"),
+                namespace: Some(
+                    interner.intern(mjx_ooxml_types::namespaces::DML_CHART.transitional),
+                ),
+            },
+            vec![
+                namespace_declaration(
+                    interner,
+                    "c",
+                    mjx_ooxml_types::namespaces::DML_CHART.transitional,
+                ),
+                namespace_declaration(
+                    interner,
+                    "r",
+                    mjx_ooxml_types::namespaces::SHARED_RELATIONSHIP_REFERENCE.transitional,
+                ),
+                RawAttribute {
+                    name: RawName {
+                        prefix: Some(interner.intern("r")),
+                        local: interner.intern("id"),
+                        namespace: Some(interner.intern(
+                            mjx_ooxml_types::namespaces::SHARED_RELATIONSHIP_REFERENCE.transitional,
+                        )),
+                    },
+                    value: relationship_id.as_bytes().into(),
+                    quote: mjx_ooxml_core::QuoteStyle::Double,
+                },
+            ],
+            Vec::new(),
+            true,
+        );
+        let mut attributes = GraphicDataAttributes {
+            attributes: Vec::new(),
+        };
+        attributes.set_uri(interner, CHART_GRAPHIC_URI);
+        Self {
+            attributes: attributes.attributes,
+            content: GraphicDataContent::Other(vec![RawNode::Element(chart)]),
+        }
+    }
+
+    /// The relationship id of the chart part this graphic data references (`c:chart@r:id`), or
+    /// `None` when the payload is not a chart at all.
+    ///
+    /// This is the read counterpart of [`for_chart`](Self::for_chart), and it is deliberately
+    /// keyed on [`CHART_GRAPHIC_URI`] first: a `pic:pic` payload also carries an `r:embed`, and
+    /// answering that for "which chart does this drawing show" would be a silent mis-read rather
+    /// than a `None`.
+    ///
+    /// The `r:id` is matched by **local name alone**, exactly as `mjx-pptx`'s own `slide::chart_rel_id`
+    /// does, and for a mechanical reason rather than a stylistic one: the fidelity reader resolves
+    /// namespaces for *elements* and leaves an attribute's own `namespace` unpopulated, so a
+    /// namespace-keyed lookup here would match nothing at all — which is precisely the bug this
+    /// method was written with and which `chart_in_word.docx` caught. Local name alone is safe here
+    /// because `c:chart` is `CT_RelId`, whose whole content is that one attribute: there is nothing
+    /// else an `id` on this element could be. It also reads a producer that binds the relationships
+    /// namespace to some prefix other than `r:` correctly, which a prefix-keyed lookup would not.
+    #[must_use]
+    pub fn chart_relationship_id(&self, interner: &Interner) -> Option<String> {
+        if self.uri(interner).as_deref() != Some(CHART_GRAPHIC_URI) {
+            return None;
+        }
+        let GraphicDataContent::Other(nodes) = &self.content else {
+            return None;
+        };
+        nodes.iter().find_map(|node| {
+            let RawNode::Element(element) = node else {
+                return None;
+            };
+            if interner.resolve(element.name.local) != "chart" {
+                return None;
+            }
+            element.attributes.iter().find_map(|attribute| {
+                (interner.resolve(attribute.name.local) == "id")
+                    .then(|| String::from_utf8_lossy(&attribute.value).into_owned())
+            })
+        })
+    }
+
     /// The payload's own schema (`@uri`), or `None` if malformed. Compare against
-    /// [`PICTURE_GRAPHIC_URI`] or a host crate's own graphic-data URI constants.
+    /// [`PICTURE_GRAPHIC_URI`], [`CHART_GRAPHIC_URI`] or a host crate's own graphic-data URI
+    /// constants.
     #[must_use]
     pub fn uri(&self, interner: &Interner) -> Option<String> {
         GraphicDataAttributes {

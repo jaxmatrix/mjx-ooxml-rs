@@ -29,9 +29,18 @@ use pyo3::Borrowed;
 
 use mjx_ooxml as ooxml;
 
-use crate::enums::{CellBorderEdge, HeaderFooterType, MergedCellType};
+use crate::charts::{
+    ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
+    ChartPointFormatData, ChartSeriesData, ChartSeriesReferences, ChartTrendlineData, ChartWrap,
+    DanglingPointReference, DataLabelSettings, DataLabelSpec, DocumentChartWorkbook, ErrorBarSpec,
+    TrendlineSpec,
+};
+use crate::enums::{
+    AxisOrientation, CellBorderEdge, ChartKind, HeaderFooterType, LegendPosition, MergedCellType,
+};
 use crate::errors::to_py_err;
 use crate::format::Format;
+use crate::paint::{FillSpec, LineSpec};
 use crate::word::{
     CommentSummary, EffectiveBorder, EffectiveCharacterProperties, EffectiveParagraphProperties,
     EffectiveShading, Field, GridDiscrepancy, HyperlinkTarget, NoteSummary, PageMargins, PageSize,
@@ -944,6 +953,555 @@ impl Document {
     /// Removes the drawing whose `wp:docPr@id` is `doc_pr_id`. Returns whether one was removed.
     fn remove_drawing(&mut self, doc_pr_id: u32) -> PyResult<bool> {
         self.inner.remove_drawing(doc_pr_id).map_err(to_py_err)
+    }
+
+    // --- charts (MJXOFF-103) ----------------------------------------------------------------------
+    //
+    // Every method below is named exactly as its `Deck` counterpart is, takes the same arguments in
+    // the same order after the address, and delegates to exactly one `mjx_ooxml::Document` method.
+    // The address is the drawing's own `wp:docPr` id rather than `(surface, shape)`, because a
+    // document has no shape tree — see `mjx_ooxml::document::charts` for that argument in full.
+
+    /// The `wp:docPr` id of every drawing in the document body that frames a chart, in document
+    /// order.
+    fn chart_drawing_ids(&mut self) -> PyResult<Vec<u32>> {
+        self.inner.chart_drawing_ids().map_err(to_py_err)
+    }
+
+    /// The relationship id the drawing `drawing_id` names as its chart part, or `None` when that
+    /// drawing frames no chart.
+    fn chart_rel_id(&mut self, drawing_id: u32) -> PyResult<Option<String>> {
+        self.inner.chart_rel_id(drawing_id).map_err(to_py_err)
+    }
+
+    /// The raw XML bytes of the chart part the drawing `drawing_id` references, or `None`.
+    fn chart_part_bytes<'py>(
+        &mut self,
+        py: Python<'py>,
+        drawing_id: u32,
+    ) -> PyResult<Option<Bound<'py, PyBytes>>> {
+        Ok(self
+            .inner
+            .chart_part_bytes(drawing_id)
+            .map_err(to_py_err)?
+            .map(|bytes| PyBytes::new(py, &bytes)))
+    }
+
+    /// Adds `chart` as a new inline chart at the end of `paragraph`. Returns its `wp:docPr` id.
+    fn add_chart(
+        &mut self,
+        paragraph: &Bound<'_, PyAny>,
+        chart: &ChartData,
+        width_emu: i64,
+        height_emu: i64,
+        name: &str,
+    ) -> PyResult<u32> {
+        let paragraph = BlockPathArg::from_object(&paragraph.as_borrowed())?;
+        self.inner
+            .add_chart(paragraph, &chart.0, width_emu, height_emu, name)
+            .map_err(to_py_err)
+    }
+
+    /// Adds `chart` as a floating chart, offset from the paragraph's own origin, with the text
+    /// wrapping around it as `wrap` says. Returns its `wp:docPr` id.
+    #[allow(clippy::too_many_arguments)]
+    fn add_floating_chart(
+        &mut self,
+        paragraph: &Bound<'_, PyAny>,
+        chart: &ChartData,
+        offset_x_emu: i64,
+        offset_y_emu: i64,
+        width_emu: i64,
+        height_emu: i64,
+        wrap: &ChartWrap,
+        name: &str,
+    ) -> PyResult<u32> {
+        let paragraph = BlockPathArg::from_object(&paragraph.as_borrowed())?;
+        self.inner
+            .add_floating_chart(
+                paragraph,
+                &chart.0,
+                offset_x_emu,
+                offset_y_emu,
+                width_emu,
+                height_emu,
+                wrap.0,
+                name,
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Every chart in the document that references a backing workbook.
+    fn chart_workbooks(&mut self) -> PyResult<Vec<DocumentChartWorkbook>> {
+        Ok(self
+            .inner
+            .chart_workbooks()
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(DocumentChartWorkbook)
+            .collect())
+    }
+
+    /// Rewrites the embedded workbook of the chart `drawing_id` frames. Answers whether it rewrote
+    /// one.
+    fn refresh_chart_workbook(&mut self, drawing_id: u32) -> PyResult<bool> {
+        self.inner
+            .refresh_chart_workbook(drawing_id)
+            .map_err(to_py_err)
+    }
+
+    /// Detaches the backing workbook, leaving the chart to render from its cached values.
+    fn detach_chart_workbook(&mut self, drawing_id: u32) -> PyResult<()> {
+        self.inner
+            .detach_chart_workbook(drawing_id)
+            .map_err(to_py_err)
+    }
+
+    /// The series of the chart the drawing `drawing_id` frames.
+    fn chart_series(&mut self, drawing_id: u32) -> PyResult<Vec<ChartSeriesData>> {
+        Ok(self
+            .inner
+            .chart_series(drawing_id)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesData)
+            .collect())
+    }
+
+    /// Where every series says its data lives — the formula beside each cache, as written. The
+    /// companion of `chart_series`: that answers what the caches *hold*, this answers what the
+    /// references *name*.
+    fn chart_series_references(&mut self, drawing_id: u32) -> PyResult<Vec<ChartSeriesReferences>> {
+        Ok(self
+            .inner
+            .chart_series_references(drawing_id)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesReferences)
+            .collect())
+    }
+
+    /// The kind of every plot the chart draws, in document order.
+    fn chart_kinds(&mut self, drawing_id: u32) -> PyResult<Vec<ChartKind>> {
+        self.inner
+            .chart_kinds(drawing_id)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartKind::from_model)
+            .collect()
+    }
+
+    /// The axes of the chart, in document order.
+    fn chart_axes(&mut self, drawing_id: u32) -> PyResult<Vec<ChartAxisData>> {
+        Ok(self
+            .inner
+            .chart_axes(drawing_id)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartAxisData)
+            .collect())
+    }
+
+    /// The heading of the chart, or `None` when it has none.
+    fn chart_title(&mut self, drawing_id: u32) -> PyResult<Option<String>> {
+        self.inner.chart_title(drawing_id).map_err(to_py_err)
+    }
+
+    /// The legend of the chart, or `None` when it has none.
+    fn chart_legend(&mut self, drawing_id: u32) -> PyResult<Option<ChartLegendData>> {
+        Ok(self
+            .inner
+            .chart_legend(drawing_id)
+            .map_err(to_py_err)?
+            .map(ChartLegendData))
+    }
+
+    /// The built-in style id the chart names, or `None`.
+    fn chart_style_id(&mut self, drawing_id: u32) -> PyResult<Option<u32>> {
+        self.inner.chart_style_id(drawing_id).map_err(to_py_err)
+    }
+
+    /// The fill of series `series_idx`, or `None` when it takes its colour from the chart style.
+    fn chart_series_fill(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+    ) -> PyResult<Option<FillSpec>> {
+        Ok(self
+            .inner
+            .chart_series_fill(drawing_id, series_idx)
+            .map_err(to_py_err)?
+            .map(FillSpec))
+    }
+
+    /// The data-label settings in force for one point of series `series_idx`.
+    #[pyo3(signature = (drawing_id, series_idx, point_idx=None))]
+    fn chart_data_labels(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        point_idx: Option<u32>,
+    ) -> PyResult<DataLabelSettings> {
+        self.inner
+            .chart_data_labels(drawing_id, series_idx, point_idx)
+            .map_err(to_py_err)
+            .map(DataLabelSettings)
+    }
+
+    /// The data-label settings one tier states in its own right.
+    fn chart_data_label_tier(
+        &mut self,
+        drawing_id: u32,
+        scope: &ChartLabelScope,
+    ) -> PyResult<Option<DataLabelSettings>> {
+        Ok(self
+            .inner
+            .chart_data_label_tier(drawing_id, scope.0)
+            .map_err(to_py_err)?
+            .map(DataLabelSettings))
+    }
+
+    /// The words one point's label shows in place of its value, or `None`.
+    fn chart_point_label_text(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        point_idx: u32,
+    ) -> PyResult<Option<String>> {
+        self.inner
+            .chart_point_label_text(drawing_id, series_idx, point_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Every point of series `series_idx` that carries its own formatting.
+    fn chart_point_formats(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<ChartPointFormatData>> {
+        Ok(self
+            .inner
+            .chart_point_formats(drawing_id, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartPointFormatData)
+            .collect())
+    }
+
+    /// Every trendline fitted through series `series_idx`.
+    fn chart_trendlines(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<ChartTrendlineData>> {
+        Ok(self
+            .inner
+            .chart_trendlines(drawing_id, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartTrendlineData)
+            .collect())
+    }
+
+    /// Every set of error bars series `series_idx` carries.
+    fn chart_error_bars(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<ChartErrorBarData>> {
+        Ok(self
+            .inner
+            .chart_error_bars(drawing_id, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartErrorBarData)
+            .collect())
+    }
+
+    /// Every decoration of series `series_idx` naming a point the series no longer has.
+    fn chart_dangling_decoration(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<DanglingPointReference>> {
+        Ok(self
+            .inner
+            .chart_dangling_decoration(drawing_id, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(DanglingPointReference)
+            .collect())
+    }
+
+    /// Rewrites the values of series `series_idx`, refreshing the embedded workbook in the same
+    /// call.
+    fn set_chart_series_values(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        values: Vec<f64>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_series_values(drawing_id, series_idx, &values)
+            .map_err(to_py_err)
+    }
+
+    /// Rewrites the category labels of series `series_idx`, refreshing the workbook alongside.
+    fn set_chart_series_categories(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        labels: Vec<String>,
+    ) -> PyResult<()> {
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        self.inner
+            .set_chart_series_categories(drawing_id, series_idx, &labels)
+            .map_err(to_py_err)
+    }
+
+    /// Sets or clears the explicit bounds of axis `axis_idx`.
+    #[pyo3(signature = (drawing_id, axis_idx, minimum=None, maximum=None))]
+    fn set_chart_axis_scale(
+        &mut self,
+        drawing_id: u32,
+        axis_idx: u32,
+        minimum: Option<f64>,
+        maximum: Option<f64>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_scale(drawing_id, axis_idx, minimum, maximum)
+            .map_err(to_py_err)
+    }
+
+    /// Sets the direction of axis `axis_idx`.
+    fn set_chart_axis_orientation(
+        &mut self,
+        drawing_id: u32,
+        axis_idx: u32,
+        orientation: AxisOrientation,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_orientation(drawing_id, axis_idx, orientation.into())
+            .map_err(to_py_err)
+    }
+
+    /// Sets or removes the title of axis `axis_idx`.
+    #[pyo3(signature = (drawing_id, axis_idx, text=None))]
+    fn set_chart_axis_title(
+        &mut self,
+        drawing_id: u32,
+        axis_idx: u32,
+        text: Option<&str>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_title(drawing_id, axis_idx, text)
+            .map_err(to_py_err)
+    }
+
+    /// Turns the gridlines of axis `axis_idx` on or off.
+    fn set_chart_axis_gridlines(
+        &mut self,
+        drawing_id: u32,
+        axis_idx: u32,
+        major: bool,
+        minor: bool,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_gridlines(drawing_id, axis_idx, major, minor)
+            .map_err(to_py_err)
+    }
+
+    /// Sets or removes the chart's heading.
+    #[pyo3(signature = (drawing_id, text=None))]
+    fn set_chart_title(&mut self, drawing_id: u32, text: Option<&str>) -> PyResult<()> {
+        self.inner
+            .set_chart_title(drawing_id, text)
+            .map_err(to_py_err)
+    }
+
+    /// Places the chart's legend at `position`, or removes it.
+    #[pyo3(signature = (drawing_id, position=None))]
+    fn set_chart_legend(
+        &mut self,
+        drawing_id: u32,
+        position: Option<LegendPosition>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_legend(drawing_id, position.map(Into::into))
+            .map_err(to_py_err)
+    }
+
+    /// Sets the fill of series `series_idx`.
+    fn set_chart_series_fill(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        fill: &FillSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_series_fill(drawing_id, series_idx, &fill.0)
+            .map_err(to_py_err)
+    }
+
+    /// Sets the outline of series `series_idx`.
+    fn set_chart_series_line(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        line: &LineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_series_line(drawing_id, series_idx, &line.0)
+            .map_err(to_py_err)
+    }
+
+    /// Applies `spec` at one tier of the chart's data labels.
+    fn set_chart_data_labels(
+        &mut self,
+        drawing_id: u32,
+        scope: &ChartLabelScope,
+        spec: &DataLabelSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_data_labels(drawing_id, scope.0, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Suppresses the labels at one tier.
+    fn suppress_chart_data_labels(
+        &mut self,
+        drawing_id: u32,
+        scope: &ChartLabelScope,
+    ) -> PyResult<()> {
+        self.inner
+            .suppress_chart_data_labels(drawing_id, scope.0)
+            .map_err(to_py_err)
+    }
+
+    /// Removes the labels at one tier entirely. Answers whether one was there.
+    fn remove_chart_data_labels(
+        &mut self,
+        drawing_id: u32,
+        scope: &ChartLabelScope,
+    ) -> PyResult<bool> {
+        self.inner
+            .remove_chart_data_labels(drawing_id, scope.0)
+            .map_err(to_py_err)
+    }
+
+    /// Colours point `point_idx` of series `series_idx` differently from the rest of its series.
+    fn set_chart_point_fill(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        point_idx: u32,
+        fill: &FillSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_point_fill(drawing_id, series_idx, point_idx, &fill.0)
+            .map_err(to_py_err)
+    }
+
+    /// Outlines point `point_idx` of series `series_idx` differently from the rest of its series.
+    fn set_chart_point_line(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        point_idx: u32,
+        line: &LineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_point_line(drawing_id, series_idx, point_idx, &line.0)
+            .map_err(to_py_err)
+    }
+
+    /// Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back.
+    #[pyo3(signature = (drawing_id, series_idx, point_idx, percent=None))]
+    fn set_chart_point_explosion(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        point_idx: u32,
+        percent: Option<u32>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_point_explosion(drawing_id, series_idx, point_idx, percent)
+            .map_err(to_py_err)
+    }
+
+    /// Removes the formatting of point `point_idx` of series `series_idx`.
+    fn remove_chart_point_format(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        point_idx: u32,
+    ) -> PyResult<bool> {
+        self.inner
+            .remove_chart_point_format(drawing_id, series_idx, point_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Fits a trendline through series `series_idx`, appending to any it already carries.
+    fn add_chart_trendline(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        spec: &TrendlineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .add_chart_trendline(drawing_id, series_idx, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, in place.
+    fn set_chart_trendline(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        trendline_idx: u32,
+        spec: &TrendlineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_trendline(drawing_id, series_idx, trendline_idx, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Removes every trendline from series `series_idx`, answering how many went.
+    fn remove_chart_trendlines(&mut self, drawing_id: u32, series_idx: u32) -> PyResult<u32> {
+        self.inner
+            .remove_chart_trendlines(drawing_id, series_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Gives series `series_idx` error bars, replacing an existing set along the same axis.
+    fn set_chart_error_bars(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+        spec: &ErrorBarSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_error_bars(drawing_id, series_idx, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Removes every set of error bars from series `series_idx`, answering how many went.
+    fn remove_chart_error_bars(&mut self, drawing_id: u32, series_idx: u32) -> PyResult<u32> {
+        self.inner
+            .remove_chart_error_bars(drawing_id, series_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Removes every decoration of series `series_idx` past the end of its data, answering how many
+    /// went.
+    fn drop_chart_dangling_decoration(
+        &mut self,
+        drawing_id: u32,
+        series_idx: u32,
+    ) -> PyResult<u32> {
+        self.inner
+            .drop_chart_dangling_decoration(drawing_id, series_idx)
+            .map_err(to_py_err)
     }
 }
 

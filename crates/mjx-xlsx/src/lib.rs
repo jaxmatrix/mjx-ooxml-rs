@@ -64,6 +64,7 @@
 
 mod authoring;
 mod blank;
+pub mod effective_properties;
 mod error;
 pub mod guide;
 mod nav;
@@ -85,6 +86,14 @@ pub use workbook::{
     RevisionState, Sheet, SheetPivotTable, SheetQueryTable, Workbook, WorkbookConnection,
     WorkbookExternalLink, WorkbookWindow, WorkbookXmlMaps,
 };
+pub use worksheet::chart_ranges::{
+    RangeCellValue, RangeProblem, ResolvedArea, ResolvedRange, ResolvedRangeCell,
+};
+pub use worksheet::charts::{
+    ChartSeriesFreshness, SheetChartSeries, SheetChartSource, SheetChartWorkbook,
+};
+pub use worksheet::comments::{CommentBox, SheetComment};
+pub use worksheet::drawings::{SheetDrawing, SheetDrawingObject};
 pub use worksheet::formatting::{SheetFormatResolver, SheetFormatting};
 pub use worksheet::hyperlinks::{HyperlinkKind, HyperlinkTarget, SheetHyperlink};
 pub use worksheet::print::SheetMarkup;

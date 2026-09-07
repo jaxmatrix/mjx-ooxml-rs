@@ -80,6 +80,17 @@ pub const WORDPROCESSINGDRAWING_MODULE_DOC: &str =
      //! enough that `mjx-dml::wordprocessing_drawing` (MJXOFF-131) uses every one of them. Each item\n\
      //! records its original `ST_*` symbol and exact wire token(s).\n\n";
 
+/// Module-level doc block for the `spreadsheetdrawing` module (see [`file_header`]).
+pub const SPREADSHEETDRAWING_MODULE_DOC: &str =
+    "//! Comprehensively-named DrawingML SpreadsheetDrawing (`xdr:`) simple types (see the naming\n\
+     //! convention in `PLAN.md`).\n\
+     //!\n\
+     //! The **whole** `ST_*` family of `dml-spreadsheetDrawing.xsd`, not a slice: it is three types\n\
+     //! — the column and row identifiers a `xdr:from`/`xdr:to` marker is built from, and the one\n\
+     //! enumeration that says what an anchored object does when the cells under it move\n\
+     //! (`ST_EditAs`). `mjx-dml::spreadsheet_drawing` (MJXOFF-107) uses every one of them. Each item\n\
+     //! records its original `ST_*` symbol and exact wire token(s).\n\n";
+
 /// Which of a schema's simple types a module emits.
 #[derive(Debug, Clone, Copy)]
 pub enum Selection<'a> {

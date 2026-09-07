@@ -31,6 +31,7 @@ pub mod picture;
 pub mod resolve;
 pub mod shape3d;
 pub mod shape_properties;
+pub mod spreadsheet_drawing;
 pub mod style;
 pub mod table;
 pub mod text;
@@ -57,7 +58,9 @@ pub use geometry::{
     ResolvedConnectionSite, ResolvedCustomGeometry, ResolvedDrawCommand, ResolvedGuides,
     ResolvedPath, ResolvedPoint, ResolvedRectangle, ShapeGeometry, Size, TextPoint, Transform2D,
 };
-pub use graphic::{Graphic, GraphicData, GraphicDataContent, PICTURE_GRAPHIC_URI};
+pub use graphic::{
+    Graphic, GraphicData, GraphicDataContent, CHART_GRAPHIC_URI, PICTURE_GRAPHIC_URI,
+};
 pub use line::{
     CompoundLine, LineCap, LineDash, LineEnd, LineEndLength, LineEndType, LineEndWidth, LineJoin,
     LineProperties, LineSpec, PenAlignment, PresetLineDash,
@@ -78,6 +81,12 @@ pub use shape3d::{
     Vector3D,
 };
 pub use shape_properties::{ShapeGeometryChoice, ShapeProperties};
+pub use spreadsheet_drawing::{
+    new_absolute_anchor, new_anchored_picture, new_one_cell_anchor, new_two_cell_anchor,
+    AbsoluteAnchor, Anchor, AnchorClientData, AnchorShift, AnchoredObject, CellMarker,
+    DrawingConnector, DrawingContentPart, DrawingGraphicFrame, DrawingGroupShape, DrawingPicture,
+    DrawingShape, OneCellAnchor, TwoCellAnchor, WorksheetDrawing,
+};
 pub use style::{ColorMap, StyleMatrixReference};
 pub use table::{
     applicable_parts, Cell3D, CellBorder, FontCollectionIndex, FontReference, OnOffStyle, Table,

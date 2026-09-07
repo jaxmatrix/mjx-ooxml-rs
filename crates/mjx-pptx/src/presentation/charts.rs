@@ -1,8 +1,10 @@
 //! Charts: adding one, its embedded workbook, and the series, axes, title and legend it draws.
 
+use mjx_chart::chart_ops;
 use mjx_chart::{
-    Axis, AxisKind, AxisOrientation, AxisPosition, ChartData, ChartDataError, ChartKind,
-    ChartSpace, EmbeddedWorkbook, LegendPosition, Series, TickLabelPosition, TickMark,
+    embedded_workbook_for_chart_data, embedded_workbook_for_chart_space, AxisOrientation,
+    ChartAxisData, ChartData, ChartDataError, ChartKind, ChartLegendData, ChartSeriesData,
+    ChartSeriesReferences, ChartSpace, LegendPosition,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawAttribute, RawDocument, RawElement, RawNode, ToXml};
 use mjx_ooxml_types::namespaces::{DML_CHART, DML_MAIN, PML};
@@ -56,7 +58,7 @@ impl Presentation {
 
         // Everything fallible that does not touch the package happens first, so a failure here
         // leaves the document exactly as it was.
-        let workbook = EmbeddedWorkbook::for_chart_data(chart).to_package_bytes()?;
+        let workbook = embedded_workbook_for_chart_data(chart)?;
         let chart_part = self.next_chart_part()?;
         let workbook_part = self.next_chart_workbook_part()?;
 
@@ -70,7 +72,7 @@ impl Presentation {
         )?;
         self.package.insert_part(
             &workbook_part,
-            mjx_chart::CONTENT_TYPE_WORKBOOK_PACKAGE,
+            mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE,
             workbook,
         )?;
         self.package.add_relationship(
@@ -334,25 +336,7 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Vec<ChartSeriesData>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, _interner| {
-            let Some(area) = space.plot_area() else {
-                return Ok(Vec::new());
-            };
-            Ok(area
-                .all_series()
-                .map(|series| ChartSeriesData {
-                    name: series.name(),
-                    categories: series
-                        .categories()
-                        .map(mjx_chart::CategoryData::labels)
-                        .or_else(|| series.x_data().map(mjx_chart::CategoryData::labels))
-                        .unwrap_or_default(),
-                    values: series
-                        .values()
-                        .map(mjx_chart::NumericData::values)
-                        .or_else(|| series.y_data().map(mjx_chart::NumericData::values))
-                        .unwrap_or_default(),
-                })
-                .collect())
+            Ok(chart_ops::series(space))
         })
     }
 
@@ -380,21 +364,9 @@ impl Presentation {
         let surface = surface.into();
         let shape_idx = shape_idx.into();
         self.edit_chart(surface, shape_idx.clone(), |space, interner| {
-            let count = space.series_count();
-            let series = space
-                .series_mut(series_idx)
-                .ok_or(PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                })?;
-            if series.set_values(interner, values) {
-                Ok(())
-            } else {
-                Err(PptxError::ChartSeriesNotEditable {
-                    index: series_idx,
-                    kind: "values",
-                })
-            }
+            Ok(chart_ops::set_series_values(
+                space, interner, series_idx, values,
+            )?)
         })?;
         self.refresh_chart_workbook(surface, shape_idx)?;
         Ok(())
@@ -418,21 +390,9 @@ impl Presentation {
         let surface = surface.into();
         let shape_idx = shape_idx.into();
         self.edit_chart(surface, shape_idx.clone(), |space, interner| {
-            let count = space.series_count();
-            let series = space
-                .series_mut(series_idx)
-                .ok_or(PptxError::ChartSeriesOutOfRange {
-                    index: series_idx,
-                    count,
-                })?;
-            if series.set_categories(interner, labels) {
-                Ok(())
-            } else {
-                Err(PptxError::ChartSeriesNotEditable {
-                    index: series_idx,
-                    kind: "categories",
-                })
-            }
+            Ok(chart_ops::set_series_categories(
+                space, interner, series_idx, labels,
+            )?)
         })?;
         self.refresh_chart_workbook(surface, shape_idx)?;
         Ok(())
@@ -478,7 +438,7 @@ impl Presentation {
         let Some(rel_id) = space.external_data_rel_id(&doc.interner).map(str::to_owned) else {
             return Ok(false);
         };
-        let workbook = EmbeddedWorkbook::for_chart_space(&space).to_package_bytes()?;
+        let workbook = embedded_workbook_for_chart_space(&space)?;
 
         // An external workbook is not ours to rewrite; a relationship we cannot resolve is not
         // either. Neither is an error — there is simply no embedded workbook to refresh.
@@ -518,7 +478,28 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Vec<ChartKind>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, _interner| {
-            Ok(space.chart_kinds())
+            Ok(chart_ops::kinds(space))
+        })
+    }
+
+    /// Where every series of the chart says its data lives — the `c:f` beside each cache, as the
+    /// file wrote it. Reading does not dirty the part.
+    ///
+    /// The companion of [`chart_series`](Self::chart_series): that answers what the **caches** hold,
+    /// this answers what the references **name**. For a chart this library authored, those
+    /// references name the embedded workbook beside it; for one a producer wrote they may name
+    /// anything, and the text comes back as written. A field is `None` where the source is a
+    /// literal and so has no cells behind it at all.
+    ///
+    /// # Errors
+    /// As [`chart_kinds`](Self::chart_kinds).
+    pub fn chart_series_references(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Vec<ChartSeriesReferences>, PptxError> {
+        self.with_chart(surface.into(), shape_idx, |space, _interner| {
+            Ok(chart_ops::series_references(space))
         })
     }
 
@@ -534,13 +515,7 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Vec<ChartAxisData>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            let Some(area) = space.plot_area() else {
-                return Ok(Vec::new());
-            };
-            Ok(area
-                .axes()
-                .map(|(kind, axis)| ChartAxisData::read(kind, axis, interner))
-                .collect())
+            Ok(chart_ops::axes(space, interner))
         })
     }
 
@@ -561,11 +536,9 @@ impl Presentation {
         maximum: Option<f64>,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            let axis = chart_axis_mut(space, axis_idx)?;
-            let scaling = axis.scaling_mut(interner);
-            scaling.set_minimum(interner, minimum);
-            scaling.set_maximum(interner, maximum);
-            Ok(())
+            Ok(chart_ops::set_axis_scale(
+                space, interner, axis_idx, minimum, maximum,
+            )?)
         })
     }
 
@@ -582,10 +555,12 @@ impl Presentation {
         orientation: AxisOrientation,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            let axis = chart_axis_mut(space, axis_idx)?;
-            axis.scaling_mut(interner)
-                .set_orientation(interner, orientation);
-            Ok(())
+            Ok(chart_ops::set_axis_orientation(
+                space,
+                interner,
+                axis_idx,
+                orientation,
+            )?)
         })
     }
 
@@ -602,9 +577,7 @@ impl Presentation {
         text: Option<&str>,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            space.ensure_drawingml_namespace(interner);
-            chart_axis_mut(space, axis_idx)?.set_title(interner, text);
-            Ok(())
+            Ok(chart_ops::set_axis_title(space, interner, axis_idx, text)?)
         })
     }
 
@@ -622,10 +595,9 @@ impl Presentation {
         minor: bool,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            let axis = chart_axis_mut(space, axis_idx)?;
-            axis.set_major_gridlines(interner, major);
-            axis.set_minor_gridlines(interner, minor);
-            Ok(())
+            Ok(chart_ops::set_axis_gridlines(
+                space, interner, axis_idx, major, minor,
+            )?)
         })
     }
 
@@ -641,7 +613,7 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<String>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, _interner| {
-            Ok(space.chart().and_then(mjx_chart::Chart::title_text))
+            Ok(chart_ops::title(space))
         })
     }
 
@@ -662,12 +634,7 @@ impl Presentation {
         text: Option<&str>,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            space.ensure_drawingml_namespace(interner);
-            space
-                .chart_mut()
-                .ok_or(PptxError::ChartHasNoChartElement)?
-                .set_title(interner, text);
-            Ok(())
+            Ok(chart_ops::set_title(space, interner, text)?)
         })
     }
 
@@ -683,13 +650,7 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<ChartLegendData>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            Ok(space
-                .chart()
-                .and_then(mjx_chart::Chart::legend)
-                .map(|legend| ChartLegendData {
-                    position: legend.position(interner),
-                    overlays_plot: legend.overlays_plot(interner),
-                }))
+            Ok(chart_ops::legend(space, interner))
         })
     }
 
@@ -705,11 +666,7 @@ impl Presentation {
         position: Option<LegendPosition>,
     ) -> Result<(), PptxError> {
         self.edit_chart(surface.into(), shape_idx, |space, interner| {
-            space
-                .chart_mut()
-                .ok_or(PptxError::ChartHasNoChartElement)?
-                .set_legend(interner, position);
-            Ok(())
+            Ok(chart_ops::set_legend(space, interner, position)?)
         })
     }
 
@@ -726,7 +683,7 @@ impl Presentation {
         shape_idx: impl Into<ShapePath>,
     ) -> Result<Option<u32>, PptxError> {
         self.with_chart(surface.into(), shape_idx, |space, interner| {
-            Ok(space.style_id(interner))
+            Ok(chart_ops::style_id(space, interner))
         })
     }
 
@@ -870,120 +827,4 @@ fn build_chart_frame(
             RawNode::Element(graphic),
         ],
     )
-}
-
-/// One series of a chart, as read by [`Presentation::chart_series`]: its name and the labels and
-/// values it draws (for a scatter series, its X labels and Y values).
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChartSeriesData {
-    /// The series name (`c:tx`), or `None` when it has none.
-    pub name: Option<String>,
-    /// The category labels the series draws (`c:cat`, or a scatter series' `c:xVal`), in order.
-    pub categories: Vec<String>,
-    /// The values the series draws (`c:val`, or a scatter series' `c:yVal`), in order.
-    pub values: Vec<f64>,
-}
-
-/// One axis of a chart, as read by [`Presentation::chart_axes`] — everything `EG_AxShared` says
-/// about it, resolved into typed values.
-///
-/// A field is `None` when the axis does not declare that setting: the axis inherits it, and this
-/// says so rather than guessing what Office would draw.
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChartAxisData {
-    /// Which kind of axis this is — the element it was read from.
-    pub kind: AxisKind,
-    /// The axis' id (`c:axId`), which a plot's `c:axId` and the partner axis' `c:crossAx` name.
-    pub axis_id: Option<u32>,
-    /// The id of the axis this one crosses (`c:crossAx`).
-    pub cross_axis_id: Option<u32>,
-    /// Whether the axis is hidden (`c:delete`).
-    pub suppressed: Option<bool>,
-    /// Where the axis sits against the plot area (`c:axPos`).
-    pub position: Option<AxisPosition>,
-    /// Which way the axis runs (`c:scaling > c:orientation`).
-    pub orientation: Option<AxisOrientation>,
-    /// The axis' explicit lower bound (`c:scaling > c:min`), or `None` when it scales automatically.
-    pub minimum: Option<f64>,
-    /// The axis' explicit upper bound (`c:scaling > c:max`).
-    pub maximum: Option<f64>,
-    /// The base of a logarithmic scale (`c:scaling > c:logBase`), or `None` for a linear axis.
-    pub logarithm_base: Option<f64>,
-    /// The axis' title text (`c:title`), or `None` when it has none.
-    pub title: Option<String>,
-    /// Whether the axis rules major gridlines across the plot area.
-    pub major_gridlines: bool,
-    /// Whether the axis rules minor gridlines across the plot area.
-    pub minor_gridlines: bool,
-    /// How the major tick marks are drawn (`c:majorTickMark`).
-    pub major_tick_mark: Option<TickMark>,
-    /// How the minor tick marks are drawn (`c:minorTickMark`).
-    pub minor_tick_mark: Option<TickMark>,
-    /// Where the tick labels are placed (`c:tickLblPos`).
-    pub tick_label_position: Option<TickLabelPosition>,
-    /// The axis' number format (`c:numFmt@formatCode`), or `None` when it inherits one.
-    pub number_format: Option<String>,
-}
-
-impl ChartAxisData {
-    /// Reads one axis into its summary.
-    fn read(kind: AxisKind, axis: &Axis, interner: &Interner) -> Self {
-        let scaling = axis.scaling();
-        Self {
-            kind,
-            axis_id: axis.axis_id(interner),
-            cross_axis_id: axis.cross_axis_id(interner),
-            suppressed: axis.is_suppressed(interner),
-            position: axis.position(interner),
-            orientation: scaling.and_then(|scaling| scaling.orientation(interner)),
-            minimum: scaling.and_then(|scaling| scaling.minimum(interner)),
-            maximum: scaling.and_then(|scaling| scaling.maximum(interner)),
-            logarithm_base: scaling.and_then(|scaling| scaling.logarithm_base(interner)),
-            title: axis.title_text(),
-            major_gridlines: axis.has_major_gridlines(),
-            minor_gridlines: axis.has_minor_gridlines(),
-            major_tick_mark: axis.major_tick_mark(interner),
-            minor_tick_mark: axis.minor_tick_mark(interner),
-            tick_label_position: axis.tick_label_position(interner),
-            number_format: axis.number_format(interner).map(str::to_owned),
-        }
-    }
-}
-
-/// A chart's legend, as read by [`Presentation::chart_legend`].
-#[derive(Debug, Clone, PartialEq)]
-pub struct ChartLegendData {
-    /// Where the legend sits (`c:legendPos`), or `None` when it declares no position.
-    pub position: Option<LegendPosition>,
-    /// Whether the legend is drawn on top of the plot area rather than beside it (`c:overlay`).
-    pub overlays_plot: Option<bool>,
-}
-
-/// The `n`-th series of a chart being read, or [`PptxError::ChartSeriesOutOfRange`] — the read-side
-/// counterpart of `Presentation::edit_chart_series_decoration`.
-pub(super) fn chart_series_at(space: &ChartSpace, series_idx: usize) -> Result<&Series, PptxError> {
-    let count = space.series_count();
-    space
-        .plot_area()
-        .and_then(|area| area.all_series().nth(series_idx))
-        .ok_or(PptxError::ChartSeriesOutOfRange {
-            index: series_idx,
-            count,
-        })
-}
-
-/// The `n`-th axis of a chart being edited, or [`PptxError::ChartAxisOutOfRange`].
-fn chart_axis_mut(space: &mut ChartSpace, axis_idx: usize) -> Result<&mut Axis, PptxError> {
-    let area = space
-        .plot_area_mut()
-        .ok_or(PptxError::ChartAxisOutOfRange {
-            index: axis_idx,
-            count: 0,
-        })?;
-    let count = area.axis_count();
-    area.axis_mut(axis_idx)
-        .ok_or(PptxError::ChartAxisOutOfRange {
-            index: axis_idx,
-            count,
-        })
 }

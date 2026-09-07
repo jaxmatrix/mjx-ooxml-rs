@@ -106,6 +106,23 @@ pub const REL_TABLE: &str =
 pub const REL_COMMENTS: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments";
 
+/// The relationship type binding a **drawing** part to the chart part it frames (MJXOFF-111, E4).
+///
+/// The edge is from the *drawing* part, not from the sheet: an `a:graphicData`'s `c:chart@r:id` is
+/// resolved against the part that contains it, exactly as an `a:blip@r:embed` is. Relating a chart
+/// from the worksheet would produce a file Excel opens and repairs.
+pub const REL_CHART: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart";
+
+/// The relationship type binding a chart part to an embedded OPC **package** — the workbook Office's
+/// *Edit Data* opens (MJXOFF-111, E4).
+///
+/// A chart on a worksheet normally has none: its `c:f` names a live range in the sheets it lives
+/// among, and the cells are the source. One authored from a [`ChartData`](mjx_chart::ChartData)
+/// description does, because that description carries values and no cells to point at.
+pub const REL_PACKAGE: &str =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
+
 /// The relationship type from a sheet part to a DrawingML drawings part (§12.3.8).
 pub const REL_DRAWING: &str =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/drawing";
@@ -262,6 +279,13 @@ pub const CONTENT_TYPE_COMMENTS: &str =
 /// `…officedocument.drawing+xml` is DrawingML's, and the same string a `.docx` uses.
 pub const CONTENT_TYPE_DRAWING: &str = "application/vnd.openxmlformats-officedocument.drawing+xml";
 
+/// The content type of a DrawingML **chart** part (ECMA-376 Part 1 §14.2.1) — MJXOFF-111 (E4).
+///
+/// DrawingML, not SpreadsheetML: `xl/charts/chartN.xml` is a `c:chartSpace`, the same part a
+/// `.pptx` and a `.docx` carry, which is why `mjx-chart` models it once for all three formats.
+pub const CONTENT_TYPE_CHART: &str =
+    "application/vnd.openxmlformats-officedocument.drawingml.chart+xml";
+
 /// The content type of a legacy VML drawing part (**Part 4 §8.2**). Binary as far as XML validation
 /// is concerned: its root is a bare `<xml>` wrapper in no namespace, which no OOXML schema declares.
 pub const CONTENT_TYPE_VML_DRAWING: &str =
@@ -404,6 +428,12 @@ pub enum PartKind {
     Comments,
     /// `xdr:wsDr` — a DrawingML drawings part (§12.3.8). DrawingML, not SpreadsheetML.
     Drawing,
+    /// `c:chartSpace` — a DrawingML chart part (ECMA-376 Part 1 §14.2.1), reached from a *drawing*
+    /// part rather than from a sheet (MJXOFF-111, E4).
+    ///
+    /// DrawingML, not SpreadsheetML, and identified by its content type: it is the same part a
+    /// `.pptx` and a `.docx` carry, modelled once by [`mjx_chart`] for all three formats.
+    Chart,
     /// A legacy VML drawing part (Part 4 §8.2) — a comment's pop-up box, a form control's look.
     VmlDrawing,
     /// A printer settings part (§15.2.13). Opaque bytes, never XML.
@@ -464,6 +494,7 @@ impl PartKind {
             Self::Table => REL_TABLE,
             Self::Comments => REL_COMMENTS,
             Self::Drawing => REL_DRAWING,
+            Self::Chart => REL_CHART,
             Self::VmlDrawing => REL_VML_DRAWING,
             Self::PrinterSettings => REL_PRINTER_SETTINGS,
             Self::Theme => REL_THEME,
@@ -521,6 +552,7 @@ impl PartKind {
             Self::Table => &[CONTENT_TYPE_TABLE],
             Self::Comments => &[CONTENT_TYPE_COMMENTS],
             Self::Drawing => &[CONTENT_TYPE_DRAWING],
+            Self::Chart => &[CONTENT_TYPE_CHART],
             Self::VmlDrawing => &[CONTENT_TYPE_VML_DRAWING],
             Self::PrinterSettings => &[CONTENT_TYPE_PRINTER_SETTINGS],
             Self::Theme => &[CONTENT_TYPE_THEME],
@@ -556,6 +588,7 @@ impl PartKind {
         Self::Table,
         Self::Comments,
         Self::Drawing,
+        Self::Chart,
         Self::VmlDrawing,
         Self::PrinterSettings,
         Self::Theme,
@@ -942,7 +975,7 @@ mod tests {
         }
         assert_eq!(
             PartKind::ALL.len(),
-            27,
+            28,
             "PartKind::ALL changed size — update the count and this crate's module documentation"
         );
     }
@@ -1076,13 +1109,15 @@ mod tests {
         }
     }
 
-    /// The four constants `tests/fixtures/sample.xlsx` cannot open without are exactly the strings
-    /// `mjx-chart`'s own embedded-workbook writer emits.
+    /// The four constants `tests/fixtures/sample.xlsx` cannot open without, pinned as literals.
     ///
-    /// `mjx_chart::workbook`'s copies are private, so this pins the literals rather than comparing
-    /// symbols — which is the point: MJXOFF-112 removes that module and routes it through here, and
-    /// a drift between the two before then would produce a package PowerPoint refuses to open with
-    /// no test anywhere noticing.
+    /// The original reason is spent: these once had to be compared against a second, private set in
+    /// `mjx_chart::workbook`, and MJXOFF-112 then routed that writer through `mjx-sml` while
+    /// MJXOFF-99 deleted the duplicate — so there is no longer a second set to drift from. What the
+    /// test still buys is the half that was never about the duplicate: these four strings are what
+    /// PowerPoint, Excel and LibreOffice match a chart's embedded workbook on, a typo in any of them
+    /// produces a package all three refuse to open, and nothing else in this crate asserts their
+    /// spelling. Comparing symbols instead would assert only that a constant equals itself.
     #[test]
     fn the_workbook_content_types_match_the_package_powerpoint_and_libreoffice_accept() {
         assert_eq!(

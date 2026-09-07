@@ -106,10 +106,35 @@ const TYPE_OVERRIDES: &[(&str, &str)] = &[
     ("ST_AlignV", "VerticalAlignment"),
     ("ST_RelFromH", "HorizontalRelativeFrom"),
     ("ST_RelFromV", "VerticalRelativeFrom"),
+    // DrawingML SpreadsheetDrawing (`xdr:`, MJXOFF-107). All three names come from the section
+    // titles ECMA-376 Part 1 §20.5.3 gives the types themselves, because the mechanical names
+    // (`ColId`, `RowId`, `EditAs`) say nothing a reader could act on. `ST_ColID` is "Column ID" and
+    // `ST_RowID` is "Row ID" — both are the *index* an `xdr:from`/`xdr:to` marker names, not an
+    // opaque identifier, but the schema's own word is kept and expanded rather than replaced.
+    // `ST_EditAs` is "Resizing Behaviors": the attribute is spelled `editAs`, which reads as a verb
+    // and is not what the type is about — §20.5.2.33 describes it as "how the DrawingML contents
+    // shall be moved and/or resized when the rows and columns between its start and ending anchor
+    // … are resized".
+    ("ST_ColID", "ColumnIdentifier"),
+    ("ST_RowID", "RowIdentifier"),
+    ("ST_EditAs", "ResizingBehavior"),
 ];
 
 /// (`ST_*`, wire value) → comprehensive Rust variant name, for cryptic tokens (from ECMA-376 prose).
 const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
+    // `ST_EditAs` (`xdr:twoCellAnchor@editAs`, MJXOFF-107). The three wire tokens name the *anchor
+    // shape* (`twoCell`, `oneCell`, `absolute`) rather than the behaviour, and the behaviour is the
+    // whole point of the attribute — so each name is the enumeration-value title ECMA-376 Part 1
+    // §20.5.3.2 gives it, which says what happens when the rows and columns underneath move:
+    // "Move and Resize With Anchor Cells", "Move With Cells but Do Not Resize", and "Do Not Move or
+    // Resize With Underlying Rows/Columns".
+    ("ST_EditAs", "twoCell", "MoveAndResizeWithAnchorCells"),
+    ("ST_EditAs", "oneCell", "MoveWithCellsButDoNotResize"),
+    (
+        "ST_EditAs",
+        "absolute",
+        "DoNotMoveOrResizeWithRowsOrColumns",
+    ),
     ("ST_CalendarType", "gregorianUs", "GregorianUnitedStates"),
     (
         "ST_CalendarType",
@@ -3018,6 +3043,15 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "OBJECT_PROPERTIES", "sml", "CT_ObjectPr",
         "An embedded object's one child, its anchor (`x:objectPr`)",
     ),
+    // MJXOFF-107 (E3) fills `CT_Worksheet`'s ranks 34 and 35, and `CT_ControlPr` is the one type
+    // that cluster needs which MJXOFF-127 did not model: it is `CT_ObjectPr` plus `@recalcAlways`,
+    // `@linkedCell`, `@listFillRange` and `@cf`, a different complex type with its own sequence.
+    // Exported for the same reason `OBJECT_PROPERTIES` is — `mjx_sml::FormControlProperties` places
+    // its `anchor` child through it rather than at a hand-written index.
+    (
+        "CONTROL_PROPERTIES", "sml", "CT_ControlPr",
+        "A form control's one child, its anchor (`x:controlPr`)",
+    ),
     (
         "DATA_CONSOLIDATION", "sml", "CT_DataConsolidate",
         "A consolidation's one child, the list of ranges it draws from (`x:dataConsolidate`)",
@@ -3069,6 +3103,98 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
         "MACROSHEET", "sml", "CT_Macrosheet",
         "A macrosheet's 27 children, from `sheetPr` to `extLst` (`CT_Macrosheet` — a complex type \
          ECMA-376 declares no global element for)",
+    ),
+
+    // ---- Worksheet drawings: `xdr:wsDr` and the three anchors (MJXOFF-107) -------------------
+    //
+    // Nine of `dml-spreadsheetDrawing.xsd`'s seventeen complex types place children rather than
+    // append them, and only those nine are here — the rule `CT_TableParts` and `CT_NumFmts` are
+    // left out under. `CT_Drawing` declares a single repeating choice (the anchors), so appending
+    // *is* placing; the five `*NonVisual` wrappers declare two required children each and are built
+    // whole, exactly as `dml-picture`'s `CT_PictureNonVisual` is; and `CT_AnchorClientData` and
+    // `CT_Rel` are attribute-only.
+    //
+    // `CT_Marker` is the one whose table earns its keep the way `CT_HeaderFooter`'s does: its four
+    // children are `col`, `colOff`, `row`, `rowOff`, two pairs of the same shape, and the sequence
+    // position is the only thing that says a `colOff` may not follow a `row`.
+    //
+    // The three anchors are the reason the schema is in `CHILD_ORDER_SCHEMAS` at all: each one ends
+    // with a required `clientData` *after* an `xsd:group` of six alternatives, so a writer inserting
+    // a shape into an existing anchor has to know that `clientData` comes last — and the group's own
+    // six members all share one rank, which no element name reveals.
+    //
+    // Five names carry a `SHEET_DRAWING_` qualifier for the reason `WORKSHEET_TABLE` carries its
+    // own: `CT_Shape`, `CT_Picture`, `CT_Connector`, `CT_GraphicalObjectFrame` and `CT_GroupShape`
+    // name concepts that already exist under DrawingML and PresentationML in this flat namespace,
+    // and a bare `PICTURE` beside `SHAPE_PROPERTIES` would read as the same thing.
+    (
+        "TWO_CELL_ANCHOR", "dml-spreadsheetDrawing", "CT_TwoCellAnchor",
+        "A two-cell anchor's four children: its `from` marker, its `to` marker, the one object it \
+         anchors, then `clientData` (`xdr:twoCellAnchor`)",
+    ),
+    (
+        "ONE_CELL_ANCHOR", "dml-spreadsheetDrawing", "CT_OneCellAnchor",
+        "A one-cell anchor's four children: its `from` marker, its `ext`, the one object it \
+         anchors, then `clientData` (`xdr:oneCellAnchor`)",
+    ),
+    (
+        "ABSOLUTE_ANCHOR", "dml-spreadsheetDrawing", "CT_AbsoluteAnchor",
+        "An absolute anchor's four children: its `pos`, its `ext`, the one object it anchors, then \
+         `clientData` (`xdr:absoluteAnchor`)",
+    ),
+    (
+        "CELL_MARKER", "dml-spreadsheetDrawing", "CT_Marker",
+        "One anchor point's four children, in order: `col`, `colOff`, `row`, `rowOff` \
+         (`xdr:from` and `xdr:to`)",
+    ),
+    (
+        "SHEET_DRAWING_SHAPE", "dml-spreadsheetDrawing", "CT_Shape",
+        "An anchored shape's four children: `nvSpPr`, `spPr`, `style`, then `txBody` (`xdr:sp`)",
+    ),
+    (
+        "SHEET_DRAWING_PICTURE", "dml-spreadsheetDrawing", "CT_Picture",
+        "An anchored picture's four children: `nvPicPr`, `blipFill`, `spPr`, then `style` \
+         (`xdr:pic`)",
+    ),
+    (
+        "SHEET_DRAWING_CONNECTOR", "dml-spreadsheetDrawing", "CT_Connector",
+        "An anchored connector's three children: `nvCxnSpPr`, `spPr`, then `style` (`xdr:cxnSp`)",
+    ),
+    (
+        "SHEET_DRAWING_GRAPHIC_FRAME", "dml-spreadsheetDrawing", "CT_GraphicalObjectFrame",
+        "An anchored graphic frame's three children: `nvGraphicFramePr`, `xfrm`, then `a:graphic` \
+         — the last in another schema's namespace (`xdr:graphicFrame`)",
+    ),
+    (
+        "SHEET_DRAWING_GROUP_SHAPE", "dml-spreadsheetDrawing", "CT_GroupShape",
+        "An anchored group's children: `nvGrpSpPr`, `grpSpPr`, then any number of member shapes \
+         (`xdr:grpSp`)",
+    ),
+
+    // ---- The comments part (MJXOFF-114, E5) --------------------------------------------------
+    //
+    // Three of this child's five types place children rather than append them, and only those three
+    // are here — the rule `CT_TableParts` and `CT_NumFmts` are left out under. `CT_Authors` declares
+    // a single repeating `author` and `CT_CommentList` a single repeating `comment`, so appending
+    // *is* placing for both.
+    //
+    // `CT_Comment` is the one whose table earns its keep in this cluster: `commentPr` follows `text`
+    // and is `minOccurs="0"`, so a comment that gains a box's properties after it already has text
+    // has exactly one legal insertion point, and it is not "the end" for any comment that also
+    // carries markup this crate does not model.
+    (
+        "COMMENTS", "sml", "CT_Comments",
+        "The comments part's three children: the author list, the comment list, then `extLst` \
+         (`x:comments`)",
+    ),
+    (
+        "COMMENT", "sml", "CT_Comment",
+        "One comment's two children: its rich text, then the properties of the box that draws it \
+         (`x:comment`)",
+    ),
+    (
+        "COMMENT_PROPERTIES", "sml", "CT_CommentPr",
+        "A comment box's one child, its anchor (`x:commentPr`)",
     ),
 ];
 

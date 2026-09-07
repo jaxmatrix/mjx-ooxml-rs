@@ -7,7 +7,7 @@
 //! whole workbook at `/ppt/embeddings/*.xlsx` — that package is what **Edit Data** opens — and a
 //! Word document that carries a chart does the same. `mjx-chart` therefore needed a SpreadsheetML
 //! writer before Excel existed, and wrote a minimal one of its own
-//! ([`mjx_chart::EmbeddedWorkbook`](https://docs.rs/mjx-chart)) with a note naming its executioner.
+//! (`mjx_chart::EmbeddedWorkbook`) with a note naming its executioner.
 //!
 //! That deletion was **illegal as specified**: `mjx-chart` sits in the shared-markup tier, so an
 //! edge from it to `mjx-xlsx` (a format) would point *upward*, and `mjx-pptx → mjx-xlsx` would point
@@ -19,8 +19,10 @@
 //! * **`mjx-xlsx`** — the `Workbook` surface, the package and part graph, `open`/`save`/`blank`,
 //!   relationships. Format tier, beside `mjx-pptx` and `mjx-docx`.
 //!
-//! With the split, `mjx-chart → mjx-sml → mjx-dml` is a chain of downward edges and
-//! `EmbeddedWorkbook` can finally be deleted (MJXOFF-112, then MJXOFF-99).
+//! With the split, `mjx-chart → mjx-sml → mjx-dml` is a chain of downward edges, and
+//! `EmbeddedWorkbook` was deleted along it: MJXOFF-112 put the replacement writer here, MJXOFF-99
+//! removed the duplicate. `mjx-chart` now lays out which cell a chart's data belongs in and this
+//! crate writes the file.
 //!
 //! # Where this crate sits, exactly
 //!
@@ -64,7 +66,7 @@
 //! | [`worksheet`] | **MJXOFF-102 (D07) — done**: `CT_Worksheet`'s 39 slots, the widest content model in the schema; MJXOFF-117 (D12) adds the sheet grid, MJXOFF-120 (D13) the `conditionalFormatting` slot, MJXOFF-123 (D14) the `autoFilter` and `dataValidations` slots, MJXOFF-125 (D15) the `tableParts` slot, MJXOFF-127 (D16) the `hyperlinks`, `dataConsolidate`, `customProperties`, `cellWatches`, `ignoredErrors`, `smartTags` and `webPublishItems` slots |
 //! | [`workbook`] | **MJXOFF-100 (D06) — done**: `CT_Workbook`'s nineteen slots, the sheet list, properties, views, defined names |
 //! | [`features`] | **MJXOFF-120 (D13) — done**: conditional formatting, the cross-block priority order and the `dxf` layer; **MJXOFF-123 (D14) — done**: data validation, autofilters and sort state; **MJXOFF-125 (D15) — done**: worksheet tables, their columns and the `tableParts` list; **MJXOFF-127 (D16) — done**: hyperlinks, the object-anchor vocabulary three Phase E children share, and the six small worksheet clusters nothing else claimed; **MJXOFF-129 (D17) — done**: the print block every sheet *kind* shares, and custom sheet views |
-//! | [`mod@write`] | **MJXOFF-112 (D10) — done**: [`WorkbookPackage`], the package writer that replaces `EmbeddedWorkbook`, and the `styles.xml` skeleton behind it |
+//! | [`mod@write`] | **MJXOFF-112 (D10) — done**: [`WorkbookPackage`], the package writer that replaced `mjx-chart`'s `EmbeddedWorkbook` (deleted by MJXOFF-99), and the `styles.xml` skeleton behind it |
 //! | [`error`] | MJXOFF-132 (D01) — this child; every later one adds its variants |
 //!
 //! The half of `sml.xsd` this workspace deliberately does **not** model — pivot tables, external
@@ -95,6 +97,7 @@ pub(crate) mod leaf;
 
 pub mod address;
 pub mod cells;
+pub mod comments;
 pub mod error;
 pub mod features;
 pub mod font;
@@ -109,10 +112,15 @@ pub mod write;
 
 pub use address::{
     AddressError, AddressText, Anchoring, CellRange, CellRangeList, CellReference, CellSpan,
-    CellSpans, ColumnBound, GridBounds, R1C1Coordinate, R1C1Range, R1C1Reference, ReferenceMode,
-    RowBound, SheetName, SheetQualifiedReference,
+    CellSpans, ColumnBound, GridBounds, R1C1Coordinate, R1C1Range, R1C1Reference, ReferenceAreas,
+    ReferenceMode, RowBound, SheetName, SheetQualifiedReference,
 };
 pub use cells::{Cell, CellValue, PayloadShape, Row, SheetData, SheetDataAnomaly};
+pub use comments::{
+    parse_comments, Comment, CommentAuthor, CommentAuthors, CommentAuthorsContent, CommentContent,
+    CommentList, CommentListContent, CommentProperties, CommentPropertiesContent, CommentText,
+    Comments, CommentsContent, LegacyDrawing,
+};
 pub use error::SmlError;
 pub use features::{
     AppliedConditionalRule, AutoFilter, AutoFilterContent, AutoFilterSpec, CellSmartTag,
@@ -126,15 +134,18 @@ pub use features::{
     DataBarContent, DataBarSpec, DataConsolidation, DataConsolidationContent, DataReference,
     DataReferences, DataReferencesContent, DataValidation, DataValidationContent,
     DataValidationSpec, DataValidations, DataValidationsContent, DateGroupItem,
-    DifferentialFormatSpec, DynamicFilter, Filter, FilterColumn, FilterColumnSpec, FilterKind,
-    FilterSpecKind, Filters, FiltersContent, Hyperlink, Hyperlinks, HyperlinksContent, IconFilter,
-    IconSet, IconSetContent, IconSetSpec, IgnoredError, IgnoredErrors, IgnoredErrorsContent,
-    ObjectAnchor, ObjectProperties, ObjectPropertiesContent, SmartTags, SmartTagsContent,
-    SortCondition, SortConditionSpec, SortState, SortStateContent, SortStateSpec, TableColumn,
-    TableColumnContent, TableColumnSpec, TableColumns, TableColumnsContent, TableFormula,
-    TablePart, TableParts, TablePartsContent, TableStyleReference, TableStyleReferenceSpec,
-    Top10Filter, WebPublishItem, WebPublishItems, WebPublishItemsContent, WorksheetTable,
-    WorksheetTableContent, WorksheetTableSpec, XmlColumnProperties,
+    DifferentialFormatSpec, DynamicFilter, EmbeddedObject, EmbeddedObjectContent, EmbeddedObjects,
+    EmbeddedObjectsContent, Filter, FilterColumn, FilterColumnSpec, FilterKind, FilterSpecKind,
+    Filters, FiltersContent, FormControl, FormControlContent, FormControlProperties,
+    FormControlPropertiesContent, FormControls, FormControlsContent, Hyperlink, Hyperlinks,
+    HyperlinksContent, IconFilter, IconSet, IconSetContent, IconSetSpec, IgnoredError,
+    IgnoredErrors, IgnoredErrorsContent, ObjectAnchor, ObjectProperties, ObjectPropertiesContent,
+    SmartTags, SmartTagsContent, SortCondition, SortConditionSpec, SortState, SortStateContent,
+    SortStateSpec, TableColumn, TableColumnContent, TableColumnSpec, TableColumns,
+    TableColumnsContent, TableFormula, TablePart, TableParts, TablePartsContent,
+    TableStyleReference, TableStyleReferenceSpec, Top10Filter, WebPublishItem, WebPublishItems,
+    WebPublishItemsContent, WorksheetTable, WorksheetTableContent, WorksheetTableSpec,
+    XmlColumnProperties,
 };
 pub use features::{
     ChartSheetPageSetup, CustomSheetView, CustomSheetViewContent, CustomSheetViews,
@@ -192,13 +203,14 @@ pub use workbook::{
     WorkbookProperties, WorkbookProtection, WorkbookView,
 };
 pub use worksheet::{
-    BreakAxis, ColumnBlock, ColumnBlockContent, ColumnRun, ColumnWidth, GridAnomaly, MergedCells,
-    MergedCellsContent, MergedRange, OutlineProperties, PageBreak, PageBreaks, PageBreaksContent,
-    PageSetupProperties, PivotSelection, ProtectedRange, ProtectedRanges, ProtectedRangesContent,
-    RowHeight, Scenario, ScenarioContent, ScenarioInputCells, Scenarios, ScenariosContent,
-    Selection, SheetCalculationProperties, SheetDimension, SheetFormatProperties, SheetPane,
-    SheetProperties, SheetPropertiesContent, SheetProtection, SheetView, SheetViewContent,
-    SheetViews, SheetViewsContent, WorksheetContent, WorksheetPart,
+    BreakAxis, ColumnBlock, ColumnBlockContent, ColumnMetrics, ColumnRun, ColumnWidth,
+    GeometrySource, GridAnomaly, MergedCells, MergedCellsContent, MergedRange, OutlineProperties,
+    PageBreak, PageBreaks, PageBreaksContent, PageSetupProperties, PivotSelection, ProtectedRange,
+    ProtectedRanges, ProtectedRangesContent, ResolvedAnchorBounds, RowHeight, Scenario,
+    ScenarioContent, ScenarioInputCells, Scenarios, ScenariosContent, Selection, SheetAnchors,
+    SheetCalculationProperties, SheetDimension, SheetFormatProperties, SheetPane, SheetProperties,
+    SheetPropertiesContent, SheetProtection, SheetView, SheetViewContent, SheetViews,
+    SheetViewsContent, WorksheetContent, WorksheetPart,
 };
 pub use write::{
     AuthoredCellValue, AuthoredStylesheet, AuthoredTable, AuthoredWorkbook, AuthoredWorksheet,

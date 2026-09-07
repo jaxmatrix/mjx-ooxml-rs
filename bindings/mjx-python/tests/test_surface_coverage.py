@@ -379,6 +379,12 @@ def test_charts_and_their_decoration(deck: Deck) -> None:
     deck.set_chart_series_categories(0, frame, 0, ["x", "y", "z"])
     assert deck.chart_series(0, frame)[0].categories == ["x", "y", "z"]
 
+    # What the caches hold versus what the references name — the second half of the pair, and the
+    # one MJXOFF-118 found bound on `Workbook` alone.
+    references = deck.chart_series_references(0, frame)
+    assert len(references) == len(series)
+    assert references[0].values is not None, "an authored chart names its embedded workbook"
+
     deck.set_chart_title(0, frame, "Coverage")
     assert deck.chart_title(0, frame) == "Coverage"
     legend = deck.chart_legend(0, frame)
@@ -419,6 +425,40 @@ def test_charts_and_their_decoration(deck: Deck) -> None:
     assert any(entry.index == 1 for entry in formats)
     assert deck.chart_dangling_decoration(0, frame, 0) == []
     assert deck.chart_workbooks(Surface.slide(0))
+
+
+def test_removing_a_deck_chart_binding_is_caught_by_this_suite(deck: Deck) -> None:
+    """The parity clause's own guard: **remove one binding and this case goes red.**
+
+    A clause nothing checks quietly stops being true, so this names the bindings explicitly
+    rather than trusting that some other case would have called them. The `Document` and
+    `Workbook` suites have carried this guard since their own children; MJXOFF-118 found the
+    `Deck` pair — the one the ticket names — had none, which is how
+    `Deck.chart_series_references` came to be missing from both bindings while the chart cases
+    above stayed green. Delete `Deck::chart_series_references` from
+    `bindings/mjx-python/src/deck.rs` and this fails with `AttributeError`.
+    """
+    for method in (
+        "add_chart",
+        "chart_part_bytes",
+        "chart_kinds",
+        "chart_series",
+        "chart_series_references",
+        "chart_axes",
+        "chart_title",
+        "chart_legend",
+        "chart_workbooks",
+        "refresh_chart_workbook",
+        "detach_chart_workbook",
+        "set_chart_series_values",
+        "set_chart_series_categories",
+        "set_chart_data_labels",
+        "add_chart_trendline",
+        "set_chart_error_bars",
+        "set_chart_point_fill",
+        "chart_dangling_decoration",
+    ):
+        assert callable(getattr(deck, method)), f"Deck.{method} is not bound"
 
 
 def test_pictures_media_and_the_effective_readers(deck: Deck) -> None:

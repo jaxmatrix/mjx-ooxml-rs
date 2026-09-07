@@ -949,7 +949,7 @@ fn every_chart_decoration_edit_is_schema_valid() {
     pres.set_chart_data_labels(
         0,
         frame,
-        ChartLabelScope::Plot { plot_idx: 0 },
+        ChartLabelScope::Plot { plot_index: 0 },
         &DataLabelSpec::new()
             .value(true)
             .position(DataLabelPosition::OutsideEnd)
@@ -959,7 +959,7 @@ fn every_chart_decoration_edit_is_schema_valid() {
     pres.set_chart_data_labels(
         0,
         frame,
-        ChartLabelScope::Series { series_idx: 0 },
+        ChartLabelScope::Series { series_index: 0 },
         &DataLabelSpec::new()
             .category_name(true)
             .separator(" — ")
@@ -972,8 +972,8 @@ fn every_chart_decoration_edit_is_schema_valid() {
             0,
             frame,
             ChartLabelScope::Point {
-                series_idx: 0,
-                point_idx: point,
+                series_index: 0,
+                point_index: point,
             },
             &DataLabelSpec::new().percentage(true),
         )
@@ -983,12 +983,12 @@ fn every_chart_decoration_edit_is_schema_valid() {
         0,
         frame,
         ChartLabelScope::Point {
-            series_idx: 0,
-            point_idx: 1,
+            series_index: 0,
+            point_index: 1,
         },
     )
     .expect("silence a point");
-    pres.suppress_chart_data_labels(0, frame, ChartLabelScope::Series { series_idx: 1 })
+    pres.suppress_chart_data_labels(0, frame, ChartLabelScope::Series { series_index: 1 })
         .expect("silence a series");
     for point in [2_u32, 0] {
         pres.set_chart_point_fill(
@@ -1045,8 +1045,8 @@ fn a_pie_chart_decorated_where_its_schema_allows_is_schema_valid() {
         0,
         frame,
         ChartLabelScope::Point {
-            series_idx: 0,
-            point_idx: 2,
+            series_index: 0,
+            point_index: 2,
         },
         &DataLabelSpec::new().category_name(true).value(true),
     )

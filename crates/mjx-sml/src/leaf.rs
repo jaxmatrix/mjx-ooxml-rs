@@ -403,4 +403,267 @@ macro_rules! relationship_reference {
     };
 }
 
-pub(crate) use {attribute_bag, bag_body, bag_without_declared_attributes, relationship_reference};
+/// Declares one `s:ST_Xstring` element: the struct, its text accessors, and its `FromXml`/`ToXml`
+/// pair.
+///
+/// # Why these types are hand-written rather than `#[derive(FromXml, ToXml)]` with `#[xml(text)]`
+///
+/// `mjx-derive`'s `#[xml(text)]` grammar decodes character data on read and re-escapes it
+/// **minimally** on write — only `<` and `&`. That is right for authoring and lossy for
+/// preservation: a producer that wrote `&amp;amp;L` gets `&amp;L` back, and one that wrote
+/// `&amp;#38;L` gets `&amp;L` too. Same string, different bytes — and a rebuilt text node that
+/// differs from the original denies its element, *and every ancestor of it*, the verbatim source
+/// range subtree copy-on-write would otherwise give it. `CLAUDE.md` records the gap; fixing it is a
+/// foundation change across every text leaf and no work item owns it.
+///
+/// # Why it is a macro
+///
+/// Three types in this crate are this exact shape — [`DefinedName`](crate::DefinedName)'s content
+/// (MJXOFF-100), [`HeaderFooterText`](crate::HeaderFooterText) (MJXOFF-129) and
+/// [`CommentAuthor`](crate::CommentAuthor) (MJXOFF-114) — and the first two were written out
+/// longhand before there was a third. The decode loop and the escape-on-authoring rule are the
+/// whole of the fidelity contract for an `s:ST_Xstring`, so they are stated once here rather than
+/// copied a third time and left free to drift.
+///
+/// The generated type keeps the element's name and prefix, its attribute vector verbatim (the
+/// simple type permits no attribute at all, so an `xml:space` on one is a producer divergence to
+/// preserve rather than an accessor to declare), its self-closing flag, and — until
+/// `set_text` is called — the children the file wrote, entity spellings, CDATA sections and
+/// interleaved comments included.
+macro_rules! character_data_body {
+    // A type that stands for **several** element names — `HeaderFooterText` is six — so there is no
+    // one wire local to declare and no bare `new`. Its callers reach `with_local`.
+    (
+        $(#[$meta:meta])*
+        $name:ident
+    ) => {
+        $crate::leaf::character_data_shape! { $(#[$meta])* $name }
+    };
+    (
+        $(#[$meta:meta])*
+        $name:ident, $local:literal
+    ) => {
+        $crate::leaf::character_data_shape! { $(#[$meta])* $name }
+
+        impl $name {
+            #[doc = concat!("The wire local name this type is written under: `", $local, "`.")]
+            pub const WIRE_LOCAL: &'static str = $local;
+
+            #[doc = concat!("Builds a new `", $local, "` holding `text`, bound to `prefix` — or to \
+                the default namespace when `prefix` is `None`.")]
+            #[must_use]
+            #[allow(dead_code)]
+            pub fn new(
+                interner: &mut ::mjx_ooxml_core::Interner,
+                prefix: ::core::option::Option<&str>,
+                text: &str,
+            ) -> Self {
+                Self::with_local(interner, prefix, $local, text)
+            }
+        }
+    };
+}
+
+/// The struct, the accessors and the `FromXml`/`ToXml` pair every `s:ST_Xstring` element shares —
+/// the part that is identical whether or not the type stands for exactly one element name.
+macro_rules! character_data_shape {
+    (
+        $(#[$meta:meta])*
+        $name:ident
+    ) => {
+        $(#[$meta])*
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name {
+            name: ::mjx_ooxml_core::RawName,
+            attributes: ::std::vec::Vec<::mjx_ooxml_core::RawAttribute>,
+            empty: bool,
+            /// The character data, decoded — what `text` answers with.
+            text: ::std::string::String,
+            /// The element's children exactly as the file wrote them, or `None` once the text has
+            /// been replaced and there is nothing left to preserve.
+            verbatim: ::core::option::Option<::std::vec::Vec<::mjx_ooxml_core::RawNode>>,
+        }
+
+        impl $name {
+            /// Builds the element `local` names, bound to `prefix` or to the default namespace,
+            /// holding `text`.
+            ///
+            /// `local` is a parameter because one of these types stands for **six** element names
+            /// that differ in nothing but their position in a sequence.
+            #[must_use]
+            #[allow(dead_code)]
+            pub(crate) fn with_local(
+                interner: &mut ::mjx_ooxml_core::Interner,
+                prefix: ::core::option::Option<&str>,
+                local: &str,
+                text: &str,
+            ) -> Self {
+                Self {
+                    name: $crate::leaf::sml_name(interner, prefix, local),
+                    attributes: ::std::vec::Vec::new(),
+                    empty: text.is_empty(),
+                    text: text.to_owned(),
+                    verbatim: ::core::option::Option::None,
+                }
+            }
+
+            /// The element's own qualified name, as the file wrote it.
+            #[must_use]
+            #[allow(dead_code)]
+            pub fn element_name(&self) -> ::mjx_ooxml_core::RawName {
+                self.name
+            }
+
+            /// The character data, with entity references decoded and **nothing else changed**.
+            #[must_use]
+            #[allow(dead_code)]
+            pub fn text(&self) -> &str {
+                &self.text
+            }
+
+            /// Replaces the whole string.
+            ///
+            /// This is the point at which the preserved character data is given up; the element's
+            /// name, its attributes, their order and their quoting are untouched.
+            #[allow(dead_code)]
+            pub fn set_text(&mut self, text: impl ::core::convert::Into<::std::string::String>) {
+                self.text = text.into();
+                self.verbatim = ::core::option::Option::None;
+                self.empty = false;
+            }
+
+            /// This element rebuilt as a [`RawElement`](::mjx_ooxml_core::RawElement), without an
+            /// interner.
+            ///
+            /// An untouched value replays the children the file held. One that `set_text` has
+            /// reached writes a single freshly escaped text node, which is what authoring should
+            /// write.
+            #[must_use]
+            #[allow(dead_code)]
+            pub fn as_raw_element(&self) -> ::mjx_ooxml_core::RawElement {
+                let children = match &self.verbatim {
+                    ::core::option::Option::Some(children) => children.clone(),
+                    ::core::option::Option::None if self.text.is_empty() => ::std::vec::Vec::new(),
+                    ::core::option::Option::None => ::std::vec![::mjx_ooxml_core::RawNode::Text(
+                        ::mjx_xml::text::escape_text(&self.text).as_bytes().into(),
+                    )],
+                };
+                let empty = self.empty && children.is_empty();
+                ::mjx_ooxml_core::RawElement::rebuilt(
+                    self.name,
+                    self.attributes.clone(),
+                    children,
+                    empty,
+                )
+            }
+        }
+
+        impl ::mjx_ooxml_core::FromXml for $name {
+            fn from_xml(
+                element: &::mjx_ooxml_core::RawElement,
+                _interner: &::mjx_ooxml_core::Interner,
+            ) -> ::core::result::Result<Self, ::mjx_ooxml_core::FromXmlError> {
+                ::core::result::Result::Ok(Self {
+                    name: element.name,
+                    attributes: element.attributes.clone(),
+                    empty: element.empty,
+                    text: $crate::leaf::decoded_character_data(element)?,
+                    verbatim: ::core::option::Option::Some(element.children.clone()),
+                })
+            }
+        }
+
+        impl ::mjx_ooxml_core::ToXml for $name {
+            fn to_xml(
+                &self,
+                _interner: &mut ::mjx_ooxml_core::Interner,
+            ) -> ::mjx_ooxml_core::RawElement {
+                self.as_raw_element()
+            }
+        }
+    };
+}
+
+/// Every text and CDATA child of `element`, decoded and concatenated.
+///
+/// The one decode of an `s:ST_Xstring`'s content in this crate. Text nodes are unescaped; a CDATA
+/// section's bytes are taken as they stand, because that is what a CDATA section means; every other
+/// node — an element, a comment, a processing instruction — contributes nothing, which is what the
+/// simple type says it can be.
+///
+/// # Errors
+/// [`FromXmlError`](::mjx_ooxml_core::FromXmlError) if the character data is not UTF-8 or carries a
+/// reference that will not decode.
+pub(crate) fn decoded_character_data(
+    element: &mjx_ooxml_core::RawElement,
+) -> Result<String, mjx_ooxml_core::FromXmlError> {
+    use mjx_ooxml_core::{FromXmlError, RawNode};
+
+    let mut text = String::new();
+    for child in &element.children {
+        match child {
+            RawNode::Text(bytes) => {
+                let raw = core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?;
+                let decoded = mjx_xml::text::unescape_text(raw)
+                    .map_err(|error| FromXmlError::InvalidEntity(error.to_string()))?;
+                text.push_str(&decoded);
+            }
+            RawNode::CData(bytes) => {
+                text.push_str(core::str::from_utf8(bytes).map_err(|_| FromXmlError::InvalidUtf8)?);
+            }
+            _ => {}
+        }
+    }
+    Ok(text)
+}
+
+/// The **displayed string** of a `CT_Rst` — the plain `t`, then each `r` run's `t`, concatenated.
+///
+/// A `CT_Rst` carries no character data of its own, so [`decoded_character_data`] answers the empty
+/// string for one. This is the walk that answers what a reader means by "the text": the optional
+/// plain `t` child, then the `t` inside each `r`, in document order.
+///
+/// **Phonetic runs are excluded.** An `rPh` is the *reading* printed above a run of kanji — kana the
+/// author typed that is not part of the base string — so folding it in would interleave two texts.
+/// `phoneticPr`, and any element the type does not declare, contribute nothing.
+///
+/// Children are matched by **local name**, prefix ignored, exactly as `crate::strings`'s reader
+/// matches them: a `CT_Rst` is in the SpreadsheetML namespace wherever it appears, and a fragment
+/// lifted out of a part may not re-declare it.
+///
+/// # Errors
+/// [`FromXmlError`](::mjx_ooxml_core::FromXmlError) if the character data is not UTF-8 or carries a
+/// reference that will not decode.
+pub(crate) fn decoded_rich_text(
+    element: &mjx_ooxml_core::RawElement,
+    interner: &Interner,
+) -> Result<String, mjx_ooxml_core::FromXmlError> {
+    use mjx_ooxml_core::RawNode;
+
+    let mut text = String::new();
+    for child in &element.children {
+        let RawNode::Element(child) = child else {
+            continue;
+        };
+        match interner.resolve(child.name.local) {
+            "t" => text.push_str(&decoded_character_data(child)?),
+            "r" => {
+                for run_child in &child.children {
+                    let RawNode::Element(run_child) = run_child else {
+                        continue;
+                    };
+                    if interner.resolve(run_child.name.local) == "t" {
+                        text.push_str(&decoded_character_data(run_child)?);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    Ok(text)
+}
+
+pub(crate) use {
+    attribute_bag, bag_body, bag_without_declared_attributes, character_data_body,
+    character_data_shape, relationship_reference,
+};

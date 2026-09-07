@@ -117,17 +117,22 @@ fn sample_xlsx_with_sheet_data_inside_file_version() -> Vec<u8> {
     package.save().expect("save the corrupted workbook")
 }
 
-/// Pushes a copy of `payload` into the first SpreadsheetML element named `local`, depth first.
-fn plant_in_first(
+/// Pushes a copy of `payload` into the first element named `(namespace, local)`, depth first.
+///
+/// The namespace is a parameter rather than `SML_NS` because MJXOFF-107 plants into an
+/// `xdr:twoCellAnchor`, and a corrupting helper that could only reach one schema would have needed a
+/// near-copy of itself to reach the second.
+fn plant_in_first_of(
     element: &mut RawElement,
     interner: &Interner,
+    namespace: &str,
     local: &str,
     payload: &RawElement,
 ) -> bool {
     let matches_target = element
         .name
         .namespace
-        .is_some_and(|ns| interner.resolve(ns) == SML_NS)
+        .is_some_and(|ns| interner.resolve(ns) == namespace)
         && interner.resolve(element.name.local) == local;
     if matches_target {
         element.children.push(RawNode::Element(payload.clone()));
@@ -135,12 +140,22 @@ fn plant_in_first(
     }
     for child in &mut element.children {
         if let RawNode::Element(child) = child {
-            if plant_in_first(child, interner, local, payload) {
+            if plant_in_first_of(child, interner, namespace, local, payload) {
                 return true;
             }
         }
     }
     false
+}
+
+/// [`plant_in_first_of`] in the SpreadsheetML namespace, which is where most of this file plants.
+fn plant_in_first(
+    element: &mut RawElement,
+    interner: &Interner,
+    local: &str,
+    payload: &RawElement,
+) -> bool {
+    plant_in_first_of(element, interner, SML_NS, local, payload)
 }
 
 #[test]
@@ -478,11 +493,103 @@ const NON_XML_CONTENT_TYPES_UNDER_XL: &[(&str, &str)] = &[
     ),
     (
         "image/png",
-        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`). `mjx-opc` \
-         stores the caller's bytes verbatim and `ImageFormat::sniff` reads a magic-byte signature \
-         without decoding a pixel",
+        "a raster image — a sheet's background picture (`CT_SheetBackgroundPicture`) and, since \
+         MJXOFF-107, a picture anchored on a worksheet drawing (`xl/media/imageN.png`, named by an \
+         `xdr:pic`'s `a:blip@r:embed`). `mjx-opc` stores the caller's bytes verbatim and \
+         `ImageFormat::sniff` reads a magic-byte signature without decoding a pixel. **One row, two \
+         kinds of part**: this list is keyed on the content type, not on where the part sits, so a \
+         PNG under `xl/media/` needed no row of its own",
+    ),
+    (
+        "image/jpeg",
+        "a raster image in the other format `xl/media/` actually carries — the one MJXOFF-107 (E3) \
+         did have to add, because no committed fixture held a JPEG before it. \
+         `tests/fixtures/worksheet_drawings.xlsx` anchors a PNG on its two-cell and one-cell \
+         anchors and a JPEG on its absolute anchor, precisely so that the media path is not \
+         proved by one format and assumed for the rest. Nothing here decodes a scan line: \
+         `ImageFormat::sniff` reads the `FF D8 FF` signature and stops",
     ),
 ];
+
+/// The **preserved-foreign** parts under `xl/` that are admitted, each keyed on *two* facts and each
+/// with the reason it is not a skip anybody should worry about.
+///
+/// # Why this list exists, and why widening the category would have been wrong
+///
+/// `account_for_part_under_xl` rejects `SkippedPreservedForeign` outright, and that is the guard
+/// that closes MJXOFF-88 §7's signature failure: a part in a namespace with no schema arm reports a
+/// *skip*, and a gate that tolerates skips is green **precisely when** the parts are not being
+/// validated at all. MJXOFF-129 kept it rejected on purpose; MJXOFF-133 then found a hole in the
+/// guard beside it by mutating, seeing green, and instrumenting the arm to `panic!`.
+///
+/// MJXOFF-114 (E5) is the first child to put such a part under `xl/`, and it puts two there at once:
+/// an Excel cell comment's box is a **VML drawing** at `xl/drawings/vmlDrawingN.vml`, and a form
+/// control's properties are an **`x14:formControlPr`** at `xl/ctrlPropsN.xml`. Both are legitimate —
+/// Word and PowerPoint carry the first routinely, which is exactly why *they* cannot adopt Excel's
+/// stricter rule — and neither will ever be validatable here: a `.vml` root is a bare `<xml>` in no
+/// namespace, and `x14` is a Microsoft extension ECMA-376 does not define.
+///
+/// So the admission is a **named list**, not a category-wide relaxation, and each row carries a
+/// second key the category alone does not give:
+///
+/// * `label` — the category-2 entry `mjx_schema_gate::categories` matched, so a *different*
+///   preserved-foreign namespace appearing under `xl/` is still rejected;
+/// * `directory` and `extension` — where a part with that label is allowed to sit. **This half is
+///   load-bearing.** A `.xml` part under `xl/` that failed to declare its namespace at all reports
+///   `SkippedPreservedForeign` with the *VML* label, because `ForeignMarkupKey::NoNamespace` matches
+///   on the absence of a namespace and nothing else. Without the path key, a worksheet that lost its
+///   `xmlns` would sail through this gate as "a VML drawing part" — the exact false green the rule
+///   exists to catch, re-opened by the fix for it.
+///
+/// Every row is proved live by `every_preserved_foreign_part_on_the_allowlist_is_exercised`, and
+/// `the_rule_still_rejects_every_shape_of_false_green` feeds the rule both halves of each key
+/// separately, so a row that stopped discriminating fails rather than rotting.
+const PRESERVED_FOREIGN_PARTS_UNDER_XL: &[PreservedForeignUnderXl] = &[
+    PreservedForeignUnderXl {
+        label: "a VML drawing part",
+        directory: "/xl/drawings/",
+        extension: ".vml",
+        reason: "the legacy VML drawing that draws a sheet's cell-comment boxes, form controls and \
+                 OLE fallbacks (MJXOFF-114). Its root is a bare `<xml>` wrapper in **no namespace**, \
+                 which the VML schemas declare no global element for and which `vml-main.xsd` could \
+                 not validate anyway without an `xml.xsd` the Transitional set does not ship — see \
+                 `mjx_schema_gate::categories`' own entry. PowerPoint has carried one since \
+                 MJXOFF-110 at `ppt/drawings/`, outside this rule's reach; Excel's lives under `xl/` \
+                 and there is nowhere else to put it, because a worksheet's `legacyDrawing@r:id` \
+                 resolves relative to the sheet",
+    },
+    PreservedForeignUnderXl {
+        label: "a form control's properties part",
+        directory: "/xl/ctrlProps/",
+        extension: ".xml",
+        reason: "`x14:formControlPr` (MJXOFF-114) — Excel 2010's SpreadsheetML extension namespace, \
+                 which ECMA-376 does not define and no schema in `References/` declares. Every \
+                 `x:control` names one through a required `@r:id`, so a workbook with a form \
+                 control cannot avoid carrying it, and `mjx-sml` holds the identifier without ever \
+                 opening the part",
+    },
+];
+
+/// One row of [`PRESERVED_FOREIGN_PARTS_UNDER_XL`].
+struct PreservedForeignUnderXl {
+    /// The category-2 label `mjx_schema_gate::categories` gives this markup.
+    label: &'static str,
+    /// The directory a part with that label is allowed to sit in, with both slashes.
+    directory: &'static str,
+    /// The file extension it is allowed to carry, with the dot.
+    extension: &'static str,
+    /// Why skipping it is the correct verdict and always will be.
+    reason: &'static str,
+}
+
+impl PreservedForeignUnderXl {
+    /// Whether this row admits `row` — the label **and** the path, never one alone.
+    fn admits(&self, row: &PartRow, label: &str) -> bool {
+        label == self.label
+            && row.name.starts_with(self.directory)
+            && row.name.ends_with(self.extension)
+    }
+}
 
 /// The rule `no_part_under_xl_is_skipped_as_foreign_or_uncategorised` applies to one part: `Ok(())`,
 /// or the reason it fails.
@@ -508,6 +615,24 @@ fn account_for_part_under_xl(row: &PartRow) -> Result<(), String> {
              and why: add a row to NON_XML_CONTENT_TYPES_UNDER_XL",
             row.name
         )),
+        // The second widening, and the whole of it: a preserved-foreign part whose *label* and
+        // whose *path* are both on the named list. Never the label alone — see that list's own
+        // documentation for the false green the path key closes.
+        PartOutcome::SkippedPreservedForeign { label, .. }
+            if PRESERVED_FOREIGN_PARTS_UNDER_XL
+                .iter()
+                .any(|known| known.admits(row, label)) =>
+        {
+            Ok(())
+        }
+        PartOutcome::SkippedPreservedForeign { label, namespace, .. } => Err(format!(
+            "{} is under xl/ and was not validated at all — it is preserved foreign markup ({label}, \
+             namespace {namespace:?}) sitting where no row of PRESERVED_FOREIGN_PARTS_UNDER_XL \
+             admits it. A part in a namespace with no schema arm reports a *skip*, which is the \
+             false green this rule exists to catch; if this part really is unvalidatable, add a row \
+             naming its label, its directory and its extension, and say why",
+            row.name
+        )),
         other => Err(format!(
             "{} is under xl/ and was not validated at all — it reported: {}",
             row.name,
@@ -525,10 +650,12 @@ fn no_part_under_xl_is_skipped_as_foreign_or_uncategorised() {
     // This is the exact false-green MJXOFF-110 exists to close: a part in a namespace with no arm
     // reports a *skip*, and `assert_outcomes_are_valid` fails on neither a skip nor a tolerance. So
     // "schema validity covers the .xlsx fixtures and is green" is satisfied precisely when the Excel
-    // parts are not being validated at all. **That guard is untouched by MJXOFF-129's widening** —
-    // see `account_for_part_under_xl`, which still rejects `SkippedPreservedForeign` and
-    // `Uncategorised` outright, and `the_rule_still_rejects_every_shape_of_false_green`, which
-    // proves it rather than asserting it.
+    // parts are not being validated at all. **The guard survives both widenings** — MJXOFF-129's
+    // named binary content types and MJXOFF-114's named preserved-foreign parts. See
+    // `account_for_part_under_xl`, which still rejects every `Uncategorised` and every
+    // `SkippedPreservedForeign` no row admits, and
+    // `the_rule_still_rejects_every_shape_of_false_green`, which proves it rather than asserting
+    // it.
     // Swept over **every** committed `.xlsx`, not over `sample.xlsx` alone (MJXOFF-102). A later
     // child adding a fixture with a new kind of part under `xl/` is exactly the case this rule is
     // for, and pinning one fixture would have let `worksheet_spine.xlsx`'s `/xl/tables/table1.xml`
@@ -657,6 +784,131 @@ fn the_rule_still_rejects_every_shape_of_false_green() {
             );
         }
     }
+}
+
+/// MJXOFF-114's widening did not open the door it was widened beside, on **either** of its keys.
+///
+/// [`PRESERVED_FOREIGN_PARTS_UNDER_XL`] admits a `SkippedPreservedForeign` only when its category-2
+/// label *and* its path both match a named row. This case feeds the rule each key on its own, which
+/// is the discipline MJXOFF-133 established after finding that a guard whose witnesses all wear one
+/// costume tests one costume:
+///
+/// * the **right label at the wrong path** — the load-bearing half. A `.xml` part under `xl/` that
+///   declared no namespace at all reports the *VML* label, because `ForeignMarkupKey::NoNamespace`
+///   matches the absence of a namespace and nothing else. A worksheet that lost its `xmlns` is the
+///   concrete case, and it must still fail;
+/// * the **wrong label at the right path** — a preserved-foreign namespace nobody has written a
+///   reason for, sitting where an admitted one sits;
+/// * a row's directory without its extension, and its extension without its directory.
+///
+/// The accepting half is asserted too, so the case cannot pass by rejecting everything — and the
+/// arm it exercises was proved to execute by instrumenting it to `panic!` and watching this case
+/// fail.
+#[test]
+fn the_preserved_foreign_rows_admit_on_both_keys_and_neither_alone() {
+    let row = |name: &str, outcome| PartRow {
+        name: name.to_owned(),
+        root_element: Some("xml".to_owned()),
+        namespace: None,
+        outcome,
+    };
+    let foreign = |label: &'static str| PartOutcome::SkippedPreservedForeign {
+        namespace: None,
+        label,
+        reason: "authored by this test",
+    };
+
+    for known in PRESERVED_FOREIGN_PARTS_UNDER_XL {
+        let good = format!("{}part{}", known.directory, known.extension);
+        assert!(
+            account_for_part_under_xl(&row(&good, foreign(known.label))).is_ok(),
+            "{good} carries {}'s label at {}'s path and must be admitted",
+            known.label,
+            known.label
+        );
+
+        // The right label, the wrong path — in three disguises, one of them the worksheet that
+        // lost its `xmlns`.
+        for wrong_path in [
+            "/xl/worksheets/sheet1.xml".to_owned(),
+            format!("/xl/elsewhere/part{}", known.extension),
+            format!("{}part.bin", known.directory),
+        ] {
+            if wrong_path.starts_with(known.directory) && wrong_path.ends_with(known.extension) {
+                continue;
+            }
+            let reason = account_for_part_under_xl(&row(&wrong_path, foreign(known.label)))
+                .expect_err("the label alone must not admit a part");
+            assert!(
+                reason.contains("PRESERVED_FOREIGN_PARTS_UNDER_XL"),
+                "{wrong_path}: the rejection must say how to fix it: {reason}"
+            );
+        }
+
+        // The right path, a label nobody has written a reason for.
+        for wrong_label in ["InkML", "ActiveX control markup", "a made-up vocabulary"] {
+            assert!(
+                account_for_part_under_xl(&row(&good, foreign(wrong_label))).is_err(),
+                "{good}: {wrong_label} is on no row and the path alone must not admit it"
+            );
+        }
+    }
+}
+
+/// Every row of [`PRESERVED_FOREIGN_PARTS_UNDER_XL`] matches a part in the committed corpus.
+///
+/// The same rule [`every_non_xml_content_type_on_the_allowlist_is_exercised`] applies to the other
+/// list: an entry is a claim that a part really is carried under `xl/` by a file this project keeps,
+/// and a claim nothing witnesses is a claim that can quietly become false.
+#[test]
+fn every_preserved_foreign_part_on_the_allowlist_is_exercised() {
+    let fixtures = package_fixtures_with_extension("xlsx");
+    let mut seen: Vec<&str> = Vec::new();
+    for name in &fixtures {
+        let rows = inspect_fixture(name);
+        if rows.is_empty() {
+            return;
+        }
+        for row in &rows {
+            if !row.name.starts_with("/xl/") {
+                continue;
+            }
+            if let PartOutcome::SkippedPreservedForeign { label, .. } = &row.outcome {
+                if let Some(known) = PRESERVED_FOREIGN_PARTS_UNDER_XL
+                    .iter()
+                    .find(|known| known.admits(row, label))
+                {
+                    if !seen.contains(&known.label) {
+                        seen.push(known.label);
+                    }
+                }
+            }
+        }
+    }
+    for known in PRESERVED_FOREIGN_PARTS_UNDER_XL {
+        // Printed, not merely stored: the reason a part under `xl/` is allowed to go unvalidated is
+        // the whole content of the admission, and a gate that swallowed it would be back to
+        // reporting a bare "skipped".
+        println!(
+            "admitted under xl/: {} at {}*{} — {}",
+            known.label, known.directory, known.extension, known.reason
+        );
+        assert!(
+            !known.reason.is_empty(),
+            "{}: an admission with no written reason is a category-wide relaxation wearing a row",
+            known.label
+        );
+    }
+    let dead: Vec<&str> = PRESERVED_FOREIGN_PARTS_UNDER_XL
+        .iter()
+        .map(|known| known.label)
+        .filter(|label| !seen.contains(label))
+        .collect();
+    assert!(
+        dead.is_empty(),
+        "no committed .xlsx carries a part under xl/ matching {dead:?}; an allowlist entry nothing \
+         witnesses is one that can quietly become false"
+    );
 }
 
 /// Every row of [`NON_XML_CONTENT_TYPES_UNDER_XL`] matches a part in the committed corpus.
@@ -881,4 +1133,527 @@ fn an_authored_table_part_is_schema_valid_and_is_not_skipped() {
         "the table part must be validated against sml.xsd; it reported: {}",
         row.outcome.describe()
     );
+}
+
+// -------------------------------------------------------------------------------------------
+// Worksheet drawings (MJXOFF-107) — both halves of the `xdr` gate, proved live
+// -------------------------------------------------------------------------------------------
+
+/// The SpreadsheetDrawingML namespace, as `dml-spreadsheetDrawing.xsd` declares it.
+const XDR_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing";
+
+/// A workbook this library authored, carrying one anchor of each of the three kinds.
+fn an_authored_drawing() -> Vec<u8> {
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_dml::{Position, Size};
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+
+    const PNG: &[u8] = &[
+        0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, b'I', b'H', b'D',
+        b'R', 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, b'I', b'D', b'A', b'T', 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x03, 0x01, 0x01, 0x00, 0x18, 0xDD, 0x8D, 0xB0, 0x00, 0x00, 0x00,
+        0x00, b'I', b'E', b'N', b'D', 0xAE, 0x42, 0x60, 0x82,
+    ];
+
+    let mut workbook = mjx_xlsx::Workbook::blank().expect("a blank workbook");
+    workbook
+        .add_two_cell_anchored_picture(
+            0,
+            PNG,
+            "two-cell",
+            CellMarker::new(1, 190_500, 2, 47_625),
+            CellMarker::new(3, 95_250, 5, 19_050),
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("added");
+    workbook
+        .add_one_cell_anchored_picture(
+            0,
+            PNG,
+            "one-cell",
+            CellMarker::new(4, 76_200, 1, 38_100),
+            Size::from_emu(914_400, 457_200),
+        )
+        .expect("added");
+    workbook
+        .add_absolute_anchored_picture(
+            0,
+            PNG,
+            "absolute",
+            Position::from_emu(1_905_000, 952_500),
+            Size::from_emu(685_800, 342_900),
+        )
+        .expect("added");
+    workbook.save().expect("it validates and saves")
+}
+
+#[test]
+fn an_authored_worksheet_drawing_is_schema_valid_under_the_xdr_arm() {
+    // The first half of MJXOFF-107's gate: markup this library wrote, validated against the schema
+    // the new `MODELED_SCHEMAS` row names — not merely "not skipped".
+    let bytes = an_authored_drawing();
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("an authored drawing", &bytes);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "an authored drawing", &bytes, &[]);
+    println!("{}", outcome_table("an authored drawing", &rows));
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the authored drawing part is in the sweep");
+    assert_eq!(row.namespace.as_deref(), Some(XDR_NS));
+    assert!(
+        matches!(
+            row.outcome,
+            PartOutcome::Validated("dml-spreadsheetDrawing.xsd")
+        ),
+        "the drawing part must be validated against dml-spreadsheetDrawing.xsd; it reported: {}",
+        row.outcome.describe()
+    );
+}
+
+/// The DrawingML-chart namespace, as `dml-chart.xsd` declares it.
+const CHART_NS: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+
+/// A workbook with two authored charts on one sheet — one with an embedded workbook, one over a
+/// live range (MJXOFF-111, E4).
+///
+/// Both, deliberately. They are different markup: the first writes a `c:externalData` and a whole
+/// `.xlsx` beside it, the second writes `c:f` formulas naming this workbook's own cells and no
+/// `c:externalData` at all. A gate that validated one would say nothing about the other.
+fn a_workbook_with_authored_charts() -> Vec<u8> {
+    use mjx_chart::{ChartData, ChartKind, LegendPosition};
+    use mjx_dml::spreadsheet_drawing::CellMarker;
+    use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
+    use mjx_sml::{CellReference, CellValue};
+    use mjx_xlsx::{SheetChartSeries, SheetChartSource};
+
+    let mut workbook = mjx_xlsx::Workbook::blank().expect("a blank workbook");
+    workbook.rename_sheet(0, "Data").expect("renamed");
+    for (address, value) in [("A1", 10.0), ("A2", 20.0), ("A3", 30.0)] {
+        workbook
+            .set_cell_value(
+                0,
+                CellReference::parse(address).expect("a literal address"),
+                CellValue::Number(value),
+            )
+            .expect("the store accepts the value");
+    }
+
+    let chart = ChartData::new(ChartKind::Bar)
+        .categories(["Q1", "Q2", "Q3"])
+        .series("Revenue", [10.0, 20.0, 30.0])
+        .title("Quarterly revenue")
+        .legend(LegendPosition::Bottom);
+    workbook
+        .add_chart(
+            0,
+            &chart,
+            CellMarker::new(2, 0, 1, 0),
+            CellMarker::new(8, 0, 15, 0),
+            "Embedded",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a chart with an embedded workbook");
+
+    let source = SheetChartSource {
+        categories: None,
+        series: vec![SheetChartSeries {
+            name_cell: None,
+            name: "Live".to_owned(),
+            values: "Data!$A$1:$A$3".to_owned(),
+        }],
+    };
+    workbook
+        .add_range_chart(
+            0,
+            ChartKind::Line,
+            &source,
+            CellMarker::new(2, 0, 17, 0),
+            CellMarker::new(8, 0, 31, 0),
+            "Live",
+            ResizingBehavior::MoveWithCellsButDoNotResize,
+        )
+        .expect("a live-range chart");
+
+    workbook.save().expect("it validates and saves")
+}
+
+#[test]
+fn the_authored_charts_and_the_frames_that_hold_them_are_schema_valid() {
+    // MJXOFF-111's own *Done when* clause: the authored workbook is schema-valid **including the
+    // chart part and the drawing part**. Both are named by hand rather than left to the sweep,
+    // because a chart part that were skipped as foreign would satisfy "the workbook is valid" while
+    // proving nothing about the markup this child writes.
+    let bytes = a_workbook_with_authored_charts();
+    mjx_schema_gate::assert_authored_deck_is_schema_valid("authored charts", &bytes);
+
+    let Some(harness) = harness() else { return };
+    let rows = inspect_deck(&harness, "authored charts", &bytes, &[]);
+    println!("{}", outcome_table("authored charts", &rows));
+
+    for part in ["/xl/charts/chart1.xml", "/xl/charts/chart2.xml"] {
+        let row = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep"));
+        assert_eq!(row.namespace.as_deref(), Some(CHART_NS));
+        assert!(
+            matches!(row.outcome, PartOutcome::Validated("dml-chart.xsd")),
+            "{part} must be validated against dml-chart.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    }
+    let drawing = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing part that frames both charts is in the sweep");
+    assert_eq!(drawing.namespace.as_deref(), Some(XDR_NS));
+    assert!(
+        matches!(
+            drawing.outcome,
+            PartOutcome::Validated("dml-spreadsheetDrawing.xsd")
+        ),
+        "the frames must be validated against dml-spreadsheetDrawing.xsd; it reported: {}",
+        drawing.outcome.describe()
+    );
+}
+
+/// The authored workbook with a `c:ser` planted directly inside `c:chartSpace` — a series where
+/// `CT_ChartSpace`'s own `xsd:sequence` allows only `c:date1904`, `c:lang`, `c:roundedCorners`,
+/// `c:style`, `c:clrMapOvr`, `c:pivotSource`, `c:protection`, `c:chart`, `c:spPr`, `c:txPr`,
+/// `c:externalData`, `c:printSettings` and `c:userShapes`.
+fn a_chart_with_a_series_outside_its_plot() -> Vec<u8> {
+    let mut package = Package::open(&a_workbook_with_authored_charts()).expect("open");
+    let part = PartName::new("/xl/charts/chart1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } = package.part_tree_mut(&part).expect("edit the chart");
+    let stray = RawElement::new(
+        RawName {
+            prefix: Some(interner.intern("c")),
+            local: interner.intern("ser"),
+            namespace: Some(interner.intern(CHART_NS)),
+        },
+        Vec::new(),
+        Vec::new(),
+        true,
+    );
+    root.children.push(RawNode::Element(stray));
+    root.empty = false;
+    package.save().expect("save the corrupted chart")
+}
+
+/// The authored workbook with an `xdr:graphicFrame` stripped of its required `xdr:xfrm`.
+///
+/// The trap MJXOFF-111 found in the schema and had to write around:
+/// `CT_GraphicalObjectFrame` declares `xfrm` `minOccurs="1"`, unlike the `a:xfrm` a picture may
+/// omit, so a frame that leaves it out is invalid however it is anchored — and a `twoCellAnchor`'s
+/// markers make the transform look redundant, which is exactly why it would be dropped by accident.
+fn a_chart_frame_without_its_required_transform() -> Vec<u8> {
+    let mut package = Package::open(&a_workbook_with_authored_charts()).expect("open");
+    let part = PartName::new("/xl/drawings/drawing1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } =
+        package.part_tree_mut(&part).expect("edit the drawing");
+    let removed = remove_first_xfrm(root, interner);
+    assert!(removed, "the drawing has no xdr:xfrm to remove");
+    package.save().expect("save the corrupted drawing")
+}
+
+/// Removes the first `xdr:xfrm` found anywhere under `element`, depth first. Answers whether one
+/// went.
+fn remove_first_xfrm(element: &mut RawElement, interner: &mut Interner) -> bool {
+    let at = element.children.iter().position(|node| {
+        matches!(node, RawNode::Element(child)
+            if child.name.namespace.map(|ns| interner.resolve(ns)) == Some(XDR_NS)
+                && interner.resolve(child.name.local) == "xfrm")
+    });
+    if let Some(at) = at {
+        element.children.remove(at);
+        return true;
+    }
+    for node in &mut element.children {
+        if let RawNode::Element(child) = node {
+            if remove_first_xfrm(child, interner) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+#[test]
+fn invalid_chart_markup_is_caught_and_names_the_chart_part() {
+    // The `dml-chart` arm, proved live on a `.xlsx` rather than assumed from PowerPoint's use of it:
+    // markup the schema rejects turns this case red, and the failure names the part.
+    let Some(harness) = harness() else { return };
+    let corrupted = a_chart_with_a_series_outside_its_plot();
+    let rows = inspect_deck(&harness, "a chart with a stray c:ser", &corrupted, &[]);
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/charts/chart1.xml")
+        .expect("the chart part is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a stray c:ser must fail against dml-chart.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "dml-chart.xsd");
+    assert!(
+        report.contains("/xl/charts/chart1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("ser"),
+        "the failure must name the element that broke the sequence:\n{report}"
+    );
+
+    // The discriminating half: only that part broke. The *other* chart and the drawing that frames
+    // both are still valid, so this cannot pass because the corruption broke everything.
+    for (part, schema) in [
+        ("/xl/charts/chart2.xml", "dml-chart.xsd"),
+        ("/xl/drawings/drawing1.xml", "dml-spreadsheetDrawing.xsd"),
+    ] {
+        let other = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep"));
+        assert!(
+            matches!(other.outcome, PartOutcome::Validated(s) if s == schema),
+            "{part} must be unaffected; it reported: {}",
+            other.outcome.describe()
+        );
+    }
+    println!("the dml-chart arm, proved live:\n{report}");
+}
+
+#[test]
+fn a_chart_frame_missing_its_required_transform_is_caught_and_names_the_drawing_part() {
+    // The other half of MJXOFF-111's schema clause, on the *drawing* part rather than the chart:
+    // `xdr:xfrm` is `minOccurs="1"` inside `CT_GraphicalObjectFrame`, and a frame written without
+    // one is markup `dml-spreadsheetDrawing.xsd` rejects. This is the mutation that proves the
+    // authored frame's transform is load-bearing rather than decorative.
+    let Some(harness) = harness() else { return };
+    let corrupted = a_chart_frame_without_its_required_transform();
+    let rows = inspect_deck(&harness, "a chart frame with no xdr:xfrm", &corrupted, &[]);
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing part is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a graphicFrame with no xfrm must fail against dml-spreadsheetDrawing.xsd; it \
+             reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "dml-spreadsheetDrawing.xsd");
+    assert!(
+        report.contains("/xl/drawings/drawing1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("xfrm") || report.contains("graphic"),
+        "the failure must name what the sequence was missing:\n{report}"
+    );
+
+    // …and both chart parts are untouched, so the corruption really was local to the frame.
+    for part in ["/xl/charts/chart1.xml", "/xl/charts/chart2.xml"] {
+        let other = rows
+            .iter()
+            .find(|row| row.name == part)
+            .unwrap_or_else(|| panic!("{part} is not in the sweep"));
+        assert!(
+            matches!(other.outcome, PartOutcome::Validated("dml-chart.xsd")),
+            "{part} must be unaffected; it reported: {}",
+            other.outcome.describe()
+        );
+    }
+    println!("the required-transform rule, proved live:\n{report}");
+}
+
+/// `worksheet_drawings.xlsx` with an `xdr:col` planted directly inside `xdr:twoCellAnchor` — a
+/// marker child where the anchor's own `xsd:sequence` allows only `from`, `to`, one object and
+/// `clientData`.
+fn a_drawing_with_a_marker_child_outside_its_marker() -> Vec<u8> {
+    let mut package = Package::open(&fixture("worksheet_drawings.xlsx")).expect("open");
+    let part = PartName::new("/xl/drawings/drawing1.xml").expect("a valid part name");
+    let RawDocument { interner, root, .. } =
+        package.part_tree_mut(&part).expect("edit the drawing");
+    let stray = RawElement::new(
+        RawName {
+            prefix: Some(interner.intern("xdr")),
+            local: interner.intern("col"),
+            namespace: Some(interner.intern(XDR_NS)),
+        },
+        Vec::new(),
+        Vec::new(),
+        true,
+    );
+    assert!(
+        plant_in_first_of(root, interner, XDR_NS, "twoCellAnchor", &stray),
+        "the fixture has no xdr:twoCellAnchor to corrupt"
+    );
+    package.save().expect("save the corrupted drawing")
+}
+
+#[test]
+fn invalid_drawing_markup_is_caught_and_names_the_drawing_part() {
+    // The `xdr` arm, proved live rather than assumed: markup the schema rejects turns a case red,
+    // and the failure names the part and the element whose content model was broken.
+    let Some(harness) = harness() else { return };
+    let corrupted = a_drawing_with_a_marker_child_outside_its_marker();
+    let rows = inspect_deck(
+        &harness,
+        "worksheet_drawings.xlsx with a stray xdr:col",
+        &corrupted,
+        &[],
+    );
+
+    let row = rows
+        .iter()
+        .find(|row| row.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing part is in the sweep");
+    let PartOutcome::Failed { schema, report } = &row.outcome else {
+        panic!(
+            "a stray xdr:col must fail against dml-spreadsheetDrawing.xsd; it reported: {}",
+            row.outcome.describe()
+        );
+    };
+    assert_eq!(*schema, "dml-spreadsheetDrawing.xsd");
+    assert!(
+        report.contains("/xl/drawings/drawing1.xml"),
+        "the failure must name the part:\n{report}"
+    );
+    assert!(
+        report.contains("col"),
+        "the failure must name the element that broke the sequence:\n{report}"
+    );
+
+    // The discriminating half: only that part broke. The worksheet beside it is still valid, so this
+    // case cannot pass because the corruption happened to break everything.
+    let worksheet = rows
+        .iter()
+        .find(|row| row.name == "/xl/worksheets/sheet1.xml")
+        .expect("the worksheet is in the sweep");
+    assert!(
+        matches!(worksheet.outcome, PartOutcome::Validated("sml.xsd")),
+        "/xl/worksheets/sheet1.xml must be unaffected; it reported: {}",
+        worksheet.outcome.describe()
+    );
+    println!("the xdr arm, proved live:\n{report}");
+}
+
+#[test]
+fn the_generated_xdr_table_is_what_puts_the_drawing_part_under_the_ordering_gate() {
+    // The **second** half of the gate, and the one a schema arm alone leaves open: a table nothing
+    // reads passes every test there is. Asserted from both ends — the category table says the part
+    // is *required* to be audited (which reads `OrderingCoverage::Generated`, itself checked against
+    // the real tables by `the_ordering_gaps_are_exactly_the_declared_ones`), and the walk says it
+    // *was*, having descended into real structure rather than recognising a root and none of its
+    // children.
+    //
+    // Drop `"dml-spreadsheetDrawing"` from `CHILD_ORDER_SCHEMAS` and both halves go red here, on top
+    // of the two reconciliation cases in `mjx-schema-gate` and the hard codegen error the
+    // `TWO_CELL_ANCHOR` export raises.
+    let package = Package::open(&fixture("worksheet_drawings.xlsx")).expect("open");
+    let saved = package.save().expect("save");
+
+    let required = mjx_schema_gate::parts_that_must_be_audited("worksheet_drawings.xlsx", &saved);
+    assert!(
+        required
+            .iter()
+            .any(|name| name == "/xl/drawings/drawing1.xml"),
+        "the drawing is rooted in SpreadsheetDrawingML, so the category table must require it to be \
+         audited; it required {required:?}"
+    );
+
+    let audited = mjx_schema_gate::audit_deck_order("worksheet_drawings.xlsx", &saved);
+    let entry = audited
+        .iter()
+        .find(|entry| entry.name == "/xl/drawings/drawing1.xml")
+        .expect("the drawing was required but the ordering walk did not audit it");
+    println!(
+        "/xl/drawings/drawing1.xml — elements_visited = {}, root_child_elements = {}, floor = {}",
+        entry.elements_visited,
+        entry.root_child_elements,
+        entry.floor()
+    );
+    assert!(
+        entry.elements_visited >= mjx_schema_gate::MINIMUM_ELEMENTS_VISITED,
+        "the drawing part visited only {} element(s); the tables knew its root and recognised none \
+         of its children, which is a vacuous audit",
+        entry.elements_visited
+    );
+    assert!(
+        entry.elements_visited > entry.floor(),
+        "elements_visited {} is not past the floor {}",
+        entry.elements_visited,
+        entry.floor()
+    );
+}
+
+#[test]
+fn an_out_of_sequence_anchor_child_turns_the_ordering_audit_red() {
+    // The ordering table made load-bearing, not decorative. `CT_TwoCellAnchor`'s sequence is `from`,
+    // `to`, the object, then `clientData`; this moves `clientData` to the front, which no schema
+    // *validator* would be needed to catch — the audit alone must.
+    let mut package = Package::open(&fixture("worksheet_drawings.xlsx")).expect("open");
+    let part = PartName::new("/xl/drawings/drawing1.xml").expect("a valid part name");
+    {
+        let RawDocument { interner, root, .. } =
+            package.part_tree_mut(&part).expect("edit the drawing");
+        let anchor = root
+            .children
+            .iter_mut()
+            .find_map(|node| match node {
+                RawNode::Element(child)
+                    if interner.resolve(child.name.local) == "twoCellAnchor" =>
+                {
+                    Some(child)
+                }
+                _ => None,
+            })
+            .expect("the fixture has an xdr:twoCellAnchor");
+        let at = anchor
+            .children
+            .iter()
+            .position(|node| match node {
+                RawNode::Element(child) => interner.resolve(child.name.local) == "clientData",
+                _ => false,
+            })
+            .expect("the anchor has an xdr:clientData");
+        let client_data = anchor.children.remove(at);
+        anchor.children.insert(0, client_data);
+    }
+    let saved = package.save().expect("save the reordered drawing");
+
+    // `audit_deck_order` panics on a defect, so the red is caught and read rather than asserted
+    // around. The default hook is silenced first: this panic is the expected result, and letting it
+    // print would make a passing run look like a failing one.
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let outcome =
+        std::panic::catch_unwind(|| mjx_schema_gate::audit_deck_order("reordered drawing", &saved));
+    std::panic::set_hook(previous);
+
+    let payload = outcome.expect_err("an out-of-sequence anchor child must turn the audit red");
+    let message = payload
+        .downcast_ref::<String>()
+        .map(String::as_str)
+        .or_else(|| payload.downcast_ref::<&str>().copied())
+        .unwrap_or("<non-string panic>")
+        .to_owned();
+    assert!(
+        message.contains("/xl/drawings/drawing1.xml"),
+        "the audit must name the part: {message}"
+    );
+    assert!(
+        message.contains("CT_TwoCellAnchor") && message.contains("clientData"),
+        "the audit must name the type whose sequence was broken and the child that broke it: \
+         {message}"
+    );
+    println!("the xdr ordering table, proved load-bearing:\n{message}");
 }

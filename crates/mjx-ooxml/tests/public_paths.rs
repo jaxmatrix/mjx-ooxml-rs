@@ -767,7 +767,7 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
     deck.set_chart_data_labels(
         slide,
         chart.clone(),
-        ChartLabelScope::Series { series_idx: 0 },
+        ChartLabelScope::Series { series_index: 0 },
         &DataLabelSpec::new()
             .value(true)
             .position(DataLabelPosition::OutsideEnd),
@@ -780,7 +780,7 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
         .chart_data_label_tier(
             slide,
             chart.clone(),
-            ChartLabelScope::Series { series_idx: 0 }
+            ChartLabelScope::Series { series_index: 0 }
         )
         .expect("reading")
         .is_some());
@@ -790,14 +790,14 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
     deck.suppress_chart_data_labels(
         slide,
         chart.clone(),
-        ChartLabelScope::Series { series_idx: 0 },
+        ChartLabelScope::Series { series_index: 0 },
     )
     .expect("suppressing the labels");
     assert!(deck
         .remove_chart_data_labels(
             slide,
             chart.clone(),
-            ChartLabelScope::Series { series_idx: 0 }
+            ChartLabelScope::Series { series_index: 0 }
         )
         .expect("removing them"));
     deck.set_chart_point_fill(slide, chart.clone(), 0, 1, &FillSpec::solid(navy()))

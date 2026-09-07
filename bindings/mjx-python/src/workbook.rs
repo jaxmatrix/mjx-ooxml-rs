@@ -41,15 +41,25 @@ use pyo3::types::{PyBytes, PyModule};
 
 use mjx_ooxml as ooxml;
 
-use crate::enums::{CellFormatTarget, DateSystem, TableStyleOrigin};
+use crate::charts::{
+    ChartAxisData, ChartData, ChartErrorBarData, ChartLabelScope, ChartLegendData,
+    ChartPointFormatData, ChartRangeSeries, ChartSeriesData, ChartSeriesFreshnessInfo,
+    ChartSeriesReferences, ChartTrendlineData, DanglingPointReference, DataLabelSettings,
+    DataLabelSpec, ErrorBarSpec, ResolvedRangeInfo, SheetChartWorkbookInfo, TrendlineSpec,
+};
+use crate::enums::{
+    AxisOrientation, CellFormatTarget, ChartKind, DateSystem, LegendPosition, ResizingBehavior,
+    TableStyleOrigin,
+};
 use crate::errors::to_py_err;
 use crate::format::Format;
+use crate::paint::{FillSpec, LineSpec};
 use crate::spreadsheet::{
-    BorderSpec, CalculationSettings, CellBlock, CellFormatSpec, CellWrite, DefinedName,
-    EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec, PreservedPartsSummary,
-    SheetHyperlinkInfo, SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableInfo,
-    WorkbookConnectionInfo, WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo,
-    WorkbookXmlMapsInfo,
+    AnchorBoundsInfo, AnchorShiftInfo, BorderSpec, CalculationSettings, CellBlock, CellFormatSpec,
+    CellWrite, DefinedName, EffectiveCellFormat, FontProperties, GridAnomalyInfo, PatternFillSpec,
+    PreservedPartsSummary, SheetCommentInfo, SheetDrawingInfo, SheetHyperlinkInfo,
+    SheetPivotTableInfo, SheetQueryTableInfo, SheetSummary, SheetTableInfo, WorkbookConnectionInfo,
+    WorkbookExternalLinkInfo, WorkbookRevisionState, WorkbookWindowInfo, WorkbookXmlMapsInfo,
 };
 
 /// An open Excel workbook.
@@ -410,6 +420,243 @@ impl Workbook {
             .map_err(to_py_err)
     }
 
+    // --- cell comments ----------------------------------------------------------------------------
+
+    /// Every comment on one sheet, in the order the comments part lists them.
+    fn sheet_comments(&self, sheet: u32) -> PyResult<Vec<SheetCommentInfo>> {
+        self.inner
+            .sheet_comments(sheet)
+            .map(|comments| comments.into_iter().map(SheetCommentInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// The comment attached to `reference`, or `None`.
+    fn cell_comment(&self, sheet: u32, reference: &str) -> PyResult<Option<SheetCommentInfo>> {
+        self.inner
+            .cell_comment(sheet, reference)
+            .map(|comment| comment.map(SheetCommentInfo))
+            .map_err(to_py_err)
+    }
+
+    /// Attaches a comment to `reference`, writing both halves, and answers its shape identifier.
+    fn add_cell_comment(
+        &mut self,
+        sheet: u32,
+        reference: &str,
+        author: &str,
+        text: &str,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_cell_comment(sheet, reference, author, text)
+            .map_err(to_py_err)
+    }
+
+    /// Replaces the text of the comment on `reference`, leaving its box as it was.
+    fn set_cell_comment_text(&mut self, sheet: u32, reference: &str, text: &str) -> PyResult<bool> {
+        self.inner
+            .set_cell_comment_text(sheet, reference, text)
+            .map_err(to_py_err)
+    }
+
+    /// Removes the comment on `reference` — both halves.
+    fn remove_cell_comment(&mut self, sheet: u32, reference: &str) -> PyResult<bool> {
+        self.inner
+            .remove_cell_comment(sheet, reference)
+            .map_err(to_py_err)
+    }
+
+    /// The `@id` of the legacy VML shape an OLE object on a sheet is drawn as, or `None`.
+    fn vml_shape_id_for_ole_object(&self, sheet: u32, object: u32) -> PyResult<Option<String>> {
+        self.inner
+            .vml_shape_id_for_ole_object(sheet, object)
+            .map_err(to_py_err)
+    }
+
+    /// The `@id` of the legacy VML shape a form control on a sheet is drawn as, or `None`.
+    fn vml_shape_id_for_form_control(&self, sheet: u32, control: u32) -> PyResult<Option<String>> {
+        self.inner
+            .vml_shape_id_for_form_control(sheet, control)
+            .map_err(to_py_err)
+    }
+
+    /// The verbatim bytes of the legacy VML drawing part behind one sheet, or `None`.
+    fn sheet_vml_part_bytes(&self, sheet: u32) -> PyResult<Option<Vec<u8>>> {
+        self.inner.sheet_vml_part_bytes(sheet).map_err(to_py_err)
+    }
+
+    // --- drawings ---------------------------------------------------------------------------------
+
+    /// The drawing part behind one sheet, and everything anchored in it.
+    fn sheet_drawing(&self, sheet: u32) -> PyResult<Option<SheetDrawingInfo>> {
+        self.inner
+            .sheet_drawing(sheet)
+            .map(|drawing| drawing.map(SheetDrawingInfo))
+            .map_err(to_py_err)
+    }
+
+    /// Where the anchor at `anchor` puts its object, in EMU. `7.0` and `96.0` are ECMA-376's own
+    /// worked example, for 11-point Calibri.
+    fn sheet_anchor_bounds(
+        &self,
+        sheet: u32,
+        anchor: u32,
+        maximum_digit_width_pixels: f64,
+        pixels_per_inch: f64,
+    ) -> PyResult<Option<AnchorBoundsInfo>> {
+        self.inner
+            .sheet_anchor_bounds(sheet, anchor, maximum_digit_width_pixels, pixels_per_inch)
+            .map(|bounds| bounds.map(AnchorBoundsInfo))
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a picture between two cells, and answers its position in the paint order.
+    #[allow(clippy::too_many_arguments)]
+    fn add_two_cell_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        from_column: u32,
+        from_column_offset_emu: i64,
+        from_row: u32,
+        from_row_offset_emu: i64,
+        to_column: u32,
+        to_column_offset_emu: i64,
+        to_row: u32,
+        to_row_offset_emu: i64,
+        resizing: ResizingBehavior,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_two_cell_anchored_picture(
+                sheet,
+                &image_bytes,
+                name,
+                from_column,
+                from_column_offset_emu,
+                from_row,
+                from_row_offset_emu,
+                to_column,
+                to_column_offset_emu,
+                to_row,
+                to_row_offset_emu,
+                resizing.into(),
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a picture to one cell, at its own size.
+    #[allow(clippy::too_many_arguments)]
+    fn add_one_cell_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        from_column: u32,
+        from_column_offset_emu: i64,
+        from_row: u32,
+        from_row_offset_emu: i64,
+        width_emu: i64,
+        height_emu: i64,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_one_cell_anchored_picture(
+                sheet,
+                &image_bytes,
+                name,
+                from_column,
+                from_column_offset_emu,
+                from_row,
+                from_row_offset_emu,
+                width_emu,
+                height_emu,
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a picture to the sheet, at an absolute position and size in EMU.
+    #[allow(clippy::too_many_arguments)]
+    fn add_absolute_anchored_picture(
+        &mut self,
+        sheet: u32,
+        image_bytes: Vec<u8>,
+        name: &str,
+        x_emu: i64,
+        y_emu: i64,
+        width_emu: i64,
+        height_emu: i64,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_absolute_anchored_picture(
+                sheet,
+                &image_bytes,
+                name,
+                x_emu,
+                y_emu,
+                width_emu,
+                height_emu,
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Removes one anchored object from a sheet, reporting whether there was one.
+    fn remove_sheet_drawing_object(&mut self, sheet: u32, anchor: u32) -> PyResult<bool> {
+        self.inner
+            .remove_sheet_drawing_object(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `rows` inserted at the zero-based `at`.
+    fn insert_rows_into_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        rows: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .insert_rows_into_drawing(sheet, at, rows)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `rows` removed at the zero-based `at`.
+    fn remove_rows_from_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        rows: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .remove_rows_from_drawing(sheet, at, rows)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `columns` inserted at the zero-based `at`.
+    fn insert_columns_into_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        columns: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .insert_columns_into_drawing(sheet, at, columns)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
+    /// Moves every anchor on a sheet for `columns` removed at the zero-based `at`.
+    fn remove_columns_from_drawing(
+        &mut self,
+        sheet: u32,
+        at: u32,
+        columns: u32,
+    ) -> PyResult<Vec<AnchorShiftInfo>> {
+        self.inner
+            .remove_columns_from_drawing(sheet, at, columns)
+            .map(|report| report.into_iter().map(AnchorShiftInfo).collect())
+            .map_err(to_py_err)
+    }
+
     // --- tables -----------------------------------------------------------------------------------
 
     /// Every table on one sheet.
@@ -600,6 +847,665 @@ impl Workbook {
         self.inner
             .part_bytes(part)
             .map(|bytes| PyBytes::new(python, &bytes))
+            .map_err(to_py_err)
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Charts (MJXOFF-111)
+    // -----------------------------------------------------------------------------------------
+
+    /// The index of every anchor on `sheet` that frames a chart, in paint order.
+    fn chart_anchor_indices(&mut self, sheet: u32) -> PyResult<Vec<u32>> {
+        self.inner.chart_anchor_indices(sheet).map_err(to_py_err)
+    }
+
+    /// The relationship id the anchor names as its chart part, or `None` when it frames no chart.
+    fn chart_rel_id(&mut self, sheet: u32, anchor: u32) -> PyResult<Option<String>> {
+        self.inner.chart_rel_id(sheet, anchor).map_err(to_py_err)
+    }
+
+    /// The raw XML of the chart part the anchor frames, or `None` when it frames no chart.
+    fn chart_part_bytes<'py>(
+        &mut self,
+        py: Python<'py>,
+        sheet: u32,
+        anchor: u32,
+    ) -> PyResult<Option<Bound<'py, PyBytes>>> {
+        let bytes = self
+            .inner
+            .chart_part_bytes(sheet, anchor)
+            .map_err(to_py_err)?;
+        Ok(bytes.map(|bytes| PyBytes::new(py, &bytes)))
+    }
+
+    /// Anchors `chart` between two cells, with the embedded workbook Office's *Edit Data* opens.
+    /// Answers its position in the paint order.
+    #[allow(clippy::too_many_arguments)]
+    fn add_chart(
+        &mut self,
+        sheet: u32,
+        chart: &ChartData,
+        from_column: u32,
+        from_row: u32,
+        to_column: u32,
+        to_row: u32,
+        name: &str,
+        resizing: ResizingBehavior,
+    ) -> PyResult<u32> {
+        self.inner
+            .add_chart(
+                sheet,
+                &chart.0,
+                from_column,
+                from_row,
+                to_column,
+                to_row,
+                name,
+                resizing.into(),
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Anchors a chart taking its data from cells in this workbook — no embedded copy at all.
+    /// Answers its position in the paint order.
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (sheet, kind, categories, series, from_column, from_row, to_column, to_row, name, resizing))]
+    fn add_range_chart(
+        &mut self,
+        sheet: u32,
+        kind: ChartKind,
+        categories: Option<String>,
+        series: Vec<ChartRangeSeries>,
+        from_column: u32,
+        from_row: u32,
+        to_column: u32,
+        to_row: u32,
+        name: &str,
+        resizing: ResizingBehavior,
+    ) -> PyResult<u32> {
+        let series: Vec<ooxml::ChartRangeSeries> =
+            series.into_iter().map(|entry| entry.0).collect();
+        self.inner
+            .add_range_chart(
+                sheet,
+                kind.into(),
+                categories.as_deref(),
+                &series,
+                from_column,
+                from_row,
+                to_column,
+                to_row,
+                name,
+                resizing.into(),
+            )
+            .map_err(to_py_err)
+    }
+
+    /// Every chart in the workbook that references a backing workbook. A chart whose data is a
+    /// live range has none, and is absent from this list.
+    fn chart_workbooks(&mut self) -> PyResult<Vec<SheetChartWorkbookInfo>> {
+        Ok(self
+            .inner
+            .chart_workbooks()
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(SheetChartWorkbookInfo)
+            .collect())
+    }
+
+    /// Rewrites the embedded workbook of the chart. Answers `False` — changing nothing — when there
+    /// is none, which is the ordinary state of a chart on a sheet.
+    fn refresh_chart_workbook(&mut self, sheet: u32, anchor: u32) -> PyResult<bool> {
+        self.inner
+            .refresh_chart_workbook(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
+    /// Detaches the backing workbook, leaving the chart to render from its cached values. The
+    /// workbook part goes with it unless another chart still names it.
+    fn detach_chart_workbook(&mut self, sheet: u32, anchor: u32) -> PyResult<()> {
+        self.inner
+            .detach_chart_workbook(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
+    /// Where every series says its data lives — the formula beside each cache, as written.
+    fn chart_series_references(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> PyResult<Vec<ChartSeriesReferences>> {
+        Ok(self
+            .inner
+            .chart_series_references(sheet, anchor)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesReferences)
+            .collect())
+    }
+
+    /// Every series of the chart, read from the cells its formulas name rather than from its
+    /// caches.
+    fn chart_series_from_cells(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> PyResult<Vec<ChartSeriesData>> {
+        Ok(self
+            .inner
+            .chart_series_from_cells(sheet, anchor)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesData)
+            .collect())
+    }
+
+    /// Every series' cache set beside what its cells say, with each named. The cache is what draws
+    /// until a consumer recalculates; neither is silently preferred.
+    fn chart_series_freshness(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+    ) -> PyResult<Vec<ChartSeriesFreshnessInfo>> {
+        Ok(self
+            .inner
+            .chart_series_freshness(sheet, anchor)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesFreshnessInfo)
+            .collect())
+    }
+
+    /// Rewrites the chart's caches from the cells its formulas name, answering how many series
+    /// changed. The opt-in repair — writing a cell never does this for you.
+    fn refresh_chart_cache_from_cells(&mut self, sheet: u32, anchor: u32) -> PyResult<u32> {
+        self.inner
+            .refresh_chart_cache_from_cells(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
+    /// Resolves a reference — a chart's formula, a defined name — against this workbook's cells,
+    /// with `sheet` as the tab an area that names none means.
+    fn resolve_range_reference(
+        &mut self,
+        sheet: u32,
+        reference: &str,
+    ) -> PyResult<ResolvedRangeInfo> {
+        self.inner
+            .resolve_range_reference(sheet, reference)
+            .map(ResolvedRangeInfo)
+            .map_err(to_py_err)
+    }
+
+    /// The series of the chart, from its caches.
+    fn chart_series(&mut self, sheet: u32, anchor: u32) -> PyResult<Vec<ChartSeriesData>> {
+        Ok(self
+            .inner
+            .chart_series(sheet, anchor)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartSeriesData)
+            .collect())
+    }
+
+    /// The kind of every plot the chart draws, in document order.
+    fn chart_kinds(&mut self, sheet: u32, anchor: u32) -> PyResult<Vec<ChartKind>> {
+        self.inner
+            .chart_kinds(sheet, anchor)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartKind::from_model)
+            .collect()
+    }
+
+    /// The axes of the chart, in document order.
+    fn chart_axes(&mut self, sheet: u32, anchor: u32) -> PyResult<Vec<ChartAxisData>> {
+        Ok(self
+            .inner
+            .chart_axes(sheet, anchor)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartAxisData)
+            .collect())
+    }
+
+    /// The heading of the chart, or `None` when it has none.
+    fn chart_title(&mut self, sheet: u32, anchor: u32) -> PyResult<Option<String>> {
+        self.inner.chart_title(sheet, anchor).map_err(to_py_err)
+    }
+
+    /// The legend of the chart, or `None` when it has none.
+    fn chart_legend(&mut self, sheet: u32, anchor: u32) -> PyResult<Option<ChartLegendData>> {
+        Ok(self
+            .inner
+            .chart_legend(sheet, anchor)
+            .map_err(to_py_err)?
+            .map(ChartLegendData))
+    }
+
+    /// The built-in style id the chart names, or `None`.
+    fn chart_style_id(&mut self, sheet: u32, anchor: u32) -> PyResult<Option<u32>> {
+        self.inner.chart_style_id(sheet, anchor).map_err(to_py_err)
+    }
+
+    /// The fill of series `series_idx`, or `None` when it takes its colour from the chart style.
+    fn chart_series_fill(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<Option<FillSpec>> {
+        Ok(self
+            .inner
+            .chart_series_fill(sheet, anchor, series_idx)
+            .map_err(to_py_err)?
+            .map(FillSpec))
+    }
+
+    /// The data-label settings in force for one point of series `series_idx`.
+    #[pyo3(signature = (sheet, anchor, series_idx, point_idx=None))]
+    fn chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: Option<u32>,
+    ) -> PyResult<DataLabelSettings> {
+        self.inner
+            .chart_data_labels(sheet, anchor, series_idx, point_idx)
+            .map_err(to_py_err)
+            .map(DataLabelSettings)
+    }
+
+    /// The data-label settings one tier states in its own right.
+    fn chart_data_label_tier(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+    ) -> PyResult<Option<DataLabelSettings>> {
+        Ok(self
+            .inner
+            .chart_data_label_tier(sheet, anchor, scope.0)
+            .map_err(to_py_err)?
+            .map(DataLabelSettings))
+    }
+
+    /// The words one point's label shows in place of its value, or `None`.
+    fn chart_point_label_text(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+    ) -> PyResult<Option<String>> {
+        self.inner
+            .chart_point_label_text(sheet, anchor, series_idx, point_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Every point of series `series_idx` that carries its own formatting.
+    fn chart_point_formats(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<ChartPointFormatData>> {
+        Ok(self
+            .inner
+            .chart_point_formats(sheet, anchor, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartPointFormatData)
+            .collect())
+    }
+
+    /// Every trendline fitted through series `series_idx`.
+    fn chart_trendlines(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<ChartTrendlineData>> {
+        Ok(self
+            .inner
+            .chart_trendlines(sheet, anchor, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartTrendlineData)
+            .collect())
+    }
+
+    /// Every set of error bars series `series_idx` carries.
+    fn chart_error_bars(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<ChartErrorBarData>> {
+        Ok(self
+            .inner
+            .chart_error_bars(sheet, anchor, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(ChartErrorBarData)
+            .collect())
+    }
+
+    /// Every decoration of series `series_idx` naming a point the series no longer has.
+    fn chart_dangling_decoration(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<Vec<DanglingPointReference>> {
+        Ok(self
+            .inner
+            .chart_dangling_decoration(sheet, anchor, series_idx)
+            .map_err(to_py_err)?
+            .into_iter()
+            .map(DanglingPointReference)
+            .collect())
+    }
+
+    /// Rewrites the values of series `series_idx`, refreshing the embedded workbook in the same
+    /// call.
+    fn set_chart_series_values(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        values: Vec<f64>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_series_values(sheet, anchor, series_idx, &values)
+            .map_err(to_py_err)
+    }
+
+    /// Rewrites the category labels of series `series_idx`, refreshing the workbook alongside.
+    fn set_chart_series_categories(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        labels: Vec<String>,
+    ) -> PyResult<()> {
+        let labels: Vec<&str> = labels.iter().map(String::as_str).collect();
+        self.inner
+            .set_chart_series_categories(sheet, anchor, series_idx, &labels)
+            .map_err(to_py_err)
+    }
+
+    /// Sets or clears the explicit bounds of axis `axis_idx`.
+    #[pyo3(signature = (sheet, anchor, axis_idx, minimum=None, maximum=None))]
+    fn set_chart_axis_scale(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        minimum: Option<f64>,
+        maximum: Option<f64>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_scale(sheet, anchor, axis_idx, minimum, maximum)
+            .map_err(to_py_err)
+    }
+
+    /// Sets the direction of axis `axis_idx`.
+    fn set_chart_axis_orientation(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        orientation: AxisOrientation,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_orientation(sheet, anchor, axis_idx, orientation.into())
+            .map_err(to_py_err)
+    }
+
+    /// Sets or removes the title of axis `axis_idx`.
+    #[pyo3(signature = (sheet, anchor, axis_idx, text=None))]
+    fn set_chart_axis_title(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        text: Option<&str>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_title(sheet, anchor, axis_idx, text)
+            .map_err(to_py_err)
+    }
+
+    /// Turns the gridlines of axis `axis_idx` on or off.
+    fn set_chart_axis_gridlines(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        axis_idx: u32,
+        major: bool,
+        minor: bool,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_axis_gridlines(sheet, anchor, axis_idx, major, minor)
+            .map_err(to_py_err)
+    }
+
+    /// Sets or removes the chart's heading.
+    #[pyo3(signature = (sheet, anchor, text=None))]
+    fn set_chart_title(&mut self, sheet: u32, anchor: u32, text: Option<&str>) -> PyResult<()> {
+        self.inner
+            .set_chart_title(sheet, anchor, text)
+            .map_err(to_py_err)
+    }
+
+    /// Places the chart's legend at `position`, or removes it.
+    #[pyo3(signature = (sheet, anchor, position=None))]
+    fn set_chart_legend(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        position: Option<LegendPosition>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_legend(sheet, anchor, position.map(Into::into))
+            .map_err(to_py_err)
+    }
+
+    /// Sets the fill of series `series_idx`.
+    fn set_chart_series_fill(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        fill: &FillSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_series_fill(sheet, anchor, series_idx, &fill.0)
+            .map_err(to_py_err)
+    }
+
+    /// Sets the outline of series `series_idx`.
+    fn set_chart_series_line(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        line: &LineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_series_line(sheet, anchor, series_idx, &line.0)
+            .map_err(to_py_err)
+    }
+
+    /// Applies `spec` at one tier of the chart's data labels.
+    fn set_chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+        spec: &DataLabelSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_data_labels(sheet, anchor, scope.0, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Suppresses the labels at one tier.
+    fn suppress_chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+    ) -> PyResult<()> {
+        self.inner
+            .suppress_chart_data_labels(sheet, anchor, scope.0)
+            .map_err(to_py_err)
+    }
+
+    /// Removes the labels at one tier entirely. Answers whether one was there.
+    fn remove_chart_data_labels(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        scope: &ChartLabelScope,
+    ) -> PyResult<bool> {
+        self.inner
+            .remove_chart_data_labels(sheet, anchor, scope.0)
+            .map_err(to_py_err)
+    }
+
+    /// Colours point `point_idx` of series `series_idx` differently from the rest of its series.
+    fn set_chart_point_fill(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+        fill: &FillSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_point_fill(sheet, anchor, series_idx, point_idx, &fill.0)
+            .map_err(to_py_err)
+    }
+
+    /// Outlines point `point_idx` of series `series_idx` differently from the rest of its series.
+    fn set_chart_point_line(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+        line: &LineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_point_line(sheet, anchor, series_idx, point_idx, &line.0)
+            .map_err(to_py_err)
+    }
+
+    /// Pulls slice `point_idx` of series `series_idx` out of its pie or doughnut, or puts it back.
+    #[pyo3(signature = (sheet, anchor, series_idx, point_idx, percent=None))]
+    fn set_chart_point_explosion(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+        percent: Option<u32>,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_point_explosion(sheet, anchor, series_idx, point_idx, percent)
+            .map_err(to_py_err)
+    }
+
+    /// Removes the formatting of point `point_idx` of series `series_idx`.
+    fn remove_chart_point_format(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        point_idx: u32,
+    ) -> PyResult<bool> {
+        self.inner
+            .remove_chart_point_format(sheet, anchor, series_idx, point_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Fits a trendline through series `series_idx`, appending to any it already carries.
+    fn add_chart_trendline(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        spec: &TrendlineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .add_chart_trendline(sheet, anchor, series_idx, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Rewrites trendline `trendline_idx` of series `series_idx` from `spec`, in place.
+    fn set_chart_trendline(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        trendline_idx: u32,
+        spec: &TrendlineSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_trendline(sheet, anchor, series_idx, trendline_idx, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Removes every trendline from series `series_idx`, answering how many went.
+    fn remove_chart_trendlines(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<u32> {
+        self.inner
+            .remove_chart_trendlines(sheet, anchor, series_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Gives series `series_idx` error bars, replacing an existing set along the same axis.
+    fn set_chart_error_bars(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+        spec: &ErrorBarSpec,
+    ) -> PyResult<()> {
+        self.inner
+            .set_chart_error_bars(sheet, anchor, series_idx, &spec.0)
+            .map_err(to_py_err)
+    }
+
+    /// Removes every set of error bars from series `series_idx`, answering how many went.
+    fn remove_chart_error_bars(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<u32> {
+        self.inner
+            .remove_chart_error_bars(sheet, anchor, series_idx)
+            .map_err(to_py_err)
+    }
+
+    /// Removes every decoration of series `series_idx` past the end of its data, answering how many
+    /// went.
+    fn drop_chart_dangling_decoration(
+        &mut self,
+        sheet: u32,
+        anchor: u32,
+        series_idx: u32,
+    ) -> PyResult<u32> {
+        self.inner
+            .drop_chart_dangling_decoration(sheet, anchor, series_idx)
             .map_err(to_py_err)
     }
 

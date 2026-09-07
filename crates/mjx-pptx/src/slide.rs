@@ -310,7 +310,12 @@ pub(crate) fn shape_txbody<'a>(
 pub(crate) const TABLE_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/table";
 
 /// The `a:graphicData@uri` of a frame holding a chart.
-pub(crate) const CHART_GRAPHIC_URI: &str = "http://schemas.openxmlformats.org/drawingml/2006/chart";
+///
+/// Restated from `mjx-dml` rather than spelled a second time: MJXOFF-103 moved the constant down to
+/// the crate that owns `a:graphicData`, because Word places a chart behind the same URI and two
+/// string literals of the same URI in two format crates is one typo away from a frame nobody
+/// recognises.
+pub(crate) const CHART_GRAPHIC_URI: &str = mjx_dml::CHART_GRAPHIC_URI;
 
 /// The `a:graphicData@uri` of a frame holding a SmartArt diagram.
 pub(crate) const DIAGRAM_GRAPHIC_URI: &str =
@@ -1182,7 +1187,7 @@ pub struct PlaceholderInfo {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeInfo {
     /// The shape's address on the surface's top-level index space.
-    pub index: usize,
+    pub index: u32,
     /// What kind of shape it is.
     pub kind: ShapeKind,
     /// The placeholder slot the shape fills, or `None` if it is not a placeholder.

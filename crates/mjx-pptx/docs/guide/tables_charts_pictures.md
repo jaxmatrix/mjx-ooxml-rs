@@ -260,7 +260,7 @@ use mjx_pptx::{ChartLabelScope, DataLabelPosition, DataLabelSpec};
 deck.set_chart_data_labels(
     0,
     3,
-    ChartLabelScope::Plot { plot_idx: 0 },
+    ChartLabelScope::Plot { plot_index: 0 },
     &DataLabelSpec::new()
         .value(true)
         .position(DataLabelPosition::OutsideEnd)
@@ -271,7 +271,7 @@ deck.set_chart_data_labels(
 deck.set_chart_data_labels(
     0,
     3,
-    ChartLabelScope::Series { series_idx: 1 },
+    ChartLabelScope::Series { series_index: 1 },
     &DataLabelSpec::new().value(false).percentage(true),
 )?;
 
@@ -279,7 +279,7 @@ deck.set_chart_data_labels(
 deck.suppress_chart_data_labels(
     0,
     3,
-    ChartLabelScope::Point { series_idx: 1, point_idx: 2 },
+    ChartLabelScope::Point { series_index: 1, point_index: 2 },
 )?;
 
 // What is actually in force for one point, merged across all three tiers.

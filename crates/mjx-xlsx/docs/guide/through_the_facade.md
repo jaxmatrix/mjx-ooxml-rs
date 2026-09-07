@@ -30,11 +30,22 @@ The facade is this crate's surface with its Rust ergonomics traded for portabili
 | [`PartName`] | `&str` | a validated handle cannot cross the boundary and come back |
 | `impl FnOnce(&T, &Interner) -> R` | a concrete return type | neither PyO3 nor wasm-bindgen can accept a Rust closure |
 | [`XlsxError`] | `mjx_ooxml::Error` | eleven variants, and the forty-two below them, collapse to eleven stable codes |
+| [`mjx_dml::spreadsheet_drawing::CellMarker`], [`mjx_dml::Size`], [`mjx_dml::Position`] | four, two and two plain numbers | a marker is `(column, offset, row, offset)`; wrapping it in a class buys nothing a binding caller wants |
+| [`mjx_sml::ColumnMetrics`] | two `f64` arguments | likewise — it is a font measurement, not a handle |
 
 Everything else is the same call with the same name. `sheets`, `add_sheet`, `rename_sheet`,
 `merged_ranges`, `merge_cells`, `append_font`, `set_cell_style`, `effective_cell_format`,
-`sheet_hyperlinks`, `sheet_tables`, `defined_names`, `preserved_parts` — all of them are there,
-spelled identically in Rust and Python and in `camelCase` in TypeScript.
+`sheet_hyperlinks`, `sheet_tables`, `sheet_drawing`, `sheet_anchor_bounds`,
+`add_two_cell_anchored_picture`, `insert_rows_into_drawing`, `defined_names`, `preserved_parts` —
+all of them are there, spelled identically in Rust and Python and in `camelCase` in TypeScript.
+
+The whole [chart family](charts) crosses too, and it is the one place where crossing is the *point*
+rather than a courtesy: `chart_series`, `chart_series_freshness`, `add_range_chart`,
+`resolve_range_reference` and the rest are the same names a `Deck` and a `Document` carry, so a
+caller who learned charts on one surface has learned them on all three. `SheetChartSource` /
+`SheetChartSeries` become `ChartRangeSeries` on the way — a two-field description of one series
+reads better than a struct-of-vectors from Python and TypeScript — and the two cell markers become
+four plain numbers, by the row above.
 
 ## ⚠ The one place they do not agree: cells cross a **range** at a time
 
