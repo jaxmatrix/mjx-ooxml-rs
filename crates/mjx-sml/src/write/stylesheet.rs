@@ -41,10 +41,10 @@
 
 use mjx_ooxml_core::{Interner, RawDocument, ToXml};
 use mjx_ooxml_types::namespaces::SML;
-use mjx_ooxml_types::spreadsheetml::PatternType;
+use mjx_ooxml_types::spreadsheetml::{FontScheme, PatternType};
 
 use crate::error::SmlError;
-use crate::font::FontProperties;
+use crate::font::{Color, FontProperties};
 use crate::styles::{
     BorderTable, CellFormatTable, CellFormatTableKind, FillTable, Font, FontTable, NamedCellStyle,
     NamedCellStyles, StylesheetPart,
@@ -251,10 +251,20 @@ impl AuthoredStylesheet {
     /// [`STYLESHEET`](mjx_ooxml_types::child_order::STYLESHEET) table gives it — but building them
     /// in schema order keeps the reading of this function and of the file it writes the same.
     fn install_skeleton(&mut self) -> Result<(), SmlError> {
+        // Font 0 is what every cell that names no font of its own draws with, so it is the one
+        // font in the file that must *follow* the document's theme rather than pin a typeface on
+        // top of it. `<color theme="1"/>` is the theme's first text colour and
+        // `<scheme val="minor"/>` says "the theme's body font", which is what makes re-theming a
+        // workbook in Excel change the default text — exactly what Excel's own font 0 says. The
+        // literal `Calibri`/`family` stay beside them as the fallback a consumer with no theme
+        // support uses, which is also what Excel writes. `mjx_sml::write::package` puts the theme
+        // these two resolve against in every package this crate authors (MJXOFF-200).
         self.append_font(&FontProperties {
             font_name: Some("Calibri".to_owned()),
             family: Some(2),
             size_in_points: Some(11.0),
+            color: Some(Color::from_theme(1, None)),
+            scheme: Some(FontScheme::Minor),
             ..FontProperties::default()
         })?;
 
