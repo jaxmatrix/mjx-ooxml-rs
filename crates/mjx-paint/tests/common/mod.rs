@@ -797,6 +797,29 @@ pub fn one_shape_under(width: f32, height: f32, kind: EffectKind) -> DisplayList
     builder.finish().expect("the scene is well formed")
 }
 
+/// A page whose one shape is a handle **no geometry table has been supplied for**.
+///
+/// Every preset shape in this platform resolves to a stand-in today, so this is not an exotic case:
+/// it is what a real page is made of until MJXOFF-88 lands the preset table. R10's fidelity rule is
+/// that a golden image may not be taken against one, and `DrawReport::placeholders` is the number it
+/// refuses on — so **every** painter has to count it, not only the one that was written first.
+pub fn one_unresolved_shape(width: f32, height: f32) -> DisplayList {
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let geometry = builder
+        .add_geometry(&Geometry::Unresolved {
+            outline: 7,
+            bounds: SceneRect::new(width * 0.15, height * 0.15, width * 0.85, height * 0.85),
+        })
+        .expect("an unresolved shape");
+    let paint = builder
+        .add_paint(Paint::Solid(rgb(0x00, 0x80, 0x00)))
+        .expect("a paint");
+    builder
+        .push(Command::FillPath { geometry, paint })
+        .expect("a fill");
+    builder.finish().expect("the scene is well formed")
+}
+
 /// A page with one **dashed** stroke on it.
 ///
 /// A rasteriser gets its dashes from the tessellator, which cuts the path; an exporter writes a dash

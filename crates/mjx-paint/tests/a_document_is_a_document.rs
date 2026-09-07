@@ -358,6 +358,94 @@ fn a_document_painter_has_no_pixels_and_says_so() {
 }
 
 #[test]
+fn the_pdfs_blur_fallback_actually_rasterises() {
+    // **PDF has no blur operator** — no filter model in the imaging model at all — so every effect
+    // that needs one is rasterised through the software painter and embedded. That fallback is the
+    // one part of this exporter that cannot be inferred from the file's structure, and it had never
+    // executed until this case: every other PDF case in this file exports a page with no effect on
+    // it, so `SoftwarePainter::rasterise_layer` was written, reachable and unrun.
+    let list = common::one_shape_under(120.0, 100.0, mjx_scene::EffectKind::OuterShadow);
+    let mut pdf = PdfPainter::new();
+    export(&mut pdf, &list, 120, 100).expect("the page exports");
+    let bytes = pdf.document().expect("a document").to_vec();
+    let text = String::from_utf8_lossy(&bytes).into_owned();
+
+    assert!(
+        text.contains("/Subtype /Image"),
+        "a shadowed page must carry a rasterised image, because there is no operator that blurs"
+    );
+    assert!(
+        text.contains("/SMask"),
+        "and a soft mask for its alpha, or the shadow is a grey rectangle over the page"
+    );
+    // And the image is a *rendered* one rather than an empty allocation. A fallback that embedded a
+    // transparent image would satisfy both assertions above and lose the shadow entirely.
+    let mut painter = mjx_paint::SoftwarePainter::new();
+    let mut host = OffscreenSurface::new(120, 100, 1.0);
+    let mut glyphs = common::ChequeredAtlas::new();
+    let images = common::OnePicture::new();
+    let geometry = PlaceholderGeometry::new();
+    let viewport = Viewport::covering(&host);
+    let frame = painter.begin(&mut host, viewport).expect("a frame opens");
+    let mut resources = Resources::new(&mut glyphs, &geometry, &images);
+    painter
+        .draw(&frame, &list, &mut resources)
+        .expect("the page draws");
+    painter.end(frame).expect("the frame finishes");
+    let rendered = painter.read_pixels().expect("readback").expect("pixels");
+    assert!(
+        rendered.covered() > 2000,
+        "the layer this exporter rasterises has to have ink in it, and the render has {} covered \
+         pixels",
+        rendered.covered()
+    );
+    assert!(
+        bytes.len() > 20_000,
+        "an embedded 120x100 image is at least three bytes a pixel plus its mask, and this export \
+         is {} bytes — a fallback that embedded nothing would be far smaller",
+        bytes.len()
+    );
+}
+
+#[test]
+fn both_exporters_count_a_stand_in_shape_and_say_which_it_was() {
+    // **R08's hand-off 10, for the two painters that write documents.** The count is only useful if
+    // every painter reports it, and an exported document has a second obligation the rasterisers do
+    // not: the file itself has to say so, because nobody will re-run the export to find out.
+    let list = common::one_unresolved_shape(80.0, 80.0);
+
+    let mut svg = SvgPainter::new();
+    export(&mut svg, &list, 80, 80).expect("the page exports");
+    let report = svg.last_frame().expect("a report");
+    assert_eq!(
+        report.drawn.placeholders, 1,
+        "the SVG exporter must count a stand-in shape: {report:?}"
+    );
+    let document = svg.document().expect("a document").to_owned();
+    assert!(
+        document.contains("data-mjx-placeholders=\"1\""),
+        "and the document must say so at its root, so a file on somebody's disk can be told apart \
+         from a fidelity export without re-running anything"
+    );
+    assert!(
+        document.contains("data-mjx-provenance=\"placeholder\""),
+        "and name which element it was"
+    );
+    assert!(
+        document.contains("data-mjx-label=\""),
+        "with the label the provider gave it, which is what says *what* it is standing in for"
+    );
+
+    let mut pdf = PdfPainter::new();
+    export(&mut pdf, &list, 80, 80).expect("the page exports");
+    let report = pdf.last_frame().expect("a report");
+    assert_eq!(
+        report.drawn.placeholders, 1,
+        "the PDF exporter must count one too: {report:?}"
+    );
+}
+
+#[test]
 fn a_dashed_stroke_reaches_both_documents() {
     // `mjx-scene::dash_lengths` was private until MJXOFF-164, so an exporter had no way to know what
     // `lgDashDot` means and would have written a solid line. The lengths are the tessellator's own,

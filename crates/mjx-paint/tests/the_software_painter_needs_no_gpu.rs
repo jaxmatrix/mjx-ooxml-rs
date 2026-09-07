@@ -212,6 +212,42 @@ fn a_page_becomes_pixels_with_no_graphics_stack() {
 }
 
 #[test]
+fn a_stand_in_shape_is_counted_and_painted_as_a_warning() {
+    // **R08's hand-off 10, from the consumer's side.** `DrawReport::placeholders` exists so that
+    // R10 can refuse to call a render a fidelity render, and the count is only useful if *every*
+    // painter reports it — a golden image taken through a painter that could not see a stand-in is
+    // exactly the outcome the field was added to prevent, and every preset shape in this platform
+    // resolves to one today.
+    let list = common::one_unresolved_shape(WIDTH as f32, HEIGHT as f32);
+    let (pixels, drawn) = render(&list).expect("the page draws");
+    assert_eq!(
+        drawn.placeholders, 1,
+        "the software painter must count a stand-in shape: {drawn:?}"
+    );
+
+    // And it is visibly a warning rather than the green the document asked for — the same colour
+    // and the same default the GPU painter has, so the two agree on a page full of them.
+    let warning = mjx_paint::PLACEHOLDER_WARNING;
+    let mut found = false;
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            let Some(pixel) = pixels.pixel(x, y) else {
+                continue;
+            };
+            // Premultiplied, so the warning's own alpha has already been folded in.
+            if pixel[3] > 0x80 && pixel[0] > 0x80 && pixel[2] > 0x80 && pixel[1] < 0x40 {
+                found = true;
+            }
+        }
+    }
+    assert!(
+        found,
+        "no pixel of the stand-in was painted in the warning colour {warning:?}; a reviewer \
+         looking at the render would take it for the document's own shape"
+    );
+}
+
+#[test]
 fn a_shadow_lands_behind_its_shape() {
     let plain = render(&common::one_shape_under(
         WIDTH as f32,
