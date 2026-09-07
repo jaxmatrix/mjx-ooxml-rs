@@ -1,12 +1,16 @@
 //! The seam, proved by substitution: the same scene through two providers is two vertex buffers.
 //!
+//! MJX-STAND-IN: substituting the stand-in for a second provider **is** the gate this file is,
+//! so the placeholder is its subject rather than a convenience. This crate is also rank 1.7 and
+//! `mjx-geometry` is 2.5, so the real provider is an edge the layering test refuses.
+//!
 //! # Why substitution is the gate and "it tessellates" is not
 //!
-//! Real preset geometry is **not built in this loop** — it depends on context the concurrent
-//! MJXOFF-88 programme supplies — so what ships today is [`PlaceholderGeometry`] and a seam. A test
-//! that only asked *"does a shape tessellate?"* would pass for ever on a placeholder that is the
-//! same rounded rectangle every time, and would still pass on the day the real table arrived and was
-//! wired to nothing.
+//! A test that only asked *"does a shape tessellate?"* would pass for ever on a placeholder that is
+//! the same rounded rectangle every time, and would still pass on the day the real table arrived and
+//! was **wired to nothing** — which is not hypothetical: `mjx-geometry`'s preset tables landed in
+//! MJXOFF-203 and the bridge from a document's own `a:prstGeom` was still called by nothing but its
+//! own hand-off suite two children later, until MJXOFF-206 asserted it reaches a painter's report.
 //!
 //! So the claim tested here is the one that actually has to hold: **swapping the provider changes
 //! the triangles and changes nothing else.** Everything above the seam — the display list, the

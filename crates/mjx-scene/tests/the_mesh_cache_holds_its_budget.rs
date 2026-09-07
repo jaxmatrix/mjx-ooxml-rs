@@ -1,6 +1,10 @@
 //! The tessellation cache's byte budget, asserted **in both directions**, with the eviction path
 //! proved to run.
 //!
+//! MJX-STAND-IN: this crate is rank 1.7 and `mjx-geometry` is 2.5, so the real provider is an
+//! upward edge `xtask/tests/layering.rs` refuses by name. The cache is keyed on the path and the
+//! tolerance; the provider is present only because `fill` takes one.
+//!
 //! # Why this is a target of its own, with no harness
 //!
 //! A `#[global_allocator]` is installed for a whole process and `cargo test` runs a harness's cases

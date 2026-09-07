@@ -56,6 +56,15 @@
 //!
 //! # A frame, end to end
 //!
+//! **The provider below is the stand-in, and that is a property of this crate rather than advice.**
+//! A real document's shapes resolve through `mjx-geometry`'s `PresetGeometryProvider`, which this
+//! crate may not name: rank 5.5 is above its 2.5, so the edge is *legal* and
+//! `tests/the_seam_holds.rs` forbids it anyway — a painter that constructed its own preset provider
+//! would have learned what a preset shape is, which is the one thing a display list exists to spare
+//! it. **An application passes the real provider in here**, and
+//! `crates/mjx-geometry/tests/the_provider_is_wired_in.rs` is where that end of the seam is
+//! asserted.
+//!
 //! ```no_run
 //! use mjx_paint::{OffscreenSurface, Painter, Resources, Viewport, WgpuPainter};
 //! use mjx_scene::{DisplayList, PlaceholderGeometry};
@@ -69,6 +78,9 @@
 //! let mut host = OffscreenSurface::new(400, 300, 1.0);
 //! let mut glyphs = mjx_paint::NoGlyphs;
 //! let images = mjx_paint::NoImages;
+//! // An application substitutes `mjx_geometry::PresetGeometryProvider` here. The stand-in answers
+//! // every handle and draws none of the shapes, so a page rendered through it is not a fidelity
+//! // render — which is exactly what the assertion below refuses.
 //! let geometry = PlaceholderGeometry::new();
 //!
 //! let viewport = Viewport::covering(&host);
@@ -76,7 +88,10 @@
 //! let mut resources = Resources::new(&mut glyphs, &geometry, &images);
 //! let drawn = painter.draw(&frame, list, &mut resources)?;
 //! let report = painter.end(frame)?;
+//! // Zero **and** the page drew something. "No placeholders were reported" is true of a page with
+//! // no shapes on it, and of a painter that never populated the count.
 //! assert_eq!(drawn.placeholders, 0, "this page is not a fidelity render");
+//! assert!(drawn.draw_calls > 0, "nothing was drawn, so the zero above says nothing");
 //! let _ = report;
 //! # Ok(())
 //! # }

@@ -256,11 +256,19 @@ pub struct DrawReport {
     pub atlas_pages_released: usize,
     /// How many draws used **stand-in geometry** rather than the document's own shape.
     ///
-    /// The whole reason `mjx-scene` grew [`mjx_scene::SceneMesh::provenance`] in MJXOFF-163. Every
-    /// preset shape in this platform resolves to a placeholder today, and a golden-image gate that
-    /// could not see that would compare a page of framed, crossed rounded rectangles against a
-    /// golden image of the same rounded rectangles and record it as parity. **R10 must assert this
-    /// is zero before calling a render a fidelity render.**
+    /// The whole reason `mjx-scene` grew [`mjx_scene::SceneMesh::provenance`] in MJXOFF-163: a
+    /// golden-image gate that could not see a stand-in would compare a page of framed, crossed
+    /// rounded rectangles against a golden image of the same rounded rectangles and record it as
+    /// parity. **R10 must assert this is zero before calling a render a fidelity render.**
+    ///
+    /// Since MJXOFF-206 a preset shape resolves to the document's own geometry through
+    /// `mjx-geometry`'s `PresetGeometryProvider`, so this is normally zero and a non-zero value
+    /// names a real hole: a handle nobody registered, a preset ECMA-376 defines no geometry for, or
+    /// a shape whose own formulas are singular at the adjustments in force.
+    ///
+    /// **It is incremented in two places**, once under `Command::FillPath` and once under
+    /// `Command::StrokePath`, and a suite whose every stand-in is filled proves one of them. That
+    /// was true of this workspace until MJXOFF-206.
     ///
     /// It is here, on the value `draw` hands back, rather than only inside the painter, because a
     /// field the painter reads and the caller cannot act on is the same defect one layer up.

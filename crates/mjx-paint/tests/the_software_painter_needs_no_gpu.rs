@@ -1,6 +1,10 @@
 //! **A page becomes pixels on a machine with no graphics stack at all**, and every effect that page
 //! can carry lands where the effect means.
 //!
+//! MJX-STAND-IN: this crate may not name `mjx-geometry` — `tests/the_seam_holds.rs` forbids it — so
+//! the stand-in is the only `GeometryProvider` a painter's own suite can construct, and
+//! `a_stand_in_shape_is_counted_and_painted_as_a_warning` is about the stand-in itself.
+//!
 //! # Why this file may not mention `WgpuPainter`
 //!
 //! It is the headless guarantee. R10's fidelity oracle, R11's plate regression and every golden
@@ -216,13 +220,30 @@ fn a_stand_in_shape_is_counted_and_painted_as_a_warning() {
     // **R08's hand-off 10, from the consumer's side.** `DrawReport::placeholders` exists so that
     // R10 can refuse to call a render a fidelity render, and the count is only useful if *every*
     // painter reports it — a golden image taken through a painter that could not see a stand-in is
-    // exactly the outcome the field was added to prevent, and every preset shape in this platform
-    // resolves to one today.
+    // exactly the outcome the field was added to prevent.
+    //
+    // **Both command kinds, since MJXOFF-206.** The count is incremented in two places in
+    // `plan.rs`, once for a fill and once for a stroke, and until that child every stand-in in this
+    // workspace was filled: replacing the stroke increment with `std::process::abort()` left the
+    // whole of `mjx-paint`, `mjx-scene` and `mjx-geometry` green. A shape with no interior — a
+    // connector, or any of the sixty-three presets that end a contour without an `a:close` — is
+    // exactly what reaches the second line.
     let list = common::one_unresolved_shape(WIDTH as f32, HEIGHT as f32);
     let (pixels, drawn) = render(&list).expect("the page draws");
     assert_eq!(
         drawn.placeholders, 1,
-        "the software painter must count a stand-in shape: {drawn:?}"
+        "the software painter must count a filled stand-in shape: {drawn:?}"
+    );
+
+    let stroked = common::one_unresolved_stroked_shape(WIDTH as f32, HEIGHT as f32);
+    let (_, stroked_report) = render(&stroked).expect("the stroked page draws");
+    assert_eq!(
+        stroked_report.placeholders, 1,
+        "the software painter must count a *stroked* stand-in shape too: {stroked_report:?}"
+    );
+    assert_eq!(
+        stroked_report.draw_calls, 1,
+        "and the stroke really was drawn rather than skipped, which would satisfy a count of one          by never reaching the command at all: {stroked_report:?}"
     );
 
     // And it is visibly a warning rather than the green the document asked for — the same colour

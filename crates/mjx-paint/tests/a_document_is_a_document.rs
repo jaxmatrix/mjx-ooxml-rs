@@ -1,5 +1,10 @@
 //! The two exporters, checked by **readers this workspace did not write**.
 //!
+//! MJX-STAND-IN: this crate may not name `mjx-geometry` — `tests/the_seam_holds.rs` forbids it, and
+//! rank cannot, since 5.5 is above 2.5 — so the stand-in is the only `GeometryProvider` a painter's
+//! own suite can construct. The exporters' `data-mjx-provenance` and `data-mjx-placeholders`
+//! attributes are also what several cases here read, which needs a provider that makes one.
+//!
 //! # Why an independent reader and not our own
 //!
 //! MJXOFF-164 names the trap directly: *"comparing a PDF export against a raster render by
@@ -442,6 +447,39 @@ fn both_exporters_count_a_stand_in_shape_and_say_which_it_was() {
     assert_eq!(
         report.drawn.placeholders, 1,
         "the PDF exporter must count one too: {report:?}"
+    );
+
+    // **And the same page drawn as a stroke rather than as a fill.** `plan.rs` counts a stand-in in
+    // two places — `Command::FillPath` and `Command::StrokePath` — and until MJXOFF-206 every
+    // stand-in this workspace built was filled, so the second line never ran: replacing its
+    // increment with `std::process::abort()` left every suite green. An exported document has the
+    // same obligation on both, because a stroked stand-in is as wrong as a filled one and the file
+    // is what somebody reads later.
+    let stroked = common::one_unresolved_stroked_shape(80.0, 80.0);
+
+    let mut svg = SvgPainter::new();
+    export(&mut svg, &stroked, 80, 80).expect("the stroked page exports");
+    let report = svg.last_frame().expect("a report");
+    assert_eq!(
+        report.drawn.placeholders, 1,
+        "the SVG exporter must count a *stroked* stand-in: {report:?}"
+    );
+    assert_eq!(
+        report.drawn.draw_calls, 1,
+        "and it really drew the stroke: {report:?}"
+    );
+    let document = svg.document().expect("a document").to_owned();
+    assert!(
+        document.contains("data-mjx-placeholders=\"1\""),
+        "and the stroked export must say so at its root as well"
+    );
+
+    let mut pdf = PdfPainter::new();
+    export(&mut pdf, &stroked, 80, 80).expect("the stroked page exports");
+    let report = pdf.last_frame().expect("a report");
+    assert_eq!(
+        report.drawn.placeholders, 1,
+        "the PDF exporter must count a *stroked* stand-in too: {report:?}"
     );
 }
 
