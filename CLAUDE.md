@@ -124,11 +124,14 @@ Two workspace members project the facade, and neither adds behaviour: every meth
   `FillSpec`/`ColorSpec` in the *shipped* `mjx-dml`, contradicting the hand-written-de/serialization
   decision above.
 
-The acceptance test for both is the same: `crates/mjx-ooxml/examples/build_a_deck.rs` exists a second
-time as `bindings/mjx-python/tests/test_build_a_deck.py` and a third as
-`bindings/mjx-wasm/tests/node/build_a_deck.mjs`, and each compares its deck against the Rust one
-**part by part, byte for byte**. A method wired to the wrong `Deck` method changes one payload and
-fails there.
+The acceptance test for both is the same, and there are now four of it. Each of the three
+walkthroughs — `crates/mjx-ooxml/examples/build_a_deck.rs`, `build_a_document.rs`,
+`build_a_workbook.rs` — exists a second time under `bindings/mjx-python/tests/` and a third under
+`bindings/mjx-wasm/tests/node/`, and so does the whole validation catalogue
+(`xtask/src/validation/` ↔ `bindings/mjx-python/tests/test_validation_artefacts.py` ↔
+`bindings/mjx-wasm/tests/node/validation_artefacts.mjs`). Every one compares its output against the
+Rust one **part by part, byte for byte**. A method wired to the wrong `Deck` method changes one
+payload and fails there.
 
 When the facade grows a method, both bindings grow it: a binding that projects part of the surface is
 a surface two languages cannot use.
@@ -163,6 +166,13 @@ cargo test   --workspace
 cargo clippy --workspace --all-targets -- -D warnings
 cargo run -p xtask -- codegen        # regenerate mjx-ooxml-types from References/ (local only)
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
+cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
+
+# The artefacts the human Microsoft Office pass reads (MJXOFF-122). It marks nothing: see
+# docs/validation/00-method.md. Two runs are byte-identical, and the two bindings produce the same
+# set. MJX_REQUIRE_OFFICE_CORPUS=1 makes an empty tests/office-authored/ a failure rather than a skip.
+cargo run -p xtask -- validation-artefacts --list
+cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
 
 # The ECMA-376 gate, one harness over all three formats. Skips without References/; MJX_REQUIRE_SCHEMA=1
 # turns any absence into a failure, which is what CI sets.
