@@ -1,9 +1,12 @@
 //! The ECMA-376 schema and child-order gate every format crate is held to.
 //!
-//! **Test-only.** Nothing shipped depends on this crate; it is a `dev-dependency` of `mjx-pptx`,
-//! `mjx-docx` and `mjx-xlsx` and of nothing else. It exists because an integration test compiles
-//! only into its own crate, so the harness that used to live in `mjx-pptx/tests/schema_validity.rs`
-//! was unreachable from the two crates Phases C and D are about to fill.
+//! **Test-only.** Nothing shipped depends on this crate. It is a `dev-dependency` of `mjx-pptx`,
+//! `mjx-docx` and `mjx-xlsx`, and a dependency of `xtask` — the host-only developer binary nothing
+//! depends on and nothing publishes, whose `validation-artefacts --ingest` reports the same schema
+//! and child-order verdicts a suite asserts (MJXOFF-130). It exists because an integration test
+//! compiles only into its own crate, so the harness that used to live in
+//! `mjx-pptx/tests/schema_validity.rs` was unreachable from the two crates Phases C and D are about
+//! to fill.
 //!
 //! # What it asserts
 //!
@@ -54,8 +57,8 @@ pub use mjx_fixtures::{
     package_fixtures_with_extension,
 };
 pub use order::{
-    assert_deck_is_in_schema_order, audit_deck_order, parts_that_must_be_audited, AuditedPart,
-    MINIMUM_ELEMENTS_VISITED,
+    assert_deck_is_in_schema_order, audit_deck_order, audit_order_report,
+    parts_that_must_be_audited, AuditedPart, OrderAudit, MINIMUM_ELEMENTS_VISITED,
 };
 pub use sweep::{assert_authored_parts_are_categorised, Sweep};
 pub use tolerances::{tolerances_for, ToleratedDeviation, TOLERATED_DEVIATIONS};
