@@ -54,6 +54,11 @@ second half — see [`docs/validation/00-method.md`](docs/validation/00-method.m
 project has ever taken moved the patch digit; the minor and major digits are raised by hand, during
 verification, and there are no tags.
 
+**Every prose page in this repository is listed from
+[`docs/api/README.md`](docs/api/README.md)**, including the dated July-2026 hand-offs linked further
+down, and that index is machine-checked in both directions by `xtask/tests/doc_gate.rs` along with
+every file path and crate-qualified symbol the pages name.
+
 ## Phases
 
 - **Phase 0 — Skeleton + container + round-trip proof.** ✅ *done.* Workspace, CI, docs,
