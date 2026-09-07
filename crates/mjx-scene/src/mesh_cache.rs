@@ -189,8 +189,13 @@ impl MeshCache {
             self.misses += 1;
             return None;
         };
-        let previous = entry.last_used;
-        entry.last_used = clock;
+        // **One expression, not two.** The entry's clock and its key in the eviction order are two
+        // records of one fact, and writing them separately is how they come apart: an entry left at
+        // a stale clock is looked up in `order` under a key that has moved, the removal below
+        // silently finds nothing, and the entry stops being promoted on every re-use after its
+        // first. Nothing about the byte budget can see that. `mem::replace` makes the value written
+        // and the value removed provably the same one.
+        let previous = std::mem::replace(&mut entry.last_used, clock);
         let mesh = Arc::clone(&entry.mesh);
         if let Some(owned) = self.order.remove(&previous) {
             self.order.insert(clock, owned);

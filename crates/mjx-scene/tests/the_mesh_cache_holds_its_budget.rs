@@ -29,6 +29,11 @@
 //! 4. and the figure it reports is the figure the allocator actually handed out, measured
 //!    differentially against the same workload through a cache of no bytes at all.
 //!
+//! 5. every field of a stroke's key is in the key, and no two dash patterns share one — **a key
+//!    that collides hands a painter somebody else's shape**;
+//! 6. the entry evicted is the least recently **used** one, not the least recently inserted;
+//! 7. and the conservation law: everything admitted is either still held or was counted evicted.
+//!
 //! # Proved by mutation
 //!
 //! * Making `insert` admit an oversized entry (evicting until the cache is empty) → case two fails,
@@ -39,11 +44,20 @@
 //! * An `std::process::abort()` at the top of `evict_least_recently_used` aborts this binary, which
 //!   is how the eviction path was shown to execute rather than assumed to. A `panic!` there would
 //!   not have been evidence: this file's own assertions would have caught it either way.
+//! * Dropping the scale bucket from the **stroke** key, dropping the width, and collapsing two dash
+//!   tags onto one number were all green until cases seven and eight existed. The fill key had been
+//!   gated for the same thing and the stroke key had not, because every stroke case used a fresh
+//!   path or a fresh tessellator and no second ask ever reached a colliding key.
+//! * Not moving an entry in the eviction order on a hit, and refreshing its clock without moving it,
+//!   were both green until case nine used the two entries **alternately and finished on the older
+//!   one**. A queue holds a byte budget perfectly well; what it loses is the page a reader is
+//!   looking at.
 
 use std::sync::Arc;
 
 use mjx_scene::{
-    FillRule, Geometry, Mesh, PathCommand, PlaceholderGeometry, ScenePoint, SceneRect,
+    CompoundStroke, DashPattern, FillRule, Geometry, LineCap, LineJoin, Mesh, PathCommand,
+    PlaceholderGeometry, ScenePoint, SceneRect, StrokeAlignment, StrokeGeometry,
     TessellationOptions, Tessellator,
 };
 use mjx_text::ScaleBucket;
@@ -65,8 +79,11 @@ fn main() {
     the_reported_bytes_are_the_bytes_the_allocator_handed_out();
     a_second_ask_for_the_same_path_is_the_very_same_triangles();
     a_different_scale_bucket_is_a_different_entry();
+    a_stroke_at_a_different_scale_bucket_is_a_different_entry();
+    every_dash_pattern_and_every_width_is_its_own_entry();
+    the_entry_that_is_evicted_is_the_least_recently_used_one();
     clearing_forgets_the_meshes_and_keeps_the_budget();
-    println!("the mesh cache holds its budget: 7 cases passed");
+    println!("the mesh cache holds its budget: 10 cases passed");
 }
 
 // -------------------------------------------------------------------------------------------
@@ -174,6 +191,24 @@ fn the_budget_is_held_from_above_without_the_cache_emptying_itself() {
     check(
         cache.oversized() == 0,
         format!("{} entries were refused as oversized", cache.oversized()),
+    );
+
+    // **The conservation law: every mesh admitted is either still held or was counted evicted.**
+    //
+    // Nothing about the byte budget can see the cache's *internal* bookkeeping go out of step — the
+    // eviction order and each entry's own clock are two records of one fact, and desynchronising
+    // them was a green mutation under every assertion above. It shows up here, because a stale key
+    // in the eviction order drops an entry the eviction count never learns about, and the two sides
+    // of this equation stop matching.
+    let admitted = cache.misses() - cache.oversized();
+    check(
+        cache.len() as u64 + cache.evictions() == admitted,
+        format!(
+            "{} entries held plus {} evicted is not the {admitted} admitted; the cache's eviction \
+             order and its entries disagree about what it is holding",
+            cache.len(),
+            cache.evictions()
+        ),
     );
 
     // The most recently tessellated path is still there: least recently used out, not most.
@@ -394,6 +429,221 @@ fn a_different_scale_bucket_is_a_different_entry() {
     check(
         tessellator.cache().len() == 2 && tessellator.cache().hits() == 0,
         format!("the cache holds {} entries", tessellator.cache().len()),
+    );
+}
+
+/// A plain stroke, with everything geometric stated so a case can vary exactly one thing.
+fn a_stroke(width: f32, dash: DashPattern) -> StrokeGeometry {
+    StrokeGeometry {
+        width,
+        cap: LineCap::Flat,
+        join: LineJoin::Bevel,
+        dash,
+        alignment: StrokeAlignment::Centered,
+        compound: CompoundStroke::Single,
+    }
+}
+
+/// A path long enough that every dash pattern cuts it differently.
+fn a_long_line() -> Geometry {
+    Geometry::path(
+        vec![
+            PathCommand::MoveTo(ScenePoint::new(0.0, 0.0)),
+            PathCommand::LineTo(ScenePoint::new(400.0, 0.0)),
+        ],
+        FillRule::NonZero,
+    )
+}
+
+fn a_stroke_at_a_different_scale_bucket_is_a_different_entry() {
+    // The fill key was gated for this and **the stroke key was not**: dropping the bucket from
+    // `stroke_key_words` was a green mutation, because every stroke in the suite was tessellated at
+    // one bucket. A painter that magnifies a stroke magnifies its flattening error exactly as it
+    // does a fill's.
+    let mut tessellator = Tessellator::with_budget(BUDGET);
+    let stroke = a_stroke(4.0, DashPattern::Solid);
+    let near = tessellator
+        .stroke(
+            &a_long_line(),
+            stroke,
+            &PlaceholderGeometry::new(),
+            TessellationOptions::for_bucket(ScaleBucket::from_steps(8)),
+        )
+        .expect("at one bucket");
+    let far = tessellator
+        .stroke(
+            &a_long_line(),
+            stroke,
+            &PlaceholderGeometry::new(),
+            TessellationOptions::for_bucket(ScaleBucket::from_steps(64)),
+        )
+        .expect("and at another");
+    check(
+        !Arc::ptr_eq(&near, &far),
+        "two scale buckets shared one stroke cache entry".to_owned(),
+    );
+    check(
+        tessellator.cache().len() == 2 && tessellator.cache().hits() == 0,
+        format!(
+            "the cache holds {} entries for two buckets",
+            tessellator.cache().len()
+        ),
+    );
+}
+
+fn every_dash_pattern_and_every_width_is_its_own_entry() {
+    // **A key that collides hands a painter somebody else's shape**, and the two fields most likely
+    // to collide are the ones with the most values: eleven dash patterns and a continuous width.
+    // Two dash tags mapping to one number, and the width dropped from the key, were both green
+    // mutations — every earlier stroke case used a fresh path or a fresh tessellator, so no second
+    // ask ever reached a colliding key.
+    let dashes = [
+        DashPattern::Solid,
+        DashPattern::Dot,
+        DashPattern::Dash,
+        DashPattern::LargeDash,
+        DashPattern::DashDot,
+        DashPattern::LargeDashDot,
+        DashPattern::LargeDashDotDot,
+        DashPattern::SystemDash,
+        DashPattern::SystemDot,
+        DashPattern::SystemDashDot,
+        DashPattern::SystemDashDotDot,
+    ];
+    let mut tessellator = Tessellator::with_budget(BUDGET);
+    let mut buffers: Vec<(String, Vec<u8>)> = Vec::new();
+    for dash in dashes {
+        let mesh = tessellator
+            .stroke(
+                &a_long_line(),
+                a_stroke(6.0, dash),
+                &PlaceholderGeometry::new(),
+                options(),
+            )
+            .expect("a dashed line strokes");
+        check(!mesh.is_empty(), format!("{dash:?} produced no triangles"));
+        buffers.push((format!("{dash:?}"), mesh.vertex_bytes()));
+    }
+    check(
+        tessellator.cache().len() == dashes.len() && tessellator.cache().hits() == 0,
+        format!(
+            "eleven dash patterns produced {} cache entries and {} hits, so two share a key",
+            tessellator.cache().len(),
+            tessellator.cache().hits()
+        ),
+    );
+    for (first, (name, bytes)) in buffers.iter().enumerate() {
+        for (other, bytes_of_other) in buffers.iter().skip(first + 1) {
+            check(
+                bytes != bytes_of_other,
+                format!("`{name}` and `{other}` produced the same triangles"),
+            );
+        }
+    }
+
+    // And the width, on one path through one tessellator, so a dropped width is a cache hit.
+    let mut tessellator = Tessellator::with_budget(BUDGET);
+    let thin = tessellator
+        .stroke(
+            &a_long_line(),
+            a_stroke(1.0, DashPattern::Solid),
+            &PlaceholderGeometry::new(),
+            options(),
+        )
+        .expect("a thin line");
+    let thick = tessellator
+        .stroke(
+            &a_long_line(),
+            a_stroke(9.0, DashPattern::Solid),
+            &PlaceholderGeometry::new(),
+            options(),
+        )
+        .expect("a thick one");
+    check(
+        !Arc::ptr_eq(&thin, &thick) && tessellator.cache().hits() == 0,
+        "two widths shared one cache entry, so a thin line would be drawn thick".to_owned(),
+    );
+    check(
+        (thick.bounds().height() - 9.0).abs() < 0.001
+            && (thin.bounds().height() - 1.0).abs() < 0.001,
+        format!(
+            "the widths reached the triangles as {} and {}",
+            thin.bounds().height(),
+            thick.bounds().height()
+        ),
+    );
+}
+
+fn the_entry_that_is_evicted_is_the_least_recently_used_one() {
+    // **Least recently *used*, not least recently inserted.** Dropping the clock update in
+    // `MeshCache::get` turns the cache into a queue, and every assertion about the byte budget stays
+    // green — a queue holds its budget perfectly well. What it loses is the thing a cache is for:
+    // the page held still on screen, re-asked for every frame, is the page that gets thrown away.
+    let one = a_distinct_path(1);
+    let two = a_distinct_path(2);
+    let three = a_distinct_path(3);
+    let sizes: Vec<usize> = [&one, &two, &three]
+        .iter()
+        .map(|path| {
+            Tessellator::new()
+                .fill(path, &PlaceholderGeometry::new(), options())
+                .expect("a star tessellates")
+                .byte_len()
+        })
+        .collect();
+    // Room for two of the three and no more. The per-entry bookkeeping is charged as well, so the
+    // allowance is two entries' overhead rather than a third entry's worth of anything.
+    let budget = sizes.iter().take(2).sum::<usize>() + 2 * 400;
+    let mut tessellator = Tessellator::with_budget(budget);
+
+    let _ = tessellator.fill(&one, &PlaceholderGeometry::new(), options());
+    let _ = tessellator.fill(&two, &PlaceholderGeometry::new(), options());
+    check(
+        tessellator.cache().len() == 2 && tessellator.cache().evictions() == 0,
+        format!(
+            "two entries did not both fit: {} held, {} evicted",
+            tessellator.cache().len(),
+            tessellator.cache().evictions()
+        ),
+    );
+
+    // Now use them **alternately, and finish on the older one**, so that insertion order, first-use
+    // order and last-use order all disagree.
+    //
+    // The middle re-use is not decoration. An implementation that promotes an entry on its *first*
+    // re-use and then loses track of it — the entry's clock left stale while its key in the
+    // eviction order moves — satisfies every simpler version of this case, and satisfies the byte
+    // budget, and is still a cache that forgets the page a reader is looking at. Only a second
+    // re-use of the same entry, after the other has been touched, can tell the two apart.
+    let hits = tessellator.cache().hits();
+    let _ = tessellator.fill(&one, &PlaceholderGeometry::new(), options());
+    let _ = tessellator.fill(&two, &PlaceholderGeometry::new(), options());
+    let _ = tessellator.fill(&one, &PlaceholderGeometry::new(), options());
+    check(
+        tessellator.cache().hits() == hits + 3,
+        format!(
+            "three re-uses produced {} hits; both paths were meant to still be held",
+            tessellator.cache().hits() - hits
+        ),
+    );
+
+    // A third entry has to displace exactly one, and it must be `two` — the one used longest ago,
+    // which is neither the one inserted first nor the one re-used first.
+    let _ = tessellator.fill(&three, &PlaceholderGeometry::new(), options());
+    check(
+        tessellator.cache().evictions() == 1,
+        format!(
+            "{} entries were evicted to make room for one",
+            tessellator.cache().evictions()
+        ),
+    );
+    let before = tessellator.cache().hits();
+    let _ = tessellator.fill(&one, &PlaceholderGeometry::new(), options());
+    check(
+        tessellator.cache().hits() == before + 1,
+        "the most recently used entry was evicted and a staler one kept — the cache is ordering by \
+         something other than last use"
+            .to_owned(),
     );
 }
 

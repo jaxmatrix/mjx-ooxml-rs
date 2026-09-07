@@ -23,9 +23,17 @@
 //! # Proved by mutation
 //!
 //! Every test here was proved to fail before it was trusted; the neutralisations are recorded in the
-//! MJXOFF-162 report. The one worth naming is the fill rule: mapping both [`FillRule`] variants to
-//! `NonZero` in `Tessellator::fill` leaves **every** count in this file right except the two areas
-//! in the winding-rule test, which is exactly why the areas are here.
+//! MJXOFF-162 report. Two are worth naming.
+//!
+//! The **fill rule**: mapping both [`FillRule`] variants to `NonZero` in `Tessellator::fill` leaves
+//! **every** count in this file right except the two areas in the winding-rule test, which is
+//! exactly why the areas are here.
+//!
+//! The **compound bands**: swapping `ThickThin` and `ThinThick` was green against triangle counts,
+//! because `Double`, `ThickThin` and `ThinThick` are all two bands and all ten triangles. What tells
+//! them apart is *which side the ink is on*, so that test measures area either side of the
+//! centreline instead — and asserts the two are each other's mirror, which no swap of the two tables
+//! can also satisfy.
 
 use mjx_scene::{
     Color, CompoundStroke, DashPattern, FillRule, FillStyle, Geometry, LineCap, LineEnd, LineJoin,
@@ -440,6 +448,144 @@ fn a_dashed_compound_line_is_more_pieces_than_a_solid_single_one() {
     );
     // A dash removes ink; the box it is drawn in is the box the solid line was drawn in.
     assert_eq!(dashed.bounds().right, 23.0);
+}
+
+/// How much of the mesh's area lies on each side of the line `y = 0`.
+///
+/// The question a compound stroke's *asymmetry* is made of, and one a triangle count cannot answer.
+fn area_either_side_of_the_centreline(mesh: &Mesh) -> (f32, f32) {
+    let positions = mesh.positions();
+    let (mut above, mut below) = (0.0_f32, 0.0_f32);
+    for triangle in mesh.indices().as_chunks::<3>().0 {
+        let corner = |which: usize| -> (f32, f32) {
+            let at = triangle[which] as usize * 2;
+            (positions[at], positions[at + 1])
+        };
+        let (ax, ay) = corner(0);
+        let (bx, by) = corner(1);
+        let (cx, cy) = corner(2);
+        let area = ((bx - ax) * (cy - ay) - (cx - ax) * (by - ay)).abs() / 2.0;
+        // `y` increases downward, so a smaller `y` is higher on the page.
+        if (ay + by + cy) / 3.0 < 0.0 {
+            above += area;
+        } else {
+            below += area;
+        }
+    }
+    (above, below)
+}
+
+#[test]
+fn a_thick_thin_compound_puts_its_ink_on_the_other_side_from_a_thin_thick_one() {
+    // **Triangle counts cannot tell these two apart** — `Double`, `ThickThin` and `ThinThick` are
+    // all two bands and all ten triangles, so swapping the thick and the thin band was a green
+    // mutation. What distinguishes them is *where the ink is*, and that is what is asserted.
+    //
+    // The bands are placed along the left normal, which for a left-to-right segment points down the
+    // page. `ThickThin` is thick-then-thin along that normal, so its thick band is the *upper* one.
+    let line = Geometry::path(open(&[(0.0, 0.0), (200.0, 0.0)]), FillRule::NonZero);
+    let mut tessellator = Tessellator::new();
+    let measure = |tessellator: &mut Tessellator, compound| {
+        let mesh = tessellator
+            .stroke(
+                &line,
+                StrokeGeometry {
+                    compound,
+                    ..plain_stroke(12.0)
+                },
+                &unconsulted(),
+                at_scale(),
+            )
+            .expect("a compound line strokes");
+        (
+            area_either_side_of_the_centreline(&mesh),
+            mesh.vertex_bytes(),
+        )
+    };
+
+    let ((thick_above, thin_below), thick_thin) =
+        measure(&mut tessellator, CompoundStroke::ThickThin);
+    let ((thin_above, thick_below), thin_thick) =
+        measure(&mut tessellator, CompoundStroke::ThinThick);
+    let ((upper, lower), double) = measure(&mut tessellator, CompoundStroke::Double);
+
+    // The thick band is twice the thin one, so it carries twice the ink.
+    assert!(
+        thick_above > thin_below * 1.5,
+        "a thick-thin compound put {thick_above:.0} above the centreline and {thin_below:.0} \
+         below, which is not a thick band and a thin one"
+    );
+    assert!(
+        thick_below > thin_above * 1.5,
+        "a thin-thick compound put {thin_above:.0} above and {thick_below:.0} below"
+    );
+    // And the two are each other's mirror, which no swap of the two tables can also satisfy.
+    assert_close("the mirrored thick band", thick_above, thick_below, 0.01);
+    assert_close("the mirrored thin band", thin_below, thin_above, 0.01);
+    assert_ne!(
+        thick_thin, thin_thick,
+        "the two compounds produced identical triangles"
+    );
+
+    // A double line is symmetric, which is what makes the asymmetry above meaningful rather than an
+    // artefact of how bands are placed at all.
+    assert_close("the two halves of a double line", upper, lower, 0.01);
+    assert_ne!(double, thick_thin);
+    assert_ne!(double, thin_thick);
+}
+
+#[test]
+fn an_inset_stroke_lands_inside_whichever_way_the_contour_is_wound() {
+    // `Inset` means *the whole width inside the path*, and "inside" is decided by the contour's
+    // winding — there is no other way to know. Reversing a square reverses the sign of its area, so
+    // a stroker that ignored the sign would put the ink outside for exactly half of all documents.
+    //
+    // Every closed contour in the suite wound the same way, so losing the sign was a green mutation.
+    let clockwise = Geometry::path(
+        closed(&[(0.0, 0.0), (20.0, 0.0), (20.0, 20.0), (0.0, 20.0)]),
+        FillRule::NonZero,
+    );
+    let widdershins = Geometry::path(
+        closed(&[(0.0, 0.0), (0.0, 20.0), (20.0, 20.0), (20.0, 0.0)]),
+        FillRule::NonZero,
+    );
+    let inset = StrokeGeometry {
+        join: LineJoin::Miter { limit: 4.0 },
+        alignment: StrokeAlignment::Inset,
+        ..plain_stroke(4.0)
+    };
+
+    let mut tessellator = Tessellator::new();
+    for (name, geometry) in [("clockwise", &clockwise), ("anticlockwise", &widdershins)] {
+        let bounds = tessellator
+            .stroke(geometry, inset, &unconsulted(), at_scale())
+            .expect("an inset stroke")
+            .bounds();
+        assert_close(
+            &format!("the {name} inset stroke's left edge"),
+            bounds.left,
+            0.0,
+            0.001,
+        );
+        assert_close(
+            &format!("the {name} inset stroke's top edge"),
+            bounds.top,
+            0.0,
+            0.001,
+        );
+        assert_close(
+            &format!("the {name} inset stroke's right edge"),
+            bounds.right,
+            20.0,
+            0.001,
+        );
+        assert_close(
+            &format!("the {name} inset stroke's bottom edge"),
+            bounds.bottom,
+            20.0,
+            0.001,
+        );
+    }
 }
 
 #[test]

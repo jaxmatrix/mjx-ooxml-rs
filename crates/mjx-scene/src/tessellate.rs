@@ -826,9 +826,16 @@ fn clamp_miter_limit(value: f32) -> f32 {
 }
 
 /// The finest flattening this tessellator will attempt, in path units.
-const MINIMUM_TOLERANCE: f32 = 1.0e-3;
-/// The coarsest.
-const MAXIMUM_TOLERANCE: f32 = 1.0e3;
+///
+/// Public because it is a **bound a caller has to know about**: a tolerance below this is clamped,
+/// not honoured, and a caller magnifying a path by a large factor can ask for one without meaning
+/// to. It is also the whole reason [`TessellationOptions::with_tolerance`] clamps at all — a
+/// tolerance of `1e-30` on a curve is not a finer picture but an unbounded one.
+pub const MINIMUM_TOLERANCE: f32 = 1.0e-3;
+
+/// The coarsest, for the same reason from the other end: past this a curve is a straight line and
+/// asking for more buys nothing.
+pub const MAXIMUM_TOLERANCE: f32 = 1.0e3;
 /// What a join that states no limit is held to — DrawingML's own default.
 const DEFAULT_MITER_LIMIT: f32 = 4.0;
 /// The longest miter this tessellator will draw, as a multiple of the width.
