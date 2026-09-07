@@ -97,7 +97,11 @@ files nobody asked it to touch — a far wider fidelity regression than the bug 
   is worse than reporting that it does not resolve.
 - **`remove_override_element` matches the decoded attribute**, so a rule spelled
   `/word/my%20header.xml` is found for the part `/word/my header.xml`. Without it the element would
-  be left in the stream while the parsed view dropped it.
+  be left in the stream while the parsed view dropped it. It also matches the *encoded* spelling,
+  because the two escaping systems in that attribute do not commute: percent-encoding runs first, so
+  a part name holding `&` is written `%26` and the XML escaper never sees it, while the name itself
+  still holds a bare `&` whose escaped form is `&amp;`. Matching only the escaped name would leave
+  two `Override`s for one part after a second `set_content_type_override`, stale one first.
 - **Three `Document` edits no longer run the package-wide sweep.** `remove_header`/`remove_footer`,
   removing the last comment, and `remove_drawing` each finished by calling
   `Package::remove_unreferenced_parts`, which deletes every orphan it can find — including one the
