@@ -398,7 +398,7 @@ impl Workbook {
         let (anchor_index, chart_part) =
             self.write_chart(sheet_index, bytes, from, to, name, resizing)?;
 
-        let workbook_part = PartName::new(&self.free_chart_workbook_part_name())?;
+        let workbook_part = PartName::new(&self.free_workbook_part_name())?;
         self.package_mut().insert_part(
             &workbook_part,
             mjx_sml::write::CONTENT_TYPE_WORKBOOK_PACKAGE,
@@ -547,6 +547,16 @@ impl Workbook {
         name: &str,
         resizing: ResizingBehavior,
     ) -> Result<(usize, PartName), XlsxError> {
+        // A series this library authors carries no `c:spPr`, so its fill comes from the theme's
+        // `accent1…accent6`. A workbook with no theme part resolves those to nothing and paints no
+        // bars at all (MJXOFF-200). One is authored here — for both chart doors, which is why it is
+        // in this shared helper rather than in either of them — **only** if the package carries
+        // none: a workbook that arrived with a theme keeps it untouched, because supplying a default
+        // in place of the user's own would override the branding of whoever opens the file.
+        let workbook_part = self.workbook_part().clone();
+        let theme_rel_id = self.next_workbook_relationship_id();
+        crate::parts::ensure_theme_part(self.package_mut(), &workbook_part, &theme_rel_id)?;
+
         let drawing_part = self.drawing_part_or_create(sheet_index)?;
         let chart_part = PartName::new(&self.free_chart_part_name())?;
         self.package_mut()
@@ -606,7 +616,7 @@ impl Workbook {
     /// The stem is the one Office itself uses for a chart's embedded workbook, and the one
     /// `mjx-docx` writes beside a Word chart, so a workbook this library authors is laid out like the
     /// documents it authors and like the files Office writes.
-    fn free_chart_workbook_part_name(&self) -> String {
+    fn free_workbook_part_name(&self) -> String {
         self.free_numbered_part_name(&format!("/xl/embeddings/{CHART_WORKBOOK_STEM}"), ".xlsx")
     }
 

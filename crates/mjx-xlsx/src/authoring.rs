@@ -343,7 +343,7 @@ impl Workbook {
     }
 
     /// The next free relationship id on `xl/workbook.xml`, one past the current maximum.
-    fn next_workbook_relationship_id(&self) -> String {
+    pub(crate) fn next_workbook_relationship_id(&self) -> String {
         let mut highest = 0u32;
         if let Some(relationships) = self.package().relationships_for(Some(self.workbook_part())) {
             for relationship in relationships.iter() {
