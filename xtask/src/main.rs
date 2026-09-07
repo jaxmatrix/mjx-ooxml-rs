@@ -7,7 +7,10 @@
 //!   peak-RSS checkpoints (MJXOFF-147).
 //! - `validation-artefacts` — write the files the human Microsoft Office pass reads, for every
 //!   validation area of all three formats (MJXOFF-122). It marks nothing; see
-//!   `docs/validation/00-method.md`.
+//!   `docs/validation/00-method.md`. `--ingest <file>` runs it the other way: hand it something
+//!   saved out of Office and it reports which entry the file answers, whether it round-trips,
+//!   whether the package holds, whether its child order matches ours, whether it validates, and
+//!   where it would be committed (MJXOFF-130).
 //!
 //! This is a host-only dev tool; it is excluded from the shipped cross-compile matrix and never
 //! part of the runtime dependency graph. It parses the schemas with our own `mjx-xml` (the schemas
@@ -46,7 +49,8 @@ fn main() -> Result<()> {
                  corpus    (re)build the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)\n  \
                  validation-artefacts\n            \
                  write the artefacts the human Office pass reads\n            \
-                 [--format pptx|docx|xlsx] [--area <id or number>] [--out <dir>] [--list]"
+                 [--format pptx|docx|xlsx] [--area <id or number>] [--out <dir>] [--list]\n            \
+                 --ingest <file>  report on a file saved out of Office"
             );
             Ok(())
         }
