@@ -289,3 +289,86 @@ mod tests {
         );
     }
 }
+
+// =================================================================================================
+// MJXOFF-200 — authoring a theme, and only where there is none
+// =================================================================================================
+
+/// The part name a Word document's theme conventionally has.
+pub(crate) const THEME_PART: &str = "/word/theme/theme1.xml";
+
+/// Makes sure the package carries a theme, **without ever touching one it already has**.
+///
+/// # Why a document needs one at all
+///
+/// A chart series that states no `c:spPr` — which is every series this library authors, deliberately
+/// — takes its fill from the theme's `accent1…accent6`. So does a run that names a `w:themeColor`,
+/// a table that names a theme-shaded border, and a shape that states no explicit fill. With no theme
+/// part in the package those scheme colours resolve to **nothing**: the human validation pass on the
+/// MJXOFF-130 artefacts opened an authored `.docx` and found a chart with a title, axis labels,
+/// legend text, a plot frame and **no bars**. Word and Excel both write `theme1.xml` into every file
+/// they save; until MJXOFF-200 this library wrote one into a `.pptx` and never into a `.docx`, and
+/// PowerPoint escaped only by accident (every slide master requires a theme).
+///
+/// # Why it must not write one unconditionally, which is the harder half
+///
+/// A writer that emitted `/word/theme/theme1.xml` on every save would **destroy the branding of
+/// every real document this library opens and re-saves** — turning an invisible-chart bug into a
+/// corrupt-the-customer's-file bug, which is strictly worse and which every gate in this repository
+/// would pass exactly as it passed the invisible chart. The standing rule (MJXOFF-198 §2) is
+/// *supply a default only in the absence of the user's own, never in place of it*, so:
+///
+/// * the package **has** a theme → this function performs **no mutation at all**, and the document
+///   keeps the theme it arrived with, byte for byte;
+/// * the package has **none** → one is authored at [`THEME_PART`], related from `document_part`, and
+///   `accent1…accent6` resolve.
+///
+/// # How "has a theme" is decided
+///
+/// By **content type over the whole package**, not by `DocumentParts::theme`. A theme related from a
+/// header, from a `glossary/document.xml`, or from nothing this crate classifies is still a theme
+/// the document came with; a rule that only looked at the main document part's own relationships
+/// would author a second one beside it. Content type is the one property every such part has,
+/// whatever reaches it.
+///
+/// The relationship is added only when a part was authored, and only from `document_part` — that is
+/// where Word puts it, and it is the part every consumer of this document walks from.
+///
+/// # Errors
+/// [`DocxError::Opc`] if the packaging layer refuses the part name, the content type or the
+/// relationship. Every one of them is a constant here, so in practice this cannot fail.
+pub(crate) fn ensure_theme_part(
+    package: &mut Package,
+    document_part: &PartName,
+    relationship_id: &str,
+) -> Result<(), DocxError> {
+    if package_carries_a_theme(package) {
+        return Ok(());
+    }
+    let theme = PartName::new(THEME_PART)?;
+    package.insert_part(
+        &theme,
+        constants::CONTENT_TYPE_THEME,
+        mjx_dml::default_theme_xml(),
+    )?;
+    package.add_relationship(
+        Some(document_part),
+        Relationship {
+            id: relationship_id.to_owned(),
+            rel_type: constants::REL_THEME.to_owned(),
+            target: "theme/theme1.xml".to_owned(),
+            mode: TargetMode::Internal,
+        },
+    )?;
+    Ok(())
+}
+
+/// Whether any part of `package` is registered as a theme.
+///
+/// See [`ensure_theme_part`] for why the question is asked of the whole package rather than of the
+/// main document part's relationships.
+pub(crate) fn package_carries_a_theme(package: &Package) -> bool {
+    package
+        .part_names()
+        .any(|part| package.content_type_of(&part) == Some(constants::CONTENT_TYPE_THEME))
+}
