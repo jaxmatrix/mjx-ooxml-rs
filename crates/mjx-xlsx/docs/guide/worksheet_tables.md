@@ -169,7 +169,7 @@ byte.
 * **A totals row is never computed.** A column's `@totalsRowFunction` says *what Excel would show*;
   nothing here sums anything.
 * **A table's own `autoFilter` and `sortState` are records.** They are the same types the sheet's own
-  are — see *[Filters and data validation](../filters_and_data_validation)* — and they hide no row
+  are — see *[Filters and data validation](filters_and_data_validation)* — and they hide no row
   and reorder none here either. Note that `sortState` appears in **three** places and they are three
   different elements: the worksheet's, an autofilter's, and a table's.
 * **Caches are left alone.** `tableColumns@count` disagreeing with the columns present is a producer's

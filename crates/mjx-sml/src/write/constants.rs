@@ -33,7 +33,7 @@ pub const XML_DECLARATION: &str = concat!(
 /// The default sheet name, and the one a chart's synthesized `c:f` formulas (`Sheet1!$A$2:$A$4`)
 /// qualify their ranges with.
 ///
-/// Identical to `mjx_chart::DEFAULT_SHEET_NAME`, which MJXOFF-99 removes in favour of this.
+/// Identical to `mjx_chart::DEFAULT_SHEET_NAME`, which MJXOFF-99 removed in favour of this.
 pub const DEFAULT_SHEET_NAME: &str = "Sheet1";
 
 /// `/xl/workbook.xml` — the part the package root's `officeDocument` relationship names.

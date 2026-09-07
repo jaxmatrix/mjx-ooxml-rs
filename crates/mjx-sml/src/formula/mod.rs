@@ -21,7 +21,7 @@
 //! file the caller opened to change a label, silently, in a part they never named. So the stale
 //! cached value is not a gap that some later child closes. It is the contract, it is written down in
 //! `crates/mjx-xlsx/docs/guide/formulas_and_cached_values.md` and in
-//! `docs/fidelity_and_gaps.md`, and `crates/mjx-sml/tests/formulas.rs` fails if it ever stops
+//! `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md`, and `crates/mjx-sml/tests/formulas.rs` fails if it ever stops
 //! being true.
 //!
 //! # Where a formula lives, and what it costs
