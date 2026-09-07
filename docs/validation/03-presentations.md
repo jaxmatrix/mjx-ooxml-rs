@@ -347,7 +347,7 @@ cargo run -p mjx-pptx --features vml --example legacy_content -- out.pptx
 - **Risk** medium.
 - **Shipped by** `MJXOFF-58`, and it is `MJXOFF-60`'s reorganisation that could have broken it.
 - **Artefact** `tests/fixtures/activex.pptx`
-- **Object** the `activeX/activeX1.bin` persistence stream.
+- **Object** the `ppt/activeX/activeX1.bin` persistence stream.
 - **Action** open the deck in PowerPoint, save it, and compare the `.bin` part against the one this library wrote.
 - **Expect** **byte-identical**. The property bag inside is a documented non-goal — its meaning is per-control-class — so the only guarantee is that it is carried unchanged.
   Calls: `Deck::activex_state_bytes` · `Deck.activex_state_bytes` · `Deck.activexStateBytes`
