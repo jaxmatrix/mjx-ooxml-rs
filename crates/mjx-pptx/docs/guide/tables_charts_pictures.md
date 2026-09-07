@@ -178,14 +178,25 @@ formulas cell for cell — column `A` the categories, `B` onwards one per series
 *Edit Data* opens on exactly the numbers the chart draws.
 
 [`set_chart_series_values`](Presentation::set_chart_series_values) and
-[`set_chart_series_categories`](Presentation::set_chart_series_categories) refresh that workbook in
-the same call, so it never goes stale.
+[`set_chart_series_categories`](Presentation::set_chart_series_categories) bring that workbook along
+in the same call, so it never goes stale.
 [`refresh_chart_workbook`](Presentation::refresh_chart_workbook) does it on demand for a chart edited
-some other way. The workbook is *regenerated*, not patched — a chart's embedded workbook is a
-chart-private artefact whose content is the chart's data — so formatting or extra sheets a
-third-party workbook carried do not survive a data edit. Detach it first
-([`chart_workbooks`](Presentation::chart_workbooks),
-[`detach_chart_workbook`](Presentation::detach_chart_workbook)) if you would rather keep it.
+some other way.
+
+The workbook is **patched, not replaced** (MJXOFF-208). Each series' `c:f` says which cells its data
+lives in, and only those cells are written; every other sheet, cell format, defined name, macro and
+document property a producer's workbook carried survives byte for byte, and a cell that already holds
+its value is not rewritten at all. A `c:f` this library will not write over — one naming another
+workbook, several sheets, whole columns, a rectangle, or fewer cells than the data has points — is a
+[`PptxError::ChartEmbeddedWorkbookNotWritable`](crate::PptxError::ChartEmbeddedWorkbookNotWritable)
+rather than a quiet fall back to rebuilding, because rebuilding is the content loss patching exists
+to prevent.
+
+[`regenerate_chart_workbook`](Presentation::regenerate_chart_workbook) is the explicit opt-in that
+does replace it wholesale, and **discards whatever it held**. So is
+[`detach_chart_workbook`](Presentation::detach_chart_workbook)
+([`chart_workbooks`](Presentation::chart_workbooks) finds the candidates), which drops the reference
+instead of writing over the file.
 
 ### Reading and editing an existing chart
 

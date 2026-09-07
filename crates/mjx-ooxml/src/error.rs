@@ -444,6 +444,15 @@ fn classify(error: &PptxError) -> (ErrorCode, ErrorDetail) {
         | PptxError::ShapeIsNotAContentPart
         | PptxError::PartIsNotVmlDrawing { .. } => (C::WrongKind, none()),
 
+        // --- the chart names something this library will not write over --------------------
+        //
+        // `UnsupportedContent`, the same code `ChartFillNotSupported` answers, and for the same
+        // reason: the *content* is a shape this library declines to act on, rather than an argument
+        // that is wrong or a document that is malformed. The `c:f` may well be perfectly valid — it
+        // is simply not a range of cells a patch can write, and the alternative to refusing is
+        // destroying the workbook it names.
+        PptxError::ChartEmbeddedWorkbookNotWritable { .. } => (C::UnsupportedContent, none()),
+
         // --- a name resolved to nothing ---------------------------------------------------
         PptxError::NotAMediaReference { .. } | PptxError::TableStyleNotFound { .. } => {
             (C::NotFound, none())
@@ -538,6 +547,10 @@ fn chart_access_code(error: &mjx_chart::ChartAccessError) -> (ErrorCode, ErrorDe
         Chart::SeriesNotEditable { index, .. } => (C::WrongKind, nth(*index)),
         Chart::NoChartElement => (C::MalformedDocument, none()),
         Chart::FillNotSupported => (C::UnsupportedContent, none()),
+        // A `c:f` this library will not write over is `UnsupportedContent` for the reason
+        // `classify_pptx` states beside `ChartEmbeddedWorkbookNotWritable`, which is the same
+        // verdict reaching this function by PresentationML's route rather than by `#[from]`.
+        Chart::EmbeddedWorkbookNotWritable { .. } => (C::UnsupportedContent, none()),
         Chart::Data(_) => (C::InvalidArgument, none()),
     }
 }

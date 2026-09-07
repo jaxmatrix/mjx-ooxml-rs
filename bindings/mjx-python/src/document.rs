@@ -1050,6 +1050,14 @@ impl Document {
             .map_err(to_py_err)
     }
 
+    /// Replaces the embedded workbook of the chart `drawing_id` frames with a freshly built one,
+    /// discarding whatever it held. Answers whether it replaced one.
+    fn regenerate_chart_workbook(&mut self, drawing_id: u32) -> PyResult<bool> {
+        self.inner
+            .regenerate_chart_workbook(drawing_id)
+            .map_err(to_py_err)
+    }
+
     /// Detaches the backing workbook, leaving the chart to render from its cached values.
     fn detach_chart_workbook(&mut self, drawing_id: u32) -> PyResult<()> {
         self.inner

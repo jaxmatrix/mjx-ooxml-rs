@@ -961,6 +961,14 @@ impl Workbook {
             .map_err(to_py_err)
     }
 
+    /// Replaces the embedded workbook of the chart with a freshly built one, discarding whatever it
+    /// held. Answers whether it replaced one.
+    fn regenerate_chart_workbook(&mut self, sheet: u32, anchor: u32) -> PyResult<bool> {
+        self.inner
+            .regenerate_chart_workbook(sheet, anchor)
+            .map_err(to_py_err)
+    }
+
     /// Detaches the backing workbook, leaving the chart to render from its cached values. The
     /// workbook part goes with it unless another chart still names it.
     fn detach_chart_workbook(&mut self, sheet: u32, anchor: u32) -> PyResult<()> {

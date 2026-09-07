@@ -33,6 +33,13 @@
 //! # }
 //! ```
 
+pub(crate) mod patch;
+
+pub use patch::{
+    apply_workbook_patch, embedded_workbook_part, plan_workbook_patch, ChartWorkbookError,
+    ReferenceProblem, WorkbookPatch, WorkbookPatchPlan,
+};
+
 use mjx_sml::write::{AuthoredCellValue, WorkbookPackage};
 use mjx_sml::SmlError;
 

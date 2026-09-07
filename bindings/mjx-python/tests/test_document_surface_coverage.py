@@ -332,6 +332,7 @@ def test_removing_a_word_chart_binding_is_caught_by_this_suite(document: Documen
         "chart_legend",
         "chart_workbooks",
         "refresh_chart_workbook",
+        "regenerate_chart_workbook",
         "detach_chart_workbook",
         "set_chart_series_values",
         "set_chart_data_labels",

@@ -408,6 +408,25 @@ pub enum PptxError {
         kind: &'static str,
     },
 
+    /// A chart's `c:f` names cells this library will not write, so its data cannot be put into the
+    /// workbook it embeds (MJXOFF-208).
+    ///
+    /// A data edit **patches** the embedded workbook rather than replacing it, so the sheets,
+    /// formats and names a producer put there survive. When the reference does not resolve to
+    /// writable cells the edit is refused here instead of falling back to regenerating the
+    /// workbook, because that fall-back is exactly the content loss patching exists to prevent.
+    /// [`Presentation::regenerate_chart_workbook`](crate::Presentation::regenerate_chart_workbook)
+    /// is the explicit opt-in for a caller who would rather have a fresh workbook.
+    #[error(
+        "the chart reference `{reference}` cannot be written into the embedded workbook: {problem}"
+    )]
+    ChartEmbeddedWorkbookNotWritable {
+        /// The `c:f` exactly as the chart wrote it, or the sheet name it named.
+        reference: String,
+        /// What about the reference stopped it.
+        problem: mjx_chart::ReferenceProblem,
+    },
+
     /// A [`ChartData`](mjx_chart::ChartData) description cannot be written as a schema-valid chart
     /// part — a stock chart given the wrong number of series, for instance. Refused before anything
     /// is written, so the document is untouched.
@@ -582,6 +601,24 @@ impl From<mjx_chart::ChartAccessError> for PptxError {
             Chart::NoChartElement => Self::ChartHasNoChartElement,
             Chart::FillNotSupported => Self::ChartFillNotSupported,
             Chart::Data(problem) => Self::ChartData(problem),
+            Chart::EmbeddedWorkbookNotWritable { reference, problem } => {
+                Self::ChartEmbeddedWorkbookNotWritable { reference, problem }
+            }
+        }
+    }
+}
+
+impl From<mjx_chart::ChartWorkbookError> for PptxError {
+    /// Lifts a failure from writing a chart's data into the workbook it embeds (MJXOFF-208).
+    ///
+    /// The two halves land where they already belonged: a verdict about the chart goes through the
+    /// `ChartAccessError` mapping above, and the embedded package refusing to be read or written is
+    /// an [`SmlError`] like any other malformed part. Exhaustive, no wildcard, for the reason that
+    /// mapping states.
+    fn from(error: mjx_chart::ChartWorkbookError) -> Self {
+        match error {
+            mjx_chart::ChartWorkbookError::Access(problem) => problem.into(),
+            mjx_chart::ChartWorkbookError::Sml(problem) => Self::Sml(problem),
         }
     }
 }

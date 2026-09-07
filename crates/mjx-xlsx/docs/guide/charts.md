@@ -95,6 +95,16 @@ series changed. It is the exact counterpart of [`Workbook::refresh_chart_workboo
 other way — that one makes the workbook say what the chart draws; this one makes the chart draw what
 the sheet says. Nothing calls either for you.
 
+[`Workbook::refresh_chart_workbook`] **patches** the workbook a chart embeds rather than replacing
+it (MJXOFF-208): the chart's numbers go into the cells the series' own `c:f` names, and every other
+sheet, cell format, defined name and macro that workbook carried is left byte for byte as it was. A
+cell that already holds its value is not rewritten at all, so a refresh over a workbook that already
+agrees answers `true` and changes nothing. A `c:f` this library will not write over — one naming
+another workbook, several sheets, whole columns, a rectangle, or fewer cells than the data has points
+— is an [`XlsxError::ChartAccess`] rather than a quiet fall back to rebuilding.
+[`Workbook::regenerate_chart_workbook`] is the explicit opt-in that does replace it wholesale, and
+**discards whatever it held**.
+
 ## Resolving a reference is not evaluating a formula
 
 [`Workbook::resolve_range_reference`] takes any reference of the shape a `c:f` has and answers with

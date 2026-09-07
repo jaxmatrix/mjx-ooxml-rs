@@ -450,6 +450,7 @@ test("removing a Word chart binding is caught by this suite", () => {
       "chartLegend",
       "chartWorkbooks",
       "refreshChartWorkbook",
+      "regenerateChartWorkbook",
       "detachChartWorkbook",
       "setChartSeriesValues",
       "setChartDataLabels",

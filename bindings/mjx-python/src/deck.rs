@@ -1494,6 +1494,18 @@ impl Deck {
             .map_err(to_py_err)
     }
 
+    /// Replaces the embedded workbook of the chart the frame `shape_idx` on `surface` references
+    /// with a freshly built one, discarding whatever it held. Answers whether it replaced one.
+    fn regenerate_chart_workbook(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+    ) -> PyResult<bool> {
+        self.inner
+            .regenerate_chart_workbook(surface.0, shape_idx.0)
+            .map_err(to_py_err)
+    }
+
     /// The kind of every plot the chart the frame `shape_idx` on `surface` references draws, in
     /// document order — one entry per plot element, so a combo chart yields several. Reading does
     /// not dirty the part.

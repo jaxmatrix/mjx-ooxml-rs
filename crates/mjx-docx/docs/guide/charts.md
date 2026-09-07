@@ -138,16 +138,23 @@ assert_eq!(document.chart_axes(drawing)?[1].maximum, Some(50.0));
 # }
 ```
 
-**A data edit refreshes the embedded workbook in the same call**, so the numbers *Edit Data* shows
-are the numbers the chart draws; they cannot go stale by forgetting a second call.
+**A data edit brings the embedded workbook along in the same call**, so the numbers *Edit Data*
+shows are the numbers the chart draws; they cannot go stale by forgetting a second call.
 [`Document::refresh_chart_workbook`] is public for a caller who has edited a chart some other way,
-and answers `false` — changing nothing — when there is no embedded workbook to refresh.
+and answers `false` — changing nothing — when there is no embedded workbook at all.
 
-The workbook is **regenerated**, not patched: one sheet, column `A` the categories, column `B`
-onwards one per series, matching the layout the chart's own `c:f` formulas name. That is what makes
-the two agree, and it is why formatting or extra sheets a third-party workbook carried do not
-survive a data edit. A caller who would rather keep a stale workbook than lose its contents can
-[detach it](Document::detach_chart_workbook) first, leaving the chart to render from its caches.
+The workbook is **patched, not replaced** (MJXOFF-208). Each series' `c:f` says which cells its data
+lives in, and only those cells are written; every other sheet, cell format, defined name, macro and
+document property a producer's workbook carried survives byte for byte, and a cell that already holds
+its value is not rewritten at all. A `c:f` this library will not write over — one naming another
+workbook, several sheets, whole columns, a rectangle, or fewer cells than the data has points — is a
+[`DocxError::ChartAccess`] rather than a quiet fall back to rebuilding, and the edit leaves both
+parts as they were: the workbook is worked out before the chart is touched and written after, so a
+data edit is all of it or none of it.
+
+[`Document::regenerate_chart_workbook`] is the explicit opt-in that does replace it wholesale, and
+**discards whatever it held**. So is [detaching it](Document::detach_chart_workbook), which drops the
+reference instead of writing over the file, leaving the chart to render from its caches.
 
 ## What an edit touches
 

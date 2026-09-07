@@ -154,8 +154,14 @@ impl Deck {
         )?)
     }
 
-    /// Rewrites the embedded workbook of the chart the frame `shape_idx` on `surface` references so its
-    /// cells hold exactly what the chart now draws, and answers whether it rewrote one.
+    /// Writes the chart's data into the workbook the chart the frame `shape_idx` on `surface`
+    /// references already embeds — the cells its own `c:f` formulas name, and nothing else — and
+    /// answers whether it wrote one.
+    ///
+    /// Every other sheet, format and name that workbook carried survives; a reference this library
+    /// will not write is refused rather than written over. Use
+    /// [`regenerate_chart_workbook`](Self::regenerate_chart_workbook) to replace the workbook
+    /// wholesale instead.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
@@ -170,6 +176,28 @@ impl Deck {
         Ok(self
             .presentation
             .refresh_chart_workbook(surface.to_model(), shape_idx.to_model())?)
+    }
+
+    /// Replaces the embedded workbook of the chart the frame `shape_idx` on `surface` references
+    /// with a freshly built one, and answers whether it replaced one.
+    ///
+    /// **This discards whatever that workbook held** — every extra sheet, cell format, defined name
+    /// and macro. It is the explicit opt-in;
+    /// [`refresh_chart_workbook`](Self::refresh_chart_workbook) is the preserving default.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::regenerate_chart_workbook`](mjx_pptx::Presentation::regenerate_chart_workbook).
+    pub fn regenerate_chart_workbook(
+        &mut self,
+        surface: Surface,
+        shape_idx: ShapePath,
+    ) -> Result<bool, Error> {
+        Ok(self
+            .presentation
+            .regenerate_chart_workbook(surface.to_model(), shape_idx.to_model())?)
     }
 
     /// The kind of every plot the chart the frame `shape_idx` on `surface` references draws, in

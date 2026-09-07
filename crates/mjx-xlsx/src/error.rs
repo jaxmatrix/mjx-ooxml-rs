@@ -209,6 +209,19 @@ impl From<crate::validate::SpreadsheetDefect> for XlsxError {
     }
 }
 
+impl From<mjx_chart::ChartWorkbookError> for XlsxError {
+    /// Lifts a failure from writing a chart's data into the workbook it embeds (MJXOFF-208).
+    ///
+    /// The two halves land where they already belonged: a verdict about the chart is a
+    /// [`ChartAccess`](XlsxError::ChartAccess), and the embedded package refusing to be read or
+    /// written is an [`Sml`](XlsxError::Sml) like any other malformed part.
+    fn from(error: mjx_chart::ChartWorkbookError) -> Self {
+        match error {
+            mjx_chart::ChartWorkbookError::Access(problem) => Self::ChartAccess(problem),
+            mjx_chart::ChartWorkbookError::Sml(problem) => Self::Sml(problem),
+        }
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
