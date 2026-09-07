@@ -58,8 +58,6 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
-## [0.0.130] - 2026-09-07
-
 ## [0.0.131] - 2026-09-07
 
 ### Merged `main` into the client-platform phase branch
@@ -73,6 +71,8 @@ the two histories describe disjoint crates, and rewriting either would break the
 again, and the renderer side is the one that renumbered.
 
 The client-platform entries come first, then `main`'s.
+
+## [0.0.130] - 2026-09-07
 
 **`mjx-paint` part 2: the `tiny-skia` software painter, the PDF and SVG exporters, and the
 cross-painter gate they exist to make possible** (MJXOFF-164, Phase R position 9).
