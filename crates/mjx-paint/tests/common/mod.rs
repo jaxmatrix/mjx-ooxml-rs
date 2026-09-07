@@ -557,6 +557,279 @@ impl mjx_paint::AtlasSource for ChequeredAtlas {
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Real faces, for the two exporters
+// ---------------------------------------------------------------------------------------------
+
+/// The word a document exporter has to be able to put in a file and get back out of it.
+///
+/// Eight letters, all of them in Latin-1, none of them repeated in a way that would let a broken
+/// `/ToUnicode` map look right by coincidence — `pdftotext` finding `Fidelity` when the map is wrong
+/// would need eight independent mistakes to agree.
+pub const KNOWN_TEXT: &str = "Fidelity";
+
+/// The bundled face this crate's export suites draw with.
+///
+/// Reached by a path relative to this crate rather than through `mjx-text`'s own test support,
+/// because an integration test is its own crate and cannot see another crate's `tests/`. The face is
+/// committed, licensed and recorded in `crates/mjx-text/assets/fonts/README.md`.
+pub fn liberation_face() -> std::sync::Arc<mjx_text::FontFace> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../mjx-text/assets/fonts/LiberationSans-Regular.ttf");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|error| panic!("reading {}: {error}", path.display()));
+    std::sync::Arc::new(
+        mjx_text::FontFace::parse(std::sync::Arc::from(bytes.as_slice()), 0)
+            .expect("the committed face parses"),
+    )
+}
+
+/// A font source holding that face as face zero, which is what [`text_page`] names.
+pub fn liberation_library() -> mjx_paint::FaceLibrary {
+    let mut library = mjx_paint::FaceLibrary::new();
+    library.insert(0, liberation_face());
+    library
+}
+
+/// A page with one filled rectangle and one run of [`KNOWN_TEXT`] in real glyphs.
+///
+/// # Why the glyph ids are real and the atlas rectangles are not
+///
+/// A rasteriser needs the atlas rectangles and does not care what glyph a quad is; an **exporter**
+/// needs the glyph ids and cannot use an atlas rectangle at all. So this page carries real ids, from
+/// the real face's own `cmap`, placed at the face's own advances — which is what makes
+/// `pdftotext` able to read the word back — and stand-in atlas placements, which is what lets the
+/// same page render through both rasterisers.
+pub fn text_page(width: f32, height: f32) -> DisplayList {
+    let face = liberation_face();
+    let reader = face.reader().expect("the face reads");
+    let size = 24.0f32;
+    let units = f32::from(reader.units_per_em().max(1));
+
+    let mut glyphs = Vec::new();
+    let mut pen = 0.0f32;
+    for (index, character) in KNOWN_TEXT.chars().enumerate() {
+        let Some(glyph) = reader.glyph_for_character(character) else {
+            continue;
+        };
+        let advance = reader.advance(glyph).map_or(size * 0.5, |advance| {
+            advance.font_units as f32 * size / units
+        });
+        glyphs.push(SceneGlyph {
+            x: pen.round() as i32,
+            y: 0,
+            cluster: index as u32,
+            glyph: glyph.0,
+            subpixel: 0,
+            image: GlyphImage::Atlas(AtlasPlacement {
+                page: ATLAS_PAGE,
+                format: BitmapFormat::Coverage,
+                x: (index as u16 % 4) * 8,
+                y: 0,
+                width: 8,
+                height: 8,
+                offset_from_origin_x: 0,
+                offset_from_origin_y: -8,
+            }),
+        });
+        pen += advance;
+    }
+
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let background = builder
+        .add_geometry(&box_path(SceneRect::new(0.0, 0.0, width, height)))
+        .expect("a background");
+    let paper = builder
+        .add_paint(Paint::Solid(rgb(0xff, 0xff, 0xff)))
+        .expect("a paper colour");
+    builder
+        .push(Command::FillPath {
+            geometry: background,
+            paint: paper,
+        })
+        .expect("the background");
+    let ink = builder
+        .add_paint(Paint::Solid(rgb(0x10, 0x10, 0x30)))
+        .expect("an ink");
+    let run = builder
+        .add_glyph_run(&SceneGlyphRun {
+            face: 0,
+            bucket_steps: mjx_scene::ScaleBucket::enclosing(size).steps(),
+            residual_scale: 1.0,
+            origin: ScenePoint::new(12.0, 60.0),
+            direction: TextDirection::LeftToRight,
+            hinting: Hinting::GridFitted,
+            level: 0,
+            glyphs,
+        })
+        .expect("a glyph run");
+    builder
+        .push(Command::DrawGlyphs { run, paint: ink })
+        .expect("a run");
+    builder.finish().expect("the scene is well formed")
+}
+
+/// The same page, with its text filled by a gradient rather than by one colour.
+///
+/// What `a:textFill` is, and the case R08 reduced to a representative colour and handed on. It is a
+/// separate fixture rather than a flag because the two go through different arms of the plan — a
+/// solid run draws into its parent and a filled one opens a mask layer — and a suite that could not
+/// name them apart could not assert that.
+pub fn gradient_text_page(width: f32, height: f32) -> DisplayList {
+    let face = liberation_face();
+    let reader = face.reader().expect("the face reads");
+    let size = 32.0f32;
+    let units = f32::from(reader.units_per_em().max(1));
+    let mut glyphs = Vec::new();
+    let mut pen = 0.0f32;
+    for (index, character) in KNOWN_TEXT.chars().enumerate() {
+        let Some(glyph) = reader.glyph_for_character(character) else {
+            continue;
+        };
+        let advance = reader.advance(glyph).map_or(size * 0.5, |advance| {
+            advance.font_units as f32 * size / units
+        });
+        glyphs.push(SceneGlyph {
+            x: pen.round() as i32,
+            y: 0,
+            cluster: index as u32,
+            glyph: glyph.0,
+            subpixel: 0,
+            image: GlyphImage::Atlas(AtlasPlacement {
+                page: ATLAS_PAGE,
+                format: BitmapFormat::Coverage,
+                x: 0,
+                y: 0,
+                width: 24,
+                height: 24,
+                offset_from_origin_x: 0,
+                offset_from_origin_y: -24,
+            }),
+        });
+        pen += advance;
+    }
+
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let gradient = builder
+        .add_gradient(&mjx_scene::Gradient::linear(
+            vec![
+                GradientStop::new(0.0, rgb(0xd0, 0x20, 0x20)),
+                GradientStop::new(1.0, rgb(0x20, 0x20, 0xd0)),
+            ],
+            0.0,
+        ))
+        .expect("a gradient");
+    let fill = builder
+        .add_paint(Paint::Gradient(gradient))
+        .expect("a gradient paint");
+    let run = builder
+        .add_glyph_run(&SceneGlyphRun {
+            face: 0,
+            bucket_steps: mjx_scene::ScaleBucket::enclosing(size).steps(),
+            residual_scale: 1.0,
+            origin: ScenePoint::new(10.0, 70.0),
+            direction: TextDirection::LeftToRight,
+            hinting: Hinting::GridFitted,
+            level: 0,
+            glyphs,
+        })
+        .expect("a glyph run");
+    builder
+        .push(Command::DrawGlyphs { run, paint: fill })
+        .expect("a run");
+    builder.finish().expect("the scene is well formed")
+}
+
+/// A page with one shape under one effect, so an effect arm can be exercised at all.
+///
+/// R08's own suite constructed only `OuterShadow` and `Blur`; `Glow`, `Reflection`, `SoftEdge` and
+/// `InnerShadow` had never executed anywhere when this was written.
+pub fn one_shape_under(width: f32, height: f32, kind: EffectKind) -> DisplayList {
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let shape = builder
+        .add_geometry(&box_path(SceneRect::new(
+            width * 0.3,
+            height * 0.3,
+            width * 0.7,
+            height * 0.6,
+        )))
+        .expect("a shape");
+    let ink = builder
+        .add_paint(Paint::Solid(rgb(0x20, 0x80, 0x40)))
+        .expect("an ink");
+    let effect_colour = builder
+        .add_paint(Paint::Solid(Color {
+            red: 0xc0,
+            green: 0x00,
+            blue: 0x00,
+            alpha: 0xd0,
+        }))
+        .expect("an effect colour");
+    let effect = builder
+        .add_effect(mjx_scene::Effect {
+            paint: Some(effect_colour),
+            radius: 5.0,
+            distance: 6.0,
+            direction: std::f32::consts::FRAC_PI_4,
+            // **`Effect::new` leaves both fade alphas at zero**, and a reflection that fades from
+            // nothing to nothing is invisible. Every effect fixture in this crate before MJXOFF-164
+            // used the defaults, so the `Reflection` arm of both painters had never produced a
+            // single pixel — and a cross-painter comparison of two blank reflections agrees
+            // perfectly. Set here for every kind, because the two fields mean nothing to the other
+            // six and everything to this one.
+            start_alpha: 0.6,
+            end_alpha: 0.0,
+            start_position: 0.0,
+            end_position: 1.0,
+            ..mjx_scene::Effect::new(kind)
+        })
+        .expect("an effect");
+    builder
+        .push(Command::PushEffect(effect))
+        .expect("an effect group");
+    builder
+        .push(Command::FillPath {
+            geometry: shape,
+            paint: ink,
+        })
+        .expect("a fill");
+    builder.push(Command::Pop).expect("the effect closes");
+    builder.finish().expect("the scene is well formed")
+}
+
+/// A page with one **dashed** stroke on it.
+///
+/// A rasteriser gets its dashes from the tessellator, which cuts the path; an exporter writes a dash
+/// array and needs the lengths. `mjx_scene::dash_lengths` was private until MJXOFF-164, so an
+/// exporter had no way to know what `lgDashDot` means and could only have written a solid line — or
+/// invented an eleventh interpretation of a preset ECMA-376 names and does not measure.
+pub fn dashed_page(width: f32, height: f32) -> DisplayList {
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let line = builder
+        .add_geometry(&Geometry::path(
+            vec![
+                PathCommand::MoveTo(ScenePoint::new(8.0, height / 2.0)),
+                PathCommand::LineTo(ScenePoint::new(width - 8.0, height / 2.0)),
+            ],
+            FillRule::NonZero,
+        ))
+        .expect("a line");
+    let stroke = builder
+        .add_stroke_style(&StrokeStyle {
+            dash: mjx_scene::DashPattern::LargeDashDot,
+            ..StrokeStyle::solid(3.0, rgb(0x00, 0x00, 0x00))
+        })
+        .expect("a stroke interns")
+        .expect("a visible stroke");
+    builder
+        .push(Command::StrokePath {
+            geometry: line,
+            stroke,
+        })
+        .expect("a stroke");
+    builder.finish().expect("the scene is well formed")
+}
+
 /// Which blend modes a page could ask for, so a sweep names them rather than assuming.
 pub const BLEND_MODES: [BlendMode; 5] = [
     BlendMode::Over,

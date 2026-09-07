@@ -329,6 +329,14 @@ fn an_effect_dag_reaches_the_plan_with_its_numbers_and_its_chain() {
     );
 
     // And behind-ness is a property of the kind, stated once so four painters agree.
+    //
+    // ⚠ **These seven assertions were, until MJXOFF-164, the only consumers of the function.** The
+    // `wgpu` painter called it as `let _ = draws_behind(root.effect.kind);` — computed and thrown
+    // away — and every arm of `effect_steps` hard-coded its own ordering. So flipping any line below
+    // failed this test and changed no pixel, while swapping the two pushes in the shadow arm painted
+    // every shadow on top of its shape and left the whole suite green. **Where an effect goes is now
+    // asserted on the pixels**, in `the_software_painter_needs_no_gpu.rs`; these seven remain as the
+    // table the two painters read, and the eight below are its partner.
     assert!(mjx_paint::plan::draws_behind(EffectKind::OuterShadow));
     assert!(mjx_paint::plan::draws_behind(EffectKind::Glow));
     assert!(mjx_paint::plan::draws_behind(EffectKind::Reflection));
@@ -336,6 +344,126 @@ fn an_effect_dag_reaches_the_plan_with_its_numbers_and_its_chain() {
     assert!(!mjx_paint::plan::draws_behind(EffectKind::SoftEdge));
     assert!(!mjx_paint::plan::draws_behind(EffectKind::InnerShadow));
     assert!(!mjx_paint::plan::draws_behind(EffectKind::FillOverlay));
+
+    // The three-valued answer the pair makes: a blur and a soft edge *contain* the subtree, so the
+    // subtree is not drawn beside them at all. A painter that read only `draws_behind` would draw a
+    // sharp copy over every blurred one.
+    assert!(mjx_paint::plan::replaces_subtree(EffectKind::Blur));
+    assert!(mjx_paint::plan::replaces_subtree(EffectKind::SoftEdge));
+    for kind in EffectKind::ALL {
+        if mjx_paint::plan::replaces_subtree(kind) {
+            assert!(
+                !mjx_paint::plan::draws_behind(kind),
+                "{kind:?} both replaces the subtree and goes behind it, which is not a place"
+            );
+        }
+    }
+}
+
+#[test]
+fn keeping_outlines_is_not_the_only_setting_and_changes_what_the_plan_holds() {
+    // The identity-value probe over `PlanOptions`, **both branches**. R07's own sweep covered one
+    // branch of two and the gap is a recorded defect, so this asserts what each answer does rather
+    // than only that the flag is readable.
+    let list = common::one_rectangle(
+        40.0,
+        40.0,
+        SceneRect::new(4.0, 4.0, 36.0, 36.0),
+        common::rgb(0x20, 0x40, 0x80),
+    );
+    let provider = PlaceholderGeometry::new();
+
+    let mut tessellator = Tessellator::new();
+    let raster = mjx_paint::plan_frame_with(
+        &list,
+        &provider,
+        &mut tessellator,
+        mjx_paint::PlanOptions::for_raster(),
+    )
+    .expect("the list lowers");
+    let vector = mjx_paint::plan_frame_with(
+        &list,
+        &provider,
+        &mut tessellator,
+        mjx_paint::PlanOptions::for_vector(),
+    )
+    .expect("the list lowers");
+
+    assert!(!mjx_paint::PlanOptions::for_raster().keeps_outlines());
+    assert!(mjx_paint::PlanOptions::for_vector().keeps_outlines());
+    assert!(
+        mjx_paint::PlanOptions::for_raster()
+            .keeping_outlines(true)
+            .keeps_outlines(),
+        "the builder's own branch, which nothing else in this suite reaches"
+    );
+
+    // **The walk is the same walk.** That is the load-bearing half: two lowerings would be two
+    // interpretations and the cross-painter comparison would be comparing them.
+    assert_eq!(raster.report(), vector.report());
+    assert_eq!(raster.layers().len(), vector.layers().len());
+    assert_eq!(raster.operation_count(), vector.operation_count());
+
+    // And the only difference is the outline.
+    let outline_of = |plan: &mjx_paint::FramePlan| -> Option<usize> {
+        plan.layer(0)?.ops.iter().find_map(|op| match op {
+            DrawOp::Mesh { outline, .. } => Some(outline.as_ref().map_or(0, |o| o.commands.len())),
+            _ => None,
+        })
+    };
+    assert_eq!(
+        outline_of(&raster),
+        Some(0),
+        "a raster plan keeps no outline, and paying for a copy of every path on the page would be \
+         the point of the option going unused"
+    );
+    let kept = outline_of(&vector).expect("a mesh");
+    assert!(
+        kept >= 4,
+        "a vector plan keeps the shape's own steps, and a rectangle has at least four: {kept}"
+    );
+}
+
+#[test]
+fn a_glyph_runs_paint_decides_whether_a_mask_layer_is_opened() {
+    // The other branching function MJXOFF-164 added, swept over **both** of its branches. A solid
+    // run draws into its parent; a gradient-filled one opens a mask layer, which is what stops
+    // `a:textFill` being reduced to one representative colour.
+    let solid = plan(&common::text_page(240.0, 120.0));
+    assert_eq!(
+        solid.layers().len(),
+        1,
+        "a run in one colour needs no layer of its own"
+    );
+    assert!(
+        !solid
+            .layers()
+            .iter()
+            .any(|layer| matches!(layer.kind, LayerKind::Mask { .. })),
+        "and no mask"
+    );
+
+    let filled = plan(&common::gradient_text_page(240.0, 120.0));
+    let mask = filled
+        .layers()
+        .iter()
+        .find_map(|layer| match &layer.kind {
+            LayerKind::Mask { fill, bounds, .. } => Some((fill.clone(), *bounds)),
+            _ => None,
+        })
+        .expect("a gradient-filled run opens a mask layer");
+    assert!(
+        matches!(mask.0, PaintProgram::Gradient { .. }),
+        "and the layer carries the gradient rather than a colour standing for it"
+    );
+    // **The bounds are the run's own**, not `SceneRect::UNIT`. A gradient resolved against the unit
+    // square runs its whole ramp inside one pixel of the page's corner, which is a fill that is one
+    // colour everywhere the text actually is — the very outcome the mask layer exists to replace.
+    assert!(
+        mask.1.right - mask.1.left > 40.0,
+        "the mask's bounds must be the run's own box, and they are {:?}",
+        mask.1
+    );
 }
 
 #[test]
