@@ -57,7 +57,7 @@
 //! `crates/mjx-sml/tests/shared_string_allocation.rs` measures **48.0 B/entry** against 660 B/entry
 //! for the `RawElement` tree, with a counting global allocator rather than by inspection.
 //!
-//! `crates/mjx-sml/docs/SHARED_STRINGS.md` is the decision record: the numbers, the alternatives
+//! `crates/mjx-sml/docs/guide/shared_strings.md` is the decision record: the numbers, the alternatives
 //! that lost, and the two lifetime policies written out in full.
 
 mod inline;
