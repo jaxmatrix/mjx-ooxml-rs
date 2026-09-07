@@ -426,6 +426,20 @@ impl Workbook {
     /// Every row, cell and worksheet child the batch does not name is left byte-identical — the
     /// isolation is [`mjx_sml::WorksheetPart`]'s slot-level copy-on-write, not this method's doing.
     ///
+    /// # Writing over a formula
+    ///
+    /// A cell that carries an `<f>` **keeps it**, and only its cached `<v>` is replaced. So writing
+    /// `50` into a cell holding `=A2*2` leaves a file that still says `=A2*2` and now caches `50`,
+    /// and Excel computes the formula's own answer over that cache the next time it recalculates —
+    /// the written value does not survive.
+    ///
+    /// That is the same decision every other formula question on this surface follows, and the
+    /// reason is that the alternative is worse: dropping the `<f>` would destroy a formula the
+    /// caller did not name in a file they opened to change a number, and it cannot be undone.
+    /// [`CellBlock::formula`] is how to see one before writing over it, and
+    /// [*Deliberate limitations*](mjx_xlsx::guide::deliberate_limitations) is why there is no
+    /// calculation engine behind either.
+    ///
     /// # Errors
     /// - [`ErrorCode::IndexOutOfRange`] if `sheet` names no tab.
     /// - [`ErrorCode::InvalidArgument`] if a reference is not an A1 cell, or a
