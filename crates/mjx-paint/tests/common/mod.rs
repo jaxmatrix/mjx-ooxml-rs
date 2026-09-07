@@ -180,6 +180,65 @@ pub fn one_rectangle_clipped(
     builder.finish().expect("the scene is well formed")
 }
 
+/// A page drawn under **two** nested clips, with a second shape drawn after the inner one is popped.
+///
+/// The single-clip case cannot see the stencil's depth arithmetic: with one clip, "test against the
+/// current depth" and "test against zero" are the same assertion.
+///
+/// **And the obvious two-clip scene cannot see a broken `Pop` either** — that was a green mutation.
+/// Replacing `PopClip`'s stencil operation with `Push` (incrementing where it should decrement)
+/// leaves the region *outside* the inner clip at exactly the value the next draw tests against, so a
+/// second shape placed there paints correctly by coincidence. What separates them is a second shape
+/// that covers the **inner** region as well: after a correct pop that region is back inside the
+/// outer clip and the later shape covers it, and after a broken one it is at a value nothing tests
+/// against and the earlier shape shows through.
+///
+/// So `after` is drawn over the whole outer clip in its own colour, and the case asserts which
+/// colour survives *inside the inner clip*.
+pub fn two_clips_and_a_shape_drawn_after_the_inner_one_is_popped(
+    width: f32,
+    height: f32,
+    outer: SceneRect,
+    inner: SceneRect,
+    before: Color,
+    after: Color,
+) -> DisplayList {
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let whole = builder
+        .add_geometry(&box_path(SceneRect::new(0.0, 0.0, width, height)))
+        .expect("a shape covering the page");
+    let first = builder.add_paint(Paint::Solid(before)).expect("a colour");
+    let second = builder.add_paint(Paint::Solid(after)).expect("another");
+    let outer_slot = builder
+        .add_clip(Clip::rectangle(outer))
+        .expect("the outer clip");
+    let inner_slot = builder
+        .add_clip(Clip::rectangle(inner))
+        .expect("the inner clip");
+
+    builder
+        .push(Command::PushClip(outer_slot))
+        .expect("the outer clip");
+    builder
+        .push(Command::PushClip(inner_slot))
+        .expect("the inner clip");
+    builder
+        .push(Command::FillPath {
+            geometry: whole,
+            paint: first,
+        })
+        .expect("the first fill");
+    builder.push(Command::Pop).expect("the inner clip closes");
+    builder
+        .push(Command::FillPath {
+            geometry: whole,
+            paint: second,
+        })
+        .expect("the second fill");
+    builder.push(Command::Pop).expect("the outer clip closes");
+    builder.finish().expect("the scene is well formed")
+}
+
 /// A page that uses **every one of the nine commands**.
 ///
 /// The list MJXOFF-163's *"a display list containing every command kind renders to an offscreen

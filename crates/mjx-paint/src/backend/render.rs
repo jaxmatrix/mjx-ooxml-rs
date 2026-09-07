@@ -241,16 +241,14 @@ impl WgpuPainter {
                     let end = staging.indices.len() as u32;
                     let block = uniform_block(*transform, viewport, PaintKind::Solid, 1.0);
                     let slot = staging.uniform(block);
-                    // Pushing deepens the stencil where it currently equals the clip depth; popping
-                    // shallows it where it equals the deeper value the push wrote. Both therefore
-                    // test against the depth *before* the change, which is `depth` for a push and
-                    // `depth - 1` for a pop — and `depth` is decremented first below so that both
-                    // read the same variable.
-                    let reference = if pushing {
-                        depth
-                    } else {
-                        depth.saturating_sub(1).saturating_add(1)
-                    };
+                    // **Both test against `depth` as it stands, and that is not a coincidence.**
+                    // Pushing deepens the stencil where it equals the current clip depth — which is
+                    // `depth`, because the increment happens below. Popping shallows it where it
+                    // equals the deeper value that push wrote — which is also `depth`, because the
+                    // decrement has not happened yet either. The two are the same expression read
+                    // at two different moments, and writing it as one is what makes the invariant
+                    // legible: **the stencil inside the current clip always holds `depth`.**
+                    let reference = depth;
                     records.push(Record {
                         uniform_slot: slot,
                         indices: start..end,

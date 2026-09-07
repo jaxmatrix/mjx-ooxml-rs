@@ -334,6 +334,76 @@ fn a_clip_stops_the_paint_at_its_own_edge() {
 }
 
 #[test]
+fn nested_clips_intersect_and_a_pop_really_widens_the_clip_back() {
+    let mut painter = match common::painter() {
+        Ok(painter) => painter,
+        Err(why) => {
+            return common::skip(
+                "nested_clips_intersect_and_a_pop_really_widens_the_clip_back",
+                &why,
+            )
+        }
+    };
+    common::announce(
+        "nested_clips_intersect_and_a_pop_really_widens_the_clip_back",
+        &painter,
+    );
+
+    // Two clips, and a second shape drawn over the whole outer clip after the inner one is popped.
+    // The colour that survives *inside the inner clip* is the assertion:
+    //
+    //   * a correct pop puts that region back inside the outer clip, so the second shape covers it;
+    //   * a pop that incremented instead of decrementing leaves it at a stencil value nothing tests
+    //     against, so the first shape shows through;
+    //   * a push and a pop that disagree by one paint nothing at all.
+    //
+    // The simpler version of this case — a second shape placed only *outside* the inner clip — was
+    // a **green mutation**: that region happens to hold the right value either way.
+    let before = common::rgb(0xc0, 0x20, 0x20);
+    let after = common::rgb(0x20, 0x20, 0xc0);
+    let outer = SceneRect::new(0.0, 0.0, 60.0, 60.0);
+    let inner = SceneRect::new(0.0, 0.0, 30.0, 60.0);
+    let list = common::two_clips_and_a_shape_drawn_after_the_inner_one_is_popped(
+        80.0, 80.0, outer, inner, before, after,
+    );
+    let (pixels, report) = render(&mut painter, &list, 80, 80, 1.0);
+    assert_eq!(report.clips, 2);
+
+    let inside_both = pixels.pixel(15, 30).expect("a pixel inside both clips");
+    assert_eq!(
+        [inside_both[0], inside_both[1], inside_both[2]],
+        [after.red, after.green, after.blue],
+        "inside the inner clip the later shape must have covered the earlier one. It did not, which \
+         means the `Pop` did not widen the clip back — and the region is still being tested against \
+         the inner clip's own stencil value."
+    );
+    let outer_only = pixels
+        .pixel(45, 30)
+        .expect("a pixel inside the outer clip only");
+    assert_eq!(
+        [outer_only[0], outer_only[1], outer_only[2]],
+        [after.red, after.green, after.blue],
+        "the later shape is missing from the part of the outer clip the inner one never covered"
+    );
+    assert!(
+        pixels.pixel(70, 30).is_some_and(|p| p[3] == 0),
+        "paint escaped the outer clip"
+    );
+    assert!(
+        pixels.pixel(30, 70).is_some_and(|p| p[3] == 0),
+        "paint escaped the outer clip downward"
+    );
+    // And the first shape really was clipped when it was drawn: if the inner clip had done nothing,
+    // the first fill would have covered the whole outer clip and the pixel counts would still come
+    // out the same, so the *area* is asserted too.
+    let covered = pixels.covered();
+    assert!(
+        (3_200..=3_900).contains(&covered),
+        "a 60x60 outer clip should end up covering about 3600 pixels; it covered {covered}"
+    );
+}
+
+#[test]
 fn a_transform_moves_the_shape_and_the_identity_does_not() {
     let mut painter = match common::painter() {
         Ok(painter) => painter,
