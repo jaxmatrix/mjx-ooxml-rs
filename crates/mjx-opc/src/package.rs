@@ -757,6 +757,13 @@ impl Package {
     /// the library does not model. The `.rels` tree and the navigation view are edited in tandem, in
     /// place, so relationship order is preserved.
     ///
+    /// `new_target` is written as given: this is target *text*, not a part name, because an external
+    /// target is a URI that no part name could express. So a caller pointing one at a part whose name
+    /// needs percent-encoding — a space, a literal `%` — should build the text with
+    /// [`PartName::relative_target`], which encodes it, rather than handing over the part name
+    /// itself. Every name this library generates is already safe, so this only arises for a name the
+    /// caller chose.
+    ///
     /// # Errors
     /// Returns [`OpcError`] if the `.rels` part is not well-formed XML.
     pub fn retarget_relationship(
