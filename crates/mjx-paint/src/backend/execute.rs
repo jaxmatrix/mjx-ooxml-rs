@@ -29,7 +29,7 @@ use crate::gradient::RAMP_TEXELS;
 use crate::painter::{
     Antialiasing, BackendReport, Capabilities, DrawReport, Frame, FrameReport, Painter, Pixels,
 };
-use crate::plan::{draws_behind, plan_frame, LayerKind};
+use crate::plan::{plan_frame, LayerKind};
 use crate::pool::PoolHandle;
 use crate::resources::Resources;
 use crate::surface::{SurfaceHost, Viewport};
@@ -301,6 +301,22 @@ impl Painter for WgpuPainter {
                     viewport,
                     &mut staging,
                 )?,
+                // A stencil: the layer's alpha decides where, and a paint drawn into a second
+                // target decides what. `MaskBySourceAlpha` is `second * source.a`, which is exactly
+                // that, and it is the pass a soft edge already uses — no new shader branch, no new
+                // pipeline, and the same arithmetic the software painter does in one composite.
+                LayerKind::Mask {
+                    fill,
+                    bounds,
+                    transform,
+                } => {
+                    let painted =
+                        self.fill_pass(viewport, fill, *bounds, *transform, &mut staging)?;
+                    let mut step = CompositeStep::blit(TexRef::Pooled(handle));
+                    step.kind = PaintKind::MaskBySourceAlpha;
+                    step.second = painted;
+                    vec![step]
+                }
             };
             composites.insert(index, steps);
         }
@@ -508,6 +524,8 @@ impl WgpuPainter {
                 let (indices, base) = staging.quad(rect_corners(full), UNIT_UV);
                 let mut block = uniform_block(step.transform, viewport, step.kind, step.alpha);
                 write_color(&mut block, 8, step.color);
+                block[28] = step.source_offset[0];
+                block[29] = step.source_offset[1];
                 block[31] = step.fade_axis;
                 block[36] = step.fade[0];
                 block[37] = step.fade[1];
@@ -536,11 +554,11 @@ impl WgpuPainter {
             });
             outputs.push(TexRef::Pooled(target));
         }
-        // Where the effect's result goes relative to the subtree. Behind for a shadow, a glow and a
-        // reflection; instead of it for a blur and a soft edge; over it for an inner shadow and a
-        // fill overlay — and `effect_steps` has already put the subtree's own blit in the right
-        // place for the last two.
-        let _ = draws_behind(root.effect.kind);
+        // Where the effect's result goes relative to the subtree is decided inside `effect_steps`,
+        // out of `draws_behind` and `replaces_subtree`, for every node of the DAG rather than only
+        // for the root — a glow feeding a blur has to be ordered too. This line used to be
+        // `let _ = draws_behind(root.effect.kind);`, which computed the answer and threw it away.
+        let _ = root;
         Ok(root_steps)
     }
 

@@ -445,6 +445,17 @@ pub struct GlyphOutline {
 }
 
 impl GlyphOutline {
+    /// A path somebody else walked out of the face.
+    ///
+    /// [`crate::FaceReader::outline`] is the other producer of one of these, and it is a *vector
+    /// exporter's* route into the same type: an SVG or a PDF wants a path at every size, where this
+    /// module's rasteriser produces one only above [`OUTLINE_PIXELS_PER_EM_THRESHOLD`]. One type
+    /// for both is what stops an exporter growing a second outline vocabulary.
+    #[must_use]
+    pub fn from_commands(commands: Vec<OutlineCommand>) -> Self {
+        Self { commands }
+    }
+
     /// The path, in order.
     #[must_use]
     pub fn commands(&self) -> &[OutlineCommand] {

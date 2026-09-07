@@ -44,10 +44,11 @@
 use std::sync::Arc;
 
 use mjx_scene::{
-    tessellate_scene, BitmapFormat, Clip, Color, Command, DisplayList, Effect, EffectKind,
-    FillRule, Geometry, GeometryProvider, GlyphImage, Gradient, GradientKind, Image, Mesh,
-    MeshRole, Paint, PathShade, PatternPreset, Provenance, ResourceIndex, SceneRect,
-    SceneTransform, TessellationOptions, Tessellator,
+    resolve_outline, tessellate_scene, BitmapFormat, Clip, Color, Command, DisplayList, Effect,
+    EffectKind, FillRule, Geometry, GeometryProvider, GlyphImage, Gradient, GradientKind, Hinting,
+    Image, Mesh, MeshRole, Paint, PathCommand, PathShade, PatternPreset, Provenance, ResourceIndex,
+    ScaleBucket, SceneRect, SceneTransform, StrokeGeometry, TessellationOptions, Tessellator,
+    TextDirection,
 };
 
 use crate::error::PaintError;
@@ -261,6 +262,182 @@ pub struct GlyphQuad {
     pub texel_width: f32,
     /// How many texels tall.
     pub texel_height: f32,
+    /// Which glyph of the face this is.
+    ///
+    /// Unused by a rasteriser — the atlas rectangle above is the whole of what it needs — and
+    /// **the only thing a vector exporter has**. A PDF addresses a glyph by this number and an SVG
+    /// asks the face for its outline by it; neither can use an atlas rectangle, because the pixels
+    /// behind one are a per-frame upload and not part of the document.
+    pub glyph: u16,
+    /// The byte offset, within the run's text, of the first character this glyph belongs to.
+    ///
+    /// Carried from [`mjx_scene::SceneGlyph::cluster`]. What a hit test needs, and what an
+    /// exporter's `/ToUnicode` map would use if a run carried its text — which it does not, so
+    /// today it is a diagnostic.
+    pub cluster: u32,
+    /// Where the pen was, in the run's space: the glyph's **origin**, not the corner of its pixels.
+    ///
+    /// [`GlyphQuad::x`] is the top-left of the glyph's atlas rectangle, which is the origin plus the
+    /// bitmap's own offset. A painter drawing an outline needs the origin instead, and computing it
+    /// back out of `x` would need the offset the plan has already folded in.
+    pub pen_x: f32,
+    /// The baseline the pen was on, in the run's space.
+    pub pen_y: f32,
+}
+
+/// Which face a run of glyphs is in, and at what size.
+///
+/// Carried so that a painter which draws text as **outlines** rather than as atlas rectangles can
+/// ask a [`crate::FontSource`] for them. A rasteriser ignores every field: the display list already
+/// told it where the pixels are.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct RunIdentity {
+    /// Which face, as the caller that built the list numbered them.
+    pub face: u32,
+    /// How many pixels to the em the run's positions and images are expressed at — the bucket's own
+    /// scale, **before** the residual scale, which is already folded into the run's transform.
+    pub pixels_per_em: f32,
+    /// Which way the run is written.
+    pub direction: TextDirection,
+    /// Which hinting its glyphs were rasterised with.
+    pub hinting: Hinting,
+    /// The UAX #9 level it was resolved at.
+    pub level: u8,
+}
+
+/// Where an operation came from in the display list.
+///
+/// # Why a painter is given this at all
+///
+/// Three of the four painters ignore it. The fourth is the SVG exporter, which MJXOFF-164 asks to be
+/// *"deliberately also a debugging view of the display list — emit resource indices and command
+/// boundaries as structured attributes so a human can read what the scene actually contained"*, and
+/// a lowering that dropped the indices would make that impossible without a second walk of the list.
+///
+/// It is also what turns a rendering complaint into a lookup: *"the third shape is the wrong
+/// colour"* becomes *"command 12 names paint row 4"*, which is a row somebody can print.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct OpOrigin {
+    /// Which command of the list, counting from zero in paint order.
+    pub command: u32,
+    /// Which table the primary resource row below is in — `"geometry"`, `"glyph run"`, `"image"`,
+    /// `"clip"` — or `"none"` for an operation the painter synthesised, such as a composite.
+    pub table: &'static str,
+    /// Which row of that table.
+    pub row: Option<u32>,
+    /// Which row of the paint table the command named, where it named one.
+    pub paint: Option<u32>,
+    /// Which row of the stroke table, for a stroke.
+    pub stroke: Option<u32>,
+}
+
+impl OpOrigin {
+    /// An operation the painter synthesised rather than read out of a command.
+    #[must_use]
+    pub const fn synthesised(command: u32) -> Self {
+        Self {
+            command,
+            table: "none",
+            row: None,
+            paint: None,
+            stroke: None,
+        }
+    }
+
+    /// An operation that came from one row of one table.
+    #[must_use]
+    pub const fn from_row(command: u32, table: &'static str, row: u32) -> Self {
+        Self {
+            command,
+            table,
+            row: Some(row),
+            paint: None,
+            stroke: None,
+        }
+    }
+
+    /// The same, with the paint row it is filled from.
+    #[must_use]
+    pub const fn filled_with(mut self, paint: u32) -> Self {
+        self.paint = Some(paint);
+        self
+    }
+
+    /// The same, with the stroke row it is outlined with.
+    #[must_use]
+    pub const fn stroked_with(mut self, stroke: u32) -> Self {
+        self.stroke = Some(stroke);
+        self
+    }
+}
+
+/// A shape as the document drew it, rather than as triangles.
+///
+/// # Why a plan carries both
+///
+/// A rasteriser wants triangles and a **vector exporter cannot use them**: a PDF or an SVG whose
+/// shapes are their own trapezoidation is a hundred times the file, and every interior edge of it
+/// is a hairline seam in any viewer that antialiases. So a plan built with
+/// [`PlanOptions::keeping_outlines`] carries the outline beside the triangles, resolved by
+/// [`mjx_scene::resolve_outline`] — **the same call the tessellator resolved its own input with**,
+/// so the two are one interpretation of the shape and not two.
+///
+/// It is optional because it is not free: a page's paths are its bulk, and a rasteriser that was
+/// handed a copy of every one of them would pay for an answer it never reads.
+#[derive(Clone, PartialEq, Debug)]
+pub struct VectorPath {
+    /// The steps that draw it, in the display list's own device-pixel space.
+    pub commands: Vec<PathCommand>,
+    /// Which side of it is inside.
+    pub fill_rule: FillRule,
+    /// How it is stroked, for an outline; `None` for a fill.
+    pub stroke: Option<StrokeGeometry>,
+}
+
+/// What a lowering keeps beyond what a rasteriser needs.
+///
+/// # Why the walk is the same walk either way
+///
+/// R08's hand-off 2 is emphatic that a painter must not re-lower a display list, because two
+/// lowerings are two interpretations and a cross-painter comparison would then be comparing the
+/// interpretations rather than the rasterisers. These options do not change the walk at all: the
+/// layers, the state stack, the clip replay, the glyph batching, the paint resolution and the effect
+/// DAG are identical. They decide only whether the outline a shape was tessellated *from* is kept
+/// beside the triangles it became.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct PlanOptions {
+    keep_outlines: bool,
+}
+
+impl PlanOptions {
+    /// What a rasteriser asks for: triangles, and no copy of the paths behind them.
+    #[must_use]
+    pub const fn for_raster() -> Self {
+        Self {
+            keep_outlines: false,
+        }
+    }
+
+    /// What a vector exporter asks for: the same walk, with each shape's outline kept.
+    #[must_use]
+    pub const fn for_vector() -> Self {
+        Self {
+            keep_outlines: true,
+        }
+    }
+
+    /// The same options, keeping or dropping outlines.
+    #[must_use]
+    pub const fn keeping_outlines(mut self, keep: bool) -> Self {
+        self.keep_outlines = keep;
+        self
+    }
+
+    /// Whether outlines are kept.
+    #[must_use]
+    pub const fn keeps_outlines(self) -> bool {
+        self.keep_outlines
+    }
 }
 
 /// One thing to draw.
@@ -285,6 +462,12 @@ pub enum DrawOp {
         /// render. It reaches a caller through [`DrawReport::placeholders`], because a field the
         /// painter reads and nobody can act on is the same defect one layer up.
         provenance: Provenance,
+        /// The shape the triangles were made from, for a painter that writes vectors.
+        ///
+        /// `None` unless the plan was built with [`PlanOptions::for_vector`]. See [`VectorPath`].
+        outline: Option<Arc<VectorPath>>,
+        /// Which command and which table rows this came from.
+        origin: OpOrigin,
     },
     /// A batch of glyph quads sharing one atlas page and one colour.
     Glyphs {
@@ -294,6 +477,11 @@ pub enum DrawOp {
         transform: SceneTransform,
         /// Which page, what format, what colour.
         paint: PaintProgram,
+        /// Which face and at what size, for a painter that draws outlines rather than atlas
+        /// rectangles.
+        run: RunIdentity,
+        /// Which command and which table row this came from.
+        origin: OpOrigin,
     },
     /// A picture in a rectangle.
     Picture {
@@ -303,6 +491,8 @@ pub enum DrawOp {
         transform: SceneTransform,
         /// Which picture and how it fills the rectangle.
         paint: PaintProgram,
+        /// Which command and which table row this came from.
+        origin: OpOrigin,
     },
     /// Narrow the clip to a shape.
     PushClip {
@@ -310,6 +500,11 @@ pub enum DrawOp {
         mesh: Arc<Mesh>,
         /// Under what transform.
         transform: SceneTransform,
+        /// The clip's own outline, for a painter that writes vectors. `None` unless the plan was
+        /// built with [`PlanOptions::for_vector`].
+        outline: Option<Arc<VectorPath>>,
+        /// Which command and which table row this came from.
+        origin: OpOrigin,
     },
     /// Widen it back. Carries the same triangles, because a stencil clip is undone by drawing the
     /// same shape again with the opposite operation.
@@ -318,12 +513,33 @@ pub enum DrawOp {
         mesh: Arc<Mesh>,
         /// Under what transform.
         transform: SceneTransform,
+        /// The clip's own outline; see [`DrawOp::PushClip`].
+        outline: Option<Arc<VectorPath>>,
+        /// Which command and which table row this came from.
+        origin: OpOrigin,
     },
     /// Bring a finished child layer back into this one.
     Composite {
         /// Which layer.
         layer: usize,
+        /// Which command opened it.
+        origin: OpOrigin,
     },
+}
+
+impl DrawOp {
+    /// Where this operation came from in the display list.
+    #[must_use]
+    pub const fn origin(&self) -> OpOrigin {
+        match self {
+            Self::Mesh { origin, .. }
+            | Self::Glyphs { origin, .. }
+            | Self::Picture { origin, .. }
+            | Self::PushClip { origin, .. }
+            | Self::PopClip { origin, .. }
+            | Self::Composite { origin, .. } => *origin,
+        }
+    }
 }
 
 /// One node of an effect DAG, with its colour already resolved.
@@ -348,6 +564,34 @@ pub enum LayerKind {
     Opacity(f32),
     /// An effect group, with its DAG in topological order. The last node is the root.
     Effect(Vec<EffectNode>),
+    /// A stencil: what the layer draws is used as **coverage** for a paint drawn behind it, and its
+    /// own colour is thrown away.
+    ///
+    /// # What this is for
+    ///
+    /// `a:textFill` lets a run of text be filled with a gradient, a hatch or a picture, and until
+    /// MJXOFF-164 this crate reduced one to a single representative colour rather than drawing it
+    /// wrongly — R08 said so in as many words and handed the real answer on.
+    ///
+    /// The real answer is a second pass: draw the run's coverage into a target, draw the fill into
+    /// another, and multiply. That is one composite for a software painter and one extra pass for a
+    /// GPU, and expressing it as a **layer** rather than as a new paint kind is what lets all four
+    /// painters get it right — a mask is a target and a multiply, which each of them already has,
+    /// where a "gradient-filled glyph" would have been a new branch in a shader, a new PDF idiom and
+    /// a new SVG element, four times over.
+    ///
+    /// It is deliberately not called `TextFill`: nothing about it is text. Any subtree can be a
+    /// stencil for any paint, and the next caller that needs one — a picture clipped to a shape's
+    /// silhouette — needs no new vocabulary.
+    Mask {
+        /// What is drawn behind the stencil and shows through it.
+        fill: PaintProgram,
+        /// The box the fill covers, in the space `transform` maps from — the run's own space, which
+        /// is also the space the fill's gradient axis and hatch tile are resolved in.
+        bounds: SceneRect,
+        /// How that box is placed.
+        transform: SceneTransform,
+    },
 }
 
 /// One render target's worth of work.
@@ -393,6 +637,16 @@ impl FramePlan {
     }
 }
 
+/// A clip that is open around whatever is being walked, so that a group opened inside it can have
+/// it replayed into the group's own target.
+#[derive(Clone)]
+struct OpenClip {
+    mesh: Arc<Mesh>,
+    transform: SceneTransform,
+    outline: Option<Arc<VectorPath>>,
+    origin: OpOrigin,
+}
+
 /// The stack a walk keeps, one entry per `Push`.
 enum Open {
     /// A transform, and what was installed before it.
@@ -401,6 +655,8 @@ enum Open {
     Clip {
         mesh: Arc<Mesh>,
         transform: SceneTransform,
+        outline: Option<Arc<VectorPath>>,
+        origin: OpOrigin,
     },
     /// An opacity of exactly `1.0`. Nothing was opened, and the `Pop` has nothing to close — which
     /// is the whole point of tracking it separately rather than not pushing at all: the stream still
@@ -422,6 +678,25 @@ pub fn plan_frame(
     provider: &dyn GeometryProvider,
     tessellator: &mut Tessellator,
 ) -> Result<FramePlan, PaintError> {
+    plan_frame_with(list, provider, tessellator, PlanOptions::for_raster())
+}
+
+/// Lower `list` into a plan, keeping whatever `options` asks for beyond the triangles.
+///
+/// **The same walk**, in every respect that decides what is drawn: [`plan_frame`] is this call with
+/// [`PlanOptions::for_raster`]. See [`PlanOptions`] for why that matters — two lowerings would be
+/// two interpretations, and the cross-painter comparison would then be comparing them rather than
+/// the rasterisers.
+///
+/// # Errors
+///
+/// As [`plan_frame`].
+pub fn plan_frame_with(
+    list: &DisplayList,
+    provider: &dyn GeometryProvider,
+    tessellator: &mut Tessellator,
+    options_kept: PlanOptions,
+) -> Result<FramePlan, PaintError> {
     // Hand-off 2 from R07: the whole page's triangles in one call. **The painter tessellates
     // nothing** — it does not mean it may not ask, it means it writes no tessellation code, and the
     // one place it asks for something this call does not cover is a clip's own outline, which is not
@@ -438,7 +713,7 @@ pub fn plan_frame(
     let mut current = 0usize;
     let mut transform = SceneTransform::IDENTITY;
     let mut stack: Vec<Open> = Vec::new();
-    let mut active_clips: Vec<(Arc<Mesh>, SceneTransform)> = Vec::new();
+    let mut active_clips: Vec<OpenClip> = Vec::new();
     let mut report = DrawReport::default();
 
     for (index, command) in list.commands().enumerate() {
@@ -459,17 +734,38 @@ pub fn plan_frame(
                     index: slot.index(),
                     command: index,
                 })?;
-                let mesh = clip_mesh(list, &clip, provider, tessellator, options, index)?;
+                let (mesh, outline) = clip_mesh(
+                    list,
+                    &clip,
+                    provider,
+                    tessellator,
+                    options,
+                    index,
+                    options_kept,
+                )?;
+                let origin = OpOrigin::from_row(index as u32, "clip", slot.index());
                 push_op(
                     &mut layers,
                     current,
                     DrawOp::PushClip {
                         mesh: Arc::clone(&mesh),
                         transform,
+                        outline: outline.clone(),
+                        origin,
                     },
                 );
-                active_clips.push((Arc::clone(&mesh), transform));
-                stack.push(Open::Clip { mesh, transform });
+                active_clips.push(OpenClip {
+                    mesh: Arc::clone(&mesh),
+                    transform,
+                    outline: outline.clone(),
+                    origin,
+                });
+                stack.push(Open::Clip {
+                    mesh,
+                    transform,
+                    outline,
+                    origin,
+                });
                 report.clips += 1;
             }
             Command::PushOpacity(factor) => {
@@ -509,23 +805,47 @@ pub fn plan_frame(
                 };
                 match open {
                     Open::Transform(previous) => transform = previous,
-                    Open::Clip { mesh, transform } => {
+                    Open::Clip {
+                        mesh,
+                        transform,
+                        outline,
+                        origin,
+                    } => {
                         active_clips.pop();
-                        push_op(&mut layers, current, DrawOp::PopClip { mesh, transform });
+                        push_op(
+                            &mut layers,
+                            current,
+                            DrawOp::PopClip {
+                                mesh,
+                                transform,
+                                outline,
+                                origin,
+                            },
+                        );
                     }
                     Open::IdentityOpacity => {}
                     Open::Layer { opened, parent } => {
                         current = parent;
-                        push_op(&mut layers, current, DrawOp::Composite { layer: opened });
+                        push_op(
+                            &mut layers,
+                            current,
+                            DrawOp::Composite {
+                                layer: opened,
+                                origin: OpOrigin::synthesised(index as u32),
+                            },
+                        );
                     }
                 }
             }
-            Command::FillPath { paint, .. } => {
+            Command::FillPath { geometry, paint } => {
                 let Some((mesh, provenance)) =
                     take_mesh(&meshes, &mut mesh_cursor, index, MeshRole::Fill)
                 else {
                     continue;
                 };
+                let outline = kept_outline(list, geometry, provider, None, index, options_kept)?;
+                let origin = OpOrigin::from_row(index as u32, "geometry", geometry.index())
+                    .filled_with(paint.index());
                 let paint = resolve_paint(list, paint, mesh.bounds(), index)?;
                 report.triangles += mesh.triangle_count();
                 report.draw_calls += 1;
@@ -541,10 +861,12 @@ pub fn plan_frame(
                         paint,
                         role: MeshRole::Fill,
                         provenance,
+                        outline,
+                        origin,
                     },
                 );
             }
-            Command::StrokePath { stroke, .. } => {
+            Command::StrokePath { geometry, stroke } => {
                 let Some((mesh, provenance)) =
                     take_mesh(&meshes, &mut mesh_cursor, index, MeshRole::Stroke)
                 else {
@@ -555,6 +877,14 @@ pub fn plan_frame(
                     index: stroke.index(),
                     command: index,
                 })?;
+                let outline = kept_outline(
+                    list,
+                    geometry,
+                    provider,
+                    Some(StrokeGeometry::from_record(record)),
+                    index,
+                    options_kept,
+                )?;
                 let paint = resolve_paint(list, record.paint, mesh.bounds(), index)?;
                 report.triangles += mesh.triangle_count();
                 report.draw_calls += 1;
@@ -570,6 +900,10 @@ pub fn plan_frame(
                         paint,
                         role: MeshRole::Stroke,
                         provenance,
+                        outline,
+                        origin: OpOrigin::from_row(index as u32, "geometry", geometry.index())
+                            .filled_with(record.paint.index())
+                            .stroked_with(stroke.index()),
                     },
                 );
             }
@@ -579,26 +913,66 @@ pub fn plan_frame(
                     index: run.index(),
                     command: index,
                 })?;
-                let colour = match resolve_paint(list, paint, SceneRect::UNIT, index)? {
-                    PaintProgram::Solid(color) => color,
-                    // Glyphs in a gradient, a hatch or a picture are a `a:textFill` this painter
-                    // reduces to one colour rather than drawing wrongly: the alternative is a second
-                    // pass that masks the fill by the run's coverage, which is R09's work and is
-                    // recorded as such rather than half-built here.
-                    other => representative_color(&other),
-                };
-                plan_glyph_run(
-                    &record,
-                    colour,
-                    transform,
-                    &mut layers,
-                    current,
-                    &mut report,
-                    list,
-                    provider,
-                    tessellator,
-                    index,
-                )?;
+                let origin = OpOrigin::from_row(index as u32, "glyph run", run.index())
+                    .filled_with(paint.index());
+                // The run's own box, which is the space its fill's gradient axis and hatch tile are
+                // resolved in. `SceneRect::UNIT` was what R08 passed, and it was harmless only
+                // because the answer was thrown away for everything but its representative colour.
+                let bounds = run_bounds(&record);
+                let program = resolve_paint(list, paint, bounds, index)?;
+                let run_transform = glyph_run_transform(&record, transform);
+                match program {
+                    PaintProgram::Solid(colour) => plan_glyph_run(
+                        &record,
+                        colour,
+                        transform,
+                        &mut layers,
+                        current,
+                        &mut report,
+                        list,
+                        provider,
+                        tessellator,
+                        index,
+                        origin,
+                    )?,
+                    // `a:textFill` with a gradient, a hatch or a picture in it. R08 reduced this to
+                    // one representative colour rather than drawing it wrongly and handed the real
+                    // answer to this child: draw the run's **coverage** into a layer, and let the
+                    // fill show through it. See `LayerKind::Mask` for why it is a layer.
+                    fill => {
+                        let opened = open_layer(
+                            &mut layers,
+                            LayerKind::Mask {
+                                fill,
+                                bounds,
+                                transform: run_transform,
+                            },
+                        );
+                        report.layers += 1;
+                        replay_clips(&mut layers, opened, &active_clips);
+                        plan_glyph_run(
+                            &record,
+                            MASK_INK,
+                            transform,
+                            &mut layers,
+                            opened,
+                            &mut report,
+                            list,
+                            provider,
+                            tessellator,
+                            index,
+                            origin,
+                        )?;
+                        push_op(
+                            &mut layers,
+                            current,
+                            DrawOp::Composite {
+                                layer: opened,
+                                origin,
+                            },
+                        );
+                    }
+                }
             }
             Command::DrawImage { image, destination } => {
                 let record = list.image(image).ok_or(PaintError::MissingResource {
@@ -619,6 +993,7 @@ pub fn plan_frame(
                             image: record,
                             destination,
                         },
+                        origin: OpOrigin::from_row(index as u32, "image", image.index()),
                     },
                 );
             }
@@ -660,17 +1035,125 @@ fn open_layer(layers: &mut Vec<Layer>, kind: LayerKind) -> usize {
 ///
 /// See the module documentation: clipping only when the group is composited is right for an opacity
 /// and wrong for a blur, and one rule for both is better than two.
-fn replay_clips(layers: &mut [Layer], into: usize, clips: &[(Arc<Mesh>, SceneTransform)]) {
-    for (mesh, transform) in clips {
+fn replay_clips(layers: &mut [Layer], into: usize, clips: &[OpenClip]) {
+    for clip in clips {
         push_op(
             layers,
             into,
             DrawOp::PushClip {
-                mesh: Arc::clone(mesh),
-                transform: *transform,
+                mesh: Arc::clone(&clip.mesh),
+                transform: clip.transform,
+                outline: clip.outline.clone(),
+                origin: clip.origin,
             },
         );
     }
+}
+
+/// The ink a mask layer's stencil is drawn in.
+///
+/// Opaque white, and the colour is not what matters: a mask layer's own colour is thrown away and
+/// only its **alpha** is read. White rather than black so that a painter which composited a mask by
+/// mistake would produce something visibly wrong rather than something plausibly dark.
+const MASK_INK: Color = Color {
+    red: 0xff,
+    green: 0xff,
+    blue: 0xff,
+    alpha: 0xff,
+};
+
+/// The box a run of glyphs covers, in the run's own space.
+///
+/// The space a fill's gradient axis and hatch tile are resolved in — the same space
+/// [`GlyphQuad::x`] is in — so that a gradient across a line of text runs across *the text* rather
+/// than across whatever `SceneRect::UNIT` happens to mean.
+fn run_bounds(run: &mjx_scene::SceneGlyphRun) -> SceneRect {
+    let mut bounds: Option<SceneRect> = None;
+    for glyph in &run.glyphs {
+        let (left, top, right, bottom) = match glyph.image {
+            GlyphImage::Atlas(placement) => {
+                let left = glyph.x as f32 + f32::from(placement.offset_from_origin_x);
+                let top = glyph.y as f32 + f32::from(placement.offset_from_origin_y);
+                (
+                    left,
+                    top,
+                    left + f32::from(placement.width),
+                    top + f32::from(placement.height),
+                )
+            }
+            // An outline glyph is drawn as a mesh of its own and is not part of the batch, but it is
+            // part of the run and a fill laid over the run has to cover it.
+            GlyphImage::Outline(_) | GlyphImage::Blank => {
+                let x = glyph.x as f32;
+                let y = glyph.y as f32;
+                (x, y, x, y)
+            }
+        };
+        bounds = Some(match bounds {
+            Some(rect) => SceneRect::new(
+                rect.left.min(left),
+                rect.top.min(top),
+                rect.right.max(right),
+                rect.bottom.max(bottom),
+            ),
+            None => SceneRect::new(left, top, right, bottom),
+        });
+    }
+    bounds.unwrap_or(SceneRect::UNIT)
+}
+
+/// Where a run's own space sits: the outer transform, then the run's origin and residual scale.
+///
+/// Written once and used twice — by [`plan_glyph_run`] for the quads and by the walk for a mask
+/// layer's fill — because a fill placed under a different transform from the coverage it shows
+/// through is a gradient that slides off its own text.
+fn glyph_run_transform(run: &mjx_scene::SceneGlyphRun, outer: SceneTransform) -> SceneTransform {
+    let residual = if run.residual_scale.is_finite() && run.residual_scale > 0.0 {
+        run.residual_scale
+    } else {
+        1.0
+    };
+    compose(
+        outer,
+        SceneTransform {
+            scale_x: residual,
+            shear_y: 0.0,
+            shear_x: 0.0,
+            scale_y: residual,
+            translate_x: run.origin.x,
+            translate_y: run.origin.y,
+        },
+    )
+}
+
+/// The outline a command's geometry draws, if the plan is keeping them.
+///
+/// Resolved by [`mjx_scene::resolve_outline`] — **the call the tessellator resolved the same
+/// geometry with** — so a vector exporter drawing this path and a rasteriser drawing the triangles
+/// beside it are drawing one shape. A plan built for a rasteriser answers `None` and pays nothing.
+fn kept_outline(
+    list: &DisplayList,
+    geometry: ResourceIndex,
+    provider: &dyn GeometryProvider,
+    stroke: Option<StrokeGeometry>,
+    command: usize,
+    options: PlanOptions,
+) -> Result<Option<Arc<VectorPath>>, PaintError> {
+    if !options.keeps_outlines() {
+        return Ok(None);
+    }
+    let Some(geometry) = list.geometry(geometry) else {
+        // The same silence `tessellate_scene` keeps for a command whose geometry the list does not
+        // hold: it produces no mesh, so there is no draw for this outline to belong to.
+        let _ = command;
+        return Ok(None);
+    };
+    let resolved = resolve_outline(&geometry, provider)?;
+    Ok(Some(Arc::new(VectorPath {
+        commands: resolved.commands.into_owned(),
+        fill_rule: resolved.fill_rule,
+        stroke,
+    })))
 }
 
 /// The next mesh for `command`, if the tessellator produced one.
@@ -697,7 +1180,11 @@ fn take_mesh(
     None
 }
 
-/// The triangles a clip's region covers.
+/// The triangles a clip's region covers, and — for a vector plan — its own outline.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "one clip's whole resolution, threaded once"
+)]
 fn clip_mesh(
     list: &DisplayList,
     clip: &Clip,
@@ -705,7 +1192,8 @@ fn clip_mesh(
     tessellator: &mut Tessellator,
     options: TessellationOptions,
     command: usize,
-) -> Result<Arc<Mesh>, PaintError> {
+    kept: PlanOptions,
+) -> Result<(Arc<Mesh>, Option<Arc<VectorPath>>), PaintError> {
     let geometry = match clip.geometry {
         Some(slot) => list.geometry(slot).ok_or(PaintError::MissingResource {
             table: "geometry",
@@ -714,7 +1202,18 @@ fn clip_mesh(
         })?,
         None => Geometry::Rectangle(clip.bounds),
     };
-    Ok(tessellator.fill(&geometry, provider, options)?)
+    let mesh = tessellator.fill(&geometry, provider, options)?;
+    let outline = if kept.keeps_outlines() {
+        let resolved = resolve_outline(&geometry, provider)?;
+        Some(Arc::new(VectorPath {
+            commands: resolved.commands.into_owned(),
+            fill_rule: resolved.fill_rule,
+            stroke: None,
+        }))
+    } else {
+        None
+    };
+    Ok((mesh, outline))
 }
 
 /// Resolve a paint index into something a pipeline can be handed.
@@ -850,26 +1349,19 @@ fn plan_glyph_run(
     provider: &dyn GeometryProvider,
     tessellator: &mut Tessellator,
     command: usize,
+    origin: OpOrigin,
 ) -> Result<(), PaintError> {
     // The run's own space: positions and images are in the bucket's pixels, and the whole run is
     // multiplied by `residual_scale` to reach the size that was actually asked for. Folding that
     // into the transform is what lets every quad below be written in bucket pixels.
-    let residual = if run.residual_scale.is_finite() && run.residual_scale > 0.0 {
-        run.residual_scale
-    } else {
-        1.0
+    let run_transform = glyph_run_transform(run, transform);
+    let identity = RunIdentity {
+        face: run.face,
+        pixels_per_em: ScaleBucket::from_steps(run.bucket_steps).pixels_per_em(),
+        direction: run.direction,
+        hinting: run.hinting,
+        level: run.level,
     };
-    let run_transform = compose(
-        transform,
-        SceneTransform {
-            scale_x: residual,
-            shear_y: 0.0,
-            shear_x: 0.0,
-            scale_y: residual,
-            translate_x: run.origin.x,
-            translate_y: run.origin.y,
-        },
-    );
 
     // Grouped by page so a paragraph is a handful of draw calls rather than one per letter. Pages
     // are few — an atlas holds thousands of glyphs on one — so a linear scan beats a map.
@@ -893,6 +1385,10 @@ fn plan_glyph_run(
                     v: f32::from(placement.y),
                     texel_width: f32::from(placement.width),
                     texel_height: f32::from(placement.height),
+                    glyph: glyph.glyph,
+                    cluster: glyph.cluster,
+                    pen_x: glyph.x as f32,
+                    pen_y: glyph.y as f32,
                 };
                 match batches.iter_mut().find(|(page, format, _)| {
                     *page == placement.page && *format == placement.format
@@ -941,6 +1437,11 @@ fn plan_glyph_run(
                         // A glyph outline is the face's own contour, never a stand-in: it came out
                         // of `mjx-text`'s rasteriser and through no geometry provider at all.
                         provenance: Provenance::document(),
+                        // A glyph outline is already in the geometry table as a path, and it is
+                        // glyph-local; a vector exporter draws it from there through the same
+                        // arm every other mesh takes.
+                        outline: None,
+                        origin,
                     },
                 );
             }
@@ -960,6 +1461,8 @@ fn plan_glyph_run(
                     format,
                     color,
                 },
+                run: identity,
+                origin,
             },
         );
     }
@@ -971,12 +1474,34 @@ fn plan_glyph_run(
 /// A shadow and a glow are both "a coloured, blurred copy of the shape, under the shape"; every
 /// other kind replaces or overlays what it consumed. Getting this backwards paints the shadow on
 /// top, which is a bug that looks like a design decision.
+///
+/// # This is read, not merely stated
+///
+/// R08 wrote this function, documented it as the single place all four painters would learn an
+/// effect's ordering from, and then **did not read it**: the `wgpu` painter called it as
+/// `let _ = draws_behind(root.effect.kind);` and hard-coded the ordering separately in each arm of
+/// `effect_steps`. So the single source of truth was not one — changing this function changed
+/// nothing about any render, and the test that asserted its answers was asserting the answers of a
+/// function nobody asked. MJXOFF-164 made it load-bearing: both painters now assemble an effect's
+/// composite steps from this predicate and [`replaces_subtree`], so a mutation of either changes
+/// pixels.
 #[must_use]
 pub const fn draws_behind(kind: EffectKind) -> bool {
     matches!(
         kind,
         EffectKind::OuterShadow | EffectKind::Glow | EffectKind::Reflection
     )
+}
+
+/// Whether an effect kind's result is drawn **instead of** the subtree rather than beside it.
+///
+/// A blur and a soft edge already contain the subtree — they are the subtree, altered — so drawing
+/// the subtree as well would put a sharp copy on top of the blurred one, which is the single most
+/// common way a blur is got wrong. Every other kind is drawn beside the subtree, on the side
+/// [`draws_behind`] names.
+#[must_use]
+pub const fn replaces_subtree(kind: EffectKind) -> bool {
+    matches!(kind, EffectKind::Blur | EffectKind::SoftEdge)
 }
 
 /// The fill rule a clip's own outline is filled with when the list did not say.

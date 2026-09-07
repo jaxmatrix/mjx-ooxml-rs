@@ -135,4 +135,56 @@ pub enum PaintError {
     /// Reading a rendered frame back into memory failed.
     #[error("the frame could not be read back: {0}")]
     Readback(String),
+
+    /// Two painters were asked to be compared and they are the same painter.
+    ///
+    /// **This is the refusal that stops the whole cross-painter exercise being vacuous.** If the
+    /// `wgpu` painter is unavailable — no adapter, no driver, a machine with no graphics stack —
+    /// then *"the painters agree"* degrades into *"`tiny-skia` agrees with itself"*, which is true
+    /// of any painter whatever, including one that draws nothing. Refusing it in the library rather
+    /// than only in a test means no caller can reach the vacuous comparison by accident.
+    #[error(
+        "both sides of a cross-painter comparison are `{name}`; two independent implementations \
+         agreeing is evidence, and one implementation agreeing with itself is not"
+    )]
+    PaintersNotDistinct {
+        /// What both of them call themselves.
+        name: &'static str,
+    },
+
+    /// Two renders that should be comparable are not the same size.
+    #[error("a {left_width}x{left_height} render cannot be compared with a {right_width}x{right_height} one")]
+    IncomparableRenders {
+        /// How wide the first is.
+        left_width: u32,
+        /// How tall.
+        left_height: u32,
+        /// How wide the second is.
+        right_width: u32,
+        /// How tall.
+        right_height: u32,
+    },
+
+    /// A painter that drew a frame could not hand its pixels back.
+    ///
+    /// Distinct from [`PaintError::Readback`], which is a failure *during* a readback: this is a
+    /// painter that answered `None` — one that drew to a window, or to a file. A comparison cannot
+    /// use it and says so rather than treating an absent image as an equal one.
+    #[error("painter `{name}` drew a frame and has no pixels to hand back")]
+    NoPixels {
+        /// Which painter.
+        name: &'static str,
+    },
+
+    /// A document could not be written.
+    ///
+    /// The exporters' failure: a page that names a font nothing can supply, a stream that could not
+    /// be built. Never a panic, for the same reason nothing else here is.
+    #[error("the {format} document could not be written: {detail}")]
+    Export {
+        /// Which exporter.
+        format: &'static str,
+        /// What went wrong.
+        detail: String,
+    },
 }

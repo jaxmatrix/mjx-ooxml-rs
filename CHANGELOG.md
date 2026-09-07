@@ -54,6 +54,82 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.130] - 2026-09-07
+
+**`mjx-paint` part 2: the `tiny-skia` software painter, the PDF and SVG exporters, and the
+cross-painter gate they exist to make possible** (MJXOFF-164, Phase R position 9).
+
+**Three more painters against the same contract.** `SoftwarePainter` executes a `FramePlan` on the
+processor with no graphics stack, no window and no `unsafe`; `PdfPainter` and `SvgPainter` write
+documents from the same lowering. All four are `Painter`, so a caller — and R10's oracle — drives
+them through one loop.
+
+**The software painter is not a fallback, it is what makes the rest of the programme testable.**
+Every golden image from here on is taken headlessly through it, and it is the guarantee that a fully
+pure-Rust path to pixels always exists — which is half of what made 0.0.129's amendment to the
+pure-Rust rule a boundary rather than a concession. `tiny-skia` is used for scan conversion and pixel
+storage only; the *shading* mirrors `backend/shaders.wgsl` function for function, because a second
+painter that shaded differently would make the comparison compare two shaders rather than two
+rasterisers.
+
+**Cross-painter equivalence, and the way it degrades into nothing.** `compare_painters` renders one
+display list through two painters and reports where they disagree. If the GPU painter is unavailable,
+"the painters agree" silently becomes "`tiny-skia` agrees with itself", so the **library refuses** two
+painters with the same name (`PaintError::PaintersNotDistinct`), before either is asked to draw. Over
+a page using all nine commands the two agree on 99.6 % of pixels, and on all seven effect kinds to
+within one level of 255.
+
+**PDF text is text.** A run becomes a `/Type0` font with `/Identity-H` encoding, a `/CIDFontType2`
+descendant with an `/Identity` `CIDToGIDMap`, an embedded subset in `/FontFile2`, and a `/ToUnicode`
+CMap — which is the part that decides whether a reader can extract anything at all. `pdftotext`, a
+reader this project did not write, reads the word back out; checking our own export with our own
+reader would prove nothing. Gradients are PDF shadings built from the same 256-texel ramp both
+rasterisers sample, hatches are tiling patterns from the same fifty-four masks, group opacity is a
+transparency-group form XObject, and text filled with a gradient uses text render mode 7 so it stays
+selectable. PDF has no blur operator, so every effect that needs one is rasterised through the
+software painter and embedded — the documented fallback.
+
+**SVG is vector output and a readable view of the display list.** Every element carries
+`data-mjx-command`, `data-mjx-table`/`row`, `data-mjx-paint`, `data-mjx-role` and
+`data-mjx-provenance`, so *"the third shape is the wrong colour"* becomes *"command 12 names paint
+row 4"*. Validated with `xmllint`.
+
+### Font subsetting, in the font engine
+
+`mjx_text::subset_truetype` cuts a face down to the glyphs a page drew. It **truncates rather than
+renumbers**: every glyph keeps its own id, so a composite glyph's component ids are correct because
+they were never touched — which is where every subsetter bug lives. A `CFF` face comes back whole and
+says so. `FaceReader` also grew `outline` (a glyph's path at a size) and `for_each_mapped_character`
+(the `cmap`, read backwards, for a `/ToUnicode` map).
+
+### Defects found and fixed
+
+* **`plan::draws_behind` decided nothing.** 0.0.129 documented it as the single place all four
+  painters learn an effect's ordering from, and the `wgpu` painter called it as
+  `let _ = draws_behind(..)` — computed and discarded — while each arm hard-coded its own ordering.
+  Flipping the function failed a test and changed no pixel; swapping two pushes in the shadow arm
+  painted every shadow **on top of its shape** and left the suite green. Both painters now assemble
+  an effect's composite steps from it and from the new `replaces_subtree`, and where the ink lands is
+  asserted on pixels by region.
+* **An inner shadow's offset moved its mask as well as its blur**, so it leaked outside the shape it
+  is inside. The offset now shifts only the source lookup, in the shader and on the processor.
+* **`Effect::new` leaves both reflection alphas at zero**, so every reflection this workspace had ever
+  constructed was invisible — and two painters drawing nothing agree perfectly.
+* **The seam gate at rank 5.5 had three holes** that compose into a one-commit escape to the facade:
+  `mjx_ooxml` was absent from its forbidden list (only `mjx_ooxml_types` and `mjx_ooxml_core` were),
+  the manifest scan read `[dependencies]` alone and missed this crate's own target-specific table, and
+  it read only the `name.workspace = true` spelling. All three closed, and the scanner now has its own
+  instrument test.
+* **Sixteen public items were reachable from nothing**, including `Viewport::physical_x`/`physical_y`
+  and `DesktopWindow::requesting_redraws_through`. A new reachability gate covers functions,
+  constants, enum variants **and struct fields**.
+
+### Supersession
+
+`PLAN.md`'s Phase 7 line describes an IR → SVG → raster → PDF chain. **It is superseded**: both
+exporters consume the display list directly through the same `plan_frame_with` every painter uses,
+and neither is built out of the other.
+
 ## [0.0.129] - 2026-09-07
 
 **`mjx-paint`: the `Painter` contract, the `wgpu` painter, and the two architecture rules that had

@@ -42,6 +42,30 @@
 //!   what stops the exemption becoming dead.
 //! * Adding a module to `src/` without touching [`SOURCE_FILE_COUNT`] → the count fails, so a new
 //!   file cannot slip past the scan.
+//! * Adding `mjx-ooxml` to the manifest with a `use` in `src/plan.rs` → both the manifest assertion
+//!   and the source scan fail, naming the facade. **Before MJXOFF-164 neither did**, which is the
+//!   first of the three holes below.
+//!
+//! # Three holes MJXOFF-164 closed, and why they mattered more than they look
+//!
+//! This file is the only thing standing at rank 5.5, so a hole in it is a hole in the architecture
+//! rather than in a test. An audit of MJXOFF-163 found three, and they compose into one commit that
+//! reaches the facade:
+//!
+//! 1. **The forbidden list did not contain the facade.** Its own comment three lines above said
+//!    *"the format crates, the facade and the packaging tier are here"*, and `mjx_ooxml` was not:
+//!    `mjx_ooxml_types` and `mjx_ooxml_core` were, but `use mjx_ooxml::Deck;` contains neither
+//!    substring and passed. The one edge the rank exists to make *impossible for others* was the
+//!    one this gate could not see.
+//! 2. **The manifest scan read one dependency table.** It tracked `[dependencies]` alone, so this
+//!    crate's own `[target.'cfg(target_arch = "wasm32")'.dependencies]` — which is *in this file* —
+//!    was invisible, and a dependency declared there was unchecked.
+//! 3. **It read one spelling.** Only `name.workspace = true`, not `name = { workspace = true }`,
+//!    which Cargo treats identically.
+//!
+//! None of the three is reachable by the layering test either, because at rank 5.5 every one of
+//! those edges points *down* and is legal. All three are closed below, and the third assertion of
+//! this file's own instrument test now proves the parser sees both spellings.
 
 use std::path::{Path, PathBuf};
 
@@ -50,10 +74,30 @@ use std::path::{Path, PathBuf};
 /// Exact rather than a floor, for the reason `mjx-layout`'s copy gives: a `>=` would pass on a scan
 /// that quietly stopped, and MJXOFF-155 §8 lists the non-recursive walk as a recurring defect in
 /// this project.
-const SOURCE_FILE_COUNT: usize = 15;
+const SOURCE_FILE_COUNT: usize = 23;
 
-/// The one file that may name the font engine.
-const ATLAS_ADAPTER: &str = "glyph_atlas.rs";
+/// The files that may name the font engine, and nothing else may.
+///
+/// # Why this grew from one to two, deliberately
+///
+/// MJXOFF-163 had exactly one: `glyph_atlas.rs`, which adapts `mjx_text::GlyphAtlas` to this
+/// crate's [`AtlasSource`](mjx_paint::AtlasSource) because a display list carries no pixels and the
+/// atlas's delta therefore cannot be reached through it.
+///
+/// MJXOFF-164 needs a **second** thing from the font engine and it is not the atlas: a PDF embeds a
+/// font file and an SVG draws glyph outlines, and neither the file nor the outlines can be reached
+/// through a display list either — a list records where a glyph's *pixels* are, and it does not
+/// record the face.
+///
+/// The three ways that could have gone:
+///
+/// * delete this assertion, which trades the only gate at rank 5.5 for a convenience;
+/// * put the exporter's font handling in `glyph_atlas.rs`, which passes unchanged and leaves a file
+///   called "glyph atlas" embedding font files, where no reader would look for it;
+/// * **name a second file here, with the reason** — which is what this is. Each permitted file is
+///   still asserted to *use* the permission, so neither can rot; every other file is still refused;
+///   and the exemption is still enumerated in the one place a reader would look for it.
+const FONT_ENGINE_ADAPTERS: &[&str] = &["glyph_atlas.rs", "font_source.rs"];
 
 /// The marker a hand-written `unsafe` line must carry.
 ///
@@ -129,6 +173,15 @@ fn nothing_below_the_display_list_is_named_outside_the_one_adapter() {
         "mjx-docx",
         "mjx_xlsx",
         "mjx-xlsx",
+        // **The facade, missing until MJXOFF-164.** `mjx_ooxml_types` and `mjx_ooxml_core` were
+        // both listed and neither is a substring of `mjx_ooxml`, so `use mjx_ooxml::Deck;` passed
+        // this scan: the one edge rank 5.5 exists to forbid for everybody else was the one edge
+        // this gate could not see. It is spelled with its two possible followers rather than bare,
+        // because a bare `mjx_ooxml` is a prefix of the two lines below it and would report them.
+        "mjx_ooxml::",
+        "mjx_ooxml;",
+        "mjx_ooxml}",
+        "mjx-ooxml\"",
         "mjx_ooxml_types",
         "mjx-ooxml-types",
         "mjx_ooxml_core",
@@ -177,13 +230,20 @@ fn nothing_below_the_display_list_is_named_outside_the_one_adapter() {
 fn the_font_engine_is_named_in_exactly_one_file_and_that_file_uses_it() {
     let files = scanned_sources();
     let mut naming: Vec<String> = Vec::new();
-    let mut adapter_mentions = 0usize;
+    let mut mentions: std::collections::BTreeMap<&str, usize> = FONT_ENGINE_ADAPTERS
+        .iter()
+        .map(|name| (*name, 0usize))
+        .collect();
 
     for path in &files {
-        let is_adapter = path
+        let adapter = path
             .file_name()
             .and_then(|name| name.to_str())
-            .is_some_and(|name| name == ATLAS_ADAPTER);
+            .and_then(|name| {
+                FONT_ENGINE_ADAPTERS
+                    .iter()
+                    .find(|allowed| **allowed == name)
+            });
         let text = read(path);
         for line in text.lines() {
             if line.trim_start().starts_with("//") {
@@ -192,53 +252,38 @@ fn the_font_engine_is_named_in_exactly_one_file_and_that_file_uses_it() {
             if !line.contains("mjx_text") && !line.contains("mjx-text") {
                 continue;
             }
-            if is_adapter {
-                adapter_mentions += 1;
-            } else {
-                naming.push(format!("{}: {}", path.display(), line.trim()));
+            match adapter {
+                Some(name) => *mentions.entry(*name).or_default() += 1,
+                None => naming.push(format!("{}: {}", path.display(), line.trim())),
             }
         }
     }
 
     assert!(
         naming.is_empty(),
-        "only `src/{ATLAS_ADAPTER}` may name the font engine, and these lines do too:\n{}\n\
+        "only {FONT_ENGINE_ADAPTERS:?} may name the font engine, and these lines do too:\n{}\n\
          `mjx-scene` re-exports `BitmapFormat`, `DeviceScale`, `Hinting`, `ScaleBucket` and \
          `TextDirection` for exactly this reason — write `use mjx_scene::BitmapFormat;` instead. \
-         The one exemption exists because a display list carries no pixels and the atlas delta \
-         therefore cannot be reached through it; it is not a general permission.",
+         The two exemptions exist because a display list carries neither pixels nor faces, and \
+         neither the atlas delta nor a face can therefore be reached through it; they are not a \
+         general permission.",
         naming.join("\n")
     );
-    assert!(
-        adapter_mentions > 0,
-        "`src/{ATLAS_ADAPTER}` is exempted from this gate and no longer names the font engine at \
-         all. An exemption nothing uses is a hole rather than a decision: either the adapter has \
-         moved, in which case this gate must follow it, or it is dead and both should go."
-    );
+    for (name, count) in &mentions {
+        assert!(
+            *count > 0,
+            "`src/{name}` is exempted from this gate and no longer names the font engine at all. \
+             An exemption nothing uses is a hole rather than a decision: either the adapter has \
+             moved, in which case this gate must follow it, or it is dead and both should go."
+        );
+    }
 }
 
 #[test]
 fn the_manifest_declares_exactly_the_dependencies_the_seam_allows() {
     let manifest = read(&Path::new(env!("CARGO_MANIFEST_DIR")).join("Cargo.toml"));
-    let mut in_dependencies = false;
-    let mut declared: Vec<&str> = Vec::new();
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with('[') {
-            // `[package]` inherits `version`, `edition` and the rest from the workspace with the
-            // same spelling, so the section is tracked rather than the whole file scanned.
-            in_dependencies = trimmed == "[dependencies]";
-            continue;
-        }
-        if !in_dependencies {
-            continue;
-        }
-        if let Some((name, _)) = trimmed.split_once(".workspace = true") {
-            declared.push(name.trim());
-        }
-    }
     assert_eq!(
-        declared,
+        workspace_dependencies(&manifest),
         vec![
             "mjx-scene",
             "mjx-tokens",
@@ -246,12 +291,140 @@ fn the_manifest_declares_exactly_the_dependencies_the_seam_allows() {
             "thiserror",
             "wgpu",
             "pollster",
+            "tiny-skia",
+            // The browser build's own table. Until MJXOFF-164 this scan read `[dependencies]`
+            // alone and never saw this line — in the very file the gate is about.
+            "wgpu (target cfg(target_arch = \"wasm32\"))",
+            // Dev-dependencies are scanned too. They cannot reach a shipped binary, but a
+            // dev-dependency on a format crate would let a *test* in this crate learn what a
+            // `.docx` is, and a painter's fixtures would then be documents.
+            "wgpu (dev)",
+            "mjx-allocation-counter (dev)",
         ],
-        "this crate depends on the display list, the design tokens, the font engine (in one file \
-         only — see the test above), an error derive and the graphics stack. `mjx-layout`, \
-         `mjx-dml`, a format crate or the facade appearing here means the seam has leaked, and the \
-         layering test cannot refuse any of them at rank 5.5."
+        "this crate depends on the display list, the design tokens, the font engine (in the two \
+         files the test above names), an error derive, the graphics stack and the software \
+         rasteriser. `mjx-layout`, `mjx-dml`, a format crate or the facade appearing here means \
+         the seam has leaked, and the layering test cannot refuse any of them at rank 5.5."
     );
+}
+
+/// Every workspace dependency the manifest declares, in **every** table, in **both** spellings.
+///
+/// # What this had to be taught, and why each half mattered
+///
+/// **Every table.** MJXOFF-163's version tracked `[dependencies]` and nothing else, so this crate's
+/// own `[target.'cfg(target_arch = "wasm32")'.dependencies]` — a table that is *in the file the gate
+/// is about* — was invisible, and so was `[dev-dependencies]`.
+///
+/// **Both spellings.** It matched only `name.workspace = true`. Cargo treats
+/// `name = { workspace = true }` identically, and the second is what a dependency with any extra key
+/// has to be written as — including `wgpu = { workspace = true, features = ["webgl"] }`, which is
+/// the one this crate actually has.
+///
+/// Together they were a one-commit escape to the facade that neither this gate nor the layering test
+/// could see. Each entry is tagged with the table it came from, so a dependency that *moved* between
+/// tables changes the assertion rather than passing silently.
+fn workspace_dependencies(manifest: &str) -> Vec<String> {
+    let mut table: Option<String> = None;
+    let mut declared = Vec::new();
+    for line in manifest.lines() {
+        let trimmed = line.trim();
+        if let Some(header) = trimmed
+            .strip_prefix('[')
+            .and_then(|rest| rest.strip_suffix(']'))
+        {
+            table = classify(header);
+            continue;
+        }
+        let Some(suffix) = table.as_deref() else {
+            continue;
+        };
+        let Some(name) = declares_a_workspace_dependency(trimmed) else {
+            continue;
+        };
+        declared.push(if suffix.is_empty() {
+            name.to_owned()
+        } else {
+            format!("{name} ({suffix})")
+        });
+    }
+    declared
+}
+
+/// What a table header means for this scan, or `None` for a table that declares no dependencies.
+///
+/// A `[target.'...'.dependencies]` keeps its condition in the tag, because *"`wgpu` on `wasm32`"*
+/// and *"`wgpu` everywhere"* are different declarations, and an assertion that could not tell them
+/// apart would accept a dependency moved from one to the other.
+fn classify(header: &str) -> Option<String> {
+    match header {
+        "dependencies" => return Some(String::new()),
+        "dev-dependencies" => return Some("dev".to_owned()),
+        "build-dependencies" => return Some("build".to_owned()),
+        _ => {}
+    }
+    let rest = header.strip_prefix("target.")?;
+    let (condition, kind) = rest.rsplit_once('.')?;
+    let condition = condition.trim_matches('\'').trim_matches('"');
+    match kind {
+        "dependencies" => Some(format!("target {condition}")),
+        "dev-dependencies" => Some(format!("dev, target {condition}")),
+        _ => None,
+    }
+}
+
+/// The name a line declares as a workspace dependency, in either spelling.
+fn declares_a_workspace_dependency(line: &str) -> Option<&str> {
+    if let Some((name, _)) = line.split_once(".workspace = true") {
+        return Some(name.trim());
+    }
+    let (name, rest) = line.split_once('=')?;
+    let rest = rest.trim();
+    if !rest.starts_with('{') || !rest.contains("workspace = true") {
+        return None;
+    }
+    Some(name.trim())
+}
+
+#[test]
+fn the_manifest_scanner_reads_every_table_and_both_spellings() {
+    // The gate's own instrument, checked — the same way the keyword scan below is. A parser that saw
+    // one table would pass the assertion above for ever while a dependency sat unread in another,
+    // which is exactly what happened before MJXOFF-164.
+    const SAMPLE: &str = concat!(
+        "[package]\n",
+        "name = \"x\"\n",
+        "version.workspace = true\n",
+        "[dependencies]\n",
+        "mjx-scene.workspace = true\n",
+        "thiserror = { workspace = true }\n",
+        "serde = \"1\"\n",
+        "[target.'cfg(target_arch = \"wasm32\")'.dependencies]\n",
+        "wgpu = { workspace = true, features = [\"webgl\"] }\n",
+        "[dev-dependencies]\n",
+        "mjx-fixtures.workspace = true\n",
+        "[[test]]\n",
+        "name = \"harnessless\"\n"
+    );
+    assert_eq!(
+        workspace_dependencies(SAMPLE),
+        vec![
+            "mjx-scene",
+            "thiserror",
+            "wgpu (target cfg(target_arch = \"wasm32\"))",
+            "mjx-fixtures (dev)",
+        ],
+        "the scanner must read every dependency table and both spellings, and must not mistake \
+         `[package]`'s inherited `version.workspace = true` or a `[[test]]` section for one"
+    );
+    assert_eq!(declares_a_workspace_dependency("serde = \"1\""), None);
+    assert_eq!(
+        declares_a_workspace_dependency("wgpu = { version = \"30\" }"),
+        None,
+        "a table without `workspace = true` in it is not a workspace dependency"
+    );
+    assert_eq!(classify("package"), None);
+    assert_eq!(classify("dependencies"), Some(String::new()));
 }
 
 #[test]

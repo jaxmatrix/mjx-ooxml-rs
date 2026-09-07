@@ -21,6 +21,7 @@ use std::fmt;
 use std::sync::Arc;
 
 use crate::error::FontError;
+use crate::raster::{GlyphOutline, OutlineCommand, OutlinePoint};
 
 /// The lowest and highest `head.unitsPerEm` the OpenType specification permits.
 const UNITS_PER_EM_RANGE: std::ops::RangeInclusive<u16> = 16..=16384;
@@ -507,6 +508,125 @@ impl FaceReader<'_> {
                 right: rect.x_max,
                 top: rect.y_max,
             })
+    }
+
+    /// The glyph's outline, scaled to `pixels_per_em`, or `None` for a glyph that draws nothing.
+    ///
+    /// # Why this is here and not in the rasteriser
+    ///
+    /// [`crate::GlyphRasteriser::render`] also answers with a [`GlyphOutline`], but only for a
+    /// glyph **above** [`crate::OUTLINE_PIXELS_PER_EM_THRESHOLD`]: below it the rasteriser's whole
+    /// job is to produce pixels, and asking it for a path at twelve pixels per em would either be
+    /// refused or would rebuild its route decision from outside. A *vector exporter* has the
+    /// opposite need — it wants the path at every size, because a page of text drawn as bitmaps is
+    /// not a vector export — so it asks the face directly, and pays one table walk per glyph rather
+    /// than going through a cache keyed on a scale bucket it does not use.
+    ///
+    /// The convention is [`OutlinePoint`]'s: device pixels at `pixels_per_em`, **y increasing
+    /// downward**, relative to the glyph's own origin. That is the same convention
+    /// [`crate::GlyphBitmap`]'s offsets use, so a caller never has to know which route a glyph took
+    /// in order to know which way is up — and it is why this scales rather than answering in font
+    /// units, where y increases upward and a caller would have to flip it itself.
+    #[must_use]
+    pub fn outline(&self, glyph: GlyphIndex, pixels_per_em: f32) -> Option<GlyphOutline> {
+        if !pixels_per_em.is_finite() || pixels_per_em <= 0.0 {
+            return None;
+        }
+        let scale = pixels_per_em / f32::from(self.units_per_em.max(1));
+        let mut builder = ScaledOutline {
+            scale,
+            commands: Vec::new(),
+        };
+        self.inner
+            .outline_glyph(ttf_parser::GlyphId(glyph.0), &mut builder)?;
+        if builder.commands.is_empty() {
+            return None;
+        }
+        Some(GlyphOutline::from_commands(builder.commands))
+    }
+
+    /// Every character the face's `cmap` maps, with the glyph it maps to.
+    ///
+    /// # What this is for, and why it is a visitor
+    ///
+    /// A PDF that embeds a subset font addresses glyphs by **glyph id**, and a reader extracting
+    /// text from it has no way back to characters unless the file carries a `/ToUnicode` map. Build
+    /// that map and `pdftotext` reads the page; omit it and the same page is a picture of text that
+    /// happens to be made of vectors. So an exporter needs the `cmap` read **backwards** — glyph to
+    /// character — and the only place that inversion can be done without a second font parser is
+    /// here.
+    ///
+    /// A visitor rather than a returned map because the answer is one entry per mapped character —
+    /// tens of thousands for a CJK face — and an exporter wants the handful its page used. It calls
+    /// this once per face and keeps only what it needs.
+    ///
+    /// Characters are visited in no particular order, and a glyph may be visited more than once:
+    /// several characters legitimately map to one glyph, and a caller building a `/ToUnicode` map
+    /// should keep the first or the lowest rather than assuming there is one.
+    pub fn for_each_mapped_character(&self, visit: &mut dyn FnMut(char, GlyphIndex)) {
+        let Some(cmap) = self.inner.tables().cmap else {
+            return;
+        };
+        for subtable in cmap.subtables {
+            if !subtable.is_unicode() {
+                continue;
+            }
+            subtable.codepoints(|code| {
+                let Some(character) = char::from_u32(code) else {
+                    return;
+                };
+                if let Some(glyph) = subtable.glyph_index(code) {
+                    visit(character, GlyphIndex(glyph.0));
+                }
+            });
+        }
+    }
+}
+
+/// The `ttf-parser` outline sink that scales as it walks, so no second pass is needed.
+struct ScaledOutline {
+    scale: f32,
+    commands: Vec<OutlineCommand>,
+}
+
+impl ScaledOutline {
+    /// A point in the outline's own convention: pixels right of and **below** the glyph's origin.
+    ///
+    /// The negation is the whole of the conversion. Font units put y upward from the baseline;
+    /// every other coordinate in this platform puts it downward from the top, and a painter that
+    /// met both conventions in one path would draw upside-down text at exactly one size.
+    fn at(&self, x: f32, y: f32) -> OutlinePoint {
+        OutlinePoint {
+            x: x * self.scale,
+            y: -y * self.scale,
+        }
+    }
+}
+
+impl ttf_parser::OutlineBuilder for ScaledOutline {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.commands.push(OutlineCommand::MoveTo(self.at(x, y)));
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.commands.push(OutlineCommand::LineTo(self.at(x, y)));
+    }
+
+    fn quad_to(&mut self, x1: f32, y1: f32, x: f32, y: f32) {
+        self.commands
+            .push(OutlineCommand::QuadraticTo(self.at(x1, y1), self.at(x, y)));
+    }
+
+    fn curve_to(&mut self, x1: f32, y1: f32, x2: f32, y2: f32, x: f32, y: f32) {
+        self.commands.push(OutlineCommand::CubicTo(
+            self.at(x1, y1),
+            self.at(x2, y2),
+            self.at(x, y),
+        ));
+    }
+
+    fn close(&mut self) {
+        self.commands.push(OutlineCommand::Close);
     }
 }
 

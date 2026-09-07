@@ -17,7 +17,16 @@
 //!
 //! Getting the first of those backwards paints the shadow on top of the shape, which is a defect
 //! that looks like a design decision, so [`crate::plan::draws_behind`] states it once and both this
-//! painter and R09's read it from there.
+//! painter and the software one read it from there.
+//!
+//! **That last sentence was false until MJXOFF-164.** R08 wrote it, and wrote
+//! `let _ = draws_behind(root.effect.kind);` in `execute.rs` — the answer computed and thrown away —
+//! while each arm of [`WgpuPainter::effect_steps`] pushed the subtree's own blit in a hard-coded
+//! position of its own. Flipping `draws_behind` failed a test and changed no pixel; swapping the two
+//! pushes in the `Glow | OuterShadow` arm painted every shadow **on top of its shape** and left the
+//! whole suite green. The arms below now produce the effect's own output only, and the position of
+//! the subtree comes from [`crate::plan::draws_behind`] and [`crate::plan::replaces_subtree`] in one
+//! place at the foot of that function.
 
 use super::device::OFFSCREEN_FORMAT;
 use super::frame::{
@@ -28,7 +37,7 @@ use super::{
     UNIFORM_FLOATS,
 };
 use crate::error::PaintError;
-use crate::plan::{DrawOp, EffectNode, PaintProgram};
+use crate::plan::{draws_behind, replaces_subtree, DrawOp, EffectNode, PaintProgram};
 use crate::pool::PoolHandle;
 use mjx_scene::{
     BitmapFormat, BlendMode, Color, EffectKind, ImageFillMode, SceneRect, SceneTransform,
@@ -137,6 +146,7 @@ impl WgpuPainter {
                     quads,
                     transform,
                     paint,
+                    ..
                 } => {
                     if quads.is_empty() {
                         continue;
@@ -195,6 +205,7 @@ impl WgpuPainter {
                     destination,
                     transform,
                     paint,
+                    ..
                 } => {
                     absorb(&mut bounds, *destination, *transform);
                     let uv = self.picture_uv(paint, *destination);
@@ -216,7 +227,12 @@ impl WgpuPainter {
                         stencil_reference: depth,
                     });
                 }
-                DrawOp::PushClip { mesh, transform } | DrawOp::PopClip { mesh, transform } => {
+                DrawOp::PushClip {
+                    mesh, transform, ..
+                }
+                | DrawOp::PopClip {
+                    mesh, transform, ..
+                } => {
                     let pushing = matches!(op, DrawOp::PushClip { .. });
                     if mesh.is_empty() {
                         // A clip whose shape has no triangles clips everything away. The depth still
@@ -272,7 +288,7 @@ impl WgpuPainter {
                         depth.saturating_sub(1)
                     };
                 }
-                DrawOp::Composite { layer: child } => {
+                DrawOp::Composite { layer: child, .. } => {
                     let Some(steps) = composites.get(child) else {
                         continue;
                     };
@@ -282,6 +298,8 @@ impl WgpuPainter {
                         let mut block =
                             uniform_block(step.transform, viewport, step.kind, step.alpha);
                         write_color(&mut block, 8, step.color);
+                        block[28] = step.source_offset[0];
+                        block[29] = step.source_offset[1];
                         block[31] = step.fade_axis;
                         block[36] = step.fade[0];
                         block[37] = step.fade[1];
@@ -475,6 +493,46 @@ impl WgpuPainter {
         Ok(TexRef::Pooled(target))
     }
 
+    /// One pass that draws `fill` over `bounds` into a fresh pooled target.
+    ///
+    /// What a [`crate::LayerKind::Mask`]'s paint is drawn into before the stencil is applied to it.
+    /// Separate from [`WgpuPainter::effect_pass`] because that one draws a *full-viewport* quad with
+    /// the identity transform — right for a blur, wrong for a gradient, whose axis is resolved in
+    /// the shape's own space and would run across the page instead of across the text.
+    pub(super) fn fill_pass(
+        &mut self,
+        viewport: (u32, u32),
+        paint: &PaintProgram,
+        bounds: SceneRect,
+        transform: SceneTransform,
+        staging: &mut Staging,
+    ) -> Result<TexRef, PaintError> {
+        let target = self.acquire_target(viewport.0, viewport.1, staging)?;
+        let uv = self.picture_uv(paint, bounds);
+        let (indices, base) = staging.quad(rect_corners(bounds), uv);
+        let (_, block, textures) = self.paint_uniform(paint, transform, viewport, 1.0, staging);
+        let slot = staging.uniform(block);
+        staging.passes.push(Pass {
+            target: Some(target),
+            geometry: false,
+            clear: true,
+            records: vec![Record {
+                uniform_slot: slot,
+                indices,
+                base_vertex: base,
+                textures,
+                key: PipelineKey {
+                    blend: BlendMode::Over,
+                    stencil: StencilMode::Absent,
+                    samples: 1,
+                    format: OFFSCREEN_FORMAT,
+                },
+                stencil_reference: 0,
+            }],
+        });
+        Ok(TexRef::Pooled(target))
+    }
+
     /// Two separable passes: a blur of `source`.
     pub(super) fn blur(
         &mut self,
@@ -531,6 +589,10 @@ impl WgpuPainter {
             translate_x: distance * direction.cos(),
             translate_y: distance * direction.sin(),
         };
+        // **The effect's own output only.** Where the subtree goes relative to it is decided once,
+        // below, out of `draws_behind` and `replaces_subtree` — see those two functions for why
+        // that matters: until MJXOFF-164 the ordering was hard-coded in each arm here and
+        // `draws_behind` was called and discarded, so the "single source of truth" decided nothing.
         let mut steps = Vec::new();
         match node.effect.kind {
             EffectKind::Blur => {
@@ -549,16 +611,20 @@ impl WgpuPainter {
                     tint.transform = offset;
                 }
                 steps.push(tint);
-                steps.push(CompositeStep::blit(input));
             }
             EffectKind::InnerShadow => {
                 let blurred = self.blur(viewport, input, radius.max(1.0), staging)?;
-                steps.push(CompositeStep::blit(input));
                 let mut inner = CompositeStep::blit(blurred);
                 inner.kind = PaintKind::InnerShadow;
                 inner.second = input;
                 inner.color = node.color;
-                inner.transform = offset;
+                // The offset moves the **blurred copy** and not the mask. See `shaders.wgsl`'s
+                // `KIND_INNER_SHADOW`: putting it on the quad, which is what R08 did, moves both
+                // inputs and pushes the shadow outside the shape it is inside.
+                inner.source_offset = [
+                    -offset.translate_x / viewport.0.max(1) as f32,
+                    -offset.translate_y / viewport.1.max(1) as f32,
+                ];
                 steps.push(inner);
             }
             EffectKind::SoftEdge => {
@@ -594,15 +660,24 @@ impl WgpuPainter {
                 ];
                 reflected.fade_axis = 1.0;
                 steps.push(reflected);
-                steps.push(CompositeStep::blit(input));
             }
             EffectKind::FillOverlay => {
-                steps.push(CompositeStep::blit(input));
                 let mut overlay = CompositeStep::blit(input);
                 overlay.kind = PaintKind::Tint;
                 overlay.color = node.color;
                 overlay.blend = node.effect.blend;
                 steps.push(overlay);
+            }
+        }
+        // Where the subtree goes relative to what the effect produced, stated **once** for every
+        // painter in this workspace. A blur and a soft edge already contain the subtree, so drawing
+        // it again would put a sharp copy over the blurred one; a shadow, a glow and a reflection go
+        // under it; an inner shadow and a fill overlay go over it.
+        if !replaces_subtree(node.effect.kind) {
+            if draws_behind(node.effect.kind) {
+                steps.push(CompositeStep::blit(input));
+            } else {
+                steps.insert(0, CompositeStep::blit(input));
             }
         }
         Ok(steps)

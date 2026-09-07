@@ -95,7 +95,10 @@
 #![allow(unsafe_code)]
 
 pub mod backend;
+pub mod compare;
 pub mod error;
+pub mod export;
+pub mod font_source;
 pub mod glyph_atlas;
 pub mod gradient;
 pub mod painter;
@@ -103,22 +106,34 @@ pub mod pattern;
 pub mod plan;
 pub mod pool;
 pub mod resources;
+pub mod software;
 pub mod surface;
 
 pub use backend::{PaintKind, WgpuPainter, PLACEHOLDER_WARNING};
+pub use compare::{
+    compare_painters, compare_renders, render_offscreen, render_once, Agreement, Disagreement,
+    Render, ResourceFactory, DEFAULT_CHANNEL_TOLERANCE,
+};
 pub use error::PaintError;
+pub use export::pdf::{PdfPainter, PDF_EXPORTER};
+pub use export::svg::{SvgPainter, SVG_EXPORTER};
+pub use font_source::{FaceLibrary, GLYPH_FILL_RULE};
 pub use gradient::{GradientRamp, RAMP_TEXELS};
 pub use painter::{
     AdapterKind, Antialiasing, BackendReport, Capabilities, DrawReport, Frame, FrameReport,
     GraphicsApi, Painter, Pixels,
 };
 pub use pattern::{cell_of, coverage_atlas, mask_of, PATTERN_MASKS, PATTERN_SIDE};
-pub use plan::{plan_frame, DrawOp, FramePlan, Layer, LayerKind, PaintProgram};
+pub use plan::{
+    plan_frame, plan_frame_with, DrawOp, FramePlan, Layer, LayerKind, OpOrigin, PaintProgram,
+    PlanOptions, RunIdentity, VectorPath,
+};
 pub use pool::{PoolHandle, PoolStatistics, TexturePool, TextureSize, DEFAULT_TEXTURE_POOL_BYTES};
 pub use resources::{
-    AtlasPage, AtlasSource, AtlasVisitor, AtlasWrite, ImagePixels, ImageSource, NoGlyphs, NoImages,
-    Resources,
+    AtlasPage, AtlasSource, AtlasVisitor, AtlasWrite, EmbeddableFace, FontSource, ImagePixels,
+    ImageSource, NoFonts, NoGlyphs, NoImages, Resources,
 };
+pub use software::{SoftwarePainter, MAXIMUM_SOFTWARE_TARGET, SOFTWARE_PAINTER};
 pub use surface::{
     DesktopWindow, OffscreenSurface, SurfaceHost, SurfaceTarget, Viewport, WindowHandles,
 };

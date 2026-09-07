@@ -310,7 +310,23 @@ pub struct Pixels {
     pub width: u32,
     /// How many pixels tall.
     pub height: u32,
-    /// Non-premultiplied `RGBA`, row by row from the top, four bytes to the pixel and no padding.
+    /// **Premultiplied** `RGBA`, row by row from the top, four bytes to the pixel and no padding.
+    ///
+    /// # This said "non-premultiplied" until MJXOFF-164, and it was wrong
+    ///
+    /// Every render target in this crate holds premultiplied values — `shaders.wgsl` says so at
+    /// length, and source-over is a blend factor rather than a formula precisely because of it —
+    /// and `read_pixels` copies a target. The doc comment described a conversion that has never
+    /// existed on any painter's readback path.
+    ///
+    /// Measured rather than reasoned: a pure red at half alpha comes back as `80 00 00 80` from
+    /// **both** rasterisers, where a non-premultiplied readback would answer `ff 00 00 80`.
+    ///
+    /// The *documentation* is corrected here and the *convention* deliberately is not. Changing it
+    /// would move every existing pixel assertion in the crate and every golden image taken after
+    /// this point, which is a decision for whoever owns the comparison — R10 — rather than for the
+    /// child that found the discrepancy. A caller that wants straight colour divides the three
+    /// channels by the alpha, as [`crate::export::pdf`] does when it embeds a rasterised layer.
     pub rgba: Vec<u8>,
 }
 

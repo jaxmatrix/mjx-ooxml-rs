@@ -230,6 +230,12 @@ jobs:
     runs-on: ubuntu-latest
     env:
       MJX_REQUIRE_GPU: "1"
+      # And the two **independent readers** the exporters are checked with (MJXOFF-164). Same shape,
+      # same reason: `pdftotext` reading a word back out of our PDF is the one assertion that
+      # separates text from a picture of text, and a suite that skipped it silently on a runner
+      # without poppler would be green precisely because it checked nothing. Checking our own export
+      # with our own reader would prove nothing whatever, which is why these are external tools.
+      MJX_REQUIRE_TOOLS: "1"
       # Mesa's software rasteriser for the OpenGL path too, so that a `wgpu` build which prefers GL
       # on this runner still finds something rather than reporting an absence that is not real.
       LIBGL_ALWAYS_SOFTWARE: "1"
@@ -237,14 +243,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: install a software Vulkan implementation
+      - name: install a software Vulkan implementation and the two document readers
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            mesa-vulkan-drivers libvulkan1 vulkan-tools libgl1-mesa-dri
+            mesa-vulkan-drivers libvulkan1 vulkan-tools libgl1-mesa-dri \
+            poppler-utils libxml2-utils
       - name: which implementation is present
         run: vulkaninfo --summary || true
-      - name: the painter's own suites, with a missing device as a failure
+      - name: which readers are present
+        run: |
+          pdftotext -v || true
+          xmllint --version || true
+      - name: the painter's own suites, with a missing device or reader as a failure
         run: cargo test -p mjx-paint --no-fail-fast -- --nocapture
 
   # Every example runs, and every example reopens its own output and asserts something about it.

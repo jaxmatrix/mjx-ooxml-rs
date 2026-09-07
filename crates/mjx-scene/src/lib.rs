@@ -100,10 +100,11 @@ pub use provider::{
 };
 pub use scene::{build_scene, Decoration, ResourceResolver, SceneOptions, DEFAULT_TEXT_COLOR};
 pub use tessellate::{
-    page_bucket, tessellate_scene, Mesh, MeshRole, Provenance, SceneMesh, StrokeGeometry,
-    TessellationOptions, Tessellator, COORDINATE_LIMIT, DASH_SEGMENT_LIMIT,
-    DEFAULT_MESH_CACHE_BYTES, MAXIMUM_TOLERANCE, MINIMUM_TOLERANCE, REFERENCE_EM_POINTS,
-    STROKE_WIDTH_LIMIT, TOLERANCE_DEVICE_PIXELS, TRIANGLE_LIMIT,
+    dash_lengths, page_bucket, resolve_outline, tessellate_scene, Mesh, MeshRole, Provenance,
+    ResolvedGeometry, SceneMesh, StrokeGeometry, TessellationOptions, Tessellator,
+    COORDINATE_LIMIT, DASH_SEGMENT_LIMIT, DEFAULT_MESH_CACHE_BYTES, MAXIMUM_TOLERANCE,
+    MINIMUM_TOLERANCE, REFERENCE_EM_POINTS, STROKE_WIDTH_LIMIT, TOLERANCE_DEVICE_PIXELS,
+    TRIANGLE_LIMIT,
 };
 
 /// The one sRGB colour in this workspace, re-exported so that a painter written against this crate

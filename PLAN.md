@@ -114,6 +114,13 @@ See [`CHANGELOG.md`](CHANGELOG.md).
 - **Phase 6 — Charts + VML.** `mjx-chart`; `mjx-vml` (a typed drawing model with shape-level
   references, re-exposed from `mjx-pptx` behind the `vml` feature).
 - **Phase 7+ (deferred).** Rendering (IR → text/layout → SVG → raster → PDF).
+  **⚠ Superseded by Phase R (MJXOFF-155 onward), and the chain above is the part that changed.** The
+  pipeline is IR → `FragmentTree` (`mjx-layout`) → `DisplayList` (`mjx-scene`) → a painter, and
+  **SVG and PDF are painters rather than stages**: both consume the display list directly through the
+  same lowering the two rasterisers use, and neither is built out of the other. An SVG made by
+  rasterising, and a PDF made by printing an SVG, are both pictures of a page rather than the page —
+  a PDF produced that way carries no selectable text, which is the single requirement MJXOFF-164 was
+  written around. See `crates/mjx-paint/src/export/`.
 
 ### Recorded divergence: where the bindings live, and what they are built with
 

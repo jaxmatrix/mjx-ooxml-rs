@@ -225,7 +225,14 @@ fn fragment_main(in: Varying) -> @location(0) vec4<f32> {
     }
     if (kind == KIND_INNER_SHADOW) {
         // Inside the shape's own alpha, wherever the blurred *inverse* of that alpha reaches.
-        let inverse = 1.0 - textureSampleLevel(source, clamped, in.uv, 0.0).a;
+        //
+        // **The offset moves the blurred copy and not the mask**, which is `effect.xy` rather than a
+        // transform on the quad. R08 put the offset on the quad, which moved both inputs together
+        // and pushed the shadow *outside* the shape it is inside — an inner shadow that leaks is an
+        // outer shadow, and `the_software_painter_needs_no_gpu.rs` measures exactly that. Shifting
+        // only the source is one addition and is the definition rather than an approximation of it.
+        let shifted = in.uv + draw.effect.xy;
+        let inverse = 1.0 - textureSampleLevel(source, clamped, shifted, 0.0).a;
         let inside = textureSampleLevel(second, clamped, in.uv, 0.0).a;
         return draw.color * inverse * inside * opacity;
     }

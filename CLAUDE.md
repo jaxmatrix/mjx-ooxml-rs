@@ -123,6 +123,30 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   export and test paths never require a GPU. That is not a hope: `tiny-skia` is a **required**
   second painter (R09) precisely so that a fully pure-Rust path to pixels always exists, and the
   cross-build matrix builds the library graph for five targets without one.
+
+  **That painter now exists** (MJXOFF-164). `mjx-paint` holds four painters against one contract —
+  `wgpu`, `tiny-skia`, PDF and SVG — and three of them link nothing at all. The software one is not
+  a fallback: every golden image from R10 onward is taken through it, headlessly. It is also the only
+  honest way to test the first, because **two independent implementations agreeing is evidence and
+  one implementation agreeing with itself is not** — which is why `compare_painters` *refuses* two
+  painters that report the same name rather than reporting how well one agrees with itself.
+- **One lowering, four painters, and no painter re-walks a display list.** `plan_frame` turns a list
+  into layers and draw operations with no graphics API in it, and every painter consumes that. A
+  painter that walked the commands itself would be a *second interpretation*, and a cross-painter
+  comparison would then be comparing interpretations rather than rasterisers. For the same reason,
+  anything four painters must agree about is stated **once** and read from there: the fifty-four
+  preset hatch masks (`mjx_paint::PATTERN_MASKS`), the gradient ramp resolver, `resolve_outline` and
+  `dash_lengths` in `mjx-scene`, and `draws_behind`/`replaces_subtree` for where an effect's result
+  goes relative to its subtree. A shared answer that is *documented* as the single source of truth
+  and not actually *read* is worse than none: `draws_behind` was exactly that between MJXOFF-163 and
+  MJXOFF-164, so flipping it failed a test and changed no pixel while swapping two lines painted
+  every shadow on top of its shape with the suite green.
+- **PDF and SVG are exporters, not stages on the way to raster.** Both consume the display list
+  directly, through the same lowering. This **supersedes** `PLAN.md`'s Phase 7 line describing an
+  IR → SVG → raster → PDF chain, and the supersession is written there too. A PDF made by printing
+  an SVG carries no selectable text, which is the requirement the whole exporter was written around;
+  it is checked with `pdftotext`, a reader this project did not write, because checking our own
+  export with our own reader would prove nothing about the format.
 - **`unsafe_code = "deny"`** workspace-wide; a crate that truly needs it must `#[allow(unsafe_code)]`
   locally **with a written safety justification**. **No crate in the document graph does.** Four
   places allow it — three outside the shipped graph, and the platform boundary:

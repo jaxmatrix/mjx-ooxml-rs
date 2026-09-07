@@ -808,32 +808,73 @@ fn outline_of<'a>(
     geometry: &'a Geometry,
     provider: &dyn GeometryProvider,
 ) -> Result<(Cow<'a, [PathCommand]>, FillRule, Provenance), SceneError> {
+    let outline = resolve_outline(geometry, provider)?;
+    Ok((outline.commands, outline.fill_rule, outline.provenance))
+}
+
+/// A geometry resolved into the steps that draw it — **the one interpretation of what a shape is**.
+///
+/// Answered by [`resolve_outline`], which is what [`Tessellator::fill_resolved`] and
+/// [`Tessellator::stroke_resolved`] resolve their own input with.
+#[derive(Clone, PartialEq, Debug)]
+pub struct ResolvedGeometry<'a> {
+    /// The steps that draw it, in device pixels. Borrowed for a [`Geometry::Path`] — the case a
+    /// page is full of — and owned for the two that are computed.
+    pub commands: Cow<'a, [PathCommand]>,
+    /// Which side of the outline is inside it.
+    pub fill_rule: FillRule,
+    /// Whether this is the document's own shape or a stand-in for one, and what a provider called
+    /// it.
+    pub provenance: Provenance,
+}
+
+/// The outline a geometry draws, resolving it through `provider` if nobody has yet.
+///
+/// # Why this is public, and what it stops
+///
+/// [`Tessellator::fill_resolved`] answers with **triangles**, which is what a rasteriser wants and
+/// what a *vector* exporter cannot use: a PDF or an SVG made of a shape's trapezoidation is a
+/// hundred times the file, and every interior edge of it is a hairline seam in a viewer that
+/// antialiases. MJXOFF-164's two exporters therefore need the outline itself.
+///
+/// The alternative to exposing it is each exporter deciding for itself what a
+/// [`Geometry::Rectangle`] is, which side of a [`Geometry::Path`] is inside it and what to do with
+/// a [`Geometry::Unresolved`] — **a second interpretation of the same shape**, which is precisely
+/// what a display list exists to prevent. So there is one function, the tessellator calls it too,
+/// and a change to what a shape means changes the triangles and the vector output together.
+///
+/// # Errors
+///
+/// Whatever `provider` fails with for a [`Geometry::Unresolved`]. The other two arms cannot fail.
+pub fn resolve_outline<'a>(
+    geometry: &'a Geometry,
+    provider: &dyn GeometryProvider,
+) -> Result<ResolvedGeometry<'a>, SceneError> {
     Ok(match geometry {
-        Geometry::Rectangle(rect) => (
-            Cow::Owned(rectangle_commands(*rect)),
-            FillRule::NonZero,
-            Provenance::document(),
-        ),
+        Geometry::Rectangle(rect) => ResolvedGeometry {
+            commands: Cow::Owned(rectangle_commands(*rect)),
+            fill_rule: FillRule::NonZero,
+            provenance: Provenance::document(),
+        },
         Geometry::Path {
             commands,
             fill_rule,
             ..
-        } => (
-            Cow::Borrowed(commands.as_slice()),
-            *fill_rule,
-            Provenance::document(),
-        ),
+        } => ResolvedGeometry {
+            commands: Cow::Borrowed(commands.as_slice()),
+            fill_rule: *fill_rule,
+            provenance: Provenance::document(),
+        },
         Geometry::Unresolved { outline, bounds } => {
             let resolved = provider.outline(*outline, *bounds)?;
-            let provenance = Provenance {
-                origin: resolved.provenance,
-                label: Some(resolved.label.into_boxed_str()),
-            };
-            (
-                Cow::Owned(resolved.commands),
-                resolved.fill_rule,
-                provenance,
-            )
+            ResolvedGeometry {
+                commands: Cow::Owned(resolved.commands),
+                fill_rule: resolved.fill_rule,
+                provenance: Provenance {
+                    origin: resolved.provenance,
+                    label: Some(resolved.label.into_boxed_str()),
+                },
+            }
         }
     })
 }
@@ -1105,7 +1146,16 @@ fn offset_contour(contour: &Contour, distance: f32, miter_limit: f32) -> Contour
 /// The multipliers are ECMA-376's preset dash names read as the multiples of the line width every
 /// renderer of this format uses; a `solid` line has no pattern at all rather than a pattern of one
 /// infinite dash.
-fn dash_lengths(dash: DashPattern, width: f32) -> Vec<f32> {
+///
+/// # Why this is public
+///
+/// A rasteriser gets its dashes for free — the tessellator cuts the path here and hands over
+/// triangles. A **vector exporter** does not: an SVG writes `stroke-dasharray` and a PDF writes a
+/// `d` array, and both need these same eleven number pairs. Each deciding for itself what `lgDashDot`
+/// means would be a third and fourth interpretation of a preset the specification names and does not
+/// measure, and the three would drift.
+#[must_use]
+pub fn dash_lengths(dash: DashPattern, width: f32) -> Vec<f32> {
     let multiples: &[f32] = match dash {
         DashPattern::Solid => return Vec::new(),
         DashPattern::Dot => &[1.0, 3.0],

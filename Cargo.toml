@@ -87,7 +87,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.129"
+version = "0.0.130"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -188,6 +188,18 @@ wgpu = { version = "30", default-features = false, features = [
 # when they are returned, and nothing in this workspace carries an async runtime, so a single-file
 # blocking executor is what turns them back into ordinary calls. Used only by `mjx-paint`.
 pollster = "0.4"
+# The software rasteriser (MJXOFF-164), used only by `mjx-paint`. **Pure Rust with no C dependency**,
+# which is the whole reason it is the second painter: `mjx-paint` is the crate where `CLAUDE.md`'s
+# pure-Rust rule stops governing, and the amendment that allowed `wgpu` in leans on there always
+# being a path to pixels that needs no graphics stack at all. Every golden image in R10 and R11, and
+# every render in continuous integration on a machine with no GPU, goes through this.
+#
+# `png-format` is deliberately **not** enabled. It is a `Pixmap::encode_png` convenience this crate
+# has no use for — a painter answers with `Pixels`, and a suite that wanted a file would write one —
+# and enabling it puts the `png` decoder in the dependency tree of a crate that decodes nothing.
+# `simd` is enabled: it is `core::simd`-free, portable, and is the difference between a software
+# painter that can back a test suite and one that cannot.
+tiny-skia = { version = "0.12", default-features = false, features = ["std", "simd"] }
 
 # --- internal (path deps declared once) ---
 mjx-ooxml-core = { path = "crates/mjx-ooxml-core" }
