@@ -390,3 +390,90 @@ fn theme_without_font_scheme_has_none() {
     let (theme, _) = parse_theme(fragment.as_bytes());
     assert_eq!(theme.font_scheme(), None);
 }
+
+// -------------------------------------------------------------------------------------------
+// The theme this workspace authors (MJXOFF-200)
+// -------------------------------------------------------------------------------------------
+
+/// The authored theme is read back by this crate's own reader, and every one of the twelve colour
+/// slots resolves.
+///
+/// This is the assertion that makes `default_theme_xml` worth having. A theme part that is present
+/// but says nothing is exactly the empty part MJXOFF-200 warns a "the theme exists" test would let
+/// through: `accent1` would still resolve to nothing and a chart series would still be painted with
+/// no colour. So the check is on the twelve slots, not on the part.
+#[test]
+fn the_authored_theme_defines_every_colour_slot() {
+    let (theme, interner) = parse_theme(&mjx_dml::default_theme_xml());
+    let scheme = theme
+        .color_scheme()
+        .expect("the authored theme has a clrScheme");
+
+    for (slot, expected) in [
+        (ColorSchemeSlot::Dark1, "000000"),
+        (ColorSchemeSlot::Light1, "FFFFFF"),
+        (ColorSchemeSlot::Dark2, "44546A"),
+        (ColorSchemeSlot::Light2, "E7E6E6"),
+        (ColorSchemeSlot::Accent1, "4472C4"),
+        (ColorSchemeSlot::Accent2, "ED7D31"),
+        (ColorSchemeSlot::Accent3, "A5A5A5"),
+        (ColorSchemeSlot::Accent4, "FFC000"),
+        (ColorSchemeSlot::Accent5, "5B9BD5"),
+        (ColorSchemeSlot::Accent6, "70AD47"),
+        (ColorSchemeSlot::Hyperlink, "0563C1"),
+        (ColorSchemeSlot::FollowedHyperlink, "954F72"),
+    ] {
+        let color = scheme
+            .color(slot)
+            .unwrap_or_else(|| panic!("{slot:?} is defined"));
+        assert_eq!(
+            color.spec(&interner),
+            ColorSpec::Srgb(expected.to_owned()),
+            "{slot:?}"
+        );
+    }
+    assert_eq!(scheme.slots().count(), 12, "the slot count");
+}
+
+/// Both font collections resolve, which is what a `+mj-lt` / `+mn-lt` reference — and a
+/// SpreadsheetML `<scheme val="minor"/>` — needs to find.
+#[test]
+fn the_authored_theme_defines_both_font_collections() {
+    let (theme, _) = parse_theme(&mjx_dml::default_theme_xml());
+    let fonts = theme
+        .font_scheme()
+        .expect("the authored theme has a fontScheme");
+    assert_eq!(
+        fonts
+            .resolve(&TextFont::named("+mj-lt"))
+            .map(|font| font.typeface.as_str()),
+        Some("Calibri Light")
+    );
+    assert_eq!(
+        fonts
+            .resolve(&TextFont::named("+mn-lt"))
+            .map(|font| font.typeface.as_str()),
+        Some("Calibri")
+    );
+    assert!(fonts.major().font(FontSlot::Latin).is_some());
+    assert!(fonts.minor().font(FontSlot::Latin).is_some());
+}
+
+/// The style matrix a shape's `a:fillRef`/`a:lnRef` indexes into has the three entries ECMA-376
+/// requires of it — `a:fillStyleLst` and `a:lnStyleLst` are both `minOccurs="3"`.
+#[test]
+fn the_authored_theme_has_a_complete_style_matrix() {
+    let (theme, _) = parse_theme(&mjx_dml::default_theme_xml());
+    assert_eq!(theme.fill_styles().len(), 3, "a:fillStyleLst");
+    assert_eq!(theme.line_styles().len(), 3, "a:lnStyleLst");
+}
+
+/// Two calls return the same bytes, and the constant and the function agree.
+#[test]
+fn the_authored_theme_is_deterministic() {
+    assert_eq!(mjx_dml::default_theme_xml(), mjx_dml::default_theme_xml());
+    assert_eq!(
+        mjx_dml::default_theme_xml(),
+        mjx_dml::DEFAULT_THEME_XML.as_bytes()
+    );
+}
