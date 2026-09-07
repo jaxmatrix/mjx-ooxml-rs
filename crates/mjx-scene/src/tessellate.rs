@@ -72,7 +72,7 @@ use crate::mesh_cache::{MeshCache, MeshKey};
 use crate::paint::{
     CompoundStroke, DashPattern, LineCap, LineJoin, Stroke, StrokeAlignment, StrokeStyle,
 };
-use crate::provider::GeometryProvider;
+use crate::provider::{GeometryProvider, OutlineProvenance};
 
 /// How far a flattened curve may stray from the true curve, in device pixels.
 ///
@@ -457,10 +457,30 @@ impl Tessellator {
         provider: &dyn GeometryProvider,
         options: TessellationOptions,
     ) -> Result<Arc<Mesh>, SceneError> {
-        let (commands, fill_rule) = outline_of(geometry, provider)?;
+        self.fill_resolved(geometry, provider, options)
+            .map(|(mesh, _)| mesh)
+    }
+
+    /// The same triangles, and **where the outline behind them came from**.
+    ///
+    /// The variant a painter uses. [`Tessellator::fill`] is the same call with the answer dropped,
+    /// which is what almost every caller wants; this one exists because a painter that cannot tell
+    /// a placeholder from the document's own shape cannot refuse to call a page of placeholders a
+    /// fidelity render, and MJXOFF-163 established that it could not tell.
+    ///
+    /// # Errors
+    ///
+    /// As [`Tessellator::fill`].
+    pub fn fill_resolved(
+        &mut self,
+        geometry: &Geometry,
+        provider: &dyn GeometryProvider,
+        options: TessellationOptions,
+    ) -> Result<(Arc<Mesh>, Provenance), SceneError> {
+        let (commands, fill_rule, provenance) = outline_of(geometry, provider)?;
         let key = MeshKey::new(fill_key_words(&commands, fill_rule, options));
         if let Some(held) = self.cache.get(&key) {
-            return Ok(held);
+            return Ok((held, provenance));
         }
         let mut mesh = Mesh::default();
         let path = lyon_path_of(&commands);
@@ -485,7 +505,7 @@ impl Tessellator {
         mesh.shrink();
         let mesh = Arc::new(mesh);
         self.cache.insert(key, &mesh);
-        Ok(mesh)
+        Ok((mesh, provenance))
     }
 
     /// The triangles that stroke `geometry` with `stroke`, resolving it through `provider` if
@@ -501,16 +521,34 @@ impl Tessellator {
         provider: &dyn GeometryProvider,
         options: TessellationOptions,
     ) -> Result<Arc<Mesh>, SceneError> {
-        let (commands, _) = outline_of(geometry, provider)?;
+        self.stroke_resolved(geometry, stroke, provider, options)
+            .map(|(mesh, _)| mesh)
+    }
+
+    /// The same outline, and where the geometry behind it came from.
+    ///
+    /// See [`Tessellator::fill_resolved`] for why this variant exists.
+    ///
+    /// # Errors
+    ///
+    /// As [`Tessellator::fill`].
+    pub fn stroke_resolved(
+        &mut self,
+        geometry: &Geometry,
+        stroke: StrokeGeometry,
+        provider: &dyn GeometryProvider,
+        options: TessellationOptions,
+    ) -> Result<(Arc<Mesh>, Provenance), SceneError> {
+        let (commands, _, provenance) = outline_of(geometry, provider)?;
         let key = MeshKey::new(stroke_key_words(&commands, stroke, options));
         if let Some(held) = self.cache.get(&key) {
-            return Ok(held);
+            return Ok((held, provenance));
         }
         let mut mesh = self.tessellate_stroke(&commands, stroke, options)?;
         mesh.shrink();
         let mesh = Arc::new(mesh);
         self.cache.insert(key, &mesh);
-        Ok(mesh)
+        Ok((mesh, provenance))
     }
 
     /// The stroke, before it reaches the cache.
@@ -629,6 +667,46 @@ pub enum MeshRole {
     Stroke,
 }
 
+/// Where a mesh's outline came from, and what it is called.
+///
+/// # Why this travels with the triangles
+///
+/// A [`Mesh`] is a vertex buffer and cannot say whether it is a document's shape or a stand-in for
+/// one. [`ResolvedOutline`](crate::ResolvedOutline) can say, and did, and until MJXOFF-163 nothing
+/// read it: the answer was dropped inside this module's `outline_of`, at the single point where the
+/// crate consumes a provider. So a painter could not paint a placeholder in a warning colour, and — the
+/// reason it matters — **a golden-image gate could not refuse to call a page of placeholders a
+/// fidelity render**, which is exactly the guard R10 was told to rely on.
+///
+/// The label is a `Box<str>` and is `None` for geometry that never went through a provider, which is
+/// most of a page: an already-resolved path and a rectangle are the document's own by construction
+/// and have nothing to be labelled. Where it is present it is *moved* out of the provider's answer
+/// rather than copied, so carrying it costs one pointer per mesh and no allocation.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Provenance {
+    /// Whether this is the document's geometry or a stand-in for it.
+    pub origin: OutlineProvenance,
+    /// What the provider called it, for an outline that went through one.
+    pub label: Option<Box<str>>,
+}
+
+impl Provenance {
+    /// The document's own geometry, unlabelled.
+    #[must_use]
+    pub const fn document() -> Self {
+        Self {
+            origin: OutlineProvenance::Document,
+            label: None,
+        }
+    }
+
+    /// Whether this outline is a stand-in.
+    #[must_use]
+    pub const fn is_placeholder(&self) -> bool {
+        matches!(self.origin, OutlineProvenance::Placeholder)
+    }
+}
+
 /// One command's triangles.
 #[derive(Clone, PartialEq, Debug)]
 pub struct SceneMesh {
@@ -638,6 +716,12 @@ pub struct SceneMesh {
     pub role: MeshRole,
     /// The triangles.
     pub mesh: Arc<Mesh>,
+    /// Where the outline behind them came from.
+    ///
+    /// **A painter must be able to tell a stand-in from the document's own shape**, and this is the
+    /// only place it can learn it: the mesh is a vertex buffer and the display list's
+    /// [`Geometry::Unresolved`] says only that *somebody* had to resolve it, not what they answered.
+    pub provenance: Provenance,
 }
 
 /// Every mesh a display list needs, in paint order.
@@ -664,10 +748,12 @@ pub fn tessellate_scene(
                 let Some(geometry) = list.geometry(geometry) else {
                     continue;
                 };
+                let (mesh, provenance) = tessellator.fill_resolved(&geometry, provider, options)?;
                 meshes.push(SceneMesh {
                     command: command_index,
                     role: MeshRole::Fill,
-                    mesh: tessellator.fill(&geometry, provider, options)?,
+                    mesh,
+                    provenance,
                 });
             }
             Command::StrokePath { geometry, stroke } => {
@@ -675,15 +761,17 @@ pub fn tessellate_scene(
                 else {
                     continue;
                 };
+                let (mesh, provenance) = tessellator.stroke_resolved(
+                    &geometry,
+                    StrokeGeometry::from_record(stroke),
+                    provider,
+                    options,
+                )?;
                 meshes.push(SceneMesh {
                     command: command_index,
                     role: MeshRole::Stroke,
-                    mesh: tessellator.stroke(
-                        &geometry,
-                        StrokeGeometry::from_record(stroke),
-                        provider,
-                        options,
-                    )?,
+                    mesh,
+                    provenance,
                 });
             }
             _ => {}
@@ -696,25 +784,56 @@ pub fn tessellate_scene(
 // Turning a geometry into a path
 // -------------------------------------------------------------------------------------------
 
-/// The path a geometry draws, and which side of it is inside.
+/// The path a geometry draws, which side of it is inside, and **where it came from**.
 ///
 /// A [`Geometry::Path`] is borrowed rather than cloned: it is the case a page is full of, and a
 /// cache hit that allocated a copy of the path in order to look itself up would be most of a cache
 /// miss.
+///
+/// # Why the provenance leaves this function
+///
+/// Until MJXOFF-163 it did not. [`ResolvedOutline`](crate::ResolvedOutline) carried `provenance` and
+/// `label`, this function destructured `commands` and `fill_rule` and dropped both, and nothing in
+/// this crate read either — so a painter had no way at all to tell a placeholder rounded rectangle
+/// from the document's own geometry. That mattered more than it looked: R10's fidelity rule is
+/// *"golden images must not be taken against placeholder geometry and called fidelity"*, and every
+/// preset shape resolves to a placeholder today, so the guard it names did not exist.
+///
+/// It leaves through [`SceneMesh::provenance`] rather than through [`Tessellator::fill`]'s ordinary
+/// return, so that the one caller that needs it pays for it and the hundreds that do not are
+/// unchanged. And it is read **before** the cache lookup, which is where `outline_of` already sat:
+/// a cache hit answers with the same provenance as the miss that filled it, because the provider is
+/// consulted either way.
 fn outline_of<'a>(
     geometry: &'a Geometry,
     provider: &dyn GeometryProvider,
-) -> Result<(Cow<'a, [PathCommand]>, FillRule), SceneError> {
+) -> Result<(Cow<'a, [PathCommand]>, FillRule, Provenance), SceneError> {
     Ok(match geometry {
-        Geometry::Rectangle(rect) => (Cow::Owned(rectangle_commands(*rect)), FillRule::NonZero),
+        Geometry::Rectangle(rect) => (
+            Cow::Owned(rectangle_commands(*rect)),
+            FillRule::NonZero,
+            Provenance::document(),
+        ),
         Geometry::Path {
             commands,
             fill_rule,
             ..
-        } => (Cow::Borrowed(commands.as_slice()), *fill_rule),
+        } => (
+            Cow::Borrowed(commands.as_slice()),
+            *fill_rule,
+            Provenance::document(),
+        ),
         Geometry::Unresolved { outline, bounds } => {
             let resolved = provider.outline(*outline, *bounds)?;
-            (Cow::Owned(resolved.commands), resolved.fill_rule)
+            let provenance = Provenance {
+                origin: resolved.provenance,
+                label: Some(resolved.label.into_boxed_str()),
+            };
+            (
+                Cow::Owned(resolved.commands),
+                resolved.fill_rule,
+                provenance,
+            )
         }
     })
 }
