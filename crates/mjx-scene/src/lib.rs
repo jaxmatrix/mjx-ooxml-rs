@@ -109,15 +109,15 @@ pub use tessellate::{
 /// does not have to name the design-token crate to say what colour something is.
 pub use mjx_tokens::Color;
 
-/// The three `mjx-text` types a display list's own records are written in, re-exported for the same
-/// reason [`Color`] is: **a painter must be able to read every record of a list without naming a
-/// crate below this one.**
+/// The five `mjx-text` types this crate's own surface is written in, re-exported for the same
+/// reason [`Color`] is: **a painter must be able to read every record of a list, and ask for its
+/// triangles, without naming a crate below this one.**
 ///
-/// Not a convenience. [`AtlasPlacement::format`] *is* a [`BitmapFormat`], and
-/// [`SceneGlyphRun`]'s direction and hinting are `mjx-text`'s enumerations, so a painter that
-/// switches on a glyph's texture format has to name that type somewhere. R08's own seam gate
-/// (MJXOFF-163) asserts that `mjx-paint`'s source names neither `mjx-text` nor `mjx-layout`; without
-/// these three lines that gate is **unachievable by inspection of this crate's surface**, and the
-/// painter would have to reach past the display list to do the one thing the display list exists to
-/// let it do.
-pub use mjx_text::{BitmapFormat, Hinting, TextDirection};
+/// Not a convenience. [`AtlasPlacement::format`] *is* a [`BitmapFormat`]; [`SceneGlyphRun`]'s
+/// direction and hinting are `mjx-text`'s enumerations; [`DisplayList::device_scale`] answers with a
+/// [`DeviceScale`]; and [`page_bucket`] answers with a [`ScaleBucket`], which is what
+/// [`TessellationOptions`] is keyed on. R08's own seam gate (MJXOFF-163) asserts that
+/// `mjx-paint`'s source names neither `mjx-text` nor `mjx-layout`; without these five lines that
+/// gate is **unachievable by inspection of this crate's surface**, and the painter would have to
+/// reach past the display list to do the one thing the display list exists to let it do.
+pub use mjx_text::{BitmapFormat, DeviceScale, Hinting, ScaleBucket, TextDirection};
