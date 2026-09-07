@@ -9,7 +9,15 @@
 //! | `impl Into<RunPath>`      | [`RunPath`] | likewise |
 //! | `usize`                   | `u32`                   | one width on every target, host-independent |
 //! | `impl FnOnce(&T, &Interner) -> R` | a concrete return type | neither PyO3 nor wasm-bindgen can accept a Rust closure argument |
-//! | `Result<_, DocxError>`    | [`Result<_, Error>`](crate::Error) | thirty-five variants collapse to eleven codes |
+//! | `Result<_, DocxError>`    | [`Result<_, Error>`](crate::Error) | every variant collapses to one of eleven [`ErrorCode`]s |
+//!
+//! **The first two rows are the intent, and twenty-three methods on this surface still take the
+//! generic.** `Document::run_text`, `set_run_text`, `append_run`, `insert_hyperlink`,
+//! `effective_run_properties` and eighteen others take `impl Into<BlockPath>` / `impl Into<RunPath>`
+//! rather than the concrete path, which is how `document.append_run(0, "…")` compiles with a bare
+//! integer. It costs the bindings nothing — a `BlockPath` satisfies `Into<BlockPath>`, so both
+//! projections call straight through — and it is recorded here rather than quietly corrected,
+//! because narrowing them would break every Rust caller passing an index (MJXOFF-214).
 //!
 //! # Curating a document many times this surface's size
 //!
@@ -22,7 +30,11 @@
 //! footers/tables/fields/hyperlinks/comments-and-footnotes/revisions/drawings/content-controls list
 //! this crate's own contributing ticket names — and leaves the rest reachable through
 //! [`Document::document_mut`], exactly as [`crate::Deck::presentation_mut`] is the escape hatch for
-//! sixteen `Presentation` methods no binding can carry.
+//! the `Presentation` methods no binding can carry.
+//!
+//! **This list is checked, not trusted**, the same way [`crate::deck`]'s is:
+//! `xtask/tests/facade_curation.rs` holds it to the real difference between the two surfaces in
+//! both directions.
 //!
 //! **Left to `mjx_docx::Document` directly, and why:**
 //! - **Equations** (`mjx_omml::Math`/`MathParagraph`) — not curated onto the facade, matching the
@@ -63,6 +75,20 @@
 //!   calling the closure-taking method *internally*. What a binding cannot cross is a foreign
 //!   function boundary carrying a closure; nothing stops this facade from using one on the Rust side
 //!   of that boundary and handing back owned, concrete data.
+//! - **The part-named and part-returning calls** (`create_header`/`create_footer`,
+//!   `resolve_header`/`resolve_footer`, `header_footer_vml_drawings`, `parts`) — each takes or hands
+//!   back an `mjx_opc::PartName` or a borrow of the part table. Each already has a narrower cover
+//!   here that names a section and a [`HeaderFooterType`](mjx_docx::HeaderFooterType) instead:
+//!   [`Document::set_header_text`] and [`Document::set_footer_text`] create the part on demand,
+//!   [`Document::header_text`] and [`Document::footer_text`] resolve it.
+//!   `mjx_docx::Document::add_chart_placed` and `comment_range` are the same shape from the other
+//!   side — [`Document::add_floating_chart`] and [`Document::comment_range_text`] are them with the
+//!   unbindable argument or return already made concrete.
+//! - **`blank_with_properties`** takes an `mjx_opc::doc_props::CoreProperties` and an
+//!   `ExtendedProperties`, so an authored document can carry a title, a creator and a created time.
+//!   Nothing here sets them, and neither binding can — the one entry on this list that is a **gap
+//!   rather than a decision**, and [`crate::Deck`] and [`crate::Workbook`] have exactly the same one.
+//! - **`from_package`** takes the sealed `mjx_opc::Package`, as on the other two surfaces.
 //!
 //! # Addressing
 //!
