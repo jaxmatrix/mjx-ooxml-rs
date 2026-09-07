@@ -78,7 +78,8 @@
 //!
 //! One open, one call and one `save()` per pair, over a corpus whose largest fixture is 35 KB.
 //! Fixtures are swept on one thread each. The whole sweep runs once per test binary and is shared
-//! through a [`OnceLock`], so the six assertions below cost one sweep between them.
+//! through a [`OnceLock`], so the assertions below that read it share that one sweep between
+//! them rather than each paying for their own.
 
 mod deck_cases;
 mod diff;
