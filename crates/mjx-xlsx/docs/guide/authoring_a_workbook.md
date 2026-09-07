@@ -33,8 +33,19 @@ is not `minOccurs="0"`:
 `sheets` is required and it requires at least one `sheet`; `CT_Worksheet` then requires a
 `sheetData`. So `blank()` is not a shell — it authors `xl/workbook.xml`, a worksheet part with its
 own content type and relationship, `xl/styles.xml` (or every `@fontId`, `@fillId`, `@borderId` and
-`c@s` in the file dangles) and `xl/sharedStrings.xml`. It authors **no theme**: nothing in ECMA-376
-or OPC requires one in a SpreadsheetML package.
+`c@s` in the file dangles), `xl/sharedStrings.xml` and `xl/theme/theme1.xml`.
+
+The theme is there for the same reason `styles.xml` is, and it took MJXOFF-200 to see it. Nothing in
+ECMA-376 or OPC requires a theme in a SpreadsheetML package — but the package is not finished when it
+is valid, it is finished when every reference its own content makes resolves, and this one makes two
+before a caller does anything: font 0 says `<color theme="1"/>` and `<scheme val="minor"/>`, which are
+what make the default font *follow* the document's theme instead of pinning `Calibri` over it. Add a
+chart and there is a third, because a series states no `c:spPr` and takes its fill from
+`accent1…accent6`.
+
+**A workbook you opened is not touched.** A theme is authored only into a package that carries none;
+one that arrives with its own keeps it, byte for byte, because supplying a default in place of the
+user's own would override the branding of whoever opens the file.
 
 **It is deterministic.** Two calls produce byte-identical containers. Nothing here reads a clock or a
 random number, which is what lets a round-trip assertion downstream be an equality rather than a

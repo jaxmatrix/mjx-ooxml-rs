@@ -47,6 +47,24 @@
 //! any header/footer/numbering/glossary part — every one is deliberately absent, and every one
 //! remains fully optional to add later exactly as `DocumentParts` already models it.
 //!
+//! # The theme, and why it is still not written *here* (MJXOFF-200)
+//!
+//! A document this library authored used to carry no theme at all, and that turned out not to be an
+//! absent convenience: a chart series states no `c:spPr` on purpose, so its fill comes from the
+//! theme's `accent1…accent6`, and with no theme part the series was painted with no colour — a chart
+//! with a title, axes, category labels, legend text and **no bars**.
+//!
+//! The fix is not to write a theme here. A blank document makes **no reference to one**: it holds a
+//! body, a paragraph and a section, and nothing in it names a scheme colour, a theme font or a style.
+//! Authoring a part nothing refers to is the "just in case" this module's whole argument is against.
+//! What changed is that `ensure_theme_part` (in `crates/mjx-docx/src/document/parts.rs`) runs where
+//! a reference is *created* — `add_chart` is the one such site today — and authors a theme **only if
+//! the package carries none**. A document opened from disk keeps the theme it came with, byte for
+//! byte.
+//!
+//! `crates/mjx-schema-gate/src/references.rs` is what holds the rule: for a package we authored,
+//! every reference its content makes has to resolve. A blank document passes it by making none.
+//!
 //! What this module **does** write, beyond the package-agnostic parts `Package::empty` supplies:
 //!
 //! - `/word/document.xml` — `w:document` wrapping a `w:body` with one empty `w:p` (so
