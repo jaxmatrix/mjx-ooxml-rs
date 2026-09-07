@@ -111,15 +111,30 @@ them**, which is the opposite of per-fixture coverage:
    lost — but each is a public type standing for a complex type with no bucket at all, so the claim's
    *"every modeled complex type"* is only true if it is read as *"every type that can be written
    back"*.
-3. **One type that genuinely drops content.** `mjx_dml::Picture` and `mjx_dml::PictureNonVisual`
-   hand-write `FromXml`/`ToXml` with no raw remainder, no `attributes` field, and a synthesised
-   element name. `from_xml` reads three children by name and discards everything else; `to_xml`
-   rebuilds with an empty attribute vector. An attribute on `<pic:pic>`, a foreign child beside the
-   three, and the source's own prefix binding are all destroyed. This is **MJXOFF-216**, raised by
-   MJXOFF-215's audit and owned by `mjx-dml`; it is **latent rather than live**, because no shipped write
-   path reaches it — `mjx_dml::GraphicData`'s `ToXml` is its only caller, and the only shipped code
-   that writes a `mjx_dml::Graphic` builds a fresh one for a chart. It becomes live the day anyone
-   writes a picture-editing method on the typed value.
+3. **Hand-written pairs, which are inside no guarantee at all.** A type that writes its own
+   `FromXml`/`ToXml` is outside `mjx-derive`'s codegen guarantee *by definition*, and MJXOFF-216
+   found what that costs: `mjx_dml::Picture` and `mjx_dml::PictureNonVisual` read three children by
+   name, discarded every other one, and rebuilt with a synthesised element name and an empty
+   attribute vector, so an attribute on `<pic:pic>`, a foreign child beside the three and every
+   `xmlns` declaration on it were destroyed.
+
+   **MJXOFF-217 counted the class rather than fixing the instance.** Of the eight hand-written pairs
+   `mjx-dml` held at 0.0.137, **four** lost content — the two above plus `mjx_dml::Graphic` (any
+   child beside the `a:graphicData`) and `mjx_dml::GraphicData` (its own name and prefix, and any
+   node beside the payload) — and two more, `mjx_dml::wordprocessing_drawing::Inline` and its
+   `Anchor`, re-emitted a self-closing element as an open/close pair. All six are fixed at 0.0.138:
+   the four moved onto the derive, the two adopted the self-closing formula
+   `fidelity_element_impls!` already used. Every one of the six is pinned by a case in
+   `crates/mjx-dml/tests/in_context_roundtrip.rs` that fails against 0.0.137.
+
+   What keeps the seventh honest is `crates/mjx-dml/tests/serialization_ledger.rs`: it reads that
+   crate's own sources, and every hand-written `FromXml`/`ToXml` must be on a ledger declaring which
+   idiom keeps what the type does not model — and the idiom is **checked against the impl body**, so
+   a row claiming to preserve everything while handing `RawElement::rebuilt` a fresh `Vec::new()`
+   fails. The nine rows that remain are three read-only projections, three dispatchers on an element
+   name (`mjx_dml::Fill` and the two `xdr:` choices), and three wrappers holding their children raw.
+   `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside that gate today, and
+   extending it to them is a unit of its own.
 
 ### 3 · "MCE is handled in `mjx-mce`, preserved on write and resolved (non-mutating) on read/render"
 
