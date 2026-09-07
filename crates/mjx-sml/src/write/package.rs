@@ -25,6 +25,7 @@
 //! /xl/_rels/workbook.xml.rels        rId1..rIdN worksheet -> worksheets/sheetN.xml
 //!                                    rId(N+1)  styles     -> styles.xml
 //!                                    rId(N+2)  sharedStrings -> sharedStrings.xml
+//!                                    rId(N+3)  theme      -> theme/theme1.xml
 //! ```
 //!
 //! The worksheet relationships come **first** within `xl/_rels/workbook.xml.rels` because each
@@ -32,13 +33,38 @@
 //! ones the sheet list wrote. Nothing depends on the order — a relationship is found by id, never by
 //! position — and `crates/mjx-sml/src/workbook/sheets.rs` says why at length.
 //!
+//! # The theme, and why it *is* written (MJXOFF-200)
+//!
+//! Until 0.0.134 this writer emitted no theme, on the reasoning that no schema or OPC rule requires
+//! one and that authoring `a:theme` here would put a second hand-written copy of it in the workspace
+//! beside `mjx-pptx`'s. The first half was true and irrelevant and the second half is now moot.
+//!
+//! It was irrelevant because a package is not finished when it is *valid*; it is finished when every
+//! reference its own content makes resolves. The human validation pass opened an authored `.docx`
+//! and found a chart with a title, axes, category labels and legend text and **no bars**: a chart
+//! series carries no `c:spPr`, so its fill comes from the theme's `accent1…accent6`, and with no
+//! theme part in the package those scheme colours resolve to nothing. Every gate was green
+//! throughout, because an absent optional part is invisible to schema validation, to
+//! `Package::validate`, to the child-order audit and to byte identity alike.
+//!
+//! The same rule now binds this writer's own styles part. [`AuthoredStylesheet`] seeds font 0 with
+//! `<scheme val="minor"/>` and `<color theme="1"/>`, which is what makes the default font *follow*
+//! the document's theme rather than pinning `Calibri` on top of it — and both of those are
+//! references into the part written here. A package that made them and carried no theme would be
+//! the same defect one layer down.
+//!
+//! It is moot because the markup itself is no longer written twice: [`mjx_dml::default_theme_xml`]
+//! is the one `a:theme` this workspace authors, and `mjx-pptx`'s deck, this workbook and the parts
+//! `mjx-docx`/`mjx-xlsx` author on demand are all the same bytes. What is here is the packaging —
+//! the part name, the content type, the relationship — which is per-format and always was.
+//!
+//! **A package this writer builds always has none to begin with**, so there is no "leave the user's
+//! theme alone" case to get wrong here. That case belongs to `mjx-docx` and `mjx-xlsx`, which author
+//! a theme *only* into a package that does not already carry one; a file opened from disk keeps the
+//! theme it came with.
+//!
 //! # What is deliberately not written
 //!
-//! * **A theme.** No schema or OPC rule requires one in a SpreadsheetML package, and
-//!   `mjx-chart`'s retired writer shipped without one through every release — its packages open
-//!   in PowerPoint and in LibreOffice. Authoring one here would put a **third** hand-written
-//!   `a:theme` in this workspace, beside `mjx-pptx`'s, on the very child whose premise is that a
-//!   duplicated markup writer is a debt. A caller that wants one relates it itself.
 //! * **`calcChain.xml`.** There is no formula authoring here (MJXOFF-115 is that), and a calculation
 //!   chain that disagrees with the formulas is worse than none — Excel rebuilds it.
 //! * **`fileVersion`, `workbookPr`, `bookViews`, `calcPr`.** All optional; see
@@ -60,9 +86,9 @@ use crate::strings::SharedStringTable;
 
 use super::constants::{
     worksheet_part_name, worksheet_relationship_target, CONTENT_TYPE_SHARED_STRINGS,
-    CONTENT_TYPE_STYLES, CONTENT_TYPE_WORKBOOK, CONTENT_TYPE_WORKSHEET, DEFAULT_SHEET_NAME,
-    REL_OFFICE_DOCUMENT, REL_SHARED_STRINGS, REL_STYLES, REL_WORKSHEET, SHARED_STRINGS_PART,
-    STYLES_PART, WORKBOOK_PART,
+    CONTENT_TYPE_STYLES, CONTENT_TYPE_THEME, CONTENT_TYPE_WORKBOOK, CONTENT_TYPE_WORKSHEET,
+    DEFAULT_SHEET_NAME, REL_OFFICE_DOCUMENT, REL_SHARED_STRINGS, REL_STYLES, REL_THEME,
+    REL_WORKSHEET, SHARED_STRINGS_PART, STYLES_PART, THEME_PART, WORKBOOK_PART,
 };
 use super::sheet::AuthoredWorksheet;
 use super::style_specs::{BorderSpec, CellFormatSpec, PatternFillSpec};
@@ -393,6 +419,14 @@ impl WorkbookPackage {
             CONTENT_TYPE_STYLES,
             self.styles.to_part_bytes(),
         )?;
+        // The theme font 0's `<scheme val="minor"/>` and `<color theme="1"/>` resolve against, and
+        // the theme a chart series' absent `c:spPr` takes `accent1…accent6` from. See this module's
+        // own documentation for why an authored package carries one.
+        package.insert_part(
+            &part_name(THEME_PART)?,
+            CONTENT_TYPE_THEME,
+            mjx_dml::default_theme_xml(),
+        )?;
 
         add_relationship(
             &mut package,
@@ -451,6 +485,13 @@ impl WorkbookPackage {
             &relationship_id(next + 1),
             REL_SHARED_STRINGS,
             "sharedStrings.xml",
+        )?;
+        add_relationship(
+            &mut package,
+            Some(&workbook_part),
+            &relationship_id(next + 2),
+            REL_THEME,
+            "theme/theme1.xml",
         )?;
         Ok(package)
     }
