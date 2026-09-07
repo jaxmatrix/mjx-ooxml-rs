@@ -18,8 +18,10 @@ Not from the twenty Excel tickets. From two things that shipped:
   removers and no authoring call at all**, which is why the index page records them as deliberately
   not covered: an entry describing an action the API cannot perform is worse than no entry.
 * **`crates/mjx-xlsx/docs/guide/deliberate_limitations.md`**, whose *Gaps rather than decisions*
-  table names exactly the same absences from the other direction — *writing a formula into a cell*,
-  *removing a sheet*, *authoring a theme part*.
+  table names exactly the same absences from the other direction — *writing a formula into a cell*
+  and *removing a sheet*. (*Authoring a theme part* was a third until MJXOFF-200, which found it was
+  not an absence in authoring convenience but a rendering defect: with no theme, every chart this
+  library wrote into a workbook painted no bars.)
 
 Where the two disagree the surface wins, because a page can be stale and a `pub fn` cannot.
 
@@ -31,7 +33,7 @@ the mapping is against its **decisions** and its **gaps**.
 | Area | Risk | The limitations page says | What that means here |
 |---|---|---|---|
 | `V-XLSX-01` | low | *Gap* — **writing a formula into a cell** has no owner | `V-XLSX-01.4` reads formulas from a fixture and authors none |
-| `V-XLSX-01` | low | *Gap* — **removing a sheet** has no owner; *gap* — **authoring a theme part** has none either | Recorded, not checked. `Workbook::blank` writes no `xl/theme/theme1.xml`, and `V-XLSX-01.3` is where Excel is asked whether that is acceptable |
+| `V-XLSX-01` | low | *Gap* — **removing a sheet** has no owner | Recorded, not checked. `V-XLSX-01.3` is where Excel is asked whether a workbook authored from nothing is acceptable — which since MJXOFF-200 includes `xl/theme/theme1.xml`, the part font 0's `<color theme="1"/>` and a chart series' absent `c:spPr` both resolve against |
 | `V-XLSX-02` | high | *Decision* — nothing is evaluated | The two style layers are pure markup, and `V-XLSX-02.1` is the pass's whole Excel deliverable |
 | `V-XLSX-03` | medium | *Decision* — **a filter, a sort and a validation rule are recorded, never applied**; **nothing is repaired on read** | Non-goals. `V-XLSX-03.3` checks that a hidden row is the file's own `row@hidden` and not something a filter did |
 | `V-XLSX-04` | medium | *Decision* — a chart's workbook is not this crate's; the writer is `mjx-sml`'s | R4's third host. `V-XLSX-04` reads a **live range** rather than an embedded workbook, which is the case neither other format has |

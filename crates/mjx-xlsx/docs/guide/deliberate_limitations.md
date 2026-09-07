@@ -146,11 +146,20 @@ fidelity library loses the argument it exists to win.
 These are absent, they are not the consequence of a decision above, and no work item owns them today.
 They are listed here so nobody plans around a surface that is not present.
 
+**One row left this table in 0.0.134, and how it left is worth recording.** *Authoring a theme part*
+was here as a gap in authoring convenience, with the reasoning that "an indexed or `rgb` colour needs
+no theme; a `theme`-referencing colour in a file you opened resolves against the theme that file
+carries". The second half was true of a file you opened and **false of the authored case the row was
+about**: a chart series states no `c:spPr`, so its fill comes from the theme's `accent1…accent6`, and
+a workbook with no theme painted a chart with a title, axes, labels, legend text and **no bars**. It
+was not an inconvenience; it was a rendering defect, and a limitations page is a place that can hide
+one. [`Workbook::blank`] now writes `xl/theme/theme1.xml`, and a workbook you opened keeps the theme
+it came with, untouched (MJXOFF-200).
+
 | Absent | What exists instead |
 |---|---|
 | **Writing a formula into a cell.** [`mjx_sml::CellFormula`] is a read-only view over a cell's `<f>` bytes; there is no `set_cell_formula` on [`Workbook`] or on [`mjx_sml::SheetData`] | A formula's text round-trips because nothing rewrites a cell it was not asked to. Authoring one means writing the `<c>` markup yourself |
 | **Removing a sheet.** [`Workbook::add_sheet`] has no opposite | Removing a tab means removing a part, its relationship, its entry and every defined name scoped to it — a decision rather than a convenience method |
-| **Authoring a theme part.** [`Workbook::blank`] writes no `xl/theme/theme1.xml` | An indexed or `rgb` colour needs no theme; a `theme`-referencing colour in a file you opened resolves against the theme that file carries |
 | **A `DocumentDefect` equivalent for `mjx-docx`** | `mjx-xlsx` and `mjx-pptx` both report structural anomalies rather than repairing them; Word does not yet |
 
 ## Built, not yet verified against Excel
@@ -170,7 +179,7 @@ its provenance. `docs/validation/06-the-office-pass.md` is how a person with Exc
 
 | Not yet verified | What is in place | Where the check lives |
 |---|---|---|
-| **Whether Excel is content with a workbook authored from nothing** | [`Workbook::blank`] writes `workbook.xml`, one worksheet, `styles.xml`, both `docProps` parts and no theme; every part is schema-valid, in child order, and reopens unchanged | `V-XLSX-01.1` — and the Excel list's own note is that the format is the least forgiving of the three about structural detail, so a repair prompt here invalidates everything under it |
+| **Whether Excel is content with a workbook authored from nothing** | [`Workbook::blank`] writes `workbook.xml`, one worksheet, `styles.xml`, `theme/theme1.xml` and both `docProps` parts; every part is schema-valid, in child order, and reopens unchanged | `V-XLSX-01.1` — and the Excel list's own note is that the format is the least forgiving of the three about structural detail, so a repair prompt here invalidates everything under it |
 | **The two-layer `xf` indirection**, resolved the way Excel resolves it | [`Workbook::effective_cell_format`] walks `cellXfs` over `cellStyleXfs` from ECMA-376 §18.8.45's prose; `docs/EFFECTIVE_CELL_FORMAT_HANDOFF.md` holds 28 rows of it with its **Excel says** column deliberately empty | `V-XLSX-02.1`, `V-XLSX-02.2`, `V-XLSX-02.4` |
 | **A number-format code against what Excel actually renders** | The code and its id are reported; nothing here formats a value | `V-XLSX-02.3` |
 | **Shared and array formulas surviving an edit** | The group's master and its `@ref` round-trip, and an edit never rewrites a cell it was not asked to | `V-XLSX-01.4` |
