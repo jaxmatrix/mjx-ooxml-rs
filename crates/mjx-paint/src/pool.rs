@@ -368,6 +368,31 @@ impl<T> TexturePool<T> {
         }
     }
 
+    /// The texture behind a handle, to draw into.
+    ///
+    /// A GPU painter never needs this — it renders into a texture *view* and the pool's copy is
+    /// never touched — but a **software** painter's target is an ordinary buffer, and drawing into
+    /// it is a mutable borrow. The alternative would be for the software painter to keep its own
+    /// pool, which would put two byte budgets and two eviction policies in one crate.
+    ///
+    /// # Errors
+    ///
+    /// [`PaintError::StaleTexture`], on the same terms as [`TexturePool::texture`].
+    pub fn texture_mut(&mut self, handle: PoolHandle) -> Result<&mut T, PaintError> {
+        let index = handle.slot as usize;
+        let stale = || PaintError::StaleTexture {
+            slot: handle.slot,
+            generation: handle.generation,
+        };
+        if self.generations.get(index).copied() != Some(handle.generation) {
+            return Err(stale());
+        }
+        match self.slots.get_mut(index) {
+            Some(Slot::InFlight { texture, .. }) => Ok(texture),
+            _ => Err(stale()),
+        }
+    }
+
     /// The size a handle was acquired at.
     ///
     /// # Errors

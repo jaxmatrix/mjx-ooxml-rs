@@ -37,6 +37,12 @@ pub(super) struct CompositeStep {
     pub(super) alpha: f32,
     pub(super) transform: SceneTransform,
     pub(super) color: Color,
+    /// How far the **source** texture is shifted before it is read, in texture coordinates.
+    ///
+    /// Only an inner shadow uses it, and it is the whole of what distinguishes an inner shadow from
+    /// an outer one: the step's two inputs are the blurred copy and the mask, and moving the quad
+    /// would move both. See `shaders.wgsl`'s `KIND_INNER_SHADOW`.
+    pub(super) source_offset: [f32; 2],
     /// Start opacity, end opacity, start position, end position — a reflection's fade.
     pub(super) fade: [f32; 4],
     /// `0.0` for a fade along `x`, `1.0` along `y`.
@@ -58,6 +64,7 @@ impl CompositeStep {
                 blue: 0,
                 alpha: 0,
             },
+            source_offset: [0.0, 0.0],
             fade: [1.0, 1.0, 0.0, 1.0],
             fade_axis: 1.0,
             blend: BlendMode::Over,
