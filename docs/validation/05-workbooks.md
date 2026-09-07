@@ -270,7 +270,7 @@ Risk **medium**. Shipped by `MJXOFF-107`.
 - **Risk** medium.
 - **Shipped by** `MJXOFF-107`.
 - **Artefact** `v-xlsx-05-authored.xlsx`
-- **Object** two pictures on the *Drawings* sheet: a `xdr:twoCellAnchor` from column 1, row 4 to column 8, row 7 named *Two-cell anchored*; and a `xdr:oneCellAnchor` at column 10, row 4, sized **2 × 1 in**, named *One-cell anchored*.
+- **Object** two pictures on the *Drawings* sheet: a `xdr:twoCellAnchor` from **column 4, row 1** to **column 7, row 8** named *Two-cell anchored*; and a `xdr:oneCellAnchor` at **column 4, row 10** whose `xdr:ext` is `1828800 × 914400` EMU — **2 × 1 in** — named *One-cell anchored*.
 - **Action** click each and read Picture Format → Size and → Properties.
 - **Expect** the two-cell one reports **Move and size with cells**; the one-cell one reports **Move but don't size with cells** and measures 2" by 1". Its extent is stated in EMU on the drawing rather than derived from the grid, so a wrong unit conversion shows as a wrong size here and nowhere else.
   Calls: `Workbook::add_two_cell_anchored_picture` · `Workbook.add_two_cell_anchored_picture` · `Workbook.addTwoCellAnchoredPicture`
@@ -283,7 +283,7 @@ Risk **medium**. Shipped by `MJXOFF-107`.
 - **Shipped by** `MJXOFF-107`.
 - **Artefact** `v-xlsx-05-authored.xlsx`
 - **Object** both anchors, after `insert_rows_into_drawing` has shifted them.
-- **Action** insert two rows above row 4 through this library, save, and open in Excel. Then do the same insertion **in Excel** on the original and compare where the pictures land.
+- **Action** insert two rows above row 1 through this library, save, and open in Excel. Then do the same insertion **in Excel** on the original and compare where the two pictures land.
 - **Expect** the two agree. This library rewrites the anchors; Excel rewrites them its own way; a disagreement about which pictures move is exactly what the resizing behaviour is *for*, and no test in this repository can see it.
   Calls: `Workbook::insert_rows_into_drawing` · `Workbook.insert_rows_into_drawing` · `Workbook.insertRowsIntoDrawing`
   Calls: `Workbook::sheet_anchor_bounds` · `Workbook.sheet_anchor_bounds` · `Workbook.sheetAnchorBounds`

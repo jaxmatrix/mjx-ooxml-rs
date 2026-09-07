@@ -299,7 +299,7 @@ Risk **low**. Shipped by `MJXOFF-131`.
 - **Artefact** `v-docx-05-authored.docx`
 - **Object** the two `w:drawing`s: one **2 × 2 in**, named *Placeholder*; one **1 × 1 in**, named *Placeholder, small*.
 - **Action** click each and read Picture Format → Size, and Alt Text.
-- **Expect** 2" and 1" square respectively, both **In Line with Text**, with those two names. The image part is registered by **extension** in `[Content_Types].xml` — `png` — which is what a `.docx` requires and a `.pptx` does not.
+- **Expect** 2" and 1" square respectively, both **In Line with Text**, with those two names. Note how the image part is declared: `Document` writes an **`Override` on the part name** in `[Content_Types].xml`, where `Deck` writes a `Default Extension="png"`. Both are valid OPC, and this is the one place a reviewer sees the two writers make the same declaration two different ways.
   Calls: `Document::add_inline_picture` · `Document.add_inline_picture` · `Document.addInlinePicture`
   Calls: `Document::remove_drawing` · `Document.remove_drawing` · `Document.removeDrawing`
   Result: — · — · — · —
