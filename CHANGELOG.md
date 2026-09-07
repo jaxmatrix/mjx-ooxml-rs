@@ -58,6 +58,89 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.132] - 2026-09-07
+
+### A chart data edit no longer discards the producer's embedded workbook (MJXOFF-208, G2)
+
+**A defect that destroyed content in files a user opened, and it fired automatically.** Opening a
+real `.docx`, `.pptx` or `.xlsx`, changing one chart series value and saving discarded every extra
+sheet, cell format, defined name, macro and document property the chart's embedded workbook carried.
+`set_chart_series_values` and `set_chart_series_categories` called `refresh_chart_workbook` for you,
+and that method built a *fresh* one-sheet package with `embedded_workbook_for_chart_space` and wrote
+it over the part the producer had written.
+
+It was **documented** — the doc comment said the workbook was *"regenerated, not patched"* and named
+what was lost, offering `detach_chart_workbook` as the escape. The disclosure was honest. The default
+was inverted: under the project's standing rule — *supply a default only in the absence of the user's
+own, never in place of it* — the preserving branch is what must happen when the caller says nothing.
+
+**And the stated justification was wrong, not merely weak.** `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md`
+called reconciling a third-party workbook with edited chart data *"a merge problem with no correct
+answer"*. It is not a merge problem. The chart already states where its data lives — the `c:f` beside
+each cache — so putting the new numbers there is an address lookup.
+
+### Changed
+
+- **A data edit patches the embedded workbook.** `Presentation::set_chart_series_values`,
+  `set_chart_series_categories` and `refresh_chart_workbook`, and their `Document` and `Workbook`
+  counterparts, now write the chart's data into the cells the series' own `c:f` names and touch
+  nothing else. Everything else in the package — every other sheet, the stylesheet, the shared-string
+  table, `docProps`, a theme — comes back byte for byte, because the parts holding it are never
+  rewritten.
+- **A cell that already holds its value is not written**, and a workbook in which nothing changed is
+  not written back at all. Re-saving a package rewrites its ZIP container even when every part inside
+  is identical, so skipping the write is what keeps a no-op refresh a no-op in the host's bytes. The
+  answer stays `true` in that case: it says *this chart has an embedded workbook*, not *bytes moved*.
+- **A data edit is all of it or none of it.** The workbook is worked out before the chart part is
+  touched and written after it, so a reference this library will not write refuses the whole call and
+  leaves both parts as they were.
+- **New text is written as an inline string** (`t="inlineStr"`) rather than interned. Interning would
+  mean rewriting `xl/sharedStrings.xml` as well — a second part of somebody else's file that the
+  caller never named — and because unchanged labels are not written at all, a workbook's existing
+  shared strings stay shared.
+- `crates/mjx-pptx/docs/guide/fidelity_and_gaps.md` loses the *regenerated, not patched* non-goal;
+  it is now in that page's list of what used to be there. `docs/validation/03-presentations.md`'s
+  `V-PPTX-04` and `V-PPTX-08` rows say the same.
+
+### Added
+
+- **`mjx_chart::plan_workbook_patch` / `apply_workbook_patch`** (`crates/mjx-chart/src/embedding/patch.rs`),
+  with `WorkbookPatch`, `WorkbookPatchPlan`, `ChartWorkbookError` and `ReferenceProblem`. One
+  implementation for all three hosts: `mjx-chart` is rank 2.2 and reaches `mjx-sml` (2.1) and
+  `mjx-opc` (1.0), and the three format crates are rank 3.0. Two functions rather than one because a
+  host cannot borrow the chart's part tree and the package's bytes at once — which is also what gives
+  a data edit its all-or-nothing shape.
+- **`mjx_chart::embedded_workbook_part`** — the *chart part → relationship id → workbook part* walk,
+  which `mjx-pptx`, `mjx-docx` and `mjx-xlsx` each carried their own copy of.
+- **`regenerate_chart_workbook`** on `Presentation`, `Document`, `Workbook`, on all three facade
+  types, and in both bindings (`regenerate_chart_workbook` / `regenerateChartWorkbook`). This is the
+  old behaviour, under the name that says what it does: it replaces the workbook wholesale and
+  **discards whatever it held**. A caller now has to ask for it.
+- **`ChartAccessError::EmbeddedWorkbookNotWritable { reference, problem }`** and
+  **`PptxError::ChartEmbeddedWorkbookNotWritable`**. A `c:f` naming another workbook, several sheets,
+  whole columns, a rectangle, a sheet the workbook does not have, or fewer cells than the data has
+  points is refused **by name** — never a quiet fall back to regenerating, which is the content loss
+  the patch exists to prevent. `ReferenceProblem` is the whole list, and every entry of it is a shape
+  of *reference*, decided from the text the producer wrote, never a guess about provenance. The
+  facade classifies it as `ErrorCode::UnsupportedContent`, beside `ChartFillNotSupported`.
+- **A point is written at its `c:pt@idx`, not at its position in the file.** A sparse cache — a
+  series with a blank third value writes points `0`, `1`, `3` — would otherwise slide every later
+  value one cell up somebody else's column. The old regenerator had the same flaw in its own grid.
+- Tests: `crates/mjx-docx/tests/charts.rs` opens `tests/fixtures/chart_in_word.docx`, edits one
+  series value and asserts the embedded workbook's part list, its styles, its string table, its
+  document properties, the *other* series' column, its sheet view and its page margins all survive;
+  `crates/mjx-pptx/tests/charts.rs` does the same over `charts.pptx`, whose workbook carries a theme;
+  `crates/mjx-xlsx/tests/charts.rs` is the third host. A companion case shows a refusal changes
+  neither part, and another shows `regenerate_chart_workbook` still replaces the package — which is
+  what keeps the first case from being a claim about a method nobody calls.
+
+### Why no gate caught it
+
+`crates/mjx-docx/tests/charts.rs` asserted the workbook part *did* change, starting from a blank
+document — so it locked the behaviour in without ever seeing what was lost. No test opened a
+producer-written file and asked whether its embedded workbook's content survived a data edit. Three
+now do.
+
 ## [0.0.131] - 2026-09-07
 
 ### The documentation gate and the index — a doc page can now fail (MJXOFF-199, G1)
