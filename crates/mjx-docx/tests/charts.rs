@@ -725,8 +725,17 @@ fn a_chart_with_nothing_to_draw_is_refused_before_a_part_is_written() {
 // Editing, and tier-3 edit isolation
 // =================================================================================================
 
+/// **Adding a chart adds exactly its own parts, changes exactly the three that reach them, and
+/// leaves every other part byte-identical.**
+///
+/// This case used to iterate the *before* map alone, which made it **structurally blind to an added
+/// part**: a chart that quietly brought a fourth part with it, or a writer that overwrote a theme
+/// while it was there, passed it unread. MJXOFF-198 §5 named it as the shape of a test that reads as
+/// proof and is not one. It now asserts the added set as well, and the general form of the same
+/// property — every fixture of the corpus against every mutating method of the facade — is
+/// `crates/mjx-ooxml/tests/preservation/`.
 #[test]
-fn adding_a_chart_leaves_every_other_part_byte_identical() {
+fn adding_a_chart_adds_exactly_its_own_parts_and_leaves_every_other_one_byte_identical() {
     let document = blank_with_a_paragraph();
     let before_bytes = document.save().expect("it saves");
     let before = part_payloads(&before_bytes);
@@ -736,6 +745,36 @@ fn adding_a_chart_leaves_every_other_part_byte_identical() {
         .add_chart(0usize, &sample_chart(), 4_572_000, 2_743_200, "Revenue")
         .expect("the chart is added");
     let after = part_payloads(&document.save().expect("it saves"));
+
+    let added: Vec<&str> = after
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| !before.iter().any(|(old, _)| old == name))
+        .collect();
+    assert_eq!(
+        added,
+        [
+            // A blank document relates to nothing, so the document's own relationship stream is
+            // itself one of the parts a chart brings.
+            "/word/_rels/document.xml.rels",
+            "/word/charts/_rels/chart1.xml.rels",
+            "/word/charts/chart1.xml",
+            "/word/embeddings/Microsoft_Excel_Sheet1.xlsx",
+            "/word/theme/theme1.xml",
+        ],
+        "exactly the parts a chart needs, plus the theme its colours resolve against (MJXOFF-200) — \
+         a blank document carries none"
+    );
+
+    let removed: Vec<&str> = before
+        .iter()
+        .map(|(name, _)| name.as_str())
+        .filter(|name| !after.iter().any(|(new, _)| new == name))
+        .collect();
+    assert!(
+        removed.is_empty(),
+        "adding a chart removes nothing: {removed:?}"
+    );
 
     for (name, payload) in &before {
         let Some((_, after_payload)) = after.iter().find(|(n, _)| n == name) else {
