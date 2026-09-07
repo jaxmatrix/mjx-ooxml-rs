@@ -12,7 +12,7 @@
 //! A chart's embedded workbook is a whole `.xlsx` stored as one part. Comparing it as opaque bytes
 //! answers only *did it change*, and the regression this gate exists to hold down (MJXOFF-208) is
 //! **what** changed inside it: the producer's sheets, styles and document properties were dropped
-//! while the part legitimately changed. So [`snapshot`] descends into an embedded package and
+//! while the part legitimately changed. So [`flatten`] descends into an embedded package and
 //! reports its parts too, classed with the [`EMBEDDED_PREFIX`] and keyed by
 //! `container!inner` — the same shape `mjx_schema_gate::order` uses for the same reason.
 
