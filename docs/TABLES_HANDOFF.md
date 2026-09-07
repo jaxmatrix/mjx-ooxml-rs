@@ -1,5 +1,13 @@
 # Handoff — tables (`a:tbl`) — IN PROGRESS
 
+> **Historical hand-off — this describes the repository as it stood on 2026-07-22.** It predates the
+> Phase A module split and the whole Phase B–F programme, so its module paths, status markers
+> (*IN PROGRESS*, *TODO*) and counts are as of that date and are **not** maintained. It is kept, not
+> retired, because the design reasoning it records — why each decision went the way it did — is
+> written down nowhere else; only its description of the layout has expired. For what is current,
+> start at [the documentation index](api/README.md); the PowerPoint surface it discusses is now
+> documented in [the `mjx-pptx` guide](../crates/mjx-pptx/docs/guide/README.md).
+
 The grid a `p:graphicFrame` frames. Read after `docs/PHASE2_HANDOFF.md` (§3 guardrails);
 `docs/TRANSFORM_HANDOFF.md` is the immediately preceding workstream and left the graphic frame
 positionable, which is what made this one possible.
@@ -89,7 +97,7 @@ plus an `office_open.rs` canary that builds a styled, merged 3×3 and renders it
    inset exactly as it was.
 8. **Explicit `cell_*` methods, over one implementation.** The user chose spelled-out methods rather
    than a widened shape parameter. The mitigation is binding: every text operation is a **named
-   function** in `presentation.rs` (`paragraph_text_of`, `set_run_properties_in`, …) that both the
+   function** in `crates/mjx-pptx/src/presentation/` (`paragraph_text_of`, `set_run_properties_in`, …) that both the
    `shape_*` and `cell_*` methods call. **Add a text feature as one operation plus two one-line
    delegators — never a second implementation.**
 9. **Reaching a cell walks the raw tree.** Only the addressed `a:txBody` or `a:tcPr` is parsed and
@@ -230,7 +238,7 @@ Standard project rules (`CLAUDE.md`, `PHASE2_HANDOFF.md` §3). The ones this wor
 
 `crates/mjx-pptx/src/slide.rs` — `shape_table` / `shape_table_mut`, `nth_row_mut`, `nth_cell_mut`.
 
-`crates/mjx-pptx/src/presentation.rs` — the whole surface, plus the private spine: `TextSite` and
+`crates/mjx-pptx/src/presentation/` — the whole surface, plus the private spine: `TextSite` and
 `with_text_body_at` / `edit_text_body_at`, `with_table` / `edit_table_child`,
 `with_cell_properties` / `edit_cell_properties`, `edit_selected_cells` (which passes each cell's
 position), and `check_merges_fit`.
