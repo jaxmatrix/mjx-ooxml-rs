@@ -12,7 +12,7 @@
 //! and like the first it is forced rather than chosen.
 //!
 //! Both enumerations are `#[non_exhaustive]` upstream, so the inbound projections are fallible in
-//! the same way the open enumerations in [`crate::enums`] are; `tests/node/format.mjs` names every
+//! the same way the open enumerations in [`crate::enums`] are; `tests/node/surface.mjs` names every
 //! member that exists today and checks the round trip, so the fallback arm is proved unreachable
 //! rather than merely believed to be.
 

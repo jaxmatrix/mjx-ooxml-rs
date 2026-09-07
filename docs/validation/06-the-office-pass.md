@@ -103,7 +103,7 @@ candidate for something this project has never had.
 
 | Save this | From | As | Closes |
 |---|---|---|---|
-| The chart artefact, re-saved after *Edit Data* | PowerPoint | `tests/office-authored/v-pptx-04.pptx` | `V-PPTX-04.4` — and it is the file R2 names as the corpus's first |
+| The chart artefact, re-saved after *Edit Data* | PowerPoint | `v-pptx-04.pptx`, in `tests/office-authored/` | `V-PPTX-04.4` — and it is the file R2 names as the corpus's first |
 | A blank presentation with one text box and one shape, typed from *Blank* | PowerPoint | `v-pptx-01.pptx` / `v-pptx-02.pptx` | the `-edited` half of the text and appearance areas |
 | A blank document with two paragraphs and a two-column table | Word | `v-docx-01.docx` / `v-docx-03.docx` | the `-edited` half of Word's ladder and tables |
 | A blank workbook with a few typed cells and one cell you have formatted by hand | Excel | `v-xlsx-01.xlsx` / `v-xlsx-02.xlsx` | the `-edited` half of the value and format areas |

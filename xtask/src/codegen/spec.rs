@@ -1874,7 +1874,8 @@ const DIAGRAM_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
     ("ST_ConnectorRouting", "stra", "Straight"),
 ];
 
-/// Two-valued types → the `crate::support` normalizer module that handles all wire spellings.
+/// Two-valued types → the `mjx_ooxml_types::support` normalizer module that handles all wire
+/// spellings.
 /// Modeled as Rust `bool`.
 pub const BOOL_TYPES: &[(&str, &str)] = &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
 

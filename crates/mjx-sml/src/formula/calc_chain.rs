@@ -34,7 +34,7 @@
 //!    do.
 //!
 //! The cost is written down rather than hidden: a workbook whose formulas were edited here carries a
-//! chain that names cells in an order that is no longer current. `docs/fidelity_and_gaps.md` and
+//! chain that names cells in an order that is no longer current. `crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md` and
 //! `crates/mjx-xlsx/docs/guide/formulas_and_cached_values.md` both say so, in prose, naming it
 //! deliberate.
 //!

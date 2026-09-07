@@ -48,7 +48,7 @@ pub fn corpus_directory() -> PathBuf {
 /// Where this area's Office-authored original would be, whether or not it exists.
 ///
 /// One file per area, named by the area's own id, so a reviewer dropping a file in knows exactly
-/// which entry it answers: `tests/office-authored/v-pptx-03.pptx`.
+/// which entry it answers — `v-pptx-03.pptx`, in `tests/office-authored/`.
 #[must_use]
 pub fn original_path(area: &Area) -> PathBuf {
     corpus_directory().join(format!(

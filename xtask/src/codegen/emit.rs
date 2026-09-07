@@ -151,7 +151,7 @@ pub fn emit_types(
             );
         }
         // A two-valued type never becomes an enum — it becomes `bool` / `Option<bool>`, and its
-        // wire spellings are normalized by `crate::support` rather than named one variant each.
+        // wire spellings are normalized by `mjx_ooxml_types::support` rather than named one variant each.
         if let (SimpleKind::Enumeration { values, .. }, None) =
             (&st.kind, spec::bool_kind(&st.name))
         {

@@ -824,19 +824,24 @@ fn the_interning_index_is_dropped_by_an_edit_that_could_invalidate_it() {
 }
 
 // -------------------------------------------------------------------------------------------
-// Authoring, and parity with `mjx-chart`'s writer
+// Authoring: the exact bytes an authored table writes
 // -------------------------------------------------------------------------------------------
 
-/// An authored table is byte-identical to what `mjx-chart`'s own interner writes.
+/// An authored table writes exactly these bytes.
 ///
-/// **This is the pinned half of MJXOFF-112's parity gate.** `mjx-chart` sits *above* `mjx-sml` and
-/// cannot be reached from here, so the expected bytes are the literal its
-/// `SharedStrings::to_part_bytes` produces for its own `bar_chart` fixture — verified against that
-/// writer's live output while this child was written, and asserted in
-/// `crates/mjx-chart/tests/workbook.rs` from the other side. MJXOFF-112 replaces this literal with
-/// the real comparison, and MJXOFF-99 then deletes the writer it is pinned to.
+/// **The literal is what survives of MJXOFF-112's parity gate, and the gate itself is gone.**
+/// `mjx-chart` once carried its own SpreadsheetML writer; it sits *above* `mjx-sml` and cannot be
+/// reached from here, so the two were pinned from both sides — these bytes were verified against
+/// that writer's live output, and the comparison lived in `mjx-chart` where both were visible.
+/// **MJXOFF-99 deleted the writer and the comparison with it**, so there is no longer another side
+/// and this is not a parity assertion any more.
+///
+/// It is kept rather than retired because of the half that was never about the duplicate: these are
+/// the exact bytes this crate emits for a five-entry table — the prologue, the namespace,
+/// `count`/`uniqueCount`, and one `<si><t>` per distinct entry in first-use order — and nothing
+/// else here asserts the whole part byte for byte.
 #[test]
-fn an_authored_table_matches_the_chart_writers_bytes_exactly() {
+fn an_authored_table_writes_exactly_these_bytes() {
     let mut table = SharedStringTable::authored(None).expect("authors");
     for label in ["Sales", "Costs", "North", "South", "West", "Sales"] {
         table.intern(label).expect("interns");
