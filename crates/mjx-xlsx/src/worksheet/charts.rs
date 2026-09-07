@@ -259,9 +259,13 @@ impl Workbook {
         let interner = &document.interner;
         for (index, anchor) in drawing.anchors(interner).enumerate() {
             let rel_id = match anchor.object(interner) {
-                Some(AnchoredObject::GraphicFrame(frame)) => frame
-                    .graphic(interner)
-                    .and_then(|graphic| graphic.data().chart_relationship_id(interner)),
+                Some(AnchoredObject::GraphicFrame(frame)) => {
+                    frame.graphic(interner).and_then(|graphic| {
+                        graphic
+                            .data()
+                            .and_then(|data| data.chart_relationship_id(interner))
+                    })
+                }
                 _ => None,
             };
             visit(index, rel_id);

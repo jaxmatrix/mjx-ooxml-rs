@@ -1451,8 +1451,11 @@ fn for_each_drawing(body: &Body, interner: &Interner, mut visit: impl FnMut(u32,
                     let Some(id) = properties.and_then(|p| p.id(interner).ok()) else {
                         continue;
                     };
-                    let rel_id =
-                        graphic.and_then(|graphic| graphic.data().chart_relationship_id(interner));
+                    let rel_id = graphic.and_then(|graphic| {
+                        graphic
+                            .data()
+                            .and_then(|data| data.chart_relationship_id(interner))
+                    });
                     visit(id, rel_id);
                 }
             }

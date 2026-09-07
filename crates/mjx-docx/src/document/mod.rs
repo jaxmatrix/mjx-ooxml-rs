@@ -4689,7 +4689,8 @@ fn find_drawing_referenced_rel_id(
                         drawing::DrawingContent::Anchored(anchor) => anchor.graphic(interner),
                         drawing::DrawingContent::Raw(_) => None,
                     })?;
-                if let Some(picture) = graphic.data().picture() {
+                let data = graphic.data()?;
+                if let Some(picture) = data.picture() {
                     return picture.image_rel_id(interner);
                 }
                 // A chart's payload is not a `pic:pic`: it is a `c:chart` naming the chart part by
@@ -4698,7 +4699,7 @@ fn find_drawing_referenced_rel_id(
                 // removing a chart drawing left `word/_rels/document.xml.rels` pointing at a part
                 // nothing referenced, which `Package::validate` reports as a defect on the next
                 // `save`.
-                return graphic.data().chart_relationship_id(interner);
+                return data.chart_relationship_id(interner);
             }
         }
     }
