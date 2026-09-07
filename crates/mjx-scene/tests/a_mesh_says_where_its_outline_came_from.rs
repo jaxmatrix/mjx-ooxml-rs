@@ -1,6 +1,10 @@
 //! A painter must be able to tell a stand-in shape from the document's own, and until MJXOFF-163 it
 //! could not.
 //!
+//! MJX-STAND-IN: `OutlineProvenance` is what this suite is about, and the stand-in is the only
+//! producer of `Placeholder` there is. This crate is rank 1.7 and `mjx-geometry` is 2.5, so the
+//! real provider is an upward edge the layering test refuses by name.
+//!
 //! # What was wrong, and why it was not cosmetic
 //!
 //! [`ResolvedOutline`](mjx_scene::ResolvedOutline) has carried `provenance` and `label` since
@@ -16,9 +20,15 @@
 //!
 //! That is the mechanism R10's fidelity rule was told to depend on: *golden images must not be taken
 //! against placeholder geometry and called fidelity*. **Every preset shape in this programme
-//! resolves to a placeholder today**, so without this the guard did not exist at all — a full page of
-//! framed, crossed rounded rectangles would have compared clean against a golden image of itself and
-//! been recorded as parity.
+//! resolved to a placeholder when this file was written**, so without it the guard did not exist at
+//! all: a full page of framed, crossed rounded rectangles would have compared clean against a golden
+//! image of itself and been recorded as parity.
+//!
+//! MJXOFF-206 wired `mjx-geometry`'s `PresetGeometryProvider` in, so a preset now resolves to the
+//! document's own geometry and this field is normally `Document`. **That makes it worth more, not
+//! less.** A flag that was `Placeholder` on every shape said nothing about any particular shape; one
+//! that is `Placeholder` on a shape today names a handle nobody registered, a preset ECMA-376
+//! defines no geometry for, or a shape singular at the adjustments in force.
 //!
 //! # What is asserted here
 //!

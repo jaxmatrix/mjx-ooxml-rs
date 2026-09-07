@@ -1,5 +1,9 @@
 //! A hand-transcribed preset draws the shape it is, and a scene of presets needs no stand-in.
 //!
+//! MJX-STAND-IN: the stand-in is what a seeded preset is compared *against* here, so this suite is
+//! about it: `a_seeded_shape_is_the_documents_own_geometry_and_not_the_stand_in` needs the shape it
+//! must not be, and the placeholder-count cases need a provider that produces one.
+//!
 //! # What this file is about, now that the table is generated
 //!
 //! MJXOFF-203 replaced the six-shape seed table with 186 rows extracted from

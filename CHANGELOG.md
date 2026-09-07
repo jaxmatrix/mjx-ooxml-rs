@@ -58,6 +58,98 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.136] - 2026-09-08
+
+**The provider wired in, and the placeholder proved gone** (MJXOFF-206, Phase G position 5).
+
+Everything Phase G built could be true while the renderer still drew placeholders, **because the
+provider is chosen by the caller.** This release makes the real one what a document is rendered
+with, and — more to the point — makes "the placeholder is gone" a checked claim instead of a
+sentence.
+
+### Fixed — half of `DrawReport::placeholders` had never executed
+
+The count is incremented in exactly two places in `crates/mjx-paint/src/plan.rs`: once under
+`Command::FillPath` and once under `Command::StrokePath`. **Every stand-in scene in this workspace
+was filled**, so the second line had never run. Replacing it with `std::process::abort()` left
+`mjx-paint`, `mjx-scene` and `mjx-geometry` green — a mutation that should have aborted the process
+and did not.
+
+That is the exact shape of the defect the field exists to prevent, one level down: a counter that
+never increments satisfies *"zero placeholders"* perfectly. An outlined shape is not exotic —
+`straightConnector1` has no interior at all, and sixty-four of the 186 presets end a contour without
+an `a:close` — so a deck of connectors would have reported a clean fidelity render while drawing
+framed, crossed rounded rectangles. The stroke arm is now asserted in five places: the software
+painter, the GPU painter, both document exporters, and `mjx-geometry`'s own wiring suite. Mutating
+the line now aborts.
+
+### The wiring gate — `crates/mjx-geometry/tests/the_provider_is_wired_in.rs`
+
+The existing placeholder-count cases build their scenes from the typed registry, draw them as fills
+and lower them with `plan_frame`. Each of those three is a place a wiring defect can hide, and the
+new suite closes all three:
+
+- **the document's own `a:prstGeom` is the route.** All 186 presets are registered through
+  `ShapeOutline::from_preset_geometry`, out of a `PresetGeometry` built the way a `.pptx` has it.
+  That bridge was written, documented and exported in MJXOFF-202 and had **never been shown to reach
+  a painter's report** — a bridge that resolves correctly and is wired to nothing renders exactly as
+  many placeholders as no bridge at all;
+- **both command kinds**, and each alone as well as together, so a page that silently skipped one
+  cannot pass by reporting a lower number;
+- **both orientations**, because `ss` is `min(w, h)` and a sheet laid out at one aspect ratio is one
+  sample;
+- **every pure-Rust painter** — `tiny-skia`, SVG and PDF — asserted in both directions over a deck
+  of 186 shapes and over a scene that certainly contains one that cannot be drawn. R09 added three
+  painters and asserted this field for none of them; the `wgpu` painter asserts the same pair in
+  `crates/mjx-paint/tests/a_page_becomes_pixels.rs`, where a missing adapter is a named skip.
+
+**All three producers of a stand-in are exercised, not one**: an unregistered handle
+(`UnregisteredOutline`), `upArrow` — the single preset `ST_ShapeType` declares and
+`presetShapeDefinitions.xml` defines nothing for (`UnseededShape`) — and `circularArrow` at `adj5`'s
+own minimum, where `swAng` has no value (`SingularGeometry`). The three are asserted to land on
+three *different* arms, so the list cannot quietly become one case written three times. And the
+stand-in is asserted to be **`mjx-scene`'s own**, command for command: a provider that grew a second
+framed rectangle of its own would pass every count and fail that comparison.
+
+### The census — no shipped code renders with the stand-in, and every test that uses one says why
+
+`crates/mjx-geometry/tests/the_stand_in_is_named_wherever_it_is_used.rs` reads the workspace off the
+file system and asserts two things:
+
+1. **exactly one shipped file constructs `PlaceholderGeometry`** — `crates/mjx-geometry/src/
+   provider.rs`, the `UnknownShapePolicy::StandIn` fall-through. That is the whole of *"the
+   placeholder is gone"*: no other `src/` path can put one on a page; and
+2. **every other file that constructs one declares a reason**, on a line carrying `MJX-STAND-IN:`
+   and at least sixty characters of prose. **Seventeen files carry one** — the tessellator's suites
+   need a provider that answers every handle and do not care what it draws, and `mjx-scene`
+   (rank 1.7) and `mjx-paint` (forbidden by name in `tests/the_seam_holds.rs`) *cannot* name the
+   real one.
+
+The idiom is `mjx-paint`'s `MJX-PAINT-SURFACE-UNSAFE`, and for its reason: a claim CI does not check
+is a claim that quietly stops being true. The gate carries its own negative control, so it is shown
+able to fail rather than merely observed to pass.
+
+### The gallery, drawn through the renderer
+
+`cargo run -p mjx-geometry --example painted_gallery -- <stem>` writes the same 186 plates as
+`plate_gallery`, in the same grid, but draws none of them itself: every shape is a
+`Geometry::Unresolved` in a `DisplayList`, resolved by a painter walking that list. It writes an SVG
+through `SvgPainter` — whose root carries `data-mjx-placeholders="0"`, so the picture states its own
+count — and a PNG through the pure-Rust `SoftwarePainter`, and it **refuses to write either** if the
+report is not zero or the sheet is missing shapes. It is an aid for a person, not a gate: MJXOFF-201
+§6 is unchanged, and the authoritative visual check is PowerPoint on Windows.
+
+### Documentation corrected
+
+*"Every preset shape in this platform resolves to a stand-in today"* was true when it was written
+and, in one wording or another, ran through **fourteen files** across `mjx-scene`, `mjx-paint` and
+`docs/UI_PLATFORM_PLAN.md` — including the documentation on `DrawReport::placeholders` itself and
+`mjx-paint`'s own end-to-end frame example, which built a stand-in and then asserted the page had no
+placeholders. Every one now says what is true: a preset resolves to the document's own geometry,
+which makes the flag a *signal* rather than a constant. `docs/UI_PLATFORM_PLAN.md`'s gap #1 is marked
+closed with its evidence kept rather than deleted, and §1.11's prediction — *"swapping in the
+generated table later is one implementation, not a rework"* — is recorded as having held.
+
 ## [0.0.135] - 2026-09-08
 
 **Verification across all 186 presets — structural, differential and monotonic** (MJXOFF-205, Phase

@@ -1,6 +1,10 @@
 //! **Where pixels first appear in this programme**, and the assertions that cannot be satisfied by
 //! skipping the work.
 //!
+//! MJX-STAND-IN: this crate may not name `mjx-geometry` — `tests/the_seam_holds.rs` forbids it — so
+//! the stand-in is the only `GeometryProvider` a painter's own suite can construct, and the
+//! placeholder-warning cases are about the stand-in itself.
+//!
 //! # What every case here asserts, and why it is not "it rendered"
 //!
 //! `wgpu` will hand back a different backend from the one asked for, a software adapter on a machine
@@ -475,7 +479,10 @@ fn a_placeholder_shape_is_reported_and_is_painted_as_a_warning() {
 
     // The other half of MJXOFF-163's provenance fix: a painter can now tell a stand-in from the
     // document's own shape, and a caller can act on it. R10 asserts `placeholders == 0` before
-    // calling a render a fidelity render; every preset shape resolves to a stand-in today.
+    // calling a render a fidelity render. Since MJXOFF-206 a preset shape resolves to the
+    // document's own geometry, so a stand-in is the honest answer for a handle nobody registered
+    // rather than the ordinary case — which makes counting it more important, not less: it is now
+    // a signal instead of a constant.
     let mut builder = mjx_scene::SceneBuilder::new(mjx_text::DeviceScale::UNZOOMED, 48.0, 48.0);
     let geometry = builder
         .add_geometry(&mjx_scene::Geometry::Unresolved {
@@ -496,6 +503,15 @@ fn a_placeholder_shape_is_reported_and_is_painted_as_a_warning() {
         drawn.placeholders, 1,
         "a shape resolved by the stand-in provider must be counted, or a page of placeholders can \
          be recorded as a fidelity render"
+    );
+
+    // And the stroked half of the same counter — two lines in `plan.rs`, and until MJXOFF-206 only
+    // the fill was ever reached.
+    let stroked = common::one_unresolved_stroked_shape(48.0, 48.0);
+    let (_, stroked_report) = render(&mut painter, &stroked, 48, 48, 1.0);
+    assert_eq!(
+        stroked_report.placeholders, 1,
+        "the GPU painter must count a *stroked* stand-in too: {stroked_report:?}"
     );
 
     // And it is visibly a warning rather than the green the document asked for.

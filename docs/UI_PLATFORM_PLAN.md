@@ -24,11 +24,13 @@ ladder ending at the master's `p:txStyles`. A renderer does not re-derive any of
 it. The core is also bytes-in/bytes-out with no filesystem, clock, threads or RNG — which is why the
 same engine will run in a browser later without a porting effort.
 
-**Four gaps sit directly on the critical path.** Each is verified in the tree, not assumed:
+**Four gaps sat directly on the critical path; one is now closed.** Each is verified in the tree,
+not assumed, and a closed row keeps its evidence rather than being deleted — a plan that quietly
+loses the problems it solved cannot be read back against the tree:
 
 | # | Gap | Evidence | Consequence |
 |---|---|---|---|
-| 1 | Preset shape **paths** are not generated | `xtask/src/codegen/geometry.rs` generates adjustment metadata only — its own header says *"the drawing paths are a rendering concern"* | 187 preset shapes have adjustments but no geometry. **Deliberately deferred** — see §1.11: the pipeline is built against a `GeometryProvider` seam with a placeholder shape, and the real table lands when the concurrent geometry work supplies its context. |
+| 1 | ~~Preset shape **paths** are not generated~~ — **closed by MJXOFF-201 (Phase G)** | `crates/mjx-geometry/src/generated.rs` holds all 186 presets `presetShapeDefinitions.xml` defines geometry for, with their guides, text rectangles and connection sites; `PresetGeometryProvider` resolves them and MJXOFF-206 made it what a document renders with | Was: 187 preset shapes with adjustments and no geometry, deliberately deferred behind the `GeometryProvider` seam. `upArrow` is the one `ST_ShapeType` value the geometry file omits, and it is named by `PRESETS_WITHOUT_GEOMETRY` rather than silently missing. |
 | 2 | The core **holds nothing between calls** | `crates/mjx-xlsx/docs/guide/large_workbooks.md`: *"A worksheet is cheap to hold and expensive to open, and this library holds nothing between calls… every call that reaches into a sheet's cells parses that sheet's part again."* | Correct for a batch library, fatal for an interactive editor. A **resident session** layer is required before any editing UI. |
 | 3 | `p:timing` is **not modelled** | No animation model in `crates/mjx-pptx/src`; timing round-trips opaquely | Animations, transitions and "motion editing" are greenfield — model, runtime and editor. |
 | 4 | No calculation engine, **by written policy** | `PLAN.md` records it as settled scope; `crates/mjx-xlsx/docs/guide/deliberate_limitations.md` says *"there will not be one"* | Now reversed (§9). Both documents must be amended in the same commit that opens the engine's epic, or the repo contradicts itself. |
@@ -59,11 +61,15 @@ targets a **display list**; SVG and PDF become exporters *from* that IR, not sta
    any future source (network, collaboration, content store) is a configuration.
 9. **A calculation engine is in scope** as its own programme (§9).
 10. **Fonts are tiered**: system → bundled metric-compatible → lazily fetched subsets (§10).
-11. **Geometry is behind a seam, and is not built first.** Preset shape paths depend on context the
-    concurrent geometry workstream will supply, so the render pipeline is built *independently* of
-    them: `mjx-scene` consumes a `GeometryProvider`, whose first implementation returns a placeholder
-    shape. Nothing downstream — tessellation, painting, hit-testing, the fidelity oracle — can tell
-    the difference, and swapping in the generated table later is one implementation, not a rework.
+11. **Geometry is behind a seam, and was not built first.** Preset shape paths depended on context
+    the concurrent geometry workstream supplied, so the render pipeline was built *independently* of
+    them: `mjx-scene` consumes a `GeometryProvider`, whose first implementation returned a
+    placeholder shape. **The prediction held.** Phase G (MJXOFF-201) generated the table into
+    `mjx-geometry` at rank 2.5 and MJXOFF-206 swapped the provider in; nothing downstream —
+    tessellation, painting, hit-testing, the fidelity oracle — changed, and `mjx-scene` still cannot
+    name the crate that resolves a preset, because 2.5 is above its 1.7. The stand-in stays as the
+    honest answer for a shape there is genuinely no geometry to draw for, counted by
+    `DrawReport::placeholders` so a golden image can never be taken against one.
 12. **Application surface only.** Third-party, service and platform integrations — add-ins, cloud
     intelligence, tenant labelling, Power Query, automation runtimes, external publishing — are out
     of scope. They are enumerated as excluded in

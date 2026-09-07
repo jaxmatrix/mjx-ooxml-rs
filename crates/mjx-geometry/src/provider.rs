@@ -1,5 +1,10 @@
 //! The registry, and the [`GeometryProvider`] it satisfies.
 //!
+//! MJX-STAND-IN: the `UnknownShapePolicy::StandIn` fall-through is the one shipped construction
+//! in the workspace, and `the_stand_in_is_named_wherever_it_is_used.rs` asserts that it is the only
+//! one. It is the honest answer for a shape there is genuinely no geometry to draw for; the
+//! alternative is a silent nothing, which is what `mjx-scene`'s seam forbids.
+//!
 //! # Why a registry, and not a lookup from the handle itself
 //!
 //! A [`GeometryProvider`] is handed a `u64` and a rectangle. The number is a

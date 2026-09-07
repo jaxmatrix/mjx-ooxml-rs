@@ -556,9 +556,10 @@ impl WgpuPainter {
 
     /// Whether stand-in geometry is drawn in [`PLACEHOLDER_WARNING`] rather than in its own paint.
     ///
-    /// On by default. **Every preset shape in this platform resolves to a stand-in today**, so a
-    /// developer looking at a render should be able to see that at a glance rather than be told
-    /// later by a report. R10's golden-image suite turns it off and asserts
+    /// On by default, so a developer looking at a render sees a stand-in at a glance rather than
+    /// being told later by a report. Since MJXOFF-206 a preset resolves to the document's own
+    /// geometry, so a magenta shape on a page now means something went wrong rather than meaning
+    /// the table has not landed. R10's golden-image suite turns it off and asserts
     /// [`DrawReport::placeholders`] is zero instead, which is the stronger of the two checks.
     #[must_use]
     pub fn highlighting_placeholders(mut self, highlight: bool) -> Self {

@@ -287,7 +287,7 @@ impl SoftwarePainter {
     ///
     /// On by default, and **the same default the GPU painter has**: a cross-painter comparison
     /// between one painter that highlights placeholders and one that does not would report a
-    /// difference on every page with a preset shape on it, which today is every page.
+    /// difference on every page that contains a shape neither could draw.
     #[must_use]
     pub fn highlighting_placeholders(mut self, highlight: bool) -> Self {
         self.highlight_placeholders = highlight;

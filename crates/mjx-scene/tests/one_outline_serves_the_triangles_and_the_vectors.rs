@@ -1,5 +1,9 @@
 //! **One interpretation of what a shape is**, shared by the rasterisers and the vector exporters.
 //!
+//! MJX-STAND-IN: this crate is rank 1.7 and `mjx-geometry` is 2.5, so the real provider is an
+//! upward edge the layering test refuses by name — and the case that resolves a handle is about
+//! the stand-in's own provenance surviving into both the triangles and the vectors.
+//!
 //! # Why this function had to become public, and what would have happened otherwise
 //!
 //! [`Tessellator::fill_resolved`] answers with triangles. That is what a rasteriser wants and what a
