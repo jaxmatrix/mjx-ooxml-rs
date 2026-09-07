@@ -33,7 +33,19 @@ mjx-ooxml-types.workspace = true
 # `mjx-sml` test binary can install the same allocator — nothing may depend on `xtask`, and a second
 # `unsafe impl GlobalAlloc` is the last thing this workspace should have two of.
 mjx-allocation-counter.workspace = true
+# The validation harness (MJXOFF-122) drives the *facade* and nothing below it: every artefact the
+# human Office pass reads is produced by a `Deck`, `Document` or `Workbook` caller, so the pass
+# validates A9's facade and its error mapping as a side effect. Another downward edge from a
+# host-only binary nothing depends on.
+mjx-ooxml.workspace = true
 # MJXOFF-95's cell store, so `corpus --mem xlsx` can report what *holding* the corpus worksheet costs
 # once it is a packed store rather than a `RawElement` tree — the figure that harness exists to make
 # comparable. Another downward edge from a host-only binary nothing depends on.
 mjx-sml.workspace = true
+
+[dev-dependencies]
+# The shared ECMA-376 gate, so `tests/validation_harness.rs` can hold every artefact the validation
+# generators produce to the same schema, child-order and category rules the three format crates are
+# held to — rather than writing a fourth harness. It is a `dev-dependency` here for the same reason
+# it is one there: nothing shipped, and nothing `xtask` *ships*, may depend on a test-only crate.
+mjx-schema-gate.workspace = true
