@@ -954,7 +954,11 @@ colours built on it, are `fill-only`.
   ordered-member accessor. It was a private module of `xtask/tests/layering.rs` while that gate was
   its only consumer; the token generator is a second one, and an integration test cannot reach a
   binary crate's private modules, so the gate now pulls the one file in by path rather than keeping
-  a copy. A workspace with two JSON readers in it has one reader too many.### The Office-authored corpus — the ingestion path, and the weakness it retires (MJXOFF-130, F3)
+  a copy. A workspace with two JSON readers in it has one reader too many.
+
+## [0.0.130] - 2026-09-07
+
+### The Office-authored corpus — the ingestion path, and the weakness it retires (MJXOFF-130, F3)
 
 **Phase F's third child, and the last of the sixty-two-child programme. It builds the road; it
 cannot supply the traffic.** No test in this repository has ever read a file Microsoft Office wrote —
