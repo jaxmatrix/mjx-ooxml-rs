@@ -133,8 +133,19 @@ them**, which is the opposite of per-fixture coverage:
    a row claiming to preserve everything while handing `RawElement::rebuilt` a fresh `Vec::new()`
    fails. The nine rows that remain are three read-only projections, three dispatchers on an element
    name (`mjx_dml::Fill` and the two `xdr:` choices), and three wrappers holding their children raw.
-   `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside that gate today, and
-   extending it to them is MJXOFF-218.
+
+   **`mjx-sml` is inside a gate of its own as of MJXOFF-220**, and its shape is different because
+   the question there is different. Its hand-written impls are almost all `ToXml`-only — the reader
+   is the derive — and every one of the writers is the *same* three lines, handing the work to an
+   inherent `as_raw_element(&self)` that exists because a worksheet's writer takes `&self` and has
+   no mutable interner to lend. Classifying fifty-seven copies of one delegation would be a list
+   that passes once it is written, so `crates/mjx-sml/tests/serialization_ledger.rs` follows the
+   delegation instead: it requires every hand-written writer to *be* that delegation or to carry a
+   reason, and holds all sixty of the rebuilders behind them to the shape `Picture::to_xml` broke —
+   the element's own name, its own attributes, its own self-closing flag. Dropping `&self.attributes`
+   from one of the sixty leaves every other test in that crate green.
+
+   `mjx-docx`'s 158 hand-written pairs are what is left of MJXOFF-218.
 
 ### 3 · "MCE is handled in `mjx-mce`, preserved on write and resolved (non-mutating) on read/render"
 
