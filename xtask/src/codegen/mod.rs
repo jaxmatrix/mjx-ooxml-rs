@@ -22,12 +22,21 @@ use anyhow::{bail, Context, Result};
 
 use crate::codegen::naming::NameEngine;
 
-const STRICT_DIR: &str =
+pub(crate) const STRICT_DIR: &str =
     "References/ECMA-376-1_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Strict";
-const TRANSITIONAL_DIR: &str =
+pub(crate) const TRANSITIONAL_DIR: &str =
     "References/ECMA-376-4_5th_edition_december_2016/OfficeOpenXML-XMLSchema-Transitional";
-const GEOMETRIES_XML: &str =
+pub(crate) const GEOMETRIES_XML: &str =
     "References/ECMA-376-1_5th_edition_december_2016/OfficeOpenXML-DrawingMLGeometries/presetShapeDefinitions.xml";
+
+/// Where the preset geometry table is committed.
+///
+/// Not beside the other generated modules, and deliberately: it is `mjx-geometry`'s data, written
+/// in `mjx-geometry`'s own row types, and the tier that reads it is four ranks above
+/// `mjx-ooxml-types`. What *is* shared is the guide row — both tables emit
+/// `mjx_ooxml_types::drawingml::PresetGuide`, so a shape's `gdLst` has one shape in this workspace
+/// and not two.
+pub(crate) const PRESET_GEOMETRY_RS: &str = "crates/mjx-geometry/src/generated.rs";
 
 /// Regenerates the `mjx-ooxml-types` source from the reference schemas.
 pub fn run() -> Result<()> {
@@ -76,6 +85,16 @@ pub fn run() -> Result<()> {
             emitted
                 .source
                 .push_str(&geometry::emit_shape_adjustments(&geometries_xml)?);
+
+            // The whole geometry — every shape's `gdLst` and `pathLst` — into `mjx-geometry`, four
+            // ranks up. It is written from here, and not from a second subcommand, because it is
+            // the *same* parse of the *same* file that produced the adjustment table above, and the
+            // `ST_ShapeType` values it is checked against are this module's own.
+            let shape_tokens = enumeration_values(&emitted, "ST_ShapeType")?;
+            write_generated(
+                &root.join(PRESET_GEOMETRY_RS),
+                &geometry::emit_preset_geometry(&geometries_xml, &shape_tokens)?,
+            )?;
         }
 
         write_generated(
@@ -119,7 +138,8 @@ pub fn run() -> Result<()> {
     let mut written: Vec<&str> = SIMPLE_TYPE_MODULES.iter().map(|m| m.module).collect();
     written.sort_unstable();
     println!(
-        "codegen: wrote child_order.rs, namespaces.rs, {}, mod.rs, COVERAGE.md",
+        "codegen: wrote {PRESET_GEOMETRY_RS}, child_order.rs, namespaces.rs, {}, mod.rs, \
+         COVERAGE.md",
         written
             .iter()
             .map(|m| format!("{m}.rs"))
@@ -389,6 +409,25 @@ const PRESENTATIONML_TYPES: &[&str] = &[
     "ST_Direction",
 ];
 
+/// The enumeration values of one emitted simple type, in schema order.
+///
+/// # Errors
+///
+/// Fails when the module did not emit that type at all, or emitted it as something other than an
+/// enumeration — either of which would mean the caller is reasoning about a type that has changed
+/// shape under it.
+fn enumeration_values(module: &emit::EmittedModule, name: &str) -> Result<Vec<String>> {
+    let simple_type = module
+        .types
+        .iter()
+        .find(|candidate| candidate.name == name)
+        .with_context(|| format!("`{name}` was not emitted by this module"))?;
+    match &simple_type.kind {
+        xsd::SimpleKind::Enumeration { values, .. } => Ok(values.clone()),
+        other => bail!("`{name}` is {other:?}, not an enumeration"),
+    }
+}
+
 fn workspace_root() -> PathBuf {
     // CARGO_MANIFEST_DIR is the xtask crate dir; the workspace root is its parent.
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -407,7 +446,7 @@ fn write_plain(path: &Path, contents: &str) -> Result<()> {
     std::fs::write(path, contents).with_context(|| format!("writing {}", path.display()))
 }
 
-fn rustfmt(src: &str) -> Result<String> {
+pub(crate) fn rustfmt(src: &str) -> Result<String> {
     let mut child = Command::new("rustfmt")
         .args(["--edition", "2021"])
         .stdin(Stdio::piped())

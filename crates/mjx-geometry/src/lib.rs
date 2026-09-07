@@ -58,26 +58,35 @@
 //!          ─▶ Vec<PathCommand> in device pixels                    (this crate: arcs and the map)
 //! ```
 //!
-//! Only the first and last steps are new. There is **no second command vocabulary**: the seed table
+//! Only the first and last steps are new. There is **no second command vocabulary**: the table
 //! stores [`PresetPathStep`]s only because [`DrawCommand`](mjx_dml::geometry::DrawCommand) owns
 //! `String`s and cannot be written in a `static`, and every step converts to exactly one
 //! `DrawCommand` by [`PresetPathStep::to_draw_command`]. The only geometry this crate computes for
 //! itself is the one `mjx-dml` deliberately does not: an `a:arcTo` is an elliptical arc and a
 //! [`PathCommand`](mjx_scene::PathCommand) has no arc, so [`arc`] decomposes one into cubics.
 //!
-//! # The seed table is six shapes, and G02 replaces it with 187
+//! # The table is 186 shapes, and the six hand-written ones stayed as its reference
 //!
-//! [`seed`] holds six presets transcribed by hand from ECMA-376 Part 1's own descriptions and
-//! formula language, with the derivation written out beside each. They exist so that this
-//! machine could be built, and gated, before `References/` — and therefore
-//! `presetShapeDefinitions.xml` — was available. MJXOFF-203 generates the same [`PresetShapeDefinition`]
-//! rows for all 187 mechanically, and **its strongest gate is diffing its output against these
-//! six**: two independent routes to the same answer. Each seed shape's `derivation` field says how
-//! independent its route really was, because a comparison whose two sides share a source proves
-//! nothing.
+//! [`generated`] holds every preset ECMA-376's `presetShapeDefinitions.xml` defines geometry for,
+//! extracted mechanically by `cargo run -p xtask -- codegen` (MJXOFF-203). [`seeded_shapes`]
+//! returns those.
+//!
+//! **186 and not 187**, and that is the file's arithmetic rather than a gap in the extraction:
+//! `ST_ShapeType` declares 187 values and the geometry file has no `upArrow` element at all.
+//! [`PRESETS_WITHOUT_GEOMETRY`] names what is left over, derived from the difference rather than
+//! written down.
+//!
+//! [`seed`] still holds the six presets MJXOFF-202 transcribed by hand from ECMA-376 Part 1's own
+//! prose, before `References/` was available. They are no longer the table — they are what the
+//! table was **checked against**, in `tests/the_two_routes_agree.rs`: a hand transcription from the
+//! spec's prose and a mechanical extraction from the spec's XML are two routes to one answer, and
+//! they must agree. Each seed row's [`Derivation`] says how independent its route really was,
+//! because a comparison whose two sides share a source proves nothing — and four of the six took a
+//! constant or an idiom from tables this workspace had already generated from that same XML.
 
 pub mod arc;
 pub mod error;
+pub mod generated;
 pub mod provider;
 pub mod resolve;
 pub mod seed;
@@ -87,8 +96,12 @@ pub use arc::{
     arc_to_cubics, parametric_angle, ArcSegment, ShapePoint, MAXIMUM_ARC_SEGMENT_RADIANS,
 };
 pub use error::GeometryError;
+pub use generated::PRESETS_WITHOUT_GEOMETRY;
 pub use provider::{AdjustmentOverride, PresetGeometryProvider, ShapeOutline, UnknownShapePolicy};
-pub use resolve::{adjustment_domains, outline_of_definition, preset_outline, AdjustmentDomain};
+pub use resolve::{
+    adjustment_domains, contours_of_definition, outline_of_definition, preset_contours,
+    preset_outline, AdjustmentDomain, PresetContour,
+};
 pub use table::{
     definition_of, seeded_shapes, PresetAngle, PresetCoordinate, PresetPath, PresetPathStep,
     PresetPoint, PresetShapeDefinition,
@@ -104,7 +117,7 @@ pub use table::{
 /// one workspace is the defect the layering rule exists to prevent.
 pub use mjx_dml::geometry::Size;
 
-pub use mjx_ooxml_types::drawingml::PresetShapeType;
+pub use mjx_ooxml_types::drawingml::{PathFillMode, PresetShapeType};
 
 /// How independently a seed shape's geometry was arrived at.
 ///
@@ -123,12 +136,21 @@ pub enum Derivation {
     /// or a formula quoted in `mjx-dml`'s own documentation. The *paths* are still independent; the
     /// constants are not.
     ConstantsFromTheGeneratedTables,
+    /// Read straight out of ECMA-376's `presetShapeDefinitions.xml` by
+    /// `cargo run -p xtask -- codegen` — no transcription, no naming, no interpretation beyond
+    /// `CT_Path2D`'s schema defaults.
+    ///
+    /// The normative artefact itself, which is why a disagreement between a row marked this and a
+    /// row marked either of the other two is settled **in this one's favour**: the other two are
+    /// somebody reading prose, and this is the file the prose describes.
+    ExtractedFromTheGeometryFile,
 }
 
 impl Derivation {
     /// Every value, so a gate can assert both are exercised rather than trusting they are.
-    pub const ALL: [Self; 2] = [
+    pub const ALL: [Self; 3] = [
         Self::FromFirstPrinciples,
         Self::ConstantsFromTheGeneratedTables,
+        Self::ExtractedFromTheGeometryFile,
     ];
 }

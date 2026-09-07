@@ -45,9 +45,10 @@ pub enum GeometryError {
 
     /// The shape is a preset this build has no path table for.
     ///
-    /// Today that is 181 of the 187 `ST_ShapeType` values: MJXOFF-202 seeds six by hand and
-    /// MJXOFF-203 generates the rest. The error names the wire token rather than the Rust variant,
-    /// because the wire token is what the document said.
+    /// Today that is one of the 187 `ST_ShapeType` values — `upArrow`, which ECMA-376's own
+    /// `presetShapeDefinitions.xml` defines no geometry for; see
+    /// [`PRESETS_WITHOUT_GEOMETRY`](crate::PRESETS_WITHOUT_GEOMETRY). The error names the wire
+    /// token rather than the Rust variant, because the wire token is what the document said.
     #[error("no preset path table is seeded for the shape `{shape}`")]
     UnseededShape {
         /// The shape's `prst` token, as `a:prstGeom@prst` writes it.
@@ -71,6 +72,33 @@ pub enum GeometryError {
         /// What the evaluator said.
         #[source]
         source: GuideError,
+    },
+
+    /// The shape has no geometry **at this size and these adjustment values**, because one of its
+    /// own guide formulas has no finite value there and a path reads it.
+    ///
+    /// Not a defect in the table and not a gap in it: ECMA-376's formulas divide and take square
+    /// roots, and at the ends of an adjustment's domain the divisor can be zero.
+    /// `circularArrow`'s `dxF1 = "+/ q11 q10 q4"` has no value at `adj5 = 0` — which is that
+    /// adjustment's own *minimum*, and therefore a value a handle drag reaches. Six of the 186
+    /// presets have such a point; `crates/mjx-geometry/tests/every_preset_stands_where_its_box_is.rs`
+    /// names them and the guide each is singular in.
+    ///
+    /// [`crate::resolve`] leaves a guide with no finite value **undefined** rather than fatal, so a
+    /// singularity in a guide nothing draws through — four of the ten shapes that have one are
+    /// singular only in the text rectangle's insets — costs nothing. This variant is what happens
+    /// when a *path* reads one, and it answers
+    /// [`has_no_geometry_to_draw`](Self::has_no_geometry_to_draw) with `true`: a counted stand-in is
+    /// a better answer than a page that will not render, and a silent empty path is not an answer
+    /// at all.
+    #[error(
+        "`{shape}` has no geometry at these adjustments: its guide `{guide}` has no finite value"
+    )]
+    SingularGeometry {
+        /// The shape's `prst` token.
+        shape: &'static str,
+        /// The guide whose formula has no finite value here.
+        guide: String,
     },
 
     /// A coordinate of the shape's path named a guide the shape does not define.
@@ -99,21 +127,29 @@ impl GeometryError {
             Self::UnregisteredOutline { .. } => None,
             Self::UnseededShape { shape }
             | Self::Guides { shape, .. }
+            | Self::SingularGeometry { shape, .. }
             | Self::PathCommand { shape, .. } => Some(shape),
         }
     }
 
-    /// Whether this failure is *"the table has no entry"* rather than *"the entry is wrong"*.
+    /// Whether this failure is *"there is no geometry to draw here"* rather than *"the geometry
+    /// here is wrong"*.
     ///
-    /// The distinction is what [`UnknownShapePolicy`](crate::UnknownShapePolicy) switches on: a
-    /// shape nobody has seeded yet is a gap a stand-in may legitimately fill, and a table whose
-    /// guide list does not evaluate is a bug that must not be papered over with a rounded
-    /// rectangle.
+    /// The distinction is what [`UnknownShapePolicy`](crate::UnknownShapePolicy) switches on. Three
+    /// failures are of the first kind — a handle nobody registered, a preset ECMA-376 defines no
+    /// geometry for, and a shape whose own formulas are singular at these adjustments — and a
+    /// stand-in may legitimately fill any of them, because there is nothing else to draw and the
+    /// stand-in is *counted*. A table whose guide list will not evaluate, or whose path names a
+    /// guide that does not exist, is of the second kind: a bug that must not be papered over with
+    /// a rounded rectangle, because a stand-in would hide the one failure the table's own gates
+    /// exist to catch.
     #[must_use]
-    pub fn is_a_gap_in_the_table(&self) -> bool {
+    pub fn has_no_geometry_to_draw(&self) -> bool {
         matches!(
             self,
-            Self::UnregisteredOutline { .. } | Self::UnseededShape { .. }
+            Self::UnregisteredOutline { .. }
+                | Self::UnseededShape { .. }
+                | Self::SingularGeometry { .. }
         )
     }
 }

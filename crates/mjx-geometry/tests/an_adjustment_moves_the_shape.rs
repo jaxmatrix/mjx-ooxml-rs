@@ -22,10 +22,13 @@
 mod common;
 
 use common::{box_on_the_page, curve_overhang, enclosed_area, extents_of_the_box, points_of};
+use std::collections::BTreeSet;
+
 use mjx_geometry::{
-    adjustment_domains, preset_outline, seeded_shapes, AdjustmentOverride, PresetShapeType, Size,
+    adjustment_domains, preset_outline, seeded_shapes, AdjustmentOverride, GeometryError,
+    PresetGeometryProvider, PresetShapeType, ShapeOutline, Size, UnknownShapePolicy,
 };
-use mjx_scene::{PathCommand, ScenePoint, SceneRect};
+use mjx_scene::{GeometryProvider, OutlineProvenance, PathCommand, ScenePoint, SceneRect};
 
 /// How far outside its box a point may lie at any point of a sweep, in device pixels.
 ///
@@ -317,13 +320,47 @@ fn domain_of(preset: PresetShapeType, wire_name: &str) -> mjx_geometry::Adjustme
 // Sizes that come out of real files
 // -------------------------------------------------------------------------------------------
 
+/// The presets whose own guide formulas have no value somewhere a *path* reads, at some size and
+/// some adjustment value.
+///
+/// **This is ECMA-376's arithmetic, not a defect in the extraction.** The spec's formulas divide
+/// and take square roots, and at the ends of an adjustment's domain a divisor can be zero:
+/// `circularArrow`'s `swAng` is derived through `dxF1 = "+/ q11 q10 q4"`, and `q4` is zero at
+/// `adj5 = 0` — which is that adjustment's own **minimum**, and therefore a value a handle drag
+/// reaches. `noSmoking` is the same story with a `sqrt` of a negative.
+///
+/// Ten of the 186 have such a point *somewhere in their guide list*; these six are the ones where a
+/// path reads it. In the other four the singular guide is `il`/`it`/`ir`/`ib` — the **text
+/// rectangle**'s insets, which draw nothing — and [`mjx_geometry::resolve`] therefore leaves it
+/// undefined and the shape draws normally. That distinction is the whole reason the resolver
+/// evaluates the `gdLst` one guide at a time.
+///
+/// The answer for these six is [`GeometryError::SingularGeometry`], which
+/// [`GeometryError::has_no_geometry_to_draw`] classifies as *"there is nothing to draw"* rather
+/// than *"the table is wrong"* — so a provider standing in for unknown shapes answers with a
+/// **counted** placeholder instead of failing the page, and one refusing answers with an error.
+/// Neither silently draws nothing. `a_singular_shape_is_stood_in_for_and_never_silently_nothing`
+/// gates both.
+const SINGULAR_SOMEWHERE: &[PresetShapeType] = &[
+    PresetShapeType::CircularArrow,
+    PresetShapeType::CurvedDownArrow,
+    PresetShapeType::CurvedUpArrow,
+    PresetShapeType::LeftCircularArrow,
+    PresetShapeType::LeftRightCircularArrow,
+    PresetShapeType::NoSmoking,
+];
+
 #[test]
 fn a_degenerate_size_produces_finite_coordinates_and_never_a_panic() {
-    // Four sizes that arrive from real documents — a shape scaled to nothing, a shape one EMU
-    // across, and a box with no area — crossed with every seeded shape and with each shape's
-    // adjustment pushed to both ends of its domain. Nothing here may panic, and nothing may put a
-    // `NaN` or an infinity into a display list: `SceneBuilder` would sanitise it to zero and the
-    // shape would silently jump to the page's corner.
+    // Five sizes that arrive from real documents — a shape scaled to nothing, a shape one EMU
+    // across, a negative extent from a file that lies — crossed with every preset in the table and
+    // with each adjustment pushed to both ends of its domain and well outside it. Nothing here may
+    // panic, and nothing may put a `NaN` or an infinity into a display list: `SceneBuilder` would
+    // sanitise it to zero and the shape would silently jump to the page's corner.
+    //
+    // Twenty-six thousand combinations, and the ones that do not resolve are **named**: they are
+    // exactly [`SINGULAR_SOMEWHERE`], every one answers [`GeometryError::SingularGeometry`], and
+    // every one is a point where ECMA-376's own formula has no value.
     let boxes = [
         ("a box with no area", SceneRect::new(20.0, 20.0, 20.0, 20.0)),
         (
@@ -346,6 +383,7 @@ fn a_degenerate_size_produces_finite_coordinates_and_never_a_panic() {
 
     let mut resolved = 0usize;
     let mut with_commands = 0usize;
+    let mut singular: BTreeSet<&'static str> = BTreeSet::new();
     for definition in seeded_shapes() {
         let preset = definition.preset;
         // Both ends of every adjustment's domain, plus values well outside it, because the shape's
@@ -361,13 +399,25 @@ fn a_degenerate_size_produces_finite_coordinates_and_never_a_panic() {
         for (size_label, extents) in sizes {
             for (box_label, within) in boxes {
                 for adjustments in &adjustment_sets {
-                    let outline = preset_outline(preset, extents, adjustments, within)
-                        .unwrap_or_else(|error| {
-                            panic!(
-                                "`{}` at {size_label} in {box_label} did not resolve: {error}",
+                    let outline = match preset_outline(preset, extents, adjustments, within) {
+                        Ok(outline) => outline,
+                        Err(error) => {
+                            assert!(
+                                matches!(error, GeometryError::SingularGeometry { .. }),
+                                "`{}` at {size_label} in {box_label} failed with {error}, which is \
+                                 a defect in the table rather than a point its own formulas have \
+                                 no value at",
                                 preset.to_wire()
-                            )
-                        });
+                            );
+                            assert!(
+                                error.has_no_geometry_to_draw(),
+                                "`{}` answered with a failure no stand-in may fill",
+                                preset.to_wire()
+                            );
+                            singular.insert(preset.to_wire());
+                            continue;
+                        }
+                    };
                     resolved += 1;
                     with_commands += usize::from(!outline.commands.is_empty());
                     for point in points_of(&outline.commands) {
@@ -381,10 +431,19 @@ fn a_degenerate_size_produces_finite_coordinates_and_never_a_panic() {
             }
         }
     }
+
+    assert_eq!(
+        singular,
+        SINGULAR_SOMEWHERE
+            .iter()
+            .map(|preset| preset.to_wire())
+            .collect::<BTreeSet<_>>(),
+        "the presets with a point their own formulas have no value at have changed"
+    );
     // A loop that resolved nothing would satisfy every assertion inside it, and one that answered
     // every case with an empty path would satisfy the finiteness check by having nothing to check.
     assert!(
-        resolved > 500,
+        resolved > 20_000,
         "the degenerate-size sweep resolved only {resolved} outlines"
     );
     assert!(
@@ -393,8 +452,67 @@ fn a_degenerate_size_produces_finite_coordinates_and_never_a_panic() {
     );
     println!(
         "degenerate-size sweep: {resolved} outlines resolved without a panic, {with_commands} of \
-         them with commands"
+         them with commands, {} presets singular somewhere",
+        singular.len()
     );
+}
+
+#[test]
+fn a_singular_shape_is_stood_in_for_and_never_silently_nothing() {
+    // `circularArrow` at `adj5 = 0` — its own domain minimum, so a handle drag reaches it — has no
+    // geometry, and this is what happens instead. Two policies, two answers, and neither is an
+    // empty path: the seam's rule is that a shape which silently drew nothing is a defect nobody
+    // finds.
+    let (within, extents) = (box_on_the_page(), extents_of_the_box());
+    let domains = adjustment_domains(PresetShapeType::CircularArrow, extents, &[])
+        .expect("`circularArrow` has domains at an ordinary size");
+    let adj5 = domains
+        .iter()
+        .find(|domain| domain.spec.wire_name == "adj5")
+        .expect("`circularArrow` has an `adj5`");
+    assert_eq!(
+        adj5.minimum, 0.0,
+        "`circularArrow`'s `adj5` no longer bottoms out at the value its formulas are singular at"
+    );
+    let at_the_stop = vec![AdjustmentOverride::new("adj5", adj5.minimum)];
+
+    let error = preset_outline(
+        PresetShapeType::CircularArrow,
+        extents,
+        &at_the_stop,
+        within,
+    )
+    .expect_err("`circularArrow` has no geometry at `adj5 = 0`");
+    assert!(matches!(error, GeometryError::SingularGeometry { .. }));
+    assert_eq!(error.shape(), Some("circularArrow"));
+
+    let outline = ShapeOutline::new(PresetShapeType::CircularArrow, extents)
+        .with_adjustment("adj5", adj5.minimum);
+    for (policy, mut provider) in [
+        (UnknownShapePolicy::Refuse, PresetGeometryProvider::new()),
+        (
+            UnknownShapePolicy::StandIn,
+            PresetGeometryProvider::standing_in_for_unknown_shapes(),
+        ),
+    ] {
+        provider.register(3, outline.clone());
+        let answer = provider.outline(3, within);
+        match policy {
+            UnknownShapePolicy::Refuse => assert!(
+                answer.is_err(),
+                "refusing answered a singular shape with {answer:?}"
+            ),
+            UnknownShapePolicy::StandIn => {
+                let stand_in = answer.expect("a stand-in is an answer");
+                assert_eq!(stand_in.provenance, OutlineProvenance::Placeholder);
+                assert!(
+                    !stand_in.commands.is_empty(),
+                    "the stand-in for a singular shape is an empty path, which is the one answer \
+                     the seam forbids"
+                );
+            }
+        }
+    }
 }
 
 #[test]

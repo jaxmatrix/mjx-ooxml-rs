@@ -6,9 +6,15 @@
 //! [`PresetGeometry::adjustments_for_size`](mjx_dml::geometry::PresetGeometry::adjustments_for_size)
 //! already builds a preset's environment in exactly two stages: every adjustment bound to its
 //! current value — an `a:avLst` override where there is one and the generated default otherwise —
-//! and then the shape's own `gdLst`, in order. `guide_environment` is that, with the *whole*
-//! `gdLst` from [`crate::table`] instead of the subset the adjustment bounds needed. That is the
-//! only difference between the two, and it is the whole of what MJXOFF-201 is about.
+//! and then the shape's own `gdLst`, in order. `guide_environment` is that, with two differences,
+//! both of which are what MJXOFF-201 is about:
+//!
+//! * the **whole** `gdLst` from [`crate::table`], instead of the subset an adjustment's domain
+//!   needed; and
+//! * the **whole** `a:avLst`, instead of the handled subset
+//!   [`mjx_ooxml_types::drawingml::adjustments_of`] exposes. An `avLst` entry no
+//!   adjust handle references is not a user-facing adjustment — and it is still a name the shape's
+//!   `gdLst` reads. `pentagon` has two of them and cannot evaluate its first guide without them.
 //!
 //! Note what is **not** here: no clamping of an adjustment into its domain. The shapes do that
 //! themselves, in their own first guide — `a = pin 0 adj 50000` — because that is where the format
@@ -30,12 +36,33 @@
 //! resolved in a space a hundred and twenty units wide would be quantised to a hundred and
 //! twentieth of its own width. Resolving in the document's own units and mapping afterwards has
 //! neither problem, and the caller registering a handle always knows the extents.
+//!
+//! # One shape, several contours, and one command list
+//!
+//! An `a:pathLst` is a *list*, and each `a:path` in it declares its own `@fill` and `@stroke`. That
+//! is not decoration: `arc` draws its visible curve in a `fill="none"` path and its filled body in
+//! a `stroke="false"` sibling, and treating the two alike fills an open contour or outlines a
+//! region nothing asked to be outlined.
+//!
+//! So this module answers twice. [`contours_of_definition`] is the full answer — one
+//! [`PresetContour`] per `a:path`, each carrying its own treatment — and it is what a scene builder
+//! that wants to paint a preset correctly should read. [`outline_of_definition`] is the projection
+//! onto what the display-list seam takes, which is *one* command list and *one*
+//! [`FillRule`]: it concatenates the contours and **drops the ones that draw nothing at all**,
+//! neither filled nor stroked. Exactly one path in ECMA-376's geometry file is in that state, and
+//! `tests/the_flags_reach_a_consumer.rs` names it.
+//!
+//! The projection is lossy and stated to be: two contours with different fill treatments arrive at
+//! the seam as one list, because [`ResolvedOutline`] has nowhere to put the difference. Widening
+//! that is `mjx-scene`'s decision and not this crate's — see MJXOFF-211.
+
+use std::collections::HashSet;
 
 use mjx_dml::geometry::{
-    Emu, GuideContext, ResolvedDrawCommand, ResolvedGuides, ResolvedPoint, Size,
+    Emu, GuideContext, GuideError, ResolvedDrawCommand, ResolvedGuides, ResolvedPoint, Size,
 };
 use mjx_ooxml_types::drawingml::{
-    adjustments_of, AdjustmentBound, AdjustmentSpec, PresetShapeType,
+    adjustments_of, AdjustmentBound, AdjustmentSpec, PathFillMode, PresetShapeType,
 };
 use mjx_scene::{FillRule, OutlineProvenance, PathCommand, ResolvedOutline, ScenePoint, SceneRect};
 
@@ -67,32 +94,101 @@ pub struct AdjustmentDomain {
     pub maximum: f64,
 }
 
-/// The guide environment a preset's paths resolve against: its adjustments, then its whole `gdLst`.
+/// The guide environment a preset's paths resolve against — its adjustments, then its whole
+/// `gdLst` — together with the names of the guides that had no finite value here.
 ///
 /// # Errors
 ///
-/// [`GeometryError::Guides`] naming the first guide that would not evaluate.
+/// [`GeometryError::Guides`] naming the first guide that would not evaluate. A guide that
+/// evaluates to no finite number is **not** one of those: it is reported in the second half of the
+/// answer instead, for the reason spelled out in the body.
 pub(crate) fn guide_environment(
     definition: &PresetShapeDefinition,
     extents: Size,
     adjustments: &[AdjustmentOverride],
-) -> Result<ResolvedGuides<'static>, GeometryError> {
+) -> Result<(ResolvedGuides<'static>, HashSet<&'static str>), GeometryError> {
+    let shape = definition.preset.to_wire();
     let mut environment = ResolvedGuides::new(GuideContext::from_size(extents));
-    for spec in adjustments_of(definition.preset) {
-        environment.define(spec.wire_name, value_of(spec, adjustments).0);
-    }
+
+    // **The whole `a:avLst`, not the handled subset.** `adjustments_of` holds only the entries some
+    // adjust handle references; the ones it drops are constants *to the user* and are still names
+    // the shape's own `gdLst` reads. `pentagon`'s first guide is `*/ wd2 hf 100000`, and `hf` is
+    // exactly such an entry — seeding from the handled subset alone leaves nine shapes unable to
+    // evaluate a single guide. Evaluated rather than parsed: an `avLst` entry is a `a:gd` like any
+    // other, and `val N` is the formula language's own literal.
     environment
         .extend(
             definition
-                .guides
+                .adjustment_values
                 .iter()
-                .map(|guide| (guide.wire_name, guide.formula)),
+                .map(|value| (value.wire_name, value.formula)),
         )
-        .map_err(|source| GeometryError::Guides {
-            shape: definition.preset.to_wire(),
-            source,
-        })?;
-    Ok(environment)
+        .map_err(|source| GeometryError::Guides { shape, source })?;
+
+    // The document's `a:avLst` overrides, on top of the file's seeds. Filtered to names the shape
+    // actually declares, so a caller cannot introduce a guide the preset does not have — an
+    // override is a *re*-statement of one of the shape's own adjustments and nothing else.
+    for override_ in adjustments {
+        if definition
+            .adjustment_values
+            .iter()
+            .any(|value| value.wire_name == override_.wire_name)
+        {
+            environment.define(override_.wire_name.clone(), override_.value);
+        }
+    }
+
+    // **The `gdLst`, one guide at a time, because some of them have poles.** ECMA-376's own
+    // formulas divide and take square roots, and at the ends of an adjustment's domain the divisor
+    // can be zero: `circularArrow`'s `dxF1 = "+/ q11 q10 q4"` has no value at `adj5 = 0`, which is
+    // that adjustment's own *minimum* and therefore a place a handle drag reaches. `mjx-dml`
+    // refuses a non-finite guide, rightly — an infinity in a display list is worse than a wrong
+    // number — but refusing the whole *shape* over it is wrong twice over: sixty (shape, size,
+    // adjustment) combinations across ten presets are in that position, and in most of them the
+    // guide with no value is one the shape's paths never read. Four of the ten are singular only in
+    // `il` / `it` / `ir` / `ib`, which are the **text rectangle**'s insets and draw nothing at all.
+    //
+    // So a guide with no finite value is left *undefined* rather than fatal, and so is every later
+    // guide that names it — an undefined name propagates exactly as far as it is used and no
+    // further. Nothing is invented and nothing is silenced: if a path then names one of them,
+    // `emit_path` fails with [`GeometryError::PathCommand`], which is the loud answer, and it names
+    // the guide. Every other guide failure — a malformed formula, a name nothing defines — stays
+    // fatal here, because those are table defects rather than singularities.
+    let mut singular: HashSet<&'static str> = HashSet::new();
+    for guide in definition.guides {
+        if guide
+            .formula
+            .split_whitespace()
+            .skip(1)
+            .any(|argument| singular.contains(argument))
+        {
+            singular.insert(guide.wire_name);
+            continue;
+        }
+        match environment.extend(std::iter::once((guide.wire_name, guide.formula))) {
+            Ok(()) => {}
+            Err(error) if is_a_singularity(&error) => {
+                singular.insert(guide.wire_name);
+            }
+            Err(source) => return Err(GeometryError::Guides { shape, source }),
+        }
+    }
+    Ok((environment, singular))
+}
+
+/// Whether a guide failure is the shape's own arithmetic leaving the reals, rather than a defect in
+/// the table.
+///
+/// [`GuideError::NotFinite`] is a division by zero, a square root of a negative or an overflow —
+/// something a *correct* formula does at a particular size and adjustment. A malformed formula or
+/// an undefined name is not: those say the table is wrong, and [`guide_environment`] keeps them
+/// fatal.
+fn is_a_singularity(error: &GuideError) -> bool {
+    match error {
+        GuideError::Guide { source, .. } => is_a_singularity(source),
+        GuideError::NotFinite { .. } => true,
+        GuideError::Malformed { .. } | GuideError::UndefinedGuide { .. } => false,
+    }
 }
 
 /// An adjustment's current value, and whether it was overridden.
@@ -144,7 +240,7 @@ pub fn adjustment_domains(
     let definition = definition_of(preset).ok_or(GeometryError::UnseededShape {
         shape: preset.to_wire(),
     })?;
-    let environment = guide_environment(definition, extents, adjustments)?;
+    let (environment, _) = guide_environment(definition, extents, adjustments)?;
     let shape = preset.to_wire();
     adjustments_of(preset)
         .iter()
@@ -186,32 +282,84 @@ pub fn preset_outline(
     outline_of_definition(definition, extents, adjustments, within)
 }
 
-/// The outline a *given* definition draws — [`preset_outline`] without the table lookup.
+/// One `a:path` of a preset, resolved into device pixels together with the treatment ECMA-376
+/// declares for it.
 ///
-/// Public for two reasons, both of them gates rather than conveniences. A suite that wants to prove
-/// a bounding-box tolerance is not vacuous has to resolve a *deliberately wrong* shape and show the
-/// tolerance catches it, and a table it can only read cannot be made wrong. And a path's `@w`/`@h`
-/// coordinate box — which no seeded shape uses, because none of the six needs one — is a branch of
-/// `ShapeToDevice::new` that would otherwise never be taken with a non-identity value, which
-/// MJXOFF-155 §6's identity-value probe exists to refuse.
+/// The full answer [`ResolvedOutline`] cannot hold: the seam carries one command list and one
+/// [`FillRule`] per outline, and a preset shape is a *list* of paths each of which says for itself
+/// whether it is filled, how, and whether it is stroked.
+#[derive(Clone, PartialEq, Debug)]
+pub struct PresetContour {
+    /// The steps, in the device pixels of the `within` rectangle they were resolved against.
+    pub commands: Vec<PathCommand>,
+    /// How this contour is filled (`a:path@fill`).
+    pub fill: PathFillMode,
+    /// Whether this contour is stroked (`a:path@stroke`).
+    pub stroke: bool,
+    /// Whether this contour may be extruded in 3-D (`a:path@extrusionOk`).
+    ///
+    /// Carried through from the table and acted on by nobody in this crate — MJXOFF-201 §7 puts
+    /// 3-D outside this epic, and MJXOFF-211 names its reader.
+    pub extrusion_ok: bool,
+}
+
+impl PresetContour {
+    /// Whether this contour contributes a filled region.
+    #[must_use]
+    pub fn is_filled(&self) -> bool {
+        self.fill != PathFillMode::None
+    }
+
+    /// Whether this contour draws nothing at all — neither filled nor stroked.
+    ///
+    /// [`outline_of_definition`] leaves such a contour out of the single command list it builds,
+    /// which is what makes `@fill` and `@stroke` flags something acts on. One path of one shape in
+    /// ECMA-376's geometry file answers `true`.
+    #[must_use]
+    pub fn draws_nothing(&self) -> bool {
+        !self.is_filled() && !self.stroke
+    }
+}
+
+/// Every contour a preset shape draws, each with its own fill and stroke treatment.
 ///
 /// # Errors
 ///
-/// As [`preset_outline`], minus [`GeometryError::UnseededShape`] which cannot arise.
-pub fn outline_of_definition(
+/// As [`preset_outline`].
+pub fn preset_contours(
+    preset: PresetShapeType,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<Vec<PresetContour>, GeometryError> {
+    let definition = definition_of(preset).ok_or(GeometryError::UnseededShape {
+        shape: preset.to_wire(),
+    })?;
+    contours_of_definition(definition, extents, adjustments, within)
+}
+
+/// Every contour a *given* definition draws — [`preset_contours`] without the table lookup.
+///
+/// **A shape whose extents have no area draws no contours at all**, which is the one empty answer
+/// in this crate and is not a failure; [`outline_of_definition`] says why at length.
+///
+/// # Errors
+///
+/// As [`outline_of_definition`].
+pub fn contours_of_definition(
     definition: &PresetShapeDefinition,
     extents: Size,
     adjustments: &[AdjustmentOverride],
     within: SceneRect,
-) -> Result<ResolvedOutline, GeometryError> {
-    let environment = match guide_environment(definition, extents, adjustments) {
-        Ok(environment) => environment,
+) -> Result<Vec<PresetContour>, GeometryError> {
+    match resolve_contours(definition, extents, adjustments, within) {
+        Ok(contours) => Ok(contours),
         // **A shape with no extent, whose own formulas divided by it.** `ss` is `min(w, h)`, so a
         // shape with a zero side makes `*/ 100000 w ss` infinite and `mjx-dml`'s evaluator refuses
         // a non-finite guide — correctly, because a non-finite coordinate in a display list is
-        // worse than a wrong one.
+        // worse than a wrong one. A path then naming that guide fails the same way, one step later.
         //
-        // That is not a defect in the table and it must not fail the page. A `<a:ext cx="0"
+        // Neither is a defect in the table and neither must fail the page. A `<a:ext cx="0"
         // cy="0"/>` is a real thing a real deck contains (a collapsed placeholder, a shape scaled
         // to nothing by an animation), and there is exactly one right answer for it: **no
         // commands**. This is not the *"silently drew nothing"* failure the seam warns about —
@@ -222,23 +370,75 @@ pub fn outline_of_definition(
         // ordinary size still fails loudly: only a shape that has nothing to draw is allowed to
         // draw nothing. Note that most shapes reach here *without* failing — `rect` has no guides
         // at all and `triangle`'s multiply through by a zero width — and those take the ordinary
-        // path below, where `scale` collapses them onto the box's corner.
+        // path, where `scale` collapses them onto the box's corner.
         Err(error) if !extents_have_area(extents) => {
             let _ = error;
-            return Ok(ResolvedOutline {
-                commands: Vec::new(),
-                fill_rule: FillRule::NonZero,
-                label: definition.preset.to_wire().to_owned(),
-                provenance: OutlineProvenance::Document,
-            });
+            Ok(Vec::new())
         }
-        Err(error) => return Err(error),
-    };
+        Err(error) => Err(error),
+    }
+}
 
-    let mut commands = Vec::new();
+/// [`contours_of_definition`] without the degenerate-size answer.
+fn resolve_contours(
+    definition: &PresetShapeDefinition,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<Vec<PresetContour>, GeometryError> {
+    let (environment, singular) = guide_environment(definition, extents, adjustments)?;
+    let mut contours = Vec::with_capacity(definition.paths.len());
     for path in definition.paths {
         let map = ShapeToDevice::new(within, path, extents);
-        emit_path(definition, path, &environment, &map, &mut commands)?;
+        let mut commands = Vec::new();
+        emit_path(
+            definition,
+            path,
+            &environment,
+            &singular,
+            &map,
+            &mut commands,
+        )?;
+        contours.push(PresetContour {
+            commands,
+            fill: path.fill,
+            stroke: path.stroke,
+            extrusion_ok: path.extrusion_ok,
+        });
+    }
+    Ok(contours)
+}
+
+/// The outline a *given* definition draws — [`preset_outline`] without the table lookup.
+///
+/// Public for two reasons, both of them gates rather than conveniences. A suite that wants to prove
+/// a bounding-box tolerance is not vacuous has to resolve a *deliberately wrong* shape and show the
+/// tolerance catches it, and a table it can only read cannot be made wrong. And a path's `@w`/`@h`
+/// coordinate box is a branch of `ShapeToDevice::new` a suite must be able to take with a
+/// non-identity value, which MJXOFF-155 §6's identity-value probe exists to refuse leaving untaken.
+///
+/// **What it does with the contours' flags.** It concatenates every contour
+/// [`contours_of_definition`] produced *except* the ones that
+/// [`draw nothing`](PresetContour::draws_nothing) — neither filled nor stroked. That is the only
+/// reduction available without losing geometry: a `fill="none"` contour still has to be stroked and
+/// a `stroke="false"` one still has to be filled, so both stay, and the difference between them is
+/// what the seam cannot carry.
+///
+/// # Errors
+///
+/// As [`preset_outline`], minus [`GeometryError::UnseededShape`] which cannot arise.
+pub fn outline_of_definition(
+    definition: &PresetShapeDefinition,
+    extents: Size,
+    adjustments: &[AdjustmentOverride],
+    within: SceneRect,
+) -> Result<ResolvedOutline, GeometryError> {
+    let mut commands = Vec::new();
+    for contour in contours_of_definition(definition, extents, adjustments, within)? {
+        if contour.draws_nothing() {
+            continue;
+        }
+        commands.extend(contour.commands);
     }
 
     Ok(ResolvedOutline {
@@ -314,11 +514,36 @@ fn shape_point(point: ResolvedPoint) -> ShapePoint {
     ShapePoint::new(point.x.emu() as f64, point.y.emu() as f64)
 }
 
+/// Which failure a path command's guide lookup is: a shape that has no geometry at these
+/// adjustments, or a defect in the table.
+///
+/// The two are the same `GuideError` and are told apart by *why* the name is undefined. A name in
+/// `singular` was defined by the table and left out because its own formula had no finite value
+/// here — the shape genuinely has no geometry at this point of its adjustment domain, and a counted
+/// stand-in is the right answer. Any other undefined name means the table's path reads a guide the
+/// table's guide list does not define, which is a defect no policy may paper over.
+fn path_command_error(
+    shape: &'static str,
+    singular: &HashSet<&'static str>,
+    source: GuideError,
+) -> GeometryError {
+    if let GuideError::UndefinedGuide { name } = &source {
+        if singular.contains(name.as_str()) {
+            return GeometryError::SingularGeometry {
+                shape,
+                guide: name.clone(),
+            };
+        }
+    }
+    GeometryError::PathCommand { shape, source }
+}
+
 /// Walk one path's steps, appending the device-pixel commands they draw.
 fn emit_path(
     definition: &PresetShapeDefinition,
     path: &PresetPath,
     environment: &ResolvedGuides<'_>,
+    singular: &HashSet<&'static str>,
     map: &ShapeToDevice,
     into: &mut Vec<PathCommand>,
 ) -> Result<(), GeometryError> {
@@ -336,7 +561,7 @@ fn emit_path(
         let resolved = step
             .to_draw_command()
             .resolve(environment)
-            .map_err(|source| GeometryError::PathCommand { shape, source })?;
+            .map_err(|source| path_command_error(shape, singular, source))?;
         // **A step after an `a:close` continues from where the closed contour began.** ECMA-376
         // says `a:close` returns the pen to the subpath's start point, and the schema permits a
         // drawing element to follow it without an intervening `a:moveTo` — a shape drawn as one

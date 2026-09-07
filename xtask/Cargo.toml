@@ -29,6 +29,11 @@ mjx-fixtures.workspace = true
 # depends on — the same shape as the three fuzz edges above.
 mjx-pptx.workspace = true
 mjx-ooxml-types.workspace = true
+# `GuideOperator` — the guide-formula operator table and its arity — so the preset-geometry
+# extractor's completeness gate checks against the *same* function the resolver checks against
+# rather than against a second copy of §20.1.9.11's argument counts. A downward edge from a
+# host-only binary nothing depends on, like the two above it.
+mjx-dml.workspace = true
 # The fuzz campaign's memory ceiling (MJXOFF-146), extracted to its own crate by MJXOFF-95 so a
 # `mjx-sml` test binary can install the same allocator — nothing may depend on `xtask`, and a second
 # `unsafe impl GlobalAlloc` is the last thing this workspace should have two of.
