@@ -8,9 +8,10 @@ authors.workspace = true
 repository.workspace = true
 description = "Test-only: the ECMA-376 schema and child-order gate every format crate is held to."
 # Never published and never depended on by a shipped crate: this is a `dev-dependency` of
-# `mjx-pptx`, `mjx-docx` and `mjx-xlsx` and of nothing else. It exists because an integration test
-# compiles only into its own crate, so a harness living in `mjx-pptx/tests/` cannot be reached from
-# `mjx-docx` or `mjx-xlsx` at all.
+# `mjx-pptx`, `mjx-docx` and `mjx-xlsx`, and a dependency of `xtask`, which is host-only, unpublished
+# and outside the shipped graph. It exists because an integration test compiles only into its own
+# crate, so a harness living in `mjx-pptx/tests/` cannot be reached from `mjx-docx` or `mjx-xlsx` at
+# all.
 publish = false
 
 [lints]
