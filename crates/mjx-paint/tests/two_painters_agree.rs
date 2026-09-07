@@ -1,5 +1,9 @@
 //! **The gate this whole child exists to make possible**, and the way it goes vacuous.
 //!
+//! MJX-STAND-IN: this crate may not name `mjx-geometry` — `tests/the_seam_holds.rs` forbids it — so
+//! the stand-in is the only `GeometryProvider` a painter's own suite can construct. Two painters
+//! handed the same provider is what makes the comparison a comparison of rasterisers.
+//!
 //! # Why a second painter at all
 //!
 //! Two independent implementations agreeing is evidence. One implementation agreeing with itself is

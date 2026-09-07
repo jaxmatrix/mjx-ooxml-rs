@@ -796,8 +796,11 @@ pub fn tessellate_scene(
 /// `label`, this function destructured `commands` and `fill_rule` and dropped both, and nothing in
 /// this crate read either — so a painter had no way at all to tell a placeholder rounded rectangle
 /// from the document's own geometry. That mattered more than it looked: R10's fidelity rule is
-/// *"golden images must not be taken against placeholder geometry and called fidelity"*, and every
-/// preset shape resolves to a placeholder today, so the guard it names did not exist.
+/// *"golden images must not be taken against placeholder geometry and called fidelity"*, and at the
+/// time every preset shape resolved to a placeholder, so the guard it names did not exist at all.
+/// Since MJXOFF-206 a preset resolves to the document's own geometry through `mjx-geometry`, which
+/// makes the provenance a *signal* rather than a constant — and a signal is worth more than a
+/// constant, because a page that reports one now says something happened.
 ///
 /// It leaves through [`SceneMesh::provenance`] rather than through [`Tessellator::fill`]'s ordinary
 /// return, so that the one caller that needs it pays for it and the hundreds that do not are

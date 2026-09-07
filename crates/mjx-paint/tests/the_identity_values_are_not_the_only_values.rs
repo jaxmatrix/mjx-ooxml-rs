@@ -1,6 +1,10 @@
 //! The identity-value sweep: for every parameter this crate takes, *is it ever supplied at a value
 //! other than the one that makes it a no-op* — and **does the value ever reach anyone**?
 //!
+//! MJX-STAND-IN: this crate may not name `mjx-geometry` — `tests/the_seam_holds.rs` forbids it — so
+//! the stand-in is the only `GeometryProvider` a painter's own suite can construct. The sweep is
+//! about paint, transform and stroke parameters, none of which the provider decides.
+//!
 //! # Why both questions, and why the second was added
 //!
 //! R07 found nine defects in one file by asking the first question, including a `signed_area` that

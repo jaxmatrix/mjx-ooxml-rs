@@ -17,18 +17,34 @@
 //! and mean something else entirely. The parameter here is called `within` and is a [`SceneRect`],
 //! and this paragraph is why.
 //!
-//! # Why the first implementation is deliberately not a shape
+//! # Why the stand-in is deliberately not a shape
 //!
-//! Real preset geometry — the 187 `presetShapeDefinitions` outlines and the guide formulas that
-//! adjust them — is **not built in this loop**, by decision: it depends on context the concurrent
-//! MJXOFF-88 programme supplies. So the provider that ships today is [`PlaceholderGeometry`], and it
-//! draws a crossed, framed rounded rectangle that is not any shape a document contains.
+//! **The real provider exists.** `mjx-geometry`'s `PresetGeometryProvider` resolves all 186 presets
+//! `presetShapeDefinitions.xml` defines geometry for, through their own guide formulas and their
+//! own `a:avLst`, and MJXOFF-206 made it what a document is rendered with: this crate ships no
+//! provider that a page of real shapes goes through, and
+//! `crates/mjx-geometry/tests/the_stand_in_is_named_wherever_it_is_used.rs` asserts that the only
+//! shipped construction of [`PlaceholderGeometry`] left in the workspace is that provider's own
+//! fall-through.
 //!
-//! That is a gate, not a cosmetic choice. *"Every shape tessellates"* is trivially true when every
-//! shape is the same rounded rectangle, so a placeholder that merely looked plausible would make the
-//! obvious test vacuous **and** let a placeholder render be mistaken for a fidelity render. This one
-//! cannot be: every outline it produces carries [`OutlineProvenance::Placeholder`] and a label
-//! naming the handle it stands in for, and `tests/the_geometry_seam_is_swappable.rs` asserts both.
+//! **This crate cannot name it, and that is the seam working rather than a gap.** `mjx-scene` is
+//! rank 1.7 and `mjx-geometry` is 2.5, so the edge points up and `xtask/tests/layering.rs` refuses
+//! it — the same refusal that keeps `mjx-scene → mjx-dml` illegal. A display list that could read a
+//! preset table would be a display list that knows what a `.pptx` is.
+//!
+//! So [`PlaceholderGeometry`] stays, as the honest answer for the three cases where there is
+//! genuinely no geometry to draw: a handle nobody registered, a preset ECMA-376 defines no geometry
+//! for (`upArrow` is the only one), and a shape whose own formulas are singular at the adjustments
+//! in force. Deleting it would replace a *visible* placeholder with a silent nothing, which is the
+//! one answer the seam forbids.
+//!
+//! Its shape is a gate, not a cosmetic choice. *"Every shape tessellates"* is trivially true when
+//! every shape is the same rounded rectangle, so a placeholder that merely looked plausible would
+//! make the obvious test vacuous **and** let a placeholder render be mistaken for a fidelity
+//! render. This one cannot be: every outline it produces carries [`OutlineProvenance::Placeholder`]
+//! and a label naming the handle it stands in for, `tests/the_geometry_seam_is_swappable.rs`
+//! asserts both, and `mjx-paint`'s `DrawReport::placeholders` counts them so that a golden image
+//! taken against one can be refused.
 
 use crate::error::SceneError;
 use crate::geometry::{FillRule, Geometry, PathCommand, ScenePoint, SceneRect};
@@ -102,8 +118,12 @@ pub trait GeometryProvider {
     fn outline(&self, outline: u64, within: SceneRect) -> Result<ResolvedOutline, SceneError>;
 }
 
-/// The provider that stands in until a real geometry table exists: a framed, crossed rounded
-/// rectangle at the shape's own box.
+/// The provider that stands in for a shape there is no geometry to draw for: a framed, crossed
+/// rounded rectangle at the shape's own box.
+///
+/// **Not what a real document renders with** — that is `mjx-geometry`'s `PresetGeometryProvider`,
+/// which this crate may not name because 2.5 is above 1.7. This is what that provider falls through
+/// to under `UnknownShapePolicy::StandIn`, and what a caller with no geometry table of its own has.
 ///
 /// Answers every handle, never fails, and labels every answer with the handle it stands in for. See
 /// this module's documentation for why the shape is deliberately wrong.

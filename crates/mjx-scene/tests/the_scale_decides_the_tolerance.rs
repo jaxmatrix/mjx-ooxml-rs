@@ -1,6 +1,10 @@
 //! The scale a path will be *drawn* at decides how finely it is flattened — asserted on the
 //! consequence, not on the getter.
 //!
+//! MJX-STAND-IN: this crate is rank 1.7 and `mjx-geometry` is 2.5, so the real provider is an
+//! upward edge `xtask/tests/layering.rs` refuses by name. What is measured here is the
+//! flattening tolerance at a scale, which the provider does not decide.
+//!
 //! # The trap this file exists to defeat, and how it was found
 //!
 //! `TessellationOptions::for_glyph_run` divides the tolerance by the run's residual scale, and

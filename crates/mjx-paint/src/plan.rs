@@ -456,11 +456,14 @@ pub enum DrawOp {
         role: MeshRole,
         /// Whether the outline behind these triangles is the document's own shape or a stand-in.
         ///
-        /// **Every preset shape in the platform resolves to a stand-in today.** A painter that could
-        /// not see this could not draw one in a warning colour and — the reason it matters — a
-        /// golden-image gate could not refuse to call a page of framed rounded rectangles a fidelity
-        /// render. It reaches a caller through [`DrawReport::placeholders`], because a field the
-        /// painter reads and nobody can act on is the same defect one layer up.
+        /// **A painter that could not see this could not draw a stand-in in a warning colour**, and —
+        /// the reason it matters — a golden-image gate could not refuse to call a page of framed
+        /// rounded rectangles a fidelity render. It reaches a caller through
+        /// [`DrawReport::placeholders`], because a field the painter reads and nobody can act on is
+        /// the same defect one layer up.
+        ///
+        /// Since MJXOFF-206 a preset shape resolves to the document's own geometry, so a stand-in is
+        /// an event rather than the ordinary case — which is what makes the flag worth reading.
         provenance: Provenance,
         /// The shape the triangles were made from, for a painter that writes vectors.
         ///

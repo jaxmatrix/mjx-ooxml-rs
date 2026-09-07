@@ -1,5 +1,9 @@
 //! The tessellator, tested against paths that are **not** the placeholder.
 //!
+//! MJX-STAND-IN: this crate is rank 1.7 and `mjx-geometry` is 2.5, so the real provider is an
+//! upward edge `xtask/tests/layering.rs` refuses by name. The stand-in appears here only to
+//! resolve a handle; every shape this file tessellates is written out by hand instead.
+//!
 //! # The trap this file exists to defeat
 //!
 //! *"Every shape tessellates"* is trivially true while every shape is the same rounded rectangle.

@@ -1,5 +1,9 @@
 //! The accessors on this crate's public surface, each with a caller that **asserts what it says**.
 //!
+//! MJX-STAND-IN: this crate may not name `mjx-geometry` — `tests/the_seam_holds.rs` forbids it — so
+//! the stand-in is the only `GeometryProvider` a painter's own suite can construct. Nothing here
+//! asks what it draws; it is present because `Resources::new` requires a provider.
+//!
 //! # Why this file exists rather than a line of `let _ =`
 //!
 //! `the_public_surface_is_reachable.rs` found sixteen public items that nothing in this crate

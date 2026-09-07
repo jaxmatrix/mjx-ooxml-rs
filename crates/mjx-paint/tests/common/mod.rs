@@ -797,12 +797,22 @@ pub fn one_shape_under(width: f32, height: f32, kind: EffectKind) -> DisplayList
     builder.finish().expect("the scene is well formed")
 }
 
-/// A page whose one shape is a handle **no geometry table has been supplied for**.
+/// A page whose one shape is a handle **no geometry table has been supplied for**, drawn as a
+/// **fill**.
 ///
-/// Every preset shape in this platform resolves to a stand-in today, so this is not an exotic case:
-/// it is what a real page is made of until MJXOFF-88 lands the preset table. R10's fidelity rule is
-/// that a golden image may not be taken against one, and `DrawReport::placeholders` is the number it
-/// refuses on — so **every** painter has to count it, not only the one that was written first.
+/// Since MJXOFF-206 a preset shape resolves to the document's own geometry through
+/// `mjx-geometry`'s `PresetGeometryProvider`, so this is no longer what an ordinary page is made
+/// of — it is the honest answer for a handle nobody registered, a preset ECMA-376 defines no
+/// geometry for, or a shape whose own formulas are singular at the adjustments in force. R10's
+/// fidelity rule is that a golden image may not be taken against one, and
+/// `DrawReport::placeholders` is the number it refuses on — so **every** painter has to count it,
+/// not only the one that was written first.
+///
+/// Its companion is [`one_unresolved_stroked_shape`], and the pair is not a convenience: the count
+/// is incremented in **two** places in `plan.rs`, once under `Command::FillPath` and once under
+/// `Command::StrokePath`, so a page that is only ever filled leaves half the counter unproved. It
+/// did, until MJXOFF-206: replacing the stroke increment with `std::process::abort()` left
+/// `mjx-paint`, `mjx-scene` and `mjx-geometry` **green**.
 pub fn one_unresolved_shape(width: f32, height: f32) -> DisplayList {
     let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
     let geometry = builder
@@ -817,6 +827,32 @@ pub fn one_unresolved_shape(width: f32, height: f32) -> DisplayList {
     builder
         .push(Command::FillPath { geometry, paint })
         .expect("a fill");
+    builder.finish().expect("the scene is well formed")
+}
+
+/// The same handle nobody registered, drawn as a **stroke** instead of a fill.
+///
+/// The other half of [`one_unresolved_shape`], and the reason it exists is arithmetic rather than
+/// taste: `plan.rs` increments `DrawReport::placeholders` under `Command::FillPath` **and** under
+/// `Command::StrokePath`, and those are two lines. A suite whose every stand-in is filled proves
+/// one of them. Outlined shapes are not exotic — a `straightConnector1` has no interior at all and
+/// sixty-three of the presets end a contour without an `a:close` — so the stroked stand-in is a case
+/// a real deck reaches.
+pub fn one_unresolved_stroked_shape(width: f32, height: f32) -> DisplayList {
+    let mut builder = SceneBuilder::new(DeviceScale::UNZOOMED, width, height);
+    let geometry = builder
+        .add_geometry(&Geometry::Unresolved {
+            outline: 7,
+            bounds: SceneRect::new(width * 0.15, height * 0.15, width * 0.85, height * 0.85),
+        })
+        .expect("an unresolved shape");
+    let stroke = builder
+        .add_stroke_style(&StrokeStyle::solid(3.0, rgb(0x00, 0x80, 0x00)))
+        .expect("a stroke interns")
+        .expect("a visible stroke");
+    builder
+        .push(Command::StrokePath { geometry, stroke })
+        .expect("a stroke");
     builder.finish().expect("the scene is well formed")
 }
 

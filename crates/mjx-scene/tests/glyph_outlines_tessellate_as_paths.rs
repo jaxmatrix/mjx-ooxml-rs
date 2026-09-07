@@ -1,5 +1,9 @@
 //! A glyph large enough to leave the atlas is tessellated by the **same** code every shape is.
 //!
+//! MJX-STAND-IN: this crate is rank 1.7 and `mjx-geometry` is 2.5, so the real provider is an
+//! upward edge `xtask/tests/layering.rs` refuses by name. A glyph outline is already a resolved
+//! path, so the provider here only satisfies the signature and never answers a handle.
+//!
 //! # The hand-off this file holds
 //!
 //! MJXOFF-159 gave `mjx-text` two routes out of the rasteriser: a bitmap in the atlas, and — above

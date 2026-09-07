@@ -267,12 +267,16 @@ pub enum FillRule {
 
 /// What a [`crate::Command::FillPath`] or [`crate::Command::StrokePath`] draws.
 ///
-/// Three kinds, and the third is the reason the display list can exist before the preset-shape
-/// table does. `docs/UI_PLATFORM_PLAN.md` §4 L4 puts shape geometry behind a `GeometryProvider`
-/// seam; a `ShapeFragment` carries an opaque [`mjx_layout::GeometryRef`] and nothing else, so a
-/// scene built from fragments alone can say *this outline, at this size* and no more. R07's
-/// provider is what turns an [`Geometry::Unresolved`] into a [`Geometry::Path`]; until then a
-/// painter that meets one has been handed a list nobody resolved, which it can say so about.
+/// Three kinds, and the third is what keeps the display list from having to know what a preset
+/// shape is. `docs/UI_PLATFORM_PLAN.md` §4 L4 puts shape geometry behind a `GeometryProvider` seam;
+/// a `ShapeFragment` carries an opaque [`mjx_layout::GeometryRef`] and nothing else, so a scene
+/// built from fragments alone can say *this outline, at this size* and no more.
+///
+/// A [`GeometryProvider`](crate::GeometryProvider) is what turns a [`Geometry::Unresolved`] into a
+/// [`Geometry::Path`], and since MJXOFF-206 the one a document is rendered with is
+/// `mjx-geometry`'s `PresetGeometryProvider` — which this crate may not name, because 2.5 is above
+/// 1.7 and that is the seam working. A painter handed a list nobody resolved still meets an
+/// `Unresolved`, and can say so about it rather than drawing nothing.
 #[derive(Clone, PartialEq, Debug)]
 pub enum Geometry {
     /// A rectangle — a box's background, a table cell, a clip.

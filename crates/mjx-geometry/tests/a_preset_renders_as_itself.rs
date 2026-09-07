@@ -1,5 +1,9 @@
 //! A hand-transcribed preset draws the shape it is, and a scene of presets needs no stand-in.
 //!
+//! MJX-STAND-IN: the stand-in is what a seeded preset is compared *against* here, so this suite is
+//! about it: `a_seeded_shape_is_the_documents_own_geometry_and_not_the_stand_in` needs the shape it
+//! must not be, and the placeholder-count cases need a provider that produces one.
+//!
 //! # What this file is about, now that the table is generated
 //!
 //! MJXOFF-203 replaced the six-shape seed table with 186 rows extracted from
@@ -94,7 +98,7 @@ fn each_hand_transcribed_shape_is_one_closed_contour() {
     // that is a claim about the *shapes* rather than about the table: a rectangle, an ellipse, a
     // triangle, a rounded rectangle, a right arrow and a pie wedge are all one contour, closed.
     //
-    // It is deliberately **not** stated of all 186. Sixty-four of the presets end a contour without
+    // It is deliberately **not** stated of all 186. Sixty-three of the presets end a contour without
     // an `a:close`, which is what a stroked, unfilled outline is — `straightConnector1` is a line
     // segment — and the universal invariants that *do* hold over the whole table are asserted in
     // `the_generated_table_is_the_spec_file.rs`.
