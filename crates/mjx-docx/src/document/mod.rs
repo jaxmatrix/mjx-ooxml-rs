@@ -1615,13 +1615,16 @@ impl Document {
     /// the *package-wide* sweep, which deletes every orphan it can find — including one the producer
     /// left in the file. Removing a header would then also delete an image nobody had mentioned,
     /// which is an editing library changing what it was not asked to change. `mjx-pptx` never had
-    /// the problem: its sweep is the opt-in [`Presentation::remove_unused_parts`], and these three
-    /// were the only automatic callers in the workspace.
+    /// the problem: its sweep is the opt-in [`mjx_pptx::Presentation::remove_unused_parts`], and
+    /// these three were the only automatic callers in the workspace.
     ///
     /// The cascade is still [`mjx_opc::Package::remove_part_cascading`]'s, so a chart part takes the
     /// embedded workbook only it referenced with it, and a picture two drawings share is left alone.
     ///
-    /// [`Presentation::remove_unused_parts`]: https://docs.rs/mjx-pptx
+    /// `mjx-pptx` is rank 3.0, exactly as this crate is, so that name cannot be an intra-doc link
+    /// here — sideways is as illegal as upward.
+    ///
+    /// [`mjx_pptx::Presentation::remove_unused_parts`]: https://docs.rs/mjx-pptx
     fn drop_relationship_and_its_orphan(&mut self, rel_id: &str) -> Result<(), DocxError> {
         // Resolve before unwiring: afterwards there is no relationship left to say what it named.
         let orphaned = self
