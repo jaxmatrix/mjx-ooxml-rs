@@ -58,6 +58,82 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.139] - 2026-09-08
+
+### SpreadsheetML's guide, and the count that had been wrong four times (MJXOFF-220, G9)
+
+**The largest crate in the workspace had no guide, two design notes sitting beside it, and the one
+figure this programme has got wrong most often.** `CT_Worksheet` is the widest content model in
+`sml.xsd` at 39 slots, and its modelled/held split had been written down as 25/14, then 31/8, then
+34/5, then 35/4 across four children — **three of the four wrong when they were written**. MJXOFF-88
+§9 B2 named the structural cause: `styles/stylesheet.rs` asserted that its modelled and held slots
+add up to the generated table's length and `worksheet/frame.rs` asserted nothing of the kind.
+
+**The split is now derived from the read path, and the prose is held to it.** Three tests in
+`crates/mjx-sml/src/worksheet/frame.rs` read a worksheet holding one of every slot the generated
+table names, ask `read_slot` which of them it typed — **39 slots, 35 modelled, 4 held**
+(`phoneticPr`, `legacyDrawingHF`, `drawingHF`, `extLst`) — hold the module's rank table to that
+answer row by row, and hold the sentences around it to the same answer, which is where the last
+stale figure actually was: the heading said *thirty-four modelled, five held* over a table listing
+thirty-five and four.
+
+The same class was everywhere it could be. `sheets/frame.rs` gains the derivation over the three
+sheet kinds and found `dialogsheet.rs` claiming *eleven* of its sixteen slots were modelled where the
+reader types ten, and naming *five held verbatim* directly above a list of six — chartsheet is
+14/10/4, dialogsheet 16/10/6, macrosheet 27/20/7. `workbook/mod.rs`'s test walked ranks 0..18 and
+checked each was *rankable*, a property of the generated table that would have passed unchanged had
+the reader stopped modelling one; `stylesheet.rs`'s compared two hand-written lists. Both now read a
+part and ask the reader. `crates/mjx-sml/tests/worksheet_spine.rs` held a test named *the thirty-nine
+slots are accounted for* whose documentation claimed the modelled set "is exactly the thirteen this
+workspace claims" and whose body only checked that each of thirteen frozen names is *a* slot of
+`CT_Worksheet` — a test that read as proof of the thing that had gone wrong. **Four shipped artefacts
+stated the split and three were stale**: `mjx-xlsx`'s `fidelity_and_the_part_graph.md` said 34/5,
+`reading_and_editing_cells.md` 18/21 and `the_sheet_grid.md` 31/8.
+
+**`mjx-sml`'s half of MJXOFF-218**, and the answer is not `mjx-dml`'s. The census in that ticket
+counted `^impl (From|To)Xml for <Type>` and so missed `impl mjx_ooxml_core::ToXml for ColorElement`:
+the figures are **6 `FromXml`, 58 `ToXml` over 58 distinct types, 52 `ToXml`-only** — the last being
+the one number the ticket had right, because both of its inputs were one too low. Fifty-seven of the
+fifty-eight writers are byte-identical (`{ self.as_raw_element() }`), so each would be a "dispatcher"
+under `mjx-dml`'s vocabulary and each would pass a dispatcher's check trivially and forever. The risk
+is one hop away, in the inherent rebuilder — which exists because a worksheet's writer takes `&self`
+and has no `&mut Interner` to lend, the same property that lets `sheetData` be a packed store — so
+`crates/mjx-sml/tests/serialization_ledger.rs` follows the delegation: every hand-written writer must
+*be* it or carry a row, all **60 rebuilders** must rebuild from `self.name`, `self.attributes` and
+`self.empty`, the 4 content-enum dispatchers must construct no element, and all 6 hand-written
+readers are on a ledger with reasons. **Nothing here loses content**; what is new is that the
+sixty-first cannot arrive unnoticed. Replacing `&self.attributes` with a fresh vector in one
+rebuilder leaves every test in the crate green while destroying `@count` and every foreign attribute,
+because a rebuilder is only reached once a slot has given up its verbatim bytes.
+
+**`Color::from_opaque_rgb` prefixed `FF` unconditionally** (MJXOFF-88 §9 A5 defect 1, MJXOFF-198 §6
+F6), so `"FFFF0000"` — the spelling `Color::rgb`'s own documentation gives — became a ten-character
+`@rgb` that `sml.xsd` rejects, reached from `PatternFillSpec::solid` and three more convenience
+constructors and projected onto both bindings. Decided as a **normalisation, not validation**: the
+signature cannot become fallible without breaking every caller that already works, and `Color::rgb`
+is a public field that could not carry the invariant anyway. Six digits behave exactly as before,
+eight are taken as they stand, a leading `#` is dropped, and anything else stays the caller's
+contract and is now documented as such. No gate could see it because the schema gate validates the
+markup a test authored and every test handed it six digits — so the new gate is over the *authoring
+vocabulary*: `every_authored_colour_is_a_valid_unsigned_int_hex` builds 35 colours through the five
+entry points and holds each `@rgb` to eight hexadecimal digits.
+
+**Then the guide**: six pages under `crates/mjx-sml/docs/guide/`, reachable from `docs/api/README.md`
+and from `mjx_sml::guide`. `docs/CELL_STORE.md` and `docs/SHARED_STRINGS.md` **moved into the set**
+rather than being left beside it, so MJXOFF-95's and MJXOFF-97's records are pages three and four
+rather than orphans. The pages give the documentation gate 141 crate-qualified symbol references and
+47 repository-path mentions over 9 paths it had not been shown before.
+
+Two things recorded rather than changed. **`threadedComments` and `persons` appear nowhere in this
+repository** — a 2018 Microsoft extension absent from ECMA-376, so nothing generated from the schema
+names them — and every workbook a modern Excel saves with a comment carries both; they round-trip as
+ordinary parts, and `Workbook::sheet_comments` reports the legacy shadow copy, which is the text
+without the thread. That reasoning existed only in MJXOFF-88 §9 B12 and is now on the fidelity page.
+And F6's second half — every colour convenience takes a hex literal while `Color::from_theme` has
+none beside it, so **the theme-following path is the one nobody takes** — is answered without new
+API: the specs' fields are public, the one-line theme literal is now on `from_theme` itself and in
+the guide, and a Rust-only `solid_theme` would be a surface two of the three languages could not use.
+
 ## [0.0.138] - 2026-09-08
 
 ### `mjx-dml`'s guide, and the six hand-written pairs the audit for it found (MJXOFF-217, G8)
