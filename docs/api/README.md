@@ -89,6 +89,23 @@ plus clippy's `-D warnings`), and intra-doc links are denied on CI, so `cargo do
 | [The curated surface](../../crates/mjx-ooxml/docs/guide/the_curated_surface.md) | `mjx-ooxml` | What stays behind in each format crate, why, and the three escape hatches |
 | [Fidelity and the known gaps](../../crates/mjx-ooxml/docs/guide/fidelity_and_gaps.md) | `mjx-ooxml` | The round-trip contract through the facade, and what is absent |
 
+## The packaging tier — `mjx-opc`, `mjx-mce`, `mjx-xml`, `mjx-ooxml-core`
+
+One guide set over four crates, because the fidelity mechanism is spread across all of them and no
+one of them can be read alone. It is hosted by `mjx-opc`, the only crate in the tier that can see two
+of the other three; the MCE page is hosted by `mjx-mce`, which is the same rank as `mjx-opc` and
+therefore unreachable from it.
+
+| Page | Crate | What it covers |
+|---|---|---|
+| [Guide index](../../crates/mjx-opc/docs/guide/README.md) | `mjx-opc` | The four crates of the tier, who should read them, and where each answer lives |
+| [The package](../../crates/mjx-opc/docs/guide/the_package.md) | `mjx-opc` | Parts, part names, content types, relationships, and what saving refuses to write |
+| [Laziness and copy-on-write](../../crates/mjx-opc/docs/guide/laziness_and_copy_on_write.md) | `mjx-opc` | What an open package costs, and which of the two meanings of "lazy" is the true one |
+| [Removing a part](../../crates/mjx-opc/docs/guide/removing_a_part.md) | `mjx-opc` | The four removals, their blast radii, and the one an edit is allowed to call |
+| [The preservation tree](../../crates/mjx-opc/docs/guide/the_preservation_tree.md) | `mjx-opc` | The lossless tree, its byte ranges, and the two readers only one of which preserves |
+| [The round-trip contract](../../crates/mjx-opc/docs/guide/the_round_trip_contract.md) | `mjx-opc` | What is promised, what enforces each clause, and what it deliberately leaves out |
+| [Markup compatibility](../../crates/mjx-mce/docs/markup_compatibility.md) | `mjx-mce` | `mc:AlternateContent` and friends: preserved by doing nothing, resolved by a borrow |
+
 ## Shared markup
 
 | Page | Crate | What it covers |
