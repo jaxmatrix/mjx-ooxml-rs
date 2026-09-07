@@ -112,6 +112,46 @@ enum Tier {
     SharedMarkupSpreadsheet,
     /// `mjx-chart`, `mjx-omml`, `mjx-vml` — rank 2.2.
     SharedMarkupUpper,
+    /// `mjx-geometry` — rank 2.5 (MJXOFF-202). The preset shape path tables and the
+    /// `GeometryProvider` that resolves them, which is what ends `mjx-scene`'s placeholder.
+    ///
+    /// Every other rank in this table is justified by what its crates may not *reach*. This one is
+    /// justified by what may not reach **it**, and it makes three things impossible:
+    ///
+    /// * **`mjx-scene` (1.7) cannot depend on it.** A preset path table names `ST_ShapeType`, is
+    ///   written in the guide-formula language and resolves through `mjx-dml`'s evaluator, so it
+    ///   lives at or above 2.0 — and a display list that could read one would be a display list
+    ///   that knows what a `.pptx` is. `mjx-scene` was put at 1.7 precisely so this check would
+    ///   refuse `mjx-scene -> mjx-dml` by name; at 2.5 it refuses `mjx-scene -> mjx-geometry` for
+    ///   the same arithmetic, which is what stops the provider being "just moved into `mjx-scene`"
+    ///   the first time the seam is inconvenient.
+    /// * **`mjx-layout` (1.6) cannot depend on it.** A box model issues a `GeometryRef` — a bare
+    ///   number — because it must not know what the number means. An edge from 1.6 to 2.5 would let
+    ///   it resolve its own handles and the seam would be decoration.
+    /// * **`mjx-dml` (2.0) cannot depend on it**, which keeps the fidelity model free of a
+    ///   rendering decision: how many cubics an `a:arcTo` becomes is a renderer's business, and
+    ///   `mjx-dml` resolves an arc to numbers and stops.
+    ///
+    /// **What it deliberately does not buy.** It is *below* the format tier, so `mjx-pptx` (3.0)
+    /// may legally depend on it — intended, because a format crate is allowed to know what its own
+    /// shapes look like. And it is below `mjx-paint` (5.5), so a painter could legally declare the
+    /// edge; that is the hole no rank can close at the top of the ladder, and it is closed the way
+    /// the painter's other seam is, by name in `crates/mjx-paint/tests/the_seam_holds.rs`.
+    ///
+    /// **Which half of the rule actually catches which edge, measured rather than assumed.** The
+    /// first two bullets above are true and this file is not what proves them *today*: because
+    /// `mjx-geometry` depends on `mjx-scene`, which depends on `mjx-layout`, both
+    /// `mjx-scene -> mjx-geometry` and `mjx-layout -> mjx-geometry` are **cycles**, and Cargo
+    /// refuses them before a test binary is built — exactly the division of labour this file's own
+    /// header describes. That is a stronger guarantee, not a weaker one, but it means the rank's
+    /// own work is the *acyclic* illegal edges, and those were the mutations used to prove it:
+    /// `mjx-sml -> mjx-geometry` (2.1 -> 2.5, upward, and not a cycle because nothing here reaches
+    /// SpreadsheetML) and `mjx-geometry -> mjx-pptx` (2.5 -> 3.0, upward). Both went red naming
+    /// both crates and both ranks. The rank is also what keeps the first two bullets true **if
+    /// `mjx-geometry` ever stops depending on `mjx-scene`** — a provider that answered in its own
+    /// vocabulary rather than in `ResolvedOutline` would do exactly that, and Cargo's cycle check
+    /// would go quiet on the day the architecture needed it most.
+    PresetGeometry,
     /// `mjx-pptx`, `mjx-docx`, `mjx-xlsx` — rank 3.0.
     Formats,
     /// `mjx-ooxml` — rank 4.0.
@@ -178,6 +218,7 @@ impl Tier {
             Self::SharedMarkupBase => Rank(2, 0),
             Self::SharedMarkupSpreadsheet => Rank(2, 1),
             Self::SharedMarkupUpper => Rank(2, 2),
+            Self::PresetGeometry => Rank(2, 5),
             Self::Formats => Rank(3, 0),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
@@ -201,6 +242,7 @@ impl Tier {
             Self::SharedMarkupBase => "shared markup, base",
             Self::SharedMarkupSpreadsheet => "shared markup, spreadsheet",
             Self::SharedMarkupUpper => "shared markup, upper",
+            Self::PresetGeometry => "preset geometry",
             Self::Formats => "formats",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
@@ -240,6 +282,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-chart", Tier::SharedMarkupUpper),
     ("mjx-omml", Tier::SharedMarkupUpper),
     ("mjx-vml", Tier::SharedMarkupUpper),
+    ("mjx-geometry", Tier::PresetGeometry),
     ("mjx-pptx", Tier::Formats),
     ("mjx-docx", Tier::Formats),
     ("mjx-xlsx", Tier::Formats),
@@ -456,6 +499,11 @@ fn every_dependency_points_strictly_downward() {
     //   by `nothing_depends_on_a_binding_or_on_the_tooling`, the latter because every crate that
     //   would is in the document graph and must never link a GPU — so they appear only in the first
     //   list.
+    // * `preset geometry` is in the first list only, and for a reason that will expire: MJXOFF-202
+    //   creates `mjx-geometry` and **nothing depends on it yet**, because its consumer is the
+    //   application in the second loop. Adding it to the incoming list today would fail on a
+    //   workspace that is exactly right, which is the same reason MJXOFF-161 left `display list`
+    //   out of that list and MJXOFF-163 put it in. The child that gives it a consumer adds it.
     // * Everything between is in both. `display list` was added to the *incoming* list by
     //   MJXOFF-163, which is the first child to depend on `mjx-scene`: MJXOFF-161 deliberately left
     //   it out because nothing depended on the crate yet and the assertion would have failed, and
@@ -475,6 +523,7 @@ fn every_dependency_points_strictly_downward() {
         "shared markup, base",
         "shared markup, spreadsheet",
         "shared markup, upper",
+        "preset geometry",
         "formats",
         "facade",
         "bindings",

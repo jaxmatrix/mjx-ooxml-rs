@@ -123,6 +123,9 @@ Layered Cargo workspace; dependencies only ever point *downward*.
 2.0  Shared markup    mjx-dml
 2.1  Shared markup    mjx-sml     (SpreadsheetML markup — an embedded workbook is not Excel's alone)
 2.2  Shared markup    mjx-chart  ·  mjx-omml  ·  mjx-vml
+2.5  Preset geometry  mjx-geometry (the presetShapeDefinitions path tables and the GeometryProvider
+                                  that resolves them — above mjx-dml because a preset table *is*
+                                  DrawingML, and therefore out of mjx-scene's reach)
 3.0  Formats          mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
 4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
 5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)

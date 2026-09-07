@@ -40,6 +40,14 @@ members = [
     "crates/mjx-omml",
     "crates/mjx-chart",
     "crates/mjx-vml",
+    # Preset shape geometry — rank 2.5 (MJXOFF-202). The `presetShapeDefinitions` path tables and
+    # the `GeometryProvider` that ends `mjx-scene`'s placeholder. It sits **above** both crates it
+    # serves and that is the whole design: a preset table is DrawingML, so it must live above
+    # `mjx-dml` (2.0), and `mjx-scene` (1.7) must stay below it or `mjx-scene -> mjx-geometry`
+    # becomes a legal downward edge and the display list learns what a `.pptx` is. `mjx-paint` (5.5)
+    # is above it and so *could* depend on it; that hole is closed by name, in
+    # `crates/mjx-paint/tests/the_seam_holds.rs`, the same way the painter's other seam is.
+    "crates/mjx-geometry",
     "crates/mjx-pptx",
     "crates/mjx-docx",
     "crates/mjx-xlsx",
@@ -87,7 +95,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.131"
+version = "0.0.132"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -217,6 +225,7 @@ mjx-sml = { path = "crates/mjx-sml" }
 mjx-omml = { path = "crates/mjx-omml" }
 mjx-chart = { path = "crates/mjx-chart" }
 mjx-vml = { path = "crates/mjx-vml" }
+mjx-geometry = { path = "crates/mjx-geometry" }
 mjx-pptx = { path = "crates/mjx-pptx" }
 mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }

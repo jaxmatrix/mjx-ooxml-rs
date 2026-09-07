@@ -159,6 +159,15 @@ fn nothing_below_the_display_list_is_named_outside_the_one_adapter() {
         "mjx-layout",
         "mjx_dml",
         "mjx-dml",
+        // **Added by MJXOFF-202, and the rank cannot do it.** `mjx-geometry` is at 2.5 and this
+        // crate is at 5.5, so `mjx-paint -> mjx-geometry` points *down* and `xtask/tests/layering.rs`
+        // would allow it. It holds the preset shape path tables — DrawingML, by construction — so a
+        // painter that named it would be a painter that knows what an `a:prstGeom` is, and could
+        // build its own `GeometryProvider` instead of being handed one. That is precisely what the
+        // display list exists to spare it: a painter reads meshes and a provenance, and who decided
+        // what a `roundRect` looks like is not its business.
+        "mjx_geometry",
+        "mjx-geometry",
         "mjx_sml",
         "mjx-sml",
         "mjx_chart",

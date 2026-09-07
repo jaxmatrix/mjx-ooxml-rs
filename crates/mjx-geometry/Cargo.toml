@@ -1,0 +1,44 @@
+[package]
+name = "mjx-geometry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Preset shape geometry: the DrawingML path tables and the GeometryProvider that ends the placeholder."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. `Emu` and `Angle` — the units a preset path resolves into — and the `Interner` a
+# document's own `a:prstGeom` is read through.
+mjx-ooxml-core.workspace = true
+# Rank 1.0. `PresetShapeType`, `AdjustmentSpec` and `PresetGuide`: the shape vocabulary, the
+# adjustment defaults and domains, and the `name`/`fmla` pair a guide table is made of. The seed
+# table stores its guides as `PresetGuide`s rather than as a second pair type, so the shape of the
+# data G02 generates is already the shape this crate reads.
+mjx-ooxml-types.workspace = true
+# Rank 1.7. The trait this crate implements (`GeometryProvider`), the vocabulary it answers in
+# (`PathCommand`, `SceneRect`, `FillRule`), the provenance a stand-in is marked with, and the
+# stand-in itself for the fall-through policy.
+mjx-scene.workspace = true
+# Rank 2.0. `DrawCommand` — the *one* command vocabulary a preset path is written in — together
+# with the guide-formula evaluator (`ResolvedGuides`) and the resolver (`DrawCommand::resolve`)
+# that turns an unresolved command into numbers. None of the three is re-derived here.
+mjx-dml.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+# **A dev-dependency, and the reason is the gate rather than the code.** MJXOFF-202 asks for
+# `DrawReport::placeholders` to be asserted zero for a scene of seeded shapes and non-zero for one
+# that is not — in *both* directions, because a counter that never increments satisfies the first
+# perfectly. That counter is `mjx-paint`'s, it is incremented in `plan_frame`, and `plan_frame`
+# needs no GPU. Asserting the equivalent count out of `tessellate_scene` would prove the meshes
+# carry the provenance and prove nothing about whether it reaches the number R10 gates on.
+#
+# It points *up* the rank ladder (2.5 → 5.5) and is exempt for the reason `CLAUDE.md` gives:
+# a dev-dependency is not a link-time edge. `mjx-paint` does not depend on this crate, and
+# `crates/mjx-paint/tests/the_seam_holds.rs` forbids it naming this one, so the edge cannot invert.
+mjx-paint.workspace = true
