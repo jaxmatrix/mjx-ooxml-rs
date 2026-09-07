@@ -94,10 +94,11 @@ fn files_in(directory: &Path) -> Vec<String> {
 
 #[test]
 fn the_catalogue_is_well_formed_and_not_empty() {
-    // A floor, not a guess about size: the catalogue has six areas in each of three formats today,
-    // and a change that empties it would otherwise make every gate below pass vacuously.
+    // A floor, not a guess about size: the catalogue has eight PresentationML areas and six each of
+    // WordprocessingML and SpreadsheetML today (MJXOFF-128 added `V-PPTX-07` and `V-PPTX-08`), and a
+    // change that empties it would otherwise make every gate below pass vacuously.
     assert!(
-        AREAS.len() >= 18,
+        AREAS.len() >= 20,
         "the catalogue has shrunk to {} areas; every gate in this file weakens with it",
         AREAS.len()
     );

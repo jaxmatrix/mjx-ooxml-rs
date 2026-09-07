@@ -1,7 +1,7 @@
 """The validation artefacts, written through the Python binding (MJXOFF-122).
 
-`xtask/src/validation/` is the Rust original: eighteen areas across the three formats, each built
-from a `blank` document through the facade and nothing below it. This file is the same eighteen,
+`xtask/src/validation/` is the Rust original: twenty areas across the three formats, each built
+from a `blank` document through the facade and nothing below it. This file is the same twenty,
 call for call, and `test_every_artefact_matches_the_rust_one` compares each one against the Rust
 output **part by part, byte for byte**.
 
@@ -41,19 +41,34 @@ from mjx_ooxml import (
     CharacterPropertiesSpec,
     ChartData,
     ChartKind,
+    ChartLabelScope,
     ChartRangeSeries,
     ChartWrap,
     Color,
     ColorSpec,
+    ConnectionSite,
+    CustomGeometrySpec,
+    DataLabelPosition,
+    DataLabelSpec,
     Deck,
+    DrawCommand,
     Document,
+    AdjustAngle,
+    AdjustCoordinate,
     EffectListSpec,
     Emu,
+    ErrorBarDirection,
+    ErrorBarSpec,
+    ErrorBarType,
+    ErrorValueType,
     FillSpec,
     FontProperties,
     Fraction,
+    Geometry,
     GlowEffect,
     GradientStopSpec,
+    GuideContext,
+    GuideSpec,
     HeaderFooterType,
     Hyperlink,
     HyperlinkTarget,
@@ -65,9 +80,12 @@ from mjx_ooxml import (
     PageMargins,
     PageSize,
     ParagraphPropertiesSpec,
+    Path2DSpec,
     PatternFillSpec,
     PictureFillMode,
+    Point,
     PresetShapeType,
+    Rectangle,
     ResizingBehavior,
     SchemeColor,
     SectionLocation,
@@ -331,6 +349,234 @@ def v_pptx_06() -> bytes:
 # ---------------------------------------------------------------------------------------------
 # V-DOCX-01 … V-DOCX-06
 # ---------------------------------------------------------------------------------------------
+
+
+#: The four presets whose guide formulas take an arc-tangent argument through zero.
+ARC_TANGENT_PRESETS = [
+    PresetShapeType.Moon,
+    PresetShapeType.Arc,
+    PresetShapeType.CircularArrow,
+    PresetShapeType.Gear9,
+]
+
+#: The fifteen plot types that draw from one series, each with its `c:` element's local name.
+SINGLE_SERIES_KINDS = [
+    (ChartKind.Bar, "barChart"),
+    (ChartKind.Bar3D, "bar3DChart"),
+    (ChartKind.Line, "lineChart"),
+    (ChartKind.Line3D, "line3DChart"),
+    (ChartKind.Pie, "pieChart"),
+    (ChartKind.Pie3D, "pie3DChart"),
+    (ChartKind.OfPie, "ofPieChart"),
+    (ChartKind.Area, "areaChart"),
+    (ChartKind.Area3D, "area3DChart"),
+    (ChartKind.Scatter, "scatterChart"),
+    (ChartKind.Doughnut, "doughnutChart"),
+    (ChartKind.Radar, "radarChart"),
+    (ChartKind.Bubble, "bubbleChart"),
+    (ChartKind.Surface, "surfaceChart"),
+    (ChartKind.Surface3D, "surface3DChart"),
+]
+
+
+def _guide_driven_triangle() -> CustomGeometrySpec:
+    """The apex placed by `apex = */ w 1 2` rather than by a number."""
+
+    def guide(name: str) -> AdjustCoordinate:
+        return AdjustCoordinate.guide(name)
+
+    return CustomGeometrySpec(
+        paths=[
+            Path2DSpec(
+                [
+                    DrawCommand.move_to(
+                        Point(guide("apex"), AdjustCoordinate.emu(Emu.from_emu(0)))
+                    ),
+                    DrawCommand.line_to(Point(guide("r"), guide("b"))),
+                    DrawCommand.line_to(Point(guide("l"), guide("b"))),
+                    DrawCommand.close(),
+                ]
+            )
+        ],
+        adjust_values=[GuideSpec("adj", "val 50000")],
+        guides=[GuideSpec("apex", "*/ w 1 2")],
+        connection_sites=[
+            ConnectionSite(
+                AdjustAngle.angle(Angle.from_degrees(270.0)),
+                Point(guide("apex"), AdjustCoordinate.emu(Emu.from_emu(0))),
+            ),
+            ConnectionSite(
+                AdjustAngle.angle(Angle.from_degrees(0.0)),
+                Point(guide("r"), guide("b")),
+            ),
+            ConnectionSite(
+                AdjustAngle.angle(Angle.from_degrees(180.0)),
+                Point(guide("l"), guide("b")),
+            ),
+        ],
+        text_rectangle=Rectangle(guide("l"), guide("vc"), guide("r"), guide("b")),
+    )
+
+
+def _write_geometry_areas(deck: Deck, surface: int) -> None:
+    square_chevron = deck.add_shape(
+        surface, PresetShapeType.Chevron, ShapeBounds.from_inches(0.4, 3.4, 2.5, 2.5)
+    )
+    wide_chevron = deck.add_shape(
+        surface, PresetShapeType.Chevron, ShapeBounds.from_inches(3.2, 3.4, 2.5, 1.25)
+    )
+    for position, preset in enumerate(ARC_TANGENT_PRESETS):
+        deck.add_shape(
+            surface, preset, ShapeBounds.from_inches(0.4 + 1.4 * position, 6.1, 1.2, 1.2)
+        )
+    custom = deck.add_shape(
+        surface, PresetShapeType.Rectangle, ShapeBounds.from_inches(6.2, 3.4, 3.0, 1.5)
+    )
+    deck.set_shape_geometry(surface, custom, Geometry.custom(_guide_driven_triangle()))
+    deck.set_shape_fill(surface, custom, FillSpec.solid(ColorSpec.scheme(SchemeColor.Accent2)))
+    deck.shape_adjustments(
+        surface, square_chevron, GuideContext.from_extents(Emu.from_emu(2_286_000), Emu.from_emu(2_286_000))
+    )
+    deck.shape_adjustments(
+        surface, wide_chevron, GuideContext.from_extents(Emu.from_emu(2_286_000), Emu.from_emu(1_143_000))
+    )
+    deck.shape_geometry(surface, custom)
+
+
+def v_pptx_07() -> bytes:
+    deck = Deck.blank(SlideSize.standard())
+    slide = deck.add_slide_from_layout(0)
+    deck.set_shape_text_content(slide, 0, "4:3 — 10 x 7.5 in")
+    deck.set_shape_text_content(
+        slide,
+        1,
+        "The two placeholders above and beside this one were placed by the master, not by this code.",
+    )
+    _write_geometry_areas(deck, slide)
+    return deck.save()
+
+
+def _gallery_bounds(position: int) -> ShapeBounds:
+    column = position % 2
+    row = (position % 4) // 2
+    return ShapeBounds.from_inches(0.4 + column * 6.4, 0.4 + row * 3.4, 6.0, 3.0)
+
+
+def _write_chart_decoration_areas(deck: Deck, surface: int) -> None:
+    edited = deck.add_chart(
+        surface,
+        ChartData(ChartKind.Bar).categories(["Jan", "Feb", "Mar"]).series("Sales", [19.2, 21.4, 16.7]),
+        ShapeBounds.from_inches(0.4, 0.4, 5.8, 2.6),
+    )
+    deck.set_chart_title(surface, edited, "Series values, rewritten")
+    deck.set_chart_series_values(surface, edited, 0, [41.5, 42.5, 43.5])
+
+    labelled = deck.add_chart(
+        surface, quarterly_chart(), ShapeBounds.from_inches(6.6, 0.4, 6.2, 2.6)
+    )
+    deck.set_chart_title(surface, labelled, "Labels, three tiers")
+    deck.set_chart_data_labels(
+        surface,
+        labelled,
+        ChartLabelScope.plot(0),
+        DataLabelSpec()
+        .value(True)
+        .position(DataLabelPosition.OutsideEnd)
+        .separator("; ")
+        .number_format("0.0"),
+    )
+    deck.set_chart_data_labels(
+        surface, labelled, ChartLabelScope.series(0), DataLabelSpec().category_name(True)
+    )
+    deck.suppress_chart_data_labels(surface, labelled, ChartLabelScope.point(0, 1))
+    deck.suppress_chart_data_labels(surface, labelled, ChartLabelScope.series(1))
+    deck.add_chart_trendline(
+        surface,
+        labelled,
+        0,
+        TrendlineSpec(TrendlineKind.Polynomial)
+        .polynomial_order(3)
+        .projection(2.0, 0.0)
+        .display(True, True),
+    )
+
+    pie = deck.add_chart(
+        surface,
+        ChartData(ChartKind.Pie)
+        .categories(["North", "South", "East", "West"])
+        .series("Share", [42.0, 28.0, 18.0, 12.0]),
+        ShapeBounds.from_inches(0.4, 3.4, 5.8, 3.4),
+    )
+    deck.set_chart_title(surface, pie, "Slice 1 exploded, slice 0 recoloured")
+    deck.set_chart_point_explosion(surface, pie, 0, 1, 25)
+    deck.set_chart_point_fill(surface, pie, 0, 0, FillSpec.solid(ColorSpec.srgb("2E75B6")))
+
+    scatter = deck.add_chart(
+        surface,
+        ChartData(ChartKind.Scatter)
+        .categories(["1", "2", "3", "4"])
+        .series("Measured", [2.0, 4.5, 3.25, 6.0]),
+        ShapeBounds.from_inches(6.6, 3.4, 6.2, 3.4),
+    )
+    deck.set_chart_title(surface, scatter, "Error bars on both axes")
+    deck.set_chart_error_bars(
+        surface,
+        scatter,
+        0,
+        ErrorBarSpec.fixed(ErrorBarType.Both, ErrorValueType.Percentage, 5.0).direction(
+            ErrorBarDirection.X
+        ),
+    )
+    deck.set_chart_error_bars(
+        surface,
+        scatter,
+        0,
+        ErrorBarSpec.fixed(ErrorBarType.Both, ErrorValueType.FixedValue, 0.5).direction(
+            ErrorBarDirection.Y
+        ),
+    )
+
+
+def _write_dangling_point_area(deck: Deck, surface: int) -> None:
+    shortened = deck.add_chart(
+        surface,
+        ChartData(ChartKind.Bar).categories(["Q1", "Q2", "Q3"]).series("2026", [4.0, 5.0, 6.0]),
+        ShapeBounds.from_inches(0.4, 0.4, 6.0, 3.0),
+    )
+    deck.set_chart_title(surface, shortened, "A c:dPt left past the end of its series")
+    deck.set_chart_point_fill(surface, shortened, 0, 2, FillSpec.solid(ColorSpec.srgb("C00000")))
+    deck.set_chart_series_values(surface, shortened, 0, [4.0, 5.0])
+    deck.chart_dangling_decoration(surface, shortened, 0)
+
+
+def _write_plot_type_gallery(deck: Deck) -> None:
+    slide = None
+    for position, (kind, name) in enumerate(SINGLE_SERIES_KINDS):
+        if position % 4 == 0:
+            slide = deck.add_slide()
+        assert slide is not None
+        data = ChartData(kind).categories(["A", "B", "C"]).series("S", [1.0, 2.0, 3.0])
+        chart = deck.add_chart(slide, data, _gallery_bounds(position))
+        deck.set_chart_title(slide, chart, name)
+    assert slide is not None
+    stock = deck.add_chart(
+        slide,
+        ChartData(ChartKind.Stock)
+        .categories(["Mon", "Tue", "Wed"])
+        .series("High", [7.0, 8.0, 9.0])
+        .series("Low", [3.0, 4.0, 5.0])
+        .series("Close", [5.0, 6.0, 7.0]),
+        _gallery_bounds(3),
+    )
+    deck.set_chart_title(slide, stock, "stockChart")
+
+
+def v_pptx_08() -> bytes:
+    deck, slide = _one_slide_deck()
+    _write_chart_decoration_areas(deck, slide)
+    _write_dangling_point_area(deck, deck.add_slide())
+    _write_plot_type_gallery(deck)
+    return deck.save()
 
 
 def v_docx_01() -> bytes:
@@ -617,6 +863,8 @@ GENERATORS: dict[str, Callable[[], bytes]] = {
     "v-pptx-04-authored.pptx": v_pptx_04,
     "v-pptx-05-authored.pptx": v_pptx_05,
     "v-pptx-06-authored.pptx": v_pptx_06,
+    "v-pptx-07-authored.pptx": v_pptx_07,
+    "v-pptx-08-authored.pptx": v_pptx_08,
     "v-docx-01-authored.docx": v_docx_01,
     "v-docx-02-authored.docx": v_docx_02,
     "v-docx-03-authored.docx": v_docx_03,
@@ -671,7 +919,7 @@ def test_the_generator_set_is_the_whole_catalogue(rust_artefacts: pathlib.Path) 
     """
     produced = {path.name for path in rust_artefacts.iterdir()}
     assert produced, "the Rust generator wrote nothing"
-    assert len(produced) >= 18, f"only {len(produced)} artefact(s); the catalogue has shrunk"
+    assert len(produced) >= 20, f"only {len(produced)} artefact(s); the catalogue has shrunk"
     assert produced == set(GENERATORS), (
         "the Python generators and the Rust ones name different artefacts: "
         f"only in Rust {sorted(produced - set(GENERATORS))}, "
