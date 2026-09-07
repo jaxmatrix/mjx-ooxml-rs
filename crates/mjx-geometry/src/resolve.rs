@@ -222,7 +222,7 @@ pub fn outline_of_definition(
         // ordinary size still fails loudly: only a shape that has nothing to draw is allowed to
         // draw nothing. Note that most shapes reach here *without* failing — `rect` has no guides
         // at all and `triangle`'s multiply through by a zero width — and those take the ordinary
-        // path below, where [`scale`] collapses them onto the box's corner.
+        // path below, where `scale` collapses them onto the box's corner.
         Err(error) if !extents_have_area(extents) => {
             let _ = error;
             return Ok(ResolvedOutline {
@@ -328,7 +328,7 @@ fn emit_path(
     let mut pen = ShapePoint::default();
     let mut subpath_start = ShapePoint::default();
     // Whether a contour is open, and whether one was ever opened. The pair is what makes a step
-    // *after* an `a:close` draw from the right place — see [`reopen`].
+    // *after* an `a:close` draw from the right place; the comment inside the loop says how.
     let mut open = false;
     let mut ever_opened = false;
 
@@ -341,7 +341,7 @@ fn emit_path(
         // says `a:close` returns the pen to the subpath's start point, and the schema permits a
         // drawing element to follow it without an intervening `a:moveTo` — a shape drawn as one
         // outline and one closed hole with a shared corner does exactly that. A
-        // [`PathCommand`](mjx_scene::PathCommand) list has no way to say *"reopen the contour I
+        // `mjx_scene::PathCommand` list has no way to say *"reopen the contour I
         // just closed"*, and `mjx-scene` drops a step that arrives before any `MoveTo`, so the
         // faithful translation is to state the start point again.
         //
