@@ -47,8 +47,8 @@ use mjx_ooxml_types::spreadsheetml::{
 use mjx_opc::{Package, PartName};
 use mjx_sml::styles::palette::{resolve_color, IndexedColor, IndexedColorPalette};
 use mjx_sml::{
-    Color, ColorElement, DifferentialFormat, Font, FontProperties, FontPropertyOwner,
-    StylesheetContent, StylesheetPart,
+    Color, ColorElement, ColorScaleSpec, DataBarSpec, DifferentialFormat, DifferentialFormatSpec,
+    Font, FontProperties, FontPropertyOwner, PatternFillSpec, StylesheetContent, StylesheetPart,
 };
 
 /// One committed styles part: a label, and its bytes.
@@ -1137,4 +1137,79 @@ fn windows_contains(haystack: &[u8], needle: &[u8]) -> bool {
 /// hex this suite would then be asserting against itself.
 fn brightness(color: ResolvedColor) -> u32 {
     u32::from(color.red) + u32::from(color.green) + u32::from(color.blue)
+}
+
+// -------------------------------------------------------------------------------------------
+// Every colour the authoring vocabulary writes is a valid `ST_UnsignedIntHex` (MJXOFF-220)
+// -------------------------------------------------------------------------------------------
+
+/// Whether `value` is `ST_UnsignedIntHex` as `sml.xsd` declares it: exactly eight hexadecimal
+/// digits, alpha first.
+fn is_unsigned_int_hex(value: &str) -> bool {
+    value.len() == 8 && value.bytes().all(|byte| byte.is_ascii_hexdigit())
+}
+
+/// **Every `@rgb` the authoring vocabulary writes is eight hexadecimal digits** — including when
+/// the caller hands it the eight-digit ARGB form.
+///
+/// # The gate that did not exist
+///
+/// `Color::from_opaque_rgb` prefixed `FF` unconditionally, so `"FFFF0000"` — the exact spelling
+/// `Color::rgb`'s own documentation gives — became the ten-character `"FFFFFF0000"`, which
+/// `sml.xsd` rejects. It reached `PatternFillSpec::solid`, `ColorScaleSpec::two_color`,
+/// `DataBarSpec::spanning_the_range` and `DifferentialFormatSpec::highlight`, and **nothing in the
+/// workspace could see it**: `mjx-schema-gate` validates the markup a test authored, and every test
+/// that authored a colour handed it six digits. That is MJXOFF-88 §9 A5 defect 1 and MJXOFF-198 §6
+/// F6, unowned from the day it was found.
+///
+/// So the check is over the *constructors a caller reaches for*, fed both spellings, rather than
+/// over one of them fed the spelling that already worked.
+#[test]
+fn every_authored_colour_is_a_valid_unsigned_int_hex() {
+    // Both forms of the same opaque red, plus a `#` prefix and a half-transparent value that is
+    // only expressible in eight digits.
+    let inputs = ["FF0000", "#FF0000", "ffff0000", "FFFF0000", "801F3864"];
+
+    let mut checked = 0usize;
+    for input in inputs {
+        let mut colours = vec![Color::from_opaque_rgb(input)];
+        colours.extend(
+            PatternFillSpec::solid(input)
+                .foreground
+                .into_iter()
+                .chain(PatternFillSpec::solid(input).background),
+        );
+        colours.extend(ColorScaleSpec::two_color(input, input).colors);
+        colours.push(DataBarSpec::spanning_the_range(input).color);
+        let highlight = DifferentialFormatSpec::highlight(input, input);
+        colours.extend(highlight.font.and_then(|font| font.color));
+        colours.extend(highlight.fill.and_then(|fill| fill.foreground));
+
+        for colour in colours {
+            let rgb = colour.rgb.expect("every constructor here writes an @rgb");
+            assert!(
+                is_unsigned_int_hex(&rgb),
+                "`{input}` was authored as rgb=\"{rgb}\", which is {} characters and not \
+                 ST_UnsignedIntHex — `sml.xsd` rejects the part",
+                rgb.len()
+            );
+            checked += 1;
+        }
+    }
+    assert!(
+        checked >= 25,
+        "only {checked} authored colours were checked — the vocabulary walk has stopped walking, \
+         and a walk that reaches nothing passes forever"
+    );
+    println!("authoring vocabulary: {checked} authored colours checked against ST_UnsignedIntHex");
+
+    // …and the six-digit path is unchanged, which is what says the fix is a normalisation rather
+    // than a different constructor.
+    assert_eq!(
+        Color::from_opaque_rgb("1F3864").rgb.as_deref(),
+        Some("FF1F3864")
+    );
+    // A value that is neither six nor eight digits is the caller's contract, and is written
+    // through rather than refused — see `Color::from_opaque_rgb`'s documentation.
+    assert_eq!(Color::from_opaque_rgb("f00").rgb.as_deref(), Some("FFf00"));
 }

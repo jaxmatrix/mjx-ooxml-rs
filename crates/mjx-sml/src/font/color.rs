@@ -63,18 +63,87 @@ pub struct Color {
 impl Color {
     /// An opaque sRGB colour, written `rgb="FFRRGGBB"`.
     ///
-    /// Takes the six-digit form callers think in and prefixes the opaque alpha, because `rgb` is
-    /// eight digits and a six-digit value there is the single most common way to write a colour
-    /// Excel then reads as transparent.
+    /// `@rgb` is `ST_UnsignedIntHex`: **eight** hexadecimal digits, alpha first. Callers think in
+    /// the six-digit `RRGGBB` form, and a six-digit value written straight into `@rgb` is the
+    /// single most common way to author a colour Excel then reads as transparent — so this
+    /// constructor supplies the opaque alpha.
+    ///
+    /// # What it accepts
+    ///
+    /// A leading `#` is dropped. **Six** digits are given the `FF` alpha; **eight** are already an
+    /// ARGB value and are taken as they stand. Case is preserved either way, because
+    /// [`rgb`](Self::rgb) holds the file's own spelling and `ffff0000` and `FFFF0000` are the same
+    /// colour and different bytes.
+    ///
+    /// ```
+    /// use mjx_sml::Color;
+    /// assert_eq!(Color::from_opaque_rgb("1F3864").rgb.as_deref(), Some("FF1F3864"));
+    /// assert_eq!(Color::from_opaque_rgb("#1F3864").rgb.as_deref(), Some("FF1F3864"));
+    /// // Already alpha-first: taken as it stands rather than prefixed a second time.
+    /// assert_eq!(Color::from_opaque_rgb("801F3864").rgb.as_deref(), Some("801F3864"));
+    /// ```
+    ///
+    /// # What the caller still owns
+    ///
+    /// Anything that is *neither* six nor eight hexadecimal digits is not a colour this constructor
+    /// can spell, and it is written through with the `FF` prefix rather than refused: the signature
+    /// is projected verbatim onto `mjx_ooxml::Color` and onto both bindings, so it cannot become
+    /// fallible without breaking every caller that already works, and [`rgb`](Self::rgb) is a public
+    /// field a caller can set to anything regardless. **Three hex digits are not expanded** — CSS's
+    /// shorthand is not `ST_UnsignedIntHex` — and no value is validated against the schema here.
+    ///
+    /// Until MJXOFF-220 the `FF` was prefixed **unconditionally**, so an eight-digit ARGB — the
+    /// exact form this type's own [`rgb`](Self::rgb) documentation shows — became a ten-character
+    /// `@rgb` that `sml.xsd` rejects, reached from [`PatternFillSpec::solid`](crate::PatternFillSpec::solid)
+    /// and from every convenience constructor in the authoring vocabulary. That was MJXOFF-88 §9 A5
+    /// defect 1 / MJXOFF-198 §6 F6, and no gate could see it: the schema gate validates the markup a
+    /// test authored, and no test authored that. `crates/mjx-sml/tests/style_resources.rs`'s
+    /// `every_authored_colour_is_a_valid_unsigned_int_hex` is what sees it now.
     #[must_use]
     pub fn from_opaque_rgb(hex: &str) -> Self {
+        let digits = hex.strip_prefix('#').unwrap_or(hex);
+        let already_alpha_first =
+            digits.len() == 8 && digits.bytes().all(|byte| byte.is_ascii_hexdigit());
         Self {
-            rgb: Some(format!("FF{}", hex.trim_start_matches('#'))),
+            rgb: Some(if already_alpha_first {
+                digits.to_owned()
+            } else {
+                format!("FF{digits}")
+            }),
             ..Self::default()
         }
     }
 
     /// A theme colour by index, optionally tinted.
+    ///
+    /// **This is the constructor to reach for, and it is the one nobody reaches for.** Every
+    /// convenience in the authoring vocabulary — [`PatternFillSpec::solid`](crate::PatternFillSpec::solid),
+    /// [`ColorScaleSpec::two_color`](crate::ColorScaleSpec::two_color),
+    /// [`DataBarSpec::spanning_the_range`](crate::DataBarSpec::spanning_the_range),
+    /// [`DifferentialFormatSpec::highlight`](crate::DifferentialFormatSpec::highlight) — takes a hex
+    /// literal, so the shortest path pins a colour into a file whose owner may have rebranded it,
+    /// and the theme-following path is the longer one. There is no `solid_theme` beside them
+    /// (MJXOFF-198 §6 F6 asks for one) because a spec's fields are public and the long path is one
+    /// line, and because a Rust-only convenience would be a surface two of the three languages
+    /// could not use:
+    ///
+    /// ```
+    /// use mjx_ooxml_types::spreadsheetml::PatternType;
+    /// use mjx_sml::{Color, PatternFillSpec};
+    ///
+    /// let follows_the_theme = PatternFillSpec {
+    ///     pattern: Some(PatternType::Solid),
+    ///     foreground: Some(Color::from_theme(4, Some(-0.25))),
+    ///     ..PatternFillSpec::default()
+    /// };
+    /// assert_eq!(follows_the_theme.foreground.expect("a colour").theme, Some(4));
+    /// ```
+    ///
+    /// `index` is a **position** in `theme1.xml`'s colour scheme, not a
+    /// [`SchemeColor`](mjx_dml::SchemeColor) token — see this type's own documentation — and
+    /// `crates/mjx-sml/tests/style_resources.rs`'s
+    /// `a_theme_colour_resolves_to_what_drawingml_resolves_for_the_same_slot` is what pins the two
+    /// vocabularies to the same answer.
     #[must_use]
     pub fn from_theme(index: u32, tint: Option<f64>) -> Self {
         Self {
