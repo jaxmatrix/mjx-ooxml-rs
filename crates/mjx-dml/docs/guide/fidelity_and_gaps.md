@@ -33,7 +33,7 @@ What stops a seventh is the ledger: every hand-written impl must be on it with a
 **and the idiom is checked against the impl's own body** — a row claiming to preserve everything
 while handing `RawElement::rebuilt` a fresh `Vec::new()` fails, which is exactly the shape
 `Picture::to_xml` had. `mjx-docx`'s 158 hand-written pairs and `mjx-sml`'s 57 types are outside that
-gate; extending it to them is tracked separately.
+gate; extending it to them is MJXOFF-218.
 
 ## What is actually asserted
 
