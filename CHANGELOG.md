@@ -58,6 +58,85 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.128] - 2026-09-07
+
+### The consolidated validation harness — the artefacts a human Office pass reads (MJXOFF-122, F1)
+
+**Phase F's first child, and the first thing in this repository that admits what it cannot check.**
+Every fixture here was written by this project or by LibreOffice; no test has ever read a file
+Microsoft Office wrote, and no gate in this workspace can answer *does real Office render what we
+intended?* This child builds everything that question needs except the answer.
+
+**It marks nothing.** There is no `pass` in any result line, no verdict inferred from a LibreOffice
+conversion, and no place where an agent stands in for a person with Office in front of them. A test
+asserts that, over every page of `docs/validation/`.
+
+#### `xtask` grows a fourth command
+
+`cargo run -p xtask -- validation-artefacts [--format pptx|docx|xlsx] [--area <id or number>]
+[--out <dir>] [--list]` writes two artefacts for each of **eighteen** validation areas — six per
+format. Every one is produced through `mjx-ooxml` and names no crate below it, so the human pass
+validates the facade and its error mapping as a side effect.
+
+* The **authored** variant is built from `Deck::blank`, `Document::blank` or `Workbook::blank`:
+  nothing is read from disk, so every byte is one this library wrote.
+* The **edited** variant is built by editing an Office-authored original from
+  `tests/office-authored/`. That corpus is MJXOFF-130's to fill and is empty, so every edit variant
+  **skips by name** — the area and the exact path it looked for — and `MJX_REQUIRE_OFFICE_CORPUS=1`
+  turns any such skip into a failure, the arrangement `MJX_REQUIRE_SOFFICE=1` already makes for the
+  `office_open` canary.
+
+The command lives in a new **library target** for `xtask`, because `xtask/tests/validation_index.rs`
+is written against the area catalogue and an integration test cannot see a binary's modules. The
+alternative — parsing the binary's `--list` output — would have made a text format the contract
+instead of a type. `codegen`, `fuzz` and `corpus` stay private to the binary; nothing depends on
+`xtask`, and `xtask/tests/layering.rs` still says so.
+
+#### The same eighteen artefacts, in three languages
+
+`bindings/mjx-python/tests/test_validation_artefacts.py` and
+`bindings/mjx-wasm/tests/node/validation_artefacts.mjs` are the same eighteen generators, call for
+call, and each compares its output against the Rust one **part by part, byte for byte**. That is
+A10's acceptance test generalised from one walkthrough to the whole catalogue: a binding method
+wired to the wrong facade method changes one part payload, and a human reading the file in Office
+would never know why it looked wrong.
+
+Both comparisons state their artefact set over the *filesystem* rather than over a list in their own
+file, so an area added in Rust and not in a binding fails rather than being silently skipped.
+
+#### The index, and why it is not a tautology
+
+`docs/validation/01-index.md` binds every entry id to the artefacts it is read against, and
+`xtask/tests/validation_index.rs` compares two lists that cannot drift together: the **entry** side
+is parsed out of hand-written markdown, the **artefact** side is a `read_dir` of the directory the
+`xtask` binary has just written. Both are floored against the catalogue before either comparison
+runs, so a parser that stopped matching table rows fails rather than passing an empty comparison.
+The edited column is checked as an *if and only if* against the Office corpus, so an empty corpus is
+still an assertion.
+
+#### Every artefact through the gates a machine can answer
+
+`xtask/tests/validation_harness.rs` runs the ECMA-376 schema gate, `Package::validate` and the
+child-order audit over all eighteen, and quotes the audit's per-part `elements_visited` counts —
+89 parts audited, none of them vacuous. Preserved-foreign skips are pinned by *label*, so a part
+that starts skipping under a new one fails rather than quietly widening what the gate tolerates. Two
+runs of the command are asserted **byte-identical**, without which the three-language comparison
+means nothing. One artefact per format is converted by LibreOffice as a canary — one conversion,
+never a sweep, and never a verdict.
+
+#### Documentation
+
+* `docs/validation/00-method.md` — the entry-id scheme, the three risk levels, the result
+  convention, how to file an issue, and the rule that keeps the exercise honest: **a documented gap
+  is never a validation failure**.
+* `docs/validation/01-index.md` — the eighteen entries, and the areas the harness deliberately does
+  not cover, each with its reason.
+* `tests/office-authored/README.md` — the corpus slot, its naming convention, and why it is not
+  under `tests/fixtures/`.
+
+MJXOFF-108's 28-row effective-cell-format table is carried in **unchanged**: its *Excel says* and
+*Verdict* columns are still empty and unmarked, and nothing here touched them.
+
 ## [0.0.127] - 2026-09-07
 
 ### The cross-format consistency pass — one reading of the whole public surface (MJXOFF-118, E6)
