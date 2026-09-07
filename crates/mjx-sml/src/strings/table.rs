@@ -123,7 +123,7 @@ impl SharedStringTable {
         // uniqueCount="0"/>` rather than `<sst …></sst>`. Both are the same infoset and both are
         // valid; the self-closing form is what Excel writes for an empty table, and it is the form
         // MJXOFF-112's parity gate pinned against `mjx-chart`'s own writer while that writer still
-        // existed — MJXOFF-99 has since deleted both, leaving this the workspace's one
+        // existed — MJXOFF-99 has since removed both, leaving this the workspace's one
         // SpreadsheetML writer. It decides the *empty* form only — the writer takes the full form
         // the moment there is an entry to put between the tags — so the non-empty parity this file
         // already pins is untouched.
