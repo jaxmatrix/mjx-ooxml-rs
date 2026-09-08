@@ -233,7 +233,10 @@ fn the_committed_module_root_declares_exactly_the_generator_s_modules() {
     for line in committed.lines() {
         let line = line.trim();
         if let Some(rest) = line.strip_prefix("pub(crate) mod ") {
-            found.insert(rest.trim_end_matches(';').to_owned(), "pub(crate)".to_owned());
+            found.insert(
+                rest.trim_end_matches(';').to_owned(),
+                "pub(crate)".to_owned(),
+            );
         } else if let Some(rest) = line.strip_prefix("pub mod ") {
             found.insert(rest.trim_end_matches(';').to_owned(), "pub".to_owned());
         }
@@ -367,7 +370,9 @@ fn the_coverage_document_s_counts_match_the_committed_modules() {
         SIMPLE_TYPE_MODULES.len(),
         "not every module was checked against COVERAGE.md"
     );
-    println!("COVERAGE.md: {checked} simple-type rows, every count re-derived from its module file");
+    println!(
+        "COVERAGE.md: {checked} simple-type rows, every count re-derived from its module file"
+    );
 }
 
 /// `COVERAGE.md`'s child-order table reports `generated` for exactly the schemas the generator
@@ -453,7 +458,9 @@ fn every_curated_enumeration_cites_the_spec_section_its_names_came_from() {
     for line in source.lines() {
         let trimmed = line.trim();
         let Some(current) = table.clone() else {
-            if let Some(rest) = trimmed.strip_prefix("const ").or(trimmed.strip_prefix("pub const "))
+            if let Some(rest) = trimmed
+                .strip_prefix("const ")
+                .or(trimmed.strip_prefix("pub const "))
             {
                 if let Some(name) = rest.split(':').next() {
                     if name.ends_with("VARIANT_OVERRIDES") {
@@ -556,7 +563,10 @@ fn the_curated_re_exports_cover_every_generated_item() {
     let mut checked = 0;
     for (module, hand_written) in [
         ("drawingml", "crates/mjx-ooxml-types/src/drawingml.rs"),
-        ("presentationml", "crates/mjx-ooxml-types/src/presentationml.rs"),
+        (
+            "presentationml",
+            "crates/mjx-ooxml-types/src/presentationml.rs",
+        ),
     ] {
         let generated = read(&generated_dir().join(format!("{module}.rs")));
         let declared: BTreeSet<&str> = generated

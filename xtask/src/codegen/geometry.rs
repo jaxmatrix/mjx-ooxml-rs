@@ -62,7 +62,7 @@ struct ShapeAdjustments {
 }
 
 /// Renders the `adjustments_of` table source (appended after the `PresetShapeType` enum).
-pub fn emit_shape_adjustments(xml: &[u8]) -> Result<String> {
+pub(crate) fn emit_shape_adjustments(xml: &[u8]) -> Result<String> {
     let shapes = parse(xml)?;
     let mut s = String::new();
     s.push_str(

@@ -90,7 +90,7 @@ impl Builder {
 /// nesting is tracked by depth so an inner `</xsd:simpleType>` does not close the named type early,
 /// and so an inner restriction's base and facets are attributed to the member instead of leaking
 /// onto the type that contains it.
-pub fn parse_simple_types(xsd: &[u8]) -> Result<Vec<SimpleType>> {
+pub(crate) fn parse_simple_types(xsd: &[u8]) -> Result<Vec<SimpleType>> {
     let mut reader = Reader::new(xsd);
     let mut out = Vec::new();
     let mut current: Option<Builder> = None;
@@ -182,7 +182,7 @@ pub fn parse_simple_types(xsd: &[u8]) -> Result<Vec<SimpleType>> {
 }
 
 /// Reads the `targetNamespace` declared on the root `xsd:schema` element.
-pub fn target_namespace(xsd: &[u8]) -> Result<String> {
+pub(crate) fn target_namespace(xsd: &[u8]) -> Result<String> {
     let mut reader = Reader::new(xsd);
     loop {
         match reader.read().context("reading XSD root")? {
