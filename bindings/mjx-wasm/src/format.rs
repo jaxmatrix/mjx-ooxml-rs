@@ -28,9 +28,9 @@ use crate::errors::{map_error, unsupported_content};
 pub enum FormatFamily {
     /// PresentationML — PowerPoint. Editable: this is what `Deck` opens.
     Presentation,
-    /// WordprocessingML — Word. Detected, not yet editable.
+    /// WordprocessingML — Word. Editable: this is what `Document` opens.
     WordProcessing,
-    /// SpreadsheetML — Excel. Detected, not yet editable.
+    /// SpreadsheetML — Excel. Editable: this is what `Workbook` opens.
     Spreadsheet,
 }
 
@@ -184,9 +184,11 @@ pub fn format_conventional_extension(format: Format) -> String {
     format.to_model().conventional_extension().to_owned()
 }
 
-/// Whether `Deck.open` or `Document.open` can edit a format — true for PresentationML and
-/// WordprocessingML. Excel documents are detected but not yet editable, so a caller can say so
-/// precisely instead of reporting a parse failure.
+/// Whether this build can edit a package of this format — true for every format except
+/// `Format.WorkbookBinary`, whose `.xlsb` payload is not XML at all. `Deck.open` opens the
+/// PresentationML members, `Document.open` the WordprocessingML ones and `Workbook.open` the
+/// SpreadsheetML ones, so a caller can refuse a `.xlsb` precisely instead of reporting a parse
+/// failure.
 #[wasm_bindgen(js_name = "formatIsEditable")]
 pub fn format_is_editable(format: Format) -> bool {
     format.to_model().is_editable()

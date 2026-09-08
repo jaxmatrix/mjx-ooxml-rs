@@ -4131,8 +4131,10 @@ class Format:
     leading dot.
     """
     is_editable: bool
-    """Whether `Deck.open` can edit this format. Word and Excel documents are detected before they
-    are editable, so a caller can say so precisely instead of reporting a parse failure.
+    """Whether this build can edit a package of this format — true for every format except
+    `WorkbookBinary`, whose `.xlsb` payload is not XML at all. `Deck.open` opens the PresentationML
+    members, `Document.open` the WordprocessingML ones and `Workbook.open` the SpreadsheetML ones,
+    so a caller can refuse a `.xlsb` precisely instead of reporting a parse failure.
     """
 
 @final
