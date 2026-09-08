@@ -492,3 +492,76 @@ fn an_element_outside_the_schema_naming_the_slide_goes_with_it() {
         "an unknown element naming the removed slide stayed behind: {slide}"
     );
 }
+
+#[test]
+fn a_part_that_holds_the_relationship_but_names_it_nowhere_is_left_alone() {
+    // **The bound on MJXOFF-212's blast radius.** The sweep visits every part holding a relationship
+    // to the removed slide, and a part can hold one it names nowhere in markup — an unreferenced
+    // relationship is valid OOXML, which is why `remove_shape` documents that it leaves
+    // relationships alone. The relationship still has to go, because its target is about to vanish.
+    // The part itself must not be touched.
+    //
+    // The state is reached through the shipped API, not a hand-built package: `set_shape_hyperlink`
+    // adds the relationship and the `a:hlinkClick` naming it, and `remove_shape` takes the shape —
+    // and with it the markup — leaving the relationship behind.
+    let mut pres = Presentation::open(&fixture("layouts.pptx")).expect("open");
+    pres.set_shape_hyperlink(1, 0, &Hyperlink::Slide(0))
+        .expect("link slide 1's shape 0 to slide 0");
+    pres.remove_shape(1, 0)
+        .expect("remove the shape, which keeps the relationship");
+    let staged = pres.save().expect("save");
+
+    // Then give the surviving slide something it *arrived* with and this library would refuse to
+    // author: two shapes sharing a `p:cNvPr@id`. This is what makes "left alone" observable at all.
+    // Byte equality cannot say it — the fidelity serializer reproduces an unmutated tree byte for
+    // byte, so "kept its original bytes" and "re-serialized without changing anything" are the same
+    // bytes. What differs is **provenance**, and provenance decides scope: `Package::validate` and
+    // `Presentation::validate` walk the parts this library authored and spare the ones it did not,
+    // so dirtying an untouched part drags a file the caller never edited into our own checks. A deck
+    // that opened and saved a moment ago would stop saving because a slide it was not asked about
+    // was rewritten.
+    let survivor = PartName::new("/ppt/slides/slide2.xml").expect("a valid part name");
+    let arrived = with_part_text(&staged, &survivor, |slide| {
+        let edited = slide.replace(
+            r#"<p:cNvPr id="7" name="Table 6"/>"#,
+            r#"<p:cNvPr id="3" name="Table 6"/>"#,
+        );
+        assert_ne!(edited, slide, "the duplicate-id edit matched nothing");
+        edited
+    });
+
+    let before = byte_map(&Package::open(&arrived).expect("reopen"));
+    let staged_rels =
+        String::from_utf8(before["ppt/slides/_rels/slide2.xml.rels"].clone()).expect("utf8");
+    assert!(
+        staged_rels.contains("relationships/slide\""),
+        "the setup must leave a slide relationship behind: {staged_rels}"
+    );
+    let staged_slide = String::from_utf8(before["ppt/slides/slide2.xml"].clone()).expect("utf8");
+    assert!(
+        !staged_slide.contains("hlinkClick"),
+        "and must leave no markup naming it: {staged_slide}"
+    );
+    Presentation::open(&arrived)
+        .expect("open")
+        .save()
+        .expect("the premise: as it arrived, this deck saves");
+
+    let mut pres = Presentation::open(&arrived).expect("reopen");
+    pres.remove_slide(0).expect("remove");
+    let saved = pres
+        .save()
+        .expect("a slide the removal never named was rewritten, and is now faulted for what it arrived with");
+    let after = byte_map(&Package::open(&saved).expect("reopen"));
+
+    assert_eq!(
+        after["ppt/slides/slide2.xml"], before["ppt/slides/slide2.xml"],
+        "the part came back changed"
+    );
+    let after_rels =
+        String::from_utf8(after["ppt/slides/_rels/slide2.xml.rels"].clone()).expect("utf8");
+    assert!(
+        !after_rels.contains("relationships/slide\""),
+        "the dangling relationship still had to go: {after_rels}"
+    );
+}

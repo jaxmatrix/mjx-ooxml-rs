@@ -274,8 +274,21 @@ impl Presentation {
 
     /// Removes from `part`'s markup every element that names relationship `rel_id`.
     ///
-    /// The tree is read first and mutated only if there is something to remove, so a part that holds
-    /// a relationship it never names in markup keeps its original bytes.
+    /// The tree is **read** first and mutated only if there is something to remove. A part can hold
+    /// a relationship to the removed slide and name it nowhere — an unreferenced relationship is
+    /// valid OOXML, and [`remove_shape`](Self::remove_shape) leaves them behind on purpose — and
+    /// such a part must come through untouched.
+    ///
+    /// What that buys is not bytes: the fidelity serializer reproduces an unmutated tree byte for
+    /// byte, so "kept its original bytes" and "re-serialized without changing anything" are the same
+    /// bytes. It is **provenance**, and provenance decides *scope*.
+    /// [`Package::validate`](mjx_opc::Package::validate) and [`validate`](Self::validate) walk the
+    /// parts this library authored and spare the ones it did not, so dirtying an untouched part
+    /// drags a file the caller never edited into our own checks — and a deck that opened and saved a
+    /// moment ago would stop saving because a slide nobody asked about was rewritten. That is what
+    /// `a_part_that_holds_the_relationship_but_names_it_nowhere_is_left_alone` pins, and it is the
+    /// bound the whole MJXOFF-212 behaviour rests on: **only the parts that actually named the
+    /// removed slide are touched.**
     fn remove_markup_naming(&mut self, part: &PartName, rel_id: &str) -> Result<(), PptxError> {
         let paths = {
             let doc = self.package.part_tree(part)?;
