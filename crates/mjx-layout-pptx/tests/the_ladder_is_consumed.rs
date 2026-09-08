@@ -127,16 +127,21 @@ fn the_only_property_reads_are_effective_ones() {
                 continue;
             }
             for needle in DECLARED_ONLY {
-                // `effective_shape_bounds(` contains `shape_bounds(`, so the effective form has to
-                // be excluded explicitly rather than by the substring alone.
-                if line.contains(needle) && !line.contains(&format!("effective_{needle}")) {
-                    offences.push(format!(
-                        "{}:{}: `{needle}` — {}",
-                        path.display(),
-                        number + 1,
-                        line.trim()
-                    ));
+                if !names_a_declared_reader(line, needle) {
+                    continue;
                 }
+                if PERMITTED_DECLARED_READS
+                    .iter()
+                    .any(|(reader, _)| line.contains(reader))
+                {
+                    continue;
+                }
+                offences.push(format!(
+                    "{}:{}: `{needle}` — {}",
+                    path.display(),
+                    number + 1,
+                    line.trim()
+                ));
             }
         }
     }
@@ -145,6 +150,67 @@ fn the_only_property_reads_are_effective_ones() {
         "a declared-property reader answers what one tier states and skips the six above it:\n{}",
         offences.join("\n")
     );
+}
+
+/// The declared-property readers this crate is allowed to call, and why each one is unavoidable.
+///
+/// **An entry here is a claim that `mjx-pptx` offers no effective form**, and
+/// [`every_permitted_declared_read_is_still_unavoidable`] checks that claim against `mjx-pptx`'s own
+/// source. So an exception cannot outlive the gap it was granted for: the day the effective reader
+/// is written, this suite goes red and names the entry to delete.
+const PERMITTED_DECLARED_READS: &[(&str, &str)] = &[(
+    "cell_paragraph_properties(",
+    "A table style's six conditional bands carry character properties and a cell fill; \
+     `CT_TableStyleTextStyle` has no `a:pPr` at all, so there is no ladder above a cell's own \
+     paragraph properties for an effective reader to walk. `mjx-pptx` offers none, and a paragraph \
+     that states nothing takes the schema's defaults.",
+)];
+
+/// Whether `line` names `needle` as a whole reader rather than as the tail of an `effective_` one.
+///
+/// `effective_cell_run_properties(` ends in `run_properties(` and so does
+/// `effective_run_properties(`; a `contains` that excluded only the second reported the first. So
+/// the identifier each match sits in is reconstructed, and its **start** is what decides.
+fn names_a_declared_reader(line: &str, needle: &str) -> bool {
+    let mut from = 0;
+    while let Some(at) = line[from..].find(needle) {
+        let start = from + at;
+        let identifier_start = line[..start]
+            .rfind(|character: char| !character.is_alphanumeric() && character != '_')
+            .map_or(0, |index| index + 1);
+        if !line[identifier_start..start].starts_with("effective_") {
+            return true;
+        }
+        from = start + needle.len();
+    }
+    false
+}
+
+#[test]
+fn every_permitted_declared_read_is_still_unavoidable() {
+    // The exception list above is only honest while the gap it names is real. This reads
+    // `mjx-pptx`'s own source and refuses an exception whose effective form now exists.
+    let pptx = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../mjx-pptx/src");
+    let source: String = sources(&pptx)
+        .into_iter()
+        .map(|(_, text)| text)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        source.contains("fn effective_cell_run_properties"),
+        "this suite reads `mjx-pptx`'s source recursively; if it found none of it, every assertion \
+         below would pass vacuously"
+    );
+
+    for (reader, reason) in PERMITTED_DECLARED_READS {
+        let name = reader.trim_end_matches('(');
+        assert!(
+            !source.contains(&format!("fn effective_{name}")),
+            "`mjx-pptx` now has `effective_{name}`, so this crate's exception for `{reader}` is \
+             stale: consume the effective reader and delete the entry. The reason it was granted \
+             was: {reason}"
+        );
+    }
 }
 
 #[test]

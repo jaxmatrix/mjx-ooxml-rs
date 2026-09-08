@@ -13,11 +13,23 @@
 //! level intervenes.** A body of `1. 2. a) b) 3.` numbers its third top-level item `3.`, not `1.`,
 //! and its next nested item `a)` again.
 //!
-//! # `a:buBlip` is R15
+//! # `a:buBlip` is still not drawn, and what is left is smaller than it was
 //!
-//! A picture bullet needs an image handle and a resource table, which is R15's work. A paragraph
-//! with one is laid out with its indents intact and no marker drawn, so the text sits where it will
-//! sit once the picture arrives rather than moving when it does.
+//! MJXOFF-170 built the half that was missing: a picture is an
+//! [`ImageRef`](mjx_layout::ImageRef) resolved through
+//! [`PageCatalogue::image`](crate::PageCatalogue::image), keyed by relationship id — and
+//! `mjx-dml`'s `BulletPicture` has carried the bullet's own `a:blip@r:embed` all along. So the
+//! value and the table both exist.
+//!
+//! What does not exist is a **marker that is not glyphs**. [`crate::body::PlacedMarker`] is a
+//! [`FaceId`](mjx_text::FaceId) and a [`ShapedRun`](mjx_text::ShapedRun), and the line builder emits
+//! it as a [`GlyphRunFragment`](mjx_layout::GlyphRunFragment); a picture bullet would have to be an
+//! [`ImageFragment`](mjx_layout::ImageFragment) of the run's own size instead, which means the
+//! marker becomes a two-shaped thing everywhere it is measured, placed and emitted. That is a
+//! change to three modules for one attribute, and R15 deliberately did not make it.
+//!
+//! A paragraph with one is laid out with its indents intact and no marker drawn, so the text sits
+//! where it will sit once the picture arrives rather than moving when it does.
 //!
 //! [`effective_paragraph_properties`]: mjx_pptx::Presentation::effective_paragraph_properties
 
@@ -110,8 +122,9 @@ pub fn marker_for(
             counters.interrupt(level);
             return None;
         }
-        // R15: a picture bullet needs an image handle and a resource table. The indents still
-        // apply, so the text sits where it will sit once the picture arrives.
+        // A picture bullet is not drawn: a `PlacedMarker` is glyphs, and this would be an image.
+        // See this module's own documentation for what that costs. The indents still apply, so the
+        // text sits where it will sit once the picture arrives.
         Bullet::Picture(_) => {
             counters.interrupt(level);
             return None;

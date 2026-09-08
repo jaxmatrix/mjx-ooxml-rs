@@ -58,6 +58,82 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.145] - 2026-09-08
+
+**The first end-to-end deck — a `.pptx` becomes pixels (MJXOFF-170, R15).**
+
+Every stage of the render pipeline has existed and been gated on its own since R06. **Nothing had
+ever driven all of it at once with a real document.** This is the child that does:
+
+```
+Presentation → SlideDeck → SlideBoxModel → FragmentTree
+             → SlideResources + SlideGeometry → build_scene → DisplayList
+             → SoftwarePainter → pixels
+```
+
+`crates/mjx-reference-pack/tests/a_real_deck_reaches_pixels.rs` runs that chain over three committed
+fixtures, headlessly, on the pure-Rust painter.
+
+### The new crate
+
+**`mjx-scene-pptx` at rank 3.7** — PowerPoint's companion to the box model: the `ResourceResolver`
+that turns `mjx-layout-pptx`'s decoration, image and outline handles into `mjx-scene`'s paints,
+strokes and effect DAG, and the `GeometryProvider` that resolves an outline handle through
+`mjx-geometry`'s preset tables.
+
+**It is a crate rather than a module because `mjx-layout-pptx`'s own seam gate refuses `mjx-scene` by
+name**, on the ground that a box model which built a display list would have merged two stages the
+architecture separates on purpose. That gate is right; the answer to it is a crate, not an exemption.
+3.7 is the only rank from which one crate can name the box model (3.6), the display list (1.7) and
+the geometry tables (2.5) at once while staying below the viewport (3.8).
+
+### `mjx-layout-pptx` grew the rest of PowerPoint's visual vocabulary
+
+- **Tables** — the grid, column widths, row heights that *grow* to fit their text, merged and spanned
+  cells, cell insets and anchoring, effective cell fills and borders through the table style's six
+  conditional bands. Cells become `BoxFragment`s carrying a `TableCell`; the frame becomes a
+  `TableFragment`.
+- **Effects** — a shape's effective `a:effectLst`, carried on its decoration and translated into
+  `mjx-scene`'s effect chain in ECMA-376's own child order.
+- **Pictures** — `p:pic` becomes an `ImageFragment` with a handle shared by relationship id, so a
+  page that repeats a logo decodes it once.
+- **Speaker notes** — `SlideBoxModel::layout_notes` lays a notes slide out through the identical
+  walk, addressed under `mjx-session`'s notes part rather than its slides part.
+
+### `mjx-pptx` grew one reader
+
+`Presentation::shape_preset` answers a shape's `a:prstGeom@prst`. `shape_geometry` answers the
+*typed adjustments* and carries no `ST_ShapeType` token, so before this there was no way for a
+renderer to ask which preset a shape draws — which the first end-to-end render found the moment it
+needed to feed a geometry provider.
+
+### The gates that would catch a silent regression
+
+- **Every effect proved by its absence failing.** Each of the seven is rendered with and without,
+  and the pixels must differ; and no two kinds may rasterise identically, which refuses a
+  translation that mapped them all onto one.
+- **Merged cells that a naive walk gets wrong** — a 4×3 grid carrying a horizontal merge, a vertical
+  merge and a second horizontal merge outside the header row, asserted on rectangles and counts.
+- **Nested group transforms compose** — a shape two groups deep, each scaling, where the right
+  answer (6×) and the single-application defect (3×) are different numbers.
+- **Stand-ins are counted, not assumed** — the painter's `placeholders` is compared against the
+  geometry provider's own count of unanswerable handles, taken before the render.
+
+### ⚠ A defect this release asserts rather than fixes
+
+`mjx-dml`'s `resolve_fill` / `resolve_line` / `resolve_effects` bake every colour to a
+`ColorSpec::Srgb` hex **triplet**, which has no alpha channel — so an `a:alpha` transform is lost.
+The standard Office theme puts `<a:alpha val="63000"/>` on the shadow of every shape, so a shadow
+renders **solid** where the document asks for 63 %.
+`crates/mjx-scene-pptx/tests/the_opacity_is_lost_at_the_spec_boundary.rs` proves the loss off a real
+fixture and records what fixing it costs. It is a work item of its own: `ColorSpec` is constructed at
+263 sites and matched in both bindings.
+
+### ⚠ Nothing here is parity with PowerPoint
+
+Every behaviour chosen rather than read is marked `GUESS:` at its site. Confirmation is a human
+sitting against real Microsoft Office on Windows.
+
 ## [0.0.144] - 2026-09-08
 
 **A `.pptx` becomes a `FragmentTree` — the first real box model (MJXOFF-169, R14).**

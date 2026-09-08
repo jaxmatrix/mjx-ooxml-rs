@@ -69,6 +69,16 @@ members = [
     # markup crate is a legal downward edge, so *a box model resolves no geometry paths* is held by
     # `crates/mjx-layout-pptx/tests/the_seam_holds.rs` naming `mjx-geometry`, and by nothing here.
     "crates/mjx-layout-pptx",
+    # PowerPoint's companion to the box model — rank 3.7 (MJXOFF-170). The `ResourceResolver` that
+    # turns the handles `mjx-layout-pptx` issued into `mjx-scene`'s paints, strokes and effects, and
+    # the `GeometryProvider` that turns its outline handles into `mjx-geometry`'s preset paths. It is
+    # a crate of its own rather than a module of the box model because
+    # `crates/mjx-layout-pptx/tests/the_seam_holds.rs` refuses `mjx-scene` there **by name**: a box
+    # model that built a display list would have merged two stages the architecture separates on
+    # purpose. Rank 3.7 is the only position from which one crate can name the box model (3.6), the
+    # display list (1.7) and the geometry tables (2.5) at once, and it is below `mjx-view` (3.8) so a
+    # viewport still reaches PowerPoint through nothing.
+    "crates/mjx-scene-pptx",
     # Viewport windowing, byte-budgeted per-stage caches and frame scheduling — rank 3.8
     # (MJXOFF-168). It materialises the pages on screen plus a small prefetch ring, holds every
     # stage that keeps something expensive under a declared byte ceiling, and gives a frame a time
@@ -141,7 +151,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.144"
+version = "0.0.145"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -277,6 +287,7 @@ mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
 mjx-session = { path = "crates/mjx-session" }
 mjx-layout-pptx = { path = "crates/mjx-layout-pptx" }
+mjx-scene-pptx = { path = "crates/mjx-scene-pptx" }
 mjx-view = { path = "crates/mjx-view" }
 mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }

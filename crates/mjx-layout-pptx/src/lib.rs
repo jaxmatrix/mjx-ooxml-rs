@@ -63,12 +63,25 @@
 //! (`docs/validation/07-the-reference-pack.md`). LibreOffice is a change detector and not a
 //! reference.
 //!
-//! # What is not here
+//! # What is here since R15, and what is still not
 //!
-//! Tables, groups' own decoration, effects and images are R15; charts and SmartArt are R23;
-//! animations are not in this loop at all. A picture and a graphic frame are laid out as the boxes
-//! they occupy, so they are hit-testable and take up their room, and nothing moves when they grow
-//! into real fragments.
+//! MJXOFF-170 added the rest of PowerPoint's visual vocabulary: **tables** (the grid, rows that grow
+//! to fit their text, merged and spanned cells, cell insets and anchoring, effective fills and
+//! borders through the table style's six conditional bands), **effects** (a shape's effective
+//! `a:effectLst`, carried on its decoration for the scene builder to translate), **pictures**
+//! (a `p:pic` becomes an [`ImageFragment`](mjx_layout::ImageFragment) whose handle is shared by
+//! relationship id, so a page that repeats a logo decodes it once), and **speaker notes**
+//! ([`SlideBoxModel::layout_notes`], the same walk under a different part).
+//!
+//! Charts and SmartArt are R23 and animations are not in this loop at all. A graphic frame holding
+//! one is laid out as the box it occupies, so it is hit-testable and takes up its room, and nothing
+//! moves when it grows into real fragments.
+//!
+//! **Two things a picture does not carry, and neither is this crate's to fix.** `a:srcRect` and the
+//! image adjustments (`a:duotone`, `a:clrChange`, `a:alphaModFix`, `a:lum`) are not modelled
+//! anywhere in this workspace — `mjx-dml`'s `PictureFill` preserves them as opaque `RawNode`s and
+//! exposes the relationship id and the tile/stretch mode alone — so a picture is laid out whole and
+//! unadjusted. Consuming them needs them modelled first.
 //!
 //! **Shape geometry is a handle, deliberately.** A [`ShapeFragment`](mjx_layout::ShapeFragment)
 //! carries a [`GeometryRef`](mjx_layout::GeometryRef) and the provider that turns it into an outline
@@ -84,13 +97,20 @@ pub mod bullet;
 pub mod deck;
 pub mod error;
 pub mod model;
+pub mod table;
 pub mod text;
 
 pub use address::{TextHit, LAYOUTS, MASTERS, NOTES, SLIDES};
 pub use autofit::{AutofitOutcome, AutofitPolicy};
 pub use body::{PlacedBody, PlacedColumn, PlacedLine, PlacedMarker, PlacedPiece, VerticalLayout};
 pub use bullet::{AutoNumberCounters, Marker};
-pub use deck::{Paragraph, Run, Shape, ShapeDecoration, Slide, SlideDeck, TextBody};
+pub use deck::{
+    Cell, CellInsets, Paragraph, PictureContent, Run, Shape, ShapeContent, ShapeDecoration, Slide,
+    SlideDeck, TableContent, TextBody, CELL_EDGES,
+};
 pub use error::SlideLayoutError;
-pub use model::{constraints_for, Decoration, PageCatalogue, ShapeOutlineRequest, SlideBoxModel};
+pub use model::{
+    constraints_for, Decoration, ImageRequest, PageCatalogue, ShapeOutlineRequest, SlideBoxModel,
+};
+pub use table::{PlacedCell, PlacedTable};
 pub use text::{RunStyle, TabStops, TextEngine};

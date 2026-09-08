@@ -3,6 +3,7 @@
 
 use mjx_dml::{BoundedAdjustment, CustomGeometry, GuideContext, PresetGeometry, Transform2D};
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement};
+use mjx_ooxml_types::drawingml::PresetShapeType;
 
 use crate::address::ShapePath;
 use crate::error::PptxError;
@@ -150,6 +151,46 @@ impl Presentation {
         let slot = slide::shape_transform_slot_mut(shape, interner)?;
         transform.apply(slot, interner);
         Ok(())
+    }
+
+    /// Which **preset** shape `shape_idx` on `surface` draws (`a:prstGeom@prst`), or `None` when it
+    /// draws a custom path, states no geometry of its own, or names a `prst` this build does not
+    /// know. Reading does not dirty the part.
+    ///
+    /// # Why this is not the same question as [`shape_geometry`](Self::shape_geometry)
+    ///
+    /// `shape_geometry` answers with a [`Geometry::Preset`] carrying a typed
+    /// [`ShapeGeometry`](mjx_dml::ShapeGeometry) — *"a rounded rectangle whose corner radius is
+    /// 0.16"* — which is the shape's **adjustments**, named for the shape they belong to. It does
+    /// not carry the `ST_ShapeType` token, and it cannot: a preset with no adjustments has a typed
+    /// variant with no fields, and one this build has not ported to the typed tier reads as
+    /// `Unmodeled`.
+    ///
+    /// A renderer needs the token itself, because that is what indexes the preset path tables. So
+    /// this is the reader that answers it, and the pair — this plus
+    /// [`shape_adjustments`](Self::shape_adjustments) — is everything a geometry provider takes.
+    /// Added by MJXOFF-170, when the first end-to-end render found there was no way to ask.
+    ///
+    /// A `prst` this build does not recognise answers `None` rather than an error, deliberately:
+    /// an unknown token is a shape a *future* version of the format defines, and it must reach a
+    /// renderer's stand-in — which is counted — rather than fail the page.
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range or the slide is malformed.
+    pub fn shape_preset(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+    ) -> Result<Option<PresetShapeType>, PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree(&slide_part)?;
+        let shape = resolve_shape_ref(doc, surface, &shape_idx.into())?;
+        let Some(prst_geom) = slide::shape_prstgeom(shape, &doc.interner) else {
+            return Ok(None);
+        };
+        let geometry = PresetGeometry::from_xml(prst_geom, &doc.interner)?;
+        Ok(geometry.preset(&doc.interner))
     }
 
     /// The geometry of shape `shape_idx` on `surface`, as a [`Geometry`] — a preset shape

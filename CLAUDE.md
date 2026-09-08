@@ -44,6 +44,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
   | 3.6 — PowerPoint's box model | `mjx-layout-pptx` |
+  | 3.7 — PowerPoint's scene companion | `mjx-scene-pptx` |
   | 3.8 — the viewport | `mjx-view` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
@@ -124,7 +125,24 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   legal downward edge for ever, so *a box model says which shape at what size and never resolves an
   outline* — the property that keeps `docs/UI_PLATFORM_PLAN.md` §4 L4's `GeometryProvider` swappable
   — is held by `crates/mjx-layout-pptx/tests/the_seam_holds.rs`, which checks **both** dependency
-  sections, and by nothing else. `mjx-sml` sits between
+  sections, and by nothing else.
+
+  **`mjx-scene-pptx` at 3.7 (MJXOFF-170) exists because that same gate forbids the edge that would
+  have made it a module.** `mjx_scene::ResourceResolver` is documented as implemented by *the box
+  model's companion — the layer that issued the handles*, and for PowerPoint that layer is
+  `mjx-layout-pptx`; but its seam gate refuses `mjx-scene` **by name**, on the ground that a box
+  model which built a display list would have merged two stages the architecture separates on
+  purpose. The gate is right and the answer to it is a crate. **3.7 is the only rank it can have**:
+  it must name the box model (3.6) for the handles, the display list (1.7) for what they resolve
+  into and the geometry tables (2.5) for the outlines — one step above the highest of the three —
+  and it must stay below `mjx-view` (3.8), or a viewport would reach PowerPoint through it and stop
+  being format-agnostic. What the rank does not buy is, again, the other direction: every format
+  crate is a legal downward edge from 3.7, so *a resolver reads no document* is held by
+  `crates/mjx-scene-pptx/tests/the_seam_holds.rs`, which refuses `mjx-pptx` in `[dependencies]` and
+  permits it in `[dev-dependencies]` — a suite that proves a real deck's fills resolve has to open
+  one.
+
+  `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
