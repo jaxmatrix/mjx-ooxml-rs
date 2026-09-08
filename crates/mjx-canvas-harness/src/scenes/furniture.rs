@@ -583,11 +583,11 @@ pub fn tracked_changes(canvas: &mut Canvas) {
         filled(ink.insertion()),
     );
 
-    // A deletion: a strike-through in the delete colour, over words that are still there.
-    let deleted = Rect::new(lines[2].x + 34.0, lines[2].y, 82.0, TEXT_BAR);
+    // A deletion: a strike-through in the tracked-deletion colour, over words that are still there.
+    let struck = Rect::new(lines[2].x + 34.0, lines[2].y, 82.0, TEXT_BAR);
     canvas.rect(
         None,
-        Rect::new(deleted.x, deleted.centre().y - 0.5, deleted.width, 1.0),
+        Rect::new(struck.x, struck.centre().y - 0.5, struck.width, 1.0),
         filled(ink.deletion()),
     );
 

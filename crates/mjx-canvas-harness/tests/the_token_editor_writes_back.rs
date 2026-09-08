@@ -150,7 +150,11 @@ fn a_value_is_written_in_the_shape_its_own_type_calls_for() {
         .expect("600 is a font weight");
     let (start, end) = tokens_source::value_span(&before, "font-weight.medium")
         .expect("`font-weight.medium` is in the source");
-    assert_eq!(&before[start..end], "500", "it is a bare number in the source");
+    assert_eq!(
+        &before[start..end],
+        "500",
+        "it is a bare number in the source"
+    );
     assert_eq!(
         &weight.text[start..start + 3],
         "600",
@@ -158,9 +162,10 @@ fn a_value_is_written_in_the_shape_its_own_type_calls_for() {
     );
     assert!(!weight.previous_was_alias);
 
-    let leading = tokens_source::rewrite(&before, "--leading-tight", "1.4").expect("1.4 is a number");
-    let (start, end) =
-        tokens_source::value_span(&before, "leading.tight").expect("`leading.tight` is in the source");
+    let leading =
+        tokens_source::rewrite(&before, "--leading-tight", "1.4").expect("1.4 is a number");
+    let (start, end) = tokens_source::value_span(&before, "leading.tight")
+        .expect("`leading.tight` is in the source");
     assert_eq!(&before[start..end], "1.25");
     assert_eq!(&leading.text[start..start + 3], "1.4");
 

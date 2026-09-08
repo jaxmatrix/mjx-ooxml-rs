@@ -329,9 +329,7 @@ fn json_value_after(text: &str, key: &str) -> Option<(usize, usize)> {
     let at = text.find(&needle)?;
     let after = at + needle.len();
     let colon = after + text[after..].find(':')? + 1;
-    let start = colon
-        + text[colon..]
-            .find(|character: char| !character.is_whitespace())?;
+    let start = colon + text[colon..].find(|character: char| !character.is_whitespace())?;
     let bytes = text.as_bytes();
     match bytes.get(start)? {
         b'"' => {
@@ -356,7 +354,9 @@ fn json_value_after(text: &str, key: &str) -> Option<(usize, usize)> {
             // to mean *"to the end"* rather than *"not present"*: reading it the other way is what
             // left `font-weight.*` and `leading.*` uneditable after the array case was fixed, which
             // the suite caught twice in a row.
-            let stop = text[start..].find([',', '}', '\n']).unwrap_or(text.len() - start);
+            let stop = text[start..]
+                .find([',', '}', '\n'])
+                .unwrap_or(text.len() - start);
             Some((start, start + text[start..start + stop].trim_end().len()))
         }
     }
@@ -380,18 +380,18 @@ pub fn json_for(custom_property: &str, value: &str) -> Result<String, WriteBackE
     probe
         .set_custom_property(custom_property, value)
         .map_err(|error| WriteBackError::Malformed(error.to_string()))?;
-    let parsed = probe
-        .custom_property(custom_property)
-        .ok_or_else(|| WriteBackError::UnknownToken {
-            custom_property: custom_property.to_owned(),
-        })?;
+    let parsed =
+        probe
+            .custom_property(custom_property)
+            .ok_or_else(|| WriteBackError::UnknownToken {
+                custom_property: custom_property.to_owned(),
+            })?;
     Ok(match parsed {
         TokenValue::Number(number) => format!("{number}"),
         TokenValue::FontWeight(weight) => format!("{weight}"),
-        TokenValue::CubicBezier(curve) => format!(
-            "[{}, {}, {}, {}]",
-            curve.x1, curve.y1, curve.x2, curve.y2
-        ),
+        TokenValue::CubicBezier(curve) => {
+            format!("[{}, {}, {}, {}]", curve.x1, curve.y1, curve.x2, curve.y2)
+        }
         other => format!("\"{}\"", escape_json(&other.to_string())),
     })
 }

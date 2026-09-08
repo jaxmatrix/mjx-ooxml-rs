@@ -8,7 +8,7 @@
 //!
 //! There is no `<canvas>`, no SVG generation, no plotting library and no drawing of any kind in the
 //! script below. The element under audit is an `<img>` whose bytes came out of
-//! [`crate::render`] — through `mjx-layout`'s fragment tree, `mjx-scene`'s display list and
+//! [`mod@crate::render`] — through `mjx-layout`'s fragment tree, `mjx-scene`'s display list and
 //! `mjx-paint`'s software painter — and so are the ruler, the hit-test overlay and the page the
 //! element sits on. The script changes a URL and sets `src`.
 //!
