@@ -29,6 +29,12 @@
 use mjx_ooxml_types::child_order;
 use mjx_opc::{Package, PartName};
 
+// The rule for "this content type names an XML payload" is [`crate::inspect`]'s, *called* rather
+// than restated. It stood here as a second copy of the same three lines until MJXOFF-221 found
+// both copies matching `vmlDrawing` case-sensitively; two copies of a string-literal guard are two
+// places for the next one to go wrong.
+use crate::inspect::is_xml_content_type;
+
 use crate::categories::{categorise, NamespaceCategory, OrderingCoverage};
 
 /// The least number of elements an audited part must have visited, **when its root has element
@@ -73,13 +79,6 @@ impl AuditedPart {
             MINIMUM_ELEMENTS_VISITED
         }
     }
-}
-
-/// Whether a content type names an XML payload — the same rule the inspection side uses.
-fn is_xml_content_type(content_type: &str) -> bool {
-    content_type.ends_with("+xml")
-        || content_type.ends_with("/xml")
-        || content_type.ends_with("vmlDrawing")
 }
 
 /// What one child-order audit found, **without panicking on any of it**.
