@@ -60,6 +60,15 @@ members = [
     # it. Everything in it outside `src/ooxml/` is generic over `ResidentDocument` and names no
     # format crate at all, so the box-model seam survives editing.
     "crates/mjx-session",
+    # PowerPoint's box model — rank 3.6 (MJXOFF-169). The first implementation of
+    # `mjx_layout::BoxModel` and the first code in the workspace that turns a real `.pptx` into a
+    # `FragmentTree`: slide geometry, the shape tree in z-order, text-body layout, bullets and
+    # autofit. It sits above the format tier because it consumes `mjx-pptx`'s effective-property
+    # ladder rather than re-deriving it, and below `mjx-view` so a viewport still cannot reach a
+    # format crate through it. What the rank does **not** buy is the other direction: at 3.6 every
+    # markup crate is a legal downward edge, so *a box model resolves no geometry paths* is held by
+    # `crates/mjx-layout-pptx/tests/the_seam_holds.rs` naming `mjx-geometry`, and by nothing here.
+    "crates/mjx-layout-pptx",
     # Viewport windowing, byte-budgeted per-stage caches and frame scheduling — rank 3.8
     # (MJXOFF-168). It materialises the pages on screen plus a small prefetch ring, holds every
     # stage that keeps something expensive under a declared byte ceiling, and gives a frame a time
@@ -132,7 +141,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.143"
+version = "0.0.144"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -267,6 +276,7 @@ mjx-pptx = { path = "crates/mjx-pptx" }
 mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
 mjx-session = { path = "crates/mjx-session" }
+mjx-layout-pptx = { path = "crates/mjx-layout-pptx" }
 mjx-view = { path = "crates/mjx-view" }
 mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }

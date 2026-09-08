@@ -43,6 +43,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
+  | 3.6 — PowerPoint's box model | `mjx-layout-pptx` |
   | 3.8 — the viewport | `mjx-view` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
@@ -111,7 +112,19 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   crate is generic over `mjx-layout`'s `BoxModel` and over its own `SceneSource` and names no
   implementation of either, and it declares `mjx-session` with `default-features = false`, so a plain
   `cargo test -p mjx-view` is a build in which the three format crates are **not present** and a line
-  that reached one would not compile. `mjx-sml` sits between
+  that reached one would not compile. **`mjx-layout-pptx` (MJXOFF-169) sits between them at 3.6**,
+  and it is the first implementation of `mjx_layout::BoxModel` and the first code in the workspace
+  that turns a real `.pptx` into a `FragmentTree`: slide geometry, the shape tree in z-order,
+  text-body layout, the nine bullet levels and autofit. It is above the format tier because it
+  **consumes** `mjx-pptx`'s effective-property ladder rather than re-deriving it, and there is no way
+  to do that from below. What its rank buys is the one thing that matters most: **`mjx-layout` at 1.6
+  cannot depend on it**, so the box-model contract stays a contract instead of quietly becoming
+  PowerPoint's own shape — and neither can `mjx-pptx`, which therefore cannot grow a layout engine.
+  What it does not buy is the other direction: at 3.6, `mjx-layout-pptx → mjx-geometry` (2.5) is a
+  legal downward edge for ever, so *a box model says which shape at what size and never resolves an
+  outline* — the property that keeps `docs/UI_PLATFORM_PLAN.md` §4 L4's `GeometryProvider` swappable
+  — is held by `crates/mjx-layout-pptx/tests/the_seam_holds.rs`, which checks **both** dependency
+  sections, and by nothing else. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be

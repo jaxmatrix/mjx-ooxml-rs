@@ -40,6 +40,7 @@
 //! [`CT_TextBody`]: TextBody
 
 mod body;
+mod body_properties;
 mod bullet;
 mod character;
 mod field;
@@ -51,6 +52,7 @@ mod paragraph_properties;
 mod run;
 
 pub use body::{TextBody, TextBodyContent};
+pub use body_properties::{TextAutofit, TextBodyProperties, TextBodyPropertiesSpec, TextWrapping};
 pub use bullet::{
     AutoNumberBullet, AutonumberScheme, Bullet, BulletCharacter, BulletColor, BulletPicture,
     BulletSize, BulletTypeface,

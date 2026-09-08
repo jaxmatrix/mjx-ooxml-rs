@@ -1,0 +1,45 @@
+[package]
+name = "mjx-layout-pptx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "PowerPoint's box model: a slide's shape tree, its text bodies, its bullets and its autofit, turned into a mjx-layout FragmentTree."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. `Emu` and `Angle` — the unit every fragment is positioned in.
+mjx-ooxml-core.workspace = true
+# Rank 1.5. The font engine. Every measurement in this crate comes from here; none is made here.
+mjx-text.workspace = true
+# Rank 1.6. The contract this crate implements: `BoxModel`, `FragmentTree`, `Checkpoint`,
+# `SourceRef`. The seam above which nothing has heard of OOXML — and this crate is the first thing
+# below it that has.
+mjx-layout.workspace = true
+# Rank 2.0. `a:bodyPr`, `a:pPr` and `a:rPr` as values: the specs `mjx-pptx`'s effective-property
+# resolvers answer with. This crate reads those values; it never resolves a ladder itself.
+mjx-dml.workspace = true
+# Rank 3.0. The deck, the shape tree, the placeholder inheritance chain and the seven-tier
+# effective-property ladder. **Consumed, never re-derived** — that is the whole reason this crate is
+# above the format tier rather than inside it.
+mjx-pptx.workspace = true
+thiserror.workspace = true
+
+# `mjx-geometry` (rank 2.5) is deliberately NOT a dependency, and this is a decision rather than an
+# omission. A `ShapeFragment` carries a `GeometryRef` — a bare number — and resolving it is the scene
+# builder's job, not the box model's. Declaring the edge would let a preset path list reach a
+# `FragmentTree`, which is the one thing `docs/UI_PLATFORM_PLAN.md` §4 L4's provider seam exists to
+# prevent. This crate says *this shape, at this size, with these adjustments* and stops there.
+
+[dev-dependencies]
+# The committed corpus, so the suites below derive their fixtures from one place rather than from a
+# `const FIXTURES` list.
+mjx-fixtures.workspace = true
+# Rank 1.0, test-only. `PlaceholderType`, so a suite can say *the title placeholder* rather than
+# guessing an index out of a fixture. Nothing in `src/` names it: a box model asks `mjx-pptx` where a
+# shape is and never asks what slot it fills.
+mjx-ooxml-types.workspace = true

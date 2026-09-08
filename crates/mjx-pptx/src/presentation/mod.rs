@@ -13,6 +13,7 @@ use crate::geometry::SlideSize;
 use crate::{blank, constants, nav};
 
 mod appearance;
+mod body;
 mod bounds;
 mod cells;
 mod chart_decoration;

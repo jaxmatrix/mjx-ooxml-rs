@@ -173,6 +173,30 @@ enum Tier {
     /// (`--no-default-features`). `crates/mjx-session/tests/the_seam_holds.rs` is what holds that, by
     /// name and by file count, exactly as `mjx-paint`'s does for the seam its rank cannot hold.
     Session,
+    /// `mjx-layout-pptx` — rank 3.6 (MJXOFF-169). PowerPoint's box model: the first implementation
+    /// of `mjx_layout::BoxModel` and the first code in the workspace that turns a real `.pptx` into
+    /// a `FragmentTree`.
+    ///
+    /// It is above the format tier because it **consumes** `mjx-pptx`'s effective-property ladder —
+    /// `effective_shape_bounds`, `effective_body_properties`, `effective_run_properties` — rather
+    /// than re-deriving it, and there is no way to do that from below. It is below `mjx-view` so a
+    /// viewport still cannot reach a format crate through it, and above `mjx-session` so that
+    /// nothing in the editing path can reach a layout engine.
+    ///
+    /// **What the rank buys** is one thing, and it is the one that matters most: `mjx-layout` at 1.6
+    /// cannot depend on this crate, so the box-model *contract* stays a contract rather than
+    /// quietly becoming PowerPoint's own shape. The same holds for `mjx-pptx`, which cannot grow a
+    /// layout engine, and for `mjx-dml`, which cannot reach a `FragmentTree`.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.6,
+    /// `mjx-layout-pptx -> mjx-geometry` (2.5), `-> mjx-chart` (2.2) and `-> mjx-vml` (2.2) are all
+    /// legal *downward* edges and always will be, so the property the crate exists to hold — *a box
+    /// model says which shape at what size and never resolves an outline*, which is what keeps
+    /// `docs/UI_PLATFORM_PLAN.md` §4 L4's `GeometryProvider` swappable — is held by
+    /// `crates/mjx-layout-pptx/tests/the_seam_holds.rs` and by nothing here. That gate checks
+    /// **both** dependency sections, because a dev-dependency on `mjx-geometry` would let a test
+    /// resolve a preset path and call it proof that the box model does.
+    LayoutPresentation,
     /// `mjx-view` — rank 3.8 (MJXOFF-168). Viewport windowing, byte-budgeted per-stage caches and
     /// frame scheduling: the layer that makes a four-hundred-page document behave.
     ///
@@ -333,6 +357,7 @@ impl Tier {
             Self::PresetGeometry => Rank(2, 5),
             Self::Formats => Rank(3, 0),
             Self::Session => Rank(3, 5),
+            Self::LayoutPresentation => Rank(3, 6),
             Self::Viewport => Rank(3, 8),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
@@ -363,6 +388,7 @@ impl Tier {
             Self::PresetGeometry => "preset geometry",
             Self::Formats => "formats",
             Self::Session => "the resident document",
+            Self::LayoutPresentation => "PowerPoint's box model",
             Self::Viewport => "the viewport",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
@@ -410,6 +436,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-docx", Tier::Formats),
     ("mjx-xlsx", Tier::Formats),
     ("mjx-session", Tier::Session),
+    ("mjx-layout-pptx", Tier::LayoutPresentation),
     ("mjx-view", Tier::Viewport),
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),

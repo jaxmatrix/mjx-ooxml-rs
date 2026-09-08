@@ -995,7 +995,7 @@ pub(super) enum Candidate {
 ///
 /// Takes the document rather than the package so the caller owns the borrow and can extract what it
 /// needs before the next candidate is fetched.
-fn candidate_shape(
+pub(super) fn candidate_shape(
     doc: &RawDocument,
     candidate: Candidate,
 ) -> Result<Option<&RawElement>, PptxError> {
