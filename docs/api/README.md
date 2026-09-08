@@ -138,6 +138,28 @@ than orphans beside them.
 | [The stylesheet](../../crates/mjx-sml/docs/guide/the_stylesheet.md) | `mjx-sml` | The `xf` indirection, indices as identity, and the four spellings of a colour |
 | [Fidelity and the known gaps](../../crates/mjx-sml/docs/guide/fidelity_and_gaps.md) | `mjx-sml` | The four mechanisms, half a schema preserved, and what no gate here can see |
 
+## The upper shared markup — `mjx-chart`, `mjx-omml`, `mjx-vml`
+
+One guide set over the three crates of **rank 2.2**, because they are one thing: the markup that sits
+*on top of* DrawingML and SpreadsheetML rather than beside them. Only `mjx-chart` uses the height — it
+reaches `mjx-sml` for the workbook a chart embeds and `mjx-dml` for everything a chart draws with —
+and none of the three may see the other two, which is why the last two pages are hosted by their own
+crates exactly as the packaging tier's MCE page is.
+
+**The three do not carry the same guarantee.** `mjx-chart` and `mjx-omml` are schema-validated and
+child-ordered from the XSD; a VML part is neither, and the round trip is the only check it has.
+
+| Page | Crate | What it covers |
+|---|---|---|
+| [Guide index](../../crates/mjx-chart/docs/guide/README.md) | `mjx-chart` | What rank 2.2 is, which crate reaches which, and where the guarantees differ |
+| [Reading a chart](../../crates/mjx-chart/docs/guide/reading_a_chart.md) | `mjx-chart` | The chart-space spine, the sixteen plot types and a series' four data sources |
+| [Axes, titles and decoration](../../crates/mjx-chart/docs/guide/axes_titles_and_decoration.md) | `mjx-chart` | The furniture, the three tiers a data label inherits over, and the schema's own refusals |
+| [Authoring a chart](../../crates/mjx-chart/docs/guide/authoring_a_chart.md) | `mjx-chart` | Building one from a description, and the two places a chart's data can live |
+| [The embedded workbook](../../crates/mjx-chart/docs/guide/the_embedded_workbook.md) | `mjx-chart` | Why a data edit patches rather than regenerates, and the eight references it refuses |
+| [Fidelity and the known gaps](../../crates/mjx-chart/docs/guide/fidelity_and_gaps.md) | `mjx-chart` | The two mechanisms, what checks each crate, and what no gate here can see |
+| [Office MathML](../../crates/mjx-omml/docs/office_math.md) | `mjx-omml` | What OMML is and is not, and the `w:rPr` inside it that this crate may not name |
+| [Legacy VML](../../crates/mjx-vml/docs/legacy_vml.md) | `mjx-vml` | The weaker guarantee, the `spid` hop, and the whitespace a start tag comes back with |
+
 ## Shared markup
 
 | Page | Crate | What it covers |

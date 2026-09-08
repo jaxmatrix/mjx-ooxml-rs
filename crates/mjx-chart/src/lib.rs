@@ -75,6 +75,8 @@ mod plot;
 mod space;
 mod view;
 
+pub mod guide;
+
 pub use author::{ChartData, ChartDataError, ChartRanges, ChartSeriesRange};
 pub use axis::{
     Axis, AxisContent, AxisKind, AxisOrientation, AxisPosition, BlankDisplay, ChartTitle,
