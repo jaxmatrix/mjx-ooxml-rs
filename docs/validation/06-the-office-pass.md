@@ -153,13 +153,22 @@ the schema does not object to the extension, it objects to the hole the resoluti
 
 ## 6 · What this pass cannot exercise, and why
 
-Seven checks are **blocked** — each is a question the pass wants answered and cannot yet ask. They are
+Six checks are **blocked** — each is a question the pass wants answered and cannot yet ask. They are
 not oversights, and they are listed here rather than left for you to discover one at a time at the
 desk.
 
+**One came off this list.** `V-PPTX-02.4` — the colour transforms against PowerPoint's eyedropper —
+was the seventh, and the only entry in the pass with *no artefact at all*: `ColorSpec` carried a
+colour's kind and value and no transform children, so no facade call could author a `comp`, `gray`,
+`gamma` or `invGamma`, and no committed fixture has one. `MJXOFF-219` gave `ColorSpec` the whole of
+`EG_ColorTransform`, and `v-pptx-02-authored.pptx` now opens with two rows of swatches to point the
+eyedropper at. The corpus was never going to unblock it — PowerPoint's own interface exposes none of
+the four, so a saved file is unlikely to contain one — which is why it needed a code change rather
+than a file. It is R3, the third-highest risk item in the repository, and it is now the pass's to
+answer rather than the pass's to skip.
+
 | Check | Why it has no file | Does the corpus unblock it? |
 |---|---|---|
-| `V-PPTX-02.4` — the four colour transforms against PowerPoint's eyedropper | `ColorSpec` carries a colour's kind and value and **no transform children**, so no facade call authors a `comp`, `gray`, `gamma` or `invGamma`, and no committed fixture has one | **Probably not.** PowerPoint's own interface exposes none of the four, so a saved file is unlikely to contain one either. **This is R3, the third-highest risk item in the repository, and it has no artefact at all.** Closing it needs a colour-transform surface on `ColorSpec` — a code change, not a file |
 | `V-PPTX-07.6` — is `None` right for a rotation-only transform? | `set_shape_transform` writes only the fields its argument names, so no facade call can author a transform naming a rotation and neither `a:off` nor `a:ext` | Only if a real deck happens to carry one. This is also a **design question** — see §7 |
 | `V-PPTX-01.8` — a `+mj-sym` reference the theme does not define | `CharacterPropertiesSpec` has no font setter | Yes, given a deck whose theme leaves the symbol slot undefined |
 | `V-PPTX-02.13` — `p:oleObj@spid` naming a `v:shape@id` | asserted only against markup we authored | Yes, given a deck with an OLE object and its VML backing |
