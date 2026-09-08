@@ -1,7 +1,7 @@
 # Guide
 
 **`mjx-ooxml-types` is the vocabulary every other crate here is written in, and almost none of it was
-written by a person.** 84,107 of its 85,296 lines are emitted by `xtask/src/codegen/` from the
+written by a person.** 84,128 of its 85,399 lines are emitted by `xtask/src/codegen/` from the
 ECMA-376 XSD schemas; 1,189 are hand-written. It declares no model, opens no package and parses no
 XML. It answers three questions and nothing else:
 
@@ -34,7 +34,7 @@ a table here that you have not verified against the schema yourself.**
 
 | | Lines | Written by | Checked by |
 |---|---:|---|---|
-| `crates/mjx-ooxml-types/src/generated/*.rs` — nine simple-type modules, the child-order tables, the namespace table, the module root | 84,107 | `xtask/src/codegen/` | `xtask/tests/codegen_drift.rs` (needs `References/`) |
+| `crates/mjx-ooxml-types/src/generated/*.rs` — nine simple-type modules, the child-order tables, the namespace table, the module root | 84,128 | `xtask/src/codegen/` | `xtask/tests/codegen_drift.rs` (needs `References/`) |
 | `COVERAGE.md` — which schema is covered in which table | — | the same generator, from its own tables | `xtask/tests/codegen_drift.rs`, `mjx_schema_gate::categories` |
 | `crates/mjx-ooxml-types/src/child_order.rs` — the placement primitives the tables are expressed in | 730 | by hand | its own `#[cfg(test)]` suite |
 | `crates/mjx-ooxml-types/src/support.rs` — the wire-parse error, the three boolean normalizers, four attribute codecs | 319 | by hand | `crates/mjx-ooxml-types/tests/wire.rs` |
@@ -53,7 +53,7 @@ a generated item from quietly failing to reach them.
 | Page | Read it when |
 |---|---|
 | [What is generated](what_is_generated) | You want to know what is actually in here — the nine modules, the 360 simple types, and the shape of every emitted item |
-| [Child order](child_order) | You are writing a serializer, or you want to know why 59,512 of these lines exist |
+| [Child order](child_order) | You are writing a serializer, or you want to know why 59,529 of these lines exist |
 | [The naming convention](the_naming_convention) | You are looking at a name and wondering where it came from, or you are about to add one |
 | [Regenerating](regenerating) | You are changing the generator, or `codegen` has just failed on you |
 | [What to distrust](what_to_distrust) | **Before relying on anything above** |

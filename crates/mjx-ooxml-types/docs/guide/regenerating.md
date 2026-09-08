@@ -31,7 +31,7 @@ reasons are good ones.
 
 * A `build.rs` would make every consumer's build depend on a **5,000-page specification** that is not
   redistributable, is not in the tree, and would have to be downloaded.
-* It would put an XSD parse and a `rustfmt` invocation of 84,107 lines on the critical path of every
+* It would put an XSD parse and a `rustfmt` invocation of 84,128 lines on the critical path of every
   clean build, in every downstream crate, forever.
 * The output is the thing people read. `crates/mjx-ooxml-types/src/generated/wordprocessingml.rs` is
   browsable, greppable and diffable in review; a `build.rs` artefact under `target/` is none of

@@ -105,7 +105,7 @@ Both carry the same information, and `bindings/mjx-python/tests/test_errors.py` 
 ## Nothing else differs
 
 That is the whole list, and it is checkable rather than asserted. The two bindings export the same
-186 value classes and the same 102 enumerations; `Deck`, `Document` and `Workbook` carry 255, 123 and
+181 value classes and the same 102 enumerations; `Deck`, `Document` and `Workbook` carry 255, 123 and
 138 methods **in both languages, method for method**, read off
 `bindings/mjx-python/python/mjx_ooxml/__init__.pyi` and the generated `mjx_ooxml.d.ts` rather than
 off either binding's source.
