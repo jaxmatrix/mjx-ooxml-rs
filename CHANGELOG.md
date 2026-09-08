@@ -58,6 +58,88 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.137] - 2026-09-08
+
+**The reference pack — what the one Windows sitting needs, prepared in advance** (MJXOFF-207,
+Phase G position 6 of 6, the epic's last child).
+
+Seven questions have accumulated that **no agent can answer**, because each needs Microsoft Office on
+Windows and a person to run it. Arranging that is expensive, so it should happen once and cover
+everything at once. This release makes that morning four exports long.
+
+### Added — `mjx-reference-pack`, test-only, outside the rank graph
+
+A new crate that authors the artefacts and ingests what comes back. It has **no rank**, and for the
+opposite reason the other three test-only crates have none: they sit below their consumers so they
+can be reached from everywhere, and this one sits at the **top** — it names `mjx-pptx`, `mjx-docx`,
+`mjx-geometry` and `mjx-paint` together, which no shipped crate could legally do. Nothing may depend
+on it in either dependency section, and `xtask/tests/layering.rs` refuses the edge by name.
+
+**Four artefacts**, generated reproducibly (`cargo run -p mjx-reference-pack -- generate`):
+
+| File | Asks |
+|---|---|
+| `01-presets-at-their-defaults.pptx` | all 187 preset shapes at their own defaults |
+| `02-presets-at-their-extremes.pptx` | the same 187 with **every handle at an end of its domain** |
+| `03-type-specimens-and-hatches.pptx` | advance rulers and line pitch for five families, and all 54 preset hatches |
+| `04-hanging-punctuation.docx` | whether Word hangs ASCII `,` and `.` past the measure |
+
+The fourth is a `.docx` because **`w:overflowPunct` is a WordprocessingML setting**: there is no way
+to ask a `.pptx` the hanging question at all.
+
+**Four readers**, each of which refuses a number it could not see. `read_advances`,
+`read_line_pitch`, `read_hanging` and `read_hatch_tiles` turn an exported PDF into answers through
+`pdftotext -bbox-layout` and `pdftoppm`, and a probe whose words did not come back is `not evidence`
+rather than an advance of zero.
+
+**`docs/validation/07-the-reference-pack.md`** is the hand-off, a sibling of MJXOFF-130's own Office
+pass, and `tests/office-exports/` is where the exports land. **It ships empty and no
+agent may fill it**, for the reason the corpus above it ships empty: the value of an Office export is
+entirely its provenance.
+
+### Added — `Presentation::set_shape_adjustments`, the `a:avLst` writer by wire name
+
+`set_shape_geometry` writes `mjx-dml`'s **typed** `ShapeGeometry`, and a deck of every preset *at an
+extreme of its own handles* cannot be authored through it. The new call takes `&[(&str, i32)]` —
+`adj`, `adj1`, `adj5` — in the file's own units, upserts each into the shape's `a:avLst`, and leaves
+the `prst` token and every unnamed adjustment exactly as they were. All **285 adjustments across the
+119 adjustable presets** are written and read back in `crates/mjx-pptx/tests/preset_adjustments.rs`.
+
+### Fixed — the count in MJXOFF-206's hand-off, and one in `mjx-paint`'s documentation
+
+* **"An extremes deck cannot be authored for 70 of the 187" is not what the numbers say.**
+  `ShapeGeometry` has 118 variants, of which one is `Unmodeled`, so 117 presets are typed and 70 are
+  not — that arithmetic is right. But **only 119 presets have an adjustment at all**, and of those
+  **exactly two** are untyped: `sun` and `teardrop`. The other 68 untyped presets are `rect`,
+  `ellipse`, `line` and their kin, which have no handle to move and therefore no extreme to author.
+  Measured in `exactly_two_adjustable_presets_have_no_typed_variant`.
+* **`mjx_paint::pattern` said "Nine are pictorial" and listed ten.** The list was right and the count
+  was not; the length is now asserted.
+
+### Found, and reported rather than changed
+
+* **`Document::from_package` and `Presentation::from_package` refuse a package whose main part has
+  been edited.** Both probe for it with `Package::part_bytes`, which answers `None` for a part in the
+  `Edited` state — the state `part_tree_mut` leaves it in. The failure is `MissingDocumentPart`,
+  naming a part that is present and correct, and both constructors document themselves as taking
+  *"one authored part by part"*, which is exactly the case that does not work.
+* **A probe that repeats a character measures the character in a context no ordinary text puts it
+  in.** The advance ruler was built as `(run - probe) / (N - 1)` and read Arial's `f` at 260
+  thousandths of an em against a published 278, and `1` at 482 against 556 — `ff` is a ligature, and
+  a run of `1`s is shaped. The ruler now measures against an `HH` baseline box instead, which is
+  exact and shaping-free; **89 of Arial's 92 probes then read back within 0.93 thousandths of an em
+  of the published table** through LibreOffice's own export, and the run is kept as a second estimate
+  whose disagreements name the shaping.
+
+### The claim this release does *not* make
+
+**Nothing here says any shape matches PowerPoint.** Every gate in the new crate passes with no
+authoritative reference in existence, because the reference is the one thing an agent cannot produce.
+A LibreOffice run is `Provisional`, `parity_count` over one is **zero by construction**, and the
+gradient and hatch exclusions are attached to the *provider* so they lift by themselves when the
+Office exports arrive. The suites say so in their own file names —
+`the_plumbing_is_proved_and_not_the_fidelity.rs`, `an_excluded_result_is_not_evidence.rs`.
+
 ## [0.0.136] - 2026-09-08
 
 **The provider wired in, and the placeholder proved gone** (MJXOFF-206, Phase G position 5).

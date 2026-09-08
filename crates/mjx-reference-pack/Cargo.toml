@@ -1,0 +1,51 @@
+[package]
+name = "mjx-reference-pack"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test-only: the artefacts one Windows sitting needs, and the harness that ingests what comes back."
+# Never published and never depended on by a shipped crate. It is the top of the workspace: it names
+# the format tier (to author the artefacts), the geometry provider (to know what a preset is) and the
+# painter (to export and rasterise our own side), and **nothing depends on it**, which is what keeps
+# those three edges out of the shipped graph.
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 3.0. `Presentation` authors the three decks; `Document` authors the fourth artefact, because
+# `w:overflowPunct` is a WordprocessingML setting and no `.pptx` can ask the hanging question.
+mjx-pptx.workspace = true
+mjx-docx.workspace = true
+# Rank 2.5. `seeded_shapes`, `adjustment_domains` and `ShapeOutline` — what a plate *is*, what an
+# extreme *is*, and what our own side of the comparison draws.
+mjx-geometry.workspace = true
+# Rank 2.0. `FillSpec`, `LineSpec`, `CharacterPropertiesSpec` — how a plate is coloured and how a
+# type specimen states its font.
+mjx-dml.workspace = true
+# Rank 1.7. The display list our side of every comparison is built as.
+mjx-scene.workspace = true
+# Rank 1.5. `ReferenceAuthority` — the **existing** three-valued authority flag. A second one in this
+# workspace would be one too many, and `Provisional` had no constructor anywhere until this crate.
+mjx-text.workspace = true
+# Rank 0.0. `Interner` — a document's own `a:prstGeom` is built through one, and the typed
+# `MainDocument` the hanging artefact edits is read and written through one.
+mjx-ooxml-core.workspace = true
+# Rank 1.0. `PresetShapeType`, `PatternType` — the document's own vocabulary for a shape and a hatch.
+mjx-ooxml-types.workspace = true
+# Rank 5.5. `PdfPainter` exports our side, `SoftwarePainter` proves the same list rasterises, and
+# `PATTERN_MASKS` is what a measured hatch would replace.
+mjx-paint.workspace = true
+
+# Rank 1.0. The package the hanging document's paragraph properties are written through — the same
+# route `mjx-docx`'s own `tests/paragraph_properties.rs` takes, because `Document` exposes no
+# `w:pPr` writer and that crate's stated precedent is that a typed property does not grow one.
+mjx-opc.workspace = true
+
+[[bin]]
+name = "mjx-reference-pack"
+path = "src/main.rs"

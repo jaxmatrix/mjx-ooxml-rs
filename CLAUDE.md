@@ -45,7 +45,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
   | 5.5 — platform boundary | `mjx-paint` |
-  | — outside the graph | `mjx-fixtures`, `mjx-schema-gate`, `mjx-allocation-counter`, `xtask` |
+  | — outside the graph | `mjx-fixtures`, `mjx-schema-gate`, `mjx-allocation-counter`, `mjx-reference-pack`, `xtask` |
 
   **Shared markup is not flat**, and neither are the foundations. `mjx-xml` is built on
   `mjx-ooxml-core`. `mjx-tokens` (MJXOFF-156) sits above it at 0.2 and is *data*: the generated
@@ -110,16 +110,27 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   nothing else. `mjx-scene` got 1.7 so the layering gate could refuse its illegal edge by name; **no
   rank can do the same job for a painter, in either direction.** A reader who assumes the rank is
   protecting the painter's own edges has it backwards.
-- **Three test-only crates sit outside that graph:** `mjx-schema-gate` (the shared ECMA-376 schema
-  and child-order gate, a `dev-dependency` of the three format crates and a dependency of `xtask`,
-  whose `validation-artefacts --ingest` *reports* the verdicts a suite asserts), `mjx-fixtures` (the committed
-  corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can reach it
-  without an upward edge) and `mjx-allocation-counter` (the counting global allocator, also with **no
-  dependencies at all**, because its two consumers sit in different tiers — `xtask`'s fuzz campaign
-  and `mjx-sml`'s allocation gate — and nothing may depend on `xtask`). All three are
-  `publish = false` and no shipped crate depends on any of them. A test suite reads its fixture
-  corpus from `mjx-fixtures` — never from a `const FIXTURES` list — and installs its allocator from
-  `mjx-allocation-counter` rather than writing a second one.
+- **Four test-only crates sit outside that graph**, and the fourth is outside it in the *opposite*
+  direction from the other three. `mjx-schema-gate` (the shared ECMA-376 schema and child-order gate,
+  a `dev-dependency` of the three format crates and a dependency of `xtask`, whose
+  `validation-artefacts --ingest` *reports* the verdicts a suite asserts), `mjx-fixtures` (the
+  committed corpus at `tests/fixtures/`, with **no dependencies at all** so `mjx-opc`'s suites can
+  reach it without an upward edge) and `mjx-allocation-counter` (the counting global allocator, also
+  with **no dependencies at all**, because its two consumers sit in different tiers — `xtask`'s fuzz
+  campaign and `mjx-sml`'s allocation gate — and nothing may depend on `xtask`) all sit *below* their
+  consumers, which is why they carry no rank: they must be reachable from everywhere.
+
+  **`mjx-reference-pack` (MJXOFF-207) has no rank because it sits at the top.** It authors the
+  artefacts one Windows sitting needs and ingests what comes back, so it names the format tier
+  (`mjx-pptx`, `mjx-docx`), `mjx-geometry` and `mjx-paint` **together** — a set of edges no shipped
+  crate could legally declare, since 5.5 is above 3.0 and nothing in the document graph may sit above
+  the platform boundary. A rank of 6.0 would have been the wrong shape of answer: a rank promises who
+  may reach *it*, and the answer here is *nobody, in either dependency section*, which
+  `xtask/tests/layering.rs` enforces directly and more strictly than it does for the other three.
+
+  All four are `publish = false` and no shipped crate depends on any of them. A test suite reads its
+  fixture corpus from `mjx-fixtures` — never from a `const FIXTURES` list — and installs its
+  allocator from `mjx-allocation-counter` rather than writing a second one.
 - **Pure-Rust only *in the document graph*** — ranks 0 through the facade — no C/system libs. C
   tools (`xmllint`, LibreOffice) are for CI/tests only. `quick-xml` lives *only* behind `mjx-xml`;
   the ZIP backend *only* behind `mjx-opc`. PyO3 and wasm-bindgen live *only* behind `bindings/`.
@@ -278,6 +289,15 @@ cargo run -p xtask -- tokens         # regenerate the three design-token artefac
                                      #   instead of writing, which is what the tests run
 cargo run -p xtask -- fuzz           # the untrusted-input campaign; on demand, never on CI push
 cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)
+
+# The reference pack (MJXOFF-207): the four artefacts one Windows sitting needs, and the preliminary
+# LibreOffice pass over them. `preliminary` is a REPORT and not a gate — a LibreOffice disagreement
+# is a thing to look at before the sitting, never a build failure, and never parity. The exports come
+# back into tests/office-exports/, which is EMPTY and which no agent may fill:
+# docs/validation/07-the-reference-pack.md is the hand-off that says how a person does.
+cargo run -p mjx-reference-pack -- generate     target/reference-pack
+cargo run -p mjx-reference-pack -- preliminary  target/reference-pack
+cargo run -p mjx-reference-pack -- items        # the seven questions the sitting answers
 
 # The artefacts the human Microsoft Office pass reads (MJXOFF-122). It marks nothing: see
 # docs/validation/00-method.md. Two runs are byte-identical, and the two bindings produce the same

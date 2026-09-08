@@ -193,6 +193,24 @@ jobs:
       - name: office-open canary
         run: cargo test -p mjx-pptx -p mjx-docx -p mjx-xlsx --test office_open
 
+      # The reference pack (MJXOFF-207). Three things are being held here and only the first is
+      # about LibreOffice: that the four artefacts a Windows sitting needs actually generate and
+      # convert, that every one of the 187 presets gets a row in the preliminary pass rather than
+      # being silently dropped, and that the four typography readers work on a PDF this project did
+      # not write. MJX_REQUIRE_SOFFICE and MJX_REQUIRE_TOOLS (set below) turn a missing converter or
+      # a missing poppler into a failure, so this coverage can never quietly skip.
+      #
+      # **What it deliberately does not gate on is agreement.** A LibreOffice disagreement is a
+      # thing to look at before the sitting, and making it a build failure would be the first step
+      # towards editing correct code until it matches a reference that is explicitly not
+      # authoritative. The suites assert that every plate has a row and that none of it is parity.
+      - name: the reference pack, and the preliminary pass over all 187 presets
+        env:
+          MJX_REQUIRE_TOOLS: "1"
+        run: |
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          cargo test -p mjx-reference-pack
+
       # The guide's headline example must produce a deck a real Office implementation opens.
       # Documentation that cannot be executed is a claim; this makes it a gate.
       - name: the guide's deck opens
@@ -324,9 +342,13 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
-      # `mjx-schema-gate` and `mjx-fixtures` are excluded for the same reason read the other way:
-      # they are test-only, `publish = false`, and nothing shipped depends on them, so building them
-      # for five targets would widen the claim this job makes rather than support it.
+      # `mjx-schema-gate`, `mjx-fixtures` and `mjx-reference-pack` are excluded for the same reason
+      # read the other way: they are test-only, `publish = false`, and nothing shipped depends on
+      # them, so building them for five targets would widen the claim this job makes rather than
+      # support it. The reference pack is also the first member here with a **binary**, and a binary
+      # has to *link*: the Android leg has no NDK linker, so `cargo build --target
+      # aarch64-linux-android` fed its object files to the host `ld` and got *"Relocations in
+      # generic ELF (EM: 183)"*. A library target only ever produces an `rlib` and never hits that.
       # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
       # reads the backslash line-continuations below as a unary `--` and fails to parse the step
       # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
@@ -336,6 +358,7 @@ jobs:
           cargo build --workspace --exclude xtask \
             --exclude mjx-python --exclude mjx-wasm \
             --exclude mjx-schema-gate --exclude mjx-fixtures \
+            --exclude mjx-reference-pack \
             --target ${{ matrix.target }}
 
   # The two binding members, built and linted on the host. `lint-test` already covers them as part of

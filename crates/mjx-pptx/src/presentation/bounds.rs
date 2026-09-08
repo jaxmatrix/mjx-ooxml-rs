@@ -241,6 +241,56 @@ impl Presentation {
         Ok(geometry.adjustments_for_size(&doc.interner, size)?)
     }
 
+    /// Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd` entries of
+    /// its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec units. An
+    /// adjustment not named is left exactly as it was, and so are the `prst` token and every other
+    /// property of the shape. Marks only that slide part dirty.
+    ///
+    /// This is the writing half of [`shape_adjustments`](Self::shape_adjustments), and it is written
+    /// in the same vocabulary: that call reports `spec.wire_name`, `value`, `minimum` and `maximum`,
+    /// and this one takes the first two of those back.
+    ///
+    /// # Why this is not [`set_shape_geometry`](Self::set_shape_geometry)
+    ///
+    /// [`Geometry::Preset`] carries `mjx-dml`'s **typed** `ShapeGeometry`, and it cannot express two
+    /// things this can. **`sun` and `teardrop` have an adjustment and no typed variant**, so neither
+    /// handle is reachable through it at all; and every typed value is a `Fraction` or an `Angle`,
+    /// while a file states an integer — so a deck authored at exact spec values (`40000`, not
+    /// *"0.4 of full scale"*) needs a writer in the file's own units. The two calls are
+    /// complementary: `set_shape_geometry` may change *which* shape it is and this may not.
+    ///
+    /// ```no_run
+    /// # use mjx_pptx::Presentation;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let mut deck = Presentation::open(&std::fs::read("deck.pptx")?)?;
+    /// // A rounded rectangle with its corner radius pushed to full scale.
+    /// deck.set_shape_adjustments(0, 0, &[("adj", 50_000)])?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    ///
+    /// # Errors
+    /// Returns [`PptxError`] if an index is out of range, the slide is malformed, the shape has no
+    /// `p:spPr` ([`ShapeHasNoProperties`](PptxError::ShapeHasNoProperties)), or the shape states no
+    /// `a:prstGeom` of its own
+    /// ([`ShapeHasNoPresetGeometry`](PptxError::ShapeHasNoPresetGeometry)) — which a custom-geometry
+    /// shape and a shape that inherits its geometry both are.
+    pub fn set_shape_adjustments(
+        &mut self,
+        surface: impl Into<Surface>,
+        shape_idx: impl Into<ShapePath>,
+        adjustments: &[(&str, i32)],
+    ) -> Result<(), PptxError> {
+        let surface = surface.into();
+        let slide_part = self.surface_part(surface)?;
+        let doc = self.package.part_tree_mut(&slide_part)?;
+        // Split the borrow: `interner` for name resolution and the rebuilt element, `root` to
+        // locate the shape — the same shape `set_shape_geometry` below uses.
+        let RawDocument { interner, root, .. } = doc;
+        let shape = resolve_shape_in(root, interner, surface, &shape_idx.into())?;
+        slide::set_preset_adjustments(shape, interner, adjustments)
+    }
+
     /// Sets the geometry of shape `shape_idx` on `surface` from a [`Geometry`]: a preset shape
     /// ([`Geometry::Preset`]) rewrites the `a:prstGeom`, a custom path list ([`Geometry::Custom`])
     /// writes an `a:custGeom`, and [`Geometry::Inherited`] removes the shape's own geometry so an
