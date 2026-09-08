@@ -852,6 +852,85 @@ impl CharacterPropertiesSpec {
             .map(|(_, font)| font)
     }
 
+    /// Whether these properties and `other` agree on every value that **resolution bakes away** —
+    /// the colours (`fill`, `outline`, `effects`, `highlight`, and the underline line and fill) and
+    /// the typefaces, which may still name a theme font.
+    ///
+    /// Ask this of two **unresolved** specs, the kind [`CharacterProperties::spec`] answers with.
+    ///
+    /// # Why a resolved comparison is not enough
+    ///
+    /// Resolution loses information in two directions, and both of them make two different runs
+    /// compare equal:
+    ///
+    /// * **A transparency disappears.** `resolve_fill` bakes a colour to `RRGGBB` and says in its own
+    ///   doc comment that a resolved `a:alpha` is not represented; `resolve_color` answers a
+    ///   [`ResolvedColor`](crate::ResolvedColor) whose `to_hex` is six digits. So a half-transparent
+    ///   red and an opaque one resolve to the same value.
+    /// * **A theme link becomes a literal.** An `a:schemeClr` resolves to the `RRGGBB` the theme gives
+    ///   it, and a `+mj-lt` / `+mn-lt` typeface resolves to the font the scheme names — so a run that
+    ///   *follows the theme* and a run that hard-codes what the theme currently says are
+    ///   indistinguishable once resolved, even though re-theming the file moves only one of them.
+    ///
+    /// Anything that merges, deduplicates or elides on a resolved comparison must therefore ask this
+    /// of the unresolved forms as well. `mjx_pptx`'s run coalescing does exactly that, which is what
+    /// stops a merge from dropping one run's `a:alpha` or leaving a hard-coded colour where a theme
+    /// link was.
+    ///
+    /// # What is deliberately not compared
+    ///
+    /// The size, weight, slant, underline, strike, capitalization, spacing, kerning, baseline and
+    /// language are copied through resolution verbatim, so a resolved comparison already tells them
+    /// apart exactly. Requiring the unresolved forms to agree on them too would refuse merges that
+    /// are safe, and would turn a comparison of *meaning* into a comparison of raw markup.
+    ///
+    /// ```
+    /// use mjx_dml::{CharacterPropertiesSpec, ColorSpec, Fraction, SchemeColor};
+    ///
+    /// let opaque = CharacterPropertiesSpec::new().with_color(ColorSpec::Srgb("FF0000".to_owned()));
+    /// let half = CharacterPropertiesSpec::new()
+    ///     .with_color(ColorSpec::Srgb("FF0000".to_owned()).with_alpha(Fraction::from_ratio(0.5)));
+    /// assert!(!opaque.resolution_sensitive_eq(&half));
+    ///
+    /// let linked = CharacterPropertiesSpec::new().with_color(ColorSpec::Scheme(SchemeColor::Accent1));
+    /// assert!(!linked.resolution_sensitive_eq(&opaque));
+    ///
+    /// // A size is not resolution-sensitive: these two still agree here.
+    /// let bigger = opaque.clone().with_size_points(24.0);
+    /// assert!(opaque.resolution_sensitive_eq(&bigger));
+    /// ```
+    #[must_use]
+    pub fn resolution_sensitive_eq(&self, other: &Self) -> bool {
+        // Destructured rather than read field by field, and with no `..`: a property added to this
+        // struct fails to compile here until someone has decided whether resolution can lose it.
+        let Self {
+            size: _,
+            bold: _,
+            italic: _,
+            underline: _,
+            strike: _,
+            capitalization: _,
+            spacing: _,
+            kerning: _,
+            baseline: _,
+            language: _,
+            fill,
+            outline,
+            effects,
+            highlight,
+            underline_line,
+            underline_fill,
+            fonts,
+        } = self;
+        *fill == other.fill
+            && *outline == other.outline
+            && *effects == other.effects
+            && *highlight == other.highlight
+            && *underline_line == other.underline_line
+            && *underline_fill == other.underline_fill
+            && *fonts == other.fonts
+    }
+
     /// Merges a **lower** inheritance tier under these properties: `self` wins wherever it names
     /// something, and `lower` supplies only what `self` leaves unset.
     ///
