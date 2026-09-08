@@ -72,7 +72,7 @@ use mjx_vml::{AttachedObjectKind, Drawing, DrawingContent, Shape, ShapeContent};
 
 use crate::error::XlsxError;
 use crate::parts::{
-    CONTENT_TYPE_COMMENTS, CONTENT_TYPE_VML_DRAWING, REL_COMMENTS, REL_VML_DRAWING,
+    SheetKind, CONTENT_TYPE_COMMENTS, CONTENT_TYPE_VML_DRAWING, REL_COMMENTS, REL_VML_DRAWING,
 };
 use crate::workbook::Workbook;
 
@@ -524,10 +524,15 @@ impl Workbook {
     /// Replaces an existing comment on the same cell rather than adding a second: `x:comment@ref` is
     /// how a comment is addressed, and two on one cell is a file no producer writes.
     ///
+    /// Only a **worksheet** can carry one. A comment's box is a `v:shape` in a legacy VML drawing
+    /// that the sheet's own markup points at through `x:legacyDrawing`, and its anchor is a cell —
+    /// neither of which a chartsheet or a dialogsheet has. Such a tab is refused, and refused
+    /// *first*: see below.
+    ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if it
-    /// reaches no worksheet part, or [`XlsxError`] if a part is malformed or the package refuses an
-    /// edit.
+    /// reaches no worksheet part — which is also what a tab that is not a worksheet is reported as
+    /// — or [`XlsxError`] if a part is malformed or the package refuses an edit.
     pub fn add_comment(
         &mut self,
         index: usize,
@@ -535,10 +540,29 @@ impl Workbook {
         author: &str,
         text: &str,
     ) -> Result<u32, XlsxError> {
-        // Everything that creates a part happens before anything is written into one, so a refusal
-        // leaves the workbook exactly as it was.
-        let comments_part = self.comments_part_or_create(index)?;
+        // An edit is all-or-nothing. MJXOFF-208 established that for a chart data edit, MJXOFF-210's
+        // preservation gate now asserts it for every method on the facade against every fixture, and
+        // this is the ordering that satisfies it here.
+        //
+        // A tab that cannot hold a comment is refused **before the first `insert_part`**, and from
+        // the sheet's own kind rather than from its markup — so the answer costs no parse and does
+        // not depend on whether the tab happens already to have a VML part. Written the other way
+        // round, `comments_part_or_create` had already inserted `xl/commentsN.xml`, amended
+        // `[Content_Types].xml` and grown the sheet's `.rels` by the time the dialogsheet in
+        // `tests/fixtures/print_and_sheet_kinds.xlsx` was turned away, so a caller who handled the
+        // error and saved anyway shipped a comments part for a comment that does not exist
+        // (MJXOFF-213).
+        if matches!(
+            self.sheets().get(index).and_then(|sheet| sheet.kind),
+            Some(SheetKind::Chartsheet | SheetKind::Dialogsheet)
+        ) {
+            return Err(XlsxError::MissingWorkbookPart(format!("sheet {index}")));
+        }
+        // The drawing before the comments part, because it is the half that reads the sheet's
+        // markup — the last thing here that can refuse a tab whose part is not an `x:worksheet` at
+        // all, and it refuses before writing anything of its own.
         let vml_part = self.vml_drawing_part_or_create(index)?;
+        let comments_part = self.comments_part_or_create(index)?;
         let shape_id = self.next_legacy_shape_id(index)?;
 
         self.edit_comments_part(&comments_part, |comments, interner| {
