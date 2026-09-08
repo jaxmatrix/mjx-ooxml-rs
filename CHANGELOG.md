@@ -58,6 +58,93 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.140] - 2026-09-08
+
+### The upper shared markup, audited then documented (MJXOFF-221, G10)
+
+**Three crates, one rank, one guide set — and a content-type predicate that had been re-making
+MJXOFF-114's defect one crate further up.** `mjx-chart`, `mjx-omml` and `mjx-vml` are the whole of
+layering rank 2.2: the markup that sits *on top of* DrawingML and SpreadsheetML rather than beside
+it. None of them had a guide, and the audit that preceded one found two live instances of this
+project's signature failure — a guard written as a string literal that quietly matches nothing.
+
+### Fixed
+
+- **`mjx_vml::is_vml_content_type` now folds case and trims media-type parameters.** It was
+  `content_type == CONTENT_TYPE_VML` — an exact comparison against Office's own capitalisation —
+  while ECMA-376 Part 2 §10.1.2.3 compares a media type case-insensitively. This is MJXOFF-114's
+  defect one crate up: there, `mjx-opc`'s exception list of suffix-less XML content types carried
+  `…vmlDrawing` in Office's spelling while `is_xml_content_type` folded its argument, so the entry
+  matched nothing and every authored `.vml` part sat outside `Package::validate` from the day the
+  list was written. That fix folded `mjx-opc` and not this, so the two halves have disagreed since:
+  a lower-cased spelling counted as XML down there and as *not VML* up here. On a file this library
+  never wrote, `Presentation::vml_part_names` enumerated nothing, and `check_is_vml` and
+  `read_vml_document` refused a part that is a VML drawing with `PartIsNotVmlDrawing`.
+- **`mjx-schema-gate` had two copies of `is_xml_content_type`**, in `inspect.rs` and `order.rs`, and
+  both matched `ends_with("vmlDrawing")` case-sensitively. That predicate decides whether the gate
+  looks at a part *at all*, so an unrecognised spelling is a part nobody validates and a gate that
+  stays green — MJXOFF-88 §7's shape reached through a string literal rather than a missing table
+  row. `order.rs` now calls the one rule instead of restating it, and the rule folds.
+
+Both fixes have unit tests that fail against the old bodies.
+
+### Added
+
+- **`xtask/tests/upper_markup_ledger.rs`** — MJXOFF-218's third and last instalment, and the
+  question is neither of the two already answered. `mjx-dml`'s ledger asks what eight hand-written
+  `FromXml`/`ToXml` pairs lose; `mjx-sml`'s found that did not transfer and followed the risk into
+  the rebuilder behind a delegation. Here the reason is arithmetic: **the three crates hold zero
+  hand-written impls and zero rebuilders between them.** All **62 element declarations** reach XML
+  through one of two generic mechanisms — `#[derive(FromXml, ToXml)]`, or the crate's own
+  `fidelity_*!` macro, one body each. So there is no body to audit, and the live risk is *which
+  mechanism a type is on*: nothing before this file would have noticed a type going on neither,
+  which is the hole `mjx_dml::Picture::to_xml` came through (MJXOFF-216).
+
+  Five checks, and the fifth earned its place. A zero cannot carry an anti-vacuity floor, so **the
+  impl scanner is calibrated against `mjx-dml` (13) and `mjx-sml` (64)**. With the scanner
+  deliberately mistyped, the rank-2.2 check still reported *0 hand-written impls, 0 on the ledger*
+  and passed; only the calibration noticed. Every arm was made to fail with a reachable mutation and
+  the register is in the file header.
+
+  One file for three crates, hosted by `xtask`: unlike `mjx-dml` and `mjx-sml`, whose idioms differ
+  per crate, the expensive half here is shared, and `xtask` is where every cross-crate structural
+  gate already lives and is outside the layering graph.
+- **Eight guide pages**, reachable from `docs/api/README.md`: six under
+  `crates/mjx-chart/docs/guide/`, plus `crates/mjx-omml/docs/office_math.md` and
+  `crates/mjx-vml/docs/legacy_vml.md`, hosted by their own crates because a same-rank crate cannot be
+  depended on and so cannot be linked into — the same reason `mjx_opc::guide`'s MCE page lives in
+  `mjx-mce`. They give `doc_gate` 35 path mentions and 51 crate-qualified symbol references, and
+  carry four compiled doctests.
+
+  The through-line is more specific than the rank table: **only `mjx-chart` uses the height.** It
+  reaches `mjx-sml` (2.1) for the workbook a chart embeds and `mjx-dml` (2.0) for everything a chart
+  draws with, while `mjx-omml` and `mjx-vml` declare no dependency on either and sit at 2.2 because
+  a rank is a ceiling on what a crate *may* reach, not a claim about what it does. And none of the
+  three may see the other two, which decides what they can model.
+- **VML's weaker guarantee is stated where a caller meets it** — in the index, in the fidelity page,
+  in `crates/mjx-vml/docs/legacy_vml.md`, and now at `mjx-vml`'s own crate root. `vml-main.xsd`
+  cannot compile without an `xml.xsd` ECMA omits and a `.vml` part's root is a bare `<xml>` in no
+  namespace, so `mjx-schema-gate` files it under `ForeignMarkupKey::NoNamespace` in
+  `PRESERVED_FOREIGN_MARKUP` and **the round trip is the only real check there is.** Reading and
+  re-emitting is as safe here as anywhere; authoring or editing carries a risk the other two crates
+  do not, because a wrongly ordered shape would reach Office before it reached CI.
+- `xtask/src/validation/ingest.rs` records the **third instance** of MJXOFF-196's mandatory-wildcard
+  shape: `vml-officeDrawing.xsd:175` declares `CT_EquationXml` as
+  `<xsd:sequence><xsd:any namespace="##any"/></xsd:sequence>`, again with no `minOccurs`. It cannot
+  fire — nothing models the type, and no VML part is validated at all — so it is not a fourth defect
+  but the third address a fix has to visit.
+
+### Two counts this ticket had wrong
+
+- **`ReferenceProblem` has eight variants, not nine.** MJXOFF-221's own description says the embedded
+  workbook patcher "refuses nine reference shapes by name"; `CHANGELOG.md`'s MJXOFF-208 entry lists
+  six of them in prose. The declaration has eight, and
+  `crates/mjx-chart/docs/guide/the_embedded_workbook.md` tables them row for row.
+- **`mjx-sml` holds 6 hand-written `FromXml` impls and 58 `ToXml`, not 5 and 57.** MJXOFF-218's
+  census missed `crates/mjx-sml/src/font/color.rs`'s `ColorElement`, whose impl is written with a
+  qualified trait path. The new ledger's scanner admits the qualified spelling, which is what puts
+  its calibration floor above 50.
+
 ## [0.0.139] - 2026-09-08
 
 ### SpreadsheetML's guide, and the count that had been wrong four times (MJXOFF-220, G9)
