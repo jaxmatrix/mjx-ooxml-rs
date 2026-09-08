@@ -83,7 +83,9 @@ fn every_grab_region_is_where_the_index_says_the_fragment_is() {
          the spatial index's own answer.",
         INVENTORY.len()
     );
-    // Twenty entries and seventy-four regions today. The floor is fifteen: low enough that a
+    // Twenty-one entries and seventy-five regions today — twenty and seventy-four until audit pass
+    // 10 gave entry 30's note indicator the region its `touch` badge promises. The floor is fifteen:
+    // low enough that a
     // deliberate redesign of one family does not trip it, high enough that a harness which stopped
     // recording grab regions would be caught rather than reported as *"every grab region checks
     // out"* over an empty set — which is what this assertion is really for.
@@ -95,6 +97,65 @@ fn every_grab_region_is_where_the_index_says_the_fragment_is() {
     assert!(
         regions >= 50,
         "only {regions} grab regions in the whole inventory"
+    );
+}
+
+/// **Every entry that declares itself touch-sensitive records a grab region** (audit pass 10, G3).
+///
+/// `Entry::is_touch_sensitive()` was read in exactly two places before this — `page.rs` and
+/// `server.rs` — and **both purely for display**: one puts a `touch` badge in the scene list, the
+/// other a `"touch": true` in the inventory JSON. Nothing asserted that an entry declaring
+/// [`Axis::Input`] records anything for the overlay to draw.
+///
+/// That matters because `CANVAS_UI_INVENTORY.md` §4.1 calls the visualiser *"the only honest way to
+/// judge whether a touch target is big enough"*. An entry badged `touch` with no grab region is one
+/// the audit surface cannot answer that question for: the badge says *go and judge the target*, and
+/// turning the overlay on shows nothing. The two halves of the declaration have to agree, and this
+/// is the assertion that makes them.
+///
+/// # The direction this is *not* asserted in, and why
+///
+/// The converse — *an entry with a grab region declares `Axis::Input`* — is deliberately not here.
+/// A grab region is recorded for anything draggable, and `Axis::Input` says *the affordance is sized
+/// for the input device*. Entry 21's autoscroll band has a region and is not sized for a thumb.
+/// `the_axes_are_not_identities.rs` is what holds the `responds` declaration honest, by measuring
+/// pixels in both directions; this holds the narrower promise the touch badge makes.
+#[test]
+fn every_touch_declared_entry_records_a_grab_region() {
+    let tokens = Tokens::DEFAULTS.clone();
+    let mut touch_declared = 0_usize;
+    let mut without: Vec<String> = Vec::new();
+    for entry in &INVENTORY {
+        if !entry.is_touch_sensitive() {
+            continue;
+        }
+        touch_declared += 1;
+        let scene = Scene::build(entry, &tokens, State::CANONICAL);
+        if scene.canvas.grabs().is_empty() {
+            without.push(format!("{} ({})", entry.number, entry.title));
+        }
+    }
+    assert!(
+        without.is_empty(),
+        "these entries are badged `touch` on the page and in `/api/inventory`, and record no grab \
+         region, so the hit-test overlay has nothing to draw for them — which is the one \
+         instrument `CANVAS_UI_INVENTORY.md` §4.1 says a touch target can be judged with:\n  {}",
+        without.join("\n  ")
+    );
+    println!(
+        "{touch_declared} of {} entries declare `Axis::Input`, and every one of them records a \
+         grab region.",
+        INVENTORY.len()
+    );
+    // The count is not the inventory document's *eleven*, and the difference is a real distinction
+    // rather than a drift. `CANVAS_UI_INVENTORY.md` §4.1 counts the entries that are *about* touch
+    // behaviour — the ones a person has to open on a phone; `Axis::Input` is the wider property
+    // *this element's pixels change with the input device*, which is true of every affordance that
+    // is drawn at a grab size. See `Entry::is_touch_sensitive`.
+    assert!(
+        touch_declared >= 11,
+        "only {touch_declared} entries declare `Axis::Input`, which is fewer than the eleven \
+         `CANVAS_UI_INVENTORY.md` §4.1 says are specifically about touch"
     );
 }
 

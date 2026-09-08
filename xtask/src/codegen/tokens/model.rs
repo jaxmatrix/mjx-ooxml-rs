@@ -34,52 +34,26 @@ use crate::json;
 /// `$extensions`. The W3C format reserves `$extensions` for exactly this.
 const EXTENSION_KEY: &str = "mjx";
 
-/// The WCAG 2.2 AA contrast minimum for body text. Large text and UI components have lower minima,
-/// and this generator deliberately does not model them: a token tagged for *text* is tagged for the
-/// hardest case it will be put to, and a second, laxer tier would only be a way to pass.
-const TEXT_CONTRAST_MINIMUM: f64 = 4.5;
+/// What a colour token may be used for.
+///
+/// **`mjx-tokens` owns this, and the generator consumes it** (MJXOFF-166). It was a private enum
+/// here, beside a private copy of the WCAG arithmetic and a private `check_usage`, which made this
+/// generator the only thing in the workspace that could apply §2.2 — and the generator is not the
+/// only writer of `tokens.json`. The canvas harness's live token editor writes back to that file
+/// and may not depend on `xtask`, so a text colour tweaked in the editor was accepted and broke the
+/// next `cargo run -p xtask -- tokens`. The rule moved **down** into the one crate every writer can
+/// reach, exactly as `ReferenceAuthority` did; a copy left behind here would be the divergence this
+/// pipeline exists to prevent.
+pub(crate) use mjx_tokens::ColorUsage as Usage;
 
-/// The relative luminance either side of which a surface counts as light or dark, used to check
-/// that an `on-light-text` tag actually names a light background.
-const LIGHT_SURFACE_LUMINANCE: f64 = 0.5;
-
-/// What a colour token may be used for. There is no default: see the module docs.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub(crate) enum Usage {
-    /// Legal as text on the declared light background, which means it meets 4.5 : 1 against it.
-    OnLightText,
-    /// Legal as text on the declared dark background.
-    OnDarkText,
-    /// Fills, borders, indicators and icons — never the colour of a glyph.
-    FillOnly,
-}
-
-impl Usage {
-    fn parse(text: &str) -> Result<Self> {
-        Ok(match text {
-            "on-light-text" => Self::OnLightText,
-            "on-dark-text" => Self::OnDarkText,
-            "fill-only" => Self::FillOnly,
-            other => bail!(
-                "unknown usage `{other}`; expected `on-light-text`, `on-dark-text` or `fill-only`"
-            ),
-        })
-    }
-
-    /// The spelling used in the source, echoed back into the generated docs.
-    pub(crate) fn as_str(self) -> &'static str {
-        match self {
-            Self::OnLightText => "on-light-text",
-            Self::OnDarkText => "on-dark-text",
-            Self::FillOnly => "fill-only",
-        }
-    }
-
-    /// Whether the token is allowed to colour text, which is what makes the contrast minimum
-    /// binding.
-    fn colours_text(self) -> bool {
-        matches!(self, Self::OnLightText | Self::OnDarkText)
-    }
+/// The usage a source spelling names, with this file's own message for one it does not.
+///
+/// The *rule* is `mjx-tokens`'s; the *complaint about an unreadable source file* belongs to whoever
+/// is reading the file, which is this generator.
+fn parse_usage(text: &str) -> Result<Usage> {
+    Usage::parse(text).with_context(|| {
+        format!("unknown usage `{text}`; expected `on-light-text`, `on-dark-text` or `fill-only`")
+    })
 }
 
 /// A colour, straight 8-bit-per-channel sRGB with an alpha channel.
@@ -141,55 +115,30 @@ impl Rgba {
         }
     }
 
-    /// This colour composited over `background`, which is what a partially transparent colour
-    /// actually looks like and therefore what its contrast has to be measured on.
-    fn over(self, background: Self) -> Self {
-        if self.alpha == 0xff {
-            return self;
+    /// The same colour as `mjx-tokens` spells it.
+    ///
+    /// Two structs for one concept, deliberately. This one is the **source reader's**: it refuses
+    /// upper case and the three- and four-digit shorthands, so one colour has exactly one spelling
+    /// in the one hand-edited file and the three artefacts cannot disagree about a value merely by
+    /// disagreeing about its case. `mjx_tokens::Color`'s parser is the **host reader's** and
+    /// accepts all four lengths, because a page's stylesheet legitimately writes `#fff`. What must
+    /// not be duplicated is the *arithmetic*, and it is not: everything below converts and calls.
+    fn to_token_color(self) -> mjx_tokens::Color {
+        mjx_tokens::Color {
+            red: self.red,
+            green: self.green,
+            blue: self.blue,
+            alpha: self.alpha,
         }
-        let mix = |over: u8, under: u8| -> u8 {
-            let alpha = f64::from(self.alpha) / 255.0;
-            let blended = f64::from(over).mul_add(alpha, f64::from(under) * (1.0 - alpha));
-            // `blended` is a convex combination of two values in 0..=255, so it is in range and the
-            // rounded result fits a `u8`.
-            blended.round().clamp(0.0, 255.0) as u8
-        };
-        Self {
-            red: mix(self.red, background.red),
-            green: mix(self.green, background.green),
-            blue: mix(self.blue, background.blue),
-            alpha: 0xff,
-        }
-    }
-
-    /// WCAG 2.2 relative luminance.
-    fn relative_luminance(self) -> f64 {
-        let linear = |channel: u8| -> f64 {
-            let value = f64::from(channel) / 255.0;
-            if value <= 0.040_45 {
-                value / 12.92
-            } else {
-                ((value + 0.055) / 1.055).powf(2.4)
-            }
-        };
-        0.2126_f64.mul_add(
-            linear(self.red),
-            0.7152_f64.mul_add(linear(self.green), 0.0722 * linear(self.blue)),
-        )
     }
 }
 
-/// The WCAG 2.2 contrast ratio between a foreground and a background, with the foreground
-/// composited over the background first if it is not opaque.
+/// The WCAG 2.2 contrast ratio between a foreground and a background.
+///
+/// One line, because the arithmetic is `mjx_tokens::contrast_ratio`'s (MJXOFF-166). This wrapper
+/// exists only so the rest of this file can go on speaking in [`Rgba`].
 pub(crate) fn contrast_ratio(foreground: Rgba, background: Rgba) -> f64 {
-    let foreground = foreground.over(background).relative_luminance();
-    let background = background.relative_luminance();
-    let (lighter, darker) = if foreground >= background {
-        (foreground, background)
-    } else {
-        (background, foreground)
-    };
-    (lighter + 0.05) / (darker + 0.05)
+    mjx_tokens::contrast_ratio(foreground.to_token_color(), background.to_token_color())
 }
 
 /// A CSS length unit. Three, because the source uses three.
@@ -706,7 +655,7 @@ fn read_token(
     let usage = extension
         .and_then(|it| it.get("usage"))
         .and_then(json::Value::string)
-        .map(Usage::parse)
+        .map(parse_usage)
         .transpose()?;
     let background_path = extension
         .and_then(|it| it.get("background"))
@@ -743,7 +692,7 @@ fn read_token(
             bail!("the background `{background_path}` is not a colour");
         };
         contrast = Some(contrast_ratio(*colour, background));
-        check_usage(usage, *colour, background, background_path, contrast)?;
+        check_usage(usage, *colour, background, background_path)?;
     }
     if let Some(usage) = usage {
         if usage.colours_text() && background_path.is_none() {
@@ -765,50 +714,22 @@ fn read_token(
     })
 }
 
-/// The contrast rule itself. `DESIGN_TOKENS.md` §2.2 in code.
-fn check_usage(
-    usage: Option<Usage>,
-    colour: Rgba,
-    background: Rgba,
-    background_path: &str,
-    contrast: Option<f64>,
-) -> Result<()> {
+/// The contrast rule, **applied rather than restated**.
+///
+/// `DESIGN_TOKENS.md` §2.2 lives in `mjx_tokens::check_usage` (MJXOFF-166) so that the canvas
+/// harness's live token editor — which writes this same file and may not depend on `xtask` — can
+/// refuse a bad colour at the keystroke instead of at the next generator run. All this function
+/// does is convert and delegate. **Do not reintroduce the arithmetic here**: two statements of one
+/// rule is how the editor and the generator came to disagree in the first place.
+fn check_usage(usage: Option<Usage>, colour: Rgba, background: Rgba, path: &str) -> Result<()> {
     let Some(usage) = usage else { return Ok(()) };
-    if !usage.colours_text() {
-        return Ok(());
-    }
-    if colour.alpha != 0xff {
-        bail!(
-            "is tagged `{}` but is not opaque; text is drawn at full alpha, so a translucent text \
-             colour is measured against a surface it is never seen on",
-            usage.as_str()
-        );
-    }
-    let luminance = background.relative_luminance();
-    let background_is_light = luminance >= LIGHT_SURFACE_LUMINANCE;
-    let expected_light = usage == Usage::OnLightText;
-    if background_is_light != expected_light {
-        bail!(
-            "is tagged `{}`, but its declared background `{background_path}` ({}) has a relative \
-             luminance of {luminance:.3}, which is {}. The tag names the wrong surface",
-            usage.as_str(),
-            background.css(),
-            if background_is_light { "light" } else { "dark" }
-        );
-    }
-    let ratio = contrast.unwrap_or(1.0);
-    if ratio < TEXT_CONTRAST_MINIMUM {
-        bail!(
-            "is tagged `{}`, but {} on `{background_path}` ({}) measures {ratio:.2} : 1, below the \
-             {TEXT_CONTRAST_MINIMUM} : 1 WCAG AA minimum for body text. DESIGN_TOKENS.md §2.2: use \
-             this colour for fills, borders, indicators and icons, and the deep step of the same \
-             ramp for accent-coloured text",
-            usage.as_str(),
-            colour.css(),
-            background.css()
-        );
-    }
-    Ok(())
+    mjx_tokens::check_usage(
+        usage,
+        colour.to_token_color(),
+        background.to_token_color(),
+        path,
+    )
+    .map_err(|error| anyhow::anyhow!("{error}"))
 }
 
 /// `"{color.white}"` → `Some("color.white")`.

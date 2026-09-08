@@ -228,6 +228,136 @@ fn a_bad_write_is_refused_before_a_byte_reaches_the_file() {
         .is_err());
 }
 
+/// **The contrast rule, at the keystroke rather than at the next build** (audit pass 10, G4).
+///
+/// MJXOFF-166 validated a written value's *type* through `mjx_tokens::Tokens::set_custom_property`
+/// and said why in a comment: *"a value the resolver would reject is a value that breaks
+/// `cargo run -p xtask -- tokens` for whoever runs it next, which is a failure a long way from the
+/// keystroke that caused it."* The contrast rule of `DESIGN_TOKENS.md` §2.2 — the rule a design
+/// tweak is by far the most likely to trip — was **not** in that validation, because it lived in
+/// `xtask/src/codegen/tokens/model.rs` and this crate may not depend on `xtask`. So the editor said
+/// yes and the next generator run said no.
+///
+/// It now lives in `mjx-tokens` and both callers reach it. This test writes a contrast-failing text
+/// colour **through the editor's own path** and shows the refusal, with the measurement in it.
+#[test]
+fn a_text_colour_that_fails_the_contrast_rule_is_refused_by_the_editor() {
+    let before = source();
+
+    // `color.ink` is `on-light-text` measured against `color.paper`, and this is the shape of tweak
+    // the audit is for: a slightly-too-pale body text that looks fine in a swatch.
+    let refused = tokens_source::rewrite(&before, "--color-ink", "#9a9a9a");
+    let Err(WriteBackError::Contrast { token, detail }) = &refused else {
+        panic!(
+            "a text colour below 4.5 : 1 must be refused before it reaches the file, and \
+             `cargo run -p xtask -- tokens` refuses it one build later: {refused:?}"
+        );
+    };
+    assert_eq!(token, "color.ink");
+    assert!(
+        detail.contains("on-light-text")
+            && detail.contains("color.paper")
+            && detail.contains(": 1"),
+        "the refusal has to quote the measurement, or a person cannot tell how far off they are: \
+         {detail}"
+    );
+
+    // **The other half of the rule, and the half an editor is most likely to miss.** Darkening the
+    // background does not touch `color.ink` at all, and it breaks every `on-light-text` colour
+    // measured against it. An editor that only checked the token under the cursor would write this.
+    let background = tokens_source::rewrite(&before, "--color-paper", "#111111");
+    assert!(
+        matches!(&background, Err(WriteBackError::Contrast { .. })),
+        "the rule binds a pair, so either half moving has to be checked: {background:?}"
+    );
+
+    // And it is not simply always refusing: a legible text colour and an unrelated fill both go
+    // through, so the gate has two sides.
+    tokens_source::rewrite(&before, "--color-ink", "#1a1a1a")
+        .expect("a near-black body text is legible on paper");
+    tokens_source::rewrite(&before, "--color-green-tint", "#dff0e4")
+        .expect("a `fill-only` colour carries no contrast minimum");
+}
+
+/// The arithmetic the refusal above is made of is `mjx-tokens`'s, and there is one copy of it.
+///
+/// `DESIGN_TOKENS.md` §2.2 quotes two measurements by name. If this crate, `xtask` and the docs
+/// ever disagree about them, one of the three has grown a second implementation — which is the
+/// exact failure that produced G4 in the first place.
+#[test]
+fn the_contrast_arithmetic_is_the_one_the_generator_uses() {
+    let green = mjx_tokens::parse_color("--color-green", "#2e9e63").expect("a colour");
+    let deep = mjx_tokens::parse_color("--color-green-deep", "#1e7a49").expect("a colour");
+    let white = mjx_tokens::parse_color("--color-white", "#ffffff").expect("a colour");
+    // The two figures `DESIGN_TOKENS.md` §2.2 states, and `crates/mjx-tokens/src/generated.rs`
+    // repeats in `--color-green`'s and `--color-green-deep`'s own docs.
+    assert_eq!(
+        format!("{:.2}", mjx_tokens::contrast_ratio(green, white)),
+        "3.39"
+    );
+    assert_eq!(
+        format!("{:.2}", mjx_tokens::contrast_ratio(deep, white)),
+        "5.34"
+    );
+    // And the rule reads them the way the generator does: the fill-only accent is illegal as text
+    // on the same surface the deep step is legal on.
+    assert!(mjx_tokens::check_usage(
+        mjx_tokens::ColorUsage::OnLightText,
+        green,
+        white,
+        "color.white"
+    )
+    .is_err());
+    assert!(mjx_tokens::check_usage(
+        mjx_tokens::ColorUsage::OnLightText,
+        deep,
+        white,
+        "color.white"
+    )
+    .is_ok());
+    assert!(mjx_tokens::check_usage(
+        mjx_tokens::ColorUsage::FillOnly,
+        green,
+        white,
+        "color.white"
+    )
+    .is_ok());
+}
+
+/// Every text-tagged token names a background, and the committed source passes its own rule.
+///
+/// The metadata is generated, so this is really a check that it *arrived*: before this pass
+/// `TokenIdentity` carried the usage only inside a doc comment, which a program cannot read, and
+/// the harness therefore could not apply the rule at all.
+#[test]
+fn the_generated_table_carries_the_contrast_metadata_as_data() {
+    let mut text_tagged = 0_usize;
+    for identity in mjx_tokens::TOKENS {
+        let Some(usage) = identity.usage else {
+            continue;
+        };
+        if !usage.colours_text() {
+            continue;
+        }
+        text_tagged += 1;
+        assert!(
+            identity.background.is_some(),
+            "`{}` is tagged `{usage}` and declares no background; an unmeasured text colour is the \
+             rule stated rather than enforced",
+            identity.path
+        );
+    }
+    assert!(
+        text_tagged >= 8,
+        "only {text_tagged} tokens are tagged for text, which cannot be this source — the \
+         metadata has stopped reaching the generated table"
+    );
+    // The committed source passes the sweep the write-back runs, so a refusal in this suite is
+    // about the value that was written and never about the file it was written into.
+    tokens_source::rewrite(&source(), "--color-ink", "#1a1a1a")
+        .expect("the committed source passes its own contrast rule");
+}
+
 #[test]
 fn the_editor_offers_every_token_and_says_what_kind_each_is() {
     let tokens = Tokens::DEFAULTS.clone();

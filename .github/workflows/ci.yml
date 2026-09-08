@@ -29,14 +29,28 @@ jobs:
         run: cargo clippy --workspace --all-targets -- -D warnings
       # `--no-fail-fast`: a plain `cargo test` stops at the first failing test *binary*, so a second
       # broken crate is invisible until the first is fixed — one round trip per defect.
+      #
+      # `--nocapture`: **libtest swallows a passing test's output, and that is what made MJXOFF-197's
+      # defect survive.** `every_guide_of_every_preset_shape_definition_evaluates` skips when
+      # `References/` is absent and prints a named notice when it does — and this job has no
+      # `References/`, so the notice was swallowed and the line read `... ok`. The same name then
+      # appears four times across a green run (here, the vml run, `all-features`, and
+      # `schema-validity`) with **only the last of them having swept anything**, and nothing in the
+      # log distinguishes them. `schema-validity` prints a count for exactly this reason; these
+      # three now print the skip.
+      #
+      # The cost was measured rather than guessed, locally over this workspace: the captured run is
+      # 348 KB and the `--nocapture` run is 799 KB — 2.3×, about +450 KB a job. libtest writes the
+      # line immediately before its own test's `... ok`, so it is attributed rather than adrift in
+      # an interleaved stream, which was the reason to hesitate.
       - name: test
-        run: cargo test --workspace --no-fail-fast
+        run: cargo test --workspace --no-fail-fast -- --nocapture
       # The `vml` feature gates a whole surface — the typed VML model and the `spid` resolution an
       # OLE object's legacy fallback needs — so the default-feature run above compiles none of it.
       - name: clippy (vml feature)
         run: cargo clippy --workspace --all-targets --features mjx-pptx/vml -- -D warnings
       - name: test (vml feature)
-        run: cargo test --workspace --features mjx-pptx/vml --no-fail-fast
+        run: cargo test --workspace --features mjx-pptx/vml --no-fail-fast -- --nocapture
 
   # Every feature of every crate at once. `lint-test` above runs the default features and the one
   # `vml` combination; neither compiles the binding crates' feature surface, and neither is what a
@@ -58,8 +72,11 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: clippy (--all-features)
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      # `--nocapture` for the reason `lint-test`'s `test` step gives at length: this is the third of
+      # the four runs that report `every_guide_of_every_preset_shape_definition_evaluates ... ok`,
+      # and it is one of the three that swept nothing.
       - name: test (--all-features)
-        run: cargo test --workspace --all-features --no-fail-fast
+        run: cargo test --workspace --all-features --no-fail-fast -- --nocapture
 
   # The naming convention this repository is built on — a public identifier is self-explanatory to a
   # reader who does not have ECMA-376 open — has exactly one enforcement mechanism per rule that is

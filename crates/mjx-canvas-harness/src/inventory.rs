@@ -210,6 +210,24 @@ pub struct Entry {
     /// on a themed backdrop and every scene is rasterised at the density in force — so the two
     /// carry their own gates rather than being informative here. [`Axis::Interaction`] and
     /// [`Axis::Input`] are the ones that say something about *this* element.
+    ///
+    /// # ⚠ Six of these declarations were corrected *from* the measurement, and two say so
+    ///
+    /// `CHANGELOG.md` (0.0.140) records that the axes suite *"found six disagreements on its first
+    /// run"*. Entries 9 and 10 carry a note above their own `responds` line saying why the
+    /// measurement was right; **the other four are not recoverable from this tree**, because the
+    /// whole crate landed in one commit (`d5a2112`) and the corrections were made before it.
+    ///
+    /// So read every line here with that in mind. A declaration written from a measurement is
+    /// indistinguishable from an independently-authored one, and it **cannot detect that the
+    /// measurement was wrong to begin with**: if a scene responds to the interaction axis by
+    /// accident, copying that fact into the declaration makes the gate green and the accident
+    /// permanent. What the gate *is* strong at is the thing it was built for — a declaration that
+    /// stops being true, in either direction, from that point on.
+    ///
+    /// The one honest way to close the remainder is a person auditing the element and saying what
+    /// it *should* respond to, which is `docs/client-platform/CANVAS_UI_AUDIT.md` step 2 and is not
+    /// an agent's to do. Audit pass 10 wrote this paragraph rather than guessing at four entries.
     pub responds: &'static [Axis],
 }
 
@@ -224,7 +242,25 @@ impl Entry {
         format!("{:02}-{}", self.number, self.stem)
     }
 
-    /// Whether this element is one of the eleven the inventory calls out as touch behaviour.
+    /// Whether this element's pixels change with the input device — the `touch` badge in the scene
+    /// list and `"touch": true` in `/api/inventory`.
+    ///
+    /// # ⚠ Nineteen, not eleven, and the difference is a distinction rather than a drift
+    ///
+    /// `CANVAS_UI_INVENTORY.md` §4.1 says *"eleven inventory entries are specifically about touch
+    /// behaviour"*, and this answers `true` for **nineteen**. The two count different things:
+    ///
+    /// * the document's eleven are the entries a person has to open **on a phone** to judge at all
+    ///   — a pinch gesture, a long-press, a two-finger rotate;
+    /// * [`Axis::Input`] is the wider property *this element is drawn at the input device's size*,
+    ///   which is true of every affordance that has a grab region, including eight that a mouse can
+    ///   judge perfectly well and that simply get bigger for a thumb.
+    ///
+    /// The badge is deliberately the wider set: it means *turn on the hit-test overlay and look at
+    /// this at both input settings*, which is worth doing for all nineteen. What it promises is that
+    /// there is something to look at, and `tests/the_visualiser_shows_the_index.rs` holds that
+    /// promise — audit pass 10 added the assertion and it found entry 30 badged with no grab region
+    /// at all.
     #[must_use]
     pub fn is_touch_sensitive(&self) -> bool {
         self.responds.contains(&Axis::Input)

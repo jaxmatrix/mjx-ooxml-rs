@@ -59,3 +59,12 @@ mjx-sml.workspace = true
 # for exactly this reason. The alternative was a second child-order walk and a second schema call
 # inside `xtask`, which is the duplication this workspace deleted fourteen of.
 mjx-schema-gate.workspace = true
+# Rank 0.2. **The contrast rule of `DESIGN_TOKENS.md` §2.2, which this generator now calls rather
+# than owns** (MJXOFF-166). It was a private `check_usage` here beside a private copy of the WCAG
+# arithmetic, which made the generator the only thing in the workspace able to apply the rule — and
+# the generator is not the only writer of `docs/client-platform/data/tokens.json`. The canvas
+# harness's live token editor writes back to that file and may not depend on `xtask`, so a bad text
+# colour was accepted at the keystroke and failed the next `tokens` run. The rule moved down into
+# the crate every writer can reach; this edge is what keeps there being one copy of it. Another
+# downward edge from a host-only binary nothing depends on.
+mjx-tokens.workspace = true
