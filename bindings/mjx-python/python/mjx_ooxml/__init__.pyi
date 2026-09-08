@@ -6934,7 +6934,9 @@ class BorderSpec:
 
 @final
 class CellFormatSpec:
-    """One `x:xf`: the four resource indices and the six `apply*` flags."""
+    """One `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, the
+    quote-prefix flag and the six `apply*` flags — all twelve readable, as in Rust.
+    """
     number_format_id: int | None
     """`@numFmtId`."""
     font_index: int | None
@@ -6943,6 +6945,22 @@ class CellFormatSpec:
     """`@fillId`."""
     border_index: int | None
     """`@borderId`."""
+    cell_style_format_index: int | None
+    """`@xfId` — the `cellStyleXfs` record beneath this one."""
+    text_is_quote_prefixed: bool | None
+    """`@quotePrefix` — the value is text because it was typed with a leading apostrophe."""
+    applies_number_format: bool | None
+    """`@applyNumberFormat`. Three-valued: `None` writes no attribute at all."""
+    applies_font: bool | None
+    """`@applyFont`. Three-valued: `None` writes no attribute at all."""
+    applies_fill: bool | None
+    """`@applyFill`. Three-valued: `None` writes no attribute at all."""
+    applies_border: bool | None
+    """`@applyBorder`. Three-valued: `None` writes no attribute at all."""
+    applies_alignment: bool | None
+    """`@applyAlignment`. Three-valued: `None` writes no attribute at all."""
+    applies_protection: bool | None
+    """`@applyProtection`. Three-valued: `None` writes no attribute at all."""
     def __init__(self, number_format_id: int | None = None, font_index: int | None = None, fill_index: int | None = None, border_index: int | None = None, cell_style_format_index: int | None = None, applies_number_format: bool | None = None, applies_font: bool | None = None, applies_fill: bool | None = None, applies_border: bool | None = None, applies_alignment: bool | None = None, applies_protection: bool | None = None, text_is_quote_prefixed: bool | None = None) -> None:
         """An `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, and the six `apply*` flags."""
         ...
