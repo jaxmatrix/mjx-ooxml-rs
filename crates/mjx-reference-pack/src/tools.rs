@@ -278,6 +278,47 @@ pub fn convert_to_pdf(source: &Path, directory: &Path) -> Result<std::path::Path
     Ok(written)
 }
 
+/// The font names embedded in `pdf`, with poppler's subset tags (`BAAAAA+`) stripped and spaces
+/// removed, so `BAAAAA+LiberationSans` reads as `liberationsans`.
+///
+/// # Why a harness needs to know
+///
+/// **Which face a producer substituted is a fact about the producer, and several of this crate's
+/// numbers only mean anything for one answer.** LibreOffice draws a run marked `Arial` in Liberation
+/// Sans when that font is installed and in something else when it is not — and Liberation Sans is
+/// *metric-compatible* with Arial while a blind fallback is not. A test that asserted advances
+/// without checking which face produced them would be asserting something about the machine it ran
+/// on, and would fail on a machine that is not wrong, merely differently equipped.
+///
+/// # Errors
+///
+/// A sentence naming what `pdffonts` said.
+pub fn embedded_fonts(pdf: &Path) -> Result<Vec<String>, String> {
+    let output = Command::new("pdffonts")
+        .arg(pdf)
+        .output()
+        .map_err(|error| format!("running pdffonts: {error}"))?;
+    if !output.status.success() {
+        return Err(format!(
+            "pdffonts refused {}: {}",
+            pdf.display(),
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout)
+        .lines()
+        // Two header lines, then one row per font; a row's first column is the name.
+        .skip(2)
+        .filter_map(|line| line.split_whitespace().next())
+        .map(|name| {
+            name.rsplit_once('+')
+                .map_or(name, |(_, face)| face)
+                .replace(' ', "")
+                .to_lowercase()
+        })
+        .collect())
+}
+
 /// One word, and where poppler says it landed, in PDF points with the origin at the page's top-left.
 #[derive(Clone, PartialEq, Debug)]
 pub struct WordBox {
