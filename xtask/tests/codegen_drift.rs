@@ -543,7 +543,8 @@ fn simple_type_symbol(row: &str) -> Option<String> {
 /// The two hand-written curation modules re-export **every** item their generated module declares.
 ///
 /// `drawingml` and `presentationml` are emitted `pub(crate)` and re-exported item by item through
-/// `src/drawingml.rs` and `src/presentationml.rs`, so that the crate's public surface is curated
+/// `crates/mjx-ooxml-types/src/drawingml.rs` and `crates/mjx-ooxml-types/src/presentationml.rs`,
+/// so that the crate's public surface is curated
 /// rather than whatever the generator happens to emit — [`SIMPLE_TYPE_MODULES`]'s `visibility`
 /// field is that decision. The re-export lists are hand-written, and nothing else fails when the
 /// generator emits a type that never reaches them: the item simply becomes unreachable, silently,
