@@ -8,11 +8,18 @@
 //! crate — it cannot see a binary's modules. The alternative was to have the test parse the
 //! binary's `--list` output, which would make a text format the contract instead of a type.
 //!
-//! Only [`validation`] lives here. `codegen`, `fuzz` and `corpus` stay private to the binary,
-//! because nothing outside it needs them and moving them would move the fuzz campaign's
-//! `#[global_allocator]` into every `xtask` test binary along with them.
+//! [`codegen`] joined it with MJXOFF-224, for the same reason and no other:
+//! `xtask/tests/codegen_drift.rs` asks whether the committed `mjx-ooxml-types` source is what the
+//! generator produces today, and it is written against [`codegen::artefacts`],
+//! [`codegen::SIMPLE_TYPE_MODULES`] and [`codegen::UNCOVERED_SCHEMAS`] — the tables themselves,
+//! not a text rendering of them. Nothing else re-derives that crate, so without a test there is no
+//! moment at which a generator defect stops being invisible.
+//!
+//! `fuzz` and `corpus` stay private to the binary. `fuzz` must: moving it would move the campaign's
+//! `#[global_allocator]` into every `xtask` test binary along with it.
 //!
 //! Nothing depends on this crate — `xtask/tests/layering.rs` asserts it — and it is excluded from
 //! the cross-build matrix, so a library target here widens nothing.
 
+pub mod codegen;
 pub mod validation;

@@ -6,6 +6,7 @@
 //! Rust identifier. Wire tokens themselves are never altered — only the Rust-facing name.
 
 /// Curated naming data for a code-generation slice.
+#[derive(Debug)]
 pub struct NameEngine {
     /// `ST_*` type name → Rust type name.
     pub type_overrides: &'static [(&'static str, &'static str)],

@@ -1,0 +1,435 @@
+//! **Does the committed `mjx-ooxml-types` source still say what the generator would say?**
+//! (MJXOFF-224.)
+//!
+//! # The hole this file exists to close
+//!
+//! `CLAUDE.md` decides that generated output is *committed, never a `build.rs`*, regenerated on
+//! demand with `cargo run -p xtask -- codegen` against a local `References/` tree. That is a
+//! deliberate and defensible choice — a `build.rs` would put a 5,000-page specification and a
+//! `rustfmt` invocation on every consumer's critical path. Its consequence had never been written
+//! down, still less checked:
+//!
+//! > **Nothing re-derived the committed output, so a generator defect was frozen into the
+//! > repository rather than failing on the next build — and the committed file is the only artefact
+//! > anyone reads, which makes a defect indistinguishable from a deliberate choice.**
+//!
+//! `crates/mjx-ooxml-types/src/generated/` is 79,000 lines, every one of them written by
+//! `xtask/src/codegen/`. Between the moment a generator change lands and the moment somebody
+//! remembers to run `codegen`, the two disagree and nothing says so. The compiler catches the
+//! *structural* half of that — rename a generated enum by hand and `mjx-ooxml-types` stops
+//! compiling. It catches none of the rest: a wire token, a doc comment recording the original
+//! `ST_*` symbol, a rank in a child-order table, a row of `COVERAGE.md`. Those are the parts a
+//! reader trusts and no build touches.
+//!
+//! # Two tiers, because only one of them can run on CI
+//!
+//! The full check needs the schemas, and **CI never downloads them**:
+//! `.github/scripts/fetch-ecma-schemas.sh`'s `ARCHIVES` holds ECMA-376 Part 4 (Transitional) and
+//! Part 2 (OPC), while this generator also needs Part 1 — the Strict schema set for the namespace
+//! table and `presetShapeDefinitions.xml` for the preset-shape adjustment tables. So:
+//!
+//! 1. [`the_committed_output_is_what_the_generator_produces_today`] regenerates every artefact in
+//!    memory and compares it byte for byte with what is committed. It **skips** when `References/`
+//!    is incomplete, the pattern `schema_validity.rs` established; `MJX_REQUIRE_CODEGEN=1` turns
+//!    the absence into a failure. This is the whole answer, and it is local-or-gated.
+//! 2. Every other test here re-derives the parts of the committed output that need **no schema at
+//!    all**, from the generator's own tables and from the committed files. Those run on every push,
+//!    and they are what stands between the full check's two runs.
+//!
+//! Growing `ARCHIVES` so tier 1 can run on CI belongs to MJXOFF-197, which owns the archive change
+//! for the same reason (`crates/mjx-dml/tests/guide_formula.rs`'s preset-geometry sweep needs the
+//! same Part 1 download). This file states the dependency; it does not take it.
+//!
+//! # The vacuity trap, in this file's own terms
+//!
+//! > *A check with nothing to compare passes exactly as a working one does.*
+//!
+//! Tier 1 skips when the schemas are absent, and a skip is green. Tier 2's derivations are over
+//! sets — the module table, the allowlists, the schema stems — and **a set that has become empty
+//! passes every assertion over it**. So every test here prints its counts on success, and every
+//! loop that could be empty is floored. The floors are phrased as *the walk is still finding
+//! things*, never as *the corpus is exactly this size*, so that a floor cannot fire in place of the
+//! assertion it guards — `doc_gate.rs` states the same rule and the reason for it.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::path::{Path, PathBuf};
+
+use xtask::codegen::{self, emit::Selection, CHILD_ORDER_SCHEMAS, SIMPLE_TYPE_MODULES};
+
+/// The workspace root — `xtask/`'s parent.
+fn workspace_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .expect("xtask has a parent directory")
+        .to_path_buf()
+}
+
+/// The committed generated directory.
+fn generated_dir() -> PathBuf {
+    workspace_root().join("crates/mjx-ooxml-types/src/generated")
+}
+
+/// Reads a committed file, failing with its path rather than with `No such file or directory`.
+fn read(path: &Path) -> String {
+    std::fs::read_to_string(path).unwrap_or_else(|e| panic!("reading {}: {e}", path.display()))
+}
+
+// ===============================================================================================
+// Tier 1 — the whole answer, when the schemas are here
+// ===============================================================================================
+
+/// Regenerates every artefact and compares it with what is committed, byte for byte.
+///
+/// This is the only check that can see a generator change nobody re-ran `codegen` after. It is
+/// also the only one that needs `References/`, so it skips when the tree is incomplete and
+/// `MJX_REQUIRE_CODEGEN=1` makes that absence a failure instead.
+///
+/// **What it catches:** any difference at all between the committed bytes and today's generator —
+/// a hand-edit of a generated file (including one that still compiles, which is most of them), a
+/// naming-table change never regenerated, a schema set that has moved underneath us.
+///
+/// **What it cannot:** whether the generator is *right*. It compares the committed output against
+/// the generator, not against ECMA-376. A defect in `emit.rs` that has always been there is exactly
+/// as green here as correctness is. `crates/mjx-ooxml-types/tests/wire.rs`,
+/// `crates/mjx-ooxml-types/tests/adjustments.rs` and the schema-validity gates are what test the
+/// output against the standard; this one tests it against its own producer.
+#[test]
+fn the_committed_output_is_what_the_generator_produces_today() {
+    let root = workspace_root();
+    if !codegen::references_are_present(&root) {
+        assert!(
+            std::env::var_os("MJX_REQUIRE_CODEGEN").is_none(),
+            "MJX_REQUIRE_CODEGEN is set, but the local References/ tree at {} is incomplete — \
+             codegen needs ECMA-376 Part 1 (Strict schemas + presetShapeDefinitions.xml) and \
+             Part 4 (Transitional schemas)",
+            root.join("References").display()
+        );
+        eprintln!(
+            "skipping the codegen drift check: References/ is incomplete at {}",
+            root.join("References").display()
+        );
+        return;
+    }
+
+    let artefacts = match codegen::artefacts(&root) {
+        Ok(artefacts) => artefacts,
+        Err(e) if format!("{e:#}").contains("rustfmt") => {
+            assert!(
+                std::env::var_os("MJX_REQUIRE_CODEGEN").is_none(),
+                "MJX_REQUIRE_CODEGEN is set, but rustfmt could not be run: {e:#}"
+            );
+            eprintln!("skipping the codegen drift check: rustfmt is not available ({e:#})");
+            return;
+        }
+        Err(e) => panic!("the generator failed: {e:#}"),
+    };
+
+    // The anti-vacuity floor: phrased as *the generator is still emitting a file per module plus
+    // the four fixed artefacts*, so it cannot fire in place of the comparison below.
+    assert!(
+        artefacts.len() >= SIMPLE_TYPE_MODULES.len() + 4,
+        "the generator produced only {} artefact(s) for {} simple-type modules — it has stopped \
+         emitting, and the comparison below would pass over nothing",
+        artefacts.len(),
+        SIMPLE_TYPE_MODULES.len()
+    );
+
+    let mut stale = Vec::new();
+    let mut bytes = 0usize;
+    for artefact in &artefacts {
+        let committed = read(&artefact.path);
+        bytes += committed.len();
+        if committed != artefact.contents {
+            stale.push(
+                artefact
+                    .path
+                    .strip_prefix(&root)
+                    .unwrap_or(&artefact.path)
+                    .display()
+                    .to_string(),
+            );
+        }
+    }
+    assert!(
+        stale.is_empty(),
+        "{} of {} committed artefact(s) are not what the generator produces today:\n  {}\n\
+         Run `cargo run -p xtask -- codegen` and commit the result.",
+        stale.len(),
+        artefacts.len(),
+        stale.join("\n  ")
+    );
+    println!(
+        "codegen drift: {} artefact(s), {bytes} committed bytes, all identical to today's generator",
+        artefacts.len()
+    );
+}
+
+// ===============================================================================================
+// Tier 2 — what can be re-derived with no schemas at all
+// ===============================================================================================
+
+/// The committed `generated/mod.rs` declares exactly the modules the generator's own table names,
+/// with the visibility that table gives them.
+///
+/// `generated/mod.rs` is rendered from [`SIMPLE_TYPE_MODULES`] and nothing else, so this comparison
+/// needs no schema. It is what stops a module being added to the table, or removed from it, without
+/// the regeneration that would make it reachable — the failure the file's own header comment
+/// (*"a `pub(crate)` module is re-exported item by item"*) assumes cannot happen.
+#[test]
+fn the_committed_module_root_declares_exactly_the_generator_s_modules() {
+    let committed = read(&generated_dir().join("mod.rs"));
+    let mut found: BTreeMap<String, String> = BTreeMap::new();
+    for line in committed.lines() {
+        let line = line.trim();
+        if let Some(rest) = line.strip_prefix("pub(crate) mod ") {
+            found.insert(rest.trim_end_matches(';').to_owned(), "pub(crate)".to_owned());
+        } else if let Some(rest) = line.strip_prefix("pub mod ") {
+            found.insert(rest.trim_end_matches(';').to_owned(), "pub".to_owned());
+        }
+    }
+    // `child_order` and `namespaces` are emitted unconditionally rather than from the table.
+    let mut expected: BTreeMap<String, String> = BTreeMap::new();
+    expected.insert("child_order".to_owned(), "pub(crate)".to_owned());
+    expected.insert("namespaces".to_owned(), "pub".to_owned());
+    for module in SIMPLE_TYPE_MODULES {
+        expected.insert(module.module.to_owned(), module.visibility.to_owned());
+    }
+    assert!(
+        found.len() >= 3,
+        "only {} module declaration(s) were parsed out of the committed generated/mod.rs — the \
+         parser has stopped matching",
+        found.len()
+    );
+    assert_eq!(
+        found, expected,
+        "the committed generated/mod.rs and the generator's module table disagree"
+    );
+    println!(
+        "committed generated/mod.rs: {} module declarations, all matching SIMPLE_TYPE_MODULES",
+        found.len()
+    );
+}
+
+/// The committed generated directory holds exactly the files the generator writes, and every one of
+/// them carries the `@generated` banner.
+///
+/// A file left behind by a module that was removed from the table keeps compiling and keeps being
+/// read; a generated file that has lost its banner reads as hand-written source somebody may then
+/// edit. Neither is visible to anything else in the workspace. The expected set is derived from
+/// [`SIMPLE_TYPE_MODULES`], so it needs no schema.
+#[test]
+fn the_committed_generated_directory_holds_exactly_the_generated_files() {
+    let dir = generated_dir();
+    let mut on_disk: BTreeSet<String> = BTreeSet::new();
+    for entry in std::fs::read_dir(&dir).expect("the generated directory exists") {
+        let name = entry.expect("a readable directory entry").file_name();
+        on_disk.insert(name.to_string_lossy().into_owned());
+    }
+    let mut expected: BTreeSet<String> = ["mod.rs", "child_order.rs", "namespaces.rs"]
+        .into_iter()
+        .map(str::to_owned)
+        .collect();
+    for module in SIMPLE_TYPE_MODULES {
+        expected.insert(format!("{}.rs", module.module));
+    }
+    assert_eq!(
+        on_disk, expected,
+        "the committed generated/ directory and the generator's file set disagree"
+    );
+
+    let mut banners = 0;
+    for name in &on_disk {
+        let source = read(&dir.join(name));
+        assert!(
+            source.starts_with("// @generated by xtask — do not edit."),
+            "{name} does not open with the @generated banner, so it reads as hand-written source"
+        );
+        banners += 1;
+    }
+    assert!(
+        banners >= SIMPLE_TYPE_MODULES.len(),
+        "only {banners} generated file(s) were checked for a banner — the walk has stopped finding \
+         them"
+    );
+    println!("committed generated/: {banners} files, every one carrying the @generated banner");
+}
+
+/// `COVERAGE.md`'s counts agree with the committed module files they describe.
+///
+/// `COVERAGE.md` is generated, and its simple-type column is a *count* — `generated — all 96 simple
+/// types`. A count is a fact that expires, and this is the only document in the workspace that
+/// states these nine. Re-deriving each from the committed module file (one `/// \`ST_…\` — ` doc
+/// line per emitted type) closes the gap between the two committed artefacts without needing the
+/// schema either of them came from, so the two cannot drift between regenerations.
+#[test]
+fn the_coverage_document_s_counts_match_the_committed_modules() {
+    let coverage = read(&workspace_root().join("crates/mjx-ooxml-types/COVERAGE.md"));
+    let mut checked = 0;
+    for module in SIMPLE_TYPE_MODULES {
+        let source = read(&generated_dir().join(format!("{}.rs", module.module)));
+        let emitted = source
+            .lines()
+            .filter(|l| l.starts_with("/// `ST_") && l.contains("` — "))
+            .count();
+        assert!(
+            emitted > 0,
+            "no emitted type was parsed out of the committed {}.rs — the parser has stopped \
+             matching",
+            module.module
+        );
+        let row = coverage
+            .lines()
+            .find(|l| l.starts_with(&format!("| {} | ", module.stem)))
+            .unwrap_or_else(|| panic!("COVERAGE.md has no simple-type row for `{}`", module.stem));
+        match module.selection {
+            Selection::Everything => assert!(
+                row.contains(&format!("generated — all {emitted} simple types")),
+                "the committed {}.rs holds {emitted} types, but COVERAGE.md says: {row}",
+                module.module
+            ),
+            Selection::Allowlist(list) => {
+                assert_eq!(
+                    emitted,
+                    list.len(),
+                    "the committed {}.rs holds {emitted} types but its allowlist names {}",
+                    module.module,
+                    list.len()
+                );
+                assert!(
+                    row.contains(&format!("partial ({emitted} of the schema's simple types")),
+                    "the committed {}.rs holds {emitted} types, but COVERAGE.md says: {row}",
+                    module.module
+                );
+                for name in list {
+                    assert!(
+                        row.contains(&format!("`{name}`")),
+                        "COVERAGE.md's `{}` row does not name the allowlisted `{name}`: {row}",
+                        module.stem
+                    );
+                }
+            }
+        }
+        checked += 1;
+    }
+    assert_eq!(
+        checked,
+        SIMPLE_TYPE_MODULES.len(),
+        "not every module was checked against COVERAGE.md"
+    );
+    println!("COVERAGE.md: {checked} simple-type rows, every count re-derived from its module file");
+}
+
+/// `COVERAGE.md`'s child-order table reports `generated` for exactly the schemas the generator
+/// generates a table for.
+///
+/// The child-order tables are 59,000 of the crate's 79,000 generated lines and no other document
+/// says which schemas they cover. Deriving the claim from [`CHILD_ORDER_SCHEMAS`] means a schema
+/// cannot join or leave that list and leave the shipped document saying otherwise — which is the
+/// half of `COVERAGE.md` that `mjx-schema-gate`'s
+/// `the_declared_owners_agree_with_the_generated_coverage_document` already reads in the other
+/// direction, for the schemas *it* categorises.
+#[test]
+fn the_coverage_document_s_child_order_table_matches_the_generated_schemas() {
+    let coverage = read(&workspace_root().join("crates/mjx-ooxml-types/COVERAGE.md"));
+    let (_, child_order) = coverage
+        .split_once("## Child order")
+        .expect("COVERAGE.md has a child-order section");
+    let mut generated: BTreeSet<&str> = BTreeSet::new();
+    let mut rows = 0;
+    for line in child_order.lines() {
+        let Some(rest) = line.strip_prefix("| ") else {
+            continue;
+        };
+        let Some((stem, status)) = rest.split_once(" | ") else {
+            continue;
+        };
+        if stem == "Schema" || stem.starts_with("---") {
+            continue;
+        }
+        rows += 1;
+        if status.starts_with("generated —") {
+            generated.insert(stem);
+        }
+    }
+    assert!(
+        rows > generated.len(),
+        "only {rows} child-order row(s) were parsed and all of them are `generated` — the parser \
+         has stopped matching the uncovered rows"
+    );
+    assert_eq!(
+        generated,
+        CHILD_ORDER_SCHEMAS.iter().copied().collect::<BTreeSet<_>>(),
+        "COVERAGE.md's child-order table and CHILD_ORDER_SCHEMAS disagree"
+    );
+    println!(
+        "COVERAGE.md: {rows} child-order rows, {} of them generated, matching CHILD_ORDER_SCHEMAS",
+        generated.len()
+    );
+}
+
+/// The two hand-written curation modules re-export **every** item their generated module declares.
+///
+/// `drawingml` and `presentationml` are emitted `pub(crate)` and re-exported item by item through
+/// `src/drawingml.rs` and `src/presentationml.rs`, so that the crate's public surface is curated
+/// rather than whatever the generator happens to emit — [`SIMPLE_TYPE_MODULES`]'s `visibility`
+/// field is that decision. The re-export lists are hand-written, and nothing else fails when the
+/// generator emits a type that never reaches them: the item simply becomes unreachable, silently,
+/// exactly as if the allowlist had never grown. Both directions are checked, because a name in the
+/// list that the generator no longer emits would not compile but a name it emits and the list omits
+/// would.
+#[test]
+fn the_curated_re_exports_cover_every_generated_item() {
+    let mut checked = 0;
+    for (module, hand_written) in [
+        ("drawingml", "crates/mjx-ooxml-types/src/drawingml.rs"),
+        ("presentationml", "crates/mjx-ooxml-types/src/presentationml.rs"),
+    ] {
+        let generated = read(&generated_dir().join(format!("{module}.rs")));
+        let declared: BTreeSet<&str> = generated
+            .lines()
+            .filter_map(|l| {
+                let rest = l
+                    .strip_prefix("pub enum ")
+                    .or_else(|| l.strip_prefix("pub struct "))
+                    .or_else(|| l.strip_prefix("pub type "))
+                    .or_else(|| l.strip_prefix("pub fn "))?;
+                Some(
+                    rest.split(|c: char| !c.is_alphanumeric() && c != '_')
+                        .next()
+                        .unwrap_or(rest),
+                )
+            })
+            .collect();
+        assert!(
+            !declared.is_empty(),
+            "no public item was parsed out of the committed {module}.rs — the parser has stopped \
+             matching"
+        );
+
+        let source = read(&workspace_root().join(hand_written));
+        let list = source
+            .split_once(&format!("pub use crate::generated::{module}::{{"))
+            .unwrap_or_else(|| panic!("{hand_written} has no re-export of generated::{module}"))
+            .1;
+        let list = list
+            .split_once("};")
+            .expect("the re-export list is terminated")
+            .0;
+        let re_exported: BTreeSet<&str> = list
+            .split(',')
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .collect();
+
+        assert_eq!(
+            declared, re_exported,
+            "the generated `{module}` module and the curated re-export in {hand_written} disagree"
+        );
+        checked += declared.len();
+    }
+    assert!(
+        checked >= 30,
+        "only {checked} curated re-export(s) were compared — the walk has stopped finding them"
+    );
+    println!("curated re-exports: {checked} items, matching their generated modules exactly");
+}
