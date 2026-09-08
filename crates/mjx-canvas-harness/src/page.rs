@@ -36,7 +36,7 @@
 
 use mjx_tokens::{Tokens, TOKENS};
 
-use crate::inventory::{Family, INVENTORY};
+use crate::inventory::{Family, ELEMENTS, INVENTORY};
 use crate::state::{Density, Input, Interaction, State};
 
 /// The whole page, for the tokens currently in force.
@@ -54,15 +54,22 @@ pub fn render(tokens: &Tokens) -> String {
     html.push_str(STYLE);
     html.push_str("</style>\n</head>\n<body>\n");
 
-    html.push_str(
+    html.push_str(&format!(
         "<header>\n\
          <h1>In-canvas UI</h1>\n\
          <p class=\"note\">Every pixel below is drawn in Rust — <code>mjx-layout</code> → \
          <code>mjx-scene</code> → <code>mjx-paint</code>'s software painter. This page is the \
          chrome.</p>\n\
          <button id=\"panels\" class=\"ghost\" type=\"button\">Panels</button>\n\
-         </header>\n",
-    );
+         </header>\n\
+         <p id=\"unapproved\" class=\"banner\" role=\"note\">⚠ <strong>These {ELEMENTS} designs \
+         are proposals awaiting your pass.</strong> Every plate is stamped \
+         <code>approver = generator</code> — a real approval record, and <em>nobody has looked at \
+         these images</em>. Judge each element here, tick it in \
+         <code>docs/client-platform/CANVAS_UI_AUDIT.md</code>, and record it with \
+         <code>MJX_ORACLE_APPROVED_BY='Your Name' cargo run -p mjx-canvas-harness -- approve \
+         &lt;number&gt; \"why\"</code>.</p>\n",
+    ));
 
     html.push_str("<main>\n");
 
@@ -257,6 +264,21 @@ h1 { font-size: 1rem; margin: 0; letter-spacing: var(--tracking-tight); }
 h2 { font-size: .8rem; margin: 1.2rem 0 .4rem; text-transform: uppercase;
      letter-spacing: .06em; opacity: .7; }
 .note { font-size: .78rem; opacity: .72; margin: .4rem 0; }
+/* The unapproved banner (audit pass 10, G9). Deliberately NOT `.note`'s .72 opacity: the gallery,
+   the checklist and the CI job all say the sixty-one designs are one agent's proposals, and the
+   surface a person actually audits on said nothing at all. It is drawn in the honey ramp because
+   `--color-honey` is fill-only and `--color-honey-deep` is the on-light-text step of the same
+   ramp — the same pairing `.status[data-kind='warn']` uses. */
+.banner {
+  margin: 0; padding: .6rem 1rem; font-size: .8rem;
+  background: var(--color-honey-tint); color: var(--color-honey-deep);
+  border-bottom: 1px solid var(--color-honey-line);
+}
+[data-scheme='dark'] .banner {
+  background: var(--theme-dark-surface); color: var(--color-honey);
+  border-bottom-color: var(--theme-dark-border-subtle);
+}
+.banner code { word-break: break-word; }
 .status { font-size: .78rem; min-height: 1.2em; margin: .4rem 0; }
 .status[data-kind='error'] { color: var(--color-honey-deep); }
 .status[data-kind='ok'] { color: var(--color-green-deep); }

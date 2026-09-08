@@ -152,6 +152,25 @@ fn check() -> Result<(), String> {
             "all {} plates match their approved baselines.",
             verdicts.len()
         );
+        // **The disclosure, where the reader actually is** (audit pass 10, G8). `check` is the
+        // command `CLAUDE.md` documents and the one CI runs, and *"approved baselines"* is the
+        // phrase a person will quote out of its output. It said nothing else, while `list`, the
+        // gallery, the checklist and the CI job all say this — so the one surface that reads as an
+        // endorsement was the one surface that did not carry the qualification.
+        //
+        // `mjx-render-oracle -- check` ends with the same two lines, and this is deliberately the
+        // same sentence: two instruments over the same baseline store, saying one thing.
+        let awaiting = plates::awaiting_human_review(&store);
+        if !awaiting.is_empty() {
+            println!(
+                "\n⚠ {} of {} carry NO HUMAN REVIEW — every one is stamped `approver = generator`, \
+                 which is a real approval record (the digest binding is live, so a silent \
+                 regeneration is caught) and is NOT a person having looked at the image.\n  \
+                 `list` says which; `serve` is where a person looks; `approve` is how they say so.",
+                awaiting.len(),
+                mjx_canvas_harness::ELEMENTS
+            );
+        }
         Ok(())
     } else {
         Err(format!(

@@ -133,8 +133,11 @@ Layered Cargo workspace; dependencies only ever point *downward*.
                                   may link the platform's graphics API, and the reason the
                                   pure-Rust rule now names the *document graph*)
      Tooling          xtask       (schema and token codegen)
-     Test-only        mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
-                                  (never published, never a runtime dependency)
+     Test-only, BELOW their consumers — no rank, so they are reachable from anywhere:
+                      mjx-schema-gate  ·  mjx-fixtures  ·  mjx-allocation-counter
+     Test-only, ABOVE the whole graph — no rank, so nothing may reach THEM:
+                      mjx-render-oracle  ·  mjx-reference-pack  ·  mjx-canvas-harness
+                                  (all six never published, never a runtime dependency)
 ```
 
 An edge is legal **iff** it points to a *strictly* lower rank, which makes sideways as illegal as
@@ -160,8 +163,31 @@ ranked graph, so nothing shipped acquires an edge to a test-only crate.
 so `mjx-opc`'s byte-identity suites — which sit below the gate — read the same corpus without any
 edge pointing upwards. Neither is published and nothing shipped depends on either.
 
-The two binding crates are the only ones in the workspace that carry `#![allow(unsafe_code)]`, for
-macro-generated `unsafe` only; CI greps them to keep that claim true.
+The other three test-only crates are outside the graph in the **opposite** direction — above every
+ranked crate rather than below them, because each names a set of edges no ranked crate could legally
+declare. `mjx-render-oracle` is the fidelity oracle (the three assertion tiers, the perceptual
+metric, the baselines and their approval events); `mjx-reference-pack` authors the artefacts one
+Windows sitting needs and is the top of the workspace, reachable by nothing; `mjx-canvas-harness` is
+the manual audit surface for the sixty-one in-canvas UI elements, and is the oracle's second
+consumer. Having no rank means the layering test's downward rule holds nothing about what they
+depend on, so each of the last two carries its own `tests/the_seam_holds.rs` asserting its
+dependency set exactly — see `CLAUDE.md` before adding one.
+
+**Four crates** carry a local `#![allow(unsafe_code)]` against a workspace that denies it, and **no
+crate in the document graph is one of them**. The two bindings allow it for macro-generated `unsafe`
+only — every block comes from `#[pyclass]` or `#[wasm_bindgen]`, and CI greps `bindings/*/src` and
+`bindings/*/tests` to keep that claim true. `mjx-paint` allows it for **exactly one** hand-written
+block, the surface created from a window handle the shell supplied, which carries the marker
+`MJX-PAINT-SURFACE-UNSAFE` and which CI greps for in the same job.
+`mjx-allocation-counter` allows it for one `unsafe impl GlobalAlloc` whose every method forwards its
+arguments unchanged to `std::alloc::System`.
+
+Four crates and **five files**: `bindings/mjx-wasm` carries the attribute in `src/lib.rs` and again
+in `tests/browser.rs`, which runs the binding inside a real WebAssembly runtime. Both are inside the
+grep. `xtask/tests/unsafe_allowance.rs` holds this paragraph to the tree, because the sentence it
+replaced said *"the two binding crates are the only ones"* and had been false since MJXOFF-163 —
+while ending *"CI greps them to keep that claim true"*, which made a stale claim look mechanically
+guarded.
 
 See [`PLAN.md`](PLAN.md) for what each crate does and the phase it lands in.
 

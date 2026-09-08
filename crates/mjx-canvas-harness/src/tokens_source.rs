@@ -28,10 +28,27 @@
 //! itself resolves with. A harness that wrote `#gg0000` into the source would leave the workspace
 //! in a state where `cargo run -p xtask -- tokens` fails and the person who typed it has already
 //! closed the tab. The failure belongs at the keystroke.
+//!
+//! # ⚠ The half of that validation MJXOFF-166 shipped without, and how it is closed
+//!
+//! The paragraph above was true of a value's **type** and false of its **contrast**, which is the
+//! rule a design tweak is far more likely to trip. `DESIGN_TOKENS.md` §2.2 — every colour tagged for
+//! text reaches 4.5 : 1 against its declared background — lived in `xtask/src/codegen/tokens/`, and
+//! this crate may not depend on `xtask`. So the editor accepted a text colour that
+//! `cargo run -p xtask -- tokens` would refuse, and the person who typed it found out a build
+//! later: exactly the failure the comment above says the validation exists to prevent, for the
+//! most likely case.
+//!
+//! The rule moved **down** into `mjx-tokens`, where both writers can reach it, and [`rewrite`] now
+//! calls `mjx_tokens::check_usage` over the **rewritten text** before a byte reaches the disk. It
+//! checks *every* text-tagged token rather than only the edited one, because the rule is symmetric:
+//! darkening `color.paper` breaks every `on-light-text` colour measured against it, and an editor
+//! that only looked at the token under the cursor would wave that through. That is the same sweep
+//! the generator does, through the same function.
 
 use std::path::{Path, PathBuf};
 
-use mjx_tokens::{TokenIdentity, TokenValue, Tokens, TOKENS};
+use mjx_tokens::{Color, ColorUsage, TokenIdentity, TokenValue, Tokens, TOKENS};
 
 /// The design-token source, relative to the workspace root.
 pub const SOURCE: &str = "docs/client-platform/data/tokens.json";
@@ -67,6 +84,14 @@ pub struct Editable {
     pub value: String,
     /// Which kind of value it is, so the editor can offer a colour picker rather than a text box.
     pub kind: &'static str,
+    /// What this colour may be used for, or `None` for a token that is not a colour.
+    ///
+    /// Shown on the panel so the contrast rule is visible *before* a refusal rather than only in
+    /// one: a token marked `on-light-text` is one the write-back will measure, and `fill-only` is
+    /// one it will not.
+    pub usage: Option<ColorUsage>,
+    /// The dotted path of the token this colour's contrast is measured against, if it declares one.
+    pub background: Option<&'static str>,
 }
 
 /// Every token the platform defines, with its current value out of `tokens`.
@@ -85,6 +110,8 @@ pub fn editable(tokens: &Tokens) -> Vec<Editable> {
                 typescript_path: identity.typescript_path,
                 value: value.to_string(),
                 kind: kind_of(&value),
+                usage: identity.usage,
+                background: identity.background,
             })
         })
         .collect()
@@ -131,6 +158,27 @@ pub enum WriteBackError {
         /// field called `source` as the error's cause and requires it to implement `Error`, so the
         /// obvious name is the one name this field may not have.
         file: String,
+    },
+    /// The rewritten source would break `DESIGN_TOKENS.md` §2.2's contrast rule.
+    ///
+    /// # Why the token named here may not be the token that was edited
+    ///
+    /// The rule is symmetric. Darkening `color.paper` does not change `color.ink`, and it breaks
+    /// every `on-light-text` colour measured against `color.paper` — so the refusal names the
+    /// **pair**, not the keystroke. Blaming the edited token would send a person to change a colour
+    /// that is fine.
+    #[error(
+        "`{token}` {detail}\n\
+         Nothing was written. This is the same refusal `cargo run -p xtask -- tokens` would make \
+         one build later; it is made here so the file on disk never reaches a state the generator \
+         will not take. A change that needs a background and its text to move together has to move \
+         the text colour first."
+    )]
+    Contrast {
+        /// The dotted path of the token whose contrast fails — **not necessarily the edited one**.
+        token: String,
+        /// What `mjx_tokens::check_usage` said, measurement included.
+        detail: String,
     },
     /// The file could not be read or written.
     #[error("{0}")]
@@ -195,11 +243,98 @@ pub fn rewrite(
     text.push_str(&source[..span.0]);
     text.push_str(&encoded);
     text.push_str(&source[span.1..]);
+
+    // **`DESIGN_TOKENS.md` §2.2, before a byte reaches the disk.** See the module docs: the type
+    // check above is `mjx_tokens`'s parser and this is `mjx_tokens`'s contrast rule, which is the
+    // one a design tweak actually trips.
+    check_contrast(&text)?;
+
     Ok(Rewritten {
         text,
         previous,
         previous_was_alias,
     })
+}
+
+/// Every text-tagged colour in `source`, measured against the background it declares.
+///
+/// The sweep is over [`TOKENS`] rather than over the edited token, for the reason
+/// [`WriteBackError::Contrast`] gives: the rule binds a **pair**, and either half of a pair can be
+/// the one that moved. Nine of the ninety-two tokens are tagged for text today, so this is nine
+/// walks of a five-hundred-line file — cheaper than the JSON parse this module refuses to do.
+///
+/// # Errors
+///
+/// [`WriteBackError::Contrast`] for a pair that fails the rule, [`WriteBackError::NotInSource`] for
+/// a token the generated table has and the file does not, and [`WriteBackError::Malformed`] for a
+/// colour the platform's own parser will not take.
+fn check_contrast(source: &str) -> Result<(), WriteBackError> {
+    for identity in TOKENS {
+        let (Some(usage), Some(background_path)) = (identity.usage, identity.background) else {
+            continue;
+        };
+        if !usage.colours_text() {
+            continue;
+        }
+        let colour = colour_in_source(source, identity.path)?;
+        let background = colour_in_source(source, background_path)?;
+        mjx_tokens::check_usage(usage, colour, background, background_path).map_err(|error| {
+            WriteBackError::Contrast {
+                token: identity.path.to_owned(),
+                detail: error.to_string(),
+            }
+        })?;
+    }
+    Ok(())
+}
+
+/// How many alias hops [`colour_in_source`] will follow before it calls the chain a cycle.
+///
+/// The source's longest chain is two (`document.light.selection-handle` → `color.green-deep` → a
+/// literal). Eight is generous and finite; the generator refuses a cycle outright and this must
+/// terminate rather than reproduce that analysis.
+const ALIAS_HOPS: usize = 8;
+
+/// The colour `path` resolves to **in this text**, following the W3C alias form.
+///
+/// Resolved out of the source being written rather than out of [`Tokens::DEFAULTS`], because the
+/// defaults are what the *last* generator run emitted and the question here is whether the file as
+/// it will be on disk is one the *next* run will take. A background the same editing session
+/// changed a minute ago is only visible this way.
+fn colour_in_source(source: &str, path: &str) -> Result<Color, WriteBackError> {
+    let mut at = path.to_owned();
+    for _ in 0..ALIAS_HOPS {
+        let text = value_text(source, &at).ok_or_else(|| WriteBackError::NotInSource {
+            path: at.clone(),
+            file: SOURCE.to_owned(),
+        })?;
+        match text
+            .strip_prefix('{')
+            .and_then(|rest| rest.strip_suffix('}'))
+        {
+            Some(target) => at = target.to_owned(),
+            None => {
+                let label =
+                    mjx_tokens::identity_at(&at).map_or(at.as_str(), |it| it.custom_property);
+                return mjx_tokens::parse_color(label, &text)
+                    .map_err(|error| WriteBackError::Malformed(error.to_string()));
+            }
+        }
+    }
+    Err(WriteBackError::Malformed(format!(
+        "`{path}` does not resolve to a colour in {ALIAS_HOPS} alias hops, so the source has a \
+         cycle in it; `cargo run -p xtask -- tokens` names the chain"
+    )))
+}
+
+/// What `usage` a token declares, in one word, for the editor's panel.
+///
+/// `None` for everything that is not a colour. The panel shows it so that a person tweaking
+/// `--color-green` can see *before* typing that it is `fill-only` and that
+/// [`ColorUsage::OnLightText`] tokens are the ones the write-back will measure.
+#[must_use]
+pub fn usage_of(custom_property: &str) -> Option<ColorUsage> {
+    mjx_tokens::identity_of(custom_property).and_then(|identity| identity.usage)
 }
 
 /// Write `value` into the token source on disk.

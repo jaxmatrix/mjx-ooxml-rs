@@ -53,13 +53,26 @@
 //! );
 //! ```
 //!
-//! # Contrast is enforced in the generator, not here
+//! # Contrast lives here, and the generator calls it
 //!
 //! `DESIGN_TOKENS.md` §2.2 measures `--color-green` at 3.39 : 1 on white — legal for a fill, not
 //! for body text — and `--color-green-deep` at 5.34 : 1. Every colour token in the source declares
-//! which of those it is, and `xtask`'s generator **fails** if one tagged for text does not reach
-//! 4.5 : 1 against its declared background. The measured ratio is recorded in each token's docs
-//! here, so the decision is auditable at the point of use.
+//! which of those it is through [`ColorUsage`], and a token tagged for text must reach
+//! [`TEXT_CONTRAST_MINIMUM`] against its declared background. The measured ratio is recorded in
+//! each token's docs, so the decision is auditable at the point of use.
+//!
+//! **The rule used to live in `xtask`'s generator alone, and MJXOFF-166's audit found the hole that
+//! made.** The generator is not the only writer of `tokens.json`: the canvas harness's live token
+//! editor writes back to it, and that harness may not depend on `xtask`. So a person could tweak a
+//! text colour in the editor, get a green write-back, and watch `cargo run -p xtask -- tokens` go
+//! red afterwards — the failure a long way from the keystroke that caused it, which is exactly what
+//! the editor's validation exists to prevent, for the rule a design tweak is most likely to trip.
+//!
+//! The arithmetic is therefore **here**, in the one crate every writer can reach: [`contrast_ratio`],
+//! [`check_usage`], and the [`ColorUsage`] and [`TokenIdentity::background`] metadata the generated
+//! table now carries as *data* rather than as prose. `xtask`'s generator **calls** it rather than
+//! keeping a copy; two statements of one rule is the divergence this whole pipeline exists to
+//! prevent.
 
 mod generated;
 
@@ -332,8 +345,9 @@ impl fmt::Display for TokenValue {
     }
 }
 
-/// One token's three names: its path in `tokens.json`, its CSS custom property, and its path in
-/// `tokens.ts`. [`TOKENS`] is the whole table.
+/// One token's three names — its path in `tokens.json`, its CSS custom property, and its path in
+/// `tokens.ts` — and, for a colour, the contrast metadata `DESIGN_TOKENS.md` §2.2 requires of it.
+/// [`TOKENS`] is the whole table.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TokenIdentity {
     /// The dotted path in the source and in the generated Rust, e.g. `color.ink-soft`.
@@ -342,6 +356,22 @@ pub struct TokenIdentity {
     pub custom_property: &'static str,
     /// The path in `ui/tokens/tokens.ts`, e.g. `color.inkSoft`.
     pub typescript_path: &'static str,
+    /// What this colour may be used for; `None` for every token that is not a colour.
+    ///
+    /// # Why this is a field rather than a sentence in the docs
+    ///
+    /// It was a sentence until MJXOFF-166's audit. The generated docs said
+    /// `usage on-light-text · 11.75 : 1 on color.paper` for `--color-ink` and a *program* could not
+    /// read it, so the only enforcement of §2.2 lived in `xtask`'s generator — which the canvas
+    /// harness's live token editor may not depend on, and which therefore ran a build too late to
+    /// stop a bad tweak. As data, [`check_usage`] is callable by whoever is doing the writing.
+    pub usage: Option<ColorUsage>,
+    /// The dotted path of the token this colour's contrast was measured against, e.g. `color.paper`.
+    ///
+    /// Present exactly when the source declares `$extensions.mjx.background`, which it must for
+    /// every colour tagged for text — an unmeasured text colour is the rule stated rather than
+    /// enforced. Resolve it with [`identity_at`].
+    pub background: Option<&'static str>,
 }
 
 // -------------------------------------------------------------------------------------------
@@ -723,12 +753,263 @@ pub fn resolve<'a>(
     Ok(resolution)
 }
 
+// -------------------------------------------------------------------------------------------
+// Contrast — `DESIGN_TOKENS.md` §2.2, as code every writer of the token source can reach
+// -------------------------------------------------------------------------------------------
+
+/// The WCAG 2.2 AA contrast minimum for body text.
+///
+/// Large text and user-interface components have lower minima and this crate deliberately does not
+/// model them: a token tagged for *text* is tagged for the hardest case it will be put to, and a
+/// second, laxer tier would only be a way to pass.
+pub const TEXT_CONTRAST_MINIMUM: f64 = 4.5;
+
+/// The relative luminance either side of which a surface counts as light or dark.
+///
+/// Used to check that an [`ColorUsage::OnLightText`] tag actually names a light background: a tag
+/// that named the wrong surface would pass the ratio check against the wrong colour.
+pub const LIGHT_SURFACE_LUMINANCE: f64 = 0.5;
+
+/// What a colour token may be used for. **There is no default.**
+///
+/// `DESIGN_TOKENS.md` §2.2 calls colouring text with a fill-only accent *"the most likely
+/// accessibility defect in the chrome"*, so an untagged colour is refused rather than defaulted to
+/// [`ColorUsage::FillOnly`], which would make the omission invisible.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum ColorUsage {
+    /// Legal as text on the declared light background, which means it meets
+    /// [`TEXT_CONTRAST_MINIMUM`] against it.
+    OnLightText,
+    /// Legal as text on the declared dark background.
+    OnDarkText,
+    /// Fills, borders, indicators and icons — never the colour of a glyph.
+    FillOnly,
+}
+
+impl ColorUsage {
+    /// Every usage, in the order a failure lists them.
+    pub const ALL: [Self; 3] = [Self::OnLightText, Self::OnDarkText, Self::FillOnly];
+
+    /// The spelling the token source uses, which is also what a failure quotes back.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::OnLightText => "on-light-text",
+            Self::OnDarkText => "on-dark-text",
+            Self::FillOnly => "fill-only",
+        }
+    }
+
+    /// Whether the token is allowed to colour text, which is what makes the contrast minimum
+    /// binding.
+    #[must_use]
+    pub const fn colours_text(self) -> bool {
+        matches!(self, Self::OnLightText | Self::OnDarkText)
+    }
+
+    /// The usage a source spelling names, or `None`.
+    ///
+    /// Deliberately not an error type: the *rule* lives in this crate and the *message* for an
+    /// unreadable source file belongs to whoever is reading that file, which is the generator.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|usage| usage.as_str() == text)
+    }
+}
+
+impl fmt::Display for ColorUsage {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+/// Why a colour tagged for text may not carry that tag.
+///
+/// Three refusals rather than one string, because they are three different mistakes: a translucent
+/// text colour was measured against a surface it is never seen on; a tag naming the wrong surface
+/// measured a correct ratio against the wrong colour; and a ratio below the minimum is the rule
+/// itself. Only the third is fixed by choosing a different colour.
+#[derive(Clone, Debug, PartialEq, thiserror::Error)]
+pub enum ContrastError {
+    /// The colour is tagged for text and is not opaque.
+    #[error(
+        "is tagged `{usage}` but is not opaque; text is drawn at full alpha, so a translucent text \
+         colour is measured against a surface it is never seen on"
+    )]
+    Translucent {
+        /// The usage the token declared.
+        usage: ColorUsage,
+    },
+    /// The declared background is light where the tag says dark, or the other way round.
+    #[error(
+        "is tagged `{usage}`, but its declared background `{background_path}` ({background}) has a \
+         relative luminance of {luminance:.3}, which is {surface}. The tag names the wrong surface"
+    )]
+    WrongSurface {
+        /// The usage the token declared.
+        usage: ColorUsage,
+        /// The token path of the declared background.
+        background_path: String,
+        /// That background's CSS text.
+        background: String,
+        /// Its measured relative luminance.
+        luminance: f64,
+        /// What that luminance makes the background: `light` or `dark`.
+        surface: &'static str,
+    },
+    /// The measured ratio is below [`TEXT_CONTRAST_MINIMUM`].
+    #[error(
+        "is tagged `{usage}`, but {colour} on `{background_path}` ({background}) measures \
+         {ratio:.2} : 1, below the {} : 1 WCAG AA minimum for body text. DESIGN_TOKENS.md §2.2: \
+         use this colour for fills, borders, indicators and icons, and the deep step of the same \
+         ramp for accent-coloured text",
+        TEXT_CONTRAST_MINIMUM
+    )]
+    BelowMinimum {
+        /// The usage the token declared.
+        usage: ColorUsage,
+        /// The colour's CSS text.
+        colour: String,
+        /// The token path of the declared background.
+        background_path: String,
+        /// That background's CSS text.
+        background: String,
+        /// The measured ratio.
+        ratio: f64,
+    },
+}
+
+impl Color {
+    /// This colour composited over `background` — what a partially transparent colour actually
+    /// looks like, and therefore what its contrast has to be measured on.
+    #[must_use]
+    pub fn over(self, background: Self) -> Self {
+        if self.alpha == 0xff {
+            return self;
+        }
+        let alpha = f64::from(self.alpha) / 255.0;
+        let mix = |over: u8, under: u8| -> u8 {
+            let blended = f64::from(over).mul_add(alpha, f64::from(under) * (1.0 - alpha));
+            // A convex combination of two values in `0..=255`, so the rounded result is in range
+            // and fits a `u8`.
+            blended.round().clamp(0.0, 255.0) as u8
+        };
+        Self {
+            red: mix(self.red, background.red),
+            green: mix(self.green, background.green),
+            blue: mix(self.blue, background.blue),
+            alpha: 0xff,
+        }
+    }
+
+    /// WCAG 2.2 relative luminance.
+    #[must_use]
+    pub fn relative_luminance(self) -> f64 {
+        let linear = |channel: u8| -> f64 {
+            let value = f64::from(channel) / 255.0;
+            if value <= 0.040_45 {
+                value / 12.92
+            } else {
+                ((value + 0.055) / 1.055).powf(2.4)
+            }
+        };
+        0.2126_f64.mul_add(
+            linear(self.red),
+            0.7152_f64.mul_add(linear(self.green), 0.0722 * linear(self.blue)),
+        )
+    }
+}
+
+/// The WCAG 2.2 contrast ratio between a foreground and a background.
+///
+/// The foreground is composited over the background first when it is not opaque, because a
+/// translucent colour's contrast is the contrast of what is actually seen.
+#[must_use]
+pub fn contrast_ratio(foreground: Color, background: Color) -> f64 {
+    let foreground = foreground.over(background).relative_luminance();
+    let background = background.relative_luminance();
+    let (lighter, darker) = if foreground >= background {
+        (foreground, background)
+    } else {
+        (background, foreground)
+    };
+    (lighter + 0.05) / (darker + 0.05)
+}
+
+/// **The contrast rule itself.** `DESIGN_TOKENS.md` §2.2 in one function.
+///
+/// A [`ColorUsage::FillOnly`] colour is unconstrained and passes; a colour tagged for text must be
+/// opaque, must name a background of the right lightness, and must reach [`TEXT_CONTRAST_MINIMUM`]
+/// against it.
+///
+/// # Errors
+///
+/// [`ContrastError`], which quotes the measurement rather than only refusing.
+pub fn check_usage(
+    usage: ColorUsage,
+    colour: Color,
+    background: Color,
+    background_path: &str,
+) -> Result<(), ContrastError> {
+    if !usage.colours_text() {
+        return Ok(());
+    }
+    if colour.alpha != 0xff {
+        return Err(ContrastError::Translucent { usage });
+    }
+    let luminance = background.relative_luminance();
+    let background_is_light = luminance >= LIGHT_SURFACE_LUMINANCE;
+    if background_is_light != (usage == ColorUsage::OnLightText) {
+        return Err(ContrastError::WrongSurface {
+            usage,
+            background_path: background_path.to_owned(),
+            background: background.to_string(),
+            luminance,
+            surface: if background_is_light { "light" } else { "dark" },
+        });
+    }
+    let ratio = contrast_ratio(colour, background);
+    if ratio < TEXT_CONTRAST_MINIMUM {
+        return Err(ContrastError::BelowMinimum {
+            usage,
+            colour: colour.to_string(),
+            background_path: background_path.to_owned(),
+            background: background.to_string(),
+            ratio,
+        });
+    }
+    Ok(())
+}
+
 /// The table row for one custom property, if the platform defines it.
 #[must_use]
 pub fn identity_of(custom_property: &str) -> Option<&'static TokenIdentity> {
     TOKENS
         .iter()
         .find(|token| token.custom_property == custom_property)
+}
+
+/// The table row for one dotted token path, if the platform defines it.
+///
+/// The path is the spelling `tokens.json` and [`ContrastError`] use — a `background` is declared as
+/// `{color.paper}`, never as a custom property — so a caller resolving a declared background needs
+/// this direction of the index rather than [`identity_of`].
+#[must_use]
+pub fn identity_at(path: &str) -> Option<&'static TokenIdentity> {
+    TOKENS.iter().find(|token| token.path == path)
+}
+
+/// One colour parsed from the CSS text a token source or a host declared it with.
+///
+/// Public because [`check_usage`] takes [`Color`]s and its callers read them out of text: the
+/// generator out of `tokens.json`, the canvas harness's editor out of the same file. A second
+/// hexadecimal parser beside this one is a second answer to *"what colour is `#4c7`"*.
+///
+/// # Errors
+///
+/// [`TokenError::MalformedValue`], attributed to `custom_property`.
+pub fn parse_color(custom_property: &str, text: &str) -> Result<Color, TokenError> {
+    parse_token::<Color>(custom_property, text)
 }
 
 // -------------------------------------------------------------------------------------------

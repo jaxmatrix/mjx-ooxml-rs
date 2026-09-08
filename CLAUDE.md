@@ -133,22 +133,45 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   `docs/client-platform/CANVAS_UI_INVENTORY.md` — a synthetic `FragmentTree` per element, the state
   matrix reachable by clicking, a hit-test visualiser drawn from `mjx-layout`'s own spatial index,
   and a live token editor that writes back to `docs/client-platform/data/tokens.json`. It names
-  **no** format crate and no geometry table, exactly like the oracle; what it names together is
-  `mjx-paint` (5.5) and `mjx-render-oracle`, and nothing may depend on it in either section.
+  **no format crate, no facade, no packaging tier and no shared markup at all** — the geometry table
+  included — which is what makes *"the harness needs no document and no fixture"* true, and that in
+  turn is what lets in-canvas design be settled while the format renderers are still being built.
+  What it names together is `mjx-paint` (5.5) and `mjx-render-oracle`, and nothing may depend on it
+  in either section.
 
   **`mjx-render-oracle` (MJXOFF-165) sits one step below both, and they are the only two crates that
   may reach it.** It is the fidelity oracle: the three assertion tiers (`FragmentTree` snapshot,
   `DisplayList` snapshot, pixel diff) with the localisation that says *which* of them moved, the
-  perceptual metric, the committed baselines and their approval events, and the plate gallery R11
-  and U01 load. It names no format crate at all — it is the rendering path with no document
-  anywhere in it — which is what lets it have consumers where the pack has none. **No crate with a
-  rank may reach it, in either section** — a `[dev-dependencies]` entry included, because this crate
-  depends on `mjx-paint` and a test build that links Vulkan is still a build that links Vulkan — and
-  a crate that is *itself* above the whole graph may. `mjx-reference-pack` was the first such
-  consumer and `mjx-canvas-harness` is the second; the layering gate now asserts **both** edges by
-  name, because the two use different halves of the crate — the pack takes the authority vocabulary
-  and never renders a plate, and the harness takes the plate generator, the PNG encoder and the
-  baseline store, which until MJXOFF-166 were permitted-but-unconsumed.
+  perceptual metric, the committed baselines and their approval events, and the plate gallery it
+  renders — which U01 loads and which R11 calls `gallery::render` to produce its own copy of, rather
+  than loading. It names **no format crate, no facade and no packaging beyond `PresetShapeType`**,
+  which is what lets it have consumers where the pack has none. It is **not** free of DrawingML: it
+  declares `mjx-geometry`, `mjx-dml` and `mjx-ooxml-types` for the `preset-star` specimen, so that
+  `placeholders == 0` is asserted about the real `PresetGeometryProvider` rather than about a page
+  that happens to contain no shapes. So the oracle knows what a *shape* is and does not know what a
+  *file* is; the harness beside it knows neither. **The harness's property is the stronger of the
+  two, not the same one.** **No crate with a rank may reach the oracle, in either section** — a
+  `[dev-dependencies]` entry included, because this crate depends on `mjx-paint` and a test build
+  that links Vulkan is still a build that links Vulkan — and a crate that is *itself* above the
+  whole graph may. `mjx-reference-pack` was the first such consumer and `mjx-canvas-harness` is the
+  second; the layering gate now asserts **both** edges by name, because the two use different halves
+  of the crate — the pack takes the authority vocabulary and never renders a plate, and the harness
+  takes the plate generator, the PNG encoder and the baseline store, which until MJXOFF-166 were
+  permitted-but-unconsumed.
+
+  ⚠ **Neither crate's property was enforced by anything until audit pass 10, and the paragraphs
+  above described both as though it were.** A rank is what `xtask/tests/layering.rs` compares, and
+  these two have none — so its downward rule holds exactly one thing about them (*nothing may depend
+  on them*) and **nothing at all** about what they depend on. It would have accepted
+  `mjx-canvas-harness → mjx-pptx` without a word. This is the same shape as `mjx-paint` at 5.5, and
+  it has the same answer: `crates/mjx-canvas-harness/tests/the_seam_holds.rs` and
+  `crates/mjx-render-oracle/tests/the_seam_holds.rs` each assert their crate's dependency set
+  **exactly** and scan its sources for a forbidden name, both reading the one scanner at
+  `crates/mjx-paint/tests/support/manifest.rs` — shared by `#[path]` include rather than copied,
+  because what is worth sharing is the three parser defects MJXOFF-164 fixed in it, and a copy would
+  not carry them. That scanner's own two instrument tests compile into all three gates, so a scan
+  that had silently stopped seeing a category is caught in each. **Read this paragraph before adding
+  a dependency to either crate.**
 
   That one edge exists because the *authority vocabulary* — `ReferenceProvider`, the three-state
   `Verdict`, the provider-attached exclusions — must have exactly one home, for the same reason
@@ -248,8 +271,22 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   committed output, same doctrine. Two divergence gates hold it together: `xtask/tests/tokens.rs`
   proves the artefacts are *derived* from the source, and `mjx-tokens`'s `artefacts_agree` suite
   proves they are *equal to each other*. **The contrast rule of `DESIGN_TOKENS.md` §2.2 is enforced,
-  not documented:** every colour token declares its usage, and the generator refuses a token tagged
-  for text that does not reach 4.5 : 1 against its declared background.
+  not documented:** every colour token declares its usage, and a token tagged for text that does not
+  reach 4.5 : 1 against its declared background is refused.
+
+  **That rule lives in `mjx-tokens`, and the generator *calls* it** (audit pass 10). It used to be a
+  private `check_usage` inside `xtask/src/codegen/tokens/model.rs`, which made the generator the only
+  thing in the workspace able to apply it — and the generator is **not the only writer of
+  `tokens.json`**. `mjx-canvas-harness`'s live token editor writes back to that file and may not
+  depend on `xtask`, so a text colour tweaked in the editor was accepted at the keystroke and failed
+  the next `cargo run -p xtask -- tokens`: exactly the failure that editor's type validation exists
+  to prevent, for the rule a design tweak is most likely to trip. `mjx_tokens::check_usage`,
+  `contrast_ratio` and `ColorUsage` are now the one copy, `TokenIdentity` carries `usage` and
+  `background` as **data** rather than as prose in a doc comment, and the editor sweeps *every*
+  text-tagged token before a byte reaches the disk — because the rule binds a pair, and darkening
+  `color.paper` breaks every `on-light-text` colour measured against it. `xtask` therefore declares
+  `mjx-tokens`: a downward edge from a host-only binary, and the thing that keeps there being one
+  copy of the rule.
 
 ## Bindings
 

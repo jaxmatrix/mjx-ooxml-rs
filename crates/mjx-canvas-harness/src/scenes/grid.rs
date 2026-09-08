@@ -313,7 +313,7 @@ pub fn comment_indicator(canvas: &mut Canvas) {
     gridlines(canvas, SHEET, COLUMNS, ROWS);
     let noted = cell(SHEET, COLUMNS, ROWS, 1, 1);
     let side = if ink.is_touch() { 6.0 } else { 4.0 };
-    stage::triangle(
+    let node = stage::triangle(
         canvas,
         pt(noted.right() - side, noted.y),
         side,
@@ -321,6 +321,18 @@ pub fn comment_indicator(canvas: &mut Canvas) {
         "note indicator",
         ink.comment(),
     );
+    // **The grab region, which this scene shipped without** (audit pass 10, G3). Entry 30 declares
+    // `Axis::Input` and is therefore badged `touch` in the scene list and in `/api/inventory`, and
+    // it recorded nothing for the hit-test overlay to draw — so the one instrument
+    // `CANVAS_UI_INVENTORY.md` §4.1 calls *"the only honest way to judge whether a touch target is
+    // big enough"* was blank on the entry whose own description is *"four device pixels on a side
+    // at 1×, which is where a triangle stops being one"*. Tapping a note indicator opens the note;
+    // it is a target, and after the fill handle it is the smallest one in the inventory.
+    //
+    // Only the platform-sized triangle is grabbable. The three below it are a **ladder** — the same
+    // indicator at 3, 4 and 6 points so a reviewer can say where it stops reading as a triangle —
+    // and a grab region on each of those would say this cell carries four notes.
+    canvas.grab(node, "note indicator");
     // The ladder: the same triangle at three sizes, so that a reviewer at 1× can say where it stops
     // being a triangle rather than only whether the platform's size works.
     for (index, size) in [3.0_f64, 4.0, 6.0].into_iter().enumerate() {

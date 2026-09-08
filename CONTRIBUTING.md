@@ -184,7 +184,15 @@ OOXML symbols are cryptic; our public API must not be. Applies to generated *and
 
 ## Code style
 
-- Pure-Rust dependencies only in shipped crates. `unsafe` is denied workspace-wide; if genuinely
-  required, `#[allow(unsafe_code)]` locally with a written safety justification.
+- Pure-Rust dependencies only **in the document graph** — ranks 0 through the facade. The rule used
+  to say *"in shipped crates"*, and MJXOFF-163 amended it, because a pixel cannot reach a screen
+  without the operating system's graphics stack: `mjx-paint` at rank 5.5 is a shipped crate, is the
+  declared platform boundary, and is the **only** crate that may link the platform's graphics API
+  (`wgpu`, and through it Vulkan, Metal or Direct3D). Everything below it stays pure Rust, which is
+  what keeps the headless, `wasm32`, export and test paths free of a GPU — and `tiny-skia` is a
+  *required* second painter so that a fully pure-Rust path to pixels always exists. See `CLAUDE.md`.
+- `unsafe` is denied workspace-wide; if genuinely required, `#[allow(unsafe_code)]` locally with a
+  written safety justification. Four crates have one and none of them is in the document graph; the
+  README's architecture section lists all four and a test holds that list to the tree.
 - No `unwrap`/`expect`/`panic` on untrusted input in library paths — return typed `thiserror` errors.
 - Respect the layering: dependencies point downward only (see `CLAUDE.md`).

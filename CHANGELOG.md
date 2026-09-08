@@ -58,6 +58,83 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.141] - 2026-09-08
+
+**Audit pass 10: the token editor stops accepting a colour that breaks the next build, and the two
+crates above the graph get the gate their rank cannot give them.**
+
+Ten findings from a read-only audit of MJXOFF-166, ordered by how badly each would mislead a reader
+into believing something was proved that was not.
+
+### Fixed
+
+- **The live token editor validated a value's *type* and not its *contrast*, and the contrast rule
+  is the one a design tweak trips.** `DESIGN_TOKENS.md` §2.2 — every colour tagged for text reaches
+  4.5 : 1 against its declared background — lived in `xtask/src/codegen/tokens/model.rs`, and
+  `mjx-canvas-harness` may not depend on `xtask`. So a person tweaked a text colour in the harness,
+  got a green write-back, and `cargo run -p xtask -- tokens` went red afterwards: exactly the
+  failure the editor's own comment says its validation exists to prevent. **The rule moved down into
+  `mjx-tokens`**, where every writer of `tokens.json` can reach it — `check_usage`, `contrast_ratio`
+  and `ColorUsage` are one implementation, and `xtask`'s generator now *calls* it rather than
+  keeping a copy. This matters immediately: the user is about to audit sixty-one elements through
+  that editor.
+- **Entry 30's note indicator was badged `touch` and recorded no grab region** — a touch element the
+  audit surface could not answer for, on the entry whose own description is *"four device pixels on
+  a side at 1×, which is where a triangle stops being one"*. Found by the new assertion below rather
+  than by reading.
+
+### Added
+
+- **`TokenIdentity` carries `usage` and `background` as data**, not as prose in a generated doc
+  comment. A program could not read the old form, which is why the rule could not travel.
+- **`crates/mjx-canvas-harness/tests/the_seam_holds.rs` and
+  `crates/mjx-render-oracle/tests/the_seam_holds.rs`.** Both crates sit above the whole document
+  graph with **no rank**, so `xtask/tests/layering.rs` — whose rule is a comparison of two ranks —
+  holds nothing about what either depends on and would have accepted `mjx-canvas-harness → mjx-pptx`
+  without a word, while `CLAUDE.md` described the property as though something held it. Each gate
+  asserts its crate's dependency set **exactly** and scans its sources for a forbidden name. Both
+  read the one scanner at `crates/mjx-paint/tests/support/manifest.rs`, shared by `#[path]` include
+  rather than copied — what is worth sharing is the three parser defects MJXOFF-164 fixed in it, and
+  a copy would not carry them — and that scanner's **own two instrument tests** compile into all
+  three gates, because a manifest scanner that silently stops seeing a category passes forever.
+- **`crates/mjx-canvas-harness/tests/the_router_answers.rs`.** `server.rs` shipped at 591 lines with
+  no test calling any of it: an `abort()` in the `("GET", "/api/probe")` arm would have fired
+  nowhere, and the existing assertion was that the HTML *string contains* `"/api/probe?"` — a claim
+  about a hyperlink. Twelve cases now drive `route` and a new `read_request` directly: every route
+  with its content type, a `POST /api/tokens` round trip against a copy of the source, eight
+  refusals each checked to leave the file byte-identical, the body-length cap, the `Content-Length`
+  parse and an unreadable request line.
+- **`xtask/tests/unsafe_allowance.rs`**, holding the exact set of files that carry
+  `#![allow(unsafe_code)]`. `README.md` said *"the two binding crates are the only ones"* — false
+  since MJXOFF-163, there are four crates and five files — and ended *"CI greps them to keep that
+  claim true"*, which made a stale claim look mechanically guarded. The grep it named guards what
+  the allowance is *used for* and never who has one.
+- **An assertion that every entry declaring `Axis::Input` records a grab region.** It was read in two
+  places and both purely for display.
+- **Disclosure where the reader actually is.** `check` now ends with *"61 of 61 carry NO HUMAN
+  REVIEW"*, matching the oracle's; the harness page carries a banner saying the sixty-one designs
+  are proposals awaiting the user's pass. The gallery, the checklist and the CI job already said so
+  — the command CI runs and the page the review happens on did not.
+
+### Documentation
+
+- **`CLAUDE.md`'s claim that the harness names no format crate *"exactly like the oracle"* was false,
+  and backwards.** The oracle declares `mjx-geometry`, `mjx-dml` and `mjx-ooxml-types` for the
+  `preset-star` specimen; the harness declares none of them. The harness's property is the
+  **stronger** of the two. Both sentences are corrected, and the paragraph now states plainly that
+  neither property was enforced by anything until this pass.
+- `README.md`'s test-only crate list named three of six and drew none of the distinction between the
+  three *below* their consumers and the three *above the whole graph*; `CONTRIBUTING.md` still said
+  *"pure-Rust dependencies only in shipped crates"*, superseded by MJXOFF-163. Both are held by
+  `xtask/tests/unsafe_allowance.rs` now, because a claim that drifted once will drift again.
+- **`docs/UI_PLATFORM_PLAN.md` §11.2**, the description of the canvas harness that did not exist —
+  the plan's only account of R11 was a stale parenthetical saying in-canvas UI *"is audited as
+  generated image plates instead"*, which R11 superseded. Written in the shape of §11.1.
+- `Entry::responds` records that six of the sixty-one declarations were corrected *from* the first
+  measurement and that only two are recoverable from the tree, because the crate landed in one
+  commit. A declaration written from a measurement cannot detect that the measurement was wrong to
+  begin with, and saying which four is not something an agent can reconstruct.
+
 ## [0.0.140] - 2026-09-08
 
 **The canvas UI harness: sixty-one in-canvas elements, exercised by hand** (MJXOFF-166).

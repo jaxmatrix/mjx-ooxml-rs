@@ -29,7 +29,7 @@
 //! deliberate and prints a warning when it is used.
 
 use std::collections::BTreeMap;
-use std::io::{BufRead, BufReader, Read, Write};
+use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
 
@@ -48,7 +48,22 @@ use crate::tokens_source;
 pub const MAXIMUM_BODY: usize = 64 * 1024;
 
 /// What the server holds between requests.
-struct Harness {
+///
+/// # Why this is public, and why [`route`] is
+///
+/// **MJXOFF-166 shipped 591 lines of this file with no test in the workspace calling any of it**,
+/// and the audit's instrument said so exactly: an `abort()` in the `("GET", "/api/probe")` arm
+/// would have fired in no test. The page suite asserted that the *HTML string contains*
+/// `"/api/probe?"` — which is a claim about a hyperlink, not about a router — and the pixel
+/// inspector and the token editor reached an assertion only through [`crate::tokens_source`], the
+/// layer below the endpoint. The body-length cap, the `Content-Length` parse and every error
+/// response were untested.
+///
+/// So the seam a test needs is the one the socket needs: [`read_request`] turns bytes into a
+/// [`Request`] and [`route`] turns a [`Request`] into a [`Response`], with `TcpStream` on neither
+/// side. `tests/the_router_answers.rs` drives both.
+#[derive(Debug)]
+pub struct Harness {
     /// The tokens currently in force. Edited through `POST /api/tokens`, so a scene rendered after
     /// an edit is drawn with the new value without restarting.
     tokens: Mutex<Tokens>,
@@ -57,6 +72,31 @@ struct Harness {
     cache: Mutex<BTreeMap<String, Image>>,
     /// Where the token source is.
     source: std::path::PathBuf,
+}
+
+impl Harness {
+    /// A harness that edits the token source at `source`.
+    ///
+    /// `serve` passes [`tokens_source::source_path`]; a test passes a **copy**, because
+    /// `POST /api/tokens` really does write to the file it is given and a suite that pointed this
+    /// at the repository's own `tokens.json` would edit the workspace it is testing.
+    #[must_use]
+    pub fn new(source: std::path::PathBuf) -> Self {
+        Self {
+            tokens: Mutex::new(Tokens::DEFAULTS.clone()),
+            cache: Mutex::new(BTreeMap::new()),
+            source,
+        }
+    }
+
+    /// The tokens currently in force.
+    #[must_use]
+    pub fn tokens(&self) -> Tokens {
+        self.tokens.lock().map_or_else(
+            |poisoned| poisoned.into_inner().clone(),
+            |tokens| tokens.clone(),
+        )
+    }
 }
 
 /// Serve the harness on `host:port` until the process is stopped.
@@ -71,11 +111,7 @@ pub fn serve(host: &str, port: u16) -> Result<(), String> {
         .local_addr()
         .map_or_else(|_| format!("{host}:{port}"), |at| at.to_string());
 
-    let harness = Arc::new(Harness {
-        tokens: Mutex::new(Tokens::DEFAULTS.clone()),
-        cache: Mutex::new(BTreeMap::new()),
-        source: tokens_source::source_path(),
-    });
+    let harness = Arc::new(Harness::new(tokens_source::source_path()));
 
     println!("the canvas UI harness is at  http://{address}/");
     println!(
@@ -107,9 +143,52 @@ pub fn serve(host: &str, port: u16) -> Result<(), String> {
     Ok(())
 }
 
-/// One connection.
-fn handle(harness: &Harness, stream: TcpStream) -> Result<(), String> {
-    let mut reader = BufReader::new(stream.try_clone().map_err(|error| error.to_string())?);
+/// One request, as much of it as this server reads.
+///
+/// A struct rather than three arguments so that [`read_request`] can be driven from a `&[u8]` in a
+/// test: the parsing of a request line and a `Content-Length` is where the malformed-input
+/// behaviour lives, and it cannot be exercised through a `TcpStream` without a socket.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Request {
+    /// The method, or the empty string for a request line this server could not read.
+    pub method: String,
+    /// The target, path and query together. `/` when the line named none.
+    pub target: String,
+    /// The body, at most [`MAXIMUM_BODY`] bytes of it.
+    pub body: Vec<u8>,
+}
+
+impl Request {
+    /// The target split at its `?`.
+    #[must_use]
+    pub fn path_and_query(&self) -> (&str, &str) {
+        self.target
+            .split_once('?')
+            .unwrap_or((self.target.as_str(), ""))
+    }
+}
+
+/// Read one request: the request line, the headers this server cares about, and the body.
+///
+/// # The three deliberate leniencies, each of them tested
+///
+/// * **An unreadable request line is not an error.** A browser, a port scanner and a stray `\r\n`
+///   all reach here, and the answer to all three is the 404 an empty method routes to — a
+///   connection that produced a Rust error would print a line into the sitting's terminal for
+///   every one of them.
+/// * **A `Content-Length` that is not a number reads as zero.** The alternative is refusing to
+///   answer, which tells the browser nothing; zero means the body is empty and the route's own
+///   refusal ("the request named no `property`") says what was wrong.
+/// * **A `Content-Length` above [`MAXIMUM_BODY`] is capped, not refused.** A token write-back is a
+///   name and a value; anything larger is a mistake or a probe, and refusing to *allocate* for it
+///   is the point. The cap is what stops a declared four-gigabyte body becoming a four-gigabyte
+///   `Vec`.
+///
+/// # Errors
+///
+/// Only what the reader itself reports: a connection that closed mid-body, which is a real
+/// input/output failure rather than a malformed request.
+pub fn read_request(reader: &mut impl BufRead) -> Result<Request, String> {
     let mut request_line = String::new();
     reader
         .read_line(&mut request_line)
@@ -146,21 +225,56 @@ fn handle(harness: &Harness, stream: TcpStream) -> Result<(), String> {
             .read_exact(&mut body)
             .map_err(|error| error.to_string())?;
     }
+    Ok(Request {
+        method,
+        target,
+        body,
+    })
+}
 
-    let (path, query) = target.split_once('?').unwrap_or((target.as_str(), ""));
-    let response = route(harness, &method, path, query, &body);
+/// One connection.
+fn handle(harness: &Harness, stream: TcpStream) -> Result<(), String> {
+    let mut reader = BufReader::new(stream.try_clone().map_err(|error| error.to_string())?);
+    let request = read_request(&mut reader)?;
+    let (path, query) = request.path_and_query();
+    let response = route(harness, &request.method, path, query, &request.body);
     let mut stream = stream;
     write_response(&mut stream, &response)
 }
 
 /// One answer.
-struct Response {
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Response {
     status: &'static str,
     content_type: &'static str,
     body: Vec<u8>,
 }
 
 impl Response {
+    /// The HTTP status line, e.g. `200 OK`.
+    #[must_use]
+    pub fn status(&self) -> &'static str {
+        self.status
+    }
+
+    /// The `Content-Type` this answer carries.
+    #[must_use]
+    pub fn content_type(&self) -> &'static str {
+        self.content_type
+    }
+
+    /// The answer's bytes.
+    #[must_use]
+    pub fn body(&self) -> &[u8] {
+        &self.body
+    }
+
+    /// The answer's bytes as text, lossily — every route but `/render.png` answers in UTF-8.
+    #[must_use]
+    pub fn text_body(&self) -> String {
+        String::from_utf8_lossy(&self.body).into_owned()
+    }
+
     fn html(body: String) -> Self {
         Self {
             status: "200 OK",
@@ -192,15 +306,13 @@ impl Response {
 }
 
 /// Which answer a request gets.
-fn route(harness: &Harness, method: &str, path: &str, query: &str, body: &[u8]) -> Response {
+///
+/// Public so a test can ask the router whether a route exists, rather than asking the page whether
+/// it contains a link to one. See [`Harness`].
+#[must_use]
+pub fn route(harness: &Harness, method: &str, path: &str, query: &str, body: &[u8]) -> Response {
     match (method, path) {
-        ("GET", "/") => {
-            let tokens = harness.tokens.lock().map_or_else(
-                |poisoned| poisoned.into_inner().clone(),
-                |tokens| tokens.clone(),
-            );
-            Response::html(crate::page::render(&tokens))
-        }
+        ("GET", "/") => Response::html(crate::page::render(&harness.tokens())),
         ("GET", "/render.png") => match render_for(harness, query) {
             Ok((bytes, _)) => Response::png(bytes),
             Err(error) => Response::text("500 Internal Server Error", error),
@@ -215,10 +327,7 @@ fn route(harness: &Harness, method: &str, path: &str, query: &str, body: &[u8]) 
             Err(error) => Response::text("500 Internal Server Error", error),
         },
         ("GET", "/api/tokens") => {
-            let tokens = harness.tokens.lock().map_or_else(
-                |poisoned| poisoned.into_inner().clone(),
-                |tokens| tokens.clone(),
-            );
+            let tokens = harness.tokens();
             Response::json(tokens_json(&tokens))
         }
         ("POST", "/api/tokens") => Response::json(write_token(harness, body)),
@@ -244,10 +353,7 @@ fn render_for(harness: &Harness, query: &str) -> Result<(Vec<u8>, Image), String
         .unwrap_or(1);
     let entry = crate::inventory::entry(number)
         .ok_or_else(|| format!("{number} is not an inventory number; they run from 1 to 61"))?;
-    let tokens = harness.tokens.lock().map_or_else(
-        |poisoned| poisoned.into_inner().clone(),
-        |tokens| tokens.clone(),
-    );
+    let tokens = harness.tokens();
     let scene = Scene::build(entry, &tokens, state);
     let (rendered, bytes) = render::render_png(&scene, overlays)?;
     if let Ok(mut cache) = harness.cache.lock() {
@@ -306,10 +412,7 @@ fn counters_json(harness: &Harness, query: &str) -> Result<String, String> {
         .unwrap_or(1);
     let entry = crate::inventory::entry(number)
         .ok_or_else(|| format!("{number} is not an inventory number"))?;
-    let tokens = harness.tokens.lock().map_or_else(
-        |poisoned| poisoned.into_inner().clone(),
-        |tokens| tokens.clone(),
-    );
+    let tokens = harness.tokens();
     let scene = Scene::build(entry, &tokens, state);
     let rendered = render::render(&scene, overlays_from_query(query))?;
     let kinds: Vec<String> = render::kinds_drawn(&rendered.list)
@@ -369,10 +472,7 @@ fn probe_json(harness: &Harness, query: &str) -> Result<String, String> {
     let hits = crate::inventory::entry(number).map_or_else(
         || "—".to_owned(),
         |entry| {
-            let tokens = harness.tokens.lock().map_or_else(
-                |poisoned| poisoned.into_inner().clone(),
-                |tokens| tokens.clone(),
-            );
+            let tokens = harness.tokens();
             let scene = Scene::build(entry, &tokens, state);
             let (tree, _) = scene.canvas.tree();
             let index = mjx_layout::SpatialIndex::build(&tree);
@@ -419,11 +519,16 @@ fn tokens_json(tokens: &Tokens) -> String {
         .into_iter()
         .map(|token| {
             format!(
-                "{{\"path\":{},\"customProperty\":{},\"value\":{},\"kind\":{}}}",
+                "{{\"path\":{},\"customProperty\":{},\"value\":{},\"kind\":{},\"usage\":{},\
+                 \"background\":{}}}",
                 quote(token.path),
                 quote(token.custom_property),
                 quote(&token.value),
-                quote(token.kind)
+                quote(token.kind),
+                token
+                    .usage
+                    .map_or_else(|| "null".to_owned(), |usage| quote(usage.as_str())),
+                token.background.map_or_else(|| "null".to_owned(), quote)
             )
         })
         .collect();

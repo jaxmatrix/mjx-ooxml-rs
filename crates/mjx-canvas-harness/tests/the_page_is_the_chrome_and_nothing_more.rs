@@ -77,6 +77,40 @@ fn the_page_reaches_nothing_outside_this_process() {
     }
 }
 
+/// **The page says the sixty-one designs are proposals** (audit pass 10, G9).
+///
+/// The gallery says it at the top, `docs/client-platform/CANVAS_UI_AUDIT.md` says
+/// `Human review: 0 of 61` on its own face, the CI job's comment says it, and `check` says it since
+/// this same pass — and the one surface a person actually *audits on* said nothing. That is the
+/// surface where it matters most: a reviewer who assumes these are settled designs will audit them
+/// as though they were, and the whole point of MJXOFF-166 is that the approval is theirs to give.
+#[test]
+fn the_page_says_nobody_has_approved_these_designs() {
+    let html = rendered();
+    for phrase in [
+        "proposals awaiting your pass",
+        "nobody has looked at",
+        "approver = generator",
+        "approve",
+    ] {
+        assert!(
+            html.contains(phrase),
+            "the harness page no longer says `{phrase}`. The gallery, the checklist, the CI job \
+             and `check` all disclose that the sixty-one plates carry no human review; this is the \
+             page the review actually happens on, and it may not be the one that stays quiet."
+        );
+    }
+    assert!(
+        html.contains("id=\"unapproved\""),
+        "the banner has no stable id, so nothing can refer to it"
+    );
+    // And it names the real count, from the inventory rather than from a literal in the markup.
+    assert!(
+        html.contains(&format!("These {} designs", INVENTORY.len())),
+        "the banner should name the inventory's own count"
+    );
+}
+
 #[test]
 fn the_page_is_driven_by_the_generated_tokens() {
     let html = rendered();

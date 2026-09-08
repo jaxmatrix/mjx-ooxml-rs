@@ -15,7 +15,8 @@ use std::fmt::Write as _;
 
 use crate::codegen::tokens::model::{
     custom_property, dotted, number, rust_field, scheme_aliases, typescript_path,
-    typescript_property, Entry, Group, Length, Rgba, SchemeAlias, Shadow, Token, TokenSet, Value,
+    typescript_property, Entry, Group, Length, Rgba, SchemeAlias, Shadow, Token, TokenSet, Usage,
+    Value,
 };
 
 /// The line every artefact opens with, so a reader who lands in one of them knows in the first line
@@ -372,6 +373,11 @@ pub(crate) fn rust(set: &TokenSet) -> String {
         for name in rust_imports(&token.value) {
             imports.insert(name);
         }
+        // Only when something actually declares one, so a source with no colours in it emits a file
+        // that still compiles rather than one with an unused import.
+        if token.usage.is_some() {
+            imports.insert("ColorUsage");
+        }
     }
     let _ = writeln!(
         out,
@@ -485,20 +491,35 @@ impl Tokens {
 }
 
 /// Every token the platform defines, in the order the source declares them, with the three names it
-/// goes by: its path in `tokens.json`, its CSS custom property, and its path in `tokens.ts`.
+/// goes by — its path in `tokens.json`, its CSS custom property, and its path in `tokens.ts` — and
+/// the contrast metadata every colour carries.
 ///
 /// This is what makes the three artefacts comparable. A test that had to re-derive
 /// `--color-ink-soft` from `color.inkSoft` itself could agree perfectly with a wrong rule.
+///
+/// `usage` and `background` are emitted as **data** rather than only as prose in each token's docs
+/// (MJXOFF-166), because `xtask`'s generator is not the only writer of `tokens.json`: the canvas
+/// harness's live token editor writes back to it and may not depend on `xtask`, so it has to be
+/// able to call `mjx_tokens::check_usage` for itself.
 pub const TOKENS: &[TokenIdentity] = &[
 ",
     );
     for token in &tokens {
         let _ = writeln!(
             out,
-            "    TokenIdentity {{ path: {:?}, custom_property: {:?}, typescript_path: {:?} }},",
+            "    TokenIdentity {{ path: {:?}, custom_property: {:?}, typescript_path: {:?}, \
+             usage: {}, background: {} }},",
             dotted(&token.path),
             custom_property(&token.path),
-            typescript_path(&token.path)
+            typescript_path(&token.path),
+            match token.usage {
+                None => "None".to_owned(),
+                Some(usage) => format!("Some(ColorUsage::{})", usage_variant(usage)),
+            },
+            match &token.background {
+                None => "None".to_owned(),
+                Some(path) => format!("Some({path:?})"),
+            }
         );
     }
     out.push_str("];\n");
@@ -515,6 +536,19 @@ fn rust_imports(value: &Value) -> &'static [&'static str] {
         Value::FontStack(_) => &["FontStack"],
         Value::CubicBezier(_) => &["CubicBezier"],
         Value::Shadow(_) => &["Color", "Dimension", "LengthUnit", "Shadow"],
+    }
+}
+
+/// The `ColorUsage` variant a usage is spelled with in Rust.
+///
+/// Derived from `mjx_tokens::ColorUsage::ALL` by an exhaustive match rather than by transforming
+/// the wire spelling, so adding a fourth usage fails to compile here instead of emitting a variant
+/// that does not exist.
+fn usage_variant(usage: Usage) -> &'static str {
+    match usage {
+        Usage::OnLightText => "OnLightText",
+        Usage::OnDarkText => "OnDarkText",
+        Usage::FillOnly => "FillOnly",
     }
 }
 

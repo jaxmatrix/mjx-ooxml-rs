@@ -69,6 +69,10 @@
 
 use std::path::{Path, PathBuf};
 
+#[path = "support/manifest.rs"]
+mod manifest;
+use manifest::{read, rust_files, workspace_dependencies};
+
 /// How many `.rs` files `src/` holds, counted recursively.
 ///
 /// Exact rather than a floor, for the reason `mjx-layout`'s copy gives: a `>=` would pass on a scan
@@ -107,32 +111,6 @@ const UNSAFE_MARKER: &str = "MJX-PAINT-SURFACE-UNSAFE";
 
 fn source_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("src")
-}
-
-/// Every `.rs` file under `directory`, recursively, sorted.
-fn rust_files(directory: &Path) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let mut pending = vec![directory.to_path_buf()];
-    while let Some(current) = pending.pop() {
-        let entries = std::fs::read_dir(&current)
-            .unwrap_or_else(|error| panic!("reading {}: {error}", current.display()));
-        for entry in entries {
-            let entry = entry.expect("a directory entry");
-            let path = entry.path();
-            if path.is_dir() {
-                pending.push(path);
-            } else if path.extension().is_some_and(|suffix| suffix == "rs") {
-                found.push(path);
-            }
-        }
-    }
-    found.sort();
-    found
-}
-
-fn read(path: &Path) -> String {
-    std::fs::read_to_string(path)
-        .unwrap_or_else(|error| panic!("reading {}: {error}", path.display()))
 }
 
 /// The files, with the exact-count assertion every scan below shares.
@@ -315,125 +293,6 @@ fn the_manifest_declares_exactly_the_dependencies_the_seam_allows() {
          rasteriser. `mjx-layout`, `mjx-dml`, a format crate or the facade appearing here means \
          the seam has leaked, and the layering test cannot refuse any of them at rank 5.5."
     );
-}
-
-/// Every workspace dependency the manifest declares, in **every** table, in **both** spellings.
-///
-/// # What this had to be taught, and why each half mattered
-///
-/// **Every table.** MJXOFF-163's version tracked `[dependencies]` and nothing else, so this crate's
-/// own `[target.'cfg(target_arch = "wasm32")'.dependencies]` — a table that is *in the file the gate
-/// is about* — was invisible, and so was `[dev-dependencies]`.
-///
-/// **Both spellings.** It matched only `name.workspace = true`. Cargo treats
-/// `name = { workspace = true }` identically, and the second is what a dependency with any extra key
-/// has to be written as — including `wgpu = { workspace = true, features = ["webgl"] }`, which is
-/// the one this crate actually has.
-///
-/// Together they were a one-commit escape to the facade that neither this gate nor the layering test
-/// could see. Each entry is tagged with the table it came from, so a dependency that *moved* between
-/// tables changes the assertion rather than passing silently.
-fn workspace_dependencies(manifest: &str) -> Vec<String> {
-    let mut table: Option<String> = None;
-    let mut declared = Vec::new();
-    for line in manifest.lines() {
-        let trimmed = line.trim();
-        if let Some(header) = trimmed
-            .strip_prefix('[')
-            .and_then(|rest| rest.strip_suffix(']'))
-        {
-            table = classify(header);
-            continue;
-        }
-        let Some(suffix) = table.as_deref() else {
-            continue;
-        };
-        let Some(name) = declares_a_workspace_dependency(trimmed) else {
-            continue;
-        };
-        declared.push(if suffix.is_empty() {
-            name.to_owned()
-        } else {
-            format!("{name} ({suffix})")
-        });
-    }
-    declared
-}
-
-/// What a table header means for this scan, or `None` for a table that declares no dependencies.
-///
-/// A `[target.'...'.dependencies]` keeps its condition in the tag, because *"`wgpu` on `wasm32`"*
-/// and *"`wgpu` everywhere"* are different declarations, and an assertion that could not tell them
-/// apart would accept a dependency moved from one to the other.
-fn classify(header: &str) -> Option<String> {
-    match header {
-        "dependencies" => return Some(String::new()),
-        "dev-dependencies" => return Some("dev".to_owned()),
-        "build-dependencies" => return Some("build".to_owned()),
-        _ => {}
-    }
-    let rest = header.strip_prefix("target.")?;
-    let (condition, kind) = rest.rsplit_once('.')?;
-    let condition = condition.trim_matches('\'').trim_matches('"');
-    match kind {
-        "dependencies" => Some(format!("target {condition}")),
-        "dev-dependencies" => Some(format!("dev, target {condition}")),
-        _ => None,
-    }
-}
-
-/// The name a line declares as a workspace dependency, in either spelling.
-fn declares_a_workspace_dependency(line: &str) -> Option<&str> {
-    if let Some((name, _)) = line.split_once(".workspace = true") {
-        return Some(name.trim());
-    }
-    let (name, rest) = line.split_once('=')?;
-    let rest = rest.trim();
-    if !rest.starts_with('{') || !rest.contains("workspace = true") {
-        return None;
-    }
-    Some(name.trim())
-}
-
-#[test]
-fn the_manifest_scanner_reads_every_table_and_both_spellings() {
-    // The gate's own instrument, checked — the same way the keyword scan below is. A parser that saw
-    // one table would pass the assertion above for ever while a dependency sat unread in another,
-    // which is exactly what happened before MJXOFF-164.
-    const SAMPLE: &str = concat!(
-        "[package]\n",
-        "name = \"x\"\n",
-        "version.workspace = true\n",
-        "[dependencies]\n",
-        "mjx-scene.workspace = true\n",
-        "thiserror = { workspace = true }\n",
-        "serde = \"1\"\n",
-        "[target.'cfg(target_arch = \"wasm32\")'.dependencies]\n",
-        "wgpu = { workspace = true, features = [\"webgl\"] }\n",
-        "[dev-dependencies]\n",
-        "mjx-fixtures.workspace = true\n",
-        "[[test]]\n",
-        "name = \"harnessless\"\n"
-    );
-    assert_eq!(
-        workspace_dependencies(SAMPLE),
-        vec![
-            "mjx-scene",
-            "thiserror",
-            "wgpu (target cfg(target_arch = \"wasm32\"))",
-            "mjx-fixtures (dev)",
-        ],
-        "the scanner must read every dependency table and both spellings, and must not mistake \
-         `[package]`'s inherited `version.workspace = true` or a `[[test]]` section for one"
-    );
-    assert_eq!(declares_a_workspace_dependency("serde = \"1\""), None);
-    assert_eq!(
-        declares_a_workspace_dependency("wgpu = { version = \"30\" }"),
-        None,
-        "a table without `workspace = true` in it is not a workspace dependency"
-    );
-    assert_eq!(classify("package"), None);
-    assert_eq!(classify("dependencies"), Some(String::new()));
 }
 
 #[test]
