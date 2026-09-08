@@ -6,7 +6,7 @@ can do, and two classes that are exported and lead nowhere.
 
 ## The nine that stay in Rust, and why
 
-`Deck` carries 262 methods on the facade and 255 here; `Document` 126 and 123; `Workbook` 141 and
+`Deck` carries 262 methods on the facade and 256 here; `Document` 126 and 123; `Workbook` 141 and
 138. The difference is nine methods and, on `Deck`, four more that a default build does not compile
 at all. None of the nine is an oversight, and they are the same nine in both languages.
 

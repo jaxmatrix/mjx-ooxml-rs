@@ -24,7 +24,7 @@ Three handle classes, and a vocabulary of value classes their arguments and resu
 
 | Handle | Opens | Methods | Where it lives |
 |---|---|---|---|
-| `Deck` | PresentationML — `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm` | **255** | `bindings/mjx-python/src/deck.rs`, `bindings/mjx-wasm/src/deck.rs` |
+| `Deck` | PresentationML — `.pptx`, `.pptm`, `.potx`, `.potm`, `.ppsx`, `.ppsm` | **256** | `bindings/mjx-python/src/deck.rs`, `bindings/mjx-wasm/src/deck.rs` |
 | `Document` | WordprocessingML — `.docx`, `.docm`, `.dotx`, `.dotm` | **123** | `bindings/mjx-python/src/document.rs`, `bindings/mjx-wasm/src/document.rs` |
 | `Workbook` | SpreadsheetML — `.xlsx`, `.xlsm`, `.xltx`, `.xltm` | **138** | `bindings/mjx-python/src/workbook.rs`, `bindings/mjx-wasm/src/workbook.rs` |
 

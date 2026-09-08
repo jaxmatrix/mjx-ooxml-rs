@@ -127,6 +127,38 @@ impl Deck {
             .shape_adjustments(surface.to_model(), shape_idx.to_model(), size)?)
     }
 
+    /// Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd` entries of
+    /// its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec units. An
+    /// adjustment not named is left exactly as it was, and so are the `prst` token and every other
+    /// property of the shape. Marks only that slide part dirty.
+    ///
+    /// This is the writing half of [`shape_adjustments`](Self::shape_adjustments), and it takes back
+    /// the first two of the four things that reader reports: `wire_name` and `value`.
+    ///
+    /// It is not [`set_shape_geometry`](Self::set_shape_geometry): that call carries a **typed**
+    /// `ShapeGeometry`, which cannot name the two adjustable presets with no typed variant (`sun`,
+    /// `teardrop`) and states its values as a `Fraction` or an `Angle` where a file states an
+    /// integer. The two are complementary — `set_shape_geometry` may change *which* shape it is and
+    /// this may not.
+    ///
+    /// # Errors
+    /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
+    /// [`detail`](Error::detail) names where it happened.
+    ///
+    /// See [`Presentation::set_shape_adjustments`](mjx_pptx::Presentation::set_shape_adjustments).
+    pub fn set_shape_adjustments(
+        &mut self,
+        surface: Surface,
+        shape_idx: ShapePath,
+        adjustments: &[(&str, i32)],
+    ) -> Result<(), Error> {
+        Ok(self.presentation.set_shape_adjustments(
+            surface.to_model(),
+            shape_idx.to_model(),
+            adjustments,
+        )?)
+    }
+
     /// Sets the geometry of shape `shape_idx` on `surface` from a `Geometry`: a preset shape
     /// (`Geometry::Preset`) rewrites the `a:prstGeom`, a custom path list (`Geometry::Custom`) writes
     /// an `a:custGeom`, and `Geometry::Inherited` removes the shape's own geometry so an inherited one

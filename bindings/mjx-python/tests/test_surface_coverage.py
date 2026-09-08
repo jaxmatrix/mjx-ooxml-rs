@@ -302,6 +302,15 @@ def test_bounds_transforms_and_geometry(deck: Deck) -> None:
     )
     assert adjustments and adjustments[0].spec.wire_name == "adj"
 
+    # The writing half, in the reader's own vocabulary: a wire name and a value in spec units.
+    # `12_345` is not a value the typed `Fraction` path would produce from a round ratio, so a
+    # method wired to `set_shape_geometry` could not leave it there.
+    deck.set_shape_adjustments(0, shape, [("adj", 12_345)])
+    restated = deck.shape_adjustments(
+        0, shape, GuideContext.from_extents(Emu.from_inches(4), Emu.from_inches(1))
+    )
+    assert restated[0].value == pytest.approx(12_345)
+
 
 def test_an_angle_adjustment_is_refused_where_a_proportion_was_wanted() -> None:
     """The preset table keeps the units: an `Angle` cannot stand in for a `Fraction`."""

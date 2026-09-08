@@ -22,8 +22,8 @@ second one, with a number.
 
 ```text
 binding surface exercised by its own suite:
-  Python        990 of 1637 declared member(s) (60.5%), 647 named by no test
-  WebAssembly   925 of 1761 declared member(s) (52.5%), 836 named by no test
+  Python        991 of 1638 declared member(s) (60.5%), 647 named by no test
+  WebAssembly   926 of 1762 declared member(s) (52.6%), 836 named by no test
 ```
 
 **Two fifths of the Python surface and half the WebAssembly surface is exercised by nothing.** That
@@ -46,7 +46,7 @@ front, or — in Python — as a keyword argument.
 **The two directions of that measure are not equally strong, and the asymmetry is the point.**
 
 * *Exercised* is an **upper bound**. The matcher works on names, so a `.rows` anywhere credits
-  `rows` on every class that declares one. The true figure is lower than 990 and lower than 925.
+  `rows` on every class that declares one. The true figure is lower than 991 and lower than 926.
 * *Not exercised* is **exact**. No test can call a member whose name appears nowhere in any test
   source. 647 and 836 are floors on the untested surface, not estimates of it.
 
@@ -69,7 +69,7 @@ a test *or* a test stops calling one, and the failure names the members. Updatin
 then a decision somebody takes on purpose, which is the only property a number in prose can have.
 
 The same file carries the other checkable claim about the projection:
-`every_javascript_name_is_the_camel_case_of_its_rust_name` holds all 1,761 exported functions to the
+`every_javascript_name_is_the_camel_case_of_its_rust_name` holds all 1,762 exported functions to the
 camelCase rule, with a written ledger of the seven that JavaScript itself forces — `toString`, which
 is a protocol rather than a name.
 

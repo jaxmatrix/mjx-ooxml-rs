@@ -2289,6 +2289,17 @@ pub(crate) const CASES: &[Case] = &[
         call: |deck, a| ran!(deck.set_shape_fill(a.surface, need!(a.shape.clone()), &fill())),
     },
     Case {
+        method: "set_shape_adjustments",
+        touches: SLIDE_ONLY,
+        call: |deck, a| {
+            ran!(deck.set_shape_adjustments(
+                a.surface,
+                need!(a.text_shape.clone()),
+                &[("adj", 12_345)],
+            ))
+        },
+    },
+    Case {
         method: "set_shape_geometry",
         touches: SLIDE_ONLY,
         call: |deck, a| {

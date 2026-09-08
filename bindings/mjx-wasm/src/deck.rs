@@ -82,7 +82,7 @@ use crate::geometry::{
 };
 use crate::measures::{Emu, IndentLevel};
 use crate::paint::{ColorMap, EffectListSpec, FillSpec, LineSpec};
-use crate::support::str_list;
+use crate::support::{invalid_argument, str_list};
 use crate::tables::{CellFormat, Cells, TableStyleDefinition, TableStyleFormat};
 use crate::text::{CharacterPropertiesSpec, ParagraphPropertiesSpec, ThemeInfo};
 use crate::three_d::{Scene3DSpec, Shape3DSpec};
@@ -595,6 +595,43 @@ impl Deck {
                 .shape_adjustments(surface_of(surface)?, path_of(shape_idx)?, size.0),
         )
         .map(|values| values.into_iter().map(BoundedAdjustment).collect())
+    }
+
+    /// Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd` entries
+    /// of its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec units. An
+    /// adjustment not named is left exactly as it was, and so are the `prst` token and every other
+    /// property of the shape. Marks only that slide part dirty.
+    ///
+    /// The Rust call takes a list of `(name, value)` pairs; a wasm-bindgen signature cannot carry a
+    /// tuple without `serde`, so the pairs arrive as **two parallel arrays** — the same shape a
+    /// range takes when it becomes two numbers.
+    ///
+    /// Throws an `OoxmlError` with code `InvalidArgument` if the two arrays are different lengths.
+    #[wasm_bindgen(js_name = "setShapeAdjustments")]
+    pub fn set_shape_adjustments(
+        &mut self,
+        surface: &SurfaceArg,
+        shape_idx: &ShapePathArg,
+        wire_names: Vec<String>,
+        values: Vec<i32>,
+    ) -> Result<(), JsValue> {
+        if wire_names.len() != values.len() {
+            return Err(invalid_argument(format!(
+                "an adjustment is a name and a value: {} name(s) were given and {} value(s)",
+                wire_names.len(),
+                values.len()
+            )));
+        }
+        let adjustments: Vec<(&str, i32)> = wire_names
+            .iter()
+            .map(String::as_str)
+            .zip(values.iter().copied())
+            .collect();
+        map_error(self.inner.set_shape_adjustments(
+            surface_of(surface)?,
+            path_of(shape_idx)?,
+            &adjustments,
+        ))
     }
 
     /// Sets the geometry of shape `shape_idx` on `surface` from a `Geometry`: a preset shape

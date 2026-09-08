@@ -388,6 +388,8 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
             GuideContext::from_extents(Emu::from_emu(30), Emu::from_emu(40)),
         )
         .expect("the adjustments");
+    deck.set_shape_adjustments(slide, shape.clone(), &[("adj", 12_500)])
+        .expect("writing an adjustment");
 
     // --- effective readers -------------------------------------------------------------------------
     let _ = deck

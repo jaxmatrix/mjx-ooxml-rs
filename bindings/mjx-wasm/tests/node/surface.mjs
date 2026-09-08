@@ -22,6 +22,7 @@ import {
   Fraction,
   Angle,
   Geometry,
+  GuideContext,
   Hyperlink,
   LineSpec,
   LineWidth,
@@ -281,6 +282,19 @@ test("the preset geometry table works in both directions and keeps its units", (
     corner.free();
     preset.free();
     read.free();
+
+    // The writing half arrives as two parallel arrays, because a wasm-bindgen signature cannot
+    // carry a list of pairs without serde. `12345` is not a value the typed `Fraction` path would
+    // produce from a round ratio, so a method wired to `setShapeGeometry` could not leave it there.
+    deck.setShapeAdjustments(0, shape, ["adj"], [12345]);
+    const restated = deck.shapeAdjustments(
+      0,
+      shape,
+      GuideContext.fromExtents(Emu.fromInches(4), Emu.fromInches(1)),
+    );
+    assert.equal(restated[0].value, 12345);
+    for (const entry of restated) entry.free();
+    assert.throws(() => deck.setShapeAdjustments(0, shape, ["adj", "adj2"], [1]), /name/);
 
     // The unit is part of the contract: an angle is not a proportion.
     const angle = Angle.fromDegrees(30);

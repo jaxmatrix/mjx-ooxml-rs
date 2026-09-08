@@ -2094,6 +2094,13 @@ class Deck:
         shape size: each value *and* the numeric domain it may move in.
         """
         ...
+    def set_shape_adjustments(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, adjustments: Sequence[tuple[str, int]]) -> None:
+        """Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd`
+        entries of its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec
+        units. An adjustment not named is left exactly as it was, and so are the `prst` token and
+        every other property of the shape. Marks only that slide part dirty.
+        """
+        ...
     def set_shape_geometry(self, surface: int | Surface, shape_idx: int | Sequence[int] | ShapePath, geometry: Geometry) -> None:
         """Sets the geometry of shape `shape_idx` on `surface` from a `Geometry`: a preset shape
         (`Geometry::Preset`) rewrites the `a:prstGeom`, a custom path list (`Geometry::Custom`)

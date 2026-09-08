@@ -30,7 +30,7 @@ Wheels are `abi3-py39`: one per platform, working on CPython 3.9 and every later
 
 ## What you get
 
-* **The whole PowerPoint surface** — 255 methods on `Deck`: slides, shapes, groups, text, runs,
+* **The whole PowerPoint surface** — 256 methods on `Deck`: slides, shapes, groups, text, runs,
   paragraphs, hyperlinks, fills, outlines, effects, 3-D, geometry, tables, cells, charts, chart
   decoration, pictures, media, notes, SmartArt, OLE objects, ActiveX controls, ink, and package
   hygiene.

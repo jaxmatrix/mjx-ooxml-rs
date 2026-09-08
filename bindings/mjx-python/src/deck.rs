@@ -464,6 +464,25 @@ impl Deck {
             .map(|values| values.into_iter().map(BoundedAdjustment).collect())
     }
 
+    /// Restates named adjustments of shape `shape_idx`'s **preset** geometry — the `a:gd` entries
+    /// of its `a:avLst` — by their wire names (`adj`, `adj1`, `adj2`, …), in native spec units. An
+    /// adjustment not named is left exactly as it was, and so are the `prst` token and every other
+    /// property of the shape. Marks only that slide part dirty.
+    fn set_shape_adjustments(
+        &mut self,
+        surface: SurfaceArg,
+        shape_idx: ShapePathArg,
+        adjustments: Vec<(String, i32)>,
+    ) -> PyResult<()> {
+        let borrowed: Vec<(&str, i32)> = adjustments
+            .iter()
+            .map(|(name, value)| (name.as_str(), *value))
+            .collect();
+        self.inner
+            .set_shape_adjustments(surface.0, shape_idx.0, &borrowed)
+            .map_err(to_py_err)
+    }
+
     /// Sets the geometry of shape `shape_idx` on `surface` from a `Geometry`: a preset shape
     /// (`Geometry::Preset`) rewrites the `a:prstGeom`, a custom path list (`Geometry::Custom`)
     /// writes an `a:custGeom`, and `Geometry::Inherited` removes the shape's own geometry so an
