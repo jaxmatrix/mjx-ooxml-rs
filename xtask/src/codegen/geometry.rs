@@ -11,10 +11,16 @@
 //! A guide-named bound is only a number once the shape's size is known, so the third table carries
 //! the `gdLst` guides those bounds are computed from: the **transitive closure** of every named bound
 //! over the shape's own `gdLst`, in declaration order. It is a deliberate slice of the shape's
-//! geometry, not all of it — 335 of the file's 3923 guides — because resolving an adjustment's domain
-//! is what needs them, and the drawing paths are a rendering concern. Every other name those formulas
-//! reach is either a user-facing adjustment (seeded by the caller from the shape's current values) or
-//! a built-in variable.
+//! geometry, not all of it, because resolving an adjustment's domain is what needs them and the
+//! drawing paths are a rendering concern. Every other name those formulas reach is either a
+//! user-facing adjustment (seeded by the caller from the shape's current values) or a built-in
+//! variable.
+//!
+//! **How large a slice is emitted into the generated table's own doc comment, not restated here.**
+//! This header said *335 of the file's 3923 guides* from the day it was written; the closure is
+//! **334**, and the wrong figure was repeated out of here into a ticket. The file's own total is
+//! right — `crates/mjx-dml/tests/guide_formula.rs` asserts `guides == 3_923` by walking the addendum
+//! itself. A count in a comment cannot fail; one the generator writes moves when the closure does.
 //!
 //! This is pure mechanical extraction — no naming.
 
@@ -119,7 +125,13 @@ fn emit_adjustable_shapes(s: &mut String, shapes: &[ShapeAdjustments]) {
 }
 
 /// Renders `adjustment_bound_guides_of` — the `gdLst` closure behind each shape's named bounds.
+///
+/// The closure's size is **written into the emitted doc comment**, computed here rather than stated
+/// in a comment that cannot fail — see this module's header for the count that went wrong when it
+/// was.
 fn emit_bound_guides(s: &mut String, shapes: &[ShapeAdjustments]) {
+    let shape_count = shapes.iter().filter(|s| !s.bound_guides.is_empty()).count();
+    let guide_count: usize = shapes.iter().map(|s| s.bound_guides.len()).sum();
     s.push_str(
         "\n/// The `gdLst` guides a preset shape's adjustment **domain bounds** are computed from, in\n\
          /// declaration order.\n\
@@ -131,7 +143,18 @@ fn emit_bound_guides(s: &mut String, shapes: &[ShapeAdjustments]) {
          /// values already bound, and every bound becomes a number.\n\
          ///\n\
          /// Empty for a shape whose bounds are all literals, and for a shape with no adjustments.\n\
-         #[must_use]\n\
+         ///\n",
+    );
+    let _ = write!(
+        s,
+        "/// This table is a deliberate slice of the geometry file rather than all of it: \
+         **{guide_count} guides**\n\
+         /// across {shape_count} shapes, being exactly what an adjustment's domain is resolved from. \
+         The\n\
+         /// drawing paths are a rendering concern and are not here.\n"
+    );
+    s.push_str(
+        "#[must_use]\n\
          pub fn adjustment_bound_guides_of(\n\
          \x20   shape: PresetShapeType,\n\
          ) -> &'static [crate::drawingml::PresetGuide] {\n\
