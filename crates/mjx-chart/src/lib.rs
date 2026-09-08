@@ -1,5 +1,10 @@
 //! `mjx-chart` — DrawingML charts (shared by all formats).
 //!
+//! **Start at [`guide`]** — the rank 2.2 guide set, hosted here and covering `mjx-omml` and
+//! `mjx-vml` as well as this crate, because the three are one thing: the markup that sits *on
+//! top of* DrawingML and SpreadsheetML rather than beside them. Every item below carries its own
+//! doc comment; the guide is the story around them.
+//!
 //! A chart lives in its own part (`/ppt/charts/chartN.xml`), rooted at `c:chartSpace`, which a
 //! `p:graphicFrame` references by relationship id. This crate models that part. It derives the
 //! chart-space spine `c:chartSpace → c:chart → c:plotArea` and the common plot types — bar

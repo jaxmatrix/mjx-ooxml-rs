@@ -1,6 +1,10 @@
 //! `mjx-vml` — Legacy VML (Transitional-only): the vocabulary, the model, and the shape-level
 //! references.
 //!
+//! **Start at [`guide`]** — this crate's page of the rank 2.2 guide set, whose index is
+//! `mjx_chart::guide`. Read it before relying on anything here: a VML part is neither
+//! schema-validated nor child-ordered, and the round trip is the only check it has.
+//!
 //! VML (Vector Markup Language) is the legacy drawing markup carried in the *Transitional* flavour of
 //! OOXML (ECMA-376 Part 4 §14.1, reference material §19) and dropped from *Strict*. Producers still
 //! emit it for constructs with no DrawingML equivalent — OLE-object fallbacks, comment authoring

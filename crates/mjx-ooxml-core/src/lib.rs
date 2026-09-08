@@ -1,5 +1,9 @@
 //! `mjx-ooxml-core` — shared foundations for the mjx-ooxml-rs workspace.
 //!
+//! **This crate has no guide of its own.** It is covered by the packaging tier's guide set,
+//! whose index is `crates/mjx-opc/docs/guide/README.md` (`mjx_opc::guide` under `cargo doc`) —
+//! one set over four crates, because the fidelity mechanism is spread across all of them.
+//!
 //! This is the bottom layer of the workspace: it has **no dependencies**, and every other crate
 //! builds on it. It provides two things today.
 //!
