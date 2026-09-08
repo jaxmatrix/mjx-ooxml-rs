@@ -179,10 +179,23 @@ someone who has to decide how much of a generated table to trust — the last is
 | [What to distrust](../../crates/mjx-ooxml-types/docs/guide/what_to_distrust.md) | `mjx-ooxml-types` | Which gate catches what, which skips silently, and the four things nothing here checks |
 | [Schema coverage](../../crates/mjx-ooxml-types/COVERAGE.md) | `mjx-ooxml-types` | Which ECMA-376 schemas the generator covers and which it does not |
 
-## The bindings
+## The bindings — `mjx-python`, `mjx-wasm`
+
+One guide set over the two crates that project `mjx-ooxml` onto another language, because they are
+one story told twice: the same 255 `Deck`, 123 `Document` and 138 `Workbook` methods, the same 185
+value classes and the same 100 enumerations, differing in five places the target language forces.
+Hosted by `mjx-python`, with the one page that is about the npm package alone hosted by `mjx-wasm` —
+the arrangement the packaging tier and the upper markup already use, because the two bindings are
+siblings and neither may see the other.
 
 | Page | Crate | What it covers |
 |---|---|---|
+| [Guide index](../../bindings/mjx-python/docs/guide/README.md) | `mjx-python` | The two bindings, the shape of both surfaces in one page, and where each answer lives |
+| [Installing](../../bindings/mjx-python/docs/guide/installing.md) | `mjx-python` | The wheel, the npm package, building either from source, and freeing a wasm handle |
+| [The mapping rules](../../bindings/mjx-python/docs/guide/the_mapping_rules.md) | `mjx-python` | Identity in Python, camelCase in TypeScript, and the five differences that are forced |
+| [What is not projected](../../bindings/mjx-python/docs/guide/what_is_not_projected.md) | `mjx-python` | The nine methods that stay in Rust, the one real gap, and two classes nothing can produce |
+| [How much is exercised](../../bindings/mjx-python/docs/guide/how_much_is_exercised.md) | `mjx-python` | What the suites actually call, measured, and the gate that keeps the figure honest |
+| [The TypeScript surface](../../bindings/mjx-wasm/docs/guide/the_typescript_surface.md) | `mjx-wasm` | The npm package's exports, the two classes it had to invent, and errors as real `Error`s |
 | [Python binding](../../bindings/mjx-python/README.md) | `mjx-python` | Installing the wheel, the identity name mapping, and the typed stubs |
 | [WebAssembly binding](../../bindings/mjx-wasm/README.md) | `mjx-wasm` | The npm package, its conditional exports and the camelCase surface |
 
