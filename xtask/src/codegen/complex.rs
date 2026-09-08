@@ -418,6 +418,7 @@ fn repeats(element: &RawElement, interner: &Interner) -> bool {
 
 /// Every parsed schema, keyed by target namespace, so cross-schema group and element references
 /// resolve.
+#[derive(Debug)]
 pub struct SchemaSet {
     schemas: Vec<Schema>,
 }
