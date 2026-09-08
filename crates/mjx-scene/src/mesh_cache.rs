@@ -38,19 +38,21 @@
 //! by a *count* of 256 and no test in the workspace creates a 257th outline, so its eviction branch
 //! has never executed. This one's does, in `tests/the_mesh_cache_holds_its_budget.rs`, and the proof
 //! is a probe a source grep cannot see.
+//!
+//! # Where the mechanism lives, since MJXOFF-168
+//!
+//! The three bullets above are now [`mjx_ooxml_core::ByteBudgetCache`]'s and not this module's.
+//! `mjx-session` (rank 3.5) and `mjx-view` (rank 3.8) both needed the same discipline, and neither
+//! can reach rank 1.7's private copy of it — an upward edge is what `xtask/tests/layering.rs`
+//! refuses — so the choice was one implementation at the floor of the workspace or three that
+//! drift. What is left here is the part that is genuinely about *triangles*: what a mesh key is,
+//! and what a tessellation costs.
 
-use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
-use crate::tessellate::Mesh;
+use mjx_ooxml_core::cache::ByteBudgetCache;
 
-/// How many bytes of bookkeeping one entry costs beyond its mesh and its key.
-///
-/// A hash-map slot, a b-tree node's share, an [`Arc`]'s two counters and the entry record itself.
-/// An estimate, and deliberately generous: a budget that undercounted its own overhead would be a
-/// budget the allocator does not honour, and `tests/the_mesh_cache_holds_its_budget.rs` measures the
-/// real figure against this one with the counting allocator.
-const ENTRY_OVERHEAD_BYTES: usize = 128;
+use crate::tessellate::Mesh;
 
 /// Everything that decides what triangles a path becomes, as words.
 ///
@@ -74,30 +76,11 @@ impl MeshKey {
     }
 }
 
-/// One cached tessellation.
-#[derive(Debug)]
-struct Entry {
-    mesh: Arc<Mesh>,
-    bytes: usize,
-    last_used: u64,
-}
-
 /// Triangles kept per `(path, style, scale bucket)` under a byte budget, least recently used first
 /// out.
 #[derive(Debug)]
 pub struct MeshCache {
-    budget: usize,
-    bytes: usize,
-    clock: u64,
-    entries: HashMap<Arc<MeshKey>, Entry>,
-    /// Every live entry by the clock reading of its last use, which is unique because the clock only
-    /// ever goes up. The first key of this map is the least recently used entry, so eviction is a
-    /// `pop_first` and never a scan.
-    order: BTreeMap<u64, Arc<MeshKey>>,
-    hits: u64,
-    misses: u64,
-    evictions: u64,
-    oversized: u64,
+    entries: ByteBudgetCache<MeshKey, Arc<Mesh>>,
 }
 
 impl MeshCache {
@@ -110,28 +93,20 @@ impl MeshCache {
     #[must_use]
     pub fn new(budget: usize) -> Self {
         Self {
-            budget,
-            bytes: 0,
-            clock: 0,
-            entries: HashMap::new(),
-            order: BTreeMap::new(),
-            hits: 0,
-            misses: 0,
-            evictions: 0,
-            oversized: 0,
+            entries: ByteBudgetCache::new(budget),
         }
     }
 
     /// The ceiling this cache holds itself to.
     #[must_use]
     pub fn budget(&self) -> usize {
-        self.budget
+        self.entries.budget()
     }
 
     /// How many bytes it is holding — meshes, keys and per-entry overhead together.
     #[must_use]
     pub fn bytes(&self) -> usize {
-        self.bytes
+        self.entries.bytes()
     }
 
     /// How many tessellations it is holding.
@@ -149,13 +124,13 @@ impl MeshCache {
     /// How many lookups were answered from it.
     #[must_use]
     pub fn hits(&self) -> u64 {
-        self.hits
+        self.entries.stats().hits
     }
 
     /// How many lookups were not.
     #[must_use]
     pub fn misses(&self) -> u64 {
-        self.misses
+        self.entries.stats().misses
     }
 
     /// How many entries have been evicted to stay inside the budget.
@@ -165,43 +140,23 @@ impl MeshCache {
     /// workload.
     #[must_use]
     pub fn evictions(&self) -> u64 {
-        self.evictions
+        self.entries.stats().evictions
     }
 
     /// How many tessellations were too large for the whole budget and were therefore never cached.
     #[must_use]
     pub fn oversized(&self) -> u64 {
-        self.oversized
+        self.entries.stats().rejections
     }
 
     /// Forget everything.
     pub fn clear(&mut self) {
         self.entries.clear();
-        self.order.clear();
-        self.bytes = 0;
     }
 
     /// The triangles for `key`, if they are held, marking the entry as the most recently used.
     pub(crate) fn get(&mut self, key: &MeshKey) -> Option<Arc<Mesh>> {
-        self.clock += 1;
-        let clock = self.clock;
-        let Some(entry) = self.entries.get_mut(key) else {
-            self.misses += 1;
-            return None;
-        };
-        // **One expression, not two.** The entry's clock and its key in the eviction order are two
-        // records of one fact, and writing them separately is how they come apart: an entry left at
-        // a stale clock is looked up in `order` under a key that has moved, the removal below
-        // silently finds nothing, and the entry stops being promoted on every re-use after its
-        // first. Nothing about the byte budget can see that. `mem::replace` makes the value written
-        // and the value removed provably the same one.
-        let previous = std::mem::replace(&mut entry.last_used, clock);
-        let mesh = Arc::clone(&entry.mesh);
-        if let Some(owned) = self.order.remove(&previous) {
-            self.order.insert(clock, owned);
-        }
-        self.hits += 1;
-        Some(mesh)
+        self.entries.get(key).map(Arc::clone)
     }
 
     /// Hold `mesh` under `key`, evicting the least recently used entries until it fits.
@@ -210,45 +165,10 @@ impl MeshCache {
     /// empty the cache to make room for something the cache cannot keep, which is the one behaviour
     /// a byte bound asserted from above cannot distinguish from working correctly.
     pub(crate) fn insert(&mut self, key: MeshKey, mesh: &Arc<Mesh>) {
-        let cost = mesh.byte_len() + key.byte_len() + ENTRY_OVERHEAD_BYTES;
-        if cost > self.budget {
-            self.oversized += 1;
-            return;
-        }
-        while self.bytes + cost > self.budget {
-            if !self.evict_least_recently_used() {
-                return;
-            }
-        }
-        self.clock += 1;
-        let clock = self.clock;
-        let key = Arc::new(key);
-        if let Some(displaced) = self.entries.insert(
-            Arc::clone(&key),
-            Entry {
-                mesh: Arc::clone(mesh),
-                bytes: cost,
-                last_used: clock,
-            },
-        ) {
-            // The same key inserted twice — two threads of work that both missed. The older entry's
-            // bytes and its place in the order both go.
-            self.bytes = self.bytes.saturating_sub(displaced.bytes);
-            self.order.remove(&displaced.last_used);
-        }
-        self.order.insert(clock, key);
-        self.bytes += cost;
-    }
-
-    /// Drop the least recently used entry. `false` when there was nothing left to drop.
-    fn evict_least_recently_used(&mut self) -> bool {
-        let Some((_, key)) = self.order.pop_first() else {
-            return false;
-        };
-        if let Some(entry) = self.entries.remove(&key) {
-            self.bytes = self.bytes.saturating_sub(entry.bytes);
-            self.evictions += 1;
-        }
-        true
+        let cost = mesh.byte_len() + key.byte_len();
+        // The rejection is counted by the cache itself, and read back through
+        // [`oversized`](Self::oversized). Nothing here pins, so `Rejection::PinnedFloor` is
+        // unreachable and every rejection is an entry larger than the whole budget.
+        let _ = self.entries.insert(key, Arc::clone(mesh), cost);
     }
 }

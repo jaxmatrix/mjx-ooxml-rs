@@ -60,6 +60,16 @@ members = [
     # it. Everything in it outside `src/ooxml/` is generic over `ResidentDocument` and names no
     # format crate at all, so the box-model seam survives editing.
     "crates/mjx-session",
+    # Viewport windowing, byte-budgeted per-stage caches and frame scheduling — rank 3.8
+    # (MJXOFF-168). It materialises the pages on screen plus a small prefetch ring, holds every
+    # stage that keeps something expensive under a declared byte ceiling, and gives a frame a time
+    # budget it defers rather than overruns. It sits above `mjx-session` because it consumes that
+    # crate's invalidation stream, and below the facade because `mjx-ooxml` is what will project it
+    # behind a non-default `render` feature. What the rank does **not** buy is the other direction:
+    # at 3.8 every format crate is a legal downward edge, so *a viewport has never heard of OOXML*
+    # is held by construction — generic over `BoxModel` and `SceneSource`, `mjx-session` named with
+    # `default-features = false` — and by `crates/mjx-view/tests/the_seam_holds.rs`.
+    "crates/mjx-view",
     "crates/mjx-schema-gate",
     # Test-only, dependency-free: the committed fixture corpus, so every suite in the workspace
     # derives it from one place instead of carrying a hand-maintained list.
@@ -122,7 +132,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.142"
+version = "0.0.143"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -257,6 +267,7 @@ mjx-pptx = { path = "crates/mjx-pptx" }
 mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
 mjx-session = { path = "crates/mjx-session" }
+mjx-view = { path = "crates/mjx-view" }
 mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }
 mjx-allocation-counter = { path = "crates/mjx-allocation-counter" }

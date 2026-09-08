@@ -173,6 +173,26 @@ enum Tier {
     /// (`--no-default-features`). `crates/mjx-session/tests/the_seam_holds.rs` is what holds that, by
     /// name and by file count, exactly as `mjx-paint`'s does for the seam its rank cannot hold.
     Session,
+    /// `mjx-view` — rank 3.8 (MJXOFF-168). Viewport windowing, byte-budgeted per-stage caches and
+    /// frame scheduling: the layer that makes a four-hundred-page document behave.
+    ///
+    /// It is above `mjx-session` because it consumes that crate's invalidation stream — the session
+    /// says what an edit dirtied and this crate drops exactly that, rather than diffing a document —
+    /// and below the facade because `mjx-ooxml` is what will project it, behind a non-default
+    /// `render` feature. What the rank buys is the same one thing `mjx-session`'s buys: nothing at
+    /// or below rank 3.5 can reach a viewport, so a `.pptx` reader with a scroll position inside it
+    /// is structurally impossible.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.8,
+    /// `mjx-view -> mjx-pptx` (3.0), `mjx-view -> mjx-dml` (2.0) and `mjx-view -> mjx-geometry`
+    /// (2.5) are all legal *downward* edges and always will be, so the property the crate exists to
+    /// hold — *a viewport has never heard of OOXML* — is held by its own construction and by
+    /// `crates/mjx-view/tests/the_seam_holds.rs`, and by nothing here. The construction is worth
+    /// naming because it is stronger than a scan: the crate is generic over `BoxModel` and
+    /// `SceneSource` and names no implementation of either, and it declares `mjx-session` with
+    /// `default-features = false`, so a plain `cargo test -p mjx-view` is a build in which the three
+    /// format crates are **not present** and a line that reached one would not compile.
+    Viewport,
     /// `mjx-ooxml` — rank 4.0.
     Facade,
     /// `bindings/*` — rank 5.0. Nothing may depend on a binding.
@@ -313,6 +333,7 @@ impl Tier {
             Self::PresetGeometry => Rank(2, 5),
             Self::Formats => Rank(3, 0),
             Self::Session => Rank(3, 5),
+            Self::Viewport => Rank(3, 8),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
             Self::PlatformBoundary => Rank(5, 5),
@@ -342,6 +363,7 @@ impl Tier {
             Self::PresetGeometry => "preset geometry",
             Self::Formats => "formats",
             Self::Session => "the resident document",
+            Self::Viewport => "the viewport",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
             Self::PlatformBoundary => "platform boundary",
@@ -388,6 +410,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-docx", Tier::Formats),
     ("mjx-xlsx", Tier::Formats),
     ("mjx-session", Tier::Session),
+    ("mjx-view", Tier::Viewport),
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),
     ("mjx-wasm", Tier::Bindings),

@@ -371,6 +371,48 @@ holds that anywhere, client or server.
 - **Interaction**: hit-testing against a per-page spatial index built during layout, selection models,
   and the command dispatch back down to `mjx-session`.
 
+#### What MJXOFF-168 (R13) built, and the four things worth knowing before reading it
+
+The crate exists at rank 3.8, and all of the above is there except the last bullet — **interaction is
+loop 2 and deliberately absent**, because this unit schedules and caches and does not respond to
+input. The spatial index a hit test will query is built during layout and is held here, which is the
+whole of what this unit owes that one.
+
+1. **The seven stages are a table, and three of them are this crate's.** `CacheBudget` carries a
+   declared ceiling for all seven, because a table with three rows would quietly redefine the
+   problem; `Stage::is_held_by_the_viewport` says which three the viewport measures, and the module
+   documentation names the crate that owns each of the other four — tessellations are `mjx-scene`'s
+   `MeshCache`, and the atlas, image and effect pools are the painter's. A viewport that constructed
+   them would be a viewport that had to know what a device is.
+2. **Checkpoints are kept for every page; fragments are not.** A `Checkpoint` is bounded at 1 KiB, so
+   four hundred of them is 400 KiB and keeping all of them turns *"scroll to page 300"* into one page
+   of layout. That asymmetry is why the checkpoint stage's ceiling is a **reported** bound rather
+   than an evicting budget.
+3. **The scroll state is an anchor, never an offset.** A `ScrollAnchor` is a page and how far into
+   it, which is what a reader means by "where I am"; a document offset means the same thing only
+   while the pages before it keep the heights they were guessed at. Correct a height and the extent
+   changes, the pages after it move, and the anchor's screen position does not.
+   `tests/scroll_stability.rs` asserts all three at once, because the third alone is an identity.
+4. **The frame budget is checked *between* tasks and never before the first.** A frame that found
+   its budget already spent and ran nothing would never run anything again; so a single page costing
+   more than a whole frame still runs, and the frame reports the overrun rather than dropping the
+   page. The overshoot is bounded by one task, and that is what the gate asserts.
+5. **A viewport has no refusal of its own, and an over-long estimate is not an error.** *No such
+   page* and *past the end of the content* are questions only a box model can answer, so
+   `ViewFailure` carries the box model's error and the scene source's and has no third variant. A
+   window built from an estimate can name a page that does not exist — including one this very
+   frame has just discovered is past the end — and the frame **skips** it and counts it in
+   `FrameReport::pages_past_the_end`. The reverse case is handled too: an insertion makes the
+   document's length a guess again, so a reflow clears the end marker and the *next* frame asks
+   `estimate_extent` how long the document is now. Without that, a scrollbar that had reached the
+   end of a document would clamp short of content the edit added.
+
+Two figures are worth carrying forward. The resident-memory gate walks a four-hundred-page document
+twice — once under a real budget and once with eviction disabled — and the second peaks **7.5× higher
+and over the ceiling**, which is what makes the first a measurement rather than a green. And
+`mjx-session`'s worksheet residency, which MJXOFF-167 shipped unbounded and said so, is now bounded
+by bytes, with dirty sheets pinned so an edit can never be evicted.
+
 ### L7 · The shell — TypeScript, HTML, tokens
 
 Everything that is not the document canvas: ribbon and toolbars, panels and inspectors, dialogs, file
@@ -476,7 +518,7 @@ that changes, which also keeps every platform's behaviour identical while the en
 | 3.5 | `mjx-session` | the three format crates | resident document, edit journal, invalidation |
 | 3.6 | `mjx-layout-pptx` / `-docx` / `-xlsx` | format crate + `mjx-layout` | the OOXML box models |
 | 3.6 | `mjx-layout-html` | `mjx-layout`, `html5ever`, `taffy` | the HTML box model — `w:altChunk`, clipboard paste, and the proof the contract is not OOXML-shaped ([HTML_BOX_MODEL.md](client-platform/HTML_BOX_MODEL.md)) |
-| 3.8 | `mjx-view` | `mjx-session`, `mjx-scene`, layout impls | viewport, caches, budgets, interaction |
+| 3.8 | `mjx-view` | `mjx-session` (no default features), `mjx-scene`, `mjx-layout` | viewport, caches, budgets |
 | 4.0 | `mjx-ooxml` | + `mjx-view`, `mjx-paint` behind a non-default `render` feature | unchanged role |
 | 5.5 | `mjx-paint` | `mjx-scene` | **the platform boundary** — `wgpu`, `tiny-skia`, exporters |
 | 6.0 | `apps/mjx-studio` | the facade with `render` | the Tauri application |

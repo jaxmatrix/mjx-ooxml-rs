@@ -58,6 +58,75 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.143] - 2026-09-08
+
+**Viewport windowing, byte-budgeted caches and frame scheduling — and the unbounded residency
+MJXOFF-167 declared is now closed (MJXOFF-168, R13).**
+
+A four-hundred-page document at 150 dpi is roughly four gigabytes of pixels. Nobody holds that
+anywhere, client or server, so *"high-throughput page view memory management"* is a **windowing**
+problem rather than a hosting one, and `mjx-view` (rank 3.8) is where that discipline lives.
+
+### The new crate
+
+- **`crates/mjx-view`** — generic over `mjx_layout::BoxModel` and over a new `SceneSource` seam, so
+  it windows a `.pptx`, a `.docx` and an HTML paste with one body of code and names none of them.
+  Four things in it:
+  - **`PageWindow`** — the pages on screen plus a prefetch ring **biased in the direction of
+    travel**, sized by the viewport rather than fixed at one page (`Viewport::with_zoom` is how a
+    zoom becomes a window size).
+  - **`CacheBudget`** — a declared byte ceiling for each of the seven stages `UI_PLATFORM_PLAN.md`
+    §4 L6 names. Three are held here; the other four are `mjx-scene`'s and the painter's, and the
+    table says which rather than pretending otherwise. **Checkpoints are kept for every page and
+    fragments are not** — that asymmetry is the design, and it is what turns a jump to page 300
+    into one page of layout.
+  - **`ScrollModel`** — the scrollbar exists before anything is laid out, and estimates become
+    measurements **without the scrollbar jumping under the reader's thumb**. The state is an
+    *anchor* (a page and how far into it), never a document offset, which is the whole fix.
+  - **`FrameBudget`** — 16.6 ms at 60 Hz, checked between tasks; visible pages run first, prefetch
+    is deferred rather than dropped, and a fling gets a preview tier that lays pages out and builds
+    no display lists.
+
+### The weakness R12 declared, closed
+
+- **`SpreadsheetSession`'s worksheet residency is bounded**, by **bytes** rather than by a sheet
+  count — `mjx-sml`'s own gate measures its packed store at 36.8 bytes per cell, which is what makes
+  a figure in bytes meaningful. A clean sheet is evictable, least recently used first, and re-parses
+  from its part; a **dirty** sheet is pinned and never evicted, because evicting it would drop an
+  edit the package has never seen. `resident_bytes`, `pinned_residency_bytes`,
+  `residency_evictions` and `least_recently_used_sheet` make it a measurement, and
+  `crates/mjx-session/tests/residency_budget.rs` walks forty sheets through a budget that fits four.
+
+### One cache, three consumers
+
+- **`mjx_ooxml_core::ByteBudgetCache`** — the workspace's one byte-budgeted least-recently-used
+  cache, at rank 0.0 because its three consumers sit at 1.7, 3.5 and 3.8 and a cache written in the
+  highest of those is unreachable from the other two. The same argument, and the same answer, as
+  `Emu` moving down in MJXOFF-160. `mjx-scene`'s `MeshCache` was rebuilt on it and its ten-case
+  budget gate passes unchanged.
+
+### Two failures a viewport must not have, and does not
+
+- **An over-long estimate is not an error.** A window is built from the scroll model's page count,
+  which is a guess until a page reports no continuation, so a window can name a page that is not
+  there — including one the same frame has just discovered is past the end. The frame **skips** it
+  and counts it in `FrameReport::pages_past_the_end`. `ViewFailure` therefore has no viewport
+  variant at all: *no such page* is a question only a box model can answer, and a viewport that
+  answered it could disagree with the document it is showing.
+- **A reflow makes the document's length a guess again.** A page that ended the content made the
+  scrollbar's length a fact; an insertion undoes that, and a model that kept the old figure would
+  clamp the scrollbar short of the content the edit added. So a reflow clears the end marker and the
+  next frame asks `BoxModel::estimate_extent` how long the document is now — on the frame, because
+  that is where the content is.
+
+### Breaking
+
+- **`mjx_session::Invalidation` carries a `mjx_layout::ChangeKind`.** An address says *where*, and a
+  box model needs *what*: a reformat cannot move the content after it and an insertion moves every
+  page that follows. `Invalidation::new` takes a third argument; `Invalidation::at` keeps its
+  meaning and reports `Reformatted`, and `Invalidation::reflowing` is the wide one. `WordSession`
+  reports the wide one for a run whose text changed length.
+
 ## [0.0.142] - 2026-09-08
 
 **The resident document: an operation journal recorded the instant an edit happens, and a commit

@@ -23,7 +23,7 @@
 //! immediately, [`commit`](ResidentDocument::commit) is the expensive one, and the journal is the
 //! session's own and is never handed to a document.
 
-use mjx_layout::{PartId, SourcePath, SourceRef};
+use mjx_layout::{ChangeKind, ContentChange, PartId, SourcePath, SourceRef};
 
 use crate::error::SessionError;
 use crate::operation::Operation;
@@ -82,26 +82,51 @@ pub struct Applied {
 /// (`SESSION_AND_PERSISTENCE.md` §6): layout, scene and paint caches react to the edit in the frame
 /// it happened, and the commit is invisible to them. `crate::Session`'s own suite asserts the second
 /// half of that — a commit produces no invalidation at all.
+///
+/// # Why it carries a [`ChangeKind`]
+///
+/// An address alone says *where*, and a box model needs *what*, because the three kinds invalidate
+/// differently and the difference is the whole saving: reformatting a run cannot move anything
+/// before it and, in a document that places absolutely, cannot move anything after it either, while
+/// inserting or removing content moves every page that follows. A consumer handed only an address
+/// has to assume the worst, and assuming the worst is how a keystroke re-lays out a document.
+///
+/// The residency chooses, because only it knows what its own operation did — MJXOFF-168 added the
+/// field and set each of the three: a slide's shape and a spreadsheet cell are placed absolutely and
+/// report [`ChangeKind::Reformatted`], and a paragraph's text is flowing content whose length just
+/// changed and reports [`ChangeKind::Inserted`].
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct Invalidation {
     part: PartId,
     path: SourcePath,
+    kind: ChangeKind,
 }
 
 impl Invalidation {
-    /// Everything at or below `path` in `part` is stale.
+    /// Everything at or below `path` in `part` changed in the way `kind` describes.
     #[must_use]
-    pub const fn new(part: PartId, path: SourcePath) -> Self {
-        Self { part, path }
+    pub const fn new(part: PartId, path: SourcePath, kind: ChangeKind) -> Self {
+        Self { part, path, kind }
     }
 
-    /// The subtree an address names is stale.
+    /// The subtree an address names was **reformatted** — the same content, differently.
+    ///
+    /// The narrow reading, and the right default: a caller that means more says so with
+    /// [`reflowing`](Self::reflowing). Widening an invalidation is always safe and always expensive,
+    /// so the wide one is the one that has to be asked for by name.
     #[must_use]
     pub fn at(address: &SourceRef) -> Self {
-        Self {
-            part: address.part(),
-            path: address.path().clone(),
-        }
+        Self::new(
+            address.part(),
+            address.path().clone(),
+            ChangeKind::Reformatted,
+        )
+    }
+
+    /// The subtree an address names **changed length** — everything after it may move.
+    #[must_use]
+    pub fn reflowing(address: &SourceRef) -> Self {
+        Self::new(address.part(), address.path().clone(), ChangeKind::Inserted)
     }
 
     /// Which part.
@@ -116,8 +141,30 @@ impl Invalidation {
         &self.path
     }
 
+    /// What kind of change it was.
+    #[must_use]
+    pub const fn kind(&self) -> ChangeKind {
+        self.kind
+    }
+
+    /// The same fact in the vocabulary a box model is told changes in.
+    ///
+    /// [`mjx_layout::ChangeSet`] is what [`mjx_layout::BoxModel::invalidate`] takes, and this is the
+    /// one conversion between the two — written here rather than in every consumer, so that a second
+    /// consumer cannot invent a different reading of the same invalidation.
+    #[must_use]
+    pub fn content_change(&self) -> ContentChange {
+        ContentChange {
+            source: SourceRef::node(self.part, self.path.clone()),
+            kind: self.kind,
+        }
+    }
+
     /// Whether `other` names the same part and a subtree inside this one — the test a cache uses to
     /// decide whether one invalidation subsumes another.
+    ///
+    /// Deliberately blind to [`kind`](Self::kind): subsumption is a question about *addresses*, and
+    /// a reformat inside a reflow is still inside it.
     #[must_use]
     pub fn contains(&self, other: &Self) -> bool {
         self.part == other.part && self.path.contains(&other.path)

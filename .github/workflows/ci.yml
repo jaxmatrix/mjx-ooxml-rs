@@ -60,6 +60,21 @@ jobs:
       # one would not compile. The seam gate and the machinery's own suite both run here.
       - name: test (mjx-session without the OOXML residencies)
         run: cargo test -p mjx-session --no-default-features --no-fail-fast -- --nocapture
+      # `mjx-view`'s architectural claim is the same shape one rank higher, and its **default** build
+      # is the one that proves it: the crate declares `mjx-session` with `default-features = false`,
+      # so `cargo test -p mjx-view` resolves a session with no format crates behind it at all and a
+      # line that reached one would not compile. `cargo test --workspace` above does NOT prove that
+      # — feature unification turns `mjx-session/ooxml` on for the whole graph, because
+      # `mjx-session` is a workspace member in its own right — so the seam build has to be a
+      # `-p` invocation, and this is it.
+      #
+      # The second line is the other direction: the `ooxml` feature exists so that one consumer
+      # (`mjx-ooxml`'s future `render` feature) can turn the viewport and the residencies on
+      # together, and a feature nothing ever builds is a feature that stops compiling in silence.
+      - name: test (mjx-view with the format crates absent)
+        run: cargo test -p mjx-view --no-fail-fast -- --nocapture
+      - name: test (mjx-view forwarding the ooxml feature)
+        run: cargo test -p mjx-view --features ooxml --no-fail-fast -- --nocapture
 
   # Every feature of every crate at once. `lint-test` above runs the default features and the one
   # `vml` combination; neither compiles the binding crates' feature surface, and neither is what a

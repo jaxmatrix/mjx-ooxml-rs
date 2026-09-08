@@ -112,7 +112,11 @@ impl WordSession {
         self.dirty.note(text.len());
         Ok(Applied {
             inverse: Operation::set_value(address.clone(), Value::text(was)),
-            invalidation: Invalidation::at(address),
+            // **Reflowing, not reformatting.** A run's text just changed length, and Word's box
+            // model is a flow: every page from this one to the end may move. Reporting the narrow
+            // kind here would be the one place in this crate where an invalidation understated what
+            // it did, and a consumer that trusted it would leave stale pages on screen.
+            invalidation: Invalidation::reflowing(address),
         })
     }
 }
