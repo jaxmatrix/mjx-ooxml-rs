@@ -116,7 +116,7 @@ written for a caller who has a shape rather than for a reader touring a thousand
 |---|---|---|
 | [Guide index](../../crates/mjx-dml/docs/guide/README.md) | `mjx-dml` | What DrawingML is here, the view/spec pair, the three verbs and the named measures |
 | [Reaching the shared types](../../crates/mjx-dml/docs/guide/reaching_the_shared_types.md) | `mjx-dml` | Which format meets which DrawingML, and which host wrapper lives here rather than there |
-| [Filling, outlining and colouring](../../crates/mjx-dml/docs/guide/filling_outlining_and_colour.md) | `mjx-dml` | `spPr`, the six fills, the outline, and the one thing `ColorSpec` cannot say |
+| [Filling, outlining and colouring](../../crates/mjx-dml/docs/guide/filling_outlining_and_colour.md) | `mjx-dml` | `spPr`, the six fills, the outline, and how a colour carries its transforms |
 | [Geometry and placement](../../crates/mjx-dml/docs/guide/geometry_and_placement.md) | `mjx-dml` | The transform, the preset catalogue, custom geometry and the guide-formula language |
 | [Text bodies](../../crates/mjx-dml/docs/guide/text_bodies.md) | `mjx-dml` | `a:txBody` down to `a:t`, and merging a format onto a run versus replacing it |
 | [The theme](../../crates/mjx-dml/docs/guide/the_theme.md) | `mjx-dml` | Reading a theme, resolving a name into a colour, and the one rule for authoring one |

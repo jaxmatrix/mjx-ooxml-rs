@@ -79,34 +79,72 @@ Its **children are colour transforms** — `a:lumMod`, `a:lumOff`, `a:shade`, `a
 keeps every one of them verbatim, in order, and hands them back through
 [`mjx_dml::Color::transforms`](crate::Color::transforms).
 
-### The gap, stated precisely
+### Authoring one
 
-[`mjx_dml::ColorSpec`](crate::ColorSpec) — the interner-free description, and therefore the only thing
-an authoring caller can hand in — has three variants and **none of them carries a transform**:
+[`mjx_dml::ColorSpec`](crate::ColorSpec) is the interner-free description, and therefore the only
+thing an authoring caller hands in. Until MJXOFF-219 it had three variants and **none of them carried
+a transform**, so nothing in this workspace could author one and validation entry `V-PPTX-02.4` — the
+third-highest risk item in the repository — had no file to exercise it. It now carries them, in the
+one shape that keeps the schema's own claim that a transform is a *child of a colour* rather than a
+different kind of colour:
 
 ```rust,ignore
 pub enum ColorSpec {
     Srgb(String),                                  // a:srgbClr @val
     Scheme(SchemeColor),                           // a:schemeClr @val
     Other { kind: ColorKind, value: Option<String> },
+    Transformed { base: Box<ColorSpec>, transforms: Vec<ColorTransform> },
 }
 ```
 
-So:
+You do not build that fourth variant by hand. The builders do, and they keep it exactly one level
+deep:
 
-* **Reading is complete.** A `Color` parsed from a file keeps its transforms, re-serializes them byte
-  for byte, and [`mjx_dml::resolve_color`](crate::resolve_color) *applies* them — at every level of
-  the chain, including the theme slot's own and the substituted `phClr`'s.
-* **Writing cannot express one.** No path from `ColorSpec` produces a `a:comp`, `a:gray`, `a:gamma` or
-  `a:invGamma`, and no facade call above this crate can either.
+```rust
+use mjx_dml::{ColorSpec, ColorTransform, Fraction, SchemeColor};
 
-That is a **write-path gap only**, and it is the reason validation entry `V-PPTX-02.4` — the
-third-highest risk item in the repository — has no artefact to exercise it: closing it needs a
-colour-transform surface on `ColorSpec`, which is a code change and not a file.
-`docs/validation/02-risk-order.md` and `docs/validation/06-the-office-pass.md` both record it, and
-this page is not closing it. If you need a transform on an authored colour today, build the `Color`
-through [`mjx_dml::Color::from_spec`](crate::Color::from_spec) and add the transform children to the
-element yourself.
+// What PowerPoint writes for "Accent 1, Lighter 40 %".
+let lighter = ColorSpec::Scheme(SchemeColor::Accent1)
+    .with_luminance_modulation(Fraction::from_ratio(0.6))
+    .with_luminance_offset(Fraction::from_ratio(0.4));
+
+// Anything else in EG_ColorTransform goes through the generic builder.
+let inverted = ColorSpec::Srgb("4472C4".into()).with_transform(ColorTransform::InverseGamma);
+
+assert_eq!(lighter.base(), &ColorSpec::Scheme(SchemeColor::Accent1));
+assert_eq!(lighter.transforms().len(), 2);
+assert_eq!(inverted.transforms().len(), 1);
+```
+
+Six conveniences — [`with_tint`](crate::ColorSpec::with_tint),
+[`with_shade`](crate::ColorSpec::with_shade), [`with_alpha`](crate::ColorSpec::with_alpha),
+[`with_luminance_modulation`](crate::ColorSpec::with_luminance_modulation),
+[`with_luminance_offset`](crate::ColorSpec::with_luminance_offset) and
+[`with_saturation_modulation`](crate::ColorSpec::with_saturation_modulation) — cover the transforms
+a real file actually contains. **All twenty-eight members of the group are reachable** through
+[`with_transform`](crate::ColorSpec::with_transform) and
+[`mjx_dml::ColorTransform`](crate::ColorTransform); [`ColorTransformKind`](crate::ColorTransformKind)
+names them without their values, which is how the two bindings reach the group from languages with no
+payload enumerations.
+
+Two things about that surface are load-bearing:
+
+* **Every builder appends.** `EG_ColorTransform` is an unbounded `xsd:choice` applied left to right,
+  so the same transforms in a different order are a **different colour**. A builder that merged into a
+  set would quietly write a different file.
+* **A transform this model cannot read still round-trips.** An element the group does not name, or one
+  it does whose `@val` is missing or unparseable, becomes
+  [`ColorTransform::Other`](crate::ColorTransform::Other) and comes back out under the name and value
+  it went in with — the same bargain [`ColorSpec::Other`](crate::ColorSpec::Other) makes for the
+  colour element itself.
+
+Reading was always complete, and it now closes with the write path: a `Color` parsed from a file keeps
+its transforms and re-serializes them byte for byte;
+[`mjx_dml::resolve_color`](crate::resolve_color) *applies* them at every level of the chain, including
+the theme slot's own and the substituted `phClr`'s; and
+[`mjx_dml::Color::spec`](crate::Color::spec) now carries them into the description, so
+`spec()` → [`from_spec`](crate::Color::from_spec) keeps a producer's transforms instead of dropping
+them.
 
 One further caution on the resolver, from its own module doc: `lumMod`/`lumOff`/`shade`/`tint`/
 `alpha`/`sat*` follow the widely-adopted Apache-POI and LibreOffice algorithm and are value-pinned in

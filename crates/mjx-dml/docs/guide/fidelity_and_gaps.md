@@ -56,24 +56,22 @@ assertion is made over those.
 
 ## The gaps, each with why it is still there
 
-### `ColorSpec` cannot express a colour transform — a write-path gap
-
-[`mjx_dml::ColorSpec`](crate::ColorSpec) has three variants and none carries a transform child, so no
-authoring path — here or through any facade above — produces a `a:comp`, `a:gray`, `a:gamma` or
-`a:invGamma`. Reading is complete: [`mjx_dml::Color`](crate::Color) keeps every transform verbatim and
-[`mjx_dml::resolve_color`](crate::resolve_color) applies them at every level of the chain.
-
-This is why validation entry `V-PPTX-02.4` — the **third-highest risk item in the repository** —
-cannot be exercised by any saved file: there is nothing to save. Closing it needs a colour-transform
-surface on `ColorSpec`, which is a code change. `docs/validation/02-risk-order.md` and
-`docs/validation/06-the-office-pass.md` both record it, and this guide does not close it.
-
 ### A `*Spec` is not a `*` — by design, and worth stating once more
 
 Every `spec()` in this crate drops what the description does not describe: a gradient's shade path, a
-blip's effect chain, tile and fill rectangles, a colour's transforms. `value.spec(i).to_fill(i)` is
-therefore **not** the identity, and a caller who reads through a spec and writes back through one has
-rewritten the element from its key values. Read through the spec, edit through the wrapper.
+blip's effect chain, tile and fill rectangles. `value.spec(i).to_fill(i)` is therefore **not** the
+identity, and a caller who reads through a spec and writes back through one has rewritten the element
+from its key values. Read through the spec, edit through the wrapper.
+
+**A colour's transforms used to be on that list, and are not any more.** Until MJXOFF-219
+[`mjx_dml::ColorSpec`](crate::ColorSpec) had three variants and none carried a transform child, so no
+authoring path — here or through any facade above — could produce a `a:comp`, `a:gray`, `a:gamma` or
+`a:invGamma`, and `Color::spec()` silently dropped a producer's. Both halves are closed:
+[`ColorSpec::with_transform`](crate::ColorSpec::with_transform) and its six named conveniences author
+every member of `EG_ColorTransform`, and [`mjx_dml::Color::spec`](crate::Color::spec) carries them
+into the description in order, so `spec()` → [`from_spec`](crate::Color::from_spec) keeps them.
+`crates/mjx-dml/docs/guide/filling_outlining_and_colour.md` is the how-to; the *rest* of the sentence
+above still holds, and a colour is not the counter-example it once was.
 
 ### Two preset shapes stay mechanical
 

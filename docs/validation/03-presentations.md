@@ -33,7 +33,7 @@ documented gap is never mistaken for a validation failure**.
 |---|---|---|---|
 | `V-PPTX-01` | high | *Built, not yet verified* — **the 0.0.58 text-inheritance change** (owners `MJX-211` R1, `MJX-208`) | The pass's first job. `V-PPTX-01.1` |
 | `V-PPTX-01` | high | *Non-goal* — **a font slot the theme does not define keeps its reference** | Interrogated, not reported: `V-PPTX-01.8` asks whether the documentation is right |
-| `V-PPTX-02` | medium | *Built, not yet verified* — **`comp` / `gray` / `gamma` / `invGamma` colour transforms** (owner `MJX-211` R3) | `V-PPTX-02.4`, and it is **blocked**: no facade call authors a colour transform |
+| `V-PPTX-02` | medium | *Built, not yet verified* — **`comp` / `gray` / `gamma` / `invGamma` colour transforms** (owner `MJX-211` R3) | `V-PPTX-02.4`. It was **blocked** — no facade call could author a colour transform at all — until `MJXOFF-219`; the artefact now carries two rows of swatches and the entry is the pass's to answer |
 | `V-PPTX-02` | medium | *Non-goal* — **InkML strokes**, **an ActiveX control's `ax:ocxPr`**, **a SmartArt layout is not run**, **VML geometry is preserved, not evaluated** | Non-goals. The legacy checks look at what is *preserved and referenced*, never at an evaluated stroke, property bag, layout or path |
 | `V-PPTX-03` | high | *Non-goal* — **`extLst` is never modelled** | Non-goal. `V-PPTX-03.5` checks the extension survives and stays where the sequence puts it, which is the whole claim |
 | `V-PPTX-04` | medium | *Non-goal* — **chart colour and style parts are preserved, not modelled**. The workbook non-goal beside it is **retired**: MJXOFF-208 made a data edit *patch* the embedded workbook | R4 is now the claim that patching leaves the rest of a producer's workbook alone |
@@ -203,15 +203,16 @@ questions about what is on the slide.
   Calls: `Deck::shape_effects` · `Deck.shape_effects` · `Deck.shapeEffects`
   Result: — · — · — · —
 
-#### V-PPTX-02.4 — the four colour transforms against PowerPoint's eyedropper
+#### V-PPTX-02.4 — the colour transforms against PowerPoint's eyedropper
 
 - **Risk** high — **R3**.
-- **Shipped by** implemented from the ECMA-376 prose; the gaps page names `MJX-211` R3 as its owner.
-- **Artefact** none — **blocked** on `MJXOFF-130`. `ColorSpec` carries a colour's *kind* and value and no transform children, so no facade call authors a `comp`, `gray`, `gamma` or `invGamma`, and no committed fixture contains one.
-- **Object** a `a:solidFill` whose colour carries one of the four transforms.
-- **Action** read what `effective_shape_fill` answers, then sample the rendered shape with PowerPoint's eyedropper.
-- **Expect** the two RGB values agree. These four are implemented from the prose and unit-tested against it, never against a renderer; a disagreement here is the third-highest-risk finding this pass can make.
+- **Shipped by** implemented from the ECMA-376 prose; the gaps page names `MJX-211` R3 as its owner. The artefact is `MJXOFF-219`'s: until it, `ColorSpec` carried a colour's *kind* and value and **no transform children**, so no facade call could author a `comp`, `gray`, `gamma` or `invGamma` — and no committed fixture contains one either. This was the only entry in the pass with no artefact at all.
+- **Artefact** `v-pptx-02-authored.pptx`
+- **Object** the two rows of swatches below the three shapes at the top. The **upper** row is a fixed `4472C4` under `comp`, `gray`, `gamma`, `invGamma` and `inv`, led by an untransformed `4472C4`; the **lower** row is the theme's accent 1 under `tint 50%`, `shade 50%`, `satMod 150%`, `lumMod 60% + lumOff 40%` and `alpha 50%`, led by an untransformed accent 1. Each swatch carries its own label.
+- **Action** read what `effective_shape_fill` answers for each swatch — the harness calls it on all twelve as it writes them — then sample each rendered shape with PowerPoint's eyedropper. Compare each swatch against the baseline at the start of its row.
+- **Expect** the two RGB values agree, swatch by swatch. **The two rows are not equally at risk, and that is why both are here.** The lower row is `lumMod`/`shade`/`tint`/`alpha`/`sat*`, which follow the widely-adopted Apache-POI and LibreOffice algorithm and are value-pinned in `crates/mjx-dml/tests/resolve_model.rs`; a disagreement there is surprising. The upper row is the four (five, with `inv`) that `crates/mjx-dml/src/resolve.rs` says follow *a documented interpretation* and are **not** guaranteed pixel-identical to Office — implemented from the prose and unit-tested against it, never against a renderer. A disagreement in the upper row is the third-highest-risk finding this pass can make, and being able to author these transforms is not evidence that resolving them is right.
   Calls: `Deck::effective_shape_fill` · `Deck.effective_shape_fill` · `Deck.effectiveShapeFill`
+  Calls: `Deck::set_shape_fill` · `Deck.set_shape_fill` · `Deck.setShapeFill`
   Result: — · — · — · —
 
 #### V-PPTX-02.5 — the seven rewritten fixtures, and the colour mapping the schema gate rewrote
