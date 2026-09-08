@@ -1,0 +1,66 @@
+[package]
+name = "mjx-session"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "The resident document: an operation journal recorded immediately, and a commit that serialises dirty parts on a schedule rather than on every operation."
+
+[lints]
+workspace = true
+
+[features]
+# The three OOXML residencies. On by default because a session that cannot hold a `.pptx` is not
+# what anyone opens this workspace for; separable because everything under `src/` outside
+# `src/ooxml/` is *document-agnostic*, and `tests/the_seam_holds.rs` proves it by building the whole
+# journal, scheduler and undo machinery against a box model that has never heard of OOXML.
+default = ["ooxml"]
+ooxml = [
+    "dep:mjx-pptx",
+    "dep:mjx-docx",
+    "dep:mjx-xlsx",
+    "dep:mjx-sml",
+    "dep:mjx-ooxml-types",
+]
+
+[dependencies]
+# Rank 1.6 (MJXOFF-160). The address vocabulary an operation is written in: `PartId`, `SourcePath`
+# and `SourceRef` name no OOXML type, which is exactly why a journal built on them is a journal a
+# non-OOXML box model can also produce. Depending on the seam rather than on a format crate is what
+# keeps the core of this crate swappable.
+mjx-layout.workspace = true
+# Rank 0.0. `Emu` — the unit a `LayoutRect`'s four edges are in, and therefore the unit an operation
+# that places a box is written in. Named directly rather than reached through `mjx-layout`, which
+# does not re-export it.
+mjx-ooxml-core.workspace = true
+thiserror.workspace = true
+
+# The three format crates — rank 3.0, and the reason this crate is ranked 3.5. They are optional and
+# reached only from `src/ooxml/`: every other module in this crate compiles without them.
+mjx-pptx = { workspace = true, optional = true }
+mjx-docx = { workspace = true, optional = true }
+mjx-xlsx = { workspace = true, optional = true }
+# Rank 2.1 and 1.0, both reached only from `src/ooxml/`: `CellReference`, `CellValue` and
+# `InlineString` are the spreadsheet residency's vocabulary, `WorksheetPart` is the resident
+# worksheet model it holds between operations so that twenty cell edits are twenty model mutations
+# and one serialisation, and `CellType` is how a cell says what it holds.
+mjx-sml = { workspace = true, optional = true }
+mjx-ooxml-types = { workspace = true, optional = true }
+
+[dev-dependencies]
+mjx-fixtures.workspace = true
+# The uncommitted journal's memory bound is asserted rather than claimed.
+mjx-allocation-counter.workspace = true
+
+# The memory gate is a binary of its own with **no test harness**, and both halves of that are load
+# bearing — `mjx-sml`'s gate learned it first and this one learned it again. A `#[global_allocator]`
+# is process-wide, so a figure measured in a binary that also runs other cases measures the other
+# cases; and `cargo test` runs a harness's cases on several threads at once, so even one binary's
+# own cases interleave. The first version of `tests/journal_allocation.rs` was a three-case harness
+# and its zero-allocation assertion read 92,376 bytes, every one of them another case's. One target,
+# one `main`, one thread.
+[[test]]
+name = "journal_allocation"
+harness = false

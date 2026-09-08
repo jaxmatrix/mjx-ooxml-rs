@@ -154,6 +154,25 @@ enum Tier {
     PresetGeometry,
     /// `mjx-pptx`, `mjx-docx`, `mjx-xlsx` — rank 3.0.
     Formats,
+    /// `mjx-session` — rank 3.5 (MJXOFF-167). The resident document: an operation journal recorded
+    /// the instant an edit happens, and a commit that serialises dirty parts on a *schedule* rather
+    /// than on every operation.
+    ///
+    /// It is above the format tier because it names all three format crates — a session holds a
+    /// `.pptx`, a `.docx` or an `.xlsx` open, and there is no way to do that from below them. It is
+    /// below the facade because `mjx-ooxml` is what projects it, and above all so that nothing in
+    /// the format tier can reach *back* into it: a format crate that could ask a session what it was
+    /// doing would be a batch library with an editor's state machine inside it.
+    ///
+    /// **What this rank deliberately does not buy, and what does the job instead.** The seam the
+    /// client platform is organised around is `mjx-layout`'s 1.6 — above a `FragmentTree`, nothing
+    /// has heard of OOXML — and a session sits far above that, so this number cannot stop editing
+    /// from becoming OOXML-shaped. What stops it is the crate's own construction: everything under
+    /// `crates/mjx-session/src/` outside `src/ooxml/` is generic over `ResidentDocument`, is written
+    /// in `mjx-layout`'s address vocabulary, and compiles with the format crates absent
+    /// (`--no-default-features`). `crates/mjx-session/tests/the_seam_holds.rs` is what holds that, by
+    /// name and by file count, exactly as `mjx-paint`'s does for the seam its rank cannot hold.
+    Session,
     /// `mjx-ooxml` — rank 4.0.
     Facade,
     /// `bindings/*` — rank 5.0. Nothing may depend on a binding.
@@ -293,6 +312,7 @@ impl Tier {
             Self::SharedMarkupUpper => Rank(2, 2),
             Self::PresetGeometry => Rank(2, 5),
             Self::Formats => Rank(3, 0),
+            Self::Session => Rank(3, 5),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
             Self::PlatformBoundary => Rank(5, 5),
@@ -321,6 +341,7 @@ impl Tier {
             Self::SharedMarkupUpper => "shared markup, upper",
             Self::PresetGeometry => "preset geometry",
             Self::Formats => "formats",
+            Self::Session => "the resident document",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
             Self::PlatformBoundary => "platform boundary",
@@ -366,6 +387,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-pptx", Tier::Formats),
     ("mjx-docx", Tier::Formats),
     ("mjx-xlsx", Tier::Formats),
+    ("mjx-session", Tier::Session),
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),
     ("mjx-wasm", Tier::Bindings),

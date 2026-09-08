@@ -51,6 +51,15 @@ jobs:
         run: cargo clippy --workspace --all-targets --features mjx-pptx/vml -- -D warnings
       - name: test (vml feature)
         run: cargo test --workspace --features mjx-pptx/vml --no-fail-fast -- --nocapture
+      # `mjx-session`'s architectural claim is that everything in it outside `src/ooxml/` is
+      # document-agnostic — the journal, the schedule, the undo units and the recovery format name no
+      # format crate. Its rank (3.5) cannot hold that, because 3.5 is above 3.0 and
+      # `mjx-session -> mjx-pptx` is a legal downward edge for ever;
+      # `crates/mjx-session/tests/the_seam_holds.rs` holds it by name, and **this step is what makes
+      # it a build rather than a scan**: with the format crates genuinely absent, a line that reached
+      # one would not compile. The seam gate and the machinery's own suite both run here.
+      - name: test (mjx-session without the OOXML residencies)
+        run: cargo test -p mjx-session --no-default-features --no-fail-fast -- --nocapture
 
   # Every feature of every crate at once. `lint-test` above runs the default features and the one
   # `vml` combination; neither compiles the binding crates' feature surface, and neither is what a

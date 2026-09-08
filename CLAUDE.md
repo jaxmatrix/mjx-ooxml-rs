@@ -42,6 +42,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.2 — shared markup, upper | `mjx-chart`, `mjx-omml`, `mjx-vml` |
   | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
+  | 3.5 — the resident document | `mjx-session` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
   | 5.5 — platform boundary | `mjx-paint` |
@@ -83,7 +84,21 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   learn what a `.pptx` is. It is deliberately **below** the format tier, so `mjx-pptx` may reach it: a
   format crate is allowed to know what its own shapes look like. What the rank cannot do is stop
   `mjx-paint` (5.5) declaring the edge, so `crates/mjx-paint/tests/the_seam_holds.rs` forbids the
-  painter naming it, exactly as it forbids `mjx-dml`. `mjx-sml` sits between
+  painter naming it, exactly as it forbids `mjx-dml`. `mjx-session` (MJXOFF-167) is at **3.5**, above the format tier and below the facade, and it is the
+  first rank in this table whose own number is *not* what holds its architectural property. It is the
+  **resident document**: a session owns a parsed, mutable document and keeps it, records every
+  mutation as an operation the instant it happens, and serialises dirty parts on a **schedule**
+  rather than on every operation. The rank buys the ordinary thing — nothing in the format tier, and
+  nothing below it, can depend on a session — and it cannot buy the interesting thing, because 3.5 is
+  above 3.0 and `mjx-session → mjx-pptx` is therefore a legal downward edge for ever. What stops the
+  editing half of the platform becoming OOXML-shaped is the crate's own construction: everything
+  under `crates/mjx-session/src/` outside `src/ooxml/` is generic over `ResidentDocument`, is written
+  in `mjx-layout`'s address vocabulary (`PartId`, `SourcePath`, `SourceRef` — no OOXML type appears
+  in one), and compiles with the format crates absent, because they are `optional` behind a default
+  `ooxml` feature. `crates/mjx-session/tests/the_seam_holds.rs` is what holds all three, by name and
+  by file count, and it drives the whole journal, scheduler and undo machinery from a fourth
+  residency that has never heard of a package — a trait with one implementation being a trait nothing
+  has ever been swapped for. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
@@ -249,7 +264,17 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 ## Fidelity rules (the reason the project exists)
 
 - **Part-level laziness + copy-on-write:** parts stay raw bytes until first mutation; untouched parts
-  re-emit verbatim; on first edit, serialize from the model and drop raw bytes.
+  re-emit verbatim. **On first edit, drop the raw bytes and mark the part dirty — the model is now
+  authoritative; serialize at commit, once, however many edits have accumulated** (MJXOFF-167).
+
+  That rule used to read *"on first edit, serialize from the model and drop raw bytes"*, which
+  described one moment where the implementation has always had two: `Package::part_tree_mut` drops
+  the bytes and marks the part dirty, and `Package::save` is where XML is actually written. Batched
+  commit is what made the difference matter — twenty keystrokes into one run must produce twenty
+  model mutations and **one** serialization, on a schedule — so the timing is now stated rather than
+  glossed, and `Package::settle_edited_parts` is the call that performs it and clears the dirty set.
+  **The round-trip guarantee is untouched**: an untouched part is never marked dirty and still
+  re-emits byte for byte. Only the timing moved.
 - **Unknown bucket:** every modeled complex type carries `extra: Vec<RawNode>` for unknown children,
   and preserves unknown attributes, attribute order, and namespace prefixes.
 - **MCE** (`mc:AlternateContent`/`Ignorable`/`ProcessContent`) is handled in `mjx-mce`, preserved on
