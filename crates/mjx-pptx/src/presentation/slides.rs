@@ -1,7 +1,7 @@
 //! Slide lifecycle: adding a slide (empty, from a layout, or with text) and removing one,
 //! including the `p:sldIdLst` bookkeeping that goes with it.
 
-use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawNode};
+use mjx_ooxml_core::{Interner, RawDocument, RawElement, RawNode, Symbol};
 use mjx_ooxml_types::namespaces::{DML_MAIN, PML, SHARED_RELATIONSHIP_REFERENCE};
 use mjx_ooxml_types::presentationml::{Orientation, PlaceholderSize, PlaceholderType};
 use mjx_opc::{PartName, Relationship, TargetMode};
@@ -171,6 +171,24 @@ impl Presentation {
     /// other part still shows. Anything shared with the rest of the deck stays. See
     /// [`Package::remove_part_cascading`](mjx_opc::Package::remove_part_cascading).
     ///
+    /// # References *to* the slide go with it (MJXOFF-212)
+    ///
+    /// A slide is not only pointed at by `p:sldIdLst`. Another slide can hyperlink to it
+    /// (`a:hlinkClick`/`a:hlinkHover` with `action="ppaction://hlinksldjump"`, on a run or on a
+    /// shape) and a custom show can list it (`p:custShowLst > p:custShow > p:sldLst > p:sld`). Every
+    /// one of those is a relationship *plus* the markup element naming it, and **both go with the
+    /// slide**: the element is removed, then its relationship.
+    ///
+    /// So a run that used to be a link keeps its text and loses its link, and a custom show loses
+    /// the entry — which is what PowerPoint itself does, and the only outcome that leaves a package
+    /// [`save`](Self::save) accepts. Leaving the relationship behind makes the package unwritable
+    /// (its target is gone); leaving the element behind but dropping the relationship makes it name
+    /// a relationship nothing declares; and repointing the link at another slide would put a
+    /// destination the caller never chose in place of the one they deleted.
+    ///
+    /// A **referring part is therefore rewritten**, and stops being re-emitted byte for byte — the
+    /// only parts this touches are the ones that actually named the removed slide.
+    ///
     /// # Errors
     /// Returns [`PptxError::SlideIndexOutOfRange`] if `slide_idx` is out of range,
     /// [`PptxError::MalformedPresentation`] if `presentation.xml` has no `p:sldIdLst`, no relationship
@@ -199,12 +217,88 @@ impl Presentation {
                 ))?
         };
 
-        // Unwire in the reverse of the order `insert_slide_part` wired it up.
+        // Unwire in the reverse of the order `insert_slide_part` wired it up. The cascade runs before
+        // the reference sweep so the sweep sees only parts that survive: a notes slide holds a
+        // relationship back to its slide and goes with it, and rewriting one on its way out would be
+        // work with no reader.
         self.remove_sld_id(&rel_id)?;
-        self.package
-            .remove_relationship(Some(&self.presentation_part), &rel_id)?;
         self.package.remove_part_cascading(&slide_part)?;
+        self.unlink_references_to(&slide_part)?;
         self.slides.remove(slide_idx);
+        Ok(())
+    }
+
+    /// Unwires every reference to `part` that outlived it: for each relationship still resolving to
+    /// `part`, the markup elements naming that relationship, and then the relationship itself.
+    ///
+    /// This is what keeps a removal from leaving a package that cannot be written back. A dangling
+    /// relationship fails [`Package::validate`](mjx_opc::Package::validate) as
+    /// `RelationshipTargetMissing`; the markup left behind fails it as
+    /// `UndeclaredRelationshipReference`. Both have to go, and the element is removed before its
+    /// relationship so no intermediate state is more broken than the one before it.
+    fn unlink_references_to(&mut self, part: &PartName) -> Result<(), PptxError> {
+        for (source, rel_id) in self.relationships_naming(part) {
+            if let Some(source) = source.as_ref() {
+                self.remove_markup_naming(source, &rel_id)?;
+            }
+            self.package.remove_relationship(source.as_ref(), &rel_id)?;
+        }
+        Ok(())
+    }
+
+    /// Every relationship in the package whose `Internal` target resolves to `part`, as
+    /// `(source, relationship id)` — `source` is `None` for the package-root relationships.
+    ///
+    /// Matched by *resolved* target, never by the target string: `slide2.xml`, `../slides/slide2.xml`
+    /// and `/ppt/slides/slide2.xml` name the same part. An unresolvable target names no part and is
+    /// skipped, exactly as [`Package::remove_part_cascading`](mjx_opc::Package::remove_part_cascading)
+    /// skips one — a package that already carried a broken target is not made worse by this.
+    fn relationships_naming(&self, part: &PartName) -> Vec<(Option<PartName>, String)> {
+        let mut naming = Vec::new();
+        for rels in self.package.relationships() {
+            for rel in rels.relationships.iter() {
+                if rel.mode != TargetMode::Internal {
+                    continue;
+                }
+                let resolved = match rels.source.as_ref() {
+                    Some(source) => nav::resolve_target(source, &rel.target),
+                    None => nav::resolve_from_root(&rel.target),
+                };
+                if resolved.is_ok_and(|resolved| resolved == *part) {
+                    naming.push((rels.source.clone(), rel.id.clone()));
+                }
+            }
+        }
+        naming
+    }
+
+    /// Removes from `part`'s markup every element that names relationship `rel_id`.
+    ///
+    /// The tree is read first and mutated only if there is something to remove, so a part that holds
+    /// a relationship it never names in markup keeps its original bytes.
+    fn remove_markup_naming(&mut self, part: &PartName, rel_id: &str) -> Result<(), PptxError> {
+        let paths = {
+            let doc = self.package.part_tree(part)?;
+            let mut paths = Vec::new();
+            collect_elements_naming(
+                &doc.root,
+                &doc.interner,
+                rel_id,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut paths,
+            );
+            paths
+        };
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let doc = self.package.part_tree_mut(part)?;
+        // Document order out, reverse document order back: removing a later sibling never moves an
+        // earlier one.
+        for path in paths.iter().rev() {
+            remove_element_at(&mut doc.root, path);
+        }
         Ok(())
     }
 
@@ -444,4 +538,118 @@ fn build_placeholder(interner: &mut Interner, id: u32, slot: &PlaceholderInfo) -
             RawNode::Element(tx_body),
         ],
     )
+}
+
+// =================================================================================================
+// Finding and removing the elements that name a relationship
+//
+// Both halves of `remove_markup_naming`. The rule they implement is one sentence — **an element that
+// names the removed slide is removed with it** — and it is deliberately stated over the reference
+// rather than over a list of element names. Three elements can name a slide (`p:sldId`, a custom
+// show's `p:sld`, and `a:hlinkClick`/`a:hlinkHover`), each of them a pure reference node carrying
+// nothing but the pointer and the decoration belonging to it, so removing the element removes the
+// reference and nothing else. Keying on the relationship instead of on those three names means an
+// element outside the schema — a vendor extension inside an `extLst`, an `mc:AlternateContent`
+// alternative — cannot quietly leave a reference behind that `Package::validate` would then refuse.
+// =================================================================================================
+
+/// Collects the path (child indices from the root) of every element that names relationship `rel_id`,
+/// in document order.
+///
+/// An element that names it is not descended into: the whole element goes, so nothing inside it can
+/// survive to be named separately, and no collected path is ever a prefix of another.
+///
+/// The fidelity reader resolves *element* namespaces but leaves attribute prefixes unresolved, so
+/// this tracks the `xmlns:` bindings itself, with proper scoping — a binding covers the element that
+/// declares it and its descendants, and an inner binding shadows an outer one. That is
+/// `Package::validate`'s rule, and the two have to agree: any reference this walk fails to see is one
+/// `validate` will refuse the package for.
+fn collect_elements_naming(
+    element: &RawElement,
+    interner: &Interner,
+    rel_id: &str,
+    bindings: &mut Vec<(Symbol, bool)>,
+    path: &mut Vec<usize>,
+    out: &mut Vec<Vec<usize>>,
+) {
+    let depth = bindings.len();
+    for attribute in &element.attributes {
+        if let Some(prefix) = attribute.name.prefix {
+            if interner.resolve(prefix) == "xmlns" {
+                let uri = std::str::from_utf8(&attribute.value).unwrap_or_default();
+                let is_reference = uri == SHARED_RELATIONSHIP_REFERENCE.transitional
+                    || Some(uri) == SHARED_RELATIONSHIP_REFERENCE.strict;
+                bindings.push((attribute.name.local, is_reference));
+            }
+        }
+    }
+
+    if names_relationship(element, interner, bindings, rel_id) {
+        // The root element itself can carry no relationship reference in any PresentationML part, and
+        // a document with no element left is not a document: an empty path is not collected.
+        if !path.is_empty() {
+            out.push(path.clone());
+        }
+    } else {
+        for (index, child) in element.children.iter().enumerate() {
+            if let RawNode::Element(child) = child {
+                path.push(index);
+                collect_elements_naming(child, interner, rel_id, bindings, path, out);
+                path.pop();
+            }
+        }
+    }
+
+    bindings.truncate(depth);
+}
+
+/// Whether any attribute of `element` in the relationship-reference namespace has the value `rel_id`.
+///
+/// The attribute's *local* name is not looked at. `r:id` is the spelling on every element that can
+/// name a slide, but the invariant being kept is about the reference, not the spelling: `r:embed`,
+/// `r:link` and the rest are relationship references too, and one of them holding this id would be a
+/// reference `validate` counts.
+fn names_relationship(
+    element: &RawElement,
+    interner: &Interner,
+    bindings: &[(Symbol, bool)],
+    rel_id: &str,
+) -> bool {
+    element.attributes.iter().any(|attribute| {
+        let Some(prefix) = attribute.name.prefix else {
+            return false;
+        };
+        if interner.resolve(prefix) == "xmlns" {
+            return false;
+        }
+        let bound_to_references = bindings
+            .iter()
+            .rev()
+            .find(|(bound, _)| *bound == prefix)
+            .is_some_and(|(_, is_reference)| *is_reference);
+        bound_to_references && &*attribute.value == rel_id.as_bytes()
+    })
+}
+
+/// Removes the element at `path` (child indices from `root`), together with the whitespace that
+/// indented it — the same treatment `remove_sld_id` gives a `p:sldId`, so a removal
+/// leaves no blank line behind.
+fn remove_element_at(root: &mut RawElement, path: &[usize]) {
+    let Some((&last, ancestors)) = path.split_last() else {
+        return;
+    };
+    let mut parent = root;
+    for &index in ancestors {
+        let Some(RawNode::Element(next)) = parent.children.get_mut(index) else {
+            return;
+        };
+        parent = next;
+    }
+    if last >= parent.children.len() {
+        return;
+    }
+    parent.children.remove(last);
+    if last > 0 && nav::is_whitespace_text(&parent.children[last - 1]) {
+        parent.children.remove(last - 1);
+    }
 }

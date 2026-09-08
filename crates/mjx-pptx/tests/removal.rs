@@ -9,8 +9,8 @@
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 
-use mjx_opc::Package;
-use mjx_pptx::{PptxError, Presentation, ShapeBounds, Surface};
+use mjx_opc::{Package, PartName};
+use mjx_pptx::{Hyperlink, PptxError, Presentation, ShapeBounds, Surface};
 
 fn fixture(name: &str) -> Vec<u8> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -323,5 +323,172 @@ fn removing_a_slide_touches_only_the_deck_wiring() {
     assert!(
         reopened.keys().all(|name| snapshot.contains_key(name)),
         "removing a slide added a part"
+    );
+}
+
+// ---------------------------------------------------------------------------------------------
+// References *to* the removed slide (MJXOFF-212).
+//
+// A slide is pointed at by more than `p:sldIdLst`: another slide can hyperlink to it and a custom
+// show can list it. Each such reference is a relationship *plus* an element naming it, and both go
+// with the slide — anything less leaves a package `save()` refuses, which is the defect this
+// section locks down. `hyperlinks.pptx` ships the shape-level case; the run-level one is authored
+// through the public API and the custom show is stitched into a copy of the fixture.
+// ---------------------------------------------------------------------------------------------
+
+/// The presentation part of every deck this file builds.
+fn presentation_part() -> PartName {
+    PartName::new("/ppt/presentation.xml").expect("a valid part name")
+}
+
+/// `bytes` with `part`'s markup put through `edit`, re-saved. The edit is textual because the point
+/// is to hand `Presentation` markup it did not author.
+fn with_part_text(bytes: &[u8], part: &PartName, edit: impl FnOnce(&str) -> String) -> Vec<u8> {
+    let mut pkg = Package::open(bytes).expect("open");
+    let original = std::str::from_utf8(pkg.part_bytes(part).expect("the part's bytes"))
+        .expect("the part is UTF-8");
+    let edited = edit(original);
+    pkg.replace_part_bytes(part, edited.into_bytes())
+        .expect("replace");
+    pkg.save().expect("save")
+}
+
+#[test]
+fn removing_a_slide_a_shape_jumps_to_leaves_a_package_that_saves() {
+    let mut pres = Presentation::open(&fixture("hyperlinks.pptx")).expect("open");
+    // Slide 0's rectangle carries `p:cNvPr > a:hlinkClick` jumping to slide 1, through `rId3` of
+    // `slide1.xml.rels`.
+    assert_eq!(
+        pres.shape_hyperlink(0, 1).expect("link"),
+        Some(Hyperlink::Slide(1))
+    );
+
+    pres.remove_slide(1).expect("remove");
+    // Before MJXOFF-212 this was `Err`, permanently: the file could never be written back.
+    let saved = pres.save().expect("the package must still be writable");
+    let map = byte_map(&Package::open(&saved).expect("reopen"));
+
+    let rels = String::from_utf8(map["ppt/slides/_rels/slide1.xml.rels"].clone()).expect("utf8");
+    assert!(
+        !rels.contains("rId3"),
+        "the relationship to the removed slide is gone: {rels}"
+    );
+    assert!(
+        rels.contains("https://example.com/"),
+        "the run's external link is untouched: {rels}"
+    );
+
+    let slide = String::from_utf8(map["ppt/slides/slide1.xml"].clone()).expect("utf8");
+    assert!(
+        !slide.contains("hlinksldjump"),
+        "the jump goes with the slide it jumped to: {slide}"
+    );
+    assert!(
+        slide.contains("Go to slide 2"),
+        "the shape keeps its text: {slide}"
+    );
+    assert!(
+        slide.contains(r#"hlinkClick r:id="rId2""#),
+        "the run's own hyperlink is left alone: {slide}"
+    );
+
+    let mut reopened = Presentation::open(&saved).expect("reopen");
+    assert_eq!(reopened.slide_count(), 1);
+    assert_eq!(
+        reopened.shape_hyperlink(0, 1).expect("link"),
+        None,
+        "the shape is still there, and no longer a link"
+    );
+}
+
+#[test]
+fn removing_a_slide_a_run_links_to_keeps_the_text_and_drops_the_link() {
+    let mut pres = Presentation::open(&fixture("hyperlinks.pptx")).expect("open");
+    // Slide 1's text box has no link; give its run a jump back to slide 0, then delete slide 0.
+    pres.set_run_hyperlink(1, 0, 0, 0, &Hyperlink::Slide(0))
+        .expect("set");
+    pres.remove_slide(0).expect("remove");
+    let saved = pres.save().expect("the package must still be writable");
+    let map = byte_map(&Package::open(&saved).expect("reopen"));
+
+    let slide = String::from_utf8(map["ppt/slides/slide2.xml"].clone()).expect("utf8");
+    assert!(
+        slide.contains("Second slide"),
+        "the run keeps its text: {slide}"
+    );
+    assert!(!slide.contains("hlinkClick"), "and loses its link: {slide}");
+    let rels = String::from_utf8(map["ppt/slides/_rels/slide2.xml.rels"].clone()).expect("utf8");
+    assert!(
+        !rels.contains("relationships/slide\""),
+        "the relationship it named goes too: {rels}"
+    );
+}
+
+#[test]
+fn removing_a_slide_a_custom_show_lists_drops_the_entry_and_keeps_the_show() {
+    // `p:custShow > p:sldLst > p:sld` names the *presentation's* own slide relationships, so a
+    // custom show is the second way a package can be left unwritable by a slide removal.
+    let bytes = with_part_text(
+        &fixture("hyperlinks.pptx"),
+        &presentation_part(),
+        |presentation| {
+            presentation.replace(
+                "</p:presentation>",
+                concat!(
+                    "  <p:custShowLst><p:custShow name=\"Short\" id=\"0\"><p:sldLst>",
+                    "<p:sld r:id=\"rId2\"/><p:sld r:id=\"rId3\"/>",
+                    "</p:sldLst></p:custShow></p:custShowLst>\n</p:presentation>",
+                ),
+            )
+        },
+    );
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.remove_slide(1).expect("remove");
+    let saved = pres.save().expect("the package must still be writable");
+    let map = byte_map(&Package::open(&saved).expect("reopen"));
+
+    let presentation = String::from_utf8(map["ppt/presentation.xml"].clone()).expect("utf8");
+    assert!(
+        !presentation.contains(r#"r:id="rId3""#),
+        "every reference to the removed slide is gone: {presentation}"
+    );
+    assert!(
+        presentation.contains(r#"<p:sld r:id="rId2"/>"#),
+        "the show still lists the slide that stayed: {presentation}"
+    );
+    assert!(
+        presentation.contains("p:custShow"),
+        "the show itself is not deleted with its entry: {presentation}"
+    );
+}
+
+#[test]
+fn an_element_outside_the_schema_naming_the_slide_goes_with_it() {
+    // The rule is keyed on the *reference*, not on a list of element names: an element this build
+    // has never heard of that names the removed slide is removed just the same. Keyed on names
+    // instead, this markup would keep an `r:id` naming a relationship nothing declares, and
+    // `Package::validate` refuses that as `UndeclaredRelationshipReference`. The element is not
+    // PresentationML and the package is never schema-validated — it exists to state the rule.
+    let bytes = with_part_text(
+        &fixture("hyperlinks.pptx"),
+        &PartName::new("/ppt/slides/slide1.xml").expect("a valid part name"),
+        |slide| {
+            slide.replace(
+                "</p:sld>",
+                "  <z:jump xmlns:z=\"urn:example:mjx-test\" r:id=\"rId3\"/>\n</p:sld>",
+            )
+        },
+    );
+
+    let mut pres = Presentation::open(&bytes).expect("open");
+    pres.remove_slide(1).expect("remove");
+    let saved = pres.save().expect("the package must still be writable");
+    let map = byte_map(&Package::open(&saved).expect("reopen"));
+
+    let slide = String::from_utf8(map["ppt/slides/slide1.xml"].clone()).expect("utf8");
+    assert!(
+        !slide.contains("z:jump"),
+        "an unknown element naming the removed slide stayed behind: {slide}"
     );
 }
