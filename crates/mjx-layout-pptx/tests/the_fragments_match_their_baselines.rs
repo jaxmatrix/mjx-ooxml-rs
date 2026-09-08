@@ -82,7 +82,7 @@ const CORPUS: &[Specimen] = &[
     Specimen {
         file: "charts.pptx",
         slide: 0,
-        covers: "graphic frames, which occupy their boxes and become fragments in R15",
+        covers: "graphic frames holding a chart, which occupy their boxes and are R23",
     },
     Specimen {
         file: "charts.pptx",
@@ -92,7 +92,7 @@ const CORPUS: &[Specimen] = &[
     Specimen {
         file: "tables.pptx",
         slide: 0,
-        covers: "a table's graphic frame, laid out as the box it occupies until R15",
+        covers: "a table: the grid, every cell that renders, its borders and its text",
     },
     Specimen {
         file: "hyperlinks.pptx",

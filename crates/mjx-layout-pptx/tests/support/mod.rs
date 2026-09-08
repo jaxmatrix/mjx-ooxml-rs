@@ -190,10 +190,17 @@ pub(crate) fn snapshot(tree: &FragmentTree) -> String {
 fn detail(fragment: &Fragment) -> String {
     match fragment {
         Fragment::Box(box_fragment) => format!(
-            "decoration={}",
+            "decoration={}{}",
             box_fragment
                 .decoration
-                .map_or(-1_i128, |handle| i128::from(handle.number()))
+                .map_or(-1_i128, |handle| i128::from(handle.number())),
+            // A cell's coordinates and spans are in the snapshot because a merge that stopped
+            // working would otherwise move no line of it: the covered positions simply would not
+            // appear, and a baseline of eight cells and one of twelve differ only in length.
+            box_fragment.cell.map_or_else(String::new, |cell| format!(
+                " cell=r{}c{} span={}x{}",
+                cell.row, cell.column, cell.row_span, cell.column_span
+            ))
         ),
         Fragment::Line(line) => format!(
             "baseline={} ascent={} descent={} direction={:?} hanging={}",

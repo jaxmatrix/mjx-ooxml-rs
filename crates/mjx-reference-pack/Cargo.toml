@@ -48,10 +48,25 @@ mjx-paint.workspace = true
 # `xtask/tests/layering.rs` says so by name.
 mjx-render-oracle.workspace = true
 
+# Rank 3.6 and 3.7, test-only (MJXOFF-170). PowerPoint's box model and its scene companion — the two
+# stages between a package and a display list. They are here rather than in `[dependencies]` because
+# the pack *authors* artefacts and does not render documents; `tests/a_real_deck_reaches_pixels.rs`
+# is the one place a real deck travels the whole pipeline, and this crate is the only one in the
+# workspace that may name `mjx-pptx` (3.0) and `mjx-paint` (5.5) together.
+
 # Rank 1.0. The package the hanging document's paragraph properties are written through — the same
 # route `mjx-docx`'s own `tests/paragraph_properties.rs` takes, because `Document` exposes no
 # `w:pPr` writer and that crate's stated precedent is that a typed property does not grow one.
 mjx-opc.workspace = true
+
+[dev-dependencies]
+mjx-layout-pptx.workspace = true
+mjx-scene-pptx.workspace = true
+# Rank 1.6, test-only. `FragmentTree`, `BoxModel` and `PageIndex` — the vocabulary the box model
+# answers in, which neither of the two above re-exports.
+mjx-layout.workspace = true
+# The committed corpus, so the end-to-end gate derives its decks from one place.
+mjx-fixtures.workspace = true
 
 [[bin]]
 name = "mjx-reference-pack"

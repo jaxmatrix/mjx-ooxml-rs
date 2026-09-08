@@ -26,7 +26,7 @@ use std::path::{Path, PathBuf};
 
 /// How many `.rs` files `src/` holds. Exact rather than a floor, so adding a module is a deliberate
 /// act that touches this number; a `>=` would pass on a walk that stopped early.
-const SOURCE_FILE_COUNT: usize = 9;
+const SOURCE_FILE_COUNT: usize = 10;
 
 /// Every crate this one may name in `[dependencies]`, exactly.
 const PERMITTED_DEPENDENCIES: &[&str] = &[

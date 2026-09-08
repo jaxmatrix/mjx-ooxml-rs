@@ -197,6 +197,30 @@ enum Tier {
     /// **both** dependency sections, because a dev-dependency on `mjx-geometry` would let a test
     /// resolve a preset path and call it proof that the box model does.
     LayoutPresentation,
+    /// `mjx-scene-pptx` — rank 3.7 (MJXOFF-170). PowerPoint's companion to the box model: the
+    /// `ResourceResolver` that turns the handles `mjx-layout-pptx` issued into `mjx-scene`'s paints,
+    /// strokes and effects, and the `GeometryProvider` that turns its outline handles into
+    /// `mjx-geometry`'s preset paths.
+    ///
+    /// **It exists because `mjx-layout-pptx`'s own seam gate forbids the edge that would have made
+    /// it a module.** `mjx_scene::ResourceResolver` is documented as implemented by *"the box
+    /// model's companion — the layer that issued the handles"*, and for PowerPoint that layer is the
+    /// box model itself; but `crates/mjx-layout-pptx/tests/the_seam_holds.rs` refuses `mjx-scene`
+    /// there by name, on the ground that a box model which built a display list would have merged
+    /// two stages the architecture separates on purpose. That gate is right, so the resolver got a
+    /// crate.
+    ///
+    /// **3.7 is the only rank it can have.** It must name `mjx-layout-pptx` (3.6) for the handles,
+    /// `mjx-scene` (1.7) for what they resolve into and `mjx-geometry` (2.5) for the outlines — one
+    /// step above the highest of the three — and it must stay below `mjx-view` (3.8), or a viewport
+    /// would reach PowerPoint through it and stop being format-agnostic.
+    ///
+    /// **What the rank does not buy**, as everywhere else in this ladder: at 3.7 every format crate
+    /// is a legal downward edge. *A resolver reads no document* is held by
+    /// `crates/mjx-scene-pptx/tests/the_seam_holds.rs`, which refuses `mjx-pptx` in
+    /// `[dependencies]` — and permits it in `[dev-dependencies]`, because a suite that proves a real
+    /// deck's fills resolve has to open one.
+    ScenePresentation,
     /// `mjx-view` — rank 3.8 (MJXOFF-168). Viewport windowing, byte-budgeted per-stage caches and
     /// frame scheduling: the layer that makes a four-hundred-page document behave.
     ///
@@ -358,6 +382,7 @@ impl Tier {
             Self::Formats => Rank(3, 0),
             Self::Session => Rank(3, 5),
             Self::LayoutPresentation => Rank(3, 6),
+            Self::ScenePresentation => Rank(3, 7),
             Self::Viewport => Rank(3, 8),
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
@@ -389,6 +414,7 @@ impl Tier {
             Self::Formats => "formats",
             Self::Session => "the resident document",
             Self::LayoutPresentation => "PowerPoint's box model",
+            Self::ScenePresentation => "PowerPoint's scene companion",
             Self::Viewport => "the viewport",
             Self::Facade => "facade",
             Self::Bindings => "bindings",
@@ -437,6 +463,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-xlsx", Tier::Formats),
     ("mjx-session", Tier::Session),
     ("mjx-layout-pptx", Tier::LayoutPresentation),
+    ("mjx-scene-pptx", Tier::ScenePresentation),
     ("mjx-view", Tier::Viewport),
     ("mjx-ooxml", Tier::Facade),
     ("mjx-python", Tier::Bindings),

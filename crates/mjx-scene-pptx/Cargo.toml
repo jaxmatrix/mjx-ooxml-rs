@@ -1,0 +1,54 @@
+[package]
+name = "mjx-scene-pptx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "PowerPoint's companion to the box model: the resource resolver and geometry provider that turn a slide's fragment tree into a mjx-scene display list."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 3.6. The box model whose handles this crate resolves — `PageCatalogue`, `Decoration`,
+# `ShapeOutlineRequest`, `ImageRequest`. **The whole reason this crate exists**: those handles mean
+# something only to the layer that issued them, and the layer that issued them may not name
+# `mjx-scene` (its own `tests/the_seam_holds.rs` refuses the edge, because a box model that built a
+# display list would have merged two stages).
+mjx-layout-pptx.workspace = true
+# Rank 2.5. `ShapeOutline` and `PresetGeometryProvider` — what a `GeometryRef` resolves to once
+# something is allowed to know a preset path table exists. `mjx-layout-pptx` (3.6) may legally name
+# this and deliberately does not; this crate is where that knowledge is allowed to live.
+mjx-geometry.workspace = true
+# Rank 2.0. `FillSpec`, `LineSpec`, `EffectListSpec`, `ColorSpec` — the DrawingML values the
+# catalogue carries, and the input side of every translation here.
+mjx-dml.workspace = true
+# Rank 1.7. `ResourceResolver`, `GeometryProvider`, `Decoration`, `FillStyle`, `StrokeStyle`,
+# `EffectStyle` — the output side. This crate is the join between the two vocabularies and holds no
+# third one.
+mjx-scene.workspace = true
+# Rank 1.6. `DecorationRef`, `ImageRef`, `GeometryRef`, `SourceRef` — the handle types the two sides
+# agree on.
+mjx-layout.workspace = true
+# Rank 1.0. `PatternType` — DrawingML's own name for each of the fifty-four preset hatches, which is
+# what the translation to `mjx_scene::PatternPreset` is a table over.
+mjx-ooxml-types.workspace = true
+# Rank 0.0. `Emu` and `Angle`, in which a line's width and a shadow's direction are stated.
+mjx-ooxml-core.workspace = true
+
+[dev-dependencies]
+# Rank 3.0. The decks the suites read: a resolver is only proved by resolving a real document's own
+# fills, and this is what opens one.
+mjx-pptx.workspace = true
+# The committed corpus, so the suites derive their fixtures from one place rather than from a
+# `const FIXTURES` list.
+mjx-fixtures.workspace = true
+# Rank 1.5. `FontResolver` — the box model takes one, and a suite that lays a slide out has to hand
+# it one.
+mjx-text.workspace = true
+# Rank 1.0, test-only. The one suite that asserts a *loss* has to read the theme part's own bytes
+# before resolution, or it would be asserting that an opaque colour is opaque — which is true of a
+# file that never stated an alpha and proves nothing.
+mjx-opc.workspace = true

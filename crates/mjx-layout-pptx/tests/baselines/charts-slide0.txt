@@ -1,5 +1,5 @@
 # specimen: charts.pptx slide 0
-# covers: graphic frames, which occupy their boxes and become fragments in R15
+# covers: graphic frames holding a chart, which occupy their boxes and are R23
 # approver: generator
 # approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
 fragment-tree nodes=7 roots=1
