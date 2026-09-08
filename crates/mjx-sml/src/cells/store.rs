@@ -587,6 +587,64 @@ impl SheetData {
             .map(|offset| range.start + offset)
     }
 
+    /// The position in the cell arena of the **nearest populated cell** of the row at `row_index`
+    /// strictly to one side of `column`.
+    ///
+    /// `after` picks the first cell whose column is greater than `column`; `!after` the last whose
+    /// column is less. `O(log n)` for a row whose cells ascend, which is every row a producer
+    /// writes, and a scan otherwise.
+    ///
+    /// This exists for exactly one caller and it is worth naming, because a weaker answer would look
+    /// like it worked: Excel's *text overflows into empty neighbours* rule needs the first
+    /// **non-empty** cell in the direction of alignment, and a renderer that found it by probing
+    /// column by column would ask up to 16,383 questions per cell — which is the coordinate-range
+    /// walk the sparse store exists to make unnecessary, reintroduced one row at a time.
+    pub(super) fn adjacent_cell_position(
+        &self,
+        row_index: usize,
+        column: u16,
+        after: bool,
+    ) -> Option<usize> {
+        let row = self.rows.get(row_index)?;
+        let range = row.cell_range();
+        let slice = self.cells.get(range.clone())?;
+        if row.has(RowFlags::CELLS_ASCENDING) {
+            return if after {
+                let at = slice.partition_point(|cell| cell.reference.column() <= column);
+                (at < slice.len()).then(|| range.start + at)
+            } else {
+                let at = slice.partition_point(|cell| cell.reference.column() < column);
+                at.checked_sub(1).map(|offset| range.start + offset)
+            };
+        }
+        // An out-of-order row has no ordering to search, so the nearest is found by scanning — the
+        // same fallback `cell_position` makes, for the same reason: preserving a file's own order
+        // costs the index that order would have given.
+        let mut best: Option<(u16, usize)> = None;
+        for (offset, cell) in slice.iter().enumerate() {
+            let candidate = cell.reference.column();
+            let eligible = if after {
+                candidate > column
+            } else {
+                candidate < column
+            };
+            if !eligible {
+                continue;
+            }
+            let nearer = best.is_none_or(|(current, _)| {
+                if after {
+                    candidate < current
+                } else {
+                    candidate > current
+                }
+            });
+            if nearer {
+                best = Some((candidate, range.start + offset));
+            }
+        }
+        best.map(|(_, index)| index)
+    }
+
     /// The position of the row a file numbered `number`, creating one in ascending position if there
     /// is none.
     fn row_slot(&mut self, number: u32) -> Result<usize, SmlError> {

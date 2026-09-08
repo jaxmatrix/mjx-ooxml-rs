@@ -848,3 +848,97 @@ fn an_empty_value_and_an_absent_one_stay_different() {
         r#"<x:row r="1"><x:c r="A1"><x:v></x:v></x:c><x:c r="B1"/><x:c r="C1"></x:c></x:row>"#
     );
 }
+
+/// The nearest populated cell on each side of a column, which is what Excel's *text overflows into
+/// empty neighbours* rule needs (MJXOFF-171).
+///
+/// The property worth asserting is not that the answer is right — a linear scan would give the same
+/// answer — it is that the question can be **asked at all** without probing column by column. A
+/// renderer without these two accessors would ask up to 16,383 questions per overflowing cell, which
+/// is the coordinate-range walk this store exists to make unnecessary, reintroduced one row at a
+/// time.
+#[test]
+fn a_row_answers_which_populated_cell_is_nearest_on_each_side() {
+    const MARKUP: &[u8] = br#"<x:worksheet xmlns:x="urn:x"><x:sheetData><x:row r="1"><x:c r="A1"><x:v>1</x:v></x:c><x:c r="D1"><x:v>4</x:v></x:c><x:c r="XFD1"><x:v>9</x:v></x:c></x:row></x:sheetData></x:worksheet>"#;
+    let (_document, sheet) = read(MARKUP);
+    let row = sheet.row(1).expect("row 1");
+
+    // A (0), D (3) and XFD (16,383) are populated; everything between them is not.
+    assert_eq!(
+        row.cell_after(0).map(|cell| cell.reference().column()),
+        Some(3)
+    );
+    assert_eq!(
+        row.cell_after(1).map(|cell| cell.reference().column()),
+        Some(3)
+    );
+    assert_eq!(
+        row.cell_after(3).map(|cell| cell.reference().column()),
+        Some(16_383)
+    );
+    assert_eq!(
+        row.cell_after(16_383).map(|cell| cell.reference().column()),
+        None,
+        "nothing is to the right of the last column of the grid"
+    );
+
+    assert_eq!(
+        row.cell_before(3).map(|cell| cell.reference().column()),
+        Some(0)
+    );
+    assert_eq!(
+        row.cell_before(2).map(|cell| cell.reference().column()),
+        Some(0)
+    );
+    assert_eq!(
+        row.cell_before(16_383)
+            .map(|cell| cell.reference().column()),
+        Some(3)
+    );
+    assert_eq!(
+        row.cell_before(0).map(|cell| cell.reference().column()),
+        None,
+        "nothing is to the left of column A"
+    );
+
+    // **Strictly** to one side: a populated cell does not answer with itself, or an overflow would
+    // stop at the cell doing the overflowing.
+    assert_eq!(
+        row.cell_after(3).map(|cell| cell.reference().column()),
+        Some(16_383)
+    );
+    assert_eq!(
+        row.cell_before(3).map(|cell| cell.reference().column()),
+        Some(0)
+    );
+}
+
+/// The same question of a row whose cells the file wrote **out of order**, which has no ordering to
+/// binary-search and falls back to a scan.
+#[test]
+fn the_nearest_populated_cell_is_found_in_a_row_written_out_of_order() {
+    const MARKUP: &[u8] = br#"<x:worksheet xmlns:x="urn:x"><x:sheetData><x:row r="1"><x:c r="F1"><x:v>6</x:v></x:c><x:c r="B1"><x:v>2</x:v></x:c><x:c r="D1"><x:v>4</x:v></x:c></x:row></x:sheetData></x:worksheet>"#;
+    let (_document, sheet) = read(MARKUP);
+    let row = sheet.row(1).expect("row 1");
+
+    assert_eq!(
+        row.cell_after(1).map(|cell| cell.reference().column()),
+        Some(3)
+    );
+    assert_eq!(
+        row.cell_after(3).map(|cell| cell.reference().column()),
+        Some(5)
+    );
+    assert_eq!(
+        row.cell_before(5).map(|cell| cell.reference().column()),
+        Some(3)
+    );
+    assert_eq!(
+        row.cell_before(1).map(|cell| cell.reference().column()),
+        None
+    );
+    assert_eq!(
+        row.cell_after(5).map(|cell| cell.reference().column()),
+        None
+    );
+}

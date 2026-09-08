@@ -403,6 +403,18 @@ impl<'a> CellFormatResolver<'a> {
         })
     }
 
+    /// The interner the stylesheet's symbols live in.
+    ///
+    /// Every value this resolver answers with — a [`Font`], a [`Fill`], a [`Border`], a
+    /// [`CellAlignment`] — is an element of *that* document, and reading an attribute off one needs
+    /// the interner it was parsed against. A caller holding a resolver therefore already holds
+    /// everything it needs except this, and without it would have to keep a second reference to the
+    /// same document beside the resolver and hope the two stayed the same one.
+    #[must_use]
+    pub fn interner(&self) -> &'a Interner {
+        self.interner
+    }
+
     /// How many records `cellXfs` holds.
     #[must_use]
     pub fn cell_format_count(&self) -> usize {

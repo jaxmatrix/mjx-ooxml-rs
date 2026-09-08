@@ -1,0 +1,23 @@
+# specimen: style_resources.xlsx sheet 0 band 0
+# covers: fonts, fills and borders resolved into decoration handles
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# decorations: 2
+fragment-tree nodes=17 roots=1
+#0 box rect=[0,0,7315200,4572000] transform=TransformId(0) clip=none part=0 path=/ chars=0..0 decoration=-1
+  #1 table rect=[0,0,7315200,4572000] transform=TransformId(0) clip=none part=0 path=/ chars=0..0 columns=13 rows=0..1 headers=0 continued=false continues=false
+    #2 box rect=[0,0,581025,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/0 chars=0..0 decoration=0 cell=r0c0 span=1x1
+      #3 line rect=[396697,0,561975,197168] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..2 baseline=154305 ascent=154305 descent=42863 direction=LeftToRight
+        #4 glyph run rect=[396697,0,561975,197168] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..2 face=1 origin=[396697,154305] direction=LeftToRight level=BidiLevel(0) glyphs=2
+    #5 box rect=[581025,0,1162050,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/1 chars=0..0 decoration=1 cell=r0c1 span=1x1
+    #6 box rect=[1162050,0,1743075,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/2 chars=0..0 decoration=1 cell=r0c2 span=1x1
+    #7 box rect=[1743075,0,2324100,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/3 chars=0..0 decoration=1 cell=r0c3 span=1x1
+    #8 box rect=[2324100,0,2905125,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/4 chars=0..0 decoration=1 cell=r0c4 span=1x1
+    #9 box rect=[2905125,0,3486150,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/5 chars=0..0 decoration=1 cell=r0c5 span=1x1
+    #10 box rect=[3486150,0,4067175,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/6 chars=0..0 decoration=1 cell=r0c6 span=1x1
+    #11 box rect=[4067175,0,4648200,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/7 chars=0..0 decoration=1 cell=r0c7 span=1x1
+    #12 box rect=[4648200,0,5229225,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/8 chars=0..0 decoration=1 cell=r0c8 span=1x1
+    #13 box rect=[5229225,0,5810250,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/9 chars=0..0 decoration=1 cell=r0c9 span=1x1
+    #14 box rect=[5810250,0,6391275,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/10 chars=0..0 decoration=1 cell=r0c10 span=1x1
+    #15 box rect=[6391275,0,6972300,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/11 chars=0..0 decoration=1 cell=r0c11 span=1x1
+    #16 box rect=[6972300,0,7553325,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/12 chars=0..0 decoration=1 cell=r0c12 span=1x1

@@ -43,7 +43,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
-  | 3.6 — PowerPoint's box model | `mjx-layout-pptx` |
+  | 3.6 — the box models | `mjx-layout-pptx`, `mjx-layout-xlsx` |
   | 3.7 — PowerPoint's scene companion | `mjx-scene-pptx` |
   | 3.8 — the viewport | `mjx-view` |
   | 4.0 — facade | `mjx-ooxml` |
@@ -126,6 +126,19 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   outline* — the property that keeps `docs/UI_PLATFORM_PLAN.md` §4 L4's `GeometryProvider` swappable
   — is held by `crates/mjx-layout-pptx/tests/the_seam_holds.rs`, which checks **both** dependency
   sections, and by nothing else.
+
+  **`mjx-layout-xlsx` (MJXOFF-171) shares that rank rather than sitting above it**, and the sharing
+  is the decision. Excel's box model is a *grid* — two sparse indices over stated rows and `col`
+  runs, every cell a binary search in `mjx-sml`'s packed store, and not one iteration of the
+  seventeen billion addressable coordinates anywhere in it — and it consumes `mjx-xlsx`'s
+  `SheetFormatting` and the `xf` ladder beneath it for exactly the reason PowerPoint's consumes
+  `mjx-pptx`'s. Two box models at **equal** rank means an edge between them is *sideways*, which the
+  layering gate refuses by name: a spreadsheet's box model must not know what a slide is, and a
+  slide's must not know what a worksheet is. Word's will join them at 3.6 for the same reason. What
+  the rank does not buy is, again, the other direction — at 3.6 an edge to `mjx-pptx` (3.0) is a
+  perfectly legal *downward* edge — so *this box model reads one format, resolves no geometry and
+  never paints* is held by `crates/mjx-layout-xlsx/tests/the_seam_holds.rs`, which refuses
+  `mjx-geometry`, `mjx-scene`, `mjx-paint`, `mjx-pptx` and `mjx-docx` in both sections.
 
   **`mjx-scene-pptx` at 3.7 (MJXOFF-170) exists because that same gate forbids the edge that would
   have made it a module.** `mjx_scene::ResourceResolver` is documented as implemented by *the box

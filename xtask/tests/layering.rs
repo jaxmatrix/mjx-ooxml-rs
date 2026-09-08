@@ -197,6 +197,29 @@ enum Tier {
     /// **both** dependency sections, because a dev-dependency on `mjx-geometry` would let a test
     /// resolve a preset path and call it proof that the box model does.
     LayoutPresentation,
+    /// `mjx-layout-xlsx` — rank 3.6 (MJXOFF-171). Excel's box model: a worksheet's grid geometry,
+    /// its merged regions, its overflow rules and its panes, turned into a `FragmentTree`.
+    ///
+    /// **The same rank as `mjx-layout-pptx`, and that is the decision rather than an accident.** An
+    /// edge between two box models would be *sideways*, which this file refuses by name, and it is
+    /// exactly the edge that must never exist: a spreadsheet's box model has no business knowing
+    /// what a slide is, and a slide's none what a worksheet is. Word's will join them here.
+    ///
+    /// It is above the format tier for the same reason PowerPoint's is — it **consumes**
+    /// `mjx-xlsx`'s `SheetFormatting`/`SheetFormatResolver` and `mjx-sml`'s packed cell store rather
+    /// than re-deriving either — and below `mjx-view` so a viewport still reaches a `.xlsx` through
+    /// nothing.
+    ///
+    /// **What the rank buys** is the same one thing: `mjx-layout` at 1.6 cannot depend on it, so the
+    /// contract stays a contract rather than becoming a grid's shape; `mjx-sml` cannot grow a layout
+    /// engine; `mjx-xlsx` cannot reach a `FragmentTree`.
+    ///
+    /// **What it deliberately does not buy is the other direction.** At 3.6 every markup crate is a
+    /// legal downward edge, so *a box model resolves no geometry and never paints* is held by
+    /// `crates/mjx-layout-xlsx/tests/the_seam_holds.rs` — which also refuses `mjx-pptx`,
+    /// `mjx-layout-pptx` and `mjx-docx`, because the sideways refusal only covers the second of
+    /// those and the first would be a legal downward edge nobody wants.
+    LayoutSpreadsheet,
     /// `mjx-scene-pptx` — rank 3.7 (MJXOFF-170). PowerPoint's companion to the box model: the
     /// `ResourceResolver` that turns the handles `mjx-layout-pptx` issued into `mjx-scene`'s paints,
     /// strokes and effects, and the `GeometryProvider` that turns its outline handles into
@@ -382,6 +405,7 @@ impl Tier {
             Self::Formats => Rank(3, 0),
             Self::Session => Rank(3, 5),
             Self::LayoutPresentation => Rank(3, 6),
+            Self::LayoutSpreadsheet => Rank(3, 6),
             Self::ScenePresentation => Rank(3, 7),
             Self::Viewport => Rank(3, 8),
             Self::Facade => Rank(4, 0),
@@ -414,6 +438,7 @@ impl Tier {
             Self::Formats => "formats",
             Self::Session => "the resident document",
             Self::LayoutPresentation => "PowerPoint's box model",
+            Self::LayoutSpreadsheet => "Excel's box model",
             Self::ScenePresentation => "PowerPoint's scene companion",
             Self::Viewport => "the viewport",
             Self::Facade => "facade",
@@ -463,6 +488,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-xlsx", Tier::Formats),
     ("mjx-session", Tier::Session),
     ("mjx-layout-pptx", Tier::LayoutPresentation),
+    ("mjx-layout-xlsx", Tier::LayoutSpreadsheet),
     ("mjx-scene-pptx", Tier::ScenePresentation),
     ("mjx-view", Tier::Viewport),
     ("mjx-ooxml", Tier::Facade),
