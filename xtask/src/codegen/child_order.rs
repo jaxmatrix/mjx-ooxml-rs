@@ -38,7 +38,7 @@ struct Table {
 /// Renders the whole `child_order` module from the parsed schema set.
 ///
 /// `order` names the schemas to emit, by file stem, in the order their tables should appear.
-pub fn generate(set: &SchemaSet, stems: &[&str]) -> Result<String> {
+pub(crate) fn generate(set: &SchemaSet, stems: &[&str]) -> Result<String> {
     // Namespace URI → the `namespaces` constant name, derived from the file stem exactly as the
     // namespace table itself is.
     let mut namespace_consts: BTreeMap<&str, String> = BTreeMap::new();

@@ -12,7 +12,7 @@ use crate::codegen::naming::NameEngine;
 ///
 /// `wml.xsd` and `shared-math.xsd` have their own engines below, because they redeclare symbols
 /// these three already use — see the note there.
-pub const ENGINE: NameEngine = NameEngine {
+pub(crate) const ENGINE: NameEngine = NameEngine {
     type_overrides: TYPE_OVERRIDES,
     variant_overrides: VARIANT_OVERRIDES,
     abbreviations: ABBREVIATIONS,
@@ -742,14 +742,14 @@ const VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 // ---------------------------------------------------------------------------------------------
 
 /// The naming engine for the WordprocessingML slice — `wml.xsd`, all 110 simple types.
-pub const WORDPROCESSINGML_ENGINE: NameEngine = NameEngine {
+pub(crate) const WORDPROCESSINGML_ENGINE: NameEngine = NameEngine {
     type_overrides: WORDPROCESSINGML_TYPE_OVERRIDES,
     variant_overrides: WORDPROCESSINGML_VARIANT_OVERRIDES,
     abbreviations: WORDPROCESSINGML_ABBREVIATIONS,
 };
 
 /// The naming engine for the Office Math slice — `shared-math.xsd`, all 14 simple types.
-pub const OFFICEMATH_ENGINE: NameEngine = NameEngine {
+pub(crate) const OFFICEMATH_ENGINE: NameEngine = NameEngine {
     type_overrides: OFFICEMATH_TYPE_OVERRIDES,
     variant_overrides: OFFICEMATH_VARIANT_OVERRIDES,
     abbreviations: &[],
@@ -1211,7 +1211,7 @@ const OFFICEMATH_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 // ---------------------------------------------------------------------------------------------
 
 /// The naming engine for the SpreadsheetML slice — `sml.xsd`, all 96 simple types.
-pub const SPREADSHEETML_ENGINE: NameEngine = NameEngine {
+pub(crate) const SPREADSHEETML_ENGINE: NameEngine = NameEngine {
     type_overrides: SPREADSHEETML_TYPE_OVERRIDES,
     variant_overrides: SPREADSHEETML_VARIANT_OVERRIDES,
     abbreviations: SPREADSHEETML_ABBREVIATIONS,
@@ -1544,7 +1544,7 @@ const SPREADSHEETML_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 // ---------------------------------------------------------------------------------------------
 
 /// The naming engine for the DrawingML Diagram slice — `dml-diagram.xsd`, all 66 simple types.
-pub const DIAGRAM_ENGINE: NameEngine = NameEngine {
+pub(crate) const DIAGRAM_ENGINE: NameEngine = NameEngine {
     type_overrides: DIAGRAM_TYPE_OVERRIDES,
     variant_overrides: DIAGRAM_VARIANT_OVERRIDES,
     abbreviations: DIAGRAM_ABBREVIATIONS,
@@ -1890,16 +1890,18 @@ const DIAGRAM_VARIANT_OVERRIDES: &[(&str, &str, &str)] = &[
 /// Two-valued types → the `mjx_ooxml_types::support` normalizer module that handles all wire
 /// spellings.
 /// Modeled as Rust `bool`.
-pub const BOOL_TYPES: &[(&str, &str)] = &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
+pub(crate) const BOOL_TYPES: &[(&str, &str)] =
+    &[("ST_OnOff", "on_off"), ("ST_TrueFalse", "true_false")];
 
 /// Three-valued (true / false / blank) types → normalizer module. Modeled as `Option<bool>`.
-pub const OPTIONAL_BOOL_TYPES: &[(&str, &str)] = &[("ST_TrueFalseBlank", "true_false_blank")];
+pub(crate) const OPTIONAL_BOOL_TYPES: &[(&str, &str)] =
+    &[("ST_TrueFalseBlank", "true_false_blank")];
 
 /// Types intentionally not emitted (subsumed by another representation).
-pub const SKIP_TYPES: &[&str] = &["ST_OnOff1"]; // the `on`/`off` half of the ST_OnOff union.
+pub(crate) const SKIP_TYPES: &[&str] = &["ST_OnOff1"]; // the `on`/`off` half of the ST_OnOff union.
 
 /// Maps an XSD numeric base to its Rust primitive, or `None` if not a plain numeric restriction.
-pub fn primitive_for(base: &str) -> Option<&'static str> {
+pub(crate) fn primitive_for(base: &str) -> Option<&'static str> {
     Some(match base {
         "xsd:unsignedLong" => "u64",
         "xsd:unsignedInt" => "u32",
@@ -1921,7 +1923,7 @@ pub fn primitive_for(base: &str) -> Option<&'static str> {
 }
 
 /// Looks up the boolean normalizer module for a type, and whether it is optional (three-valued).
-pub fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
+pub(crate) fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
     if let Some((_, f)) = BOOL_TYPES.iter().find(|(n, _)| *n == st_name) {
         return Some((f, false));
     }
@@ -1941,7 +1943,7 @@ pub fn bool_kind(st_name: &str) -> Option<(&'static str, bool)> {
 /// Axis, not because an abbreviation table guessed it.
 ///
 /// Grow this list when a new model starts placing children; the table behind it is already there.
-pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
+pub(crate) const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
     // ---- DrawingML -------------------------------------------------------------------------
     (
         "CUSTOM_GEOMETRY_2D",
@@ -3222,7 +3224,7 @@ pub const CHILD_ORDER_EXPORTS: &[(&str, &str, &str, &str)] = &[
 ///
 /// `emitted` is every simple type an engine's modules actually rendered; both tables are checked
 /// against it. Returns the offending rows as human-readable strings, empty when all are live.
-pub fn unused_overrides(
+pub(crate) fn unused_overrides(
     engine: &NameEngine,
     emitted: &[crate::codegen::xsd::SimpleType],
 ) -> Vec<String> {
