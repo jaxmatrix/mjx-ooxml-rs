@@ -116,12 +116,20 @@ Splitting runs repeatedly leaves a paragraph fragmented.
 [`coalesce_paragraph_runs`](Presentation::coalesce_paragraph_runs) merges adjacent runs back together
 when their *effective* formatting matches, and returns how many it removed.
 
-**Do not call it on a document somebody else wrote yet.** *Effective* formatting means resolved
-formatting, and resolution is lossy in two ways that matter here: a colour's `a:alpha` is dropped,
-and a theme colour is flattened to the literal `RRGGBB` it resolves to. Two runs differing only by
-transparency, or only by whether their colour is a theme link, therefore compare equal — and one of
-them is deleted. That is MJXOFF-233, and it is written up under *Built, not yet verified against
-Office* below.
+*Effective* formatting means **resolved** formatting, and resolution is lossy in two ways that would
+matter here: a colour's `a:alpha` is dropped, and a theme link — an `a:schemeClr`, or a `+mn-lt`
+typeface — is flattened to the literal it currently resolves to. So the merge asks a third question
+as well: the two runs' **own, unresolved** colours and typefaces must agree. Without it, two runs
+differing only by transparency would merge and one run's `a:alpha` would be deleted, and a run
+carrying `a:schemeClr` would merge with one carrying the literal colour that scheme resolves to,
+leaving a hard-coded colour where a theme link had been (MJXOFF-233).
+
+The cost of that third question is worth stating plainly: **a run that names a colour or a typeface
+explicitly no longer merges with a neighbour that inherits the same one.** Everything else still
+compares as meaning rather than as markup — a run that states `b="1"` still merges with a neighbour
+that inherits bold — and the method's own purpose is untouched, because the runs
+[`set_text_range_properties`](Presentation::set_text_range_properties) splits all carry identical
+explicit properties. A merge that is refused leaves the file exactly as its author wrote it.
 
 ## List formatting for the whole shape
 
