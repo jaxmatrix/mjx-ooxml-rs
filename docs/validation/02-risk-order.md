@@ -39,7 +39,9 @@ artefact this pass re-saves from Office is a candidate for that corpus, and
 
 * **`V-PPTX-04.4`** — re-save each chart from Office and read it back. This is the one that produces the corpus's first files.
 * Every entry marked **blocked** on this page's sibling pages names `MJXOFF-130` because of R2:
-  `V-PPTX-01.8`, `V-PPTX-02.4`, `V-PPTX-02.13`, `V-PPTX-02.17`, `V-PPTX-07.6`, `V-PPTX-08.12`.
+  `V-PPTX-01.8`, `V-PPTX-02.13`, `V-PPTX-02.17`, `V-PPTX-07.6`, `V-PPTX-08.12`. (`V-PPTX-02.4` was on
+  that list and is not any more: `MJXOFF-219` gave it an authored artefact, which is a different
+  answer from an Office-authored one and enough to make the entry readable.)
 
 ### R3 — the colour transforms
 
@@ -47,7 +49,7 @@ artefact this pass re-saves from Office is a candidate for that corpus, and
 from the ECMA-376 prose and unit-tested against it, never against a renderer. Gaps-page owner:
 `MJX-211` R3.
 
-* **`V-PPTX-02.4`** — compare `effective_shape_fill`'s RGB against PowerPoint's eyedropper. **Blocked**: `ColorSpec` carries a colour's kind and value and no transform children, so no facade call authors one and no committed fixture has one. This is the highest-risk item in the pass that currently has no file.
+* **`V-PPTX-02.4`** — compare `effective_shape_fill`'s RGB against PowerPoint's eyedropper. **No longer blocked** (`MJXOFF-219`): `ColorSpec` now carries the whole of `EG_ColorTransform`, and `v-pptx-02-authored.pptx` opens with two rows of swatches — the four transforms named above plus `a:inv` over a fixed `4472C4`, and `tint`/`shade`/`satMod`/`lumMod`+`lumOff`/`alpha` over the theme's accent 1, each row led by an untransformed baseline. It was the only entry in this pass with no artefact at all, and the reason was that nothing in the workspace could author a colour transform; no committed fixture has one of the four either, and none ever will unless Office writes it.
 
 ### R4 — chart workbook staleness
 
