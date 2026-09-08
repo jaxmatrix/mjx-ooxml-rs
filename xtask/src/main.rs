@@ -2,6 +2,8 @@
 //!
 //! Commands:
 //! - `codegen` — regenerate `mjx-ooxml-types` from the local `References/` XSD schemas.
+//!   `codegen --check` writes nothing and reports whether the committed output is what the
+//!   generator produces today (MJXOFF-224).
 //! - `fuzz` — run the campaign against the untrusted-input entry points (MJXOFF-146).
 //! - `corpus` — (re)build the large-file benchmarking corpus; `corpus --mem <format>` runs its
 //!   peak-RSS checkpoints (MJXOFF-147).
@@ -20,21 +22,25 @@
 // (a library-oriented lint) does not apply here.
 #![allow(unreachable_pub)]
 
-mod codegen;
 mod corpus;
 mod fuzz;
 
 use anyhow::{bail, Result};
 
-// The fourth command lives in this package's *library* target rather than in a module here, because
-// `xtask/tests/validation_index.rs` is written against its area catalogue and an integration test
-// cannot see a binary's modules. See `src/lib.rs`.
-use xtask::validation;
+// Two commands live in this package's *library* target rather than in modules here, because an
+// integration test cannot see a binary's modules and both have suites written against their tables:
+// `xtask/tests/validation_index.rs` against the area catalogue, and `xtask/tests/codegen_drift.rs`
+// against the generator's own artefacts. See `src/lib.rs`.
+use xtask::{codegen, validation};
 
 fn main() -> Result<()> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     match arguments.first().map(String::as_str) {
-        Some("codegen") => codegen::run(),
+        Some("codegen") => match arguments.get(1).map(String::as_str) {
+            None => codegen::run(),
+            Some("--check") => codegen::check(),
+            Some(other) => bail!("unknown codegen argument {other:?}. Available: --check"),
+        },
         Some("fuzz") => fuzz::run(&arguments[1..]),
         Some("corpus") => corpus::run(&arguments[1..]),
         Some("validation-artefacts") => validation::run(&arguments[1..]),
@@ -44,7 +50,8 @@ fn main() -> Result<()> {
         None => {
             println!(
                 "xtask — developer automation\n\nCommands:\n  \
-                 codegen   regenerate mjx-ooxml-types from References/\n  \
+                 codegen   regenerate mjx-ooxml-types from References/\n            \
+                 --check  write nothing; report whether the committed output is current\n  \
                  fuzz      campaign against the untrusted-input entry points (--list for targets)\n  \
                  corpus    (re)build the large-file benchmarking corpus (--mem <pptx|docx|xlsx>)\n  \
                  validation-artefacts\n            \
