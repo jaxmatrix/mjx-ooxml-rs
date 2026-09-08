@@ -1,5 +1,9 @@
 //! `xtask` as a library, so its own integration tests can reach the tables they are written against.
 //!
+//! **This crate has no guide of its own**: it is a host-only developer binary, never published,
+//! and nothing may depend on it. Every prose page in this repository is listed from
+//! `docs/api/README.md`, and `CONTRIBUTING.md` is where a contributor starts.
+//!
 //! # Why this target exists at all
 //!
 //! `xtask` is a host-only developer binary and everything in it used to be private to `main.rs`. The

@@ -1,5 +1,9 @@
 //! The committed OOXML fixture corpus, derived from the directory rather than written down.
 //!
+//! **This crate has no guide of its own**: it is test-only and sits outside the ranked graph.
+//! What the corpus is held to is `crates/mjx-opc/docs/guide/the_round_trip_contract.md`, and
+//! every prose page in this repository is listed from `docs/api/README.md`.
+//!
 //! **Test-only, and deliberately dependency-free.** Every byte-identity suite and every schema gate
 //! in this workspace reads its corpus from here, including `mjx-opc`'s — which sits *below*
 //! `mjx-schema-gate` and could not dev-depend on it without an upward edge. A crate with no

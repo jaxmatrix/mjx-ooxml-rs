@@ -1,5 +1,9 @@
 //! The ECMA-376 schema and child-order gate every format crate is held to.
 //!
+//! **This crate has no guide of its own**: it is test-only and sits outside the ranked graph.
+//! The guarantees it enforces are described from a caller's side in each format's *fidelity and
+//! gaps* page, and every prose page in this repository is listed from `docs/api/README.md`.
+//!
 //! **Test-only.** Nothing shipped depends on this crate. It is a `dev-dependency` of `mjx-pptx`,
 //! `mjx-docx` and `mjx-xlsx`, and a dependency of `xtask` — the host-only developer binary nothing
 //! depends on and nothing publishes, whose `validation-artefacts --ingest` reports the same schema
