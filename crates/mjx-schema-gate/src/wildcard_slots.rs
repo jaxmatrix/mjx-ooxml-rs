@@ -403,11 +403,31 @@ fn attribute<'a>(element: &'a RawElement, interner: &'a Interner, name: &str) ->
 mod tests {
     use super::*;
 
+    /// Six pages of this repository state the size of [`WILDCARD_SLOTS`] as a word, and a count in
+    /// prose is a fact with an expiry date unless something derives it. This is that something: it
+    /// runs on every machine, with or without `References/`, and its message is the list of files to
+    /// edit rather than an instruction to go and find them.
+    #[test]
+    fn the_number_of_slots_this_repository_spells_out_is_the_number_there_are() {
+        assert_eq!(
+            WILDCARD_SLOTS.len(),
+            5,
+            "`WILDCARD_SLOTS` has changed size. Six places say **five** in prose and every one of \
+             them is now wrong:\n  \
+             crates/mjx-schema-gate/src/wildcard_slots.rs (this module's documentation)\n  \
+             crates/mjx-schema-gate/src/tolerances.rs (the `xl/xmlMaps.xml` entry's reason)\n  \
+             xtask/src/validation/ingest.rs (the module documentation)\n  \
+             tests/office-authored/README.md\n  \
+             docs/validation/06-the-office-pass.md §5\n  \
+             CHANGELOG.md, 0.0.148 — a dated record, so leave that one alone"
+        );
+    }
+
     /// The table above is the schemas' answer, not a ticket's.
     ///
     /// MJXOFF-196 named two `CT_Extension` declarations; `xtask/src/validation/ingest.rs` found a
-    /// third by hand and wrote "so that a fix cannot stop at two". This derivation finds five, and
-    /// it will find the sixth without anybody auditing anything.
+    /// third by hand and wrote "so that a fix cannot stop at two". This derivation finds more, and
+    /// it will find the next one without anybody auditing anything.
     #[test]
     fn every_wildcard_slot_in_the_reference_schemas_is_listed() {
         let Some(harness) = crate::harness() else {
