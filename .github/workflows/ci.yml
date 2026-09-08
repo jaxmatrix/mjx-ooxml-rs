@@ -193,6 +193,24 @@ jobs:
       - name: office-open canary
         run: cargo test -p mjx-pptx -p mjx-docx -p mjx-xlsx --test office_open
 
+      # The reference pack (MJXOFF-207). Three things are being held here and only the first is
+      # about LibreOffice: that the four artefacts a Windows sitting needs actually generate and
+      # convert, that every one of the 187 presets gets a row in the preliminary pass rather than
+      # being silently dropped, and that the four typography readers work on a PDF this project did
+      # not write. MJX_REQUIRE_SOFFICE and MJX_REQUIRE_TOOLS (set below) turn a missing converter or
+      # a missing poppler into a failure, so this coverage can never quietly skip.
+      #
+      # **What it deliberately does not gate on is agreement.** A LibreOffice disagreement is a
+      # thing to look at before the sitting, and making it a build failure would be the first step
+      # towards editing correct code until it matches a reference that is explicitly not
+      # authoritative. The suites assert that every plate has a row and that none of it is parity.
+      - name: the reference pack, and the preliminary pass over all 187 presets
+        env:
+          MJX_REQUIRE_TOOLS: "1"
+        run: |
+          sudo apt-get install -y --no-install-recommends poppler-utils
+          cargo test -p mjx-reference-pack
+
       # The guide's headline example must produce a deck a real Office implementation opens.
       # Documentation that cannot be executed is a claim; this makes it a gate.
       - name: the guide's deck opens
