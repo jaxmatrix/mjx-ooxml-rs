@@ -38,8 +38,8 @@
 //!
 //! # What is deliberately *not* checked here, and why
 //!
-//! * **Enumeration members.** `bindings/mjx-python/tests/test_enums.py` already holds all one
-//!   hundred and two enumerations to their Rust member names in both directions, and
+//! * **Enumeration members.** `bindings/mjx-python/tests/test_enums.py` already holds every
+//!   projected enumeration to its Rust member names in both directions, and
 //!   `bindings/mjx-wasm/tests/node/surface.mjs` names every member of the two `Format`
 //!   enumerations. A second, weaker check here would add noise, not cover.
 //! * **Which class a name was used on.** See the asymmetry above. Resolving `.rows` to a receiver
