@@ -319,11 +319,15 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends poppler-utils imagemagick
+      # Both spellings, because they are the same program at two major versions: ImageMagick 7
+      # installs `magick` and ImageMagick 6 — which is what this runner's `imagemagick` package
+      # still is — installs `convert` and no `magick` at all. The suite asks for either; this step
+      # prints which one answered, so a log says what actually read the plates.
       - name: which readers are present
         run: |
           pdftotext -v || true
           pdftoppm -v || true
-          magick -version || true
+          magick -version || convert -version || true
       - name: the three tiers, the approval gates and the instruments
         run: cargo test -p mjx-render-oracle --no-fail-fast -- --nocapture
       - name: the plate gallery, so a failure can be looked at

@@ -19,7 +19,7 @@ use mjx_render_oracle::plate::{generate, DocumentRow, Plate, PlateSet};
 use mjx_render_oracle::png::Image;
 use mjx_render_oracle::specimen::{Perturbation, Rendered, Specimen, SPECIMENS};
 use mjx_render_oracle::tiers::{LayeredComparison, Localisation, TierOutcome};
-use mjx_render_oracle::tools::{Raster, WordBox};
+use mjx_render_oracle::tools::{one_of, which, Raster, WordBox, IMAGE_MAGICK, REQUIRE_TOOLS};
 use mjx_render_oracle::{png, specimen};
 
 // ---------------------------------------------------------------------------------------------
@@ -267,6 +267,33 @@ fn every_json_value_shape_is_reachable_and_answers_only_its_own_accessor() {
 // ---------------------------------------------------------------------------------------------
 // Struct fields — destructured without `..`, so a new field does not compile until it is read
 // ---------------------------------------------------------------------------------------------
+
+#[test]
+fn the_tool_lookup_answers_the_same_way_for_both_spellings_of_the_same_program() {
+    // `one_of` exists because ImageMagick 7 is `magick` and ImageMagick 6 is `convert`, and a gate
+    // written against one name passes locally and fails on a runner for a reason that has nothing to
+    // do with the code. Asserted rather than described, and asserted **without** the environment
+    // variable set, so the skip path is the one being exercised here.
+    assert_eq!(IMAGE_MAGICK.len(), 2);
+    assert!(IMAGE_MAGICK.contains(&"magick") && IMAGE_MAGICK.contains(&"convert"));
+
+    // A name nothing can have: no answer, and no panic, because `REQUIRE_TOOLS` is not set in this
+    // process.
+    assert_eq!(
+        std::env::var(REQUIRE_TOOLS),
+        Err(std::env::VarError::NotPresent)
+    );
+    assert_eq!(
+        one_of("a probe", &["mjx-no-such-reader-ever"], REQUIRE_TOOLS),
+        None
+    );
+
+    // And it answers the **first** available spelling rather than any of them, so a caller can print
+    // which one ran.
+    let answered = one_of("a probe", &["mjx-no-such-reader-ever", "sh"], REQUIRE_TOOLS);
+    assert_eq!(answered, Some("sh"), "`sh` is on every path this runs on");
+    assert!(which("sh") && !which("mjx-no-such-reader-ever"));
+}
 
 #[test]
 fn every_field_of_every_public_record_is_read() {

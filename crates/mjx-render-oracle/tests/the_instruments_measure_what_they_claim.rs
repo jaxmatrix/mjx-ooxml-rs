@@ -23,7 +23,7 @@ use mjx_render_oracle::png::{
     decode, encode, image_from_pixels, straight_from_premultiplied, Image,
 };
 use mjx_render_oracle::specimen::{Perturbation, SPECIMENS};
-use mjx_render_oracle::tools::{tool, REQUIRE_TOOLS};
+use mjx_render_oracle::tools::{one_of, tool, IMAGE_MAGICK, REQUIRE_TOOLS};
 use mjx_render_oracle::{specimen, Verdict};
 
 // ---------------------------------------------------------------------------------------------
@@ -154,9 +154,13 @@ fn the_encoder_and_the_decoder_agree_on_every_plate() {
 
 #[test]
 fn a_decoder_this_workspace_did_not_write_reads_our_plates() {
-    if !tool("the PNG against an outside reader", "magick", REQUIRE_TOOLS) {
+    let Some(magick) = one_of(
+        "the PNG against an outside reader",
+        &IMAGE_MAGICK,
+        REQUIRE_TOOLS,
+    ) else {
         return;
-    }
+    };
     let directory = scratch("imagemagick");
     for specimen in SPECIMENS {
         let rendered = specimen::render(specimen, Perturbation::None).expect("a render");
@@ -164,7 +168,7 @@ fn a_decoder_this_workspace_did_not_write_reads_our_plates() {
         let path = directory.join(format!("{}.png", specimen.name));
         std::fs::write(&path, encode(&image).expect("encoding")).expect("writing");
 
-        let output = std::process::Command::new("magick")
+        let output = std::process::Command::new(magick)
             .arg(&path)
             .arg("-depth")
             .arg("8")
@@ -244,13 +248,13 @@ fn the_premultiplication_decision_is_visible_in_the_file() {
          information, and the reason it is not applied to `Pixels` itself"
     );
 
-    if !tool(
+    let Some(magick) = one_of(
         "the premultiplication decision against an outside reader",
-        "magick",
+        &IMAGE_MAGICK,
         REQUIRE_TOOLS,
-    ) {
+    ) else {
         return;
-    }
+    };
     let directory = scratch("premultiplied");
     let image = Image {
         width: 2,
@@ -259,7 +263,7 @@ fn the_premultiplication_decision_is_visible_in_the_file() {
     };
     let path = directory.join("half-alpha-red.png");
     std::fs::write(&path, encode(&image).expect("encoding")).expect("writing");
-    let output = std::process::Command::new("magick")
+    let output = std::process::Command::new(magick)
         .arg(&path)
         .arg("-depth")
         .arg("8")

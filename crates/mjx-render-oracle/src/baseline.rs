@@ -13,7 +13,7 @@
 //!    [`RegenerationIntent`], and the only way to obtain one is
 //!    [`RegenerationIntent::from_environment`], which reads [`REGENERATE`] and refuses without it.
 //!    A check path cannot construct one by accident, because it cannot construct one at all.
-//! 3. **Regeneration deletes the approval.** Writing new artefacts and leaving the old approval in
+//! 3. **Regeneration removes the approval.** Writing new artefacts and leaving the old approval in
 //!    place is precisely how an auto-regenerating baseline ratifies the regression it exists to
 //!    catch, so the approval is removed in the same call, before the artefacts are written.
 //!

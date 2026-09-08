@@ -81,6 +81,48 @@ pub fn tool(case: &str, name: &str, require: &str) -> bool {
     found
 }
 
+/// The first of `names` that is on `PATH`, announcing one loud named skip when none is.
+///
+/// # ⚠ Why this exists, which is a finding rather than a convenience
+///
+/// **The same program is two commands depending on its major version.** ImageMagick 7 installs
+/// `magick`; ImageMagick 6 — which is what Ubuntu's `imagemagick` package still is on the runner
+/// images — installs `convert` and no `magick` at all. A gate written against one name is a gate
+/// that passes locally and fails on continuous integration for a reason that has nothing to do with
+/// the code, and MJXOFF-165's own first CI run is where that was discovered.
+///
+/// So a caller names every spelling it can use and this answers which one is here. The skip, when
+/// there is one, names **all** of them — a message saying only `magick` is missing sends a reader to
+/// install the wrong package.
+///
+/// # Panics
+///
+/// When none is available and the environment variable `require` is set.
+#[must_use]
+pub fn one_of(case: &str, names: &[&'static str], require: &str) -> Option<&'static str> {
+    if let Some(found) = names.iter().copied().find(|name| which(name)) {
+        return Some(found);
+    }
+    let message = format!(
+        "SKIPPED {case}: none of {names:?} is on the path. This needs a reader **this workspace did \
+         not write** — checking our own output with our own reader proves nothing — so set \
+         {require}=1 to make its absence a failure instead of a skip."
+    );
+    assert!(
+        std::env::var(require).is_err(),
+        "{require} is set, so a missing external tool is a failure and not a skip. {message}"
+    );
+    println!("{message}");
+    None
+}
+
+/// Every spelling of ImageMagick's converter this crate can drive.
+///
+/// `magick` is version 7's; `convert` is version 6's, and version 6 is what several distributions
+/// still ship as `imagemagick`. Both accept `<file> -depth 8 txt:-`, which is the whole of what is
+/// asked of them.
+pub const IMAGE_MAGICK: [&str; 2] = ["magick", "convert"];
+
 /// A raster: straight (not premultiplied) `RGB`, three bytes a pixel, row zero at the top.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Raster {
