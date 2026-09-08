@@ -3,14 +3,23 @@
 **This directory holds the four PDFs Microsoft Office exported from the reference pack, and it is
 empty.**
 
-That is not an oversight and it is not a to-do. It is the same rule, for the same reason, as the
-directory above it: **a file's value here is entirely its provenance.** These four PDFs are
+That is not an oversight and it is not a to-do. It is the same rule, for the same reason, as
+`tests/office-authored/`: **a file's value here is entirely its provenance.** These four PDFs are
 interesting precisely because nobody in this project chose a single glyph position in them. A PDF
 this library produced — or LibreOffice produced — and called "PowerPoint-exported" would not be a
 shortcut, it would be a permanent lie in the one place the project has no other defence against one.
 
 **No agent may fill this directory.** It is filled by a person with Office in front of them, working
-through [`docs/validation/07-the-reference-pack.md`](../../../docs/validation/07-the-reference-pack.md).
+through [`docs/validation/07-the-reference-pack.md`](../../docs/validation/07-the-reference-pack.md).
+
+## Why this is beside `tests/office-authored/` and not inside it
+
+The two hold different things. That one holds Office-**authored originals** — a `.pptx` whose markup
+nobody in this project chose, which is what retires the risk register's R2. This one holds Office's
+**rendering** of files this project authored, which is what answers a question about geometry and
+metrics. Nesting them conflated the two, and `xtask`'s corpus walker says so itself: *"the corpus is
+one flat directory of Office-authored packages; a subdirectory has no meaning here and would sit
+outside every check."* It is right — this directory is outside its checks and has its own.
 
 ## What goes in here
 

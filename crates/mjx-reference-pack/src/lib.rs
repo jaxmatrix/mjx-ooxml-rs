@@ -168,11 +168,17 @@ pub const ARTEFACTS: &[&str] = &[
 
 /// Where the exported PDFs are put when they come back from the Windows machine.
 ///
-/// Relative to the repository root, beside the corpus of Office-authored *originals* that `main`'s
-/// ingest harness ships deliberately empty. **The two directories have the same rule and it is the
-/// same rule for the same reason:** the value of an Office-produced file is entirely its provenance,
-/// so no agent may fill either.
-pub const OFFICE_EXPORT_DIRECTORY: &str = "tests/office-authored/reference-pack";
+/// **Beside `tests/office-authored/` and deliberately not inside it.** The two hold different things
+/// and the difference is worth the extra directory: that one holds Office-*authored originals* — a
+/// `.pptx` whose markup nobody here chose — while this holds Office's *rendering* of files this
+/// project authored. `xtask`'s corpus walker also refuses a subdirectory outright, with a message
+/// that says exactly why: *"the corpus is one flat directory of Office-authored packages; a
+/// subdirectory has no meaning here and would sit outside every check."* It is right, and this
+/// directory is outside its checks.
+///
+/// **The rule the two share is the one that matters:** the value of an Office-produced file is
+/// entirely its provenance, so no agent may fill either.
+pub const OFFICE_EXPORT_DIRECTORY: &str = "tests/office-exports";
 
 /// The environment variable that turns an empty [`OFFICE_EXPORT_DIRECTORY`] into a failure.
 ///

@@ -93,7 +93,7 @@ to ask a `.pptx` the hanging question at all.
 rather than an advance of zero.
 
 **`docs/validation/07-the-reference-pack.md`** is the hand-off, a sibling of MJXOFF-130's own Office
-pass, and `tests/office-authored/reference-pack/` is where the exports land. **It ships empty and no
+pass, and `tests/office-exports/` is where the exports land. **It ships empty and no
 agent may fill it**, for the reason the corpus above it ships empty: the value of an Office export is
 entirely its provenance.
 

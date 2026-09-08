@@ -55,7 +55,7 @@ WordprocessingML setting.** There is no way to ask a `.pptx` the hanging questio
    than the whole rest of the pass, and repairing it would destroy the evidence.
 3. **File → Export → Create PDF/XPS**, or **Save a Copy** and choose PDF as the type.
 4. Save it beside the original, keeping the name: `01-presets-at-their-defaults.pdf`, and so on.
-5. Copy the four PDFs into `tests/office-authored/reference-pack/` in the repository and commit them.
+5. Copy the four PDFs into `tests/office-exports/` in the repository and commit them.
 
 That is the whole job. Four exports.
 
@@ -154,7 +154,7 @@ cargo run -p mjx-reference-pack -- ingest                              # your ex
 ```
 
 Both report one row per plate. **`ingest` takes no directory and no provider argument**, deliberately:
-it reads `tests/office-authored/reference-pack/` and stamps every row *Microsoft Office*, and a
+it reads `tests/office-exports/` and stamps every row *Microsoft Office*, and a
 command that took either argument would let a LibreOffice PDF be pointed at it and recorded as
 Office's. `preliminary` hard-codes LibreOffice for the same reason in the other direction. **Only
 after your exports are in that directory** may a row say anything about parity.

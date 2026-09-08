@@ -293,7 +293,7 @@ cargo run -p xtask -- corpus         # the large-file benchmarking corpus (--mem
 # The reference pack (MJXOFF-207): the four artefacts one Windows sitting needs, and the preliminary
 # LibreOffice pass over them. `preliminary` is a REPORT and not a gate — a LibreOffice disagreement
 # is a thing to look at before the sitting, never a build failure, and never parity. The exports come
-# back into tests/office-authored/reference-pack/, which is EMPTY and which no agent may fill:
+# back into tests/office-exports/, which is EMPTY and which no agent may fill:
 # docs/validation/07-the-reference-pack.md is the hand-off that says how a person does.
 cargo run -p mjx-reference-pack -- generate     target/reference-pack
 cargo run -p mjx-reference-pack -- preliminary  target/reference-pack
