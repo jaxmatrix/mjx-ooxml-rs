@@ -50,6 +50,28 @@
 //! loop that could be empty is floored. The floors are phrased as *the walk is still finding
 //! things*, never as *the corpus is exactly this size*, so that a floor cannot fire in place of the
 //! assertion it guards — `doc_gate.rs` states the same rule and the reason for it.
+//!
+//! # The mutation register
+//!
+//! Every test below was made to fail, and each mutation had to be **reachable** — the workspace had
+//! to still compile with it applied, or the failure proves nothing about this file.
+//!
+//! **The first attempt was not reachable, and it is the most useful entry here.** Renaming a
+//! generated enum in `crates/mjx-ooxml-types/src/generated/officemath.rs` broke the *build* — three
+//! `E0425`s from the `impl` blocks beside it — so the check never ran. That is not a gap: it is the
+//! boundary. **The compiler already owns structural edits to generated source; this file owns
+//! everything else**, and a later reader should not assume the two overlap. The mutation that does
+//! reach the check is a one-word edit to a doc comment, which compiles cleanly and is invisible to
+//! every other gate in the workspace.
+//!
+//! | Mutation (all still compile) | Fires |
+//! |---|---|
+//! | one word added to a `/// \`ST_Style\`` doc line in the committed `officemath.rs` | the byte-for-byte check, and the `COVERAGE.md` count (the type is no longer parsed) |
+//! | `pub(crate) mod drawingml;` widened to `pub mod drawingml;` in the committed `generated/mod.rs` | the module-root check, naming both maps |
+//! | the `@generated` banner replaced on `shared.rs` | the directory check |
+//! | `all 96 simple types` → `all 95` in `COVERAGE.md` | the count check, naming `spreadsheetml.rs` |
+//! | `dml-lockedCanvas`'s child-order row rewritten as `generated — every complex type` | the child-order check |
+//! | a `pub type FakeMeasure = i32;` appended to the committed `drawingml.rs` | the curated-re-export check |
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -167,6 +189,35 @@ fn the_committed_output_is_what_the_generator_produces_today() {
 // ===============================================================================================
 // Tier 2 — what can be re-derived with no schemas at all
 // ===============================================================================================
+
+/// Every `UNCOVERED_SCHEMAS` row, and every note on one, is still reachable — MJXOFF-88 §9 B10.
+///
+/// That table writes prose straight into `COVERAGE.md`, a shipped document. Until MJXOFF-224 the
+/// only things checked about a row were that its stem exists in the Transitional set and that no
+/// stem appears twice, so **nothing failed when a row's claim stopped being true**: a note reading
+/// `not modelled` could outlive the schema being generated, and a note reading `generated — every
+/// complex type` could outlive the schema leaving `CHILD_ORDER_SCHEMAS`, at which point the
+/// document would report coverage that does not exist. See
+/// [`codegen::check_uncovered_schemas_are_live`] for what is and is not enforced — in particular
+/// that it cannot tell you a note's *sentence* has stopped being true.
+///
+/// The generator calls the same function, so a regeneration refuses too; this is what runs it on a
+/// machine with no schemas.
+#[test]
+fn every_uncovered_schema_row_is_still_reachable() {
+    assert!(
+        codegen::UNCOVERED_SCHEMAS.len() >= 10,
+        "only {} uncovered-schema row(s) — the table has emptied, and a check over an empty table \
+         passes exactly as a working one does",
+        codegen::UNCOVERED_SCHEMAS.len()
+    );
+    codegen::check_uncovered_schemas_are_live()
+        .unwrap_or_else(|e| panic!("`UNCOVERED_SCHEMAS` carries a claim nothing can reach: {e:#}"));
+    println!(
+        "UNCOVERED_SCHEMAS: {} rows, every one still reachable from COVERAGE.md",
+        codegen::UNCOVERED_SCHEMAS.len()
+    );
+}
 
 /// The committed `generated/mod.rs` declares exactly the modules the generator's own table names,
 /// with the visibility that table gives them.
