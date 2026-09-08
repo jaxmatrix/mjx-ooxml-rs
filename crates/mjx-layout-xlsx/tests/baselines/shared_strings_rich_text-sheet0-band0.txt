@@ -1,0 +1,75 @@
+# specimen: shared_strings_rich_text.xlsx sheet 0 band 0
+# covers: a shared string with formatting runs, which R16 lays out in the cell's own format
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+# decorations: 1
+fragment-tree nodes=69 roots=1
+#0 box rect=[0,0,7315200,4572000] transform=TransformId(0) clip=none part=0 path=/ chars=0..0 decoration=-1
+  #1 table rect=[0,0,7315200,4572000] transform=TransformId(0) clip=none part=0 path=/ chars=0..0 columns=13 rows=0..4 headers=0 continued=false continues=false
+    #2 box rect=[0,0,581025,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/0 chars=0..0 decoration=0 cell=r0c0 span=1x1
+      #3 line rect=[19050,19968,345653,190500] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..5 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #4 glyph run rect=[19050,19968,345653,190500] transform=TransformId(0) clip=ClipId(1) part=0 path=/0/0 chars=0..5 face=0 origin=[19050,152983] direction=LeftToRight level=BidiLevel(0) glyphs=5
+    #5 box rect=[581025,0,1162050,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/1 chars=0..0 decoration=0 cell=r0c1 span=1x1
+      #6 line rect=[600075,19968,1156419,190500] transform=TransformId(0) clip=ClipId(2) part=0 path=/0/1 chars=0..10 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #7 glyph run rect=[600075,19968,1156419,190500] transform=TransformId(0) clip=ClipId(2) part=0 path=/0/1 chars=0..10 face=0 origin=[600075,152983] direction=LeftToRight level=BidiLevel(0) glyphs=10
+    #8 box rect=[1162050,0,1743075,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/2 chars=0..0 decoration=0 cell=r0c2 span=1x1
+      #9 line rect=[1181100,19968,1493583,190500] transform=TransformId(0) clip=ClipId(3) part=0 path=/0/2 chars=0..6 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #10 glyph run rect=[1181100,19968,1493583,190500] transform=TransformId(0) clip=ClipId(3) part=0 path=/0/2 chars=0..6 face=0 origin=[1181100,152983] direction=LeftToRight level=BidiLevel(0) glyphs=6
+    #11 box rect=[1743075,0,2324100,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/3 chars=0..0 decoration=0 cell=r0c3 span=1x1
+    #12 box rect=[2324100,0,2905125,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/4 chars=0..0 decoration=0 cell=r0c4 span=1x1
+    #13 box rect=[2905125,0,3486150,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/5 chars=0..0 decoration=0 cell=r0c5 span=1x1
+    #14 box rect=[3486150,0,4067175,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/6 chars=0..0 decoration=0 cell=r0c6 span=1x1
+    #15 box rect=[4067175,0,4648200,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/7 chars=0..0 decoration=0 cell=r0c7 span=1x1
+    #16 box rect=[4648200,0,5229225,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/8 chars=0..0 decoration=0 cell=r0c8 span=1x1
+    #17 box rect=[5229225,0,5810250,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/9 chars=0..0 decoration=0 cell=r0c9 span=1x1
+    #18 box rect=[5810250,0,6391275,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/10 chars=0..0 decoration=0 cell=r0c10 span=1x1
+    #19 box rect=[6391275,0,6972300,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/11 chars=0..0 decoration=0 cell=r0c11 span=1x1
+    #20 box rect=[6972300,0,7553325,190500] transform=TransformId(0) clip=ClipId(0) part=0 path=/0/12 chars=0..0 decoration=0 cell=r0c12 span=1x1
+    #21 box rect=[0,190500,581025,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/0 chars=0..0 decoration=0 cell=r1c0 span=1x1
+      #22 line rect=[19050,210468,964958,381000] transform=TransformId(0) clip=ClipId(4) part=0 path=/1/0 chars=0..16 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #23 glyph run rect=[19050,210468,964958,381000] transform=TransformId(0) clip=ClipId(4) part=0 path=/1/0 chars=0..16 face=0 origin=[19050,343483] direction=LeftToRight level=BidiLevel(0) glyphs=16
+    #24 box rect=[581025,190500,1162050,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/1 chars=0..0 decoration=0 cell=r1c1 span=1x1
+      #25 line rect=[600075,381000,600075,381000] transform=TransformId(0) clip=ClipId(5) part=0 path=/1/1 chars=0..6 baseline=0 ascent=0 descent=0 direction=LeftToRight
+    #26 box rect=[1162050,190500,1743075,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/2 chars=0..0 decoration=0 cell=r1c2 span=1x1
+      #27 line rect=[1582415,210468,1724025,381000] transform=TransformId(0) clip=ClipId(6) part=0 path=/1/2 chars=0..2 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #28 glyph run rect=[1582415,210468,1724025,381000] transform=TransformId(0) clip=ClipId(6) part=0 path=/1/2 chars=0..2 face=0 origin=[1582415,343483] direction=LeftToRight level=BidiLevel(0) glyphs=2
+    #29 box rect=[1743075,190500,2324100,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/3 chars=0..0 decoration=0 cell=r1c3 span=1x1
+    #30 box rect=[2324100,190500,2905125,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/4 chars=0..0 decoration=0 cell=r1c4 span=1x1
+    #31 box rect=[2905125,190500,3486150,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/5 chars=0..0 decoration=0 cell=r1c5 span=1x1
+    #32 box rect=[3486150,190500,4067175,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/6 chars=0..0 decoration=0 cell=r1c6 span=1x1
+    #33 box rect=[4067175,190500,4648200,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/7 chars=0..0 decoration=0 cell=r1c7 span=1x1
+    #34 box rect=[4648200,190500,5229225,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/8 chars=0..0 decoration=0 cell=r1c8 span=1x1
+    #35 box rect=[5229225,190500,5810250,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/9 chars=0..0 decoration=0 cell=r1c9 span=1x1
+    #36 box rect=[5810250,190500,6391275,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/10 chars=0..0 decoration=0 cell=r1c10 span=1x1
+    #37 box rect=[6391275,190500,6972300,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/11 chars=0..0 decoration=0 cell=r1c11 span=1x1
+    #38 box rect=[6972300,190500,7553325,381000] transform=TransformId(0) clip=ClipId(0) part=0 path=/1/12 chars=0..0 decoration=0 cell=r1c12 span=1x1
+    #39 box rect=[0,381000,581025,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/0 chars=0..0 decoration=0 cell=r2c0 span=1x1
+    #40 box rect=[581025,381000,1162050,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/1 chars=0..0 decoration=0 cell=r2c1 span=1x1
+      #41 line rect=[600075,400968,926678,571500] transform=TransformId(0) clip=ClipId(7) part=0 path=/2/1 chars=0..5 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #42 glyph run rect=[600075,400968,926678,571500] transform=TransformId(0) clip=ClipId(7) part=0 path=/2/1 chars=0..5 face=0 origin=[600075,533983] direction=LeftToRight level=BidiLevel(0) glyphs=5
+    #43 box rect=[1162050,381000,1743075,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/2 chars=0..0 decoration=0 cell=r2c2 span=1x1
+      #44 line rect=[1181100,400968,1760773,571500] transform=TransformId(0) clip=ClipId(8) part=0 path=/2/2 chars=0..11 baseline=133015 ascent=133015 descent=37517 direction=LeftToRight
+        #45 glyph run rect=[1181100,400968,1760773,571500] transform=TransformId(0) clip=ClipId(8) part=0 path=/2/2 chars=0..11 face=0 origin=[1181100,533983] direction=LeftToRight level=BidiLevel(0) glyphs=11
+    #46 box rect=[1743075,381000,2324100,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/3 chars=0..0 decoration=0 cell=r2c3 span=1x1
+    #47 box rect=[2324100,381000,2905125,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/4 chars=0..0 decoration=0 cell=r2c4 span=1x1
+    #48 box rect=[2905125,381000,3486150,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/5 chars=0..0 decoration=0 cell=r2c5 span=1x1
+    #49 box rect=[3486150,381000,4067175,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/6 chars=0..0 decoration=0 cell=r2c6 span=1x1
+    #50 box rect=[4067175,381000,4648200,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/7 chars=0..0 decoration=0 cell=r2c7 span=1x1
+    #51 box rect=[4648200,381000,5229225,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/8 chars=0..0 decoration=0 cell=r2c8 span=1x1
+    #52 box rect=[5229225,381000,5810250,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/9 chars=0..0 decoration=0 cell=r2c9 span=1x1
+    #53 box rect=[5810250,381000,6391275,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/10 chars=0..0 decoration=0 cell=r2c10 span=1x1
+    #54 box rect=[6391275,381000,6972300,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/11 chars=0..0 decoration=0 cell=r2c11 span=1x1
+    #55 box rect=[6972300,381000,7553325,571500] transform=TransformId(0) clip=ClipId(0) part=0 path=/2/12 chars=0..0 decoration=0 cell=r2c12 span=1x1
+    #56 box rect=[0,571500,581025,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/0 chars=0..0 decoration=0 cell=r3c0 span=1x1
+    #57 box rect=[581025,571500,1162050,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/1 chars=0..0 decoration=0 cell=r3c1 span=1x1
+    #58 box rect=[1162050,571500,1743075,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/2 chars=0..0 decoration=0 cell=r3c2 span=1x1
+    #59 box rect=[1743075,571500,2324100,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/3 chars=0..0 decoration=0 cell=r3c3 span=1x1
+    #60 box rect=[2324100,571500,2905125,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/4 chars=0..0 decoration=0 cell=r3c4 span=1x1
+    #61 box rect=[2905125,571500,3486150,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/5 chars=0..0 decoration=0 cell=r3c5 span=1x1
+    #62 box rect=[3486150,571500,4067175,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/6 chars=0..0 decoration=0 cell=r3c6 span=1x1
+    #63 box rect=[4067175,571500,4648200,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/7 chars=0..0 decoration=0 cell=r3c7 span=1x1
+    #64 box rect=[4648200,571500,5229225,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/8 chars=0..0 decoration=0 cell=r3c8 span=1x1
+    #65 box rect=[5229225,571500,5810250,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/9 chars=0..0 decoration=0 cell=r3c9 span=1x1
+    #66 box rect=[5810250,571500,6391275,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/10 chars=0..0 decoration=0 cell=r3c10 span=1x1
+    #67 box rect=[6391275,571500,6972300,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/11 chars=0..0 decoration=0 cell=r3c11 span=1x1
+    #68 box rect=[6972300,571500,7553325,762000] transform=TransformId(0) clip=ClipId(0) part=0 path=/3/12 chars=0..0 decoration=0 cell=r3c12 span=1x1

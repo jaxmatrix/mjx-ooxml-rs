@@ -1,0 +1,66 @@
+[package]
+name = "mjx-layout-xlsx"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Excel's box model: a worksheet's grid geometry, its merged regions, its overflow rules and its panes, turned into a mjx-layout FragmentTree."
+
+[lints]
+workspace = true
+
+[dependencies]
+# Rank 0.0. `Emu` — the unit every fragment is positioned in, and the one a row's points and a
+# column's characters are converted into exactly once, here.
+mjx-ooxml-core.workspace = true
+# Rank 1.5. The font engine. Every width, ascent and descent in this crate comes from here; none is
+# computed here. It is also what makes auto-fit possible at all — the one place a grid needs to
+# measure text in order to decide *geometry* rather than to fill it.
+mjx-text.workspace = true
+# Rank 1.6. The contract this crate implements: `BoxModel`, `FragmentTree`, `Checkpoint`,
+# `SourceRef`. The seam above which nothing has heard of OOXML.
+mjx-layout.workspace = true
+# Rank 1.0. `HorizontalAlignment`, `VerticalAlignment`, `TextRotation`, `BorderStyle`, `PatternType`,
+# `Pane`, `PaneState`, `CellType` — SpreadsheetML's own vocabulary for how a cell sits in its box.
+mjx-ooxml-types.workspace = true
+# Rank 2.1. The packed cell store (36.8 bytes a populated cell, nothing for an unpopulated one), the
+# `col` runs, the `mergeCell` list, the `sheetView` pane, and the effective-cell-format resolver.
+# **Consumed, never re-derived**: the `xf` indirection, the cell -> row -> column -> default walk and
+# the two `xf` tables have all already run by the time anything here reads a value.
+mjx-sml.workspace = true
+# Rank 3.0. `SheetFormatting` — one worksheet and the styles part it resolves against, both parsed,
+# owning neither the package nor a borrow of it. That type *is* this crate's residency: it is what
+# turns "every accessor re-parses the worksheet part" into "the part is parsed once and laid out many
+# times", which is the whole reason this crate is above the format tier rather than inside it.
+mjx-xlsx.workspace = true
+thiserror.workspace = true
+
+# `mjx-dml` (rank 2.0) is deliberately NOT a dependency, and this is a decision rather than an
+# omission. MJXOFF-171's ticket lists it, but a worksheet's cell formatting is not DrawingML: a fill
+# is `mjx_sml::Fill`, a border is `mjx_sml::Border`, a font is `mjx_sml::FontProperties` and a colour
+# is `mjx_sml::Color`, which addresses the theme *by position* and is explicitly not a
+# `mjx_dml::SchemeColor`. The one place DrawingML enters a `.xlsx` is the theme part a `@theme`
+# colour resolves against, and resolving that is the scene companion's job for the same reason
+# resolving a `GeometryRef` is: this crate says *this cell, at this rectangle, in these stated
+# values* and stops there. Declaring the edge would buy an unused import and one more crate that a
+# grid could accidentally start resolving colours in.
+
+[dev-dependencies]
+# The committed corpus, so the suites below derive their fixtures from one place rather than from a
+# `const FIXTURES` list.
+mjx-fixtures.workspace = true
+# The counting global allocator. The sparsity gate asserts a byte ceiling over a sheet whose only
+# populated cell is `XFD1048576`, which is the one measurement that tells a windowed implementation
+# from one that walks the coordinate range.
+mjx-allocation-counter.workspace = true
+
+# The sparsity gate is a binary of its own with **no test harness**, and both halves of that are
+# load-bearing — `mjx-sml`'s cell-store gate learned it first and `mjx-session`'s learned it again. A
+# `#[global_allocator]` is process-wide, so a figure measured in a binary that also runs other cases
+# measures the other cases; and `cargo test` runs a harness's cases on several threads at once, so
+# even one binary's own cases would count each other's allocations.
+[[test]]
+name = "sparsity_is_measured"
+harness = false

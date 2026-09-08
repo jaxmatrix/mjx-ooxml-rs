@@ -58,6 +58,69 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.146] - 2026-09-09
+
+**Excel's box model — a worksheet becomes a fragment tree (MJXOFF-171, R16).**
+
+The second implementation of `mjx_layout::BoxModel`, and the first whose layout discipline is a
+**grid**. PowerPoint places shapes absolutely, so a slide's layout costs what its shapes cost. A
+worksheet addresses 16,384 columns by 1,048,576 rows — seventeen billion cells — so its layout has
+to cost what is *on screen*, and that one fact decides the whole crate.
+
+### Added
+
+- **`crates/mjx-layout-xlsx` at rank 3.6**, *beside* `mjx-layout-pptx` rather than above it. Two box
+  models at equal rank makes an edge between them **sideways**, which the layering gate refuses by
+  name: a spreadsheet's box model must not know what a slide is. Both rank tables grown (`CLAUDE.md`
+  and `xtask/tests/layering.rs`).
+- **Two sparse indices and no dense array.** `RowGeometry` holds one record per row that states a
+  height, a hidden flag, an outline level or a collapse flag; `ColumnGeometry` one per `col` **run**,
+  which is what `CT_Col` already is. Both answer *where is row n* and *which row is at y* by binary
+  search plus one multiplication, at a cost independent of how far down the sheet the question is
+  asked.
+- **Units converted in one place**: a row's `@ht` in points, a column's `@width` in characters of the
+  Normal font's maximum digit width — *measured* through `mjx-text` rather than assumed — and EMU out
+  the other side, through ECMA-376 §18.3.1.13's own truncating round trip.
+- **Merged regions render once**, at the union rectangle, from the anchor; the covered positions
+  produce no fragment at all. Each of the union's four borders resolves from the perimeter cells
+  scanning outward, so a border Excel wrote onto the *last* column of a merge is not lost.
+- **Text overflow into empty neighbours, in all four states** — spills, stops at the first non-empty
+  cell in the direction of alignment, suppressed by `wrapText`, suppressed by `horizontal="fill"` —
+  with the direction taken from the **resolved** alignment, so a number in a `general` cell spills
+  leftward.
+- **Wrap, shrink-to-fit, indent, rotation and stacked text**, and the eight horizontal alignments
+  including `fill`, `centerContinuous` and `distributed`.
+- **Frozen and split panes** as up to four regions over **one** grid geometry, with `@xSplit` read as
+  a column count for a freeze and as twentieths of a point for a split.
+- **Auto-fit column width**, measured over a column's populated cells and memoised. Row heights are
+  deliberately *not* recomputed: Excel writes the fitted height into the file, and a recomputed one
+  would make the top of row *n* depend on every row above it — a prefix sum over the addressable
+  range rather than the stated one, which the sparse index cannot coexist with.
+- **`Row::cell_after` / `Row::cell_before`** in `mjx-sml`: the nearest populated cell strictly to one
+  side of a column, by binary search. The overflow rule needs it; without it a renderer would probe
+  up to 16,383 columns per overflowing cell.
+- **`CellFormatResolver::interner`** in `mjx-sml`, so a caller holding a resolver can read an
+  attribute off the `Font`, `Fill`, `Border` or `CellAlignment` it answers with.
+
+### The gate
+
+`crates/mjx-layout-xlsx/tests/sparsity_is_measured.rs` lays out a sheet whose only populated cell is
+`XFD1048576` under a counting global allocator. One band costs **58 KB** and visits 20 rows by 9
+columns; the band containing the far corner, 54,613 bands down and scrolled to column 16,380, costs
+**12 KB** and 359 µs. The same file then does what the crate refuses to do — walks a *range of
+coordinates* over one 16,384th of the grid — and shows it already costs **8.4 MB**, sixty-four times
+the whole windowed layout's bound. A gate that cannot fail is not a gate.
+
+### Not in this child
+
+Number formatting (MJXOFF-172 — a cell renders its raw stored value, and the format code in force is
+carried on every decoration so that child is a change to one crate), conditional formatting,
+drawings and print layout (MJXOFF-173), charts (R23), and formula evaluation, which does not exist in
+this loop at all: a cached value is rendered as stored, which is correct for a viewer.
+
+**Nothing here is parity with Excel.** Every behaviour chosen rather than read is marked `GUESS:` at
+its site, and confirmation is a human sitting against real Microsoft Excel on Windows.
+
 ## [0.0.145] - 2026-09-08
 
 **The first end-to-end deck — a `.pptx` becomes pixels (MJXOFF-170, R15).**
