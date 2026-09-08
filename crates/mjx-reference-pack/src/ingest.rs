@@ -415,7 +415,7 @@ pub fn read_hatch_tiles(pdf: &Path) -> Result<Vec<HatchReading>, String> {
         };
         let set: u32 = PATTERN_MASKS[swatch.index]
             .iter()
-            .map(|row| u32::from(row.count_ones()))
+            .map(|row| row.count_ones())
             .sum();
         let tile = recover_tile(&crop);
         readings.push(HatchReading {

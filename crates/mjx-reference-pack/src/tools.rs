@@ -112,7 +112,9 @@ impl Raster {
     #[must_use]
     pub fn ink(&self) -> usize {
         self.rgb
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .filter(|pixel| pixel.iter().any(|channel| *channel < 250))
             .count()
     }

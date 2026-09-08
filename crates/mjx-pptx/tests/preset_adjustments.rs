@@ -242,7 +242,7 @@ fn every_adjustment_of_every_preset_is_writable_by_wire_name() {
         for spec in adjustments_of(*preset) {
             // Off the default by a value no default is, so a writer that silently did nothing would
             // read back the default and fail. `saturating_add` because a default may be extreme.
-            let target = i32::from(spec.default).saturating_add(1_234);
+            let target = spec.default.saturating_add(1_234);
             *distinct_targets.entry(target).or_default() += 1;
             deck.set_shape_adjustments(0, shape, &[(spec.wire_name, target)])
                 .expect("the adjustment is written");

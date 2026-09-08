@@ -63,16 +63,16 @@ pub const JAPANESE_FILLER: &str = "文字組版";
 /// The Latin control's filler, chosen the same way.
 pub const LATIN_FILLER: &str = "typesetting";
 
-/// # The measure, and why this file states no font and no column width
-///
-/// The document is a blank A4 one and says nothing about either. That is deliberate on both counts.
-///
-/// * **The font.** Word will fall back to whatever Japanese face the machine has, and *which face
-///   it chose* is part of what the sitting records — a document that pinned `MS Mincho` would be
-///   asking about a face the machine may not have rather than about what Word actually does.
-/// * **The measure.** [`crate::ingest::read_hanging`] infers it from the export, as the **median**
-///   line width of the paragraph itself. A measure written down here would be a prediction about
-///   Word's page setup, and a prediction is exactly what a reader must not need.
+// # The measure, and why this file states no font and no column width
+//
+// The document is a blank A4 one and says nothing about either. That is deliberate on both counts.
+//
+// * **The font.** Word will fall back to whatever Japanese face the machine has, and *which face it
+//   chose* is part of what the sitting records — a document that pinned `MS Mincho` would be asking
+//   about a face the machine may not have rather than about what Word actually does.
+// * **The measure.** `crate::ingest::read_hanging` infers it from the export, as the **median** line
+//   width of the paragraph itself. A measure written down here would be a prediction about Word's
+//   page setup, and a prediction is exactly what a reader must not need.
 
 /// What one paragraph of the document is for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -164,7 +164,7 @@ pub fn paragraphs() -> Vec<HangingParagraph> {
 /// `from_package` probes for the main part with `Package::part_bytes`, and `part_bytes` answers
 /// `None` for a part in the `Edited` state — which is exactly the state a part is in after
 /// `part_tree_mut`. The failure is
-/// [`DocxError::MissingDocumentPart`](mjx_docx::DocxError::MissingDocumentPart), naming a part that
+/// [`mjx_docx::DocxError::MissingDocumentPart`], naming a part that
 /// is present and correct. `mjx_pptx::Presentation::from_package` probes the same way and so has the
 /// same behaviour. Both constructors document themselves as taking *"one authored part by part"*,
 /// which is the case that does not work; MJXOFF-207 found it here and reported it rather than

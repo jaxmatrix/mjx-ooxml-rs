@@ -68,7 +68,13 @@ fn scratch(name: &str) -> PathBuf {
 }
 
 /// One page of our own side, exported and rasterised by poppler.
-fn our_raster(page: usize, name: &str) -> (Raster, usize) {
+///
+/// **`case` is part of the file name, not decoration.** Cargo runs a binary's cases on several
+/// threads at a time, and three of the cases here want page one; sharing a scratch path means one
+/// case rasterising the file another is halfway through writing, which `pdftoppm` reports as
+/// *"Document stream is empty"* — a flake that reads exactly like an exporter defect. MJXOFF-207
+/// wrote it the sharing way first and the full `cargo test --workspace` found it.
+fn our_raster(case: &str, page: usize) -> (Raster, usize) {
     let deck = plates(PresetDeck::AtTheirDefaults);
     let render = our_page_as_pdf(&deck, page).expect("our page exports");
     assert_eq!(
@@ -86,7 +92,7 @@ fn our_raster(page: usize, name: &str) -> (Raster, usize) {
         render.report.draw_calls,
         render.drawn_plates
     );
-    let path = scratch(name);
+    let path = scratch(&format!("{}-page-{}.pdf", case.replace(' ', "-"), page + 1));
     std::fs::write(&path, &render.pdf).expect("the export is written");
     (
         rasterise(&path, 1).expect("poppler rasterises it"),
@@ -101,7 +107,7 @@ fn the_pipeline_runs_end_to_end_and_proves_only_the_plumbing() {
         return;
     }
     let deck = plates(PresetDeck::AtTheirDefaults);
-    let (raster, drawn) = our_raster(0, "plumbing-page-1.pdf");
+    let (raster, drawn) = our_raster(CASE, 0);
     assert!(drawn > 20, "page one drew only {drawn} plates");
 
     let rows: Vec<Baseline> = deck
@@ -177,8 +183,8 @@ fn the_comparator_tells_two_different_pages_apart() {
         return;
     }
     let deck = plates(PresetDeck::AtTheirDefaults);
-    let (first, _) = our_raster(0, "plumbing-page-1.pdf");
-    let (second, _) = our_raster(1, "plumbing-page-2.pdf");
+    let (first, _) = our_raster(CASE, 0);
+    let (second, _) = our_raster(CASE, 1);
 
     let mut differing = 0usize;
     let mut total = 0usize;
@@ -219,8 +225,8 @@ fn the_plate_baseline_crops_each_plates_own_window() {
         return;
     }
     let deck = plates(PresetDeck::AtTheirDefaults);
-    let (first, _) = our_raster(0, "plumbing-page-1.pdf");
-    let (second, _) = our_raster(1, "plumbing-page-2.pdf");
+    let (first, _) = our_raster(CASE, 0);
+    let (second, _) = our_raster(CASE, 1);
 
     let mut differing = 0usize;
     let mut total = 0usize;
@@ -298,7 +304,7 @@ fn a_plate_with_nothing_to_draw_is_not_evidence_rather_than_a_disagreement() {
         .iter()
         .find(|plate| plate.token == "upArrow")
         .expect("`upArrow` is on the sheet");
-    let (raster, _) = our_raster(up_arrow.page(), "plumbing-up-arrow.pdf");
+    let (raster, _) = our_raster(CASE, up_arrow.page());
 
     let row = plate_baseline(
         up_arrow,

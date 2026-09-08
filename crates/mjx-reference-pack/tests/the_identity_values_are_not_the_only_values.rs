@@ -236,7 +236,7 @@ fn the_swatch_sheet_is_fifty_four_different_patterns() {
         .map(|index| {
             mjx_paint::PATTERN_MASKS[index]
                 .iter()
-                .map(|row| u32::from(row.count_ones()))
+                .map(|row| row.count_ones())
                 .sum()
         })
         .collect();
@@ -326,7 +326,9 @@ fn the_comparator_answers_differently_for_three_different_pairs() {
         "four comparisons produced {} distinct answers",
         fractions.len()
     );
-    assert!(PLATE_TOLERANCE > 0.0 && PLATE_TOLERANCE < 0.5);
+    // A tolerance of zero would fail every plate and one of a half would pass a shape drawn in the
+    // wrong place, so the constant itself is held between them.
+    const { assert!(PLATE_TOLERANCE > 0.0 && PLATE_TOLERANCE < 0.5) };
 }
 
 #[test]

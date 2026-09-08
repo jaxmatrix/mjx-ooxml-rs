@@ -84,7 +84,7 @@ fn the_twelve_percentages_land_where_their_own_coverage_says() {
         );
         let set: u32 = PATTERN_MASKS[index]
             .iter()
-            .map(|row| u32::from(row.count_ones()))
+            .map(|row| row.count_ones())
             .sum();
         assert_eq!(
             set,
