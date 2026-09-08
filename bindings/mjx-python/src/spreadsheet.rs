@@ -131,7 +131,8 @@ value_class! {
     /// A cell border: up to nine edges, plus the two diagonal flags.
     BorderSpec(ooxml::BorderSpec), derive(PartialEq);
 
-    /// One `x:xf`: the four resource indices and the six `apply*` flags.
+    /// One `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, the
+    /// quote-prefix flag and the six `apply*` flags — all twelve readable, as in Rust.
     CellFormatSpec(ooxml::CellFormatSpec), derive(PartialEq, Eq);
 
     /// What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder.
@@ -2055,6 +2056,54 @@ impl CellFormatSpec {
     #[getter]
     fn border_index(&self) -> Option<u32> {
         self.0.border_index
+    }
+
+    /// `@xfId` — the `cellStyleXfs` record beneath this one.
+    #[getter]
+    fn cell_style_format_index(&self) -> Option<u32> {
+        self.0.cell_style_format_index
+    }
+
+    /// `@quotePrefix` — the value is text because it was typed with a leading apostrophe.
+    #[getter]
+    fn text_is_quote_prefixed(&self) -> Option<bool> {
+        self.0.text_is_quote_prefixed
+    }
+
+    /// `@applyNumberFormat`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_number_format(&self) -> Option<bool> {
+        self.0.applies_number_format
+    }
+
+    /// `@applyFont`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_font(&self) -> Option<bool> {
+        self.0.applies_font
+    }
+
+    /// `@applyFill`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_fill(&self) -> Option<bool> {
+        self.0.applies_fill
+    }
+
+    /// `@applyBorder`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_border(&self) -> Option<bool> {
+        self.0.applies_border
+    }
+
+    /// `@applyAlignment`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_alignment(&self) -> Option<bool> {
+        self.0.applies_alignment
+    }
+
+    /// `@applyProtection`. Three-valued: `None` writes no attribute at all.
+    #[getter]
+    fn applies_protection(&self) -> Option<bool> {
+        self.0.applies_protection
     }
 }
 

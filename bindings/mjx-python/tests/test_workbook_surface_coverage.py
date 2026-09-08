@@ -10,6 +10,7 @@ why every assertion here is asymmetric on purpose: a test that writes `"Region"`
 from __future__ import annotations
 
 import pathlib
+from collections.abc import Callable
 
 import pytest
 
@@ -614,3 +615,98 @@ def test_removing_an_excel_chart_binding_is_caught_by_this_suite() -> None:
         "drop_chart_dangling_decoration",
     ):
         assert callable(getattr(workbook, method)), f"Workbook.{method} is not bound"
+
+
+# ---------------------------------------------------------------------------------------------
+# `CellFormatSpec`: all twelve `x:xf` attributes, readable (MJXOFF-226)
+# ---------------------------------------------------------------------------------------------
+
+
+def test_every_cell_format_attribute_reads_back_its_own_value() -> None:
+    """The twelve attributes of `mjx_ooxml::CellFormatSpec`, each at a value only it can have.
+
+    Until MJXOFF-226 this class declared four readable attributes against twelve constructor
+    keywords, so eight of the twelve were write-only in Python and unreadable in TypeScript. The
+    five indices are given five *different* numbers on purpose: wire any of the five getters to a
+    neighbouring field and exactly one of these equalities fails, which a spec built from one
+    repeated number could not show.
+    """
+    spec = mjx_ooxml.CellFormatSpec(
+        number_format_id=11,
+        font_index=22,
+        fill_index=33,
+        border_index=44,
+        cell_style_format_index=55,
+        text_is_quote_prefixed=True,
+    )
+    assert spec.number_format_id == 11
+    assert spec.font_index == 22
+    assert spec.fill_index == 33
+    assert spec.border_index == 44
+    assert spec.cell_style_format_index == 55
+    assert spec.text_is_quote_prefixed is True
+
+
+# Every flag named the way a caller would write it, rather than reached through `getattr` and a
+# `**kwargs` dictionary: a string lookup would exercise these twelve members without any test
+# source ever naming them, which is exactly what `xtask/tests/binding_projection.rs` counts.
+APPLY_FLAGS: tuple[
+    tuple[str, Callable[[bool], mjx_ooxml.CellFormatSpec], Callable[[mjx_ooxml.CellFormatSpec], bool | None]],
+    ...,
+] = (
+    (
+        "applies_number_format",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_number_format=value),
+        lambda spec: spec.applies_number_format,
+    ),
+    (
+        "applies_font",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_font=value),
+        lambda spec: spec.applies_font,
+    ),
+    (
+        "applies_fill",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_fill=value),
+        lambda spec: spec.applies_fill,
+    ),
+    (
+        "applies_border",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_border=value),
+        lambda spec: spec.applies_border,
+    ),
+    (
+        "applies_alignment",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_alignment=value),
+        lambda spec: spec.applies_alignment,
+    ),
+    (
+        "applies_protection",
+        lambda value: mjx_ooxml.CellFormatSpec(applies_protection=value),
+        lambda spec: spec.applies_protection,
+    ),
+)
+
+
+@pytest.mark.parametrize("stated", APPLY_FLAGS, ids=[flag[0] for flag in APPLY_FLAGS])
+@pytest.mark.parametrize("value", [True, False])
+def test_each_apply_flag_is_three_valued_and_independent(
+    stated: tuple[
+        str,
+        Callable[[bool], mjx_ooxml.CellFormatSpec],
+        Callable[[mjx_ooxml.CellFormatSpec], bool | None],
+    ],
+    value: bool,
+) -> None:
+    """One flag set at a time, so a getter reading its neighbour's field has nowhere to hide.
+
+    Six booleans cannot be told apart by giving them six distinct values, because there are only
+    two — so each is stated *alone* and the other five are required to stay `None`. The `False`
+    round is not redundant: §18.8.9 makes an absent `applyX` *participate* and `applyX="0"`
+    *suppress*, so a projection that collapsed the three values to two would pass the `True` round
+    and fail this one.
+    """
+    name, state, _ = stated
+    spec = state(value)
+    for other, _, read in APPLY_FLAGS:
+        expected = value if other == name else None
+        assert read(spec) is expected, f"{name}={value} was visible on {other}"

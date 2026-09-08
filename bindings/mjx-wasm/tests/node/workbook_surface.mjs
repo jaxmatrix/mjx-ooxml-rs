@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   AxisOrientation,
+  CellFormatSpec,
   CellWrite,
   ChartData,
   ChartKind,
@@ -777,3 +778,86 @@ test("removing an Excel chart binding is caught by this suite", () => {
     workbook.free();
   }
 });
+
+// -----------------------------------------------------------------------------------------------
+// `CellFormatSpec`: all twelve `x:xf` attributes, readable and writable (MJXOFF-226)
+// -----------------------------------------------------------------------------------------------
+
+test("every x:xf attribute reads back its own value", () => {
+  scope((owned) => {
+    // Five different numbers on purpose: wire any of the five getters to a neighbouring field and
+    // exactly one of these equalities fails, which a spec built from one repeated number could not
+    // show. Until MJXOFF-226 only the first four were readable here at all.
+    const spec = owned.keep(
+      owned.keep(
+        owned.keep(
+          owned.keep(
+            owned.keep(owned.keep(new CellFormatSpec()).withNumberFormatId(11)).withFontIndex(22),
+          ).withFillIndex(33),
+        ).withBorderIndex(44),
+      ).withCellStyleFormatIndex(55),
+    ).withQuotePrefix(true);
+    assert.equal(spec.numberFormatId, 11);
+    assert.equal(spec.fontIndex, 22);
+    assert.equal(spec.fillIndex, 33);
+    assert.equal(spec.borderIndex, 44);
+    assert.equal(spec.cellStyleFormatIndex, 55);
+    assert.equal(spec.textIsQuotePrefixed, true);
+  });
+});
+
+// Every flag named the way a caller would write it, rather than reached by string index: a
+// bracket lookup would exercise these twelve members without any test source ever naming them,
+// which is exactly what `xtask/tests/binding_projection.rs` counts.
+const APPLY_FLAGS = [
+  {
+    name: "appliesNumberFormat",
+    state: (spec, value) => spec.withAppliesNumberFormat(value),
+    read: (spec) => spec.appliesNumberFormat,
+  },
+  {
+    name: "appliesFont",
+    state: (spec, value) => spec.withAppliesFont(value),
+    read: (spec) => spec.appliesFont,
+  },
+  {
+    name: "appliesFill",
+    state: (spec, value) => spec.withAppliesFill(value),
+    read: (spec) => spec.appliesFill,
+  },
+  {
+    name: "appliesBorder",
+    state: (spec, value) => spec.withAppliesBorder(value),
+    read: (spec) => spec.appliesBorder,
+  },
+  {
+    name: "appliesAlignment",
+    state: (spec, value) => spec.withAppliesAlignment(value),
+    read: (spec) => spec.appliesAlignment,
+  },
+  {
+    name: "appliesProtection",
+    state: (spec, value) => spec.withAppliesProtection(value),
+    read: (spec) => spec.appliesProtection,
+  },
+];
+
+for (const stated of APPLY_FLAGS) {
+  for (const value of [true, false]) {
+    test(`${stated.name} states that flag and no other, at ${value}`, () => {
+      scope((owned) => {
+        // One flag at a time, because six booleans cannot be told apart by giving them six
+        // distinct values. The `false` round is not redundant: §18.8.9 makes an absent `applyX`
+        // *participate* and `applyX="0"` *suppress*, so a projection that collapsed the three
+        // values to two would pass the `true` round and fail this one. Before MJXOFF-226 the six
+        // could only ever be set to `true`, implied by an index builder, and two of them —
+        // `applyAlignment` and `applyProtection` — could not be reached from JavaScript at all.
+        const spec = owned.keep(stated.state(owned.keep(new CellFormatSpec()), value));
+        for (const flag of APPLY_FLAGS) {
+          const expected = flag.name === stated.name ? value : undefined;
+          assert.equal(flag.read(spec), expected, `${stated.name}=${value} showed on ${flag.name}`);
+        }
+      });
+    });
+  }
+}
