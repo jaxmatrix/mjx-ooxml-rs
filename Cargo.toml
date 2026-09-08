@@ -53,6 +53,13 @@ members = [
     "crates/mjx-xlsx",
     # Test-only harness: the schema and child-order gate the three format crates share. It is a
     # `dev-dependency` of those crates and of nothing else, so it adds no edge to the shipped graph.
+    # The resident document — rank 3.5 (MJXOFF-167). A session owns a parsed, mutable document and
+    # keeps it; every mutation is recorded as an operation the instant it happens, and the document
+    # is serialised on a *schedule* rather than on every operation. It sits above the format tier
+    # because it names all three of them, and below the facade because `mjx-ooxml` is what projects
+    # it. Everything in it outside `src/ooxml/` is generic over `ResidentDocument` and names no
+    # format crate at all, so the box-model seam survives editing.
+    "crates/mjx-session",
     "crates/mjx-schema-gate",
     # Test-only, dependency-free: the committed fixture corpus, so every suite in the workspace
     # derives it from one place instead of carrying a hand-maintained list.
@@ -115,7 +122,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.141"
+version = "0.0.142"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -249,6 +256,7 @@ mjx-geometry = { path = "crates/mjx-geometry" }
 mjx-pptx = { path = "crates/mjx-pptx" }
 mjx-docx = { path = "crates/mjx-docx" }
 mjx-xlsx = { path = "crates/mjx-xlsx" }
+mjx-session = { path = "crates/mjx-session" }
 mjx-schema-gate = { path = "crates/mjx-schema-gate" }
 mjx-fixtures = { path = "crates/mjx-fixtures" }
 mjx-allocation-counter = { path = "crates/mjx-allocation-counter" }

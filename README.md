@@ -127,6 +127,9 @@ Layered Cargo workspace; dependencies only ever point *downward*.
                                   that resolves them — above mjx-dml because a preset table *is*
                                   DrawingML, and therefore out of mjx-scene's reach)
 3.0  Formats          mjx-pptx  ·  mjx-docx  ·  mjx-xlsx
+3.5  Resident document mjx-session (a document held open, an operation journal recorded the instant
+                                  an edit happens, and a commit that serialises dirty parts on a
+                                  schedule rather than on every operation)
 4.0  Facade           mjx-ooxml   (open()/save(), the binding-ready public API)
 5.0  Bindings         bindings/mjx-python (PyO3)  ·  bindings/mjx-wasm (wasm-bindgen)
 5.5  Platform boundary mjx-paint  (the Painter contract and the wgpu painter — the one crate that

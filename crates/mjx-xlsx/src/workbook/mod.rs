@@ -420,6 +420,36 @@ impl Workbook {
         self.save_unchecked()
     }
 
+    /// The ZIP names of every part this workbook has dirtied — the **dirty set** a batched commit
+    /// walks ([`Package::dirty_part_names`](mjx_opc::Package::dirty_part_names)).
+    ///
+    /// A part is here exactly when [`save`](Self::save) would re-serialize it from its model rather
+    /// than re-emit the bytes it arrived with, so this is the honest count of what a save will
+    /// *work* at. It is what `mjx-session` reports as a commit's serialization count, and what makes
+    /// "twenty edits produced one part serialization" a measurement instead of a claim.
+    #[must_use]
+    pub fn dirty_parts(&self) -> Vec<String> {
+        self.package
+            .dirty_part_names()
+            .into_iter()
+            .map(str::to_owned)
+            .collect()
+    }
+
+    /// Serializes every dirty part exactly once and settles it back to clean-but-resident, returning
+    /// the names it serialized ([`Package::settle_edited_parts`](mjx_opc::Package::settle_edited_parts)).
+    ///
+    /// This is the *commit* half of copy-on-write, for a caller that keeps this workbook open across
+    /// many edits: the model is authoritative from the first edit, and the XML is written once per
+    /// commit however many edits accumulated. A part nothing edited is not settled and still re-emits
+    /// the container's own bytes byte for byte, so the round-trip guarantee is untouched — only the
+    /// timing of the serialization moves.
+    ///
+    /// A caller that saves once and drops the workbook has no reason to call this: [`save`](Self::save)
+    /// serializes the same parts on its way out.
+    pub fn settle_dirty_parts(&mut self) -> Vec<String> {
+        self.package.settle_edited_parts()
+    }
     /// Serializes the workbook back to container bytes **without** checking its invariants — the
     /// escape hatch for writing back a container that arrived broken.
     ///

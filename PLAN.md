@@ -27,7 +27,13 @@ PowerPoint, Word, and Excel, reachable from Rust, Python and TypeScript. Renderi
 - **In-memory model → Hybrid:** arena/columnar for bulk data (e.g. spreadsheet cells, shared strings),
   owned trees (`Box`/`Vec`) for small structures (paragraphs, runs, shape trees).
 - **Raw-bytes retention → Copy-on-write:** keep a part's decompressed bytes until its first mutation
-  (re-emit verbatim if untouched); on first edit, serialize from the model and drop the raw bytes.
+  (re-emit verbatim if untouched). On first edit, **drop the raw bytes and mark the part dirty** —
+  the model is now authoritative — and **serialize at commit**, once, however many edits have
+  accumulated (MJXOFF-167; `Package::settle_edited_parts`). This line used to say *"on first edit,
+  serialize from the model and drop the raw bytes"*, which named one moment where there have always
+  been two; batched editing in `mjx-session` is what made the difference matter, since twenty
+  keystrokes into one run must cost one serialization rather than twenty. The round-trip contract
+  below is unaffected: an untouched part is never marked dirty and still re-emits byte for byte.
 - **Strings → Interning + `Cow`:** intern hot repeated strings (namespaces, element/attr names, shared
   strings); borrow text from the buffer via `Cow`, own only on edit/unescape.
 - **XML:** `quick-xml` at the event level (not serde). **ZIP:** `zip` crate, deflate-only (pure Rust).

@@ -58,6 +58,70 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.142] - 2026-09-08
+
+**The resident document: an operation journal recorded the instant an edit happens, and a commit
+that serialises dirty parts on a schedule rather than on every operation (MJXOFF-167, R12).**
+
+The rest of this workspace is a batch library and holds nothing between calls —
+`crates/mjx-xlsx/docs/guide/large_workbooks.md` says so in its own words, and it is right for a
+program that opens a file, changes it and writes it out. It is fatal for an editor. `mjx-session`
+holds a document open and separates the three layers `docs/client-platform/SESSION_AND_PERSISTENCE.md`
+names: **record** into the journal immediately, **apply** to the model immediately, **commit** on a
+schedule.
+
+### Added
+
+- **`mjx-session` at rank 3.5**, a new workspace member, in both rank tables and in `README.md`'s
+  ladder. `Session` is generic over `ResidentDocument`; `PresentationSession`, `WordSession` and
+  `SpreadsheetSession` implement it for the three formats behind a default `ooxml` feature.
+- **An operation vocabulary written in `mjx-layout`'s address space.** An `Operation` is a
+  `SourceRef` — a part number, a path of small integers, a character range — plus either a `Value`
+  or a `LayoutRect`. No OOXML type appears in one, which is what makes the journal a journal a
+  non-OOXML box model can also produce, and what keeps the collaboration seam open at no cost now.
+  Every operation is an **absolute assignment**, which is what makes replaying a journal tail over
+  work a commit already wrote idempotent.
+- **`CommitScheduler` and seven triggers** — idle, max age, a dirty-byte threshold, the journal's
+  memory bound, an explicit save, backgrounding and a consistency point — with a gesture that defers
+  the four economic ones and cannot defer the other three. **Backgrounding is mandatory and
+  immediate**: iOS terminates backgrounded applications without warning.
+- **Undo units that are semantic and independent of the commit window.** A unit owns its own steps
+  rather than pointing into the journal, precisely because the journal is truncated at every commit;
+  tying the two together is the classic bug where undo jumps by however much happened to be batched.
+- **A framed, checksummed journal encoding and `Recovery`.** A record carries its own length and an
+  FNV-1a check, so a torn tail — the shape a crash leaves — costs exactly that record.
+- **`Package::settle_edited_parts` and `Package::dirty_part_names`**, with `dirty_parts` /
+  `settle_dirty_parts` on all three format types. Settling serialises each dirty part once and moves
+  it to *clean but still resident*: the next save writes it verbatim, the next edit costs no
+  re-parse, and the dirty set actually clears. Without it a part edited once re-serialises on every
+  commit for the rest of the session, which is the cost batching exists to avoid.
+
+### Changed
+
+- **The documented copy-on-write rule now states two moments instead of one**, in `CLAUDE.md` and
+  `PLAN.md`. *On first edit, drop the raw bytes and mark the part dirty — the model is now
+  authoritative; serialise at commit, once, however many edits have accumulated.* The implementation
+  always worked this way; the prose described one moment. **The round-trip guarantee is untouched**
+  and `crates/mjx-session/tests/fidelity.rs` says so: opening and committing a `.pptx`, a `.docx` and
+  an `.xlsx` changes no part, editing changes exactly one, and an edit followed by its undo changes
+  none.
+
+### Measured
+
+- **Twenty keystrokes into one run cost one part serialisation; the same twenty under
+  `CommitPolicy::per_operation` cost twenty.** Asserted on all three formats, because *"a commit
+  produces a valid document"* is green for a session with no batching in it at all — the check
+  passes precisely when the feature is absent. Five hundred keystrokes cost **one** commit and one
+  serialisation, a ratio of 500 : 1.
+- **Recording is allocation-free.** A thousand payload-free operations into a reserved journal hand
+  the allocator **0 bytes** of work, measured with `mjx-allocation-counter` — its third consumer.
+  The gate is `harness = false` for the reason `mjx-sml`'s is: the first version of it was a
+  three-case harness and read 92,376 bytes, every one of them another case's, on another thread.
+- **Recovery is proved against a real process kill.** The suite re-launches its own test binary, has
+  the child record four operations, flush, record two more without flushing and then `abort()`, and
+  reads the file back from the parent: the four are there and the two are not. A same-process replay
+  would have proved only that the encoder agrees with the decoder.
+
 ## [0.0.141] - 2026-09-08
 
 **Audit pass 10: the token editor stops accepting a colour that breaks the next build, and the two

@@ -353,6 +353,79 @@ impl Package {
         released
     }
 
+    /// The ZIP names of every part the model has dirtied — the **dirty set**, in container order.
+    ///
+    /// A part is here exactly when its body is [`Edited`](PartBody::Edited): its original bytes are
+    /// gone and [`save`](Self::save) will re-serialize it from its tree. Every other part re-emits
+    /// verbatim and costs a `memcpy`, which is why a caller that wants to know what a save will
+    /// actually *work* at asks this rather than counting parts.
+    ///
+    /// Names rather than [`PartName`]s, because `[Content_Types].xml` and the `.rels` parts are
+    /// editable through this type's own helpers and are not part names.
+    #[must_use]
+    pub fn dirty_part_names(&self) -> Vec<&str> {
+        self.entries
+            .iter()
+            .filter(|entry| matches!(entry.body, PartBody::Edited(_)))
+            .map(|entry| entry.name.as_str())
+            .collect()
+    }
+
+    /// Serializes every dirty part **exactly once** and settles it back to a clean-but-resident
+    /// state, returning the names it serialized in container order.
+    ///
+    /// # Why this exists, and what it changes about copy-on-write
+    ///
+    /// `CLAUDE.md` states the rule as *on first edit, serialize from the model and drop raw bytes*.
+    /// The implementation has always split that into two moments — [`part_tree_mut`](Self::part_tree_mut)
+    /// drops the bytes and marks the part dirty, and [`save`](Self::save) is where the XML is
+    /// actually written — and a resident editing session (`mjx-session`) is what makes the split
+    /// matter: twenty keystrokes into one run must produce twenty model mutations and **one**
+    /// serialization, on a schedule, not twenty.
+    ///
+    /// Without this call the dirty set never shrinks. A part edited once stays
+    /// [`Edited`](PartBody::Edited) for the life of the package, so every later save re-serializes
+    /// it whether or not anything touched it since — which is the cost a batched commit exists to
+    /// avoid, paid once per commit for the rest of the session. Settling moves each part to
+    /// [`Parsed`](PartBody::Parsed) with the bytes just written as its `original`, so:
+    ///
+    /// * the next [`save`](Self::save) writes it verbatim and serializes nothing;
+    /// * the tree stays resident, so the next edit costs no re-parse; and
+    /// * the part is marked authored, because the stored bytes are now this library's.
+    ///
+    /// **Fidelity is untouched.** A part nothing edited was never dirty, is not settled here, and
+    /// still re-emits the container's own bytes byte for byte. The bytes this writes are the same
+    /// bytes [`save`](Self::save) would have written for that part at this moment, so a settle
+    /// followed by a save produces exactly what a save alone would have.
+    ///
+    /// One nuance worth stating, because it is the one thing the state change does not carry: a
+    /// settled part's *tree* keeps the pre-edit source buffer it uses to emit untouched subtrees
+    /// verbatim, which is what a still-resident tree needs and is not the same buffer as the
+    /// `original` this stores. [`release_unused_part_sources`](Self::release_unused_part_sources)
+    /// reclaims only a dirty part's, so a settled part holds both until it is edited again.
+    pub fn settle_edited_parts(&mut self) -> Vec<String> {
+        let mut settled = Vec::new();
+        for entry in &mut self.entries {
+            if !matches!(entry.body, PartBody::Edited(_)) {
+                continue;
+            }
+            // Take the body out so the tree moves into its new state rather than being cloned.
+            let PartBody::Edited(tree) = mem::replace(&mut entry.body, PartBody::Raw(Vec::new()))
+            else {
+                unreachable!("guarded by matches! above")
+            };
+            let bytes = fidelity::serialize_to_vec(&tree);
+            entry.body = PartBody::Parsed {
+                original: Arc::from(bytes.as_slice()),
+                tree,
+            };
+            // The stored bytes are ours now, so the part is authored however it arrived.
+            entry.authored = true;
+            settled.push(entry.name.clone());
+        }
+        settled
+    }
+
     /// All ZIP entries, in container order (the fidelity backbone).
     #[must_use]
     pub fn entries(&self) -> &[ZipEntry] {
