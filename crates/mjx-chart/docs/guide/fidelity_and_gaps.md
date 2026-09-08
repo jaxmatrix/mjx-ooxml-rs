@@ -71,11 +71,14 @@ on, and would anyone notice a type going on neither?** — and answers it five w
 * **Nothing is resolved and nothing is recomputed.** A `c:f` is text
   ([Reading a chart](reading_a_chart)); a cached value is what draws and is never recalculated from a
   worksheet; a chart style id is reported, never applied.
-* **`CT_Extension`'s wildcard is declared without a `minOccurs` in `dml-chart.xsd`**, exactly as it is
-  in `sml.xsd`. Markup-compatibility resolution empties an `<ext>` whose only child was ignorable, and
-  the schema then rejects the hole. That is a defect in how the two compose rather than a property of
-  anyone's file, it is **MJXOFF-196**, and `xtask/src/validation/ingest.rs` carries the full statement
-  and the third address a fix has to visit.
+* **An ignorable `<c:ext>` is preserved and never validated.** `CT_Extension`'s wildcard is declared
+  without a `minOccurs` in `dml-chart.xsd`, exactly as it is in `sml.xsd`, so markup-compatibility
+  resolution used to empty an `<ext>` whose only child was ignorable and the schema then rejected the
+  hole — the shape Office 2016 writes on every chart series, as `c16:uniqueId`. MJXOFF-196 closed
+  that by dropping the emptied slot along with the extension it held
+  (`crates/mjx-schema-gate/src/wildcard_slots.rs`, derived from the pinned XSDs). The residue is that
+  the gate says nothing about the markup *inside* such an extension, because
+  `processContents="lax"` with no loaded schema for that namespace accepts anything.
 
 ### `mjx-omml`
 

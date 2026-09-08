@@ -186,14 +186,17 @@ its provenance. `docs/validation/06-the-office-pass.md` is how a person with Exc
 | **Conditional-formatting rule priority** | `@priority` is read and reported, never resolved — a rule is described, not evaluated | `V-XLSX-02.5` |
 | **A chart reading a live range** | The chart's cached values and its `c:f` references are both preserved; Excel recalculates from the range | `V-XLSX-04.1`, `V-XLSX-04.2` |
 
-**One deviation is expected on the first real workbook, and it is ours.** The schema gate validates
-the markup-compatibility-resolved view of a part; resolution removes an ignorable element together
-with its content; and `sml.xsd`'s `CT_Extension` declares its wildcard as a bare
-`<xsd:any processContents="lax"/>`, whose `minOccurs` therefore defaults to 1. Every modern Excel file
-writes `x14`/`x15` extensions under `mc:Ignorable`, so the emptied `<ext>` is rejected with *Missing
-child element(s)*. That is a defect in how the two compose — not a property of the file, and
-deliberately not a tolerance — filed as **MJXOFF-196**, and reproduced from markup authored for the
-purpose in `xtask/tests/office_corpus.rs`.
+**The gate reports nothing about an `x14`/`x15` extension, and that is a residue rather than a
+pass.** The schema gate validates the markup-compatibility-resolved view of a part; resolution
+removes an ignorable element together with its content; and `sml.xsd`'s `CT_Extension` declares its
+whole content model as a bare `<xsd:any processContents="lax"/>`, whose `minOccurs` therefore
+defaults to 1. Every modern Excel file writes `x14`/`x15` extensions under `mc:Ignorable`, so the
+emptied `<ext>` used to be rejected with *Missing child element(s)*. MJXOFF-196 closed that by
+dropping an extension slot resolution empties along with the extension it held — the rule is derived
+from the pinned XSDs in `crates/mjx-schema-gate/src/wildcard_slots.rs` and held by
+`xtask/tests/mce_extension_seam.rs`. What the gate still cannot say is whether the markup *inside*
+such an extension is well-formed against its own schema: `processContents="lax"` and no loaded
+schema for that namespace means a validator handed the content would accept it unread.
 
 ## Where each of these is written down
 

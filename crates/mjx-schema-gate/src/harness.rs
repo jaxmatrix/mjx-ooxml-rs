@@ -79,6 +79,16 @@ impl Harness {
         }
     }
 
+    /// The two schema directories, markup first.
+    ///
+    /// What reads them is [`crate::wildcard_slots::derive_wildcard_slots`], which needs the XSDs
+    /// themselves rather than the validator: its whole point is to compute a fact *from* the pinned
+    /// schemas instead of restating one somebody read out of them once.
+    #[must_use]
+    pub fn schema_directories(&self) -> [&Path; 2] {
+        [&self.markup_schemas, &self.packaging_schemas]
+    }
+
     /// The driver schema that pairs `schema` with the XML-namespace schema, writing it if needed.
     fn driver_path(&self, schema: SchemaRef, namespace: &str) -> PathBuf {
         let driver = self.drivers.join(format!("driver-{}", schema.file));
