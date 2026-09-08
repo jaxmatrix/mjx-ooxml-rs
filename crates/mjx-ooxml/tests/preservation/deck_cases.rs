@@ -310,6 +310,24 @@ fn chart_for_preparation(deck: &mut Deck, a: &Addresses) -> Option<ShapePath> {
         .map(ShapePath::from)
 }
 
+/// Leaves the first text shape's first paragraph holding **two adjacent runs a coalesce can merge**
+/// — the state no committed fixture is in, and the one both `coalesce_*` methods need to do
+/// anything (MJXOFF-233).
+///
+/// It takes two edits, and the order matters. Formatting the first character alone *splits* the
+/// paragraph's opening run in two — that is what `set_text_range_properties` does — and then giving
+/// the whole shape one spec makes the two halves carry identical `a:rPr`. Restyling alone was what
+/// this preparation used to do, and it left one run per paragraph with nothing to merge, which is
+/// why both methods sat in `NEVER_EXERCISED` until now.
+fn two_mergeable_runs(
+    deck: &mut Deck,
+    surface: Surface,
+    shape: ShapePath,
+) -> Result<(), mjx_ooxml::Error> {
+    deck.set_text_range_properties(surface, shape.clone(), 0, 0..1, &characters())?;
+    deck.set_shape_run_properties(surface, shape, &characters())
+}
+
 /// The edits that put a fixture into the state a method needs. See [`prepared`].
 #[allow(
     clippy::type_complexity,
@@ -317,10 +335,18 @@ fn chart_for_preparation(deck: &mut Deck, a: &Addresses) -> Option<ShapePath> {
 )]
 const PREPARATIONS: &[(&str, fn(&mut Deck, &Addresses) -> Step)] = &[
     ("coalesce_paragraph_runs", |deck, a| {
-        ran!(deck.set_shape_run_properties(a.surface, need!(a.text_shape.clone()), &characters()))
+        ran!(two_mergeable_runs(
+            deck,
+            a.surface,
+            need!(a.text_shape.clone())
+        ))
     }),
     ("coalesce_shape_runs", |deck, a| {
-        ran!(deck.set_shape_run_properties(a.surface, need!(a.text_shape.clone()), &characters()))
+        ran!(two_mergeable_runs(
+            deck,
+            a.surface,
+            need!(a.text_shape.clone())
+        ))
     }),
     ("drop_chart_dangling_decoration", |deck, a| {
         // A decoration dangles when the point it is anchored to stops existing: format point 1,

@@ -228,18 +228,6 @@ impl Report {
 pub(crate) const NEVER_EXERCISED: &[(Api, &str, &str)] = &[
     (
         Api::Deck,
-        "coalesce_paragraph_runs",
-        "No shape in the corpus holds two adjacent runs a coalesce could merge — giving every run \
-         of a shape the same properties first still leaves one run per paragraph. A fixture whose \
-         paragraph carries two identically formatted runs retires this.",
-    ),
-    (
-        Api::Deck,
-        "coalesce_shape_runs",
-        "As `coalesce_paragraph_runs`: the corpus has no shape with runs to merge.",
-    ),
-    (
-        Api::Deck,
         "paragraph_field_text",
         "No `.pptx` fixture carries a text field (`a:fld`) — a slide number, a date — and the `Deck` \
          surface authors none, so no preparation can create one either. A fixture with a slide-number \
