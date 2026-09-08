@@ -19,8 +19,25 @@
 #
 # The script is idempotent and safe to re-run: an archive already present is not re-downloaded, every
 # archive is verified on every run (so a poisoned or truncated CI cache is caught, not trusted), and
-# extraction overwrites in place. Only the two archives named in the manifest are touched; any other
+# extraction overwrites in place. Only the archives named in the manifest are touched; any other
 # ECMA part already sitting in `References/` is left alone.
+#
+# ## What each part costs, and why the figures are stated separately (MJXOFF-197)
+#
+# Part 1 was added so that two gates which had *never executed on CI* could execute: the sweep over
+# the whole normative preset-shape corpus (`crates/mjx-dml/tests/guide_formula.rs`) and the
+# freshness check on the committed geometry table (`xtask/src/codegen/geometry.rs`). Both read
+# `presetShapeDefinitions.xml`, which ships only with Part 1, and both skipped silently without it —
+# an absent corpus reads exactly like success.
+#
+# The cost is two different numbers and it matters which one a reader takes away:
+#
+#   * **the download and the CI cache grow by 42 MB** — the outer archive is atomic, and 35.3 MB of
+#     it is the Part 1 PDF with a further 14.4 MB of `WordprocessingMLArtBorders`, neither of which
+#     this repository has any use for;
+#   * **the extracted tree grows by ~1.5 MB** — the two members actually wanted are 51 672 and
+#     93 849 bytes compressed. The `-j`-plus-explicit-member extraction below is what keeps the
+#     difference: the PDF is never written to disk at all.
 #
 # Requires: bash, curl, unzip, sha256sum.
 
@@ -28,13 +45,21 @@ set -euo pipefail
 
 readonly BASE_URL="https://ecma-international.org/wp-content/uploads"
 
-# `outer archive|the one member we need|a file that member must contain`.
+# `outer archive|member we need:a file that member must contain|member:marker|…`.
+#
 # The published archives nest: the outer zip holds the part's PDF plus further zips, and the XSDs are
 # one level down. The marker is checked after extraction so a changed inner layout fails loudly
 # rather than leaving an empty directory for the test suite to skip over.
+#
+# **One outer archive is exactly one entry, with a list of members after it.** Part 1 needs *two* of
+# its six members, and the obvious shape — two entries naming the same outer — is wrong twice:
+# `verify_archives` runs `sha256sum --check --strict` against a manifest that must carry each file
+# once, so the two lists stop being in correspondence, and the next person adding a part cannot tell
+# which of them is authoritative. Hence a member *list*, each member carrying its own marker.
 readonly ARCHIVES=(
-    "ECMA-376-4_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Transitional.zip|pml.xsd"
-    "ECMA-376-2_5th_edition_december_2021.zip|OpenPackagingConventions-XMLSchema.zip|opc-relationships.xsd"
+    "ECMA-376-4_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Transitional.zip:pml.xsd"
+    "ECMA-376-2_5th_edition_december_2021.zip|OpenPackagingConventions-XMLSchema.zip:opc-relationships.xsd"
+    "ECMA-376-1_5th_edition_december_2016.zip|OfficeOpenXML-XMLSchema-Strict.zip:dml-main.xsd|OfficeOpenXML-DrawingMLGeometries.zip:presetShapeDefinitions.xml"
 )
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -88,6 +113,24 @@ verify_archives() {
     return 1
 }
 
+# `ARCHIVES` and the manifest are two lists that must name the same files. `sha256sum --check` only
+# catches one direction — a manifest line whose file is absent — so an `ARCHIVES` entry with no
+# manifest line would be downloaded and extracted *unverified*, which is the one thing this script
+# exists to prevent. Checked before anything is fetched, so the failure names the entry rather than
+# arriving as a surprise after a 42 MB download.
+verify_manifest_covers_every_archive() {
+    local entry name missing=0
+    for entry in "${ARCHIVES[@]}"; do
+        name="${entry%%|*}"
+        if ! grep -q -F -- "  $name" "$manifest"; then
+            echo "$name is in ARCHIVES but not in $manifest — it would be fetched unverified" >&2
+            missing=1
+        fi
+    done
+    return "$missing"
+}
+
+verify_manifest_covers_every_archive
 fetch_missing_archives
 if ! verify_archives; then
     echo "==> checksum mismatch; re-fetching the discarded archives once" >&2
@@ -100,21 +143,26 @@ if ! verify_archives; then
 fi
 
 for entry in "${ARCHIVES[@]}"; do
-    outer="${entry%%|*}"
-    rest="${entry#*|}"
-    member="${rest%%|*}"
-    marker="${rest##*|}"
-    dest="$references_dir/${outer%.zip}/${member%.zip}"
+    IFS='|' read -r -a fields <<<"$entry"
+    outer="${fields[0]}"
 
-    mkdir -p "$dest"
-    # `-j` and an explicit member: the outer archive also carries a 10 MB PDF and a RELAX NG copy we
-    # have no use for, and never writing them keeps the CI cache and the disk footprint small.
-    unzip -o -q -j "$references_dir/$outer" "$member" -d "$tmp_dir"
-    unzip -o -q "$tmp_dir/$member" -d "$dest"
+    for spec in "${fields[@]:1}"; do
+        member="${spec%%:*}"
+        marker="${spec#*:}"
+        dest="$references_dir/${outer%.zip}/${member%.zip}"
 
-    if [[ ! -f "$dest/$marker" ]]; then
-        echo "$outer extracted without $marker — the archive layout changed" >&2
-        exit 1
-    fi
-    echo "==> $dest"
+        mkdir -p "$dest"
+        # `-j` and an explicit member: the outer archives also carry the part's PDF (35.3 MB for
+        # Part 1 alone), a RELAX NG copy and — in Part 1 — 14.4 MB of Word art borders, none of
+        # which this repository has any use for. Never writing them is what keeps the extracted
+        # tree at ~1.5 MB per part while the download is 42 MB.
+        unzip -o -q -j "$references_dir/$outer" "$member" -d "$tmp_dir"
+        unzip -o -q "$tmp_dir/$member" -d "$dest"
+
+        if [[ ! -f "$dest/$marker" ]]; then
+            echo "$outer extracted $member without $marker — the archive layout changed" >&2
+            exit 1
+        fi
+        echo "==> $dest"
+    done
 done

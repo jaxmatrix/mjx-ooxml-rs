@@ -99,7 +99,7 @@ jobs:
   #
   # Why the schemas are fetched rather than committed: `References/` is git-ignored by a standing
   # rule of this repository, and whether ECMA-376 schema files may be redistributed inside the tree
-  # is a decision reserved for the repository owner. So the two published archives are downloaded,
+  # is a decision reserved for the repository owner. So the three published archives are downloaded,
   # verified against the committed SHA-256 manifest `.github/ecma-376-archives.sha256`, and
   # extracted into `References/` — exactly the layout a developer already has, and the one
   # `schema_validity.rs` discovers with no environment variables set.
@@ -108,6 +108,12 @@ jobs:
   # hit or miss: a truncated download or a poisoned cache entry is then a hard failure instead of a
   # silently different schema set. The cache key is the manifest's own hash, so pinning a different
   # archive re-fetches automatically.
+  #
+  # **The third archive is Part 1, and it is the expensive one** (MJXOFF-197): 42 MB of download and
+  # of cache, against Part 4's 2 MB and Part 2's 1.9 MB, because the outer archive is atomic and
+  # 35.3 MB of it is the part's PDF. What is extracted from it is ~1.5 MB — the Strict schemas and
+  # `presetShapeDefinitions.xml`. It buys the two steps at the end of this job, both of which had
+  # never executed in any CI run before it was added.
   #
   # MJX_REQUIRE_SCHEMA=1 turns a missing tool or schema tree into a hard failure, so this coverage
   # can never silently skip in CI — the same pattern office-open uses with MJX_REQUIRE_SOFFICE.
@@ -120,6 +126,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          # `rustfmt` is a *runtime* dependency of this job, not a lint: the committed-geometry
+          # freshness check below formats the source it generates through the real `rustfmt` binary
+          # before comparing it byte for byte with what is committed, so the minimal profile this
+          # action installs by default would fail it with "spawning rustfmt".
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
 
       # xmllint is the validator. It ships in the current runner image, but installing it explicitly
@@ -162,6 +174,42 @@ jobs:
       # failure rather than a reported count.
       - name: schema-validity suite (the validation harness and the Office corpus)
         run: cargo test -p xtask --test validation_harness --test office_corpus
+
+      # MJXOFF-197. The sweep over the *entire* normative preset-shape corpus — every guide of every
+      # shape block of `presetShapeDefinitions.xml`, evaluated at a deliberately lopsided box — and
+      # it had **never once executed on CI**. Three individually-reasonable facts composed: it skips
+      # when `References/` is absent (correct), its escape was set by no workflow, and the only job
+      # that extracts `References/` never named `-p mjx-dml`. `mjx-dml` appeared in no job at all.
+      #
+      # The ordering is the part worth keeping: **the archive comes first.** Setting the variable
+      # before Part 1 was in `.github/ecma-376-archives.sha256` would have turned a silent skip into
+      # a hard failure over a file the runner did not have — a step that cannot execute, which is
+      # this gate's own defect one level up. It is executable now because Part 1 is fetched above.
+      #
+      # `--nocapture` is not decoration. `cargo test` swallows a passing test's output, so a green
+      # tick alone cannot distinguish "the corpus was swept" from "the corpus was absent and the
+      # sweep returned early". With it, the log carries the counts the run actually evaluated.
+      - name: the whole preset-shape corpus, with an absent one as a failure
+        env:
+          MJX_REQUIRE_PRESET_GEOMETRY: "1"
+        run: cargo test -p mjx-dml --test guide_formula -- --nocapture
+
+      # The other half of the same hole (MJXOFF-197). `the_committed_geometry_table_is_exactly_what_
+      # the_file_produces` re-derives `crates/mjx-geometry/src/generated.rs` from the file and
+      # compares it byte for byte, proving derivation *and* idempotence — and it lives in the xtask
+      # **binary's** unit tests, which no job here ran with `References/` present: `lint-test` runs
+      # `--workspace` but has no schema tree, and the steps above select integration targets by name
+      # (`--test …`), which never builds the binary's harness. So it skipped in both places.
+      #
+      # `cargo test -p xtask --bin xtask` is the selector that reaches it, and `MJX_REQUIRE_SCHEMA`
+      # (set for this job) is what makes an absent corpus a failure there rather than a skip.
+      #
+      # The sibling drift check over `mjx-ooxml-types` — the other programme's `codegen_drift.rs`,
+      # which needs the same Part 1 archive — is **not** in this tree. It is MJXOFF-227, whose
+      # stated precondition is the archive line this job now fetches; wiring it up belongs to
+      # whoever merges the two branches, and it is not silently missing here.
+      - name: the committed geometry table is what the file produces
+        run: cargo test -p xtask --bin xtask -- --nocapture
 
   # The Phase-2 exit gate: a .pptx or .docx we construct actually opens in a real Office
   # implementation. Kept separate from lint-test so the heavy LibreOffice install cannot slow or

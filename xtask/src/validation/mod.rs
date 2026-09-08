@@ -557,6 +557,13 @@ pub fn run(arguments: &[String]) -> Result<()> {
         "validation-artefacts: {written} artefact(s) written, {} edit variant(s) skipped by name",
         skipped.len()
     );
+    // MJX-ESCAPE-UNSET: this escape is deliberately bound by no workflow. The Office-authored
+    // corpus at `tests/office-authored/` ships empty and no agent may fill it — a file's value
+    // there is entirely its provenance — so setting it in CI would make the build red about
+    // something no build can fix. Set it here once a person has run Office. (The marker is what
+    // `xtask/tests/escape_hatches.rs` reads: every escape must be bound by a workflow or explained
+    // at a definition site, because one that is neither is a suite reporting coverage it does not
+    // have — MJXOFF-197.)
     if !skipped.is_empty() && std::env::var_os("MJX_REQUIRE_OFFICE_CORPUS").is_some() {
         bail!(
             "MJX_REQUIRE_OFFICE_CORPUS is set and {} area(s) had no Office-authored original: {}",

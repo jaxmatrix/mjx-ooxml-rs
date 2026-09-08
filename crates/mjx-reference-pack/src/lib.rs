@@ -188,7 +188,10 @@ pub const OFFICE_EXPORT_DIRECTORY: &str = "tests/office-exports";
 
 /// The environment variable that turns an empty [`OFFICE_EXPORT_DIRECTORY`] into a failure.
 ///
-/// Deliberately **not** set anywhere today, for the reason `main`'s `MJX_REQUIRE_OFFICE_CORPUS` is
-/// not: the directory is empty, that is the honest state of the project, and setting the variable
-/// before a person has run Office would only make the build red about something no build can fix.
+/// MJX-ESCAPE-UNSET: deliberately **not** set anywhere today, for the reason `main`'s
+/// `MJX_REQUIRE_OFFICE_CORPUS` is not: the directory is empty, that is the honest state of the
+/// project, and setting the variable before a person has run Office would only make the build red
+/// about something no build can fix. (The marker is what `xtask/tests/escape_hatches.rs` reads:
+/// every escape in this workspace must be either bound by a workflow or explained here, and an
+/// escape that is neither is a suite reporting coverage it does not have — MJXOFF-197.)
 pub const REQUIRE_OFFICE_EXPORTS: &str = "MJX_REQUIRE_OFFICE_EXPORTS";
