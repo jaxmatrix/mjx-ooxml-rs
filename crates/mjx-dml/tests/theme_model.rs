@@ -2,8 +2,8 @@
 //! public API only, against a minimal but faithful `a:theme` fragment.
 
 use mjx_dml::{
-    ColorKind, ColorSchemeSlot, ColorSpec, Emu, Fill, FontSchemeSlot, FontSlot, LineWidth,
-    SchemeColor, SupplementalFont, TextFont, Theme, ThemeFontReference,
+    ColorKind, ColorSchemeSlot, ColorSpec, Emu, Fill, FontSchemeSlot, FontSlot, Fraction,
+    LineWidth, SchemeColor, SupplementalFont, TextFont, Theme, ThemeFontReference,
 };
 use mjx_ooxml_core::FromXml;
 use mjx_xml::fidelity;
@@ -165,9 +165,16 @@ fn effect_styles_are_indexed_one_based() {
     let shadow = third.outer_shadow(&interner).expect("outer shadow");
     assert_eq!(shadow.blur_radius, Some(Emu::from_emu(40_000)));
     assert_eq!(shadow.distance, Some(Emu::from_emu(20_000)));
+    // The theme writes `<a:schemeClr val="phClr"><a:alpha val="63000"/></a:schemeClr>`, and the
+    // spec carries the transform (MJXOFF-219). It used to answer the bare scheme colour, which is
+    // the silent loss that ticket closed: the shadow is 63 % opaque and nothing said so.
     assert_eq!(
         shadow.color,
-        ColorSpec::Scheme(SchemeColor::PlaceholderColor)
+        ColorSpec::Scheme(SchemeColor::PlaceholderColor).with_alpha(Fraction::from_ratio(0.63))
+    );
+    assert_eq!(
+        shadow.color.base(),
+        &ColorSpec::Scheme(SchemeColor::PlaceholderColor)
     );
     // Out-of-range indices are absent, no panic.
     assert!(theme.effect_style(4).is_none());

@@ -16,9 +16,9 @@ use wasm_bindgen::prelude::*;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    BlendMode, ColorKind, ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType,
-    LineEndWidth, PatternType, PenAlignment, PictureFillMode, PresetLineDash, PresetShadow,
-    RectangleAlignment, SchemeColor,
+    BlendMode, ColorKind, ColorSchemeSlot, ColorTransformKind, CompoundLine, LineCap,
+    LineEndLength, LineEndType, LineEndWidth, PatternType, PenAlignment, PictureFillMode,
+    PresetLineDash, PresetShadow, RectangleAlignment, SchemeColor,
 };
 use crate::measures::{Angle, Emu, Fraction, LineWidth};
 
@@ -26,6 +26,10 @@ value_class! {
     /// A colour, as the document states it: six hex digits, a theme slot, or one of the other
     /// colour elements DrawingML defines.
     ColorSpec(ooxml::ColorSpec), derive(PartialEq);
+
+    /// One `EG_ColorTransform` child of a colour — a tint, a shade, a luminance modulation, or any
+    /// of the other twenty-five members of the group.
+    ColorTransform(ooxml::ColorTransform), derive(PartialEq);
 
     /// One stop on a gradient: where it sits, and what colour it is there.
     GradientStopSpec(ooxml::GradientStopSpec), derive(PartialEq);
@@ -105,20 +109,22 @@ impl ColorSpec {
         })
     }
 
-    /// Which kind of colour element this is.
+    /// Which kind of colour element this is. A colour carrying transforms answers for the colour
+    /// underneath them, because a theme colour with a `lumMod` on it is still a theme colour.
     #[wasm_bindgen(getter, js_name = "kind")]
     pub fn kind(&self) -> Result<ColorKind, JsValue> {
-        ColorKind::from_model(match &self.0 {
+        ColorKind::from_model(match self.0.base() {
             ooxml::ColorSpec::Srgb(_) => ooxml::ColorKind::Srgb,
             ooxml::ColorSpec::Scheme(_) => ooxml::ColorKind::Scheme,
             ooxml::ColorSpec::Other { kind, .. } => *kind,
+            ooxml::ColorSpec::Transformed { .. } => ooxml::ColorKind::Unknown,
         })
     }
 
     /// The six hex digits, when this is a literal colour.
     #[wasm_bindgen(getter, js_name = "srgbValue")]
     pub fn srgb_value(&self) -> Option<String> {
-        match &self.0 {
+        match self.0.base() {
             ooxml::ColorSpec::Srgb(hex) => Some(hex.clone()),
             _ => None,
         }
@@ -127,7 +133,7 @@ impl ColorSpec {
     /// The theme slot, when this is a theme colour.
     #[wasm_bindgen(getter, js_name = "schemeColor")]
     pub fn scheme_color(&self) -> Result<Option<SchemeColor>, JsValue> {
-        match &self.0 {
+        match self.0.base() {
             ooxml::ColorSpec::Scheme(color) => SchemeColor::from_model(*color).map(Some),
             _ => Ok(None),
         }
@@ -136,10 +142,129 @@ impl ColorSpec {
     /// The raw value of one of the other colour elements, when the document stated one.
     #[wasm_bindgen(getter, js_name = "value")]
     pub fn value(&self) -> Option<String> {
-        match &self.0 {
+        match self.0.base() {
             ooxml::ColorSpec::Other { value, .. } => value.clone(),
             _ => None,
         }
+    }
+
+    /// This colour without its transforms — itself, when it has none.
+    #[wasm_bindgen(getter, js_name = "base")]
+    pub fn base(&self) -> Self {
+        Self(self.0.base().clone())
+    }
+
+    /// The colour's transforms, in the order they are written and applied.
+    #[wasm_bindgen(getter, js_name = "transforms")]
+    pub fn transforms(&self) -> Vec<ColorTransform> {
+        self.0
+            .transforms()
+            .iter()
+            .cloned()
+            .map(ColorTransform)
+            .collect()
+    }
+
+    /// This colour with one more transform **appended**. Order is part of the markup, so this
+    /// appends rather than merges: the same transforms in another order are another colour.
+    #[wasm_bindgen(js_name = "withTransform")]
+    pub fn with_transform(&self, transform: &ColorTransform) -> Self {
+        Self(self.0.clone().with_transform(transform.0.clone()))
+    }
+
+    /// This colour with an `a:tint` appended — lightened toward white.
+    #[wasm_bindgen(js_name = "withTint")]
+    pub fn with_tint(&self, amount: &Fraction) -> Self {
+        Self(self.0.clone().with_tint(amount.0))
+    }
+
+    /// This colour with an `a:shade` appended — darkened toward black.
+    #[wasm_bindgen(js_name = "withShade")]
+    pub fn with_shade(&self, amount: &Fraction) -> Self {
+        Self(self.0.clone().with_shade(amount.0))
+    }
+
+    /// This colour with an `a:alpha` appended — its opacity set.
+    #[wasm_bindgen(js_name = "withAlpha")]
+    pub fn with_alpha(&self, amount: &Fraction) -> Self {
+        Self(self.0.clone().with_alpha(amount.0))
+    }
+
+    /// This colour with an `a:lumMod` appended — its luminance multiplied.
+    #[wasm_bindgen(js_name = "withLuminanceModulation")]
+    pub fn with_luminance_modulation(&self, amount: &Fraction) -> Self {
+        Self(self.0.clone().with_luminance_modulation(amount.0))
+    }
+
+    /// This colour with an `a:lumOff` appended — its luminance shifted.
+    #[wasm_bindgen(js_name = "withLuminanceOffset")]
+    pub fn with_luminance_offset(&self, amount: &Fraction) -> Self {
+        Self(self.0.clone().with_luminance_offset(amount.0))
+    }
+
+    /// This colour with an `a:satMod` appended — its saturation multiplied.
+    #[wasm_bindgen(js_name = "withSaturationModulation")]
+    pub fn with_saturation_modulation(&self, amount: &Fraction) -> Self {
+        Self(self.0.clone().with_saturation_modulation(amount.0))
+    }
+}
+
+#[wasm_bindgen]
+impl ColorTransform {
+    /// A percentage-valued transform — a tint, a shade, an alpha, a luminance modulation and the
+    /// seventeen others. `undefined` when `kind` names a member that carries no percentage.
+    #[wasm_bindgen(js_name = "percentage")]
+    pub fn percentage(kind: ColorTransformKind, value: &Fraction) -> Option<ColorTransform> {
+        ooxml::ColorTransform::from_percentage(kind.into(), value.0).map(ColorTransform)
+    }
+
+    /// An angle-valued transform — `Hue` or `HueOffset`. `undefined` for any other member.
+    #[wasm_bindgen(js_name = "angle")]
+    pub fn angle(kind: ColorTransformKind, value: &Angle) -> Option<ColorTransform> {
+        ooxml::ColorTransform::from_angle(kind.into(), value.0).map(ColorTransform)
+    }
+
+    /// A transform that carries no value at all — `Complement`, `Inverse`, `Grayscale`, `Gamma` or
+    /// `InverseGamma`. `undefined` for any member that carries one.
+    #[wasm_bindgen(js_name = "marker")]
+    pub fn marker(kind: ColorTransformKind) -> Option<ColorTransform> {
+        ooxml::ColorTransform::marker(kind.into()).map(ColorTransform)
+    }
+
+    /// A transform this build does not read, kept by element name and raw value so it round-trips.
+    #[wasm_bindgen(js_name = "other")]
+    pub fn other(name: &str, value: Option<String>) -> Self {
+        Self(ooxml::ColorTransform::other(name, value))
+    }
+
+    /// Which member of the group this is.
+    #[wasm_bindgen(getter, js_name = "kind")]
+    pub fn kind(&self) -> Result<ColorTransformKind, JsValue> {
+        ColorTransformKind::from_model(self.0.kind())
+    }
+
+    /// The element local name this transform writes, without its `a:` prefix.
+    #[wasm_bindgen(getter, js_name = "name")]
+    pub fn name(&self) -> String {
+        self.0.local_name().to_owned()
+    }
+
+    /// The percentage it carries, when it carries one.
+    #[wasm_bindgen(getter, js_name = "percentageValue")]
+    pub fn percentage_value(&self) -> Option<Fraction> {
+        self.0.percentage().map(Fraction)
+    }
+
+    /// The angle it carries, when it carries one.
+    #[wasm_bindgen(getter, js_name = "angleValue")]
+    pub fn angle_value(&self) -> Option<Angle> {
+        self.0.angle().map(Angle)
+    }
+
+    /// The raw `val` of a transform this build does not read.
+    #[wasm_bindgen(getter, js_name = "value")]
+    pub fn value(&self) -> Option<String> {
+        self.0.raw_value().map(str::to_owned)
     }
 }
 

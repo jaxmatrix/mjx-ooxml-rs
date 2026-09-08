@@ -1,4 +1,4 @@
-//! The hundred value enumerations, projected one variant at a time.
+//! The hundred and two value enumerations, projected one variant at a time.
 //!
 //! Every enumeration in the [`mjx_ooxml`] vocabulary that carries no payload becomes a TypeScript
 //! `enum` of the same name with the same members — `TextAlignment.Center`, not the string `"ctr"`.
@@ -242,6 +242,45 @@ sealed_enums! {
         Accent6,
         Hyperlink,
         FollowedHyperlink,
+    }
+    /// The projection of [`mjx_ooxml::ColorTransformKind`], whose documentation is authoritative.
+    ColorTransformKind {
+        Tint,
+        Shade,
+        Complement,
+        Inverse,
+        Grayscale,
+        Alpha,
+        AlphaOffset,
+        AlphaModulation,
+        Hue,
+        HueOffset,
+        HueModulation,
+        Saturation,
+        SaturationOffset,
+        SaturationModulation,
+        Luminance,
+        LuminanceOffset,
+        LuminanceModulation,
+        Red,
+        RedOffset,
+        RedModulation,
+        Green,
+        GreenOffset,
+        GreenModulation,
+        Blue,
+        BlueOffset,
+        BlueModulation,
+        Gamma,
+        InverseGamma,
+        Other,
+    }
+    /// The projection of [`mjx_ooxml::ColorTransformValue`], whose documentation is authoritative.
+    ColorTransformValue {
+        Percentage,
+        Angle,
+        Marker,
+        Raw,
     }
     /// The projection of [`mjx_ooxml::CompoundLine`], whose documentation is authoritative.
     CompoundLine {

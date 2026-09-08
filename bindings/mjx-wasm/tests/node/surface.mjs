@@ -6,11 +6,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { partPayloads } from "./zip.mjs";
+
 import {
   CellBorder,
   ChartData,
   ChartKind,
   ColorSpec,
+  ColorTransform,
+  ColorTransformKind,
   Deck,
   Emu,
   FillSpec,
@@ -22,6 +26,7 @@ import {
   LineSpec,
   LineWidth,
   PresetShapeType,
+  SchemeColor,
   ShapeBounds,
   ShapeGeometry,
   ShapeKind,
@@ -380,6 +385,158 @@ test("removing a deck chart binding is caught by this suite", () => {
       "chartDanglingDecoration",
     ]) {
       assert.equal(typeof deck[method], "function", `Deck.${method} is not bound`);
+    }
+  });
+});
+
+test("every colour transform in the group reaches TypeScript", () => {
+  // `EG_ColorTransform` has twenty-eight members and a wasm enumeration is a number in JavaScript,
+  // so the group arrives as `ColorTransformKind` plus three constructors that say what the member
+  // carries (MJXOFF-219). This asserts the join: every kind is built by exactly one of the three,
+  // and none of them invents a transform for a kind that does not take that value.
+  const kinds = Object.keys(ColorTransformKind)
+    .filter((name) => Number.isNaN(Number(name)) && name !== "Other")
+    .map((name) => ColorTransformKind[name]);
+  assert.equal(kinds.length, 28, "EG_ColorTransform has twenty-eight members");
+
+  for (const kind of kinds) {
+    const half = Fraction.of(0.5);
+    const thirty = Angle.fromDegrees(30.0);
+    const built = [
+      ColorTransform.percentage(kind, half),
+      ColorTransform.angle(kind, thirty),
+      ColorTransform.marker(kind),
+    ].filter((candidate) => candidate !== undefined);
+    half.free();
+    thirty.free();
+    assert.equal(built.length, 1, `kind ${kind} is built by ${built.length} constructors, not one`);
+    assert.equal(built[0].kind, kind);
+    assert.ok(built[0].name.length > 0, "every member names an element");
+    built[0].free();
+  }
+
+  // `Other` is not a member of the group: none of the three build it, and the bucket that does
+  // keeps the element name and the raw value a file carried.
+  const one = Fraction.of(1.0);
+  assert.equal(ColorTransform.percentage(ColorTransformKind.Other, one), undefined);
+  one.free();
+  assert.equal(ColorTransform.marker(ColorTransformKind.Other), undefined);
+  const kept = ColorTransform.other("futureTransform", "3");
+  assert.equal(kept.kind, ColorTransformKind.Other);
+  assert.equal(kept.name, "futureTransform");
+  assert.equal(kept.value, "3");
+  assert.equal(kept.percentageValue, undefined);
+  assert.equal(kept.angleValue, undefined);
+  kept.free();
+});
+
+test("a transformed colour is still the colour underneath", () => {
+  // The builders append and `base` sees through them (MJXOFF-219).
+  const accent = ColorSpec.scheme(SchemeColor.Accent1);
+  const sixty = Fraction.of(0.6);
+  const forty = Fraction.of(0.4);
+  const modulated = accent.withLuminanceModulation(sixty);
+  const lighter = modulated.withLuminanceOffset(forty);
+
+  const base = lighter.base;
+  assert.ok(base.equals(accent));
+  assert.equal(lighter.schemeColor, SchemeColor.Accent1);
+  base.free();
+
+  const transforms = lighter.transforms;
+  assert.deepEqual(
+    transforms.map((transform) => transform.kind),
+    [ColorTransformKind.LuminanceModulation, ColorTransformKind.LuminanceOffset],
+  );
+  const first = transforms[0].percentageValue;
+  assert.ok(Math.abs(first.ratio - 0.6) < 1e-9);
+  first.free();
+  for (const transform of transforms) {
+    transform.free();
+  }
+
+  // Order is part of the markup: the same two transforms the other way round are another colour.
+  const offsetFirst = accent.withLuminanceOffset(forty);
+  const reversed = offsetFirst.withLuminanceModulation(sixty);
+  assert.equal(reversed.equals(lighter), false);
+  assert.equal(accent.transforms.length, 0);
+
+  // The generic builder reaches what the six conveniences do not — including the four
+  // `V-PPTX-02.4` names, none of which any convenience covers.
+  const literal = ColorSpec.srgb("4472C4");
+  const gamma = ColorTransform.marker(ColorTransformKind.InverseGamma);
+  const inverted = literal.withTransform(gamma);
+  assert.equal(inverted.srgbValue, "4472C4");
+  const invertedTransforms = inverted.transforms;
+  assert.deepEqual(
+    invertedTransforms.map((transform) => transform.kind),
+    [ColorTransformKind.InverseGamma],
+  );
+  for (const transform of invertedTransforms) {
+    transform.free();
+  }
+
+  const thirty = Angle.fromDegrees(30.0);
+  const hueOffset = ColorTransform.angle(ColorTransformKind.HueOffset, thirty);
+  const turned = literal.withTransform(hueOffset);
+  const [only] = turned.transforms;
+  const degrees = only.angleValue;
+  assert.ok(Math.abs(degrees.degrees - 30.0) < 1e-6);
+  degrees.free();
+  only.free();
+
+  for (const owned of [
+    accent,
+    sixty,
+    forty,
+    modulated,
+    lighter,
+    offsetFirst,
+    reversed,
+    literal,
+    gamma,
+    inverted,
+    thirty,
+    hueOffset,
+    turned,
+  ]) {
+    owned.free();
+  }
+});
+
+test("a colour transform reaches the file and comes back", () => {
+  // The surface is not decorative: a transform authored through the facade is in the saved part,
+  // and reading the deck back answers it (MJXOFF-219).
+  withDeck((deck) => {
+    const bounds = ShapeBounds.fromInches(1, 1, 2, 2);
+    const shape = deck.addShape(0, PresetShapeType.Rectangle, bounds);
+    bounds.free();
+
+    const accent = ColorSpec.scheme(SchemeColor.Accent1);
+    const half = Fraction.of(0.5);
+    const tinted = accent.withTint(half);
+    const fill = FillSpec.solid(tinted);
+    deck.setShapeFill(0, shape, fill);
+    for (const owned of [accent, half, tinted, fill]) {
+      owned.free();
+    }
+
+    const parts = partPayloads(deck.save());
+    const slide = parts["ppt/slides/slide1.xml"].toString("utf8");
+    assert.ok(
+      slide.includes('<a:schemeClr val="accent1"><a:tint val="50000"/></a:schemeClr>'),
+      "the authored tint is in the saved slide",
+    );
+
+    const read = deck.shapeFill(0, shape);
+    const color = read.color;
+    const transforms = color.transforms;
+    assert.deepEqual(
+      transforms.map((transform) => transform.kind),
+      [ColorTransformKind.Tint],
+    );
+    for (const owned of [...transforms, color, read]) {
+      owned.free();
     }
   });
 });
