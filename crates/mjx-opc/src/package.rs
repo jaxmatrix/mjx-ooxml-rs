@@ -16,7 +16,16 @@
 //! original bytes are dropped and `save` re-serializes the tree with the byte-preserving fidelity
 //! writer. Content types and relationships are edited only through the dedicated helpers, which keep
 //! the control parts' trees and the parsed navigation views in lock-step.
+//!
+//! **Three states, three questions.** Because the third state has no stored bytes,
+//! [`Package::part_bytes`] answers `None` for a part that is dirty as readily as for one that is not
+//! there, and a caller that reads that as one answer is wrong about a part it has itself just
+//! edited. So each question has its own call: [`Package::contains_part`] for presence,
+//! [`Package::part_payload`] for content, and `part_bytes` only for the narrow fidelity question of
+//! whether a part still carries the bytes it arrived with. MJXOFF-222 is what conflating the first
+//! two cost.
 
+use std::borrow::Cow;
 use std::io::{Cursor, Read, Write};
 use std::mem;
 use std::sync::Arc;
@@ -427,17 +436,69 @@ impl Package {
             .filter_map(|e| PartName::from_zip_name(&e.name).ok())
     }
 
-    /// Looks up a part's decompressed bytes by its part name.
+    /// Looks up a part's **stored** decompressed bytes by its part name.
     ///
     /// Returns `None` if the part is absent or has been edited (an [`Edited`](PartBody::Edited) body
     /// has no materialized bytes — read it via [`Package::part_tree`] instead).
+    ///
+    /// # This is the storage question, and it is almost never the one a caller means
+    ///
+    /// `None` here means *two* things — "no such part" and "that part is dirty" — and a caller that
+    /// reads it as one is wrong about a part it has itself just edited. Ask instead:
+    ///
+    /// | The question | The call |
+    /// |---|---|
+    /// | is this part in the package? | [`contains_part`](Self::contains_part) |
+    /// | what does this part contain? | [`part_payload`](Self::part_payload) |
+    /// | does this part still have the bytes it arrived with? | this |
+    ///
+    /// Only the third is this one, and only a caller reasoning about *fidelity* — a round-trip
+    /// suite, a provenance check — wants it. MJXOFF-222 is what the other two readings cost: two
+    /// `from_package` constructors reported a main part missing the moment it was edited.
     #[must_use]
     pub fn part_bytes(&self, part: &PartName) -> Option<&[u8]> {
+        self.entry_named(part).and_then(ZipEntry::bytes)
+    }
+
+    /// Whether the package holds a part with this name, **whatever state its body is in**.
+    ///
+    /// The presence question, asked without materializing anything: `true` for a
+    /// [`Raw`](PartBody::Raw), a [`Parsed`](PartBody::Parsed) *and* an [`Edited`](PartBody::Edited)
+    /// body alike. [`part_bytes`](Self::part_bytes) cannot answer it — it says `None` for a dirty
+    /// part as readily as for an absent one — and neither can a scan of
+    /// [`part_names`](Self::part_names) without allocating a name per entry.
+    #[must_use]
+    pub fn contains_part(&self, part: &PartName) -> bool {
+        self.entry_named(part).is_some()
+    }
+
+    /// A part's payload **as it stands**, whatever copy-on-write state its body is in.
+    ///
+    /// The content question. Borrowed for a part that still holds its bytes — a `Raw` or a `Parsed`
+    /// body, which is every part of a file nobody has edited, so the ordinary case still costs no
+    /// copy. Serialized on the spot for an [`Edited`](PartBody::Edited) one, through the same
+    /// fidelity writer [`save`](Self::save) uses, so what comes back is byte for byte what saving
+    /// now would write.
+    ///
+    /// `None` means one thing only: the package holds no such part.
+    #[must_use]
+    pub fn part_payload(&self, part: &PartName) -> Option<Cow<'_, [u8]>> {
+        let entry = self.entry_named(part)?;
+        match entry.bytes() {
+            Some(bytes) => Some(Cow::Borrowed(bytes)),
+            // An `Edited` body always has a tree; the `None` arm is unreachable rather than a
+            // fallback, and answering `None` there would put back the conflation this method exists
+            // to remove.
+            None => entry
+                .tree()
+                .map(|tree| Cow::Owned(fidelity::serialize_to_vec(tree))),
+        }
+    }
+
+    /// The entry a part name addresses, by the ZIP name it spells.
+    fn entry_named(&self, part: &PartName) -> Option<&ZipEntry> {
         let zip_name = part.zip_name();
-        self.entries
-            .iter()
-            .find(|e| e.name == zip_name)
-            .and_then(ZipEntry::bytes)
+        self.entries.iter().find(|e| e.name == zip_name)
     }
 
     /// Borrows a part's fidelity tree for **reading**, parsing and caching it on first access.
