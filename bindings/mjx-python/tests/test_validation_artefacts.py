@@ -47,6 +47,8 @@ from mjx_ooxml import (
     ChartWrap,
     Color,
     ColorSpec,
+    ColorTransform,
+    ColorTransformKind,
     ConnectionSite,
     CustomGeometrySpec,
     DataLabelPosition,
@@ -264,7 +266,67 @@ def v_pptx_02() -> bytes:
             ),
         ),
     )
+    _write_colour_transform_areas(deck, slide)
     return deck.save()
+
+
+
+def _write_colour_transform_areas(deck: Deck, surface: int) -> None:
+    """`V-PPTX-02.4` — the swatches the human Office pass needs, in the order the Rust catalogue
+    writes them (`xtask/src/validation/presentation.rs`). The top row is the four transforms the
+    entry names plus `a:inv`, over a fixed `4472C4`; the bottom row is what a real file actually
+    contains, over the theme's accent 1. The first swatch in each row carries no transform and is
+    that row's baseline.
+    """
+    base = ColorSpec.srgb("4472C4")
+    accent = ColorSpec.scheme(SchemeColor.Accent1)
+    half = Fraction.of(0.5)
+    rows: list[tuple[float, list[tuple[str, ColorSpec]]]] = [
+        (
+            2.4,
+            [
+                ("4472C4", base),
+                ("comp", base.with_transform(_marker(ColorTransformKind.Complement))),
+                ("gray", base.with_transform(_marker(ColorTransformKind.Grayscale))),
+                ("gamma", base.with_transform(_marker(ColorTransformKind.Gamma))),
+                ("invGamma", base.with_transform(_marker(ColorTransformKind.InverseGamma))),
+                ("inv", base.with_transform(_marker(ColorTransformKind.Inverse))),
+            ],
+        ),
+        (
+            4.2,
+            [
+                ("accent 1", accent),
+                ("tint 50%", accent.with_tint(half)),
+                ("shade 50%", accent.with_shade(half)),
+                ("satMod 150%", accent.with_saturation_modulation(Fraction.of(1.5))),
+                (
+                    "lumMod 60% + lumOff 40%",
+                    accent.with_luminance_modulation(Fraction.of(0.6)).with_luminance_offset(
+                        Fraction.of(0.4)
+                    ),
+                ),
+                ("alpha 50%", accent.with_alpha(half)),
+            ],
+        ),
+    ]
+    for top, swatches in rows:
+        for column, (label, color) in enumerate(swatches):
+            swatch = deck.add_shape(
+                surface,
+                PresetShapeType.Rectangle,
+                ShapeBounds.from_inches(0.35 + 2.12 * column, top, 2.0, 1.3),
+            )
+            deck.set_shape_fill(surface, swatch, FillSpec.solid(color))
+            deck.set_shape_text_content(surface, swatch, label)
+            deck.effective_shape_fill(surface, swatch)
+
+
+def _marker(kind: ColorTransformKind) -> ColorTransform:
+    """A valueless transform, or a failure here rather than a silently plain colour in the file."""
+    transform = ColorTransform.marker(kind)
+    assert transform is not None, f"{kind} is a valueless member"
+    return transform
 
 
 def v_pptx_03() -> bytes:

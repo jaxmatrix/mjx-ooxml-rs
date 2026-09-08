@@ -230,6 +230,49 @@ class ColorSchemeSlot:
     def __int__(self) -> int: ...
 
 @final
+class ColorTransformKind:
+    """The projection of [`mjx_ooxml::ColorTransformKind`], whose documentation is authoritative."""
+    Tint: ColorTransformKind
+    Shade: ColorTransformKind
+    Complement: ColorTransformKind
+    Inverse: ColorTransformKind
+    Grayscale: ColorTransformKind
+    Alpha: ColorTransformKind
+    AlphaOffset: ColorTransformKind
+    AlphaModulation: ColorTransformKind
+    Hue: ColorTransformKind
+    HueOffset: ColorTransformKind
+    HueModulation: ColorTransformKind
+    Saturation: ColorTransformKind
+    SaturationOffset: ColorTransformKind
+    SaturationModulation: ColorTransformKind
+    Luminance: ColorTransformKind
+    LuminanceOffset: ColorTransformKind
+    LuminanceModulation: ColorTransformKind
+    Red: ColorTransformKind
+    RedOffset: ColorTransformKind
+    RedModulation: ColorTransformKind
+    Green: ColorTransformKind
+    GreenOffset: ColorTransformKind
+    GreenModulation: ColorTransformKind
+    Blue: ColorTransformKind
+    BlueOffset: ColorTransformKind
+    BlueModulation: ColorTransformKind
+    Gamma: ColorTransformKind
+    InverseGamma: ColorTransformKind
+    Other: ColorTransformKind
+    def __int__(self) -> int: ...
+
+@final
+class ColorTransformValue:
+    """The projection of [`mjx_ooxml::ColorTransformValue`], whose documentation is authoritative."""
+    Percentage: ColorTransformValue
+    Angle: ColorTransformValue
+    Marker: ColorTransformValue
+    Raw: ColorTransformValue
+    def __int__(self) -> int: ...
+
+@final
 class CompoundLine:
     """The projection of [`mjx_ooxml::CompoundLine`], whose documentation is authoritative."""
     Single: CompoundLine
@@ -4818,13 +4861,80 @@ class ColorSpec:
         """
         ...
     kind: ColorKind
-    """Which kind of colour element this is."""
+    """Which kind of colour element this is. A colour carrying transforms answers for the colour
+    underneath them, because a theme colour with a `lumMod` on it is still a theme colour.
+    """
     srgb_value: str | None
     """The six hex digits, when this is a literal colour."""
     scheme_color: SchemeColor | None
     """The theme slot, when this is a theme colour."""
     value: str | None
     """The raw value of one of the other colour elements, when the document stated one."""
+    base: "ColorSpec"
+    """This colour without its transforms — itself, when it has none."""
+    transforms: list[ColorTransform]
+    """The colour's transforms, in the order they are written and applied."""
+    def with_transform(self, transform: ColorTransform) -> "ColorSpec":
+        """This colour with one more transform **appended**. Order is part of the markup, so this
+        appends rather than merges: the same transforms in another order are another colour.
+        """
+        ...
+    def with_tint(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:tint` appended — lightened toward white."""
+        ...
+    def with_shade(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:shade` appended — darkened toward black."""
+        ...
+    def with_alpha(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:alpha` appended — its opacity set."""
+        ...
+    def with_luminance_modulation(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:lumMod` appended — its luminance multiplied."""
+        ...
+    def with_luminance_offset(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:lumOff` appended — its luminance shifted."""
+        ...
+    def with_saturation_modulation(self, amount: Fraction) -> "ColorSpec":
+        """This colour with an `a:satMod` appended — its saturation multiplied."""
+        ...
+
+@final
+class ColorTransform:
+    """One `EG_ColorTransform` child of a colour — a tint, a shade, a luminance modulation, or any
+    of the other twenty-five members of the group.
+    """
+    @staticmethod
+    def percentage(kind: ColorTransformKind, value: Fraction) -> "ColorTransform | None":
+        """A percentage-valued transform — a tint, a shade, an alpha, a luminance modulation and
+        the seventeen others. `None` when `kind` names a member that carries no percentage.
+        """
+        ...
+    @staticmethod
+    def angle(kind: ColorTransformKind, value: Angle) -> "ColorTransform | None":
+        """An angle-valued transform — `hue` or `hue_offset`. `None` for any other member."""
+        ...
+    @staticmethod
+    def marker(kind: ColorTransformKind) -> "ColorTransform | None":
+        """A transform that carries no value at all — `complement`, `inverse`, `grayscale`,
+        `gamma` or `inverse_gamma`. `None` for any member that carries one.
+        """
+        ...
+    @staticmethod
+    def other(name: str, value: str | None = ...) -> "ColorTransform":
+        """A transform this build does not read, kept by element name and raw value so it
+        round-trips.
+        """
+        ...
+    kind: ColorTransformKind
+    """Which member of the group this is."""
+    name: str
+    """The element local name this transform writes, without its `a:` prefix."""
+    percentage_value: Fraction | None
+    """The percentage it carries, when it carries one."""
+    angle_value: Angle | None
+    """The angle it carries, when it carries one."""
+    value: str | None
+    """The raw `val` of a transform this build does not read."""
 
 @final
 class GradientStopSpec:

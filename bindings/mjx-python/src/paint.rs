@@ -17,9 +17,9 @@ use pyo3::types::PyModule;
 use mjx_ooxml as ooxml;
 
 use crate::enums::{
-    BlendMode, ColorKind, ColorSchemeSlot, CompoundLine, LineCap, LineEndLength, LineEndType,
-    LineEndWidth, PatternType, PenAlignment, PictureFillMode, PresetLineDash, PresetShadow,
-    RectangleAlignment, SchemeColor,
+    BlendMode, ColorKind, ColorSchemeSlot, ColorTransformKind, CompoundLine, LineCap,
+    LineEndLength, LineEndType, LineEndWidth, PatternType, PenAlignment, PictureFillMode,
+    PresetLineDash, PresetShadow, RectangleAlignment, SchemeColor,
 };
 use crate::measures::{Angle, Emu, Fraction, LineWidth};
 
@@ -27,6 +27,10 @@ value_class! {
     /// A colour, as the document states it: six hex digits, a theme slot, or one of the other
     /// colour elements DrawingML defines.
     ColorSpec(ooxml::ColorSpec), derive(PartialEq);
+
+    /// One `EG_ColorTransform` child of a colour — a tint, a shade, a luminance modulation, or any
+    /// of the other twenty-five members of the group.
+    ColorTransform(ooxml::ColorTransform), derive(PartialEq);
 
     /// One stop on a gradient: where it sits, and what colour it is there.
     GradientStopSpec(ooxml::GradientStopSpec), derive(PartialEq);
@@ -110,20 +114,22 @@ impl ColorSpec {
         })
     }
 
-    /// Which kind of colour element this is.
+    /// Which kind of colour element this is. A colour carrying transforms answers for the colour
+    /// underneath them, because a theme colour with a `lumMod` on it is still a theme colour.
     #[getter]
     fn kind(&self) -> PyResult<ColorKind> {
-        ColorKind::from_model(match &self.0 {
+        ColorKind::from_model(match self.0.base() {
             ooxml::ColorSpec::Srgb(_) => ooxml::ColorKind::Srgb,
             ooxml::ColorSpec::Scheme(_) => ooxml::ColorKind::Scheme,
             ooxml::ColorSpec::Other { kind, .. } => *kind,
+            ooxml::ColorSpec::Transformed { .. } => ooxml::ColorKind::Unknown,
         })
     }
 
     /// The six hex digits, when this is a literal colour.
     #[getter]
     fn srgb_value(&self) -> Option<&str> {
-        match &self.0 {
+        match self.0.base() {
             ooxml::ColorSpec::Srgb(hex) => Some(hex),
             _ => None,
         }
@@ -132,7 +138,7 @@ impl ColorSpec {
     /// The theme slot, when this is a theme colour.
     #[getter]
     fn scheme_color(&self) -> PyResult<Option<SchemeColor>> {
-        match &self.0 {
+        match self.0.base() {
             ooxml::ColorSpec::Scheme(color) => SchemeColor::from_model(*color).map(Some),
             _ => Ok(None),
         }
@@ -141,10 +147,131 @@ impl ColorSpec {
     /// The raw value of one of the other colour elements, when the document stated one.
     #[getter]
     fn value(&self) -> Option<&str> {
-        match &self.0 {
+        match self.0.base() {
             ooxml::ColorSpec::Other { value, .. } => value.as_deref(),
             _ => None,
         }
+    }
+
+    /// This colour without its transforms — itself, when it has none.
+    #[getter]
+    fn base(&self) -> Self {
+        Self(self.0.base().clone())
+    }
+
+    /// The colour's transforms, in the order they are written and applied.
+    #[getter]
+    fn transforms(&self) -> Vec<ColorTransform> {
+        self.0
+            .transforms()
+            .iter()
+            .cloned()
+            .map(ColorTransform)
+            .collect()
+    }
+
+    /// This colour with one more transform **appended**. Order is part of the markup, so this
+    /// appends rather than merges: the same transforms in another order are another colour.
+    fn with_transform(&self, transform: &ColorTransform) -> Self {
+        Self(self.0.clone().with_transform(transform.0.clone()))
+    }
+
+    /// This colour with an `a:tint` appended — lightened toward white.
+    fn with_tint(&self, amount: Fraction) -> Self {
+        Self(self.0.clone().with_tint(amount.0))
+    }
+
+    /// This colour with an `a:shade` appended — darkened toward black.
+    fn with_shade(&self, amount: Fraction) -> Self {
+        Self(self.0.clone().with_shade(amount.0))
+    }
+
+    /// This colour with an `a:alpha` appended — its opacity set.
+    fn with_alpha(&self, amount: Fraction) -> Self {
+        Self(self.0.clone().with_alpha(amount.0))
+    }
+
+    /// This colour with an `a:lumMod` appended — its luminance multiplied.
+    fn with_luminance_modulation(&self, amount: Fraction) -> Self {
+        Self(self.0.clone().with_luminance_modulation(amount.0))
+    }
+
+    /// This colour with an `a:lumOff` appended — its luminance shifted.
+    fn with_luminance_offset(&self, amount: Fraction) -> Self {
+        Self(self.0.clone().with_luminance_offset(amount.0))
+    }
+
+    /// This colour with an `a:satMod` appended — its saturation multiplied.
+    fn with_saturation_modulation(&self, amount: Fraction) -> Self {
+        Self(self.0.clone().with_saturation_modulation(amount.0))
+    }
+
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+
+    fn __eq__(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+#[pymethods]
+impl ColorTransform {
+    /// A percentage-valued transform — a tint, a shade, an alpha, a luminance modulation and the
+    /// seventeen others. `None` when `kind` names a member that carries no percentage.
+    #[staticmethod]
+    fn percentage(kind: ColorTransformKind, value: Fraction) -> Option<Self> {
+        ooxml::ColorTransform::from_percentage(kind.into(), value.0).map(Self)
+    }
+
+    /// An angle-valued transform — `hue` or `hue_offset`. `None` for any other member.
+    #[staticmethod]
+    fn angle(kind: ColorTransformKind, value: Angle) -> Option<Self> {
+        ooxml::ColorTransform::from_angle(kind.into(), value.0).map(Self)
+    }
+
+    /// A transform that carries no value at all — `complement`, `inverse`, `grayscale`, `gamma` or
+    /// `inverse_gamma`. `None` for any member that carries one.
+    #[staticmethod]
+    fn marker(kind: ColorTransformKind) -> Option<Self> {
+        ooxml::ColorTransform::marker(kind.into()).map(Self)
+    }
+
+    /// A transform this build does not read, kept by element name and raw value so it round-trips.
+    #[staticmethod]
+    #[pyo3(signature = (name, value = None))]
+    fn other(name: &str, value: Option<String>) -> Self {
+        Self(ooxml::ColorTransform::other(name, value))
+    }
+
+    /// Which member of the group this is.
+    #[getter]
+    fn kind(&self) -> PyResult<ColorTransformKind> {
+        ColorTransformKind::from_model(self.0.kind())
+    }
+
+    /// The element local name this transform writes, without its `a:` prefix.
+    #[getter]
+    fn name(&self) -> &str {
+        self.0.local_name()
+    }
+
+    /// The percentage it carries, when it carries one.
+    #[getter]
+    fn percentage_value(&self) -> Option<Fraction> {
+        self.0.percentage().map(Fraction)
+    }
+
+    /// The angle it carries, when it carries one.
+    #[getter]
+    fn angle_value(&self) -> Option<Angle> {
+        self.0.angle().map(Angle)
+    }
+
+    /// The raw `val` of a transform this build does not read.
+    #[getter]
+    fn value(&self) -> Option<&str> {
+        self.0.raw_value()
     }
 
     fn __repr__(&self) -> String {
@@ -1481,6 +1608,7 @@ impl EffectListSpec {
 /// Adds every class in this module to the extension module.
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ColorSpec>()?;
+    module.add_class::<ColorTransform>()?;
     module.add_class::<ColorMap>()?;
     module.add_class::<ResolvedColor>()?;
     module.add_class::<GradientStopSpec>()?;

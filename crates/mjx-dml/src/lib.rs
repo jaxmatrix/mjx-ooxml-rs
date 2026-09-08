@@ -29,6 +29,7 @@
 pub(crate) mod build;
 pub mod codec;
 pub mod color;
+pub mod color_transform;
 pub mod diagram;
 pub mod effect;
 pub mod fill;
@@ -49,6 +50,7 @@ pub mod theme;
 pub mod wordprocessing_drawing;
 
 pub use color::{Color, ColorKind, ColorSpec, SchemeColor};
+pub use color_transform::{ColorTransform, ColorTransformKind, ColorTransformValue};
 pub use effect::{
     BlendMode, BlurEffect, EffectList, EffectListSpec, FillOverlayEffect, GlowEffect,
     InnerShadowEffect, OuterShadowEffect, PresetShadow, PresetShadowEffect, RectangleAlignment,

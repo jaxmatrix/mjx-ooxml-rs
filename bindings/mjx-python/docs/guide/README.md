@@ -34,8 +34,8 @@ approximation and not a promise: they are read off the two committed contracts �
 compiled module in both directions, and the `mjx_ooxml.d.ts` that `bindings/mjx-wasm/build-npm.sh`
 emits, whose only extra member per class is `wasm-bindgen`'s own `free()`.
 
-Beside the handles sit **185 value classes** — `ShapeBounds`, `ColorSpec`, `FillSpec`,
-`CellWrite`, `ChartData`, `CellFormatSpec` and the rest — and **100 enumerations**, and both bindings
+Beside the handles sit **186 value classes** — `ShapeBounds`, `ColorSpec`, `FillSpec`,
+`CellWrite`, `ChartData`, `CellFormatSpec` and the rest — and **102 enumerations**, and both bindings
 export exactly the same ones. Only three names differ between the two exports, and every one is
 forced: Python adds the eleven exception subclasses of `OoxmlError` because `except` selects on a
 class there, and TypeScript adds `CellExtent` and `CellAddress` because `wasm-bindgen` cannot return

@@ -14,13 +14,14 @@ use anyhow::{Context, Result};
 use mjx_ooxml::{
     AdjustAngle, AdjustCoordinate, Angle, AxisOrientation, CellBorder, CellFormat, CellMargins,
     Cells, CharacterPropertiesSpec, ChartData, ChartKind, ChartLabelScope, ColorSpec,
-    ConnectionSite, CustomGeometrySpec, DataLabelPosition, DataLabelSpec, Deck, DrawCommand,
-    EffectListSpec, Emu, ErrorBarDirection, ErrorBarSpec, ErrorBarType, ErrorValueType, FillSpec,
-    Fraction, Geometry, GlowEffect, GradientStopSpec, GuideContext, GuideSpec, Hyperlink,
-    LegendPosition, LineSpec, LineWidth, OuterShadowEffect, ParagraphPropertiesSpec, Path2DSpec,
-    PictureFillMode, Point, PresetShapeType, Rectangle, SchemeColor, ShapeBounds, SlideSize,
-    Surface, TableStyleBorder, TableStyleFormat, TableStylePart, TextAlignment, TextAnchoring,
-    Transform2D, TrendlineKind, TrendlineSpec, DEFAULT_PLACEHOLDER_IMAGE,
+    ColorTransform, ConnectionSite, CustomGeometrySpec, DataLabelPosition, DataLabelSpec, Deck,
+    DrawCommand, EffectListSpec, Emu, ErrorBarDirection, ErrorBarSpec, ErrorBarType,
+    ErrorValueType, FillSpec, Fraction, Geometry, GlowEffect, GradientStopSpec, GuideContext,
+    GuideSpec, Hyperlink, LegendPosition, LineSpec, LineWidth, OuterShadowEffect,
+    ParagraphPropertiesSpec, Path2DSpec, PictureFillMode, Point, PresetShapeType, Rectangle,
+    SchemeColor, ShapeBounds, SlideSize, Surface, TableStyleBorder, TableStyleFormat,
+    TableStylePart, TextAlignment, TextAnchoring, Transform2D, TrendlineKind, TrendlineSpec,
+    DEFAULT_PLACEHOLDER_IMAGE,
 };
 
 /// A deck with one slide, ready for an area to fill.
@@ -195,6 +196,96 @@ fn write_shape_areas(deck: &mut Deck, surface: Surface) -> Result<()> {
             ..EffectListSpec::new()
         },
     )?;
+    write_colour_transform_areas(deck, surface)?;
+    Ok(())
+}
+
+/// The two rows of swatches `V-PPTX-02.4` needs, and the reason that entry had no artefact until
+/// MJXOFF-219: before it, `ColorSpec` carried a colour's kind and value and no transform children,
+/// so **no facade call could author a colour transform at all** — and no committed fixture has one
+/// either, because every fixture here was written by this project or by LibreOffice rather than by
+/// Office. Both halves of the corpus were closed at once.
+///
+/// Read the two rows against each other. The **top** row is the four transforms `V-PPTX-02.4`
+/// names, plus `a:inv`, over a fixed `4472C4`; `crates/mjx-dml/src/resolve.rs` says in as many
+/// words that these follow *a documented interpretation* and are **not** guaranteed pixel-identical
+/// to Office, which is exactly why R3 is the third-highest risk item in this repository and why the
+/// eyedropper is the only instrument that can settle it. The **bottom** row is what a real file
+/// actually contains — `tint`, `shade`, `satMod`, and the `lumMod`/`lumOff` pair PowerPoint writes
+/// for every "Accent 1, Lighter 40 %" — over the theme's accent 1, so a reviewer can check the
+/// common cases in the same pass as the rare ones. The first swatch in each row carries **no**
+/// transform, and is the baseline every other swatch in that row is compared against.
+fn write_colour_transform_areas(deck: &mut Deck, surface: Surface) -> Result<()> {
+    let base = ColorSpec::Srgb("4472C4".into());
+    let accent = ColorSpec::Scheme(SchemeColor::Accent1);
+    let half = Fraction::from_ratio(0.5);
+    let rows: [(f64, [(&str, ColorSpec); 6]); 2] = [
+        (
+            2.4,
+            [
+                ("4472C4", base.clone()),
+                (
+                    "comp",
+                    base.clone().with_transform(ColorTransform::Complement),
+                ),
+                (
+                    "gray",
+                    base.clone().with_transform(ColorTransform::Grayscale),
+                ),
+                ("gamma", base.clone().with_transform(ColorTransform::Gamma)),
+                (
+                    "invGamma",
+                    base.clone().with_transform(ColorTransform::InverseGamma),
+                ),
+                ("inv", base.with_transform(ColorTransform::Inverse)),
+            ],
+        ),
+        (
+            4.2,
+            [
+                ("accent 1", accent.clone()),
+                ("tint 50%", accent.clone().with_tint(half)),
+                ("shade 50%", accent.clone().with_shade(half)),
+                (
+                    "satMod 150%",
+                    accent
+                        .clone()
+                        .with_saturation_modulation(Fraction::from_ratio(1.5)),
+                ),
+                (
+                    "lumMod 60% + lumOff 40%",
+                    accent
+                        .clone()
+                        .with_luminance_modulation(Fraction::from_ratio(0.6))
+                        .with_luminance_offset(Fraction::from_ratio(0.4)),
+                ),
+                ("alpha 50%", accent.with_alpha(half)),
+            ],
+        ),
+    ];
+
+    for (top, swatches) in rows {
+        for (column, (label, color)) in swatches.into_iter().enumerate() {
+            let left = 0.35 + 2.12 * f64::from(u8::try_from(column)?);
+            let swatch = deck
+                .add_shape(
+                    surface,
+                    PresetShapeType::Rectangle,
+                    ShapeBounds::from_inches(left, top, 2.0, 1.3),
+                )
+                .context("transform swatch")?;
+            deck.set_shape_fill(surface, swatch.into(), &FillSpec::solid(color))
+                .context("transform swatch fill")?;
+            deck.set_shape_text_content(surface, swatch.into(), label)
+                .context("transform swatch label")?;
+            // The read-back is not an assertion about Office; it is what puts this library's own
+            // answer in the harness output, so the reviewer knows what to compare the eyedropper
+            // against before opening the file. `V-PPTX-02.4` names this exact call.
+            let _resolved = deck
+                .effective_shape_fill(surface, swatch.into())
+                .context("effective shape fill")?;
+        }
+    }
     Ok(())
 }
 

@@ -28,7 +28,7 @@ What changes is the *shape* a Python caller expects, and none of it is a rename:
 
 A `snake_case` API is an immediate smell to a TypeScript consumer, so every exported name reaches
 JavaScript in camelCase. `CLAUDE.md` describes this as *"an explicit `js_name` on every one"*, and
-that is not quite what the code does: of the **1,743** functions `wasm-bindgen` exports, **1,605**
+that is not quite what the code does: of the **1,761** functions `wasm-bindgen` exports, **1,623**
 carry an explicit `js_name` and **138** carry none — every one of the 138 being a single word, where
 snake case and camel case are the same string. The surface is camelCase throughout either way.
 
@@ -105,7 +105,7 @@ Both carry the same information, and `bindings/mjx-python/tests/test_errors.py` 
 ## Nothing else differs
 
 That is the whole list, and it is checkable rather than asserted. The two bindings export the same
-185 value classes and the same 100 enumerations; `Deck`, `Document` and `Workbook` carry 255, 123 and
+186 value classes and the same 102 enumerations; `Deck`, `Document` and `Workbook` carry 255, 123 and
 138 methods **in both languages, method for method**, read off
 `bindings/mjx-python/python/mjx_ooxml/__init__.pyi` and the generated `mjx_ooxml.d.ts` rather than
 off either binding's source.
