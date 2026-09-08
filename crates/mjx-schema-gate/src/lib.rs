@@ -44,6 +44,7 @@ pub mod order;
 pub mod references;
 pub mod sweep;
 pub mod tolerances;
+pub mod wildcard_slots;
 
 pub use categories::{
     categorise, child_order_tables_cover, ecma_376_namespaces, schema_for_namespace,
@@ -71,6 +72,9 @@ pub use references::{
 };
 pub use sweep::{assert_authored_parts_are_categorised, Sweep};
 pub use tolerances::{tolerances_for, ToleratedDeviation, TOLERATED_DEVIATIONS};
+pub use wildcard_slots::{
+    derive_wildcard_slots, is_wildcard_slot, DerivedWildcardSlot, WildcardSlot, WILDCARD_SLOTS,
+};
 
 /// Validates a committed fixture, allowing only the deviations [`TOLERATED_DEVIATIONS`] records for
 /// it, and returns its per-part rows so a caller can assert on them.

@@ -182,18 +182,23 @@ jobs:
       - name: schema-validity suite (Word and Excel)
         run: cargo test -p mjx-docx -p mjx-xlsx -p mjx-schema-gate
 
-      # The validation harness and the Office-authored corpus. Both reach the gate, and both had
-      # their schema halves **skipping in every CI run** before this step existed: they live in
-      # `xtask/tests/`, which only `lint-test` ran, and `lint-test` has no `References/`. So
+      # The validation harness, the Office-authored corpus and the MCE/CT_Extension seam. All three
+      # reach the gate, and the first two had their schema halves **skipping in every CI run**
+      # before this step existed: they live in `xtask/tests/`, which only `lint-test` ran, and
+      # `lint-test` has no `References/`. So
       # `every_generated_artefact_is_schema_valid_and_in_child_order` validated nothing on CI, and
       # the MCE/CT_Extension reproduction (MJXOFF-196) returned early. That is precisely the
       # "green because it was skipped" shape this file's other jobs are written against.
       #
+      # `mce_extension_seam` replaced that reproduction when MJXOFF-196 was fixed, and it is named
+      # here for the same reason: without `References/` its two package cases assert child order
+      # alone and prove nothing about the schema.
+      #
       # MJX_REQUIRE_OFFICE_CORPUS is deliberately NOT set: the corpus is empty and no agent may fill
       # it. Set it here once `tests/office-authored/` has files, and an empty corpus becomes a
       # failure rather than a reported count.
-      - name: schema-validity suite (the validation harness and the Office corpus)
-        run: cargo test -p xtask --test validation_harness --test office_corpus
+      - name: schema-validity suite (the validation harness, the Office corpus and the MCE seam)
+        run: cargo test -p xtask --test validation_harness --test office_corpus --test mce_extension_seam
 
   # The Phase-2 exit gate: a .pptx or .docx we construct actually opens in a real Office
   # implementation. Kept separate from lint-test so the heavy LibreOffice install cannot slow or
