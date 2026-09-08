@@ -58,6 +58,70 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.142] - 2026-09-08
+
+### The projection across three languages, audited then documented (MJXOFF-226, G12)
+
+**Each of the three walkthroughs exists in Rust, Python and TypeScript, and every one compares its
+output part by part, byte for byte.** That proves the projection is *wired*. It does not prove it is
+right *across the surface*, and the difference is the whole of this release:
+
+> Our gates reliably ask whether a value **reaches** somebody; they do not ask **at how many
+> distinct points** the surface was ever exercised.
+
+`xtask/tests/binding_projection.rs` asks. **966 of 1,619 declared Python members (59.7%) and 900 of
+1,743 exported WebAssembly functions (51.6%) are named by any test at all**; the rest — 653 and 843
+— are exercised by nothing. The walkthrough framing turns out to be the smaller half of the story:
+only 18 Python members and 33 WebAssembly ones are reached by a walkthrough *and nothing else*. The
+three parity pairs do almost all of the work.
+
+Both totals are asserted **exactly** rather than as floors, so a method added without a test fails
+the build with its own name in the message. The same file holds all 1,743 exported functions to the
+camelCase rule, with a ledger of the seven names JavaScript itself forces (`toString`).
+
+### Fixed
+
+- **`CellFormatSpec` had three shapes in three languages, and the WebAssembly one could not say what
+  the format says.** Rust carries twelve public `x:xf` attributes; Python declared four readable
+  ones against twelve constructor keywords, and TypeScript had four getters, six builders, and no
+  way to reach `@applyAlignment` or `@applyProtection` at all. §18.8.9 makes the six `apply*` flags
+  three-valued — absent *participates*, `"0"` *suppresses* — and the four builders that existed
+  could only ever write `"1"`. **All twelve attributes are now readable in both bindings and
+  writable in both**, through eight new Python getters and, in TypeScript, eight getters and six
+  `withApplies…` builders taking `boolean | undefined`. Purely additive: no existing call changes.
+- **Six doc comments said Word and Excel were "detected, not yet editable".** Both surfaces have
+  existed since MJXOFF-139 and MJXOFF-137, and `Format::is_editable` returns true for every format
+  except `WorkbookBinary`. Three sites in each binding, plus a *seventh* variant of the same claim
+  in the committed `.pyi` that disagreed with the Rust comment it is generated from — which is how
+  it survived: `bindings/mjx-python/tests/test_stub_parity.py` compares names, and checks only that
+  a docstring exists.
+- **Both binding READMEs claimed 257 `Deck` methods.** It is 255, and it is 255 in both languages.
+
+### Documented
+
+- **A guide set for the bindings**, six pages, reachable from `docs/api/README.md`: an index, then
+  Installing, The mapping rules, What is not projected and How much is exercised under
+  `bindings/mjx-python/docs/guide/`, and The TypeScript surface under `bindings/mjx-wasm/docs/guide/`
+  — hosted by the crate it is about, because the two bindings are siblings and neither may see the
+  other. `mjx_python::guide` and `mjx_wasm::guide` wire them into rustdoc.
+- **The three surfaces are method-for-method identical across the two languages**: 255 on `Deck`,
+  123 on `Document`, 138 on `Workbook`, read off the committed `.pyi` and the generated `.d.ts`
+  rather than off either binding's source. So are the 185 value classes and the 100 enumerations.
+  Only three exported names differ, and each is forced: Python's eleven `OoxmlError` subclasses,
+  TypeScript's `CellExtent` and `CellAddress`.
+
+### Recorded, not fixed
+
+- **`ResolvedColor` and `TableStyleFlags` are dead exports in all three languages.** Both are
+  re-exported by `crates/mjx-ooxml/src/lib.rs` and projected by both bindings, and no facade method
+  returns, takes or constructs either. `xtask/tests/facade_curation.rs` cannot see it: that ledger
+  is about methods, and a type with no producer is a shape it was never asked to look for.
+- **`blank_with_properties` reaches neither binding**, so no Python or TypeScript caller can set a
+  document's title or author. A Rust caller who reaches past the facade still can.
+- **The six `(u32, u32)` returns** — `table_dimensions`, `cell_span`, `merged_cell_anchor` on `Deck`
+  and `Document` — and **the twenty-five chart methods spelling `series_idx` where their `Workbook`
+  siblings say `series`**. Both are renames in three languages at once.
+
 ## [0.0.141] - 2026-09-08
 
 ### The crate nothing re-derived, audited then documented (MJXOFF-224, G11)
