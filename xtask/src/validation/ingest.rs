@@ -46,6 +46,16 @@
 //! repository authors for the purpose, and **MJXOFF-196** owns it — with the reproduction, the schema
 //! sweep behind it and three candidate fixes.
 //!
+//! **There is a third declaration of the same shape, and it is recorded here so that a fix cannot
+//! stop at two.** `vml-officeDrawing.xsd:175` declares `CT_EquationXml` as
+//! `<xsd:sequence><xsd:any namespace="##any"/></xsd:sequence>` — again no `minOccurs`, again
+//! defaulting to 1. It cannot fire today, for two independent reasons, and both are worth stating
+//! rather than leaving as an absence: nothing in this workspace models `CT_EquationXml`, and no VML
+//! part is schema-validated at all (`crates/mjx-schema-gate/src/categories.rs` puts a `.vml` part in
+//! category 2, because `vml-main.xsd` cannot compile without an `xml.xsd` the Transitional set does
+//! not ship). So it is not a fourth defect; it is the third address a fix has to visit, found by
+//! MJXOFF-221 while auditing the upper shared markup.
+//!
 //! # No I/O beyond reading the file it was handed
 //!
 //! Everything below is bytes in, findings out. Office is never run, LibreOffice is never run, and

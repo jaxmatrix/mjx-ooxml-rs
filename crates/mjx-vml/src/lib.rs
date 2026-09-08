@@ -51,6 +51,21 @@
 //! every producer emits — `v`, `o`, `p`, `x`, `w10` and `r`. If an element rebinds one of those to a
 //! different namespace, the lookup answers `None` rather than matching the wrong attribute.
 //!
+//! # What checks this crate, and what does not
+//!
+//! **A VML part is never schema-validated by anything in this workspace, and nothing derives its
+//! child order from an XSD. The round trip is the only real check there is.** `vml-main.xsd` cannot
+//! compile without the `xml.xsd` the Transitional set does not ship, and a `.vml` part's root is a
+//! bare `<xml>` element in no namespace at all, which none of the five VML schemas declares a global
+//! element for — so `crates/mjx-schema-gate/src/categories.rs` files a VML part under
+//! `ForeignMarkupKey::NoNamespace` in `PRESERVED_FOREIGN_MARKUP`, the category for markup this
+//! project preserves verbatim and never validates.
+//!
+//! That is a materially weaker guarantee than every sibling crate enjoys, and [`guide`] states what
+//! it costs a caller: reading and re-emitting is as safe here as anywhere, while **authoring or
+//! editing carries a risk the other crates do not** — a shape written in the wrong order would reach
+//! Office before it reached CI.
+//!
 //! # Fidelity
 //!
 //! Every modelled type keeps the element's name (prefix included), its attributes in source order,
@@ -69,6 +84,8 @@ mod drawing;
 mod error;
 mod office;
 mod shape;
+
+pub mod guide;
 
 pub use control::{AttachedObjectData, AttachedObjectKind};
 pub use drawing::{Drawing, DrawingContent, DrawingPart};

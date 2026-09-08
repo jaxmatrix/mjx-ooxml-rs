@@ -87,6 +87,8 @@ mod objects;
 mod properties;
 mod support;
 
+pub mod guide;
+
 pub use arg::{Argument, ArgumentProperties};
 pub use leaf::{ControlProperties, RunProperties, Text};
 pub use math::{Math, MathParagraph, MathParagraphProperties};
