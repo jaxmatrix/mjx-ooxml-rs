@@ -28,8 +28,12 @@
 //!   `dkHorz` two in four, `narHorz` one in two, `dashHorz` one in four broken in half. That is the
 //!   whole content of "light", "dark", "narrow" and "dashed", and it is why those thirty are written
 //!   as pictures below rather than argued about.
-//! * **Nine are pictorial** — `smConfetti`, `lgConfetti`, `plaid`, `sphere`, `weave`, `divot`,
-//!   `shingle`, `wave`, `trellis`, `zigZag` — and no naming rule determines them. They are drawn to
+//! * **Ten are pictorial** — `smConfetti`, `lgConfetti`, `plaid`, `sphere`, `weave`, `divot`,
+//!   `shingle`, `wave`, `trellis`, `zigZag` — and no naming rule determines them. (This line said
+//!   *"nine"* and listed ten until MJXOFF-207 counted them while building the swatch sheet the
+//!   Windows sitting will measure. The list was right and the number was not;
+//!   `crates/mjx-reference-pack/tests/the_hatch_table_is_the_hatch_table.rs` now asserts the length
+//!   so the two cannot disagree again.) They are drawn to
 //!   the shape the name describes and are **the approximate part of this table**. Replacing them
 //!   with measured bitmaps is a change to one array and to nothing else, which is the reason they
 //!   are a table at all.

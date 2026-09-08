@@ -1578,6 +1578,48 @@ fn geometry_insert_index(sp_pr: &RawElement, interner: &Interner) -> usize {
         .unwrap_or(sp_pr.children.len())
 }
 
+/// Restates `shape`'s existing `a:prstGeom` adjustments **by wire name**, upserting one `a:gd` per
+/// pair into its `a:avLst` and leaving the `prst` token, the shape's other properties and every
+/// adjustment not named here exactly as they were.
+///
+/// # Why this exists beside [`set_geometry`], rather than inside it
+///
+/// [`set_geometry`] writes a [`Geometry::Preset`], which is `mjx-dml`'s **typed** `ShapeGeometry` —
+/// 118 variants, one of which is `Unmodeled`. Two things follow, and only the second is large:
+///
+/// * **Two adjustable presets have no typed variant at all** — `sun` and `teardrop` — so neither of
+///   their handles can be moved through `set_geometry`. (Measured in
+///   `tests/preset_adjustments.rs`; the 70 untyped presets are almost all shapes such as `rect` and
+///   `ellipse` that have no handle to move in the first place, which is why "70 shapes are
+///   unauthorable" does not follow from the variant count.)
+/// * **A typed value is a `Fraction` or an `Angle`, and a file states an integer.** A reference deck
+///   authored at exact spec values — `40000`, not "0.4 of full scale" — needs a writer in the
+///   file's own units, and this is it.
+///
+/// So this is the mechanical half of the same edit — the file's own vocabulary, with no table of
+/// names in front of it — and it is what MJXOFF-207's extremes deck is authored through. The two do
+/// not overlap: `set_geometry` may *change the shape*, this may not, and a caller that wants both
+/// calls both in that order.
+///
+/// Values are in native spec units, which is what `a:gd@fmla="val N"` holds and what
+/// [`Presentation::shape_adjustments`](crate::Presentation::shape_adjustments) reports.
+pub(crate) fn set_preset_adjustments(
+    shape: &mut RawElement,
+    interner: &mut Interner,
+    adjustments: &[(&str, i32)],
+) -> Result<(), PptxError> {
+    let sp_pr =
+        nav::child_mut(shape, interner, PML, "spPr").ok_or(PptxError::ShapeHasNoProperties)?;
+    let prst_geom = nav::child_mut(sp_pr, interner, DML_MAIN, "prstGeom")
+        .ok_or(PptxError::ShapeHasNoPresetGeometry)?;
+    let mut geometry = PresetGeometry::from_xml(prst_geom, interner)?;
+    for (wire_name, value) in adjustments {
+        geometry.set_adjustment(interner, wire_name, *value);
+    }
+    *prst_geom = geometry.to_xml(interner);
+    Ok(())
+}
+
 /// Writes `geometry` into `shape`'s `p:spPr`, unifying preset and custom geometry: it replaces
 /// whichever geometry element is present (`a:prstGeom` or `a:custGeom`) in place, inserts a new one at
 /// the geometry slot (after any `a:xfrm`, before fill), or — for [`Geometry::Inherited`] — removes the

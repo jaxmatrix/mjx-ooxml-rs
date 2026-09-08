@@ -189,6 +189,26 @@ enum Tier {
     /// fuzz campaign and `mjx-sml`'s allocation gate) and nothing may depend on `xtask`. Outside
     /// the shipped graph.
     TestInstrument,
+    /// `mjx-reference-pack` (MJXOFF-207): the artefacts one Windows sitting needs, and the harness
+    /// that ingests what comes back. Outside the shipped graph, and outside it in the **opposite**
+    /// direction from the three above.
+    ///
+    /// `mjx-fixtures` and `mjx-allocation-counter` have no rank because they must be reachable from
+    /// *everywhere*, so they declare no dependencies at all. This one has no rank because it sits at
+    /// the **top**: it names the format tier (to author a `.pptx` and a `.docx`), `mjx-geometry` (to
+    /// know what a preset shape is) and `mjx-paint` (to export and rasterise our own side of a
+    /// comparison), which is a set of edges no shipped crate could legally declare together —
+    /// `mjx-paint` is rank 5.5 and `mjx-pptx` is 3.0, so a crate depending on both would have to be
+    /// above 5.5, and above 5.5 is where nothing in the document graph may go.
+    ///
+    /// **Giving it a rank of 6.0 would have been wrong**, and worth saying why: a rank is a promise
+    /// about who may reach *it*, and the answer for this crate is *nobody, ever*. That is stronger
+    /// than any rank can express and it is enforced directly, by
+    /// [`the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph`], which refuses the
+    /// edge from any ranked crate in either dependency section — a stricter rule than the one the
+    /// other three test-only crates live under, since those are legitimately `dev-dependencies` of
+    /// shipped crates and this is a dependency of nothing at all.
+    ReferencePack,
     /// `xtask`: a host-only developer binary nothing depends on, so it may reach anything.
     Tooling,
 }
@@ -223,9 +243,11 @@ impl Tier {
             Self::Facade => Rank(4, 0),
             Self::Bindings => Rank(5, 0),
             Self::PlatformBoundary => Rank(5, 5),
-            Self::TestCorpus | Self::TestGate | Self::TestInstrument | Self::Tooling => {
-                return None
-            }
+            Self::TestCorpus
+            | Self::TestGate
+            | Self::TestInstrument
+            | Self::ReferencePack
+            | Self::Tooling => return None,
         })
     }
 
@@ -250,6 +272,7 @@ impl Tier {
             Self::TestCorpus => "test-only corpus (outside the shipped graph)",
             Self::TestGate => "test-only gate (outside the shipped graph)",
             Self::TestInstrument => "test-only instrument (outside the shipped graph)",
+            Self::ReferencePack => "test-only reference pack (above the shipped graph)",
             Self::Tooling => "host-only tooling (outside the shipped graph)",
         }
     }
@@ -293,6 +316,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-fixtures", Tier::TestCorpus),
     ("mjx-schema-gate", Tier::TestGate),
     ("mjx-allocation-counter", Tier::TestInstrument),
+    ("mjx-reference-pack", Tier::ReferencePack),
     ("xtask", Tier::Tooling),
 ];
 
@@ -620,6 +644,28 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
                 }
             }
             _ => {}
+        }
+    }
+
+    // **Nothing at all may depend on the reference pack, in either section.** It sits above every
+    // ranked crate — it names `mjx-pptx` (3.0) and `mjx-paint` (5.5) together, which no shipped
+    // crate could legally do — so an edge into it would drag the platform boundary into whatever
+    // declared it. This is stricter than the rule the other three test-only crates live under,
+    // because those are legitimately `dev-dependencies` of shipped crates and this is a dependency
+    // of nothing.
+    for member in &members {
+        for (target, kind) in &member.edges {
+            let target_tier =
+                tier_of(target).expect("the target is a workspace member, so it has a row");
+            assert!(
+                target_tier != Tier::ReferencePack,
+                "`{}` declares `{target}` as {}, but `{target}` is {} and nothing may depend on it \
+                 in any section: it is the top of the workspace, and an edge into it would pull the \
+                 format tier and the platform boundary into whatever declared it",
+                member.name,
+                kind.describe(),
+                target_tier.describe(),
+            );
         }
     }
 

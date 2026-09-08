@@ -71,6 +71,12 @@ members = [
     # algorithm or a document" is held here by an explicit manifest gate,
     # `crates/mjx-paint/tests/the_seam_holds.rs`, and by nothing else.
     "crates/mjx-paint",
+    # Test-only, outside the rank graph: the artefacts one Windows sitting needs and the harness that
+    # ingests what comes back (MJXOFF-207). It sits at the top of the workspace on purpose — it names
+    # the format tier to author the decks, `mjx-geometry` to know what a preset is, and `mjx-paint` to
+    # export and rasterise our own side of a comparison — and **nothing depends on it**, which is what
+    # keeps those three edges out of the shipped graph. `publish = false`.
+    "crates/mjx-reference-pack",
     # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
     # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
     # number cover them too. The cross-build matrix excludes both: a PyO3 cdylib needs a Python
@@ -95,7 +101,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.136"
+version = "0.0.137"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -234,6 +240,7 @@ mjx-fixtures = { path = "crates/mjx-fixtures" }
 mjx-allocation-counter = { path = "crates/mjx-allocation-counter" }
 mjx-ooxml = { path = "crates/mjx-ooxml" }
 mjx-paint = { path = "crates/mjx-paint" }
+mjx-reference-pack = { path = "crates/mjx-reference-pack" }
 
 # --- binding toolkits (used only by `bindings/*`) ---
 pyo3 = { version = "0.29", default-features = false, features = ["abi3-py39", "macros"] }

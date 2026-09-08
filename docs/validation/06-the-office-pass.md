@@ -32,6 +32,14 @@ about *that build*, not about the project.
 You need Office. You do not need anything else: `xmllint`, LibreOffice and the schema trees are for
 the machine half, which has already run.
 
+**⚠ There is a second half to this morning, and it is cheaper than this one.**
+`docs/validation/07-the-reference-pack.md` (MJXOFF-207) asks you to open four generated files and
+export each to PDF — no judging, no writing anything down — and doing so answers seven questions the
+renderer cannot answer for itself: the 187 preset shapes at their defaults and at their extremes,
+`upArrow` (for which no published geometry exists at all), Cambria's metrics, the Arial/Times/Courier
+advances that are transcribed from URW clones, the Japanese hanging set, and the ten pictorial hatch
+masks. **Generate that pack before you travel and do both in one sitting**; it is four exports.
+
 ---
 
 ## 2 · The loop, in one paragraph
