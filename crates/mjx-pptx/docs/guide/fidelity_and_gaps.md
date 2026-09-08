@@ -223,15 +223,31 @@ a deck carrying any of it round-trips unchanged.
 
 The third list is different, and it is first below because of that: it is what this library
 **gets wrong**. An entry there is a defect with a ticket, not a decision, and calling the method it
-names can cost you content.
+names can cost you content. It is empty as of 0.0.145, and it stays on the page anyway — a table
+that only appears when something is wrong tells you nothing on the day it is absent.
 
 ### Known defects
 
-One entry, and it is a live one. Nothing else on this page can lose you content; this can.
+**None open.** The section stays whether or not it has a row: an empty defect table is a claim, and
+a missing one is an omission. Nothing else on this page can lose you content.
 
 | Defect | What happens | Ticket |
 |---|---|---|
-| **Run coalescing compares a *resolved* colour** | [`coalesce_paragraph_runs`](Presentation::coalesce_paragraph_runs) and [`coalesce_shape_runs`](Presentation::coalesce_shape_runs) merge two adjacent runs whose *effective* formatting matches. Resolution bakes a colour to `RRGGBB`, which drops an `a:alpha` and flattens `a:schemeClr` to the literal it resolves to — so two runs differing only by transparency, or only by whether the colour is a theme link, compare equal and one of them is deleted. `unmodeled_state_eq` does not catch it, because `a:solidFill` is modelled. Neither method is exercised by the preservation corpus: both sit in its `NEVER_EXERCISED` register, because no fixture holds two adjacent runs a coalesce could merge | MJXOFF-233 |
+| *(none)* | | |
+
+The one entry this table has carried was **MJXOFF-233**, and it is worth keeping the shape of it in
+view because the class recurs. Run coalescing merged two adjacent runs whose *effective* formatting
+matched — and effective means resolved, which bakes a colour to `RRGGBB`. That drops an `a:alpha` and
+flattens a theme link (`a:schemeClr`, or a `+mn-lt` typeface) to the literal it currently resolves
+to, so two runs that differ only by transparency, or only by whether they follow the theme, compared
+equal and one of them was deleted. `unmodeled_state_eq` did not catch it, because `a:solidFill` and
+`a:latin` are modelled. Fixed in **0.0.145** by adding a third condition to the merge — the two runs'
+own, *unresolved* colours and typefaces must agree
+([`CharacterPropertiesSpec::resolution_sensitive_eq`](mjx_dml::CharacterPropertiesSpec::resolution_sensitive_eq))
+— and both methods now leave the preservation gate's `NEVER_EXERCISED` register, because its
+preparation splits a run before restyling the shape instead of only restyling it. The narrowing that
+buys: a run naming a colour or typeface explicitly no longer merges with a neighbour that inherits
+the same one.
 
 ### Non-goals
 
