@@ -26,6 +26,8 @@
 //! cache and the cells have drifted apart — the cache is what draws until a consumer recalculates,
 //! and both are reported with each named.
 
+use std::borrow::Cow;
+
 use mjx_ooxml_types::spreadsheetdrawing::ResizingBehavior;
 
 use crate::error::Error;
@@ -185,7 +187,7 @@ impl Workbook {
         Ok(self
             .workbook
             .chart_part_bytes(index(sheet), index(anchor))?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// The series of the chart, from its **caches**.

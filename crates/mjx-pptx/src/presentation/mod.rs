@@ -203,7 +203,7 @@ impl Presentation {
             }
             nav::resolve_from_root(&rel.target)?
         };
-        if package.part_bytes(&presentation_part).is_none() {
+        if !package.contains_part(&presentation_part) {
             return Err(PptxError::MissingPresentationPart(
                 presentation_part.as_str().to_owned(),
             ));

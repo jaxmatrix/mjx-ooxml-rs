@@ -69,7 +69,7 @@ fn vml_part_bytes_resolves_to_the_verbatim_part() {
     let names = pres.vml_part_names();
     let name = names.first().expect("one VML part");
     assert_eq!(
-        pres.vml_part_bytes(name),
+        pres.vml_part_bytes(name).as_deref(),
         Some(vml_xml.as_slice()),
         "the resolved bytes are exactly the package's VML part"
     );
@@ -341,7 +341,10 @@ fn an_added_vml_drawing_registers_its_content_type_and_relationship() {
         reopened.vml_drawing_part(0).expect("part"),
         Some(name.clone())
     );
-    assert_eq!(reopened.vml_part_bytes(&name), Some(PLAIN_FALLBACK_DRAWING));
+    assert_eq!(
+        reopened.vml_part_bytes(&name).as_deref(),
+        Some(PLAIN_FALLBACK_DRAWING)
+    );
 
     // A second drawing does not collide with the first.
     let second = pres

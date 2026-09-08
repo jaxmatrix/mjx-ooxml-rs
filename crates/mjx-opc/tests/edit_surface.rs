@@ -984,3 +984,97 @@ fn release_unused_part_sources_reclaims_only_a_fully_rewritten_part() {
         .part_bytes(&drawing)
         .is_some());
 }
+
+// -------------------------------------------------------------------------------------------
+// The three questions a part's body can be asked (MJXOFF-222)
+// -------------------------------------------------------------------------------------------
+
+/// `part_bytes` says `None` for two different reasons; `contains_part` and `part_payload` each say
+/// one thing.
+///
+/// This is the whole of MJXOFF-222 stated at the layer that owns it. Six crates read
+/// `part_bytes(..).is_none()` as "the package has no such part" and one of the three copy-on-write
+/// states — the one every typed edit leaves a part in — made that reading wrong.
+#[test]
+fn a_dirty_part_is_present_and_readable_even_though_it_has_no_stored_bytes() {
+    let mut package = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+    let absent = part("/ppt/slides/slide99.xml");
+
+    // Raw: all three agree.
+    assert!(package.part_bytes(&slide).is_some());
+    assert!(package.contains_part(&slide));
+    let raw = package
+        .part_payload(&slide)
+        .expect("a raw part has a payload")
+        .into_owned();
+
+    // Parsed: reading does not disturb any of the three.
+    package.part_tree(&slide).expect("parse");
+    assert!(package.part_bytes(&slide).is_some());
+    assert!(package.contains_part(&slide));
+    assert_eq!(
+        package.part_payload(&slide).as_deref(),
+        Some(raw.as_slice()),
+        "a part read but not edited still hands back the bytes it arrived with"
+    );
+
+    // Edited: `part_bytes` alone stops answering, and it stops answering the same way it answers for
+    // a part that is not there at all — which is the conflation.
+    package.part_tree_mut(&slide).expect("dirty it");
+    assert!(package.part_bytes(&slide).is_none());
+    assert!(package.part_bytes(&absent).is_none());
+    assert!(
+        package.contains_part(&slide) && !package.contains_part(&absent),
+        "the presence question tells the two apart"
+    );
+    assert!(
+        package.part_payload(&slide).as_deref() == Some(raw.as_slice()),
+        "the content question must hand back what an untouched edit re-serializes to — which for a \
+         tree nothing changed is the source verbatim — and it answered {}",
+        match package.part_payload(&slide) {
+            None => "nothing at all".to_owned(),
+            Some(bytes) => format!("{} bytes that differ from the source's {}", bytes.len(), raw.len()),
+        }
+    );
+    assert!(
+        package.part_payload(&absent).is_none(),
+        "`None` from `part_payload` means one thing only: no such part"
+    );
+}
+
+/// What `part_payload` hands back for a dirty part is what `save` writes for it, byte for byte.
+///
+/// The claim the doc comment makes, checked against the writer rather than against itself: an
+/// edited part's payload is not a snapshot taken before the edit, and not a second serializer.
+#[test]
+fn a_dirty_parts_payload_is_exactly_what_saving_writes_for_it() {
+    let mut package = Package::open(&fixture("sample.pptx")).expect("open");
+    let slide = part("/ppt/slides/slide1.xml");
+
+    {
+        let tree = package.part_tree_mut(&slide).expect("dirty it");
+        tree.root
+            .children
+            .push(RawNode::Comment(Box::from(&b"MJXOFF-222"[..])));
+    }
+    let payload = package
+        .part_payload(&slide)
+        .expect("a dirty part has a payload")
+        .into_owned();
+    assert!(
+        payload.windows(10).any(|w| w == b"MJXOFF-222"),
+        "the payload reflects the edit, not the bytes the part arrived with"
+    );
+
+    let saved = package.save_unchecked().expect("save");
+    let written = Package::open(&saved)
+        .expect("reopen")
+        .part_bytes(&slide)
+        .expect("the part is stored again")
+        .to_vec();
+    assert_eq!(
+        payload, written,
+        "payload and saved bytes are the same bytes"
+    );
+}

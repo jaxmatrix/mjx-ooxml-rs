@@ -198,10 +198,10 @@ impl Workbook {
         &self,
         part: &PartName,
     ) -> Result<(RawDocument, Option<StylesheetPart>), XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let stylesheet = StylesheetPart::read_part(&document)?;
         Ok((document, stylesheet))
     }

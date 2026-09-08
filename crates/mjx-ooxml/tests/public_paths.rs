@@ -740,11 +740,20 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
     deck.set_chart_axis_gridlines(slide, chart.clone(), 0, true, false)
         .expect("gridlines");
     let _ = deck.chart_style_id(slide, chart.clone()).expect("reading");
-    // A chart part that has been edited is held as a tree until it is written, so its raw bytes may
-    // legitimately be absent; what matters here is that the reader is reachable and answers.
-    let _ = deck
+    // The chart part has been edited half a dozen times above, so it is held as a dirty tree with no
+    // stored bytes. It is still a part of this package, and this reader still answers with what it
+    // contains — `None` here would mean "there is no chart", which is the conflation MJXOFF-222
+    // removed.
+    let edited_chart = deck
         .chart_part_bytes(slide, chart.clone())
-        .expect("reading");
+        .expect("reading")
+        .expect("an edited chart part is still a chart part");
+    assert!(
+        std::str::from_utf8(&edited_chart)
+            .expect("the chart part is XML")
+            .contains("Trend"),
+        "and the bytes it answers with are the edited ones, title and all"
+    );
     let _ = deck.chart_workbooks(slide).expect("the workbooks");
     let _ = deck
         .refresh_chart_workbook(slide, chart.clone())

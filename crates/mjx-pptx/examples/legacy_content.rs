@@ -95,7 +95,7 @@ fn main() -> Result<()> {
         deck.activex_control_name(slide, control)?,
         deck.activex_class_id(slide, control)?,
         deck.activex_state_bytes(slide, control)?
-            .map_or(0, <[u8]>::len),
+            .map_or(0, |bytes| bytes.len()),
     );
     deck.set_activex_control_name(slide, control, "OkButton")?;
 
