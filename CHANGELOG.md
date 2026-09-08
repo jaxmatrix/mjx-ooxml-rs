@@ -114,7 +114,7 @@ Both fixes have unit tests that fail against the old bodies.
   `crates/mjx-vml/docs/legacy_vml.md`, hosted by their own crates because a same-rank crate cannot be
   depended on and so cannot be linked into — the same reason `mjx_opc::guide`'s MCE page lives in
   `mjx-mce`. They give `doc_gate` 35 path mentions and 51 crate-qualified symbol references, and
-  carry four compiled doctests.
+  carry five compiled doctests.
 
   The through-line is more specific than the rank table: **only `mjx-chart` uses the height.** It
   reaches `mjx-sml` (2.1) for the workbook a chart embeds and `mjx-dml` (2.0) for everything a chart
