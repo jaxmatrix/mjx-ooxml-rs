@@ -33,7 +33,7 @@ mod spreadsheet;
 mod word;
 
 pub use presentation::PresentationSession;
-pub use spreadsheet::SpreadsheetSession;
+pub use spreadsheet::{SpreadsheetSession, DEFAULT_RESIDENCY_BUDGET_BYTES};
 pub use word::WordSession;
 
 /// How much a residency counts an operation as having dirtied, beyond its payload.

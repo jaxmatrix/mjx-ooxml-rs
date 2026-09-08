@@ -43,6 +43,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 2.5 — preset geometry | `mjx-geometry` |
   | 3.0 — formats | `mjx-pptx`, `mjx-docx`, `mjx-xlsx` |
   | 3.5 — the resident document | `mjx-session` |
+  | 3.8 — the viewport | `mjx-view` |
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
   | 5.5 — platform boundary | `mjx-paint` |
@@ -98,7 +99,19 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   `ooxml` feature. `crates/mjx-session/tests/the_seam_holds.rs` is what holds all three, by name and
   by file count, and it drives the whole journal, scheduler and undo machinery from a fourth
   residency that has never heard of a package — a trait with one implementation being a trait nothing
-  has ever been swapped for. `mjx-sml` sits between
+  has ever been swapped for. `mjx-view` (MJXOFF-168) is one step above it at **3.8**, and it is the
+  same shape of rank for the same reason. It is the **viewport**: the pages on screen plus a prefetch
+  ring biased in the direction of travel, a declared byte ceiling on every stage that holds something
+  expensive, a scrollbar whose estimates become measurements without jumping under the reader's
+  thumb, and a frame budget that defers rather than drops. Its rank buys that nothing at or below
+  3.5 can reach a viewport — a `.pptx` reader with a scroll position inside it would be a batch
+  library with a window manager in it — and buys **nothing** in the other direction, because 3.8 is
+  above 3.0 and `mjx-view → mjx-pptx` is a legal downward edge for ever. *A viewport has never heard
+  of OOXML* is held instead by construction and by `crates/mjx-view/tests/the_seam_holds.rs`: the
+  crate is generic over `mjx-layout`'s `BoxModel` and over its own `SceneSource` and names no
+  implementation of either, and it declares `mjx-session` with `default-features = false`, so a plain
+  `cargo test -p mjx-view` is a build in which the three format crates are **not present** and a line
+  that reached one would not compile. `mjx-sml` sits between
   `mjx-dml` and `mjx-chart` because SpreadsheetML *is*
   shared markup — an embedded workbook is SpreadsheetML inside a `.pptx` or a `.docx` — which is what
   makes `mjx-chart → mjx-sml → mjx-dml` legal and lets `mjx-chart`'s duplicate workbook writer be
@@ -285,6 +298,20 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
 ## Settled implementation choices
 
 - Hybrid model (arena for bulk data, owned trees for small structures).
+- **One byte-budgeted cache, at the floor of the workspace** (MJXOFF-168).
+  `mjx_ooxml_core::ByteBudgetCache` is the workspace's only least-recently-used cache with a declared
+  byte ceiling, and it is at rank 0.0 because its consumers are at 1.7 (`mjx-scene`'s tessellation
+  cache), 3.5 (`mjx-session`'s worksheet residency) and 3.8 (`mjx-view`'s per-stage caches) — a cache
+  written in the highest of those is unreachable from the other two, so the choice was one
+  implementation at the floor or three that drift. It is the same argument, and the same answer, as
+  `Emu` moving down out of `mjx-dml` in MJXOFF-160. Two things it is built around, both of which are
+  asserted rather than documented: **a cache that evicts everything satisfies every byte bound
+  perfectly**, so every budget gate in this workspace is two-sided and reads `evictions` before it
+  trusts a ceiling; and **an eviction count cannot say which entry went**, so
+  `least_recently_used()` exists for a test to name it. A *pinned* entry — a worksheet with unwritten
+  edits, the page the next frame paints — is charged to the budget and never evicted, which makes the
+  pinned set a floor the budget cannot go below; that is stated in the type's own documentation
+  rather than discovered.
 - Interning + `Cow` for strings.
 - Hand-written de/serialization via `mjx-derive` (not serde).
 - Generated `mjx-ooxml-types` (simple types + constant tables) via `xtask`; **output is committed**,
