@@ -1,0 +1,13 @@
+display-list page=400x266.6667 scale=1.3333334 bytes=536
+section commands count=8
+section paints count=5
+section strokes count=1
+section geometries count=8
+0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0001 fill rect[24,16,376,250.66667] with #ffffffff
+0002 stroke rect[50.666668,45.333336,349.33334,90.66667] with width=1 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#e7e0d2ff
+0003 stroke rect[50.666668,106.66667,349.33334,208] with width=1 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#e7e0d2ff
+0004 fill rect[64,64,218.66667,72] with #5c716888
+0005 fill rect[64,122.66667,264,129.33334] with #5c716866
+0006 fill rect[64,141.33334,234.66667,148] with #5c716866
+0007 fill rect[64,160,205.33334,166.66667] with #5c716866

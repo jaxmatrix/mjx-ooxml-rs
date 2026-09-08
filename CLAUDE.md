@@ -45,7 +45,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   | 4.0 — facade | `mjx-ooxml` |
   | 5.0 — bindings | `bindings/mjx-python`, `bindings/mjx-wasm` |
   | 5.5 — platform boundary | `mjx-paint` |
-  | — outside the graph | `mjx-fixtures`, `mjx-schema-gate`, `mjx-allocation-counter`, `mjx-render-oracle`, `mjx-reference-pack`, `xtask` |
+  | — outside the graph | `mjx-fixtures`, `mjx-schema-gate`, `mjx-allocation-counter`, `mjx-render-oracle`, `mjx-reference-pack`, `mjx-canvas-harness`, `xtask` |
 
   **Shared markup is not flat**, and neither are the foundations. `mjx-xml` is built on
   `mjx-ooxml-core`. `mjx-tokens` (MJXOFF-156) sits above it at 0.2 and is *data*: the generated
@@ -110,7 +110,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   nothing else. `mjx-scene` got 1.7 so the layering gate could refuse its illegal edge by name; **no
   rank can do the same job for a painter, in either direction.** A reader who assumes the rank is
   protecting the painter's own edges has it backwards.
-- **Five test-only crates sit outside that graph**, and the last two are outside it in the
+- **Six test-only crates sit outside that graph**, and the last three are outside it in the
   *opposite* direction from the first three. `mjx-schema-gate` (the shared ECMA-376 schema and child-order gate,
   a `dev-dependency` of the three format crates and a dependency of `xtask`, whose
   `validation-artefacts --ingest` *reports* the verdicts a suite asserts), `mjx-fixtures` (the
@@ -128,17 +128,27 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   may reach *it*, and the answer here is *nobody, in either dependency section*, which
   `xtask/tests/layering.rs` enforces directly and more strictly than it does for the first three.
 
-  **`mjx-render-oracle` (MJXOFF-165) sits one step below it, and is the only crate the reference
-  pack may reach.** It is the fidelity oracle: the three assertion tiers (`FragmentTree` snapshot,
+  **`mjx-canvas-harness` (MJXOFF-166) sits beside the pack, at the same height and under the same
+  rule.** It is the manual audit surface for the sixty-one in-canvas UI elements of
+  `docs/client-platform/CANVAS_UI_INVENTORY.md` — a synthetic `FragmentTree` per element, the state
+  matrix reachable by clicking, a hit-test visualiser drawn from `mjx-layout`'s own spatial index,
+  and a live token editor that writes back to `docs/client-platform/data/tokens.json`. It names
+  **no** format crate and no geometry table, exactly like the oracle; what it names together is
+  `mjx-paint` (5.5) and `mjx-render-oracle`, and nothing may depend on it in either section.
+
+  **`mjx-render-oracle` (MJXOFF-165) sits one step below both, and they are the only two crates that
+  may reach it.** It is the fidelity oracle: the three assertion tiers (`FragmentTree` snapshot,
   `DisplayList` snapshot, pixel diff) with the localisation that says *which* of them moved, the
   perceptual metric, the committed baselines and their approval events, and the plate gallery R11
   and U01 load. It names no format crate at all — it is the rendering path with no document
-  anywhere in it — which is what lets it have a consumer where the pack has none. **No crate with a
+  anywhere in it — which is what lets it have consumers where the pack has none. **No crate with a
   rank may reach it, in either section** — a `[dev-dependencies]` entry included, because this crate
   depends on `mjx-paint` and a test build that links Vulkan is still a build that links Vulkan — and
-  a crate that is *itself* above the whole graph may. `mjx-reference-pack` is the first such
-  consumer; MJXOFF-166's canvas harness, which is specified to reach the plate generator rather than
-  write a second PNG emitter, will be the second.
+  a crate that is *itself* above the whole graph may. `mjx-reference-pack` was the first such
+  consumer and `mjx-canvas-harness` is the second; the layering gate now asserts **both** edges by
+  name, because the two use different halves of the crate — the pack takes the authority vocabulary
+  and never renders a plate, and the harness takes the plate generator, the PNG encoder and the
+  baseline store, which until MJXOFF-166 were permitted-but-unconsumed.
 
   That one edge exists because the *authority vocabulary* — `ReferenceProvider`, the three-state
   `Verdict`, the provider-attached exclusions — must have exactly one home, for the same reason
@@ -146,7 +156,7 @@ Every unit of work follows: **Plan → Plan-Optimization → thorough atomic imp
   MJXOFF-165 needed it; nothing may depend on the pack; so it moved **down** into the oracle and the
   pack re-exports it as `mjx_reference_pack::authority`.
 
-  All five are `publish = false` and no shipped crate depends on any of them. A test suite reads its
+  All six are `publish = false` and no shipped crate depends on any of them. A test suite reads its
   fixture corpus from `mjx-fixtures` — never from a `const FIXTURES` list — and installs its
   allocator from `mjx-allocation-counter` rather than writing a second one.
 - **Pure-Rust only *in the document graph*** — ranks 0 through the facade — no C/system libs. C
@@ -327,6 +337,24 @@ cargo run -p mjx-reference-pack -- items        # the seven questions the sittin
 #   * `approve` refuses without MJX_ORACLE_APPROVED_BY, and refuses outright under CI.
 # Every committed baseline today is stamped `approver = generator`, which is a real approval record
 # — the digest binding is live — and is NOT a human review. `list` says which.
+# The canvas UI harness (MJXOFF-166): the sixty-one in-canvas elements of
+# docs/client-platform/CANVAS_UI_INVENTORY.md, exercised BY HAND. `serve` is the deliverable — a
+# local page with a scene list, a state panel, a ruler, a hit-test overlay, a pixel inspector and a
+# live token editor that writes back to docs/client-platform/data/tokens.json. Every pixel of the
+# element is drawn in Rust through the software painter; the page is chrome.
+#
+# ⚠ ELEVEN OF THE SIXTY-ONE ARE ABOUT TOUCH, and a touch target judged with a mouse has not been
+# judged. `--host 0.0.0.0` and the machine's address on the same network puts the harness on a
+# phone. The Tauri mobile surface the ticket specifies does NOT exist; see
+# docs/client-platform/CANVAS_UI_INVENTORY.md §4.2 for exactly what is missing.
+cargo run -p mjx-canvas-harness -- serve                  # http://127.0.0.1:7761/
+cargo run -p mjx-canvas-harness -- serve --host 0.0.0.0   # …and on a phone
+cargo run -p mjx-canvas-harness -- check                  # every plate against its baseline
+cargo run -p mjx-canvas-harness -- plates [directory]     # the plates, the manifest and the gallery
+cargo run -p mjx-canvas-harness -- checklist              # docs/client-platform/CANVAS_UI_AUDIT.md
+MJX_ORACLE_REGENERATE=1 cargo run -p mjx-canvas-harness -- regenerate [number]
+MJX_ORACLE_APPROVED_BY='Your Name' cargo run -p mjx-canvas-harness -- approve <number> "why"
+
 cargo run -p mjx-render-oracle -- check
 cargo run -p mjx-render-oracle -- gallery        # target/oracle-gallery/index.html
 cargo run -p mjx-render-oracle -- list

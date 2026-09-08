@@ -1,0 +1,58 @@
+[package]
+name = "mjx-canvas-harness"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+description = "Test-only: the manual audit harness for the sixty-one in-canvas UI elements, and the plates that lock them once approved."
+# Never published, and nothing depends on it. It sits at the top of the workspace beside
+# `mjx-reference-pack`: it names the platform boundary (to rasterise) and the fidelity oracle (to
+# encode, to hold a baseline and to state a plate), which is a pair of edges no ranked crate may
+# declare. `xtask/tests/layering.rs` enforces both halves — the edge into the oracle exists, and
+# nothing declares an edge into this.
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+# Outside the graph, one step below this crate (MJXOFF-165). **The reason this crate may exist at
+# all**: the PNG encoder and its premultiplication decision, the `Plate`/`PlateSet` manifest schema
+# R11 extends rather than replaces, the baseline store with its approval event, and the perceptual
+# metric with its worst-window bound. MJXOFF-166 is specified to reach this rather than write a
+# second PNG emitter, and it is the first consumer of the *plate generator* — `mjx-reference-pack`
+# depends on the crate for its authority vocabulary and never renders a plate through it.
+mjx-render-oracle.workspace = true
+# Rank 5.5. `SoftwarePainter` — pure Rust, no GPU, no window — plus `render_offscreen`, `Pixels`,
+# `DrawReport` and `Resources`. Every image this harness produces goes through the software painter,
+# so the audit surface and the plate gate run on a machine with no graphics stack.
+mjx-paint.workspace = true
+# Rank 1.7. `DisplayList`, `build_scene`, `Decoration`, `GeometryProvider` — a canvas overlay is a
+# path and a paint, and this is the vocabulary both are written in.
+mjx-scene.workspace = true
+# Rank 1.6. `FragmentTree`, `FragmentTreeBuilder` and `SpatialIndex`. Every scene is a tree built by
+# hand, which is what lets the harness run with no document and no fixture; the index is what the
+# hit-test visualiser draws, rather than a second region computation beside it.
+mjx-layout.workspace = true
+# Rank 1.5. `GlyphRasteriser` and `GlyphAtlas`, which `build_scene` takes. **No scene contains
+# text** — see `crate::scenes` — so neither ever holds a glyph; they are here because the seam has
+# one signature and a harness does not get a shorter one.
+mjx-text.workspace = true
+# Rank 0.0. `Emu` and `Angle` — the two measures a `LayoutRect` and a rotation are written in.
+# `mjx-layout` takes them in its own signatures and re-exports neither, so a caller that builds a
+# fragment tree by hand names this crate, exactly as `mjx-render-oracle` does.
+mjx-ooxml-core.workspace = true
+# Rank 0.2. The generated design tokens. Every colour on every scene is read from `Tokens`, which is
+# what makes the live token editor's write-back visible in the canvas rather than only in the file.
+mjx-tokens.workspace = true
+# The one external dependency. A write-back that fails has to say which token and why, and
+# `CLAUDE.md` asks for a typed error rather than a string in every library path — this crate is a
+# harness, but the token source it edits is a hand-maintained file in the user's repository and a
+# bad write to it is the one failure here that outlives the process.
+thiserror.workspace = true
+
+[[bin]]
+name = "mjx-canvas-harness"
+path = "src/main.rs"

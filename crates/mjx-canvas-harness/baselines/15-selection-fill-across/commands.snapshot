@@ -1,0 +1,28 @@
+display-list page=400x266.6667 scale=1.3333334 bytes=1192
+section commands count=23
+section paints count=6
+section strokes count=2
+section geometries count=22
+0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0001 fill rect[24,16,376,250.66667] with #ffffffff
+0002 fill rect[45.333336,45.333336,178.66667,52] with #223b3366
+0003 fill rect[45.333336,64,173.33334,70.66667] with #223b3366
+0004 fill rect[45.333336,82.66667,162.66667,89.333336] with #223b3366
+0005 fill rect[208,45.333336,344,52] with #223b3366
+0006 fill rect[208,64,330.6667,70.66667] with #223b3366
+0007 fill rect[208,82.66667,288,89.333336] with #223b3366
+0008 stroke outline[0x1 at 194.66667,36,197.33334,121.333336] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dccc
+0009 stroke outline[0x2 at 44,148,46.666668,212] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0010 stroke outline[0x3 at 119.333336,148,122,212] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0011 stroke outline[0x4 at 194.66667,148,197.33334,212] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0012 stroke outline[0x5 at 270,148,272.6667,212] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0013 stroke outline[0x6 at 345.33334,148,348,212] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0014 stroke outline[0x7 at 44,148,348,150.66667] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0015 stroke outline[0x8 at 44,178.66667,348,181.33334] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0016 stroke outline[0x9 at 44,209.33334,348,212] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0017 push-opacity 0.18039216
+0018 fill rect[98.66667,60,178.66667,74.66667] with #2e9e63ff
+0019 fill rect[45.333336,78.66667,162.66667,93.333336] with #2e9e63ff
+0020 fill rect[208,41.333336,344,56] with #2e9e63ff
+0021 fill rect[120.66667,149.33334,271.33334,210.66667] with #2e9e63ff
+0022 pop

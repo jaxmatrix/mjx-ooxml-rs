@@ -1,0 +1,17 @@
+display-list page=400x266.6667 scale=1.3333334 bytes=664
+section commands count=12
+section paints count=5
+section strokes count=3
+section geometries count=9
+0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0001 fill rect[24,16,376,250.66667] with #ffffffff
+0002 fill rect[66.66667,58.666668,149.33334,117.333336] with #fbefd8ff
+0003 stroke rect[66.66667,58.666668,149.33334,117.333336] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0004 fill rect[176,104,274.6667,170.66667] with #fbefd8ff
+0005 stroke rect[176,104,274.6667,170.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0006 fill rect[261.33334,53.333336,330.6667,136] with #fbefd8ff
+0007 stroke rect[261.33334,53.333336,330.6667,136] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#e9a83eff
+0008 stroke rect[64,56,152,120] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff
+0009 stroke rect[173.33334,101.333336,277.33334,173.33334] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff
+0010 stroke rect[258.6667,50.666668,333.33334,138.66667] with width=1 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#1e7a49ff
+0011 stroke rect[57.333336,44,340,180] with width=1.6666667 cap=Flat join=Round dash=Dash alignment=Centered compound=Single paint=#1e7a49ff

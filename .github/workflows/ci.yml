@@ -388,6 +388,44 @@ jobs:
           path: target/oracle-gallery
           if-no-files-found: error
 
+  # The canvas UI harness (MJXOFF-166). Its own job for the same reason the oracle has one, one
+  # level in: what this gate produces is sixty-one pictures and a checklist, and *a failure a
+  # reviewer cannot see is a failure nobody fixes*.
+  #
+  # **It needs no graphics stack and no external reader.** Every image goes through `tiny-skia`,
+  # every plate is encoded by `mjx-render-oracle`'s own PNG writer, and the whole suite runs on a
+  # machine with nothing installed — which is what makes it a gate rather than a nightly.
+  #
+  # What it does **not** gate on, and this is worth reading before quoting a green run: whether
+  # anybody has looked at these images. Every baseline is stamped `approver = generator`, the
+  # checklist says `Human review: 0 of 61` on its own face, and the plate gallery says so at the
+  # top. That is a regression gate over a design nobody has approved yet, and MJXOFF-166's whole
+  # point is that the approval is a person's to give — from the harness, by hand, on a phone for
+  # the eleven touch entries.
+  canvas-harness:
+    name: the canvas UI harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: the completeness gate, the state matrix and the plates
+        run: cargo test -p mjx-canvas-harness --no-fail-fast -- --nocapture
+      - name: every plate against its approved baseline
+        run: cargo run -p mjx-canvas-harness -- check
+      - name: the plates and the gallery, so a failure can be looked at
+        if: always()
+        run: cargo run -p mjx-canvas-harness -- plates target/canvas-plates
+      - name: the audit checklist, as the artefact a person picks up
+        if: always()
+        run: cargo run -p mjx-canvas-harness -- checklist target/canvas-plates/CANVAS_UI_AUDIT.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canvas-plates
+          path: target/canvas-plates
+          if-no-files-found: error
+
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
   examples:
@@ -441,14 +479,24 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
-      # `mjx-schema-gate`, `mjx-fixtures`, `mjx-reference-pack` and `mjx-render-oracle` are excluded
-      # for the same reason read the other way: they are test-only, `publish = false`, and nothing
-      # shipped depends on them, so building them for five targets would widen the claim this job
-      # makes rather than support it. The reference pack was the first member here with a
-      # **binary**, and a binary has to *link*: the Android leg has no NDK linker, so `cargo build
-      # --target aarch64-linux-android` fed its object files to the host `ld` and got *"Relocations
-      # in generic ELF (EM: 183)"*. A library target only ever produces an `rlib` and never hits
-      # that. The fidelity oracle has a binary too, and the same exclusion for the same reason.
+      # `mjx-schema-gate`, `mjx-fixtures`, `mjx-reference-pack`, `mjx-render-oracle` and
+      # `mjx-canvas-harness` are excluded for the same reason read the other way: they are
+      # test-only, `publish = false`, and nothing shipped depends on them, so building them for five
+      # targets would widen the claim this job makes rather than support it. The reference pack was
+      # the first member here with a **binary**, and a binary has to *link*: the Android leg has no
+      # NDK linker, so `cargo build --target aarch64-linux-android` fed its object files to the host
+      # `ld` and got *"Relocations in generic ELF (EM: 183)"*. A library target only ever produces
+      # an `rlib` and never hits that. The fidelity oracle has a binary too, and the same exclusion
+      # for the same reason.
+      #
+      # **The canvas harness (MJXOFF-166) is the third, and it landed red because the pattern above
+      # was documented and not automated.** It is the same shape exactly — test-only, unranked,
+      # nothing depends on it, and `[[bin]] mjx-canvas-harness` is the thing a person runs — so it
+      # needs the same line. Worth stating for whoever adds the fourth: a new workspace member with
+      # a binary joins this list unless something shipped depends on it, and the Android leg is
+      # where forgetting shows up. There is deliberately no allow-list test enforcing that; the
+      # member table `xtask/tests/layering.rs` holds is the place a rule about membership belongs,
+      # and it has no opinion about linkers.
       # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
       # reads the backslash line-continuations below as a unary `--` and fails to parse the step
       # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
@@ -459,6 +507,7 @@ jobs:
             --exclude mjx-python --exclude mjx-wasm \
             --exclude mjx-schema-gate --exclude mjx-fixtures \
             --exclude mjx-reference-pack --exclude mjx-render-oracle \
+            --exclude mjx-canvas-harness \
             --target ${{ matrix.target }}
 
   # The two binding members, built and linted on the host. `lint-test` already covers them as part of

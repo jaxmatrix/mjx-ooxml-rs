@@ -241,6 +241,27 @@ enum Tier {
     /// rank is a promise about who may reach it, and the answer here is *one named crate*, which is
     /// not something a number can say.
     RenderOracle,
+    /// `mjx-canvas-harness` (MJXOFF-166): the manual audit harness for the sixty-one in-canvas UI
+    /// elements. Outside the shipped graph, at the top, beside [`Tier::ReferencePack`] and above
+    /// [`Tier::RenderOracle`].
+    ///
+    /// It is a rung of its own rather than a second `ReferencePack` for the same reason the oracle
+    /// is: the two live under different rules. The pack names the format tier and nothing may reach
+    /// it; this crate names **no** format crate and no geometry table — it is the rendering path
+    /// with no document in it, exactly like the oracle — and it reaches
+    /// [`Tier::RenderOracle`] for the PNG encoder, the plate manifest and the baseline store.
+    ///
+    /// **It is the second consumer the oracle's rule was widened for**, and the first consumer of
+    /// the plate generator itself: `mjx-reference-pack` depends on the oracle for its authority
+    /// vocabulary and never renders a plate through it, so before this crate existed the
+    /// *permitted* direction of that rule was asserted and unexercised.
+    /// [`the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph`] now asserts both
+    /// edges by name.
+    ///
+    /// **Nothing may depend on it, in either section.** It is an application, not a library: it
+    /// reaches the platform boundary and the oracle together, which is a pair no ranked crate may
+    /// declare, and an edge into it would drag both into whatever declared it.
+    CanvasHarness,
     /// `xtask`: a host-only developer binary nothing depends on, so it may reach anything.
     Tooling,
 }
@@ -280,6 +301,7 @@ impl Tier {
             | Self::TestInstrument
             | Self::ReferencePack
             | Self::RenderOracle
+            | Self::CanvasHarness
             | Self::Tooling => return None,
         })
     }
@@ -307,6 +329,7 @@ impl Tier {
             Self::TestInstrument => "test-only instrument (outside the shipped graph)",
             Self::ReferencePack => "test-only reference pack (above the shipped graph)",
             Self::RenderOracle => "test-only fidelity oracle (above the shipped graph)",
+            Self::CanvasHarness => "test-only canvas UI harness (above the shipped graph)",
             Self::Tooling => "host-only tooling (outside the shipped graph)",
         }
     }
@@ -352,6 +375,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-allocation-counter", Tier::TestInstrument),
     ("mjx-render-oracle", Tier::RenderOracle),
     ("mjx-reference-pack", Tier::ReferencePack),
+    ("mjx-canvas-harness", Tier::CanvasHarness),
     ("xtask", Tier::Tooling),
 ];
 
@@ -745,20 +769,52 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
         }
     }
 
-    // And the edge that must **exist**, so the exception above is not a hole nothing exercises. A
+    // **Nothing at all may depend on the canvas harness either, in either section** (MJXOFF-166).
+    // It is an application rather than a library, and it names the platform boundary and the
+    // fidelity oracle together — the same shape of edge set that keeps the reference pack at the
+    // top — so an edge into it would drag both into whatever declared it.
+    for member in &members {
+        for (target, kind) in &member.edges {
+            let target_tier =
+                tier_of(target).expect("the target is a workspace member, so it has a row");
+            assert!(
+                target_tier != Tier::CanvasHarness,
+                "`{}` declares `{target}` as {}, but `{target}` is {} and nothing may depend on it \
+                 in any section: it is an application at the top of the workspace, and an edge into \
+                 it would pull the platform boundary and the fidelity oracle into whatever declared \
+                 it",
+                member.name,
+                kind.describe(),
+                target_tier.describe(),
+            );
+        }
+    }
+
+    // And the edges that must **exist**, so the exception above is not a hole nothing exercises. A
     // rule written for one consumer, with no consumer, is a rule that would go on passing if the
     // crate it governs were deleted.
-    let pack = members
-        .iter()
-        .find(|member| member.name == "mjx-reference-pack")
-        .expect("the workspace has a reference pack");
-    assert!(
-        pack.edges
+    //
+    // There are **two** consumers now, and they exercise different halves of the same permission.
+    // `mjx-reference-pack` reaches the oracle for the authority vocabulary it used to own; the
+    // canvas harness reaches it for the plate generator, the PNG encoder and the baseline store,
+    // which is the half MJXOFF-165 shipped asserted-but-unconsumed. Both are named, because a rule
+    // whose only exercised consumer uses one module would go quiet the day the other module lost
+    // its last caller.
+    for consumer in ["mjx-reference-pack", "mjx-canvas-harness"] {
+        let member = members
             .iter()
-            .any(|(target, _)| target == "mjx-render-oracle"),
-        "`mjx-reference-pack` no longer depends on `mjx-render-oracle`, so the one exception above \
-         is unexercised — and an unexercised exception is one nobody would notice going wrong"
-    );
+            .find(|member| member.name == consumer)
+            .unwrap_or_else(|| panic!("the workspace has `{consumer}`"));
+        assert!(
+            member
+                .edges
+                .iter()
+                .any(|(target, _)| target == "mjx-render-oracle"),
+            "`{consumer}` no longer depends on `mjx-render-oracle`, so the exception above is that \
+             much less exercised — and an unexercised exception is one nobody would notice going \
+             wrong"
+        );
+    }
 
     // The other half of "outside the graph": no shipped crate may *ship* one of them.
     for member in &members {

@@ -1,0 +1,16 @@
+display-list page=400x266.6667 scale=1.3333334 bytes=684
+section commands count=10
+section paints count=5
+section gradients count=1
+section gradient stops count=2
+section geometries count=10
+0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0001 fill rect[24,16,376,250.66667] with #ffffffff
+0002 fill rect[45.333336,48,330.6667,54.666668] with #223b3366
+0003 fill rect[45.333336,66.66667,322.6667,73.333336] with #223b3366
+0004 fill rect[45.333336,85.333336,333.33334,92] with #223b3366
+0005 fill rect[45.333336,104,298.6667,110.66667] with #223b3366
+0006 fill rect[45.333336,122.66667,328,129.33334] with #223b3366
+0007 fill rect[45.333336,141.33334,280,148] with #223b3366
+0008 fill rect[330.6667,16,376,250.66667] with gradient[Linear angle=0 stops=0@#1e7a4900,10000@#1e7a4988]
+0009 fill outline[0x1 at 353.33334,121.333336,369.33334,145.33334] with #1e7a49ff
