@@ -145,10 +145,22 @@ const EMBEDDED_PACKAGE_CONTENT_TYPES: [&str; 1] =
 /// Whether a content type names an XML payload. `vmlDrawing` is XML despite the content type not
 /// saying so; it is classified as preserved foreign markup a step later, which is the truthful
 /// reason.
-fn is_xml_content_type(content_type: &str) -> bool {
-    content_type.ends_with("+xml")
-        || content_type.ends_with("/xml")
-        || content_type.ends_with("vmlDrawing")
+///
+/// **The comparison folds case, and that is load-bearing rather than tidy.** ECMA-376 Part 2
+/// §10.1.2.3 compares a content type case-insensitively, and this predicate decides whether the gate
+/// *looks at a part at all* — a spelling it does not recognise is reported as a non-XML payload and
+/// skipped, which is MJXOFF-88 §7's shape exactly: the gate goes green because the part was never
+/// inspected. MJXOFF-114 had already paid for it once, in `mjx-opc`'s own exception list; MJXOFF-221
+/// found the same exact match here and in [`crate::order`], where it was a second copy of this
+/// function rather than a call to it.
+pub(crate) fn is_xml_content_type(content_type: &str) -> bool {
+    let base = content_type
+        .split(';')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
+        .to_ascii_lowercase();
+    base.ends_with("+xml") || base.ends_with("/xml") || base.ends_with("vmldrawing")
 }
 
 /// Whether any element or attribute anywhere in the subtree is in the markup-compatibility
@@ -497,4 +509,50 @@ pub fn outcome_table(label: &str, rows: &[PartRow]) -> String {
         ));
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_xml_content_type;
+
+    /// The gate looks at a part only when this says the part is XML, so a spelling it misses is a
+    /// part nobody validates — the false green MJXOFF-110 exists to close, arriving through a string
+    /// literal rather than through a missing table row.
+    ///
+    /// Every spelling below is the same media type under ECMA-376 Part 2 §10.1.2.3. Before
+    /// MJXOFF-221 the test was `content_type.ends_with("vmlDrawing")` and the last three answered
+    /// `false`.
+    #[test]
+    fn a_vml_drawing_is_xml_in_every_casing_a_producer_writes() {
+        for spelling in [
+            "application/vnd.openxmlformats-officedocument.vmlDrawing",
+            "application/vnd.openxmlformats-officedocument.vmldrawing",
+            "APPLICATION/VND.OPENXMLFORMATS-OFFICEDOCUMENT.VMLDRAWING",
+            "application/vnd.openxmlformats-officedocument.vmlDrawing; charset=utf-8",
+        ] {
+            assert!(is_xml_content_type(spelling), "{spelling} names XML");
+        }
+    }
+
+    /// The `+xml` suffix and the two generic types fold too, and a binary payload still does not
+    /// match.
+    #[test]
+    fn the_suffix_rule_folds_and_a_binary_payload_still_does_not_match() {
+        for spelling in [
+            "application/vnd.openxmlformats-officedocument.presentationml.slide+xml",
+            "APPLICATION/VND.OPENXMLFORMATS-OFFICEDOCUMENT.THEME+XML",
+            "text/xml",
+            "TEXT/XML",
+            "application/xml; charset=utf-8",
+        ] {
+            assert!(is_xml_content_type(spelling), "{spelling} names XML");
+        }
+        for spelling in [
+            "image/png",
+            "application/vnd.openxmlformats-officedocument.oleObject",
+            "",
+        ] {
+            assert!(!is_xml_content_type(spelling), "{spelling} is not XML");
+        }
+    }
 }
