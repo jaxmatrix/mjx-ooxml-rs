@@ -541,6 +541,9 @@ fn coverage_manifest(
             bail!("`UNCOVERED_SCHEMAS` names `{stem}` twice");
         }
     }
+    // …and a claim nothing can reach any more is worse than a typo, because it still reads as a
+    // claim. See `check_uncovered_schemas_are_live`.
+    check_uncovered_schemas_are_live()?;
 
     let mut s = String::new();
     s.push_str("# Generated-type coverage\n\n");
@@ -614,6 +617,69 @@ enum Table {
     ChildOrder,
 }
 
+/// Fails when an [`UNCOVERED_SCHEMAS`] row, or one of its two notes, has stopped being reachable.
+///
+/// **This closes MJXOFF-88 §9 B10.** `UNCOVERED_SCHEMAS` writes prose straight into `COVERAGE.md`, a
+/// shipped document, and until MJXOFF-224 the only things checked about a row were that its stem is
+/// in the Transitional set and that no stem appears twice. Nothing failed when a row's *claim*
+/// stopped being true — so a note reading `not modelled` could outlive the schema being generated,
+/// and a note reading `generated — every complex type` could outlive the schema leaving
+/// [`CHILD_ORDER_SCHEMAS`], at which point [`uncovered_note`] would print it and the document would
+/// report coverage that does not exist.
+///
+/// What is enforced is the rule the table's own doc comment already stated and nothing tested:
+///
+/// * **a schema covered in both tables has no row at all** — its prose can never be read again, so
+///   keeping it is keeping an assertion nobody will ever see fail;
+/// * **a note is empty exactly for the column that covers the schema**, and non-empty exactly for
+///   the column that does not. [`uncovered_note`] already rejected an empty note it needed; this
+///   rejects a note it will never need.
+/// * **a live note never opens with `generated`**, because by construction its table does not
+///   generate that schema.
+///
+/// It needs no schemas — everything it compares is a `const` — so `xtask/tests/codegen_drift.rs`
+/// runs it on every push, not only where `References/` is present.
+///
+/// **What it cannot do** is tell you that a note's *sentence* has stopped being true. That
+/// `bibliography sources are preserved verbatim, never authored` is prose about `mjx-docx`, and no
+/// check here reads `mjx-docx`. Every `not modelled — …` note is a claim a person made on a date.
+pub fn check_uncovered_schemas_are_live() -> Result<()> {
+    for (stem, simple_note, child_note) in UNCOVERED_SCHEMAS {
+        let simple_covered = SIMPLE_TYPE_MODULES.iter().any(|m| m.stem == *stem);
+        let child_covered = CHILD_ORDER_SCHEMAS.contains(stem);
+        if simple_covered && child_covered {
+            bail!(
+                "`UNCOVERED_SCHEMAS` still has a row for `{stem}`, which is now covered in both \
+                 tables — neither of its notes can ever be read again. Delete the row."
+            );
+        }
+        for (covered, note, column) in [
+            (simple_covered, *simple_note, "simple-type"),
+            (child_covered, *child_note, "child-order"),
+        ] {
+            if covered && !note.is_empty() {
+                bail!(
+                    "`{stem}`'s {column} note says {note:?}, but that table covers `{stem}` and \
+                     computes its status directly — the note is unreachable. Empty it."
+                );
+            }
+            if !covered && note.is_empty() {
+                bail!(
+                    "`{stem}` has an empty {column} note, but that table does not cover it — an \
+                     empty note means \"covered here, see the other column\""
+                );
+            }
+            if !covered && note.starts_with("generated") {
+                bail!(
+                    "`{stem}`'s {column} note opens with \"generated\", but that table does not \
+                     generate `{stem}` — `COVERAGE.md` would report coverage that does not exist"
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The curated note for a schema a table does not cover.
 fn uncovered_note(stem: &str, table: Table) -> Result<String> {
     let row = UNCOVERED_SCHEMAS
@@ -644,7 +710,10 @@ fn uncovered_note(stem: &str, table: Table) -> Result<String> {
 /// A row is needed for every schema not generated in that table, and only for those: a schema that
 /// gains coverage in **both** tables has its row removed (MJXOFF-132 took `sml`'s and the dead one
 /// MJXOFF-134 left behind for `shared-math`), and a schema that arrives without one fails the
-/// generator. Removing the row is not tidying — it is what makes coverage load-bearing: withdraw
+/// generator. Since MJXOFF-224 that first half is enforced rather than merely written here —
+/// [`check_uncovered_schemas_are_live`] — which is what found `pml`, `wml` and `dml-main` still
+/// carrying rows neither of whose notes could ever be read, and `dml-chart` carrying a child-order
+/// note saying `generated` about a column computed elsewhere. Removing the row is not tidying — it is what makes coverage load-bearing: withdraw
 /// `sml` from [`CHILD_ORDER_SCHEMAS`] now and this generator refuses to run rather than quietly
 /// reporting a schema as pending again. `pending, owned by MJXOFF-N` names the work item that closes the gap — the same
 /// ownership `mjx-schema-gate`'s `OrderingCoverage::Pending` states for the namespaces it
@@ -654,7 +723,9 @@ pub const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "dml-chart",
         "pending — charts are written through `mjx-chart`'s model, which uses no `ST_*` \
          enumeration of its own yet",
-        "generated — every complex type",
+        // Covered by `CHILD_ORDER_SCHEMAS`, so this column is computed and the note would never be
+        // read; `check_uncovered_schemas_are_live` is what keeps it empty.
+        "",
     ),
     (
         "dml-chartDrawing",
@@ -676,7 +747,6 @@ pub const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
          member to rank, so there is no placement decision a generated table could inform that the \
          hand-written order does not already get right",
     ),
-    ("pml", "", "generated — every complex type"),
     (
         "shared-additionalCharacteristics",
         "not modelled — a document-characteristics part this workspace neither reads nor writes",
@@ -749,11 +819,6 @@ pub const UNCOVERED_SCHEMAS: &[(&str, &str, &str)] = &[
         "not modelled — as for `vml-main`",
         "not modelled — as for `vml-main`",
     ),
-    // `wml`'s child-order note is unused now that CHILD_ORDER_SCHEMAS contains it (its column is
-    // computed directly, the same as `dml-main`'s row below) — kept accurate rather than stale, on
-    // the same convention that row already follows.
-    ("wml", "", "generated — every complex type"),
-    ("dml-main", "", "generated — every complex type"),
     (
         "shared-commonSimpleTypes",
         "",
