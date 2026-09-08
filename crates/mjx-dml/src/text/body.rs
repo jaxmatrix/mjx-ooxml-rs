@@ -1,8 +1,13 @@
 //! `a:txBody` — a text body.
 
 use mjx_derive::{FromXml, ToXml};
-use mjx_ooxml_core::{RawAttribute, RawName, RawNode};
+use mjx_ooxml_core::{
+    FromXml as _, Interner, RawAttribute, RawElement, RawName, RawNode, ToXml as _,
+};
 
+use crate::build::is_dml;
+
+use super::body_properties::TextBodyProperties;
 use super::list_style::TextListStyle;
 use super::paragraph::Paragraph;
 
@@ -53,6 +58,54 @@ impl TextBody {
     pub fn paragraphs_mut(&mut self) -> impl Iterator<Item = &mut Paragraph> {
         self.content.iter_mut().filter_map(|item| match item {
             TextBodyContent::Paragraph(paragraph) => Some(paragraph),
+            _ => None,
+        })
+    }
+
+    /// The body's own geometry (`a:bodyPr`), or `None` if it declares none.
+    ///
+    /// The element is schema-**required**, so `None` means the file is malformed rather than that
+    /// the body inherits — but reading a malformed file must not fail, so the absence is reported
+    /// rather than refused, and a box model reads it as "this tier states nothing".
+    #[must_use]
+    pub fn body_properties(&self, interner: &Interner) -> Option<TextBodyProperties> {
+        self.raw_child(interner, "bodyPr")
+            .and_then(|element| TextBodyProperties::from_xml(element, interner).ok())
+    }
+
+    /// Replaces the body's own geometry (`a:bodyPr`), or gives it one if it declares none.
+    ///
+    /// `CT_TextBody`'s sequence puts `a:bodyPr` **first**, before `a:lstStyle` and every `a:p`, so a
+    /// new element lands there; an existing one is replaced where it already sits, so nothing else
+    /// about the body moves. Order is validity here, not style.
+    pub fn set_body_properties(
+        &mut self,
+        interner: &mut Interner,
+        properties: &TextBodyProperties,
+    ) {
+        let element = properties.to_xml(interner);
+        if let Some(slot) = self.content.iter_mut().find(|item| match item {
+            TextBodyContent::Raw(RawNode::Element(child)) => {
+                is_dml(&child.name, interner) && interner.resolve(child.name.local) == "bodyPr"
+            }
+            _ => false,
+        }) {
+            *slot = TextBodyContent::Raw(RawNode::Element(element));
+            return;
+        }
+        self.content
+            .insert(0, TextBodyContent::Raw(RawNode::Element(element)));
+        self.empty = false;
+    }
+
+    /// The first opaque child element named `(DML_MAIN, local)`.
+    fn raw_child(&self, interner: &Interner, local: &str) -> Option<&RawElement> {
+        self.content.iter().find_map(|item| match item {
+            TextBodyContent::Raw(RawNode::Element(child))
+                if is_dml(&child.name, interner) && interner.resolve(child.name.local) == local =>
+            {
+                Some(child)
+            }
             _ => None,
         })
     }

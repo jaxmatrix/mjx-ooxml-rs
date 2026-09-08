@@ -58,6 +58,69 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.144] - 2026-09-08
+
+**A `.pptx` becomes a `FragmentTree` — the first real box model (MJXOFF-169, R14).**
+
+Thirteen children built machinery: fonts, shaping, the `BoxModel` contract, the display list, four
+painters, a fidelity oracle, a session, a viewport. **Not one of them laid out a document.** This is
+the one that does: `mjx-layout-pptx` (rank 3.6) walks a slide's shape tree in z-order, places every
+shape at the bounds `mjx-pptx` resolves for it, and lays out every text body inside its shape — the
+four insets, the columns, the nine indent levels with their bullets, the line spacing, the anchor,
+and the autofit that ties them together.
+
+### The new crate
+
+- **`crates/mjx-layout-pptx`** — `SlideBoxModel`, the first implementation of
+  `mjx_layout::BoxModel`. One slide is one page, so `estimate_extent` is `Exact` (the only box model
+  in the programme whose "estimate" is the answer), `invalidate` names pages rather than a suffix,
+  and a checkpoint carries four bytes.
+- **It consumes the seven-tier effective-property ladder and re-derives none of it.**
+  `effective_shape_bounds`, `effective_shape_transform`, `effective_body_properties`,
+  `effective_paragraph_properties`, `effective_run_properties`, `effective_shape_fill` and
+  `effective_shape_outline` answer every question about what a shape *says*.
+  `tests/the_ladder_is_consumed.rs` holds that by grepping this crate's source for the wire
+  vocabulary a second resolver would need, and by refusing every *declared*-property reader by name.
+- **Every measurement comes from `mjx-text`.** Shaping, bidirectional resolution, script
+  itemisation, face fallback and line breaking; nothing here measures a glyph.
+
+### `a:bodyPr` is modelled for the first time
+
+It was preserved verbatim and typed nowhere, because fidelity never needed it — and layout does: the
+insets, the anchor, the wrap flag, the column count and the autofit choice are the whole of a text
+body's geometry.
+
+- **`mjx_dml::TextBodyProperties` / `TextBodyPropertiesSpec`** — the fifth typed piece of
+  `a:txBody`, in the same two-type shape as the four before it. Its schema defaults are named
+  constants applied at the point of use, so an authored `0` inset is still distinguishable from an
+  unstated one. `TextWrapping` is hand-written beside the attribute that reads it, because
+  `ST_TextWrappingType` is not in the generator's curated type list.
+- **`Presentation::body_properties`, `effective_body_properties`, `set_body_properties`** — the
+  stated value, the value after the placeholder chain has been walked, and a merging writer.
+
+### ⚠ Nothing in the new crate is parity with PowerPoint
+
+ECMA-376 says what the attributes are and is nearly silent on what a renderer does with them, so a
+number of behaviours are readings rather than facts. Every one is marked `GUESS:` at the site that
+makes the choice. The sharpest is autofit, and it is deliberately split in two:
+
+- **honouring** a stored `a:normAutofit@fontScale` reproduces exactly what the author saw, and is
+  exact;
+- **computing** one is running PowerPoint's own search, which has never been specified. The ladder
+  of scales is derived from the values PowerPoint is observed to write; the order the two factors are
+  stepped in is a guess.
+
+`AutofitOutcome::recomputed` is what keeps the two apart, and `AutofitPolicy::Disabled` exists so a
+gate can prove the search is what makes the difference. Confirmation is the Windows sitting.
+
+### Gates
+
+Fragment-tier golden snapshots over nine committed slides, each carrying an approval record that
+says `generator` — a real record, and not a human review. Autofit proved on **overflowing** fixtures
+with the computed scale asserted as a number. A `SourceRef` round trip that goes out of the crate
+and back through `mjx-pptx`. Nine indent levels asserted as nine distinct indents. The addressing
+scheme checked against `mjx-session`'s, which wrote it down first.
+
 ## [0.0.143] - 2026-09-08
 
 **Viewport windowing, byte-budgeted caches and frame scheduling — and the unbounded residency

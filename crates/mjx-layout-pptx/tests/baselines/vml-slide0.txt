@@ -1,0 +1,6 @@
+# specimen: vml.pptx slide 0
+# covers: a deck carrying legacy VML, which the box model neither reads nor trips over
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+fragment-tree nodes=1 roots=1
+#0 box rect=[0,0,9144000,6858000] transform=TransformId(0) clip=none part=0 path=/0 chars=0..0 decoration=-1

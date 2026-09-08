@@ -123,9 +123,12 @@ pub struct DocumentRow {
 /// with no image looks like a failure, and it is not — it is a stage of the project. Written as a
 /// sentence a reader can act on rather than as an empty cell.
 pub const NO_FORMAT_RENDERS_YET: &str =
-    "no format renders yet: a `.pptx` becomes a fragment tree from R14 onward, and until then \
-     there is nothing to rasterise. The row exists so that the day one does, the fixture is \
-     already in the gallery rather than waiting to be remembered.";
+    "no format renders yet. A `.pptx` does become a fragment tree from R14 (MJXOFF-169) onward, and \
+     `mjx-layout-pptx` holds that crate's own fragment-tier baselines — but this gallery is the \
+     *rendering* path, and turning a document's fragment tree into a display list is R15. This \
+     crate also names no format crate at all, by design, so the picture cannot be taken here even \
+     once one exists. The row exists so that the day it can be, the fixture is already in the \
+     gallery rather than waiting to be remembered.";
 
 /// Everything one run of the generator produced.
 #[derive(Clone, PartialEq, Debug)]

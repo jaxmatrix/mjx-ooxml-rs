@@ -286,6 +286,14 @@ with child coordinate spaces, connector routing, table layout inside a graphic f
 (axes, scales, series geometry — plot-area layout is its own sub-engine), and SmartArt/diagram
 layout.
 
+> **Built in MJXOFF-169 (R14), part 1.** The crate exists at rank 3.6 and is the workspace's first
+> implementation of `BoxModel`: slide geometry, the shape tree in z-order with group transforms
+> composed, text-body layout, the nine bullet levels, tab-stop resolution and autofit. **Tables,
+> connector routing, images, effects, charts and SmartArt are not in it yet** — R15 and R23. Nothing
+> in it is parity with PowerPoint and it does not claim to be: every behaviour chosen rather than
+> read is marked `GUESS:` at its site, and honouring a stored `normAutofit` scale is kept
+> deliberately apart from *computing* one, which is running PowerPoint's own unspecified search.
+
 **`mjx-layout-docx` — reflow. The hardest engine in the project.** Line breaking and justification
 (including East Asian rules), pagination with widow/orphan/keep-with-next/keep-lines, sections and
 column balancing, tables that split across pages with repeating header rows, nested tables, and

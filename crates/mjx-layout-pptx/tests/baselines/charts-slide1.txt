@@ -1,0 +1,7 @@
+# specimen: charts.pptx slide 1
+# covers: the second page of a deck, reached through the first page's checkpoint
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+fragment-tree nodes=2 roots=1
+#0 box rect=[0,0,9144000,6858000] transform=TransformId(0) clip=none part=0 path=/1 chars=0..0 decoration=-1
+  #1 box rect=[914400,914400,8229600,5486400] transform=TransformId(0) clip=none part=0 path=/1/0 chars=0..0 decoration=-1

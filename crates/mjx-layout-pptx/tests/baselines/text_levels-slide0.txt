@@ -1,0 +1,48 @@
+# specimen: text_levels.pptx slide 0
+# covers: nine indent levels with their bullets, as a real deck states them
+# approver: generator
+# approval: a change detector written by the code under test; no person has reviewed these numbers, and the Windows sitting is where one will
+fragment-tree nodes=43 roots=1
+#0 box rect=[0,0,9144000,6858000] transform=TransformId(0) clip=none part=0 path=/0 chars=0..0 decoration=-1
+  #1 shape rect=[685800,457200,8458200,1600200] transform=TransformId(0) clip=none part=0 path=/0/0 chars=0..0 geometry=0 decoration=-1
+    #2 box rect=[777240,502920,8366760,1554480] transform=TransformId(0) clip=none part=0 path=/0/0 chars=0..0 decoration=-1
+      #3 box rect=[3940556,502920,5203444,1087120] transform=TransformId(0) clip=none part=0 path=/0/0/0 chars=0..0 decoration=-1
+        #4 line rect=[3940556,502920,5203444,1087120] transform=TransformId(0) clip=none part=0 path=/0/0/0 chars=0..6 baseline=457200 ascent=457200 descent=127000 direction=LeftToRight hanging=0
+          #5 glyph run rect=[3940556,502920,5203444,1087120] transform=TransformId(0) clip=none part=0 path=/0/0/0/0 chars=0..6 face=0 origin=[3940556,960120] direction=LeftToRight level=BidiLevel(0) glyphs=6
+  #6 shape rect=[685800,1828800,8458200,5715000] transform=TransformId(0) clip=none part=0 path=/0/1 chars=0..0 geometry=1 decoration=-1
+    #7 box rect=[777240,1874520,8366760,5669280] transform=TransformId(0) clip=none part=0 path=/0/1 chars=0..0 decoration=-1
+      #8 box rect=[1120140,1874520,1839163,2078990] transform=TransformId(0) clip=none part=0 path=/0/1/0 chars=0..0 decoration=-1
+        #9 line rect=[1120140,1874520,1839163,2078990] transform=TransformId(0) clip=none part=0 path=/0/1/0 chars=0..10 baseline=160020 ascent=160020 descent=44450 direction=LeftToRight hanging=0
+          #10 glyph run rect=[777240,1874520,856005,2078990] transform=TransformId(0) clip=none part=0 path=/0/1/0 chars=0..0 face=0 origin=[777240,2034540] direction=LeftToRight level=BidiLevel(0) glyphs=1
+          #11 glyph run rect=[1120140,1874520,1839163,2078990] transform=TransformId(0) clip=none part=0 path=/0/1/0/0 chars=0..10 face=0 origin=[1120140,2034540] direction=LeftToRight level=BidiLevel(0) glyphs=10
+      #12 box rect=[1520190,2078990,2868981,2487930] transform=TransformId(0) clip=none part=0 path=/0/1/1 chars=0..0 decoration=-1
+        #13 line rect=[1520190,2078990,2868981,2487930] transform=TransformId(0) clip=none part=0 path=/0/1/1 chars=0..9 baseline=320040 ascent=320040 descent=88900 direction=LeftToRight hanging=0
+          #14 glyph run rect=[1234440,2078990,1412240,2487930] transform=TransformId(0) clip=none part=0 path=/0/1/1 chars=0..0 face=0 origin=[1234440,2399030] direction=LeftToRight level=BidiLevel(0) glyphs=1
+          #15 glyph run rect=[1520190,2078990,2868981,2487930] transform=TransformId(0) clip=none part=0 path=/0/1/1/0 chars=0..9 face=0 origin=[1520190,2399030] direction=LeftToRight level=BidiLevel(0) glyphs=9
+      #16 box rect=[7103415,2487930,8366760,2867660] transform=TransformId(0) clip=none part=0 path=/0/1/2 chars=0..0 decoration=-1
+        #17 line rect=[7103415,2487930,8366760,2867660] transform=TransformId(0) clip=none part=0 path=/0/1/2 chars=0..9 baseline=297180 ascent=297180 descent=82550 direction=LeftToRight hanging=0
+          #18 glyph run rect=[1691640,2487930,1853768,2867660] transform=TransformId(0) clip=none part=0 path=/0/1/2 chars=0..0 face=0 origin=[1691640,2785110] direction=LeftToRight level=BidiLevel(0) glyphs=1
+          #19 glyph run rect=[7103415,2487930,8366760,2867660] transform=TransformId(0) clip=none part=0 path=/0/1/2/0 chars=0..9 face=0 origin=[7103415,2785110] direction=LeftToRight level=BidiLevel(0) glyphs=9
+      #20 box rect=[2377440,2867660,3509264,3159760] transform=TransformId(0) clip=none part=0 path=/0/1/3 chars=0..0 decoration=-1
+        #21 line rect=[2377440,2867660,3509264,3159760] transform=TransformId(0) clip=none part=0 path=/0/1/3 chars=0..11 baseline=228600 ascent=228600 descent=63500 direction=LeftToRight hanging=0
+          #22 glyph run rect=[2148840,2867660,2226056,3159760] transform=TransformId(0) clip=none part=0 path=/0/1/3 chars=0..0 face=0 origin=[2148840,3096260] direction=LeftToRight level=BidiLevel(0) glyphs=1
+          #23 glyph run rect=[2377440,2867660,3509264,3159760] transform=TransformId(0) clip=none part=0 path=/0/1/3/0 chars=0..11 face=0 origin=[2377440,3096260] direction=LeftToRight level=BidiLevel(0) glyphs=11
+      #24 box rect=[777240,3159760,1289939,3305810] transform=TransformId(0) clip=none part=0 path=/0/1/4 chars=0..0 decoration=-1
+        #25 line rect=[777240,3159760,1289939,3305810] transform=TransformId(0) clip=none part=0 path=/0/1/4 chars=0..10 baseline=114300 ascent=114300 descent=31750 direction=LeftToRight hanging=0
+          #26 glyph run rect=[777240,3159760,1289939,3305810] transform=TransformId(0) clip=none part=0 path=/0/1/4/0 chars=0..10 face=0 origin=[777240,3274060] direction=LeftToRight level=BidiLevel(0) glyphs=10
+  #27 shape rect=[3124200,6356350,6019800,6721475] transform=TransformId(0) clip=none part=0 path=/0/2 chars=0..0 geometry=2 decoration=-1
+    #28 box rect=[3215640,6402070,5928360,6675755] transform=TransformId(0) clip=none part=0 path=/0/2 chars=0..0 decoration=-1
+      #29 box rect=[3215640,6402070,3609289,6577330] transform=TransformId(0) clip=none part=0 path=/0/2/0 chars=0..0 decoration=-1
+        #30 line rect=[3215640,6402070,3609289,6577330] transform=TransformId(0) clip=none part=0 path=/0/2/0 chars=0..6 baseline=137160 ascent=137160 descent=38100 direction=LeftToRight hanging=0
+          #31 glyph run rect=[3215640,6402070,3609289,6577330] transform=TransformId(0) clip=none part=0 path=/0/2/0/0 chars=0..6 face=0 origin=[3215640,6539230] direction=LeftToRight level=BidiLevel(0) glyphs=6
+  #32 shape rect=[685800,5943600,2971800,6308725] transform=TransformId(0) clip=none part=0 path=/0/3 chars=0..0 geometry=3 decoration=-1
+    #33 box rect=[777240,5989320,2880360,6263005] transform=TransformId(0) clip=none part=0 path=/0/3 chars=0..0 decoration=-1
+      #34 box rect=[1120140,5989320,2770124,6456680] transform=TransformId(0) clip=none part=0 path=/0/3/0 chars=0..0 decoration=-1
+        #35 line rect=[1120140,5989320,2770124,6456680] transform=TransformId(0) clip=none part=0 path=/0/3/0 chars=0..10 baseline=365760 ascent=365760 descent=101600 direction=LeftToRight hanging=0
+          #36 glyph run rect=[777240,5989320,957275,6456680] transform=TransformId(0) clip=none part=0 path=/0/3/0 chars=0..0 face=0 origin=[777240,6355080] direction=LeftToRight level=BidiLevel(0) glyphs=1
+          #37 glyph run rect=[1120140,5989320,2770124,6456680] transform=TransformId(0) clip=none part=0 path=/0/3/0/0 chars=0..10 face=0 origin=[1120140,6355080] direction=LeftToRight level=BidiLevel(0) glyphs=10
+  #38 shape rect=[3429000,5943600,5715000,6308725] transform=TransformId(0) clip=none part=0 path=/0/4 chars=0..0 geometry=4 decoration=-1
+    #39 box rect=[3520440,5989320,5623560,6263005] transform=TransformId(0) clip=none part=0 path=/0/4 chars=0..0 decoration=-1
+      #40 box rect=[3520440,5989320,4381348,6164580] transform=TransformId(0) clip=none part=0 path=/0/4/0 chars=0..0 decoration=-1
+        #41 line rect=[3520440,5989320,4381348,6164580] transform=TransformId(0) clip=none part=0 path=/0/4/0 chars=0..14 baseline=137160 ascent=137160 descent=38100 direction=LeftToRight hanging=0
+          #42 glyph run rect=[3520440,5989320,4381348,6164580] transform=TransformId(0) clip=none part=0 path=/0/4/0/0 chars=0..14 face=0 origin=[3520440,6126480] direction=LeftToRight level=BidiLevel(0) glyphs=14
