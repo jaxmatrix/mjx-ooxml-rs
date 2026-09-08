@@ -215,11 +215,23 @@ let bytes = deck.save()?;
 
 ## The gaps
 
-Two lists, kept apart on purpose. The first is what this library **decides not to do**, each entry
+Three lists, kept apart on purpose. The first is what this library **decides not to do**, each entry
 with the reason it is a decision. The second is what is **built but not yet verified against Office**,
-each entry with the work that will verify it. Nothing here is an oversight, and nothing here is a
-fidelity hole: every gap below is *reach* — something you cannot ask for — never something the library
-loses. A deck carrying any of it round-trips unchanged.
+each entry with the work that will verify it. Neither is an oversight and neither is a fidelity hole:
+every gap in them is *reach* — something you cannot ask for — never something the library loses, and
+a deck carrying any of it round-trips unchanged.
+
+The third list is different, and it is first below because of that: it is what this library
+**gets wrong**. An entry there is a defect with a ticket, not a decision, and calling the method it
+names can cost you content.
+
+### Known defects
+
+One entry, and it is a live one. Nothing else on this page can lose you content; this can.
+
+| Defect | What happens | Ticket |
+|---|---|---|
+| **Run coalescing compares a *resolved* colour** | [`coalesce_paragraph_runs`](Presentation::coalesce_paragraph_runs) and [`coalesce_shape_runs`](Presentation::coalesce_shape_runs) merge two adjacent runs whose *effective* formatting matches. Resolution bakes a colour to `RRGGBB`, which drops an `a:alpha` and flattens `a:schemeClr` to the literal it resolves to — so two runs differing only by transparency, or only by whether the colour is a theme link, compare equal and one of them is deleted. `unmodeled_state_eq` does not catch it, because `a:solidFill` is modelled. Neither method is exercised by the preservation corpus: both sit in its `NEVER_EXERCISED` register, because no fixture holds two adjacent runs a coalesce could merge | MJXOFF-233 |
 
 ### Non-goals
 

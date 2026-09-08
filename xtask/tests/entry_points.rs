@@ -128,9 +128,10 @@ fn one_line(text: &str) -> String {
 
 /// The index page of every guide set, derived from the tree.
 ///
-/// A guide set is a `docs/guide/` directory beside a crate, and its index is the `README.md` in it.
-/// Ten crates host one today; three more crates host a single page of somebody else's set
-/// (`mjx-mce`, `mjx-omml`, `mjx-vml`) and are covered by the index of the set that owns them.
+/// A guide set is a `docs`/`guide` directory pair beside a crate — see
+/// `crates/mjx-pptx/docs/guide/README.md` — and its index is the `README.md` in it. Ten crates host
+/// one today; three more host a single page of somebody else's set (`mjx-mce`, `mjx-omml`,
+/// `mjx-vml`) and are covered by the index of the set that owns them.
 fn guide_set_indexes() -> Vec<String> {
     let mut sets: Vec<String> = tracked_files()
         .into_iter()
@@ -1301,7 +1302,7 @@ fn the_front_page_reaches_every_guide_set_in_one_hop() {
             .collect::<Vec<_>>()
             .join("\n  ")
     );
-    // The other direction: a link to a `docs/guide/README.md` that is not a tracked guide set.
+    // The other direction: a link to a guide index that is not one of the tracked guide sets.
     let known: BTreeSet<&str> = sets.iter().map(String::as_str).collect();
     let mut dangling = Vec::new();
     for line in front_page.lines() {
