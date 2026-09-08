@@ -357,10 +357,13 @@ impl Deck {
     /// formatting a sub-range splits a run, and repeatedly formatting overlapping ranges leaves a
     /// paragraph with more runs than it needs.
     ///
-    /// **Known defect, MJXOFF-233:** the comparison is over *resolved* formatting, and resolution
-    /// drops a colour's `a:alpha` and flattens a theme colour to the literal it resolves to. Two
-    /// runs differing only by transparency, or only by whether the colour is a theme link, compare
-    /// equal here and one of them is deleted.
+    /// Two runs merge only when their **effective** formatting matches, neither carries unmodeled
+    /// state the other lacks, **and** their own, *unresolved* colours and typefaces agree. That last
+    /// condition is what keeps resolution's losses out of the decision (MJXOFF-233): a resolved
+    /// colour has no `a:alpha` and no memory of having been an `a:schemeClr`, and a resolved typeface
+    /// has no memory of having been `+mn-lt`, so without it a merge could delete a transparency or
+    /// leave a hard-coded colour where a theme link was. The cost is that a run stating a colour or
+    /// typeface explicitly no longer merges with a neighbour that inherits the same one.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
@@ -382,8 +385,8 @@ impl Deck {
 
     /// Merges adjacent identical runs across **every** paragraph of a shape's text body, returning the
     /// total number of runs merged away. The per-paragraph rule is
-    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs), **including its known defect**:
-    /// read MJXOFF-233 there before calling this on a document somebody else wrote.
+    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs), including the unresolved-colour
+    /// condition that keeps a merge from dropping an `a:alpha` or a theme link.
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
