@@ -241,10 +241,10 @@ impl Workbook {
         let Some((part, _)) = self.sheet_comments_part(index)? else {
             return Ok(None);
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Ok(None);
         };
-        let mut document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let mut document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let mut comments = Comments::from_xml(&document.root, &document.interner)
             .map_err(mjx_sml::SmlError::Model)?;
         let answer = {
@@ -792,10 +792,10 @@ impl Workbook {
         &self,
         part: &PartName,
     ) -> Result<Option<(Comments, Interner)>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Ok(None);
         };
-        Ok(Some(mjx_sml::parse_comments(bytes)?))
+        Ok(Some(mjx_sml::parse_comments(&bytes)?))
     }
 
     /// Parses one VML part into **the document it came from** and a model over its root.
@@ -817,10 +817,10 @@ impl Workbook {
         {
             return Err(XlsxError::PartIsNotVmlDrawing(part.as_str().to_owned()));
         }
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let drawing = Drawing::from_xml(&document.root, &document.interner)
             .map_err(mjx_sml::SmlError::Model)?;
         Ok(Some((document, drawing)))
@@ -832,10 +832,10 @@ impl Workbook {
         part: &PartName,
         edit: impl FnOnce(&mut Comments, &mut Interner),
     ) -> Result<(), XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let mut document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let mut document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let mut comments = Comments::from_xml(&document.root, &document.interner)
             .map_err(mjx_sml::SmlError::Model)?;
         {

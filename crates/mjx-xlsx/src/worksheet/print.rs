@@ -189,23 +189,23 @@ impl Workbook {
     /// # Errors
     /// As [`sheet_markup`](Self::sheet_markup).
     pub fn sheet_markup_of(&self, part: &PartName) -> Result<Option<SheetMarkup>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
         // Dispatch on the **root element**, not on the content type: a macrosheet has no content
         // type of its own, and a `.xlsm`'s parts are identified the same way. Each reader answers
         // `Ok(None)` for a root it does not recognise, so this is four questions and not a parse of
         // the root by hand.
-        if let Some(worksheet) = WorksheetPart::read_part(bytes)? {
+        if let Some(worksheet) = WorksheetPart::read_part(&bytes)? {
             return Ok(Some(SheetMarkup::Worksheet(worksheet)));
         }
-        if let Some(chart) = ChartSheetPart::read_part(bytes)? {
+        if let Some(chart) = ChartSheetPart::read_part(&bytes)? {
             return Ok(Some(SheetMarkup::ChartSheet(chart)));
         }
-        if let Some(dialog) = DialogSheetPart::read_part(bytes)? {
+        if let Some(dialog) = DialogSheetPart::read_part(&bytes)? {
             return Ok(Some(SheetMarkup::DialogSheet(dialog)));
         }
-        if let Some(macro_sheet) = MacroSheetPart::read_part(bytes)? {
+        if let Some(macro_sheet) = MacroSheetPart::read_part(&bytes)? {
             return Ok(Some(SheetMarkup::MacroSheet(macro_sheet)));
         }
         Ok(None)

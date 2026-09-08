@@ -545,10 +545,10 @@ impl Workbook {
         &self,
         part: &PartName,
     ) -> Result<Option<(RawDocument, WorksheetDrawing)>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let Some(drawing) = WorksheetDrawing::read_root(&document.root, &document.interner)
             .map_err(mjx_sml::SmlError::Model)?
         else {
@@ -604,7 +604,7 @@ impl Workbook {
         self.package()
             .part_names()
             .filter(|part| part.as_str().starts_with("/xl/media/"))
-            .find(|part| self.package().part_bytes(part) == Some(bytes))
+            .find(|part| self.package().part_payload(part).as_deref() == Some(bytes))
     }
 
     /// The id of `source`'s existing image relationship pointing at `target`, or `None`.

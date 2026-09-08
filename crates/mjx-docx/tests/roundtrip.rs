@@ -73,3 +73,41 @@ fn open_then_save_reproduces_every_part_with_the_model_materialized() {
         );
     }
 }
+
+/// The third case `Document::from_package`'s own doc comment advertises — a package **authored part
+/// by part** — and the one that did not work.
+///
+/// A package a caller has edited through `part_tree_mut` holds `word/document.xml` as a dirty tree:
+/// present, correct, and with no stored bytes left. `Package::part_bytes` answers `None` for that
+/// exactly as it does for a part that is not there, and the constructor used to read the two as one
+/// and refuse with `MissingDocumentPart` naming a part it was holding (MJXOFF-222).
+///
+/// **The `part_tree_mut` is the whole test.** A case that only opens a file and calls
+/// `from_package` is green before the fix and after it, because the part is `Raw` in both; the two
+/// assertions on the package's state are there so that a change which stops dirtying the part fails
+/// here rather than passing vacuously.
+#[test]
+fn from_package_accepts_a_package_whose_document_part_has_been_edited() {
+    let bytes = fixture("sample.docx");
+    let mut package = Package::open(&bytes).expect("open the package");
+    let part = mjx_docx::PartName::new("/word/document.xml").expect("a part name");
+
+    package.part_tree_mut(&part).expect("the part parses");
+    assert!(
+        package.part_bytes(&part).is_none(),
+        "the premise: `part_tree_mut` leaves the part with no stored bytes"
+    );
+    assert!(
+        package.contains_part(&part),
+        "…and the part is nonetheless present"
+    );
+
+    let mut document =
+        Document::from_package(package).expect("a dirty main part is still a w:document");
+    let mut opened = Document::open(&bytes).expect("open the bytes");
+    assert_eq!(
+        document.paragraph_count().expect("paragraphs"),
+        opened.paragraph_count().expect("paragraphs"),
+        "and it resolves to the same document the untouched package does"
+    );
+}

@@ -245,7 +245,10 @@ fn audit_package(bytes: &[u8], prefix: &str, audit: &mut ReferenceAudit) {
             continue;
         };
         if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
-            if let Some(payload) = package.part_bytes(&part).map(<[u8]>::to_vec) {
+            if let Some(payload) = package
+                .part_payload(&part)
+                .map(std::borrow::Cow::into_owned)
+            {
                 let nested = format!("{prefix}{}!", part.as_str());
                 audit_package(&payload, &nested, audit);
             }

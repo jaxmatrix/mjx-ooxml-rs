@@ -1,6 +1,8 @@
 //! The legacy surfaces: OLE objects, ActiveX controls, ink, SmartArt diagrams, and the VML
 //! drawings that PowerPoint pairs with the first two.
 
+use std::borrow::Cow;
+
 #[cfg(feature = "vml")]
 use mjx_ooxml_core::{FromXml, ToXml};
 use mjx_ooxml_core::{Interner, RawAttribute, RawDocument, RawElement, RawNode};
@@ -51,7 +53,8 @@ impl Presentation {
 
     /// The raw bytes of the embedded object the OLE frame `shape_idx` on `surface` references
     /// (`/ppt/embeddings/oleObjectN.bin` or an embedded package), exactly as the package holds them, or
-    /// `None` when the shape frames no OLE object. Borrowed from the package, so the part is not copied.
+    /// `None` when the shape frames no OLE object. Borrowed from the package when the part still holds
+    /// its bytes, and serialized on the spot when it has been edited (MJXOFF-222).
     ///
     /// The embedded object is **not modeled** — it is an opaque OLE stream or embedded document, carried
     /// through a round-trip verbatim. Reading does not dirty anything.
@@ -63,7 +66,7 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(rel_id) = self.ole_object_rel_id(surface, shape_idx)? else {
             return Ok(None);
@@ -72,7 +75,7 @@ impl Presentation {
         let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// The relationship id of the **fallback snapshot** image the OLE frame `shape_idx` on `surface`
@@ -107,7 +110,7 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(rel_id) = self.ole_snapshot_rel_id(surface, shape_idx)? else {
             return Ok(None);
@@ -116,7 +119,7 @@ impl Presentation {
         let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// The `progId` the OLE frame `shape_idx` on `surface` declares (e.g. `"Excel.Sheet.12"`) — the
@@ -322,12 +325,12 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         control_idx: usize,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(part) = self.activex_part(surface, control_idx)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// The ActiveX control's **persisted state** — the bytes of `/ppt/activeX/activeXN.bin` — for the
@@ -346,7 +349,7 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         control_idx: usize,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(activex_part) = self.activex_part(surface, control_idx)? else {
             return Ok(None);
@@ -356,7 +359,7 @@ impl Presentation {
         else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&binary_part))
+        Ok(self.package.part_payload(&binary_part))
     }
 
     /// The relationship id of the **fallback snapshot** image the ActiveX control `control_idx` on
@@ -392,7 +395,7 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         control_idx: usize,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(rel_id) = self.activex_snapshot_rel_id(surface, control_idx)? else {
             return Ok(None);
@@ -401,7 +404,7 @@ impl Presentation {
         let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// The names of every legacy **VML** drawing part in the package (`ppt/drawings/vmlDrawingN.vml`
@@ -440,8 +443,8 @@ impl Presentation {
     /// Requires the `vml` crate feature.
     #[cfg(feature = "vml")]
     #[must_use]
-    pub fn vml_part_bytes(&self, part: &PartName) -> Option<&[u8]> {
-        self.package.part_bytes(part)
+    pub fn vml_part_bytes(&self, part: &PartName) -> Option<Cow<'_, [u8]>> {
+        self.package.part_payload(part)
     }
 
     /// The names of every **ink** (InkML) part in the package (`ppt/ink/inkN.xml`), in package order.
@@ -473,8 +476,8 @@ impl Presentation {
     /// Pair with [`ink_part_names`](Self::ink_part_names). Preserve-first: the bytes are the InkML XML
     /// verbatim, not a model.
     #[must_use]
-    pub fn ink_part_bytes(&self, part: &PartName) -> Option<&[u8]> {
-        self.package.part_bytes(part)
+    pub fn ink_part_bytes(&self, part: &PartName) -> Option<Cow<'_, [u8]>> {
+        self.package.part_payload(part)
     }
 
     // -----------------------------------------------------------------------------------------
@@ -709,8 +712,8 @@ impl Presentation {
     ///
     /// Pair with [`diagram_parts`](Self::diagram_parts).
     #[must_use]
-    pub fn diagram_part_bytes(&self, part: &PartName) -> Option<&[u8]> {
-        self.package.part_bytes(part)
+    pub fn diagram_part_bytes(&self, part: &PartName) -> Option<Cow<'_, [u8]>> {
+        self.package.part_payload(part)
     }
 
     /// Adds a SmartArt diagram to `surface`, laid out inside `bounds`, and returns its index in the

@@ -5,6 +5,8 @@
 //! [`Presentation`](mjx_pptx::Presentation); see [the module documentation](crate::deck) for
 //! the signature changes the facade makes and the reasons for each.
 
+use std::borrow::Cow;
+
 use crate::index::count;
 use crate::{Deck, Error, LinkedImage, MediaReference, ShapeBounds, ShapePath, Surface};
 
@@ -107,7 +109,7 @@ impl Deck {
         Ok(self
             .presentation
             .picture_image_bytes(surface.to_model(), shape_idx.to_model())?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// Points picture `shape_idx` on `surface` at `bytes`, adding the image to the package if it is not

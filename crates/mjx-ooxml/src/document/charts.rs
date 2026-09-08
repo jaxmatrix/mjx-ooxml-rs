@@ -15,6 +15,8 @@
 //! [`Document::remove_drawing`](crate::Document::remove_drawing) takes one). Everything after that
 //! first argument — argument order, method names, return shapes — is identical.
 
+use std::borrow::Cow;
+
 use crate::error::Error;
 use crate::index::{count, index};
 use crate::{
@@ -65,7 +67,7 @@ impl super::Document {
         Ok(self
             .document
             .chart_part_bytes(drawing_id)?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// Adds `chart` to the document as a new **inline** chart, `width_emu` by `height_emu`, appended

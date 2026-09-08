@@ -107,7 +107,7 @@ fn the_four_relationships_resolve_to_the_four_parts() {
     // Each part is really there, with the bytes that were written.
     let data = parts.data.clone().expect("data part");
     let bytes = pres.diagram_part_bytes(&data).expect("data bytes");
-    assert!(String::from_utf8_lossy(bytes).contains("<a:t>Plan</a:t>"));
+    assert!(String::from_utf8_lossy(&bytes).contains("<a:t>Plan</a:t>"));
 }
 
 #[test]
@@ -219,7 +219,8 @@ fn a_caller_supplied_diagram_is_stored_verbatim() {
         .diagram_part_bytes(&parts.data.clone().expect("data"))
         .expect("bytes");
     assert_eq!(
-        stored, data,
+        stored.as_ref(),
+        data,
         "the caller's bytes are what the package carries"
     );
 }
