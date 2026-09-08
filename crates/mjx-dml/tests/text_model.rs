@@ -5,7 +5,10 @@
 //! round-trip assertion is paired with a **structural** assertion so byte-identity cannot pass by the
 //! model silently dumping everything into the opaque `Raw` bucket.
 
-use mjx_dml::{Paragraph, ParagraphContent, RunContent, Text, TextBody, TextBodyContent, TextRun};
+use mjx_dml::{
+    CharacterProperties, CharacterPropertiesSpec, Paragraph, ParagraphContent, RunContent, Text,
+    TextBody, TextBodyContent, TextRun,
+};
 use mjx_ooxml_core::{FromXml, FromXmlError, RawDocument, ToXml};
 use mjx_xml::fidelity;
 
@@ -502,4 +505,72 @@ fn coalescing_leaves_unflagged_runs_alone() {
     let merged = paragraph.coalesce_adjacent_runs(&[false, false]);
     assert_eq!(merged, 0);
     assert_round_trips(&paragraph, doc, fragment.as_bytes());
+}
+
+// ---------------------------------------------------------------------------------------------
+// The resolution-sensitive comparison (MJXOFF-233)
+// ---------------------------------------------------------------------------------------------
+
+/// Parses an `a:rPr` fragment — `attributes` on the element, `children` inside it — and answers its
+/// **unresolved** spec.
+fn run_properties_spec(attributes: &str, children: &str) -> CharacterPropertiesSpec {
+    let fragment = format!(r#"<a:rPr xmlns:a="{A_MAIN}" {attributes}>{children}</a:rPr>"#);
+    let doc = fidelity::parse(fragment.as_bytes()).expect("fragment parses");
+    let properties =
+        CharacterProperties::from_xml(&doc.root, &doc.interner).expect("from_xml succeeds");
+    properties.spec(&doc.interner)
+}
+
+const RED: &str = r#"<a:solidFill><a:srgbClr val="FF0000"/></a:solidFill>"#;
+
+#[test]
+fn an_alpha_is_resolution_sensitive_even_though_resolution_drops_it() {
+    let opaque = run_properties_spec("", RED);
+    let half = run_properties_spec(
+        "",
+        r#"<a:solidFill><a:srgbClr val="FF0000"><a:alpha val="50000"/></a:srgbClr></a:solidFill>"#,
+    );
+    assert!(
+        !opaque.resolution_sensitive_eq(&half),
+        "a run that is half transparent is not the same run as one that is not"
+    );
+}
+
+#[test]
+fn a_theme_link_is_resolution_sensitive_against_its_own_literal() {
+    let linked = run_properties_spec(
+        "",
+        r#"<a:solidFill><a:schemeClr val="accent1"/></a:solidFill>"#,
+    );
+    let literal = run_properties_spec(
+        "",
+        r#"<a:solidFill><a:srgbClr val="4472C4"/></a:solidFill>"#,
+    );
+    assert!(
+        !linked.resolution_sensitive_eq(&literal),
+        "a:schemeClr and the literal it happens to resolve to are different markup"
+    );
+
+    // The same in the font dimension: `+mn-lt` is a link, a typeface name is not.
+    let reference = run_properties_spec("", r#"<a:latin typeface="+mn-lt"/>"#);
+    let named = run_properties_spec("", r#"<a:latin typeface="Calibri"/>"#);
+    assert!(!reference.resolution_sensitive_eq(&named));
+}
+
+#[test]
+fn the_properties_resolution_copies_verbatim_are_not_compared() {
+    // Size, weight, slant, spacing and language survive resolution unchanged, so a resolved
+    // comparison already separates them exactly. Comparing them here as well would only refuse
+    // merges that are safe — a run that states a size and a neighbour that inherits the same one
+    // must still be able to merge.
+    let plain = run_properties_spec("", RED);
+    let decorated = run_properties_spec(r#"sz="2400" b="1" i="1" spc="150" lang="en-GB""#, RED);
+    assert!(
+        plain.resolution_sensitive_eq(&decorated),
+        "only the colours and typefaces are resolution-sensitive"
+    );
+    assert_ne!(
+        plain, decorated,
+        "the specs do differ — it is this comparison that deliberately ignores where"
+    );
 }

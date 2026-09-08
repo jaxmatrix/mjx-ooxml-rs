@@ -407,26 +407,40 @@ impl Presentation {
     /// splits a run, and repeatedly formatting overlapping ranges leaves a paragraph with more runs
     /// than it needs.
     ///
-    /// Two adjacent runs merge only when **both** hold, so the paragraph reads exactly the same
-    /// afterwards:
+    /// Two adjacent runs merge only when **all three** hold, so the paragraph reads exactly the same
+    /// afterwards and no markup is lost:
     /// - their **effective** formatting is identical — resolved through the full inheritance ladder,
     ///   so a run that sets a property explicitly merges with a neighbour that inherits the same value
-    ///   (this compares meaning, not raw XML); and
+    ///   (this compares meaning, not raw XML);
     /// - neither carries distinguishing state this model does not describe — a hyperlink, an `rtl`, an
-    ///   `a:extLst`, a foreign attribute — so nothing is dropped by the merge.
+    ///   `a:extLst`, a foreign attribute — so nothing is dropped by the merge; and
+    /// - their **own, unresolved** colours and typefaces agree
+    ///   ([`CharacterPropertiesSpec::resolution_sensitive_eq`](mjx_dml::CharacterPropertiesSpec::resolution_sensitive_eq)).
     ///
     /// A line break or field between two runs keeps them apart. When nothing merges, the call changes
     /// nothing and does not dirty the part.
     ///
-    /// # A known defect: MJXOFF-233
+    /// # Why the third condition exists (MJXOFF-233)
     ///
-    /// **The effective comparison is lossy, so two runs it calls equal may not be.** The fill it
-    /// compares has been through `mjx_dml::resolve_fill`, which bakes a colour to `RRGGBB` and, as
-    /// its own doc comment states, does not represent a resolved `a:alpha`. Two runs differing
-    /// only by transparency therefore compare equal and one of them is deleted; so do a run
-    /// carrying `a:schemeClr` and a run carrying the literal colour that scheme resolves to, and
-    /// the survivor may be the one that hard-codes it. Neither is caught by the unmodeled-state
-    /// test above, because `a:solidFill` is modelled.
+    /// **Resolution is lossy, so the effective comparison alone calls runs equal that are not.** The
+    /// fill it compares has been through `mjx_dml::resolve_fill`, which bakes a colour to `RRGGBB`
+    /// and, as its own doc comment states, does not represent a resolved `a:alpha`; and resolution
+    /// replaces a theme link — an `a:schemeClr`, or a `+mj-lt` / `+mn-lt` typeface the theme's font
+    /// scheme names — with the literal it currently resolves to. On the effective comparison alone,
+    /// two runs differing only by transparency merged and one run's `a:alpha` was deleted, and a run
+    /// carrying `a:schemeClr` merged with one carrying the literal colour that scheme resolves to —
+    /// leaving, whenever the literal run came first, a hard-coded colour where a theme link had been.
+    /// The unmodeled-state test does not catch either, because `a:solidFill` and `a:latin` are
+    /// modelled.
+    ///
+    /// **What the third condition costs.** It narrows the promise above by exactly one case: a run
+    /// that states a colour or a typeface *explicitly* no longer merges with a neighbour that
+    /// inherits the same one. The method's own purpose is untouched — the runs
+    /// [`set_text_range_properties`](Self::set_text_range_properties) splits all carry identical
+    /// explicit properties — and every other property still compares as meaning rather than as
+    /// markup. A merge that is refused leaves the file as its author wrote it, which is why this was
+    /// preferred over teaching `resolve_fill` to carry the alpha: that would change what every
+    /// `effective_*` reader answers, and would not address the theme-link half at all.
     ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
@@ -476,9 +490,14 @@ impl Presentation {
             }
             let mut mergeable = vec![false; run_count];
             for index in 1..run_count {
+                // The unresolved comparison is last because it is the only one that allocates: by
+                // the time it runs, the pair has already passed every cheap test, and only the two
+                // specs of that one pair are alive at once.
                 mergeable[index] = adjacency[index]
                     && effective[index] == effective[index - 1]
-                    && unmodeled_state_eq(properties[index - 1], properties[index], interner);
+                    && unmodeled_state_eq(properties[index - 1], properties[index], interner)
+                    && own_properties_spec(properties[index - 1], interner)
+                        .resolution_sensitive_eq(&own_properties_spec(properties[index], interner));
             }
             Ok(mergeable)
         })?;
@@ -497,8 +516,8 @@ impl Presentation {
 
     /// Merges adjacent identical runs across **every** paragraph of a shape's text body, returning the
     /// total number of runs merged away. The per-paragraph rule is
-    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs), **including its known defect**:
-    /// see MJXOFF-233 there before calling this on a document somebody else wrote.
+    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs), including the unresolved-colour
+    /// condition that keeps a merge from dropping an `a:alpha` or a theme link.
     ///
     /// # Errors
     /// Returns [`PptxError`] if the index is out of range, the slide is malformed, or the shape has no
@@ -1441,6 +1460,22 @@ fn nth_field(
             index: field_idx,
             count,
         })
+}
+
+/// A run's **own**, unresolved character properties as a spec — the empty spec when the run has no
+/// `a:rPr`, which describes a run that states nothing exactly.
+///
+/// Run coalescing compares these with
+/// [`resolution_sensitive_eq`](CharacterPropertiesSpec::resolution_sensitive_eq) so a merge cannot
+/// drop what resolution hides: a colour's `a:alpha`, or the difference between a theme link and the
+/// literal it currently resolves to. See `coalesce_paragraph_runs` for why (MJXOFF-233).
+fn own_properties_spec(
+    properties: Option<&CharacterProperties>,
+    interner: &Interner,
+) -> CharacterPropertiesSpec {
+    properties.map_or_else(CharacterPropertiesSpec::default, |properties| {
+        properties.spec(interner)
+    })
 }
 
 /// Whether two runs' character properties carry the same state this model does not describe, treating
