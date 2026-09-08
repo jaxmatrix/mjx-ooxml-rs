@@ -64,6 +64,8 @@
 //! is which, and [`Workbook::refresh_chart_cache_from_cells`] is the **opt-in** repair — the exact
 //! counterpart of `refresh_chart_workbook`, pointing the other way.
 
+use std::borrow::Cow;
+
 use mjx_chart::{
     apply_workbook_patch, chart_ops, embedded_workbook_for_chart_data,
     embedded_workbook_for_chart_space, embedded_workbook_part, plan_workbook_patch,
@@ -223,7 +225,9 @@ impl Workbook {
 
     /// The raw XML bytes of the chart part the anchor at `anchor_index` frames
     /// (`xl/charts/chartN.xml`), exactly as the package holds them, or `None` when that anchor frames
-    /// no chart. Borrowed from the package, so the part is not copied.
+    /// no chart. Borrowed from the package when the part still holds its bytes, and serialized on the
+    /// spot when it has been edited — so a chart this crate has just written answers with what it now
+    /// contains, and `None` means only that the anchor frames none (MJXOFF-222).
     ///
     /// # Errors
     /// As [`chart_anchor_indices`](Self::chart_anchor_indices).
@@ -231,11 +235,11 @@ impl Workbook {
         &self,
         sheet_index: usize,
         anchor_index: usize,
-    ) -> Result<Option<&[u8]>, XlsxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, XlsxError> {
         let Some(part) = self.chart_part_for(sheet_index, anchor_index)? else {
             return Ok(None);
         };
-        Ok(self.package().part_bytes(&part))
+        Ok(self.package().part_payload(&part))
     }
 
     /// Calls `visit` for every anchor on the tab, with its index and the relationship id of the chart
@@ -314,10 +318,10 @@ impl Workbook {
         read: impl FnOnce(&ChartSpace, &Interner) -> Result<R, XlsxError>,
     ) -> Result<R, XlsxError> {
         let part = self.require_chart_part(sheet_index, anchor_index)?;
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let space = ChartSpace::from_xml(&document.root, &document.interner)?;
         read(&space, &document.interner)
     }
@@ -337,10 +341,10 @@ impl Workbook {
         edit: impl FnOnce(&mut ChartSpace, &mut Interner) -> Result<(), XlsxError>,
     ) -> Result<(), XlsxError> {
         let part = self.require_chart_part(sheet_index, anchor_index)?;
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let mut document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let mut document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         {
             let RawDocument { interner, root, .. } = &mut document;
             let mut space = ChartSpace::from_xml(root, interner)?;
@@ -694,10 +698,10 @@ impl Workbook {
         &self,
         chart_part: &PartName,
     ) -> Result<Option<String>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(chart_part) else {
+        let Some(bytes) = self.package().part_payload(chart_part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let space = ChartSpace::from_xml(&document.root, &document.interner)?;
         Ok(space
             .external_data_rel_id(&document.interner)
@@ -776,10 +780,10 @@ impl Workbook {
         anchor_index: usize,
     ) -> Result<bool, XlsxError> {
         let chart_part = self.require_chart_part(sheet_index, anchor_index)?;
-        let Some(bytes) = self.package().part_bytes(&chart_part) else {
+        let Some(bytes) = self.package().part_payload(&chart_part) else {
             return Ok(false);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let space = ChartSpace::from_xml(&document.root, &document.interner)?;
         let Some(rel_id) = space
             .external_data_rel_id(&document.interner)
@@ -793,7 +797,7 @@ impl Workbook {
         else {
             return Ok(false);
         };
-        if self.package().part_bytes(&workbook_part).is_none() {
+        if !self.package().contains_part(&workbook_part) {
             return Ok(false);
         }
         self.package_mut()
@@ -812,10 +816,10 @@ impl Workbook {
         patch: WorkbookPatch<'_>,
     ) -> Result<PreparedWorkbook, XlsxError> {
         let chart_part = self.require_chart_part(sheet_index, anchor_index)?;
-        let Some(bytes) = self.package().part_bytes(&chart_part) else {
+        let Some(bytes) = self.package().part_payload(&chart_part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         let space = ChartSpace::from_xml(&document.root, &document.interner)?;
         let Some(rel_id) = space
             .external_data_rel_id(&document.interner)
@@ -828,10 +832,10 @@ impl Workbook {
         else {
             return Ok(None);
         };
-        let Some(bytes) = self.package().part_bytes(&workbook_part) else {
+        let Some(bytes) = self.package().part_payload(&workbook_part) else {
             return Ok(None);
         };
-        Ok(Some((workbook_part, apply_workbook_patch(&plan, bytes)?)))
+        Ok(Some((workbook_part, apply_workbook_patch(&plan, &bytes)?)))
     }
 
     /// Writes what [`prepare_chart_workbook`](Self::prepare_chart_workbook) worked out, and answers
@@ -897,12 +901,12 @@ impl Workbook {
             .filter(|rel| rel.mode == TargetMode::Internal)
             .and_then(|rel| crate::nav::resolve_target(&chart_part, &rel.target).ok());
         {
-            let Some(bytes) = self.package().part_bytes(&chart_part) else {
+            let Some(bytes) = self.package().part_payload(&chart_part) else {
                 return Err(XlsxError::MissingWorkbookPart(
                     chart_part.as_str().to_owned(),
                 ));
             };
-            let mut document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+            let mut document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
             let RawDocument { interner, root, .. } = &mut document;
             root.children.retain(|node| {
                 !matches!(node, RawNode::Element(el)

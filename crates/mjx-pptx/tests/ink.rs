@@ -66,13 +66,13 @@ fn ink_part_bytes_resolves_to_the_verbatim_part() {
     let names = pres.ink_part_names();
     let name = names.first().expect("one ink part");
     assert_eq!(
-        pres.ink_part_bytes(name),
+        pres.ink_part_bytes(name).as_deref(),
         Some(ink_xml.as_slice()),
         "the resolved bytes are exactly the package's ink part"
     );
 
     // An absent part answers None.
-    assert_eq!(pres.ink_part_bytes(&part("/ppt/ink/nope.xml")), None);
+    assert!(pres.ink_part_bytes(&part("/ppt/ink/nope.xml")).is_none());
 }
 
 #[test]
@@ -190,7 +190,7 @@ fn added_ink_is_a_shape_that_resolves_back_to_its_part() {
         Some(shape_idx),
         "and the part resolves back to the shape"
     );
-    assert_eq!(pres.ink_part_bytes(&ink_part), Some(INK_STROKES));
+    assert_eq!(pres.ink_part_bytes(&ink_part).as_deref(), Some(INK_STROKES));
 
     // It survives a save/reopen with the same graph.
     let saved = pres.save().expect("save");

@@ -185,7 +185,10 @@ fn audit_package_order(label: &str, bytes: &[u8], prefix: &str, report: &mut Ord
             continue;
         };
         if EMBEDDED_PACKAGE_CONTENT_TYPES.contains(&content_type.as_str()) {
-            let Some(payload) = package.part_bytes(&part).map(<[u8]>::to_vec) else {
+            let Some(payload) = package
+                .part_payload(&part)
+                .map(std::borrow::Cow::into_owned)
+            else {
                 continue;
             };
             let nested = format!("{prefix}{}!", part.as_str());

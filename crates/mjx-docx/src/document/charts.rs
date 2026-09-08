@@ -43,6 +43,8 @@
 //! by `mjx-chart`, which hands the rows to `mjx-sml`'s writer — MJXOFF-99's settled arrangement,
 //! used here rather than re-created.
 
+use std::borrow::Cow;
+
 use mjx_chart::{
     apply_workbook_patch, chart_ops, embedded_workbook_for_chart_data,
     embedded_workbook_for_chart_space, embedded_workbook_part, plan_workbook_patch,
@@ -187,16 +189,21 @@ impl Document {
 
     /// The raw XML bytes of the chart part the drawing `drawing_id` references
     /// (`word/charts/chartN.xml`), exactly as the package holds them, or `None` when that drawing
-    /// frames no chart. Borrowed from the package, so the part is not copied.
+    /// frames no chart. Borrowed from the package when the part still holds its bytes, and serialized
+    /// on the spot when it has been edited — so a chart this crate has just written answers with what
+    /// it now contains, and `None` means only that the drawing frames none (MJXOFF-222).
     ///
     /// # Errors
     /// As [`chart_rel_id`](Self::chart_rel_id), plus [`DocxError::ExternalTarget`] if the
     /// relationship points outside the package.
-    pub fn chart_part_bytes(&mut self, drawing_id: u32) -> Result<Option<&[u8]>, DocxError> {
+    pub fn chart_part_bytes(
+        &mut self,
+        drawing_id: u32,
+    ) -> Result<Option<Cow<'_, [u8]>>, DocxError> {
         let Some(part) = self.chart_part_for(drawing_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// The part name of the chart the drawing `drawing_id` frames, or `None` when it frames none.
@@ -568,7 +575,7 @@ impl Document {
         else {
             return Ok(false);
         };
-        if self.package.part_bytes(&workbook_part).is_none() {
+        if !self.package.contains_part(&workbook_part) {
             return Ok(false);
         }
         self.package.replace_part_bytes(&workbook_part, workbook)?;
@@ -595,10 +602,10 @@ impl Document {
         else {
             return Ok(None);
         };
-        let Some(bytes) = self.package.part_bytes(&workbook_part) else {
+        let Some(bytes) = self.package.part_payload(&workbook_part) else {
             return Ok(None);
         };
-        Ok(Some((workbook_part, apply_workbook_patch(&plan, bytes)?)))
+        Ok(Some((workbook_part, apply_workbook_patch(&plan, &bytes)?)))
     }
 
     /// Writes what [`prepare_chart_workbook`](Self::prepare_chart_workbook) worked out, and answers

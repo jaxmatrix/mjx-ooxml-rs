@@ -462,7 +462,10 @@ fn a_pictures_image_can_be_replaced_through_a_cursor() {
     let saved = pres.save().expect("save");
     let mut reread = Presentation::open(&saved).expect("reopen");
     assert_eq!(
-        reread.picture_image_bytes(0, picture).expect("bytes"),
+        reread
+            .picture_image_bytes(0, picture)
+            .expect("bytes")
+            .as_deref(),
         Some(OTHER_PNG)
     );
     // The `p:spPr` edit recorded alongside it landed on the same shape, in the same pass.

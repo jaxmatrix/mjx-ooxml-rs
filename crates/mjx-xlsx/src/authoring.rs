@@ -184,10 +184,10 @@ impl Workbook {
                 "xl/sharedStrings.xml".to_owned(),
             ));
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let document = mjx_xml::fidelity::parse(bytes)?;
+        let document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(mut table) = SharedStringTable::read_part(&document)? else {
             return Err(XlsxError::MalformedWorkbook(
                 "the shared-string part's root element is not x:sst",
@@ -302,10 +302,10 @@ impl Workbook {
         let Some(part) = self.parts().styles.clone() else {
             return Err(XlsxError::MissingWorkbookPart("xl/styles.xml".to_owned()));
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        let mut document = mjx_xml::fidelity::parse(bytes)?;
+        let mut document = mjx_xml::fidelity::parse(&bytes)?;
         let Some(mut model) = StylesheetPart::read_root(&document.root, &document.interner)? else {
             return Err(XlsxError::MalformedWorkbook(
                 "the styles part's root element is not x:styleSheet",

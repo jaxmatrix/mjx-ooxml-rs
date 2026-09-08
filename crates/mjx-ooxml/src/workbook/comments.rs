@@ -193,7 +193,10 @@ impl Workbook {
             .flatten())
     }
 
-    /// The verbatim bytes of the legacy VML drawing part behind `sheet`, or `None` when it has none.
+    /// The bytes of the legacy VML drawing part behind `sheet`, or `None` when it has none.
+    ///
+    /// Verbatim for a part nothing has edited, which is every part of a file this facade only read;
+    /// what the part now contains for one it has (MJXOFF-222).
     ///
     /// Preserve-first, the same shape [`Deck::vml_part_bytes`](crate::Deck) has: the bytes are the
     /// legacy VML this library stores and re-emits, and handing them over is the whole of what a
@@ -208,8 +211,8 @@ impl Workbook {
         Ok(self
             .workbook
             .package()
-            .part_bytes(&part)
-            .map(<[u8]>::to_vec))
+            .part_payload(&part)
+            .map(std::borrow::Cow::into_owned))
     }
 }
 

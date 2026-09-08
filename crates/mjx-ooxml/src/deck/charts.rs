@@ -5,6 +5,8 @@
 //! [`Presentation`](mjx_pptx::Presentation); see [the module documentation](crate::deck) for
 //! the signature changes the facade makes and the reasons for each.
 
+use std::borrow::Cow;
+
 use crate::index::{count, index};
 use crate::{
     AxisOrientation, ChartAxisData, ChartData, ChartKind, ChartLegendData, ChartSeriesData,
@@ -36,7 +38,8 @@ impl Deck {
 
     /// The raw XML bytes of the chart part the chart frame `shape_idx` on `surface` references
     /// (`/ppt/charts/chartN.xml`), exactly as the package holds them, or `None` when the shape frames
-    /// no chart. Borrowed from the package, so the part is not copied.
+    /// no chart. A chart this deck has already edited answers with what it now contains rather than
+    /// with `None` (MJXOFF-222).
     ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
@@ -51,7 +54,7 @@ impl Deck {
         Ok(self
             .presentation
             .chart_part_bytes(surface.to_model(), shape_idx.to_model())?
-            .map(<[u8]>::to_vec))
+            .map(Cow::into_owned))
     }
 
     /// Every chart on `surface` that references a backing workbook (`c:externalData`), with where each

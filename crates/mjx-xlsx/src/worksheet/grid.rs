@@ -62,10 +62,10 @@ impl Workbook {
     /// As [`worksheet_markup`](Self::worksheet_markup), plus [`XlsxError::Opc`] if the package holds
     /// no such part.
     pub fn worksheet_markup_of(&self, part: &PartName) -> Result<Option<WorksheetPart>, XlsxError> {
-        let Some(bytes) = self.package().part_bytes(part) else {
+        let Some(bytes) = self.package().part_payload(part) else {
             return Err(XlsxError::MissingWorkbookPart(part.as_str().to_owned()));
         };
-        Ok(WorksheetPart::read_part(bytes)?)
+        Ok(WorksheetPart::read_part(&bytes)?)
     }
 
     /// Writes `markup` back over the worksheet part behind the tab at `index`.
@@ -175,10 +175,10 @@ impl Workbook {
         let Some(part) = self.parts().shared_strings.clone() else {
             return Ok(None);
         };
-        let Some(bytes) = self.package().part_bytes(&part) else {
+        let Some(bytes) = self.package().part_payload(&part) else {
             return Ok(None);
         };
-        let document = mjx_xml::fidelity::parse(bytes).map_err(mjx_sml::SmlError::from)?;
+        let document = mjx_xml::fidelity::parse(&bytes).map_err(mjx_sml::SmlError::from)?;
         Ok(SharedStringTable::read_part(&document)?)
     }
 }

@@ -75,6 +75,52 @@ claim as a gate. It matters more than it looks: every typed model in this worksp
 *reading* parts, and if reading dirtied them, "an edit changes one part" would be false of every call
 in the library.
 
+## Three states, three questions
+
+The third state has **no stored bytes**, and that is what makes
+[`part_bytes`](crate::Package::part_bytes) a trap rather than a convenience: it answers `None` for a
+part that is dirty exactly as it does for a part that is not in the package. Those are different
+facts, and code that read them as one was wrong about a part it had itself just edited — `MJXOFF-222`
+is two `from_package` constructors reporting a main part missing the moment a caller edited it.
+
+So there is one call per question, and picking the wrong one is now a naming mistake rather than a
+silent defect:
+
+| The question | The call | `Raw` | `Parsed` | `Edited` | absent |
+|---|---|---|---|---|---|
+| is this part in the package? | [`contains_part`](crate::Package::contains_part) | `true` | `true` | `true` | `false` |
+| what does this part contain? | [`part_payload`](crate::Package::part_payload) | the bytes | the bytes | the tree, serialised | `None` |
+| does it still carry the bytes it arrived with? | [`part_bytes`](crate::Package::part_bytes) | `Some` | `Some` | `None` | `None` |
+
+`part_payload` borrows when it can, so the ordinary case — every part of a file nobody has edited —
+still costs no copy; only the dirty case allocates, and what it allocates is byte for byte what
+[`save`](crate::Package::save) would write for that part.
+
+**The third row is a fidelity question, not a content one.** A round-trip suite asking "did this part
+survive untouched" wants it. Anything else almost certainly wants one of the first two.
+
+```
+use mjx_opc::{Package, PartName};
+
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+let presentation = PartName::new("/ppt/presentation.xml")?;
+let absent = PartName::new("/ppt/slides/slide99.xml")?;
+let mut package = Package::open(&mjx_fixtures::fixture("sample.pptx"))?;
+
+package.part_tree_mut(&presentation)?;
+
+// `part_bytes` cannot tell the edited part from the one that is not there.
+assert!(package.part_bytes(&presentation).is_none());
+assert!(package.part_bytes(&absent).is_none());
+
+// The other two can.
+assert!(package.contains_part(&presentation) && !package.contains_part(&absent));
+assert!(package.part_payload(&presentation).is_some());
+assert!(package.part_payload(&absent).is_none());
+# Ok(())
+# }
+```
+
 ## "Drop raw bytes" is true at the part, and not at the subtree
 
 [`part_tree_mut`](crate::Package::part_tree_mut) moves the body to

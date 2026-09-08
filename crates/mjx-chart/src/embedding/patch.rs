@@ -616,9 +616,9 @@ fn apply(workbook: &[u8], ranges: &[PlannedRange]) -> Result<Option<Vec<u8>>, Ch
             .map(|(_, part)| part.clone())
             .ok_or_else(|| refusal(range, ReferenceProblem::NoSuchSheet))?;
         let bytes = package
-            .part_bytes(&part)
+            .part_payload(&part)
             .ok_or_else(|| SmlError::Opc(OpcError::UnknownPart(part.as_str().to_owned())))?;
-        let mut markup = WorksheetPart::read_part(bytes)?
+        let mut markup = WorksheetPart::read_part(&bytes)?
             .ok_or_else(|| refusal(range, ReferenceProblem::NoSuchSheet))?;
 
         let mut changed = false;
@@ -789,7 +789,7 @@ fn shared_strings(package: &mut Package) -> Result<Option<SharedStringTable>, Ch
     let Ok(part) = workbook_part.resolve(&target) else {
         return Ok(None);
     };
-    if package.part_bytes(&part).is_none() {
+    if !package.contains_part(&part) {
         return Ok(None);
     }
     let document = package.part_tree(&part).map_err(SmlError::Opc)?;

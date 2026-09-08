@@ -158,6 +158,11 @@ against the store's own **36.8**.
 It is written down rather than fixed here because closing it means a new accessor on `mjx-opc`, which
 is a change to the packaging tier and not a documentation child's to make.
 
+MJXOFF-222 has since added [`mjx_opc::Package::part_payload`], and it is **not** that accessor: it
+answers a `Cow<'_, [u8]>` — borrowed for a part that still holds its bytes, owned for one that has
+been edited — which is the same `&[u8]` for this path's purposes. Handing the store the package's own
+`Arc<[u8]>` is still the missing call, and still open.
+
 ## Saving is compression, not this library
 
 `save` on the 300,000-cell workbook is **314 ms untouched** and **930 ms after one edit**, and

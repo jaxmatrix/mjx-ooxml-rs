@@ -1,5 +1,7 @@
 //! Charts: adding one, its embedded workbook, and the series, axes, title and legend it draws.
 
+use std::borrow::Cow;
+
 use mjx_chart::chart_ops;
 use mjx_chart::{
     apply_workbook_patch, embedded_workbook_for_chart_data, embedded_workbook_for_chart_space,
@@ -140,7 +142,9 @@ impl Presentation {
 
     /// The raw XML bytes of the chart part the chart frame `shape_idx` on `surface` references
     /// (`/ppt/charts/chartN.xml`), exactly as the package holds them, or `None` when the shape frames
-    /// no chart. Borrowed from the package, so the part is not copied.
+    /// no chart. Borrowed from the package when the part still holds its bytes, and serialized on the
+    /// spot when it has been edited — so a chart this crate has just written answers with what it now
+    /// contains, and `None` means only that the shape frames none (MJXOFF-222).
     ///
     /// The chart part is **not modeled** yet — it and its satellites (an embedded workbook, colour and
     /// style parts) are carried through a round-trip verbatim. This is the read window onto a chart
@@ -155,7 +159,7 @@ impl Presentation {
         &mut self,
         surface: impl Into<Surface>,
         shape_idx: impl Into<ShapePath>,
-    ) -> Result<Option<&[u8]>, PptxError> {
+    ) -> Result<Option<Cow<'_, [u8]>>, PptxError> {
         let surface = surface.into();
         let Some(rel_id) = self.chart_rel_id(surface, shape_idx)? else {
             return Ok(None);
@@ -164,7 +168,7 @@ impl Presentation {
         let Some(part) = self.part_for_rel(&slide_part, &rel_id)? else {
             return Ok(None);
         };
-        Ok(self.package.part_bytes(&part))
+        Ok(self.package.part_payload(&part))
     }
 
     /// Every chart on `surface` that references a backing workbook (`c:externalData`), with where each
@@ -547,7 +551,7 @@ impl Presentation {
         else {
             return Ok(false);
         };
-        if self.package.part_bytes(&workbook_part).is_none() {
+        if !self.package.contains_part(&workbook_part) {
             return Ok(false);
         }
         self.package.replace_part_bytes(&workbook_part, workbook)?;
@@ -577,10 +581,10 @@ impl Presentation {
         else {
             return Ok(None);
         };
-        let Some(bytes) = self.package.part_bytes(&workbook_part) else {
+        let Some(bytes) = self.package.part_payload(&workbook_part) else {
             return Ok(None);
         };
-        Ok(Some((workbook_part, apply_workbook_patch(&plan, bytes)?)))
+        Ok(Some((workbook_part, apply_workbook_patch(&plan, &bytes)?)))
     }
 
     /// Writes what [`prepare_chart_workbook`](Self::prepare_chart_workbook) worked out, and answers

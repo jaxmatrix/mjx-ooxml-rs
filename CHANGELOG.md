@@ -38,6 +38,7 @@ reconstructed afterwards.
 | `mjx_pptx::PptxError` was `#[non_exhaustive]` | it is not | A `#[non_exhaustive]` enum forces a wildcard arm on every downstream `match`, which is exactly what would let a new failure mode be silently filed under a catch-all. `mjx_ooxml::Error`'s classification is deliberately exhaustive: adding a variant now fails the build until someone decides which of the eleven `ErrorCode`s it belongs to. |
 | `delete_chart_data_labels`, `Axis::is_deleted`, `DataLabels::delete_all`, `auto_title_deleted` (12 public identifiers) | `suppress_chart_data_labels`, `is_suppressed`, `suppress_all`, `auto_title_suppressed` | `delete_*` wrote a `c:delete` (*draw nothing here*) and sat beside `remove_*`, which removes the element (*say nothing here*). Two operations, two near-synonyms, no way to tell them apart from the method list. `delete` was the spec element's own name; a public identifier that needs the spec open to be read is the thing the convention forbids. The wire token is unchanged and still named in every item's docs. |
 | `mjx_sml::SmlError::SheetDataTooLarge` | `PackedStoreTooLarge` | There are two packed stores in `mjx-sml` now — the cell store and the shared-string table — over one shared byte arena, and the variant either of them raises said "the cell store's byte space" in its message. A name and a message that are true of one of two callers is the kind of small lie that survives into a user's terminal. |
+| Twelve `*_part_bytes` accessors → `Option<&[u8]>` | → `Option<Cow<'_, [u8]>>` (and `Document::alt_chunk_payload` → `(Cow<'_, [u8]>, &str)`) | A part that has been edited has no stored bytes, so a borrow could only be offered by answering `None` for it — which is how `from_package` came to report a main part missing the moment a caller edited it (MJXOFF-222). The `Cow` borrows whenever the part is not dirty, so the ordinary path still copies nothing. The facade and both bindings are unaffected: `mjx_ooxml` already owned its `Vec<u8>` at that boundary. |
 | `mjx_docx::PageOrientation` (hand-written, MJXOFF-98) | `mjx_docx::PageOrientation` (re-export of `mjx_ooxml_types::wordprocessingml::PageOrientation`) | A duplicate of the generated enum, caught in MJXOFF-109's own pre-dispatch review — "consume, do not re-create" is the generator's whole reason to exist. `PageOrientation::to_wire(self) -> Option<&'static str>` (`None` for `Portrait`, the schema default) is **removed**: the generated type's own `to_wire(self) -> &'static str` always returns a token, and the "omit the attribute for `Portrait`" convenience now lives in `SectionProperties`'s writer (`crate::page::orientation_wire_value`, crate-private), not as a method on the value type. |
 | `mjx_docx::TableStyleOverrideContent::TableProperties`/`TableRowProperties`/`TableCellProperties`, and the same three `StyleDefinitionContent` variants | inner type `Unmodeled` → `TableProperties`/`RowProperties`/`CellProperties` | These variants had no public accessor before MJXOFF-119 (a value of either enum was unreachable from outside the crate), so this is breaking only in the formal sense of a public enum's variant shape changing, never in practice. |
 | `mjx_sml::ConditionalFormattingFormula` | `mjx_sml::FormulaElement` (module `mjx_sml::formula::element`) | MJXOFF-123. `sml.xsd` hangs three elements off `ST_Formula` — `cfRule/formula`, `dataValidation/formula1` and `dataValidation/formula2` — whose content model, escaping rules and no-evaluation contract are identical, so the type carries its own local name and there is one implementation rather than three. `new` gains a `local: &str` parameter for the same reason. The answer to a second consumer is one helper both can reach, not a copy with a different doc comment. |
@@ -58,6 +59,86 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.147] - 2026-09-09
+
+Two refusals that had already changed something. One refused too late; the other refused when it
+should not have.
+
+### A cell comment refused by a dialogsheet no longer leaves the comments part behind (MJXOFF-213, H3)
+
+`Workbook::add_cell_comment` aimed at a tab that cannot carry one — the dialogsheet in
+`tests/fixtures/print_and_sheet_kinds.xlsx` — refused correctly and *late*. By the time the refusal
+came, `xl/comments1.xml` had been inserted, `[Content_Types].xml` amended and the sheet's `.rels`
+grown, so a caller who handled the error and saved anyway shipped a comments part for a comment that
+does not exist. The MJXOFF-210 preservation gate found it and carried it in `KNOWN_DEFECTS`.
+
+**What changed.** The tab's kind is checked first, before the first `insert_part` — from the sheet
+list this crate already resolved at open, so the answer costs no parse and does not depend on whether
+the tab happens already to have a VML drawing. The legacy VML drawing is then created before the
+comments part, because it is the half that reads the sheet's markup and so the last step that can
+turn a tab away. This is MJXOFF-210's own shape (*"the theme is written last, after everything that
+can refuse"*), applied to the other half of the same rule.
+
+`KNOWN_DEFECTS` is now **empty**, and the gate compares it against the sweep in both directions, so
+it cannot be quietly refilled. `crates/mjx-xlsx/tests/comments.rs` pins the refusal directly: it
+asserts the premise (the tab really is a dialogsheet, the call really was refused) and then compares
+**every entry** of the container, name and payload, rather than the three the defect happened to
+touch.
+
+### A part that has been edited is present, and it has content (MJXOFF-222, H3)
+
+`Package::part_bytes` answers `None` for two different reasons — the part is absent, or the part is
+dirty — because an `Edited` body has no stored bytes left. Call sites across six crates read that as
+one answer. The visible failure was `Document::from_package` and `Presentation::from_package`
+reporting `MissingDocumentPart` / `MissingPresentationPart` **naming a part that was present and
+correct**, which is exactly the "authored part by part" case both constructors' doc comments
+advertise.
+
+Nothing had caught it because `PartBody::Parsed` still answers `Some`: merely *reading* a part as a
+tree is safe, and only a part someone has mutated trips it.
+
+**What changed.** `mjx-opc` grows the two questions it was missing, each with one meaning:
+
+| The question | The call |
+|---|---|
+| is this part in the package? | `Package::contains_part` |
+| what does this part contain? | `Package::part_payload` |
+| does it still carry the bytes it arrived with? | `Package::part_bytes` |
+
+`part_payload` borrows when the part still holds its bytes — every part of a file nobody has edited,
+so the ordinary path still costs no copy — and serialises the tree when it does not, through the same
+writer `save` uses, so what it hands back is byte for byte what saving would write. The third row is
+a *fidelity* question and its doc comment now says so.
+
+Seven presence probes moved to `contains_part` and forty-six content reads to `part_payload`, across
+`mjx-chart`, `mjx-docx`, `mjx-pptx`, `mjx-xlsx`, `mjx-ooxml` and `mjx-schema-gate` — every site in
+the workspace that asked the storage question while meaning one of the other two. Only one of them
+was proved live by measurement (`Presentation::chart_part_bytes`, which answered `None` for a chart
+the caller had just retitled — a `mjx-ooxml` test comment had been excusing it); the rest are on
+parts nothing currently reaches with `part_tree_mut`, and they were fixed anyway because the fix is
+one call and the next edit that dirties such a part would reopen the defect silently.
+
+**How the sites were counted.** A temporary probe in the `Edited` arm of the package's byte accessor
+recorded a backtrace for every call that met a dirty part, and the whole workspace was run under it
+with `--all-features`, plus the three walkthrough examples and the validation-artefact catalogue.
+Eight hits: one library call site and seven test helpers that ask the storage question on purpose.
+
+**One workaround is not retired here, because it is on another branch.** The reference pack
+MJXOFF-207 added — the child that reported this defect — saves and reopens the package instead of
+calling `from_package`, and says in its own doc comment why. Its crate is not in this tree; the extra
+round trip can go when the branches meet, which is MJXOFF-240.
+
+### Breaking
+
+Twelve accessors that hand over a preserved part's bytes now answer `Option<Cow<'_, [u8]>>` rather
+than `Option<&[u8]>` — `chart_part_bytes` on all three formats, and `mjx-pptx`'s
+`picture_image_bytes`, `ole_object_part_bytes`, `ole_snapshot_image_bytes`, `activex_part_bytes`,
+`activex_state_bytes`, `activex_snapshot_image_bytes`, `vml_part_bytes`, `ink_part_bytes` and
+`diagram_part_bytes` — plus `mjx_docx::Document::alt_chunk_payload`, which answers
+`(Cow<'_, [u8]>, &str)`. The borrow is still a borrow whenever the part is not dirty; `.as_deref()`
+recovers the old comparison. **The facade and both bindings are unchanged**: `mjx_ooxml` already
+copied into a `Vec<u8>` at that boundary.
 
 ## [0.0.146] - 2026-09-08
 

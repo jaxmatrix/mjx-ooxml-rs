@@ -107,7 +107,9 @@ fn chart_part_bytes_resolves_to_the_verbatim_chart_part() {
 
     let mut pres = Presentation::open(&bytes).expect("open");
     assert_eq!(
-        pres.chart_part_bytes(CHART_SURFACE, 0).expect("read"),
+        pres.chart_part_bytes(CHART_SURFACE, 0)
+            .expect("read")
+            .as_deref(),
         Some(chart_xml.as_slice()),
         "the resolved bytes are exactly the package's chart part"
     );
