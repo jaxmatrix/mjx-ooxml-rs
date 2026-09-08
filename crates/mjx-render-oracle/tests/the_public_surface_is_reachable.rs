@@ -272,24 +272,30 @@ fn every_json_value_shape_is_reachable_and_answers_only_its_own_accessor() {
 fn the_tool_lookup_answers_the_same_way_for_both_spellings_of_the_same_program() {
     // `one_of` exists because ImageMagick 7 is `magick` and ImageMagick 6 is `convert`, and a gate
     // written against one name passes locally and fails on a runner for a reason that has nothing to
-    // do with the code. Asserted rather than described, and asserted **without** the environment
-    // variable set, so the skip path is the one being exercised here.
+    // do with the code. Asserted rather than described.
     assert_eq!(IMAGE_MAGICK.len(), 2);
     assert!(IMAGE_MAGICK.contains(&"magick") && IMAGE_MAGICK.contains(&"convert"));
 
-    // A name nothing can have: no answer, and no panic, because `REQUIRE_TOOLS` is not set in this
-    // process.
-    assert_eq!(
-        std::env::var(REQUIRE_TOOLS),
-        Err(std::env::VarError::NotPresent)
+    // ⚠ **A probe variable of its own, not `REQUIRE_TOOLS`.** The first version of this case asserted
+    // that `REQUIRE_TOOLS` was unset and then exercised the skip path through it — which is true on a
+    // developer's machine and false on continuous integration, where the whole point is that the job
+    // sets it. It went red on the runner for a reason that had nothing to do with what it was
+    // measuring, which is the same defect as the one `one_of` exists to fix, made by the test that
+    // was fixing it. This name is set nowhere, so the skip path is reachable whatever the ambient
+    // environment is.
+    const NEVER_SET: &str = "MJX_ORACLE_TOOL_PROBE_NEVER_SET";
+    assert!(
+        std::env::var(NEVER_SET).is_err(),
+        "`{NEVER_SET}` is set, and it exists precisely so that nothing sets it"
     );
     assert_eq!(
-        one_of("a probe", &["mjx-no-such-reader-ever"], REQUIRE_TOOLS),
+        one_of("a probe", &["mjx-no-such-reader-ever"], NEVER_SET),
         None
     );
 
     // And it answers the **first** available spelling rather than any of them, so a caller can print
-    // which one ran.
+    // which one ran. This half is environment-independent — it finds something, so `require` never
+    // comes into it — and is passed the real `REQUIRE_TOOLS` for exactly that reason.
     let answered = one_of("a probe", &["mjx-no-such-reader-ever", "sh"], REQUIRE_TOOLS);
     assert_eq!(answered, Some("sh"), "`sh` is on every path this runs on");
     assert!(which("sh") && !which("mjx-no-such-reader-ever"));
