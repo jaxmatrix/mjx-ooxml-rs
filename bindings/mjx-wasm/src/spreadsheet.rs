@@ -140,7 +140,8 @@ value_class! {
     /// A cell border: up to nine edges, plus the two diagonal flags.
     BorderSpec(ooxml::BorderSpec), derive(PartialEq);
 
-    /// One `x:xf`: the four resource indices and the six `apply*` flags.
+    /// One `x:xf`: the four resource indices, the `cellStyleXfs` record beneath it, the
+    /// quote-prefix flag and the six `apply*` flags — all twelve readable, as in Rust.
     CellFormatSpec(ooxml::CellFormatSpec), derive(PartialEq, Eq);
 
     /// What one cell's format resolves to, after the `cellXfs` -> `cellStyleXfs` ladder.
@@ -2096,6 +2097,110 @@ impl CellFormatSpec {
     #[wasm_bindgen(getter, js_name = "borderIndex")]
     pub fn border_index(&self) -> Option<u32> {
         self.0.border_index
+    }
+
+    /// `@xfId` — the `cellStyleXfs` record beneath this one.
+    #[wasm_bindgen(getter, js_name = "cellStyleFormatIndex")]
+    pub fn cell_style_format_index(&self) -> Option<u32> {
+        self.0.cell_style_format_index
+    }
+
+    /// `@quotePrefix` — the value is text because it was typed with a leading apostrophe. Spelled
+    /// as the facade's own field so that the readable attribute reads the same in both bindings;
+    /// the builder beside it keeps the shorter `withQuotePrefix` it shipped with.
+    #[wasm_bindgen(getter, js_name = "textIsQuotePrefixed")]
+    pub fn text_is_quote_prefixed(&self) -> Option<bool> {
+        self.0.text_is_quote_prefixed
+    }
+
+    /// `@applyNumberFormat`.
+    #[wasm_bindgen(getter, js_name = "appliesNumberFormat")]
+    pub fn applies_number_format(&self) -> Option<bool> {
+        self.0.applies_number_format
+    }
+
+    /// `@applyFont`.
+    #[wasm_bindgen(getter, js_name = "appliesFont")]
+    pub fn applies_font(&self) -> Option<bool> {
+        self.0.applies_font
+    }
+
+    /// `@applyFill`.
+    #[wasm_bindgen(getter, js_name = "appliesFill")]
+    pub fn applies_fill(&self) -> Option<bool> {
+        self.0.applies_fill
+    }
+
+    /// `@applyBorder`.
+    #[wasm_bindgen(getter, js_name = "appliesBorder")]
+    pub fn applies_border(&self) -> Option<bool> {
+        self.0.applies_border
+    }
+
+    /// `@applyAlignment`.
+    #[wasm_bindgen(getter, js_name = "appliesAlignment")]
+    pub fn applies_alignment(&self) -> Option<bool> {
+        self.0.applies_alignment
+    }
+
+    /// `@applyProtection`.
+    #[wasm_bindgen(getter, js_name = "appliesProtection")]
+    pub fn applies_protection(&self) -> Option<bool> {
+        self.0.applies_protection
+    }
+
+    /// `@applyNumberFormat`, stated on its own.
+    ///
+    /// The six `withApplies…` builders exist because the flag is **three-valued** — §18.8.9 makes
+    /// an absent flag *participate* and a `0` *suppress*, which is not the same thing — and because
+    /// `withNumberFormatId` and its three siblings can only ever say `1`. Pass `undefined` to write
+    /// no attribute at all. Call this *after* the index builder, whose implied `1` it replaces.
+    #[wasm_bindgen(js_name = "withAppliesNumberFormat")]
+    pub fn with_applies_number_format(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_number_format = applies;
+        Self(next)
+    }
+
+    /// `@applyFont`, stated on its own. See `withAppliesNumberFormat`.
+    #[wasm_bindgen(js_name = "withAppliesFont")]
+    pub fn with_applies_font(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_font = applies;
+        Self(next)
+    }
+
+    /// `@applyFill`, stated on its own. See `withAppliesNumberFormat`.
+    #[wasm_bindgen(js_name = "withAppliesFill")]
+    pub fn with_applies_fill(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_fill = applies;
+        Self(next)
+    }
+
+    /// `@applyBorder`, stated on its own. See `withAppliesNumberFormat`.
+    #[wasm_bindgen(js_name = "withAppliesBorder")]
+    pub fn with_applies_border(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_border = applies;
+        Self(next)
+    }
+
+    /// `@applyAlignment`, stated on its own — the one `x:xf` attribute no index builder implies,
+    /// because the alignment it governs is a child element rather than a resource index.
+    #[wasm_bindgen(js_name = "withAppliesAlignment")]
+    pub fn with_applies_alignment(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_alignment = applies;
+        Self(next)
+    }
+
+    /// `@applyProtection`, stated on its own. The other attribute no index builder implies.
+    #[wasm_bindgen(js_name = "withAppliesProtection")]
+    pub fn with_applies_protection(&self, applies: Option<bool>) -> Self {
+        let mut next = self.0.clone();
+        next.applies_protection = applies;
+        Self(next)
     }
 }
 
