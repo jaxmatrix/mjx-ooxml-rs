@@ -15,6 +15,10 @@ cleanly to desktop, Android, iOS, and WebAssembly for use inside Tauri and beyon
 > `v0.3` = Excel, and the public API is not stable until `v0.1`. See [`PLAN.md`](PLAN.md) and
 > [`CHANGELOG.md`](CHANGELOG.md).
 
+**Where to start reading:** [the documentation index](docs/api/README.md) lists every prose page in
+this repository, and [the guides](#the-guides) below are the ten sets it indexes — one per crate or
+crate tier, each reachable from `cargo doc` as `mjx_*::guide`.
+
 ## Why another OOXML library?
 
 - **Fidelity-first.** Unknown parts, unknown elements/attributes, namespace prefixes, attribute order,
@@ -185,12 +189,13 @@ cargo test -p mjx-opc --test tree_roundtrip  # fidelity tree: every XML part re-
 MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --test schema_validity
 ```
 
-The sample files under [`tests/fixtures/`](tests/fixtures) — a real LibreOffice `.docx` and `.xlsx`
-plus a structurally-complete `.pptx` — are the current confirmation that parsing works. As of the
-Phase 1 core, **all three parse without failure**: `tree_roundtrip` runs every `.xml`/`.rels` part of
-all three files (20+ parts) through the fidelity reader/writer and asserts **byte-for-byte** identity,
-and `roundtrip` re-zips each package with per-part byte identity. A broader multi-producer corpus
-comes in a later iteration.
+The sample files under [`tests/fixtures/`](tests/fixtures) are the current confirmation that parsing
+works, and the corpus is derived from the directory rather than listed (`mjx-fixtures`), so a file
+dropped in there joins every suite by being classified. `tree_roundtrip` runs every `.xml`/`.rels`
+part of every package through the fidelity reader/writer and asserts **byte-for-byte** identity, and
+`roundtrip` re-zips each package with per-part byte identity. **Every fixture was written by this
+project or by LibreOffice**; `tests/office-authored/` is the slot for files real Microsoft Office
+wrote, and it is empty.
 
 Round-tripping the files we *have* says nothing about the files an attacker has, so the untrusted
 entry points — the fidelity reader, the OPC opener and the MCE resolver — have a fuzz campaign of
@@ -225,64 +230,47 @@ cargo doc --workspace --no-deps --open   # start at the `mjx-ooxml` crate — th
 
 Every public item is documented; the `missing_docs` lint and a strict rustdoc CI job keep it that way.
 
-**[The documentation index](docs/api/README.md)** lists every prose page in the repository with what
-it covers and which crate owns it. It is machine-checked in both directions — a page committed
-without a row there fails the build, and so does a row naming a page that does not exist — along with
-every file path and crate-qualified symbol those pages name (`xtask/tests/doc_gate.rs`).
+**[The documentation index](docs/api/README.md) is the one link that reaches everything.** It lists
+every prose page in the repository with what it covers and which crate owns it, and it is
+machine-checked in both directions — a page committed without a row there fails the build, and so
+does a row naming a page that does not exist — along with every file path and crate-qualified symbol
+those pages name (`xtask/tests/doc_gate.rs`).
 
-### Guides
+### The guides
 
 Longer-form prose lives beside the code, and renders as its own pages under `cargo doc`. Every code
-snippet in them is compiled as a doctest, so none of it can rot.
+snippet in them is compiled as a doctest, so none of it can rot. Each row below is a whole guide set
+and links its index; the page-by-page list is in that index and in
+[the documentation index](docs/api/README.md).
 
-**PowerPoint** — [`crates/mjx-pptx/docs/guide/`](crates/mjx-pptx/docs/guide/README.md):
+| Guide set | Reached from | What it is for |
+|---|---|---|
+| [PowerPoint](crates/mjx-pptx/docs/guide/README.md) | `mjx_pptx::guide` | Opening and authoring a deck: slides, shapes, text, tables, charts, inheritance |
+| [Word](crates/mjx-docx/docs/guide/README.md) | `mjx_docx::guide` | Paragraphs and runs, tables, sections and headers, styles and numbering |
+| [Excel](crates/mjx-xlsx/docs/guide/README.md) | `mjx_xlsx::guide` | The `Workbook` surface, one page per feature area, and what it refuses to do |
+| [The facade](crates/mjx-ooxml/docs/guide/README.md) | `mjx_ooxml::guide` | The binding-ready surface all three formats are reached through |
+| [The packaging tier](crates/mjx-opc/docs/guide/README.md) | `mjx_opc::guide` | Where fidelity is implemented: parts, laziness, the preservation tree, the round-trip contract, `mc:` markup |
+| [DrawingML](crates/mjx-dml/docs/guide/README.md) | `mjx_dml::guide` | The shared markup every format draws in: fills, outlines, colour, geometry, text bodies, the theme |
+| [SpreadsheetML](crates/mjx-sml/docs/guide/README.md) | `mjx_sml::guide` | The markup an embedded workbook is made of, and what a sheet costs to hold |
+| [The upper shared markup](crates/mjx-chart/docs/guide/README.md) | `mjx_chart::guide` | Charts, Office MathML and legacy VML — and where the guarantees differ |
+| [The generated vocabulary](crates/mjx-ooxml-types/docs/guide/README.md) | `mjx_ooxml_types::guide` | What the generator writes, what it does not, and how much of it to trust |
+| [The bindings](bindings/mjx-python/docs/guide/README.md) | `mjx_python::guide` | The Python and TypeScript surfaces, the mapping rules, and what stays in Rust |
 
-| Guide | What it covers |
-|---|---|
-| [Building a deck](crates/mjx-pptx/docs/guide/building_a_deck.md) | The whole story once: open, add slides, fill them, style them, save |
-| [Shapes and text](crates/mjx-pptx/docs/guide/shapes_and_text.md) | The one shape index space, group descent, surfaces, the four text scopes, the edit cursor |
-| [Tables, charts and pictures](crates/mjx-pptx/docs/guide/tables_charts_pictures.md) | Structured content, cell selections, merging, chart authoring, linked media |
-| [Inheritance, layouts and masters](crates/mjx-pptx/docs/guide/inheritance_and_masters.md) | Where a property comes from when the slide does not state it |
-| [Effective properties](crates/mjx-pptx/docs/effective_properties.md) | The deep reference: every inheritance ladder, why colours bake to `RRGGBB`, where each reader stops |
-| [Fidelity and the known gaps](crates/mjx-pptx/docs/guide/fidelity_and_gaps.md) | The round-trip guarantee, and an honest list of what is not modelled |
-
-**Word** — [`crates/mjx-docx/docs/guide/`](crates/mjx-docx/docs/guide/README.md):
-
-| Guide | What it covers |
-|---|---|
-| [Building a document](crates/mjx-docx/docs/guide/building_a_document.md) | The whole story once: open or blank, paragraphs, runs, tables, headers, save |
-| [Text and formatting](crates/mjx-docx/docs/guide/text_and_formatting.md) | Addressing a run, editing it precisely, and the annotations that hang off it |
-| [Tables, sections and headers](crates/mjx-docx/docs/guide/tables_sections_and_headers.md) | Structured content, and the section a paragraph sits in |
-| [Styles, numbering and inheritance](crates/mjx-docx/docs/guide/styles_and_inheritance.md) | Where a property comes from when the run does not state it |
-| [Fidelity and the known gaps](crates/mjx-docx/docs/guide/fidelity_and_gaps.md) | The round-trip guarantee, the `wml` preserve-only ledger, and what is not modelled |
-
-**Excel** — [`crates/mjx-xlsx/docs/guide/`](crates/mjx-xlsx/docs/guide/README.md), one page per
-feature area; that guide's own README lists them all.
-The five to start with:
-
-| Guide | What it covers |
-|---|---|
-| [Opening and saving a workbook](crates/mjx-xlsx/docs/guide/opening_and_saving.md) | The whole of the current surface, once — and which of the two Excel crates is which |
-| [Reading and editing cells](crates/mjx-xlsx/docs/guide/reading_and_editing_cells.md) | A value out of a sheet, and one into it |
-| [Authoring a workbook](crates/mjx-xlsx/docs/guide/authoring_a_workbook.md) | A workbook this library wrote, rather than one it opened |
-| [Large workbooks](crates/mjx-xlsx/docs/guide/large_workbooks.md) | What a sheet costs to hold, what it costs to open, and why the second is paid on every call |
-| [Deliberate limitations](crates/mjx-xlsx/docs/guide/deliberate_limitations.md) | **Before you file a bug** — no calculation engine, no rule evaluation, no filter application |
-| [Fidelity and the part graph](crates/mjx-xlsx/docs/guide/fidelity_and_the_part_graph.md) | The round-trip guarantee, and the nine `sml.xsd` clusters preserved rather than modelled |
-
-Each format also carries a deep **effective-properties** reference, three pages in one shape —
+Each format also carries a deep **effective-properties** reference, one page per format in one shape —
 [PowerPoint](crates/mjx-pptx/docs/effective_properties.md),
 [Word](crates/mjx-docx/docs/effective_properties.md) and
 [Excel](crates/mjx-xlsx/docs/effective_properties.md) — and the facade carries
 [the shared-markup reachability table](crates/mjx-ooxml/docs/shared_markup_reachability.md), which
-says what each of `Deck`, `Document` and `Workbook` can reach of the five shared-markup crates, with
+says what each of `Deck`, `Document` and `Workbook` can reach of the shared-markup crates, with
 a written reason beside every asymmetry and a test that fails when the table and the code disagree.
 
 ### Examples
 
-Twenty-six runnable programs. Twenty-five of them **reopen what they wrote and assert something about
-it** — an example that only produced a file would prove nothing — and the twenty-sixth
-(`mjx-xml`'s `mjx248_measure`) is the serialization measurement `docs/BENCHMARKS.md` reproduces. CI
-runs every one on every push.
+Twenty-eight runnable programs. Every one but `mjx-xml`'s `mjx248_measure` — the serialization
+measurement `docs/BENCHMARKS.md` reproduces — **reopens what it wrote and asserts something about
+it**, because an example that only produced a file would prove nothing. CI runs every one on every
+push, and `xtask/tests/entry_points.rs` fails when this list and the examples Cargo builds
+disagree.
 
 ```sh
 # PowerPoint
@@ -313,10 +301,15 @@ cargo run -p mjx-xlsx --example read_formulas              # formulas, cached va
 cargo run -p mjx-xlsx --example style_a_range              # one xf, N cells pointing at it
 cargo run -p mjx-xlsx --example table_and_autofilter       # a table part, and a filter that hides nothing
 cargo run -p mjx-xlsx --example large_sparse_sheet         # with its memory figure asserted
+cargo run -p mjx-xlsx --example chart_range_cost           # what resolving a chart's `c:f` costs, measured
 
 # Through the facade, naming no lower crate
 cargo run -p mjx-ooxml --example build_a_deck
 cargo run -p mjx-ooxml --example build_a_document
+cargo run -p mjx-ooxml --example build_a_workbook
+
+# The serialization measurement docs/BENCHMARKS.md reproduces
+cargo run -p mjx-xml --example mjx248_measure
 ```
 
 ## Contributing
