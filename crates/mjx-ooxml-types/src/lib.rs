@@ -32,6 +32,7 @@
 
 pub mod child_order;
 pub mod drawingml;
+pub mod guide;
 pub mod presentationml;
 pub mod support;
 

@@ -88,6 +88,7 @@ plus clippy's `-D warnings`), and intra-doc links are denied on CI, so `cargo do
 | [Errors](../../crates/mjx-ooxml/docs/guide/errors.md) | `mjx-ooxml` | The eleven stable codes, the coordinates beside them, and the typed cause |
 | [The curated surface](../../crates/mjx-ooxml/docs/guide/the_curated_surface.md) | `mjx-ooxml` | What stays behind in each format crate, why, and the three escape hatches |
 | [Fidelity and the known gaps](../../crates/mjx-ooxml/docs/guide/fidelity_and_gaps.md) | `mjx-ooxml` | The round-trip contract through the facade, and what is absent |
+| [Shared markup reachability](../../crates/mjx-ooxml/docs/shared_markup_reachability.md) | `mjx-ooxml` | Which shared-markup types a facade caller can reach, and by which method |
 
 ## The packaging tier — `mjx-opc`, `mjx-mce`, `mjx-xml`, `mjx-ooxml-core`
 
@@ -160,11 +161,22 @@ child-ordered from the XSD; a VML part is neither, and the round trip is the onl
 | [Office MathML](../../crates/mjx-omml/docs/office_math.md) | `mjx-omml` | What OMML is and is not, and the `w:rPr` inside it that this crate may not name |
 | [Legacy VML](../../crates/mjx-vml/docs/legacy_vml.md) | `mjx-vml` | The weaker guarantee, the `spid` hop, and the whitespace a start tag comes back with |
 
-## Shared markup
+## The generated vocabulary — `mjx-ooxml-types`
+
+**84,107 of this crate's 85,296 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
+nothing re-derived them.** `CLAUDE.md` decides that generated output is committed rather than built,
+which is right and has a cost: a generator defect is frozen into the repository rather than failing
+on the next build, and the committed file is the only artefact anyone reads. Five pages, written for
+someone who has to decide how much of a generated table to trust — the last is the one to read first.
 
 | Page | Crate | What it covers |
 |---|---|---|
-| [Shared markup reachability](../../crates/mjx-ooxml/docs/shared_markup_reachability.md) | `mjx-ooxml` | Which shared-markup types a facade caller can reach, and by which method |
+| [Guide index](../../crates/mjx-ooxml-types/docs/guide/README.md) | `mjx-ooxml-types` | What the crate answers, what is generated, what is hand-written, and the line between them |
+| [What is generated](../../crates/mjx-ooxml-types/docs/guide/what_is_generated.md) | `mjx-ooxml-types` | The thirteen artefacts, the nine simple-type modules, and the shape of an emitted item |
+| [Child order](../../crates/mjx-ooxml-types/docs/guide/child_order.md) | `mjx-ooxml-types` | The 59,512 lines that say where a child belongs, and the three rules that never reorder a document |
+| [The naming convention](../../crates/mjx-ooxml-types/docs/guide/the_naming_convention.md) | `mjx-ooxml-types` | How a cryptic `ST_*` token becomes a self-explanatory name, and which half of that is curated |
+| [Regenerating](../../crates/mjx-ooxml-types/docs/guide/regenerating.md) | `mjx-ooxml-types` | What `codegen` needs, why the output is committed, what that costs, and how a change lands |
+| [What to distrust](../../crates/mjx-ooxml-types/docs/guide/what_to_distrust.md) | `mjx-ooxml-types` | Which gate catches what, which skips silently, and the four things nothing here checks |
 | [Schema coverage](../../crates/mjx-ooxml-types/COVERAGE.md) | `mjx-ooxml-types` | Which ECMA-376 schemas the generator covers and which it does not |
 
 ## The bindings
