@@ -1,0 +1,8 @@
+display-list page=320x213.33334 scale=1.3333334 bytes=252
+section commands count=3
+section paints count=3
+section strokes count=1
+section geometries count=2
+0000 fill rect[0,0,320,213.33334] with #ffffffff
+0001 fill outline[0x16500000000002b at 80,26.666668,240,186.66667] with #244a8fff
+0002 stroke outline[0x16500000000002b at 80,26.666668,240,186.66667] with width=2 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#10141cff

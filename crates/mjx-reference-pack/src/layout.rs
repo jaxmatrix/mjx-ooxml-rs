@@ -32,8 +32,29 @@
 //! that a reader can see in the arithmetic is a known limitation; one that only shows up as a
 //! constant per-plate difference is a mystery.
 
-/// EMU in one PDF point.
-pub const EMU_PER_POINT: i64 = 12_700;
+// `Rect` and `PixelRect` moved down into `mjx-render-oracle` with MJXOFF-165, because the fidelity
+// oracle compares rasters too and a second rectangle would be a second rounding rule. What stayed
+// here is the half that names a `.pptx`: `ShapeBounds` is `mjx-pptx`'s, and a rectangle is a general
+// thing, so the conversion is an extension trait on this side of the seam rather than a dependency
+// on the format tier from the other.
+pub use mjx_render_oracle::geom::{PixelRect, Rect, EMU_PER_POINT};
+
+/// The same rectangle as a `.pptx` shape's bounds, in EMU.
+pub trait ToShapeBounds {
+    /// Exact: every field is an integer number of points.
+    fn to_shape_bounds(self) -> mjx_pptx::ShapeBounds;
+}
+
+impl ToShapeBounds for Rect {
+    fn to_shape_bounds(self) -> mjx_pptx::ShapeBounds {
+        mjx_pptx::ShapeBounds {
+            offset_x_emu: self.x * EMU_PER_POINT,
+            offset_y_emu: self.y * EMU_PER_POINT,
+            width_emu: self.width * EMU_PER_POINT,
+            height_emu: self.height * EMU_PER_POINT,
+        }
+    }
+}
 
 /// The slide, in points: 13⅓ × 7½ inches, PowerPoint's 16 : 9 default.
 pub const SLIDE: (i64, i64) = (960, 540);
@@ -67,125 +88,6 @@ pub const WINDOW_INSET_Y: i64 = 3;
 /// hides an axis swap: a shape drawn with its width and height exchanged would land exactly where
 /// the right one does.
 pub const SHAPE_BOX: (i64, i64) = (100, 70);
-
-/// A rectangle in points, with its top-left at (`x`, `y`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Rect {
-    /// Points from the left edge of the slide.
-    pub x: i64,
-    /// Points from the top edge of the slide.
-    pub y: i64,
-    /// Width in points.
-    pub width: i64,
-    /// Height in points.
-    pub height: i64,
-}
-
-impl Rect {
-    /// A rectangle from its four numbers.
-    #[must_use]
-    pub const fn new(x: i64, y: i64, width: i64, height: i64) -> Self {
-        Self {
-            x,
-            y,
-            width,
-            height,
-        }
-    }
-
-    /// The same rectangle as a `.pptx` shape's bounds, in EMU. Exact: every field is an integer
-    /// number of points.
-    #[must_use]
-    pub fn to_shape_bounds(self) -> mjx_pptx::ShapeBounds {
-        mjx_pptx::ShapeBounds {
-            offset_x_emu: self.x * EMU_PER_POINT,
-            offset_y_emu: self.y * EMU_PER_POINT,
-            width_emu: self.width * EMU_PER_POINT,
-            height_emu: self.height * EMU_PER_POINT,
-        }
-    }
-
-    /// The same rectangle in the display list's coordinates, which are points.
-    #[must_use]
-    pub fn to_scene_rect(self) -> mjx_scene::SceneRect {
-        #[allow(
-            clippy::cast_precision_loss,
-            reason = "every field is a small integer number of points; 960 is exact in f32"
-        )]
-        mjx_scene::SceneRect::new(
-            self.x as f32,
-            self.y as f32,
-            (self.x + self.width) as f32,
-            (self.y + self.height) as f32,
-        )
-    }
-
-    /// The pixel rectangle this becomes when a page is rasterised at `dots_per_inch`, clamped to
-    /// `(width, height)`.
-    ///
-    /// Rounded **inwards** — the left and top edges up, the right and bottom edges down — so a
-    /// window never reaches a pixel that belongs to a neighbouring plate. A crop that borrowed one
-    /// column from the plate beside it would report a difference that is a cropping error.
-    #[must_use]
-    pub fn to_pixels(self, dots_per_inch: f64, width: u32, height: u32) -> PixelRect {
-        let scale = dots_per_inch / 72.0;
-        #[allow(
-            clippy::cast_precision_loss,
-            reason = "point coordinates on a 960-point page"
-        )]
-        let (left, top) = (self.x as f64 * scale, self.y as f64 * scale);
-        #[allow(
-            clippy::cast_precision_loss,
-            reason = "point coordinates on a 960-point page"
-        )]
-        let (right, bottom) = (
-            (self.x + self.width) as f64 * scale,
-            (self.y + self.height) as f64 * scale,
-        );
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "clamped to the raster's own size immediately below"
-        )]
-        let (x0, y0) = (left.ceil().max(0.0) as u32, top.ceil().max(0.0) as u32);
-        #[allow(
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss,
-            reason = "clamped to the raster's own size immediately below"
-        )]
-        let (x1, y1) = (
-            right.floor().max(0.0) as u32,
-            bottom.floor().max(0.0) as u32,
-        );
-        PixelRect {
-            x: x0.min(width),
-            y: y0.min(height),
-            width: x1.min(width).saturating_sub(x0.min(width)),
-            height: y1.min(height).saturating_sub(y0.min(height)),
-        }
-    }
-}
-
-/// A rectangle in raster pixels.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct PixelRect {
-    /// Pixels from the left edge.
-    pub x: u32,
-    /// Pixels from the top.
-    pub y: u32,
-    /// Width in pixels.
-    pub width: u32,
-    /// Height in pixels.
-    pub height: u32,
-}
-
-impl PixelRect {
-    /// How many pixels the rectangle covers.
-    #[must_use]
-    pub const fn area(self) -> usize {
-        (self.width as usize) * (self.height as usize)
-    }
-}
 
 /// Where the plates of one page sit.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

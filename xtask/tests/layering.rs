@@ -209,6 +209,38 @@ enum Tier {
     /// other three test-only crates live under, since those are legitimately `dev-dependencies` of
     /// shipped crates and this is a dependency of nothing at all.
     ReferencePack,
+    /// `mjx-render-oracle` (MJXOFF-165): the fidelity oracle — the three assertion tiers, the
+    /// perceptual metric, the committed baselines and their approval events, and the plate gallery.
+    /// Outside the shipped graph, at the top, one step **below** [`Tier::ReferencePack`].
+    ///
+    /// It is a rung of its own rather than a second `ReferencePack`, because the two live under
+    /// different rules and the difference is the reason the crate was split out at all. The pack
+    /// names the format tier — it authors a `.pptx` and a `.docx` — and **nothing may depend on
+    /// it**. The oracle names no format crate: it is `FragmentTree`, `DisplayList`, the geometry
+    /// provider and the painters, which is the rendering path with no document anywhere in it. That
+    /// is what lets exactly one crate depend on it.
+    ///
+    /// **No crate with a rank may reach it, in either section**, and
+    /// [`the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph`] is what refuses the
+    /// edge — including, deliberately, one from a ranked crate's `[dev-dependencies]`, which is the
+    /// section the other three test-only crates legitimately live in. A shipped crate that
+    /// dev-depended on this would pull `mjx-paint`, and therefore a graphics stack, into its test
+    /// build; a test build that links Vulkan is still a build that links Vulkan.
+    ///
+    /// **What it may have is a consumer above the graph, and that is the point.** MJXOFF-165 needed
+    /// the authority vocabulary MJXOFF-207 had already written — `ReferenceProvider`, the
+    /// three-state `Verdict`, the provider-attached exclusions — and the rule against a second
+    /// answer to *"how much is this reference worth"* is the same rule that put `ReferenceAuthority`
+    /// in `mjx-text` rather than in two crates. Since nothing may depend on the pack, the vocabulary
+    /// moved **down** into the oracle and the pack re-exports it. MJXOFF-166's canvas harness is
+    /// specified to reach the plate generator here rather than write a second PNG emitter, and it
+    /// will be the second such consumer; a rule that named `mjx-reference-pack` and nothing else
+    /// would have made that child amend this file before it could start.
+    ///
+    /// **Giving it a rank would have been wrong**, for the reason the pack's own comment gives: a
+    /// rank is a promise about who may reach it, and the answer here is *one named crate*, which is
+    /// not something a number can say.
+    RenderOracle,
     /// `xtask`: a host-only developer binary nothing depends on, so it may reach anything.
     Tooling,
 }
@@ -247,6 +279,7 @@ impl Tier {
             | Self::TestGate
             | Self::TestInstrument
             | Self::ReferencePack
+            | Self::RenderOracle
             | Self::Tooling => return None,
         })
     }
@@ -273,6 +306,7 @@ impl Tier {
             Self::TestGate => "test-only gate (outside the shipped graph)",
             Self::TestInstrument => "test-only instrument (outside the shipped graph)",
             Self::ReferencePack => "test-only reference pack (above the shipped graph)",
+            Self::RenderOracle => "test-only fidelity oracle (above the shipped graph)",
             Self::Tooling => "host-only tooling (outside the shipped graph)",
         }
     }
@@ -316,6 +350,7 @@ const TIERS: &[(&str, Tier)] = &[
     ("mjx-fixtures", Tier::TestCorpus),
     ("mjx-schema-gate", Tier::TestGate),
     ("mjx-allocation-counter", Tier::TestInstrument),
+    ("mjx-render-oracle", Tier::RenderOracle),
     ("mjx-reference-pack", Tier::ReferencePack),
     ("xtask", Tier::Tooling),
 ];
@@ -668,6 +703,62 @@ fn the_test_only_crates_and_the_tooling_stay_outside_the_shipped_graph() {
             );
         }
     }
+
+    // **No *ranked* crate may reach the fidelity oracle, in either dependency section.** The rule is
+    // stricter than the one the corpus, the gate and the instrument live under — those are
+    // legitimately `dev-dependencies` of shipped crates — because this crate depends on `mjx-paint`
+    // at rank 5.5, so any edge into it drags a graphics stack into whatever declared it. A
+    // `[dev-dependencies]` entry is no exemption: a test build that links Vulkan is still a test
+    // build that links Vulkan.
+    //
+    // It is *looser* than the reference pack's rule, which admits no consumer at all, and the
+    // looseness is deliberate rather than an oversight. **The oracle is meant to be consumed by the
+    // crates above the graph**: `mjx-reference-pack` needs the authority vocabulary it owns — a
+    // second copy of *"how much is this reference worth"* in one workspace would be one answer too
+    // many — and MJXOFF-166's canvas harness is specified to reach its plate generator rather than
+    // write a second PNG emitter. A rule that named `mjx-reference-pack` and nothing else would
+    // force that child to re-litigate this file before it could start, which is exactly the shape
+    // of hand-off this programme is trying not to leave.
+    //
+    // What the rule is actually about is therefore stated as what it is about: **a rank**. A crate
+    // with one is in the document graph and may not link a graphics stack; a crate without one is
+    // already above the whole graph and may.
+    for member in &members {
+        let source_has_a_rank = tier_of(&member.name).is_some_and(|tier| tier.rank().is_some());
+        for (target, kind) in &member.edges {
+            let target_tier =
+                tier_of(target).expect("the target is a workspace member, so it has a row");
+            if target_tier != Tier::RenderOracle {
+                continue;
+            }
+            assert!(
+                !source_has_a_rank,
+                "`{}` declares `{target}` as {}, but `{target}` is {} and no crate with a rank may \
+                 reach it in any section — a `[dev-dependencies]` entry included. It depends on \
+                 `mjx-paint` at rank 5.5, so the edge would pull a graphics stack into `{}`'s own \
+                 build. Only a crate that is itself above the whole document graph may consume it.",
+                member.name,
+                kind.describe(),
+                target_tier.describe(),
+                member.name,
+            );
+        }
+    }
+
+    // And the edge that must **exist**, so the exception above is not a hole nothing exercises. A
+    // rule written for one consumer, with no consumer, is a rule that would go on passing if the
+    // crate it governs were deleted.
+    let pack = members
+        .iter()
+        .find(|member| member.name == "mjx-reference-pack")
+        .expect("the workspace has a reference pack");
+    assert!(
+        pack.edges
+            .iter()
+            .any(|(target, _)| target == "mjx-render-oracle"),
+        "`mjx-reference-pack` no longer depends on `mjx-render-oracle`, so the one exception above \
+         is unexercised — and an unexercised exception is one nobody would notice going wrong"
+    );
 
     // The other half of "outside the graph": no shipped crate may *ship* one of them.
     for member in &members {

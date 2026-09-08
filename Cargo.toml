@@ -76,6 +76,12 @@ members = [
     # the format tier to author the decks, `mjx-geometry` to know what a preset is, and `mjx-paint` to
     # export and rasterise our own side of a comparison — and **nothing depends on it**, which is what
     # keeps those three edges out of the shipped graph. `publish = false`.
+    # Test-only, outside the rank graph: the fidelity oracle (MJXOFF-165). The three assertion
+    # tiers, the perceptual metric, the committed baselines and their approval events, and the plate
+    # gallery R11 and U01 load. It sits **below** `mjx-reference-pack` and above everything ranked —
+    # the pack adds the format tier on top to author a `.pptx`, and both are above the whole document
+    # graph. Nothing ranked may reach either. `publish = false`.
+    "crates/mjx-render-oracle",
     "crates/mjx-reference-pack",
     # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
     # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
@@ -101,7 +107,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.137"
+version = "0.0.138"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -240,6 +246,7 @@ mjx-fixtures = { path = "crates/mjx-fixtures" }
 mjx-allocation-counter = { path = "crates/mjx-allocation-counter" }
 mjx-ooxml = { path = "crates/mjx-ooxml" }
 mjx-paint = { path = "crates/mjx-paint" }
+mjx-render-oracle = { path = "crates/mjx-render-oracle" }
 mjx-reference-pack = { path = "crates/mjx-reference-pack" }
 
 # --- binding toolkits (used only by `bindings/*`) ---

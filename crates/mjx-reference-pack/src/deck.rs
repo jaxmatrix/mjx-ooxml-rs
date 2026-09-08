@@ -30,7 +30,7 @@
 use mjx_dml::{CharacterPropertiesSpec, ColorSpec, FillSpec, LineSpec, LineWidth};
 use mjx_pptx::{PptxError, Presentation};
 
-use crate::layout::{slide_size, Rect, HEADING_HEIGHT, PLATES_PER_SLIDE, SLIDE};
+use crate::layout::{slide_size, Rect, ToShapeBounds, HEADING_HEIGHT, PLATES_PER_SLIDE, SLIDE};
 use crate::plates::{plates, Plate, PlateKind, PresetDeck};
 
 /// The plate fill. A pale blue, so an outline in the darker stroke colour is legible against it and

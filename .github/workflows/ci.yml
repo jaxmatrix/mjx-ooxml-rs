@@ -289,6 +289,57 @@ jobs:
       - name: the painter's own suites, with a missing device or reader as a failure
         run: cargo test -p mjx-paint --no-fail-fast -- --nocapture
 
+  # The fidelity oracle (MJXOFF-165). Its own job rather than a line in `lint-test`, for two
+  # reasons that are both about what a reviewer can see.
+  #
+  # **The external readers are the point.** `pdftotext` and `pdftoppm` check our own PDF export,
+  # `magick` reads our own PNG back — dimensions, pixels and the straight-alpha convention — and
+  # `sha256sum` reproduces the digest an approval record binds to. Checking our own output with our
+  # own reader proves nothing whatever, which is why all four are external and why
+  # `MJX_REQUIRE_TOOLS=1` turns a missing one into a **failure** rather than a named skip.
+  #
+  # **And the gallery is uploaded on failure.** MJXOFF-165's own constraint is that a failure a
+  # reviewer cannot see is a failure nobody fixes: a pixel-tier regression is a picture, and a
+  # number in a log is not one. The gallery is a single self-contained HTML file beside the plates,
+  # so the artefact opens on a machine with nothing installed.
+  #
+  # What this job deliberately does **not** gate on is fidelity. Every baseline it checks was
+  # produced by the code it is checking; that catches a regression and is not a parity claim, and
+  # `crates/mjx-render-oracle/src/lib.rs` says so at length.
+  oracle:
+    name: the fidelity oracle
+    runs-on: ubuntu-latest
+    env:
+      MJX_REQUIRE_TOOLS: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: install the readers this workspace did not write
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends poppler-utils imagemagick
+      # Both spellings, because they are the same program at two major versions: ImageMagick 7
+      # installs `magick` and ImageMagick 6 — which is what this runner's `imagemagick` package
+      # still is — installs `convert` and no `magick` at all. The suite asks for either; this step
+      # prints which one answered, so a log says what actually read the plates.
+      - name: which readers are present
+        run: |
+          pdftotext -v || true
+          pdftoppm -v || true
+          magick -version || convert -version || true
+      - name: the three tiers, the approval gates and the instruments
+        run: cargo test -p mjx-render-oracle --no-fail-fast -- --nocapture
+      - name: the plate gallery, so a failure can be looked at
+        if: always()
+        run: cargo run -p mjx-render-oracle -- gallery
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oracle-gallery
+          path: target/oracle-gallery
+          if-no-files-found: error
+
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
   examples:
@@ -342,13 +393,14 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
-      # `mjx-schema-gate`, `mjx-fixtures` and `mjx-reference-pack` are excluded for the same reason
-      # read the other way: they are test-only, `publish = false`, and nothing shipped depends on
-      # them, so building them for five targets would widen the claim this job makes rather than
-      # support it. The reference pack is also the first member here with a **binary**, and a binary
-      # has to *link*: the Android leg has no NDK linker, so `cargo build --target
-      # aarch64-linux-android` fed its object files to the host `ld` and got *"Relocations in
-      # generic ELF (EM: 183)"*. A library target only ever produces an `rlib` and never hits that.
+      # `mjx-schema-gate`, `mjx-fixtures`, `mjx-reference-pack` and `mjx-render-oracle` are excluded
+      # for the same reason read the other way: they are test-only, `publish = false`, and nothing
+      # shipped depends on them, so building them for five targets would widen the claim this job
+      # makes rather than support it. The reference pack was the first member here with a
+      # **binary**, and a binary has to *link*: the Android leg has no NDK linker, so `cargo build
+      # --target aarch64-linux-android` fed its object files to the host `ld` and got *"Relocations
+      # in generic ELF (EM: 183)"*. A library target only ever produces an `rlib` and never hits
+      # that. The fidelity oracle has a binary too, and the same exclusion for the same reason.
       # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
       # reads the backslash line-continuations below as a unary `--` and fails to parse the step
       # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
@@ -358,7 +410,7 @@ jobs:
           cargo build --workspace --exclude xtask \
             --exclude mjx-python --exclude mjx-wasm \
             --exclude mjx-schema-gate --exclude mjx-fixtures \
-            --exclude mjx-reference-pack \
+            --exclude mjx-reference-pack --exclude mjx-render-oracle \
             --target ${{ matrix.target }}
 
   # The two binding members, built and linted on the host. `lint-test` already covers them as part of

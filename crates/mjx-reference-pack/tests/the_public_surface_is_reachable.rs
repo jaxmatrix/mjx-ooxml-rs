@@ -28,7 +28,7 @@ use mjx_reference_pack::authority::{
 };
 use mjx_reference_pack::hanging::{paragraphs, HangingRole};
 use mjx_reference_pack::ingest::{AdvanceReading, HangingReading, HatchReading, PitchReading};
-use mjx_reference_pack::layout::{PixelRect, PlateGeometry, Rect};
+use mjx_reference_pack::layout::{PixelRect, PlateGeometry, Rect, ToShapeBounds};
 use mjx_reference_pack::plates::{plates, PlateKind, PresetDeck};
 use mjx_reference_pack::tools::{Raster, WordBox};
 use mjx_reference_pack::typography::{baselines, pitch_specimens, probes, swatches, Probe};

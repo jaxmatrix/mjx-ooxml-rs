@@ -47,7 +47,7 @@
 //!
 //! | Module | What it is |
 //! |---|---|
-//! | [`authority`] | Where a reference came from, what it is worth, and the third answer that is neither pass nor fail |
+//! | [`authority`] | Where a reference came from, what it is worth, and the third answer that is neither pass nor fail — `mjx-render-oracle`'s, re-exported |
 //! | [`layout`] | The plate grid, stated once, so the deck and our own display list cannot drift |
 //! | [`plates`] | What the 187 plates are, at their defaults and at their extremes |
 //! | [`deck`] | Authoring the two preset decks |
@@ -55,11 +55,18 @@
 //! | [`hanging`] | The one artefact that is a `.docx`, because `w:overflowPunct` is a Word setting |
 //! | [`ingest`] | Reading the answers back out of an exported PDF — and refusing a number it could not see |
 //! | [`scene`] | Our own side: the same page as a display list, exported through the PDF painter |
-//! | [`tools`] | `pdftoppm`, `pdftotext`, `pdfinfo`, `soffice` — and the loud named skip |
+//! | [`tools`] | `pdftoppm`, `pdftotext`, `pdfinfo`, `soffice` — and the loud named skip — `mjx-render-oracle`'s, re-exported |
 //! | [`compare`] | Two rasters of one page, one plate at a time |
 //! | [`pack`] | Generating the whole pack, and the preliminary pass over it |
 
-pub mod authority;
+// `authority` and `tools` live in `mjx-render-oracle` since MJXOFF-165 gave this crate a crate
+// below it, and are re-exported here so that `mjx_reference_pack::authority::...` still names them.
+// **They were moved rather than copied**, for the reason `authority`'s own documentation gives about
+// a second authority enumeration: a workspace with two answers to *"how much is this reference
+// worth"* has one too many, and the fidelity oracle needs the same answer this pack does.
+pub use mjx_render_oracle::authority;
+pub use mjx_render_oracle::tools;
+
 pub mod compare;
 pub mod deck;
 pub mod hanging;
@@ -68,10 +75,9 @@ pub mod layout;
 pub mod pack;
 pub mod plates;
 pub mod scene;
-pub mod tools;
 pub mod typography;
 
-pub use authority::{
+pub use mjx_render_oracle::authority::{
     parity_count, provisional_baselines, Baseline, ReferenceProvider, RenderedContent, Verdict,
 };
 pub use plates::{Plate, PlateKind, PresetDeck};

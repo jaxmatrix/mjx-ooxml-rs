@@ -46,14 +46,24 @@
 //! half. The preset decks are authored with solid fills and solid strokes precisely so their
 //! exclusion list is *empty* — an exclusion that covered everything would prove nothing, and one
 //! carried onto a sheet that did not need it would quietly remove the sheet from the comparison.
-//! [`the_geometry_decks_are_excluded_from_nothing`] asserts that emptiness rather than leaving it to
-//! be believed.
+//! Two suites assert that emptiness rather than leaving it to be believed, one in each of this
+//! module's two consumers: `mjx-reference-pack`'s `the_geometry_decks_are_excluded_from_nothing`
+//! over the 187-plate decks, and this crate's own
+//! `the_content_the_specimens_are_made_of_is_excluded_from_nothing` over the specimen corpus.
 //!
 //! The **layout tier is never excluded**: a word's bounding box says nothing about how the shape
 //! behind it is filled, so `pdftotext -bbox-layout` comparisons stay fully meaningful on exactly the
 //! files whose pixel tier is compromised.
 //!
-//! [`the_geometry_decks_are_excluded_from_nothing`]: https://docs.rs/mjx-reference-pack
+//! # Where this module lives, and why it moved
+//!
+//! MJXOFF-207 wrote it inside `mjx-reference-pack`. MJXOFF-165 needed exactly the same three things
+//! — a provider, a three-state verdict and provider-attached exclusions — and **nothing may depend
+//! on the reference pack**, so a second copy would have been the alternative. A workspace with two
+//! answers to *"how much is this reference worth"* has one too many, which is the same argument that
+//! put [`ReferenceAuthority`] in `mjx-text` rather than in every crate that needed it. So it moved
+//! **down** into `mjx-render-oracle`, and the pack re-exports it as `mjx_reference_pack::authority`:
+//! every path that named it still names it, and there is still one of it.
 
 use mjx_text::ReferenceAuthority;
 
