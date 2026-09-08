@@ -769,6 +769,24 @@ fn claims() -> Vec<Claim> {
             derived: deck,
         },
         Claim {
+            document: "bindings/mjx-wasm/README.md",
+            sentence: "{} methods on `Deck`",
+            spelling: Spelling::Digits,
+            derived: deck,
+        },
+        Claim {
+            document: "bindings/mjx-python/docs/guide/what_is_not_projected.md",
+            sentence: "on the facade and {} here",
+            spelling: Spelling::Digits,
+            derived: deck,
+        },
+        Claim {
+            document: "bindings/mjx-python/docs/guide/how_much_is_exercised.md",
+            sentence: "already holds all {} enumerations",
+            spelling: Spelling::Digits,
+            derived: enumerations,
+        },
+        Claim {
             document: "bindings/mjx-python/docs/guide/README.md",
             sentence: "| **{}** | `bindings/mjx-python/src/deck.rs`",
             spelling: Spelling::Digits,
