@@ -163,7 +163,7 @@ child-ordered from the XSD; a VML part is neither, and the round trip is the onl
 
 ## The generated vocabulary — `mjx-ooxml-types`
 
-**84,107 of this crate's 85,296 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
+**84,128 of this crate's 85,399 lines are written by `xtask/src/codegen/`, and until MJXOFF-224
 nothing re-derived them.** `CLAUDE.md` decides that generated output is committed rather than built,
 which is right and has a cost: a generator defect is frozen into the repository rather than failing
 on the next build, and the committed file is the only artefact anyone reads. Five pages, written for
@@ -173,7 +173,7 @@ someone who has to decide how much of a generated table to trust — the last is
 |---|---|---|
 | [Guide index](../../crates/mjx-ooxml-types/docs/guide/README.md) | `mjx-ooxml-types` | What the crate answers, what is generated, what is hand-written, and the line between them |
 | [What is generated](../../crates/mjx-ooxml-types/docs/guide/what_is_generated.md) | `mjx-ooxml-types` | The thirteen artefacts, the nine simple-type modules, and the shape of an emitted item |
-| [Child order](../../crates/mjx-ooxml-types/docs/guide/child_order.md) | `mjx-ooxml-types` | The 59,512 lines that say where a child belongs, and the three rules that never reorder a document |
+| [Child order](../../crates/mjx-ooxml-types/docs/guide/child_order.md) | `mjx-ooxml-types` | The 59,529 lines that say where a child belongs, and the three rules that never reorder a document |
 | [The naming convention](../../crates/mjx-ooxml-types/docs/guide/the_naming_convention.md) | `mjx-ooxml-types` | How a cryptic `ST_*` token becomes a self-explanatory name, and which half of that is curated |
 | [Regenerating](../../crates/mjx-ooxml-types/docs/guide/regenerating.md) | `mjx-ooxml-types` | What `codegen` needs, why the output is committed, what that costs, and how a change lands |
 | [What to distrust](../../crates/mjx-ooxml-types/docs/guide/what_to_distrust.md) | `mjx-ooxml-types` | Which gate catches what, which skips silently, and the four things nothing here checks |
@@ -182,8 +182,8 @@ someone who has to decide how much of a generated table to trust — the last is
 ## The bindings — `mjx-python`, `mjx-wasm`
 
 One guide set over the two crates that project `mjx-ooxml` onto another language, because they are
-one story told twice: the same 255 `Deck`, 123 `Document` and 138 `Workbook` methods, the same 185
-value classes and the same 100 enumerations, differing in five places the target language forces.
+one story told twice: the same 255 `Deck`, 123 `Document` and 138 `Workbook` methods, the same 181
+value classes and the same 102 enumerations, differing in five places the target language forces.
 Hosted by `mjx-python`, with the one page that is about the npm package alone hosted by `mjx-wasm` —
 the arrangement the packaging tier and the upper markup already use, because the two bindings are
 siblings and neither may see the other.
@@ -214,6 +214,11 @@ siblings and neither may see the other.
 | [The Office-authored corpus](../../tests/office-authored/README.md) | — | What may be committed there, its redistribution rule, and why it is empty |
 
 ## Design notes still in force
+
+*In force* means the **design** each of these records is the design the code still has. Three of them
+were written in July 2026 and two are live checklists for the human Office pass; in all five, a
+status line, a "next workstream" pointer or a count is of its own date, and only the reasoning is
+maintained. For what is current, the rest of this index is.
 
 | Page | Crate | What it covers |
 |---|---|---|

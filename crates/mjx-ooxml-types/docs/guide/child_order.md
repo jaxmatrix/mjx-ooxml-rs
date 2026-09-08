@@ -1,6 +1,6 @@
 # Child order
 
-**59,512 of this crate's 84,107 generated lines are one table**, and it exists because of a fact
+**59,529 of this crate's 84,128 generated lines are one table**, and it exists because of a fact
 about OOXML that is easy to miss:
 
 > Children in the wrong order are invalid even when every child is present and every child is itself
