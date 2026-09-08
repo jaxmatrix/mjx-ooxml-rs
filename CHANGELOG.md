@@ -60,6 +60,67 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.148] - 2026-09-09
+
+The gate stopped reporting a defect of its own as a defect of everybody's files.
+
+### An extension slot markup-compatibility resolution empties goes with the extension (MJXOFF-196, H4)
+
+`mjx-schema-gate` validates the markup-compatibility-**resolved** view of a part, because
+`mc:Ignorable` names attributes the base schemas have no declaration for. Resolution removes an
+ignorable element together with its content, which is what ECMA-376 Part 3 says. Composed with the
+base schemas it left a hole: `sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their whole
+content model as a bare `<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to **1**, so
+an `<ext>` whose only child was ignorable was rejected — *Missing child element(s)*. That fired on
+every conformant file Office has written since 2010, in all three formats, because Office 2016 writes
+a `c16:uniqueId` extension under `mc:Ignorable` on chart series.
+
+**The shape that was refused.** The ticket's first option was to resolve fully and, on failure, retry
+with the ignorable content kept. That is a try-then-fall-back arrangement: with two views a deviation
+must appear in **both** to be reported, which is a gate that goes quiet, and MJXOFF-88 §7 names the
+signature. Exactly one view is validated now and it is always the same one.
+
+**What ships instead.** The rule is content-dependent and consults the schema.
+`crates/mjx-schema-gate/src/wildcard_slots.rs` derives, from the pinned XSDs, every element whose
+content model is `xsd:any` particles and nothing else and cannot match the empty sequence — a
+*wildcard slot*, an element that exists only to carry one foreign child — and `inspect.rs` drops such
+an element when resolution emptied it. Ignoring the extension without ignoring the slot that held it
+is half a resolution.
+
+The derivation finds **five**: `{…/drawingml/2006/chart}ext`, `{…/spreadsheetml/2006/main}ext`,
+`{…/spreadsheetml/2006/main}Schema`, `{…/spreadsheetml/2006/main}DataBinding` and
+`{…office:office}equationxml`. The ticket named two. `xtask/src/validation/ingest.rs` had found a
+third by hand, with the note *"so that a fix cannot stop at two"* — a derivation is the general form
+of that note, and `every_wildcard_slot_in_the_reference_schemas_is_listed` recomputes the committed
+table from the XSDs on every run with `References/`, so a new schema or a different edition of the
+reference tree reddens rather than passing silently.
+
+**Why not keep the content instead.** Every wildcard that admits an ignorable extension is
+`processContents="lax"`, and no schema for such a namespace is loaded, so a validator handed the
+content accepts it **unread** — which is exactly what the ticket's own middle view measured and
+called "validates". Keeping the content and dropping the slot are validation-equivalent; dropping
+needs one bit of schema knowledge instead of a content-model matcher. `mjx-mce` is untouched: its
+resolution is correct MCE, and it was the gate's *use* of it that was over-broad.
+
+**Three properties keep the rule from quieting anything.** It fires only on the derived table; a
+slot's content model is wildcards and nothing else, so dropping it can never hide a missing *named*
+child; and it fires only when the source element had element children, so an `<ext/>` this library
+authored empty is still a failure.
+
+**The gate.** `xtask/tests/mce_extension_seam.rs` replaces the reproduction that lived in
+`xtask/tests/office_corpus.rs`, which is deleted — it was written against the defect, so its own red
+was the signal the defect was gone. The new suite runs a worksheet **and** a chart series carrying an
+ignorable extension through `assert_authored_deck_is_schema_valid`, which tolerates nothing, and adds
+both discriminations: an author's empty `<ext/>` still fails, and a `w14:` element inside a `w:rPr` —
+the counterexample that ruled out "keep ignorable elements always" — is still removed. CI names the
+suite beside the other two `xtask` suites that need `References/`.
+
+**The residue, named.** The gate says nothing about the markup *inside* an ignorable extension, and
+it never could. Six prose sites carried the old limitation — two more than the ticket listed — and
+each now says that instead: `crates/mjx-chart/docs/guide/fidelity_and_gaps.md`,
+`crates/mjx-xlsx/docs/guide/deliberate_limitations.md`, `docs/validation/06-the-office-pass.md` §5
+and §8, `tests/office-authored/README.md` and `xtask/src/validation/ingest.rs`.
+
 ## [0.0.147] - 2026-09-09
 
 Two refusals that had already changed something. One refused too late; the other refused when it
