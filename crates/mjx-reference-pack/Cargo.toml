@@ -41,6 +41,13 @@ mjx-ooxml-types.workspace = true
 # `PATTERN_MASKS` is what a measured hatch would replace.
 mjx-paint.workspace = true
 
+# Outside the graph, one step below this crate (MJXOFF-165). The authority vocabulary, the external
+# readers and the rectangle live there: the fidelity oracle needs the same three things, a second
+# `ReferenceProvider` in one workspace would be one too many, and the oracle is where R14 onward
+# reads them from. This is the **only** edge into `mjx-render-oracle` the workspace allows, and
+# `xtask/tests/layering.rs` says so by name.
+mjx-render-oracle.workspace = true
+
 # Rank 1.0. The package the hanging document's paragraph properties are written through — the same
 # route `mjx-docx`'s own `tests/paragraph_properties.rs` takes, because `Document` exposes no
 # `w:pPr` writer and that crate's stated precedent is that a typed property does not grow one.

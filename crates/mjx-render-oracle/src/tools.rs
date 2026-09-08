@@ -342,7 +342,7 @@ impl WordBox {
     /// Centre rather than overlap: a probe rectangle abuts its neighbour, and a word that grazed the
     /// boundary would otherwise be counted twice.
     #[must_use]
-    pub fn is_inside(&self, rect: crate::layout::Rect) -> bool {
+    pub fn is_inside(&self, rect: crate::geom::Rect) -> bool {
         let (x, y) = (
             (self.x_min + self.x_max) / 2.0,
             (self.y_min + self.y_max) / 2.0,
@@ -396,8 +396,8 @@ pub fn word_boxes(pdf: &Path) -> Result<Vec<WordBox>, String> {
 /// only behind `mjx-xml`, and reaching for `mjx-xml`'s *fidelity* parser to read another program's
 /// diagnostic output would put a document model in front of six numbers. The shape being read is
 /// poppler's own generated markup — one element per line, four numeric attributes in a fixed order —
-/// and [`crate::compare`]'s own tests hold it to a recorded sample so the scan cannot quietly stop
-/// matching.
+/// and `tests/the_readers_answer_from_a_real_export.rs` holds it to a recorded sample so the scan
+/// cannot quietly stop matching.
 #[must_use]
 pub fn parse_bbox_layout(xhtml: &str) -> Vec<WordBox> {
     let mut words = Vec::new();

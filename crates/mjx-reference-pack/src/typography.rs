@@ -70,7 +70,9 @@ use mjx_pptx::{PptxError, Presentation};
 use mjx_text::reference::REFERENCE_METRICS;
 
 use crate::deck::{CAPTION_FONT, CAPTION_POINTS, HEADING_POINTS};
-use crate::layout::{slide_size, PlateGeometry, Rect, HEADING_HEIGHT, PLATES_PER_SLIDE, SLIDE};
+use crate::layout::{
+    slide_size, PlateGeometry, Rect, ToShapeBounds, HEADING_HEIGHT, PLATES_PER_SLIDE, SLIDE,
+};
 
 /// The file this deck is written to.
 pub const FILE_NAME: &str = "03-type-specimens-and-hatches.pptx";
