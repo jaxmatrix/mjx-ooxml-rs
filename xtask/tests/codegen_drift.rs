@@ -418,6 +418,128 @@ fn the_coverage_document_s_child_order_table_matches_the_generated_schemas() {
     );
 }
 
+/// Every enumeration whose variant names are curated cites the ECMA-376 section they came from.
+///
+/// `CLAUDE.md` requires that a name whose meaning is not inferable from its token be **sourced from
+/// the ECMA-376 Part 1 prose — never guessed**. Nothing in this workspace can read that prose: it
+/// ships as a PDF outside a git-ignored tree. So the citation *is* the audit trail, and a curated
+/// name with no citation is indistinguishable from a guess.
+///
+/// The rule is per enumeration rather than per row, because that is how the tables are actually
+/// written: one comment introduces a type and names its section, and the rows follow, sometimes with
+/// un-cited sub-comments between them (`ST_TextAutonumberScheme` has three). So a type counts as
+/// cited when **at least one of its rows sits directly under a comment run containing a `§`**.
+///
+/// **Type overrides are deliberately outside this gate.** `CLAUDE.md`'s rule for a *type* name is to
+/// drop `ST_`/`CT_` and expand abbreviations to full words — mechanical, and needing no prose. Only
+/// variant names carry the "source it, do not guess it" obligation.
+///
+/// **What this cannot do** is tell you the name a cited row chose is the name the cited section
+/// gives. An audit against the PDF for MJXOFF-224 found two places where it is not, and both are
+/// recorded in `crates/mjx-ooxml-types/docs/guide/what_to_distrust.md` rather than changed, because
+/// renaming a generated variant is an API break.
+#[test]
+fn every_curated_enumeration_cites_the_spec_section_its_names_came_from() {
+    let source = read(&workspace_root().join("xtask/src/codegen/spec.rs"));
+
+    let mut table: Option<String> = None;
+    let mut run = String::new();
+    let mut previous_line_was_comment = false;
+    let mut row = String::new();
+    let mut cited: BTreeSet<(String, String)> = BTreeSet::new();
+    let mut seen: Vec<(String, String)> = Vec::new();
+    let mut tables = 0;
+
+    for line in source.lines() {
+        let trimmed = line.trim();
+        let Some(current) = table.clone() else {
+            if let Some(rest) = trimmed.strip_prefix("const ").or(trimmed.strip_prefix("pub const "))
+            {
+                if let Some(name) = rest.split(':').next() {
+                    if name.ends_with("VARIANT_OVERRIDES") {
+                        table = Some(name.to_owned());
+                        tables += 1;
+                        run.clear();
+                        previous_line_was_comment = false;
+                        row.clear();
+                    }
+                }
+            }
+            continue;
+        };
+        if trimmed == "];" {
+            table = None;
+            continue;
+        }
+        if trimmed.starts_with("//") {
+            // A comment run *replaces* the governing one only when it starts a new run.
+            if !previous_line_was_comment {
+                run.clear();
+            }
+            run.push_str(trimmed);
+            previous_line_was_comment = true;
+            continue;
+        }
+        previous_line_was_comment = false;
+        if trimmed.is_empty() {
+            continue;
+        }
+        if !row.is_empty() {
+            row.push(' ');
+        }
+        row.push_str(trimmed);
+        let balanced = row.matches('(').count() <= row.matches(')').count();
+        if !(balanced && row.ends_with(',')) {
+            continue;
+        }
+        if let Some(symbol) = simple_type_symbol(&row) {
+            let key = (current.clone(), symbol);
+            if !seen.contains(&key) {
+                seen.push(key.clone());
+            }
+            if run.contains('§') {
+                cited.insert(key);
+            }
+        }
+        row.clear();
+    }
+
+    // Anti-vacuity: phrased as *the parser is still finding tables and types*, not as *there are
+    // exactly this many*, so it cannot fire in place of the assertion below.
+    assert!(
+        tables >= 4 && seen.len() >= 80,
+        "only {tables} override table(s) and {} enumeration(s) were parsed out of spec.rs — the \
+         parser has stopped matching, and the check below would pass over almost nothing",
+        seen.len()
+    );
+
+    let uncited: Vec<String> = seen
+        .iter()
+        .filter(|key| !cited.contains(key))
+        .map(|(table, symbol)| format!("{symbol} (in {table})"))
+        .collect();
+    assert!(
+        uncited.is_empty(),
+        "{} curated enumeration(s) name variants with no ECMA-376 section cited above any of their \
+         rows, so nothing distinguishes a name read out of the prose from one invented:\n  {}",
+        uncited.len(),
+        uncited.join("\n  ")
+    );
+    println!(
+        "naming overrides: {} curated enumerations across {tables} tables, every one citing its \
+         ECMA-376 section",
+        seen.len()
+    );
+}
+
+/// The `ST_*` symbol a variant-override row names, if it is one.
+fn simple_type_symbol(row: &str) -> Option<String> {
+    let start = row.find("\"ST_")? + 1;
+    let rest = &row[start..];
+    let end = rest.find('"')?;
+    Some(rest[..end].to_owned())
+}
+
 /// The two hand-written curation modules re-export **every** item their generated module declares.
 ///
 /// `drawingml` and `presentationml` are emitted `pub(crate)` and re-exported item by item through
