@@ -602,13 +602,13 @@ fn the_share_of_each_binding_its_suite_exercises_is_what_the_guide_says() {
 }
 
 /// Members the committed Python stub declares, enumeration members and dunders aside.
-const PYTHON_DECLARED: usize = 1_638;
+const PYTHON_DECLARED: usize = 1_640;
 /// How many of [`PYTHON_DECLARED`] some test under `bindings/mjx-python/tests/` names.
-const PYTHON_EXERCISED: usize = 991;
+const PYTHON_EXERCISED: usize = 996;
 /// Functions `wasm-bindgen` exports to JavaScript.
-const WASM_DECLARED: usize = 1_762;
+const WASM_DECLARED: usize = 1_764;
 /// How many of [`WASM_DECLARED`] some test under `bindings/mjx-wasm/tests/node/` names.
-const WASM_EXERCISED: usize = 926;
+const WASM_EXERCISED: usize = 933;
 
 /// A percentage, or zero when the denominator is.
 fn percentage(part: usize, whole: usize) -> f64 {

@@ -35,6 +35,7 @@
 //! names what it named. That is [`crate::DifferentialFormats`]'s stated rule, and this is the
 //! function that has to keep it.
 
+use mjx_dml::ColorSchemeSlot;
 use mjx_ooxml_core::Interner;
 use mjx_ooxml_types::spreadsheetml::{
     ConditionalFormatType, ConditionalFormatValueObjectType, ConditionalFormattingOperator,
@@ -103,6 +104,15 @@ impl ConditionalValueObjectSpec {
     }
 }
 
+/// The two thresholds a scale or a bar spanning the range's own extent takes — `cfvo` `min` and
+/// `cfvo` `max`, whose `@val` the schema requires and ignores for these two types.
+fn minimum_and_maximum() -> Vec<ConditionalValueObjectSpec> {
+    vec![
+        ConditionalValueObjectSpec::with_value(ConditionalFormatValueObjectType::Minimum, "0"),
+        ConditionalValueObjectSpec::with_value(ConditionalFormatValueObjectType::Maximum, "0"),
+    ]
+}
+
 /// A colour scale to author: the thresholds, and one colour for each.
 ///
 /// The schema wants two or more of each and pairs them by position (§18.3.1.11). Nothing here pads
@@ -122,17 +132,45 @@ impl ColorScaleSpec {
     #[must_use]
     pub fn two_color(low: &str, high: &str) -> Self {
         Self {
-            thresholds: vec![
-                ConditionalValueObjectSpec::with_value(
-                    ConditionalFormatValueObjectType::Minimum,
-                    "0",
-                ),
-                ConditionalValueObjectSpec::with_value(
-                    ConditionalFormatValueObjectType::Maximum,
-                    "0",
-                ),
-            ],
+            thresholds: minimum_and_maximum(),
             colors: vec![Color::from_opaque_rgb(low), Color::from_opaque_rgb(high)],
+        }
+    }
+
+    /// [`two_color`](Self::two_color) in two of the **workbook's own theme colours**, so the scale
+    /// is drawn in the opener's palette rather than in two literals chosen here.
+    ///
+    /// Each end takes its own slot and its own optional tint (`-1.0 ..= 1.0`; negative darkens,
+    /// positive lightens, `None` writes no `@tint`). The usual shape is one accent at both ends,
+    /// pale at the minimum and full at the maximum — which is a scale in the document's colour
+    /// rather than a scale that ignores it.
+    ///
+    /// ```
+    /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::ColorScaleSpec;
+    ///
+    /// let scale = ColorScaleSpec::two_color_from_theme(
+    ///     ColorSchemeSlot::Accent1,
+    ///     Some(0.8),
+    ///     ColorSchemeSlot::Accent1,
+    ///     None,
+    /// );
+    /// assert_eq!(scale.colors[0].tint, Some(0.8));
+    /// assert_eq!(scale.colors[1].theme, Some(4));
+    /// ```
+    #[must_use]
+    pub fn two_color_from_theme(
+        low: ColorSchemeSlot,
+        low_tint: Option<f64>,
+        high: ColorSchemeSlot,
+        high_tint: Option<f64>,
+    ) -> Self {
+        Self {
+            thresholds: minimum_and_maximum(),
+            colors: vec![
+                Color::from_theme_slot(low, low_tint),
+                Color::from_theme_slot(high, high_tint),
+            ],
         }
     }
 
@@ -173,6 +211,28 @@ impl DataBarSpec {
     /// §18.3.1.28's own example takes.
     #[must_use]
     pub fn spanning_the_range(hex: &str) -> Self {
+        Self::spanning_the_range_in(Color::from_opaque_rgb(hex))
+    }
+
+    /// [`spanning_the_range`](Self::spanning_the_range) in one of the **workbook's own theme
+    /// colours**, optionally tinted, so the bar is drawn in the opener's palette.
+    ///
+    /// ```
+    /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::DataBarSpec;
+    ///
+    /// let bar = DataBarSpec::spanning_the_range_from_theme(ColorSchemeSlot::Accent2, Some(0.4));
+    /// assert_eq!(bar.color.theme, Some(5));
+    /// assert_eq!(bar.color.tint, Some(0.4));
+    /// ```
+    #[must_use]
+    pub fn spanning_the_range_from_theme(slot: ColorSchemeSlot, tint: Option<f64>) -> Self {
+        Self::spanning_the_range_in(Color::from_theme_slot(slot, tint))
+    }
+
+    /// The two constructors above, once: a bar from the range's own minimum to its own maximum in
+    /// `color`.
+    fn spanning_the_range_in(color: Color) -> Self {
         Self {
             shortest: ConditionalValueObjectSpec::with_value(
                 ConditionalFormatValueObjectType::Minimum,
@@ -182,7 +242,7 @@ impl DataBarSpec {
                 ConditionalFormatValueObjectType::Maximum,
                 "0",
             ),
-            color: Color::from_opaque_rgb(hex),
+            color,
             minimum_length: None,
             maximum_length: None,
             shows_cell_value: None,
@@ -416,12 +476,53 @@ impl DifferentialFormatSpec {
     /// six-digit `RRGGBB`.
     #[must_use]
     pub fn highlight(text_hex: &str, fill_hex: &str) -> Self {
+        Self::highlight_in(
+            Color::from_opaque_rgb(text_hex),
+            PatternFillSpec::solid(fill_hex),
+        )
+    }
+
+    /// [`highlight`](Self::highlight) in the **workbook's own theme colours**: a font colour and a
+    /// solid fill, each a slot and an optional tint (`-1.0 ..= 1.0`).
+    ///
+    /// The pairing to reach for is a dark slot on a pale tint of an accent — `Dark1` text on
+    /// `Accent1` at `Some(0.8)` — because it stays legible whatever the opener's theme makes those
+    /// two, which a literal pair of hex values cannot promise.
+    ///
+    /// ```
+    /// use mjx_dml::ColorSchemeSlot;
+    /// use mjx_sml::DifferentialFormatSpec;
+    ///
+    /// let rule = DifferentialFormatSpec::highlight_from_theme(
+    ///     ColorSchemeSlot::Dark1,
+    ///     None,
+    ///     ColorSchemeSlot::Accent1,
+    ///     Some(0.8),
+    /// );
+    /// assert_eq!(rule.font.expect("a font").color.expect("a colour").theme, Some(0));
+    /// assert_eq!(rule.fill.expect("a fill").foreground.expect("a colour").tint, Some(0.8));
+    /// ```
+    #[must_use]
+    pub fn highlight_from_theme(
+        text: ColorSchemeSlot,
+        text_tint: Option<f64>,
+        fill: ColorSchemeSlot,
+        fill_tint: Option<f64>,
+    ) -> Self {
+        Self::highlight_in(
+            Color::from_theme_slot(text, text_tint),
+            PatternFillSpec::solid_from_theme(fill, fill_tint),
+        )
+    }
+
+    /// The two constructors above, once: `text` on `fill`, and no border.
+    fn highlight_in(text: Color, fill: PatternFillSpec) -> Self {
         Self {
             font: Some(FontProperties {
-                color: Some(Color::from_opaque_rgb(text_hex)),
+                color: Some(text),
                 ..FontProperties::default()
             }),
-            fill: Some(PatternFillSpec::solid(fill_hex)),
+            fill: Some(fill),
             border: None,
         }
     }

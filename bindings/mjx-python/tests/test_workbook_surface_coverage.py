@@ -15,7 +15,17 @@ from collections.abc import Callable
 import pytest
 
 import mjx_ooxml
-from mjx_ooxml import CellWrite, GeometrySource, ResizingBehavior, SheetKind, Workbook
+from mjx_ooxml import (
+    CellWrite,
+    Color,
+    ColorSchemeSlot,
+    GeometrySource,
+    PatternFillSpec,
+    ResizingBehavior,
+    SheetKind,
+    SpreadsheetPatternType,
+    Workbook,
+)
 
 
 @pytest.fixture
@@ -710,3 +720,31 @@ def test_each_apply_flag_is_three_valued_and_independent(
     for other, _, read in APPLY_FLAGS:
         expected = value if other == name else None
         assert read(spec) is expected, f"{name}={value} was visible on {other}"
+
+
+def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None:
+    """The two theme-following constructors, and what makes them worth having.
+
+    `Color.from_theme` states the file's own number and `Color.from_theme_slot` names the slot;
+    they must agree, so this asserts the pair rather than the number, and it asserts a slot whose
+    position is *not* its ordinal in the enumeration (`Accent1` is `4`, not `0`) — a mapping that
+    had drifted by one would pass on `Dark1` alone.
+
+    `PatternFillSpec.solid_from_theme` is the same claim one level up: the fill pins nothing, which
+    is the whole point of it beside `solid`.
+    """
+    assert Color.from_theme_slot(ColorSchemeSlot.Accent1) == Color.from_theme(4)
+    assert Color.from_theme_slot(ColorSchemeSlot.Dark1, -0.25) == Color.from_theme(0, -0.25)
+    assert Color.from_theme_slot(ColorSchemeSlot.FollowedHyperlink) == Color.from_theme(11)
+    assert Color.from_theme_slot(ColorSchemeSlot.Accent1).tint is None
+
+    fill = PatternFillSpec.solid_from_theme(ColorSchemeSlot.Accent2, 0.4)
+    foreground = fill.foreground
+    assert foreground is not None
+    assert foreground.theme == 5
+    assert foreground.tint == pytest.approx(0.4)
+    assert foreground.rgb is None, "a theme-following fill pins no literal"
+    assert fill == PatternFillSpec(
+        pattern=SpreadsheetPatternType.Solid,
+        foreground=Color.from_theme_slot(ColorSchemeSlot.Accent2, 0.4),
+    )

@@ -6975,7 +6975,17 @@ class Color:
         ...
     @staticmethod
     def from_theme(index: int, tint: float | None = None) -> "Color":
-        """A theme colour by index, optionally tinted towards white (positive) or black (negative)."""
+        """A theme colour by index, optionally tinted towards white (positive) or black (negative).
+
+        The index is a position in `theme1.xml`'s colour scheme, which is what a *file* states.
+        An author should reach for `from_theme_slot`, which names the slot instead of numbering it.
+        """
+        ...
+    @staticmethod
+    def from_theme_slot(slot: ColorSchemeSlot, tint: float | None = None) -> "Color":
+        """A theme colour by **slot**, optionally tinted — `from_theme` with the position spelled
+        out, and the constructor an author should reach for.
+        """
         ...
     @staticmethod
     def automatic() -> "Color":
@@ -7024,6 +7034,13 @@ class PatternFillSpec:
     @staticmethod
     def solid(hex: str) -> "PatternFillSpec":
         """A solid fill in one opaque colour — the shape a caller filling a cell almost always wants."""
+        ...
+    @staticmethod
+    def solid_from_theme(slot: ColorSchemeSlot, tint: float | None = None) -> "PatternFillSpec":
+        """A solid fill in one of the **workbook's own theme colours**, optionally tinted. Reach for
+        this one unless the colour itself is the point: a hex literal survives into a document whose
+        owner has rebranded everything around it.
+        """
         ...
 
 @final
