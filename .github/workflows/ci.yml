@@ -479,14 +479,24 @@ jobs:
       # for the *host* being built for, which no cross target has; a wasm-bindgen `cdylib` means
       # nothing outside `wasm32`, and is built properly by the `wasm-pack` job below. What this job
       # proves — that the shipped library graph cross-compiles — is unaffected.
-      # `mjx-schema-gate`, `mjx-fixtures`, `mjx-reference-pack` and `mjx-render-oracle` are excluded
-      # for the same reason read the other way: they are test-only, `publish = false`, and nothing
-      # shipped depends on them, so building them for five targets would widen the claim this job
-      # makes rather than support it. The reference pack was the first member here with a
-      # **binary**, and a binary has to *link*: the Android leg has no NDK linker, so `cargo build
-      # --target aarch64-linux-android` fed its object files to the host `ld` and got *"Relocations
-      # in generic ELF (EM: 183)"*. A library target only ever produces an `rlib` and never hits
-      # that. The fidelity oracle has a binary too, and the same exclusion for the same reason.
+      # `mjx-schema-gate`, `mjx-fixtures`, `mjx-reference-pack`, `mjx-render-oracle` and
+      # `mjx-canvas-harness` are excluded for the same reason read the other way: they are
+      # test-only, `publish = false`, and nothing shipped depends on them, so building them for five
+      # targets would widen the claim this job makes rather than support it. The reference pack was
+      # the first member here with a **binary**, and a binary has to *link*: the Android leg has no
+      # NDK linker, so `cargo build --target aarch64-linux-android` fed its object files to the host
+      # `ld` and got *"Relocations in generic ELF (EM: 183)"*. A library target only ever produces
+      # an `rlib` and never hits that. The fidelity oracle has a binary too, and the same exclusion
+      # for the same reason.
+      #
+      # **The canvas harness (MJXOFF-166) is the third, and it landed red because the pattern above
+      # was documented and not automated.** It is the same shape exactly — test-only, unranked,
+      # nothing depends on it, and `[[bin]] mjx-canvas-harness` is the thing a person runs — so it
+      # needs the same line. Worth stating for whoever adds the fourth: a new workspace member with
+      # a binary joins this list unless something shipped depends on it, and the Android leg is
+      # where forgetting shows up. There is deliberately no allow-list test enforcing that; the
+      # member table `xtask/tests/layering.rs` holds is the place a rule about membership belongs,
+      # and it has no opinion about linkers.
       # `shell: bash` is load-bearing on the Windows leg: the default shell there is `pwsh`, which
       # reads the backslash line-continuations below as a unary `--` and fails to parse the step
       # before cargo is ever invoked. The `python-wheel` job already sets it for the same reason.
@@ -497,6 +507,7 @@ jobs:
             --exclude mjx-python --exclude mjx-wasm \
             --exclude mjx-schema-gate --exclude mjx-fixtures \
             --exclude mjx-reference-pack --exclude mjx-render-oracle \
+            --exclude mjx-canvas-harness \
             --target ${{ matrix.target }}
 
   # The two binding members, built and linted on the host. `lint-test` already covers them as part of
