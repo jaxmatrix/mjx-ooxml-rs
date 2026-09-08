@@ -464,6 +464,7 @@ fn classify(error: &PptxError) -> (ErrorCode, ErrorDetail) {
         | PptxError::RunHasNoText
         | PptxError::ShapeHasNoGeometry
         | PptxError::ShapeHasNoProperties
+        | PptxError::ShapeHasNoPresetGeometry
         | PptxError::PictureHasNoImage
         | PptxError::PictureImageNotLinked
         | PptxError::ChartHasNoExternalData
