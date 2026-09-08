@@ -39,6 +39,11 @@ impl Deck {
     /// presentation's relationship to it, the slide part, its own `.rels`, and its content-type
     /// `Override`.
     ///
+    /// **Every reference to the slide goes with it.** A slide that hyperlinks to the removed one
+    /// keeps its text and loses the link; a custom show loses its entry for it. Anything less leaves
+    /// a relationship pointing at a part that is no longer there, which `save` refuses — so the
+    /// alternative to editing the referring slide is a file that can never be written back.
+    ///
     /// # Errors
     /// Returns an [`Error`] whose [`code`](Error::code) classifies the failure and whose
     /// [`detail`](Error::detail) names where it happened.

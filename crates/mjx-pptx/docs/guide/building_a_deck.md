@@ -275,6 +275,42 @@ deck.set_notes_text(slide, "Lead with the revenue number, then the regional spli
 
 A notes slide is created on demand if the deck has none, along with the notes master it needs.
 
+## Remove a slide, and what goes with it
+
+[`remove_slide`](Presentation::remove_slide) takes a slide out of the deck. Later slides shift down
+one index; layout and master indices do not move.
+
+```no_run
+# fn main() -> Result<(), Box<dyn std::error::Error>> {
+# use mjx_pptx::Presentation;
+# let mut deck = Presentation::open(&std::fs::read("template.pptx")?)?;
+deck.remove_slide(0)?;
+# Ok(())
+# }
+```
+
+Two kinds of thing go with it, and they are worth knowing about because one of them changes a slide
+you did not name.
+
+**Parts only that slide used.** Its notes slide, and any image no other part still shows. An image
+two slides share stays.
+
+**Every reference to it.** A slide is pointed at from more places than the slide list: another slide
+can hyperlink to it (on a run, or on a whole shape), and a custom show can list it. Each of those is
+a relationship *plus* the markup naming that relationship, and both go — so **a run that used to link
+to the removed slide keeps its text and loses its link**, and a custom show loses its entry for it
+while the show itself stays.
+
+That is not a preference; it is the only outcome that leaves a file you can write back. A
+relationship whose target has been deleted makes the package invalid, and so does markup naming a
+relationship that is no longer declared, so [`save`](Presentation::save) would refuse a deck that
+kept either — the edit would succeed and the document would be unsaveable. Repointing the link at
+some other slide was the alternative, and it was rejected: it would put a destination you never chose
+in place of the one you deleted.
+
+The referring slide is therefore **rewritten**, and stops being re-emitted byte for byte. Only the
+parts that actually named the removed slide are touched.
+
 ## Save
 
 ```no_run
