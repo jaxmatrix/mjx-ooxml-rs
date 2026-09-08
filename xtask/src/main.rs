@@ -1,5 +1,9 @@
 //! `xtask` — developer automation for mjx-ooxml-rs.
 //!
+//! **This crate has no guide of its own**: it is a host-only developer binary, never
+//! published, and nothing may depend on it. Every prose page in this repository is listed
+//! from `docs/api/README.md`, and `CONTRIBUTING.md` is where a contributor starts.
+//!
 //! Commands:
 //! - `codegen` — regenerate `mjx-ooxml-types` from the local `References/` XSD schemas.
 //!   `codegen --check` writes nothing and reports whether the committed output is what the

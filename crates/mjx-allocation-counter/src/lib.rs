@@ -1,5 +1,10 @@
 //! A counting global allocator: live bytes, a high-water mark, and a hard ceiling.
 //!
+//! **This crate has no guide of its own**: it is test-only and sits outside the ranked graph.
+//! The measurements it takes are written up in `docs/BENCHMARKS.md` and in
+//! `crates/mjx-sml/docs/guide/the_cell_store.md`; every prose page in this repository is listed
+//! from `docs/api/README.md`.
+//!
 //! **Test-only and developer-tooling-only.** No shipped crate depends on this one, and nothing here
 //! is reachable from a published artefact.
 //!

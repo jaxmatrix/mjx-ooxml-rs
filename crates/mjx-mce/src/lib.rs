@@ -1,5 +1,9 @@
 //! `mjx-mce` — Markup Compatibility & Extensibility (ECMA-376 Part 3).
 //!
+//! **Start at [`guide`]** — this crate's page of the packaging tier's guide set, whose other
+//! pages and index are `mjx_opc::guide`. It is hosted here because `mjx-opc` and `mjx-mce` are
+//! the same layering rank and neither may name the other.
+//!
 //! OOXML producers embed forward-compatibility markup (`mc:AlternateContent`, `mc:Ignorable`, …) so
 //! that newer features degrade gracefully in older consumers. This crate operates on the
 //! [`mjx_ooxml_core::RawDocument`] tree in two modes:
