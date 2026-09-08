@@ -12,8 +12,8 @@ for the same reason `mjx-mce` hosts its own page in the packaging tier's set: `m
 
 | Specifier | Build | For |
 |---|---|---|
-| `@mjx/ooxml` | `bindings/mjx-wasm/npm/dist/bundler/` | webpack, Vite, Rollup, esbuild, Node with a bundler |
-| `@mjx/ooxml/web` | `bindings/mjx-wasm/npm/dist/web/` | a browser loading the `.wasm` itself, with no bundler |
+| `@mjx/ooxml` | the **bundler** build | webpack, Vite, Rollup, esbuild, Node with a bundler |
+| `@mjx/ooxml/web` | the **web** build | a browser loading the `.wasm` itself, with no bundler |
 
 Both carry their own `mjx_ooxml.d.ts`, so the types ship with the code. `bindings/mjx-wasm/build-npm.sh`
 emits both from one `wasm-pack` run each and prints the payload size; there is one `.wasm` per build
@@ -21,7 +21,7 @@ and nothing else to serve.
 
 ## Types come from the `.d.ts`, and it is generated
 
-Every name, every argument and every doc comment in `bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml.d.ts` is emitted by
+Every name, every argument and every doc comment in the emitted `mjx_ooxml.d.ts` is written by
 `wasm-bindgen` from the Rust. There is no hand-written declaration file to drift, which is the
 difference between this binding and the Python one — there, `bindings/mjx-python/python/mjx_ooxml/__init__.pyi`
 is committed and `bindings/mjx-python/tests/test_stub_parity.py` exists precisely to keep it honest.
@@ -29,9 +29,15 @@ is committed and `bindings/mjx-python/tests/test_stub_parity.py` exists precisel
 That has a consequence worth knowing: the `.d.ts` is a **build artefact and is not committed**, so a
 question about the TypeScript surface is answered by building it, not by reading the repository.
 
+It is also why this page names no path under the package's `dist` directory outside a shell block.
+`xtask/tests/doc_gate.rs` checks that every repository path a document names in a code span exists,
+and a path that exists only after a build passes on a machine that has built and fails on one that
+has not — which is what CI is. The first version of this page named four, and CI was the only thing
+that could see it.
+
 ```sh
 bindings/mjx-wasm/build-npm.sh
-less bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml.d.ts
+less bindings/mjx-wasm/npm/dist/bundler/mjx_ooxml.d.ts   # written by the line above, never committed
 ```
 
 ## Handles, and freeing them
@@ -130,7 +136,8 @@ node --test "bindings/mjx-wasm/tests/node/*.mjs"
 wasm-pack test --node bindings/mjx-wasm
 ```
 
-The `node --test` run is the one that matters most: it imports from `bindings/mjx-wasm/npm/dist/bundler/`, so it tests
+The `node --test` run is the one that matters most: it imports from the built bundler package rather than from
+the crate, so it tests
 the **published shape** rather than the crate. `bindings/mjx-wasm/tests/browser.rs` is the same
 surface driven from Rust inside a wasm runtime, which catches what a JavaScript test cannot — a value
 that crosses the boundary wrongly rather than a name that is spelled wrongly.
