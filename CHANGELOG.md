@@ -58,6 +58,87 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.139] - 2026-09-08
+
+**The preset-shape geometry sweep runs on CI, and the class of hole it belonged to is now a test**
+(MJXOFF-197).
+
+`crates/mjx-dml/tests/guide_formula.rs`'s
+`every_guide_of_every_preset_shape_definition_evaluates` walks the *entire* normative preset-shape
+corpus — every guide of every shape block of `presetShapeDefinitions.xml`, evaluated at a
+deliberately lopsided box so a guide that confuses two extents cannot pass by coincidence. **It had
+never once executed on CI**, in the whole history of the repository, and reported `ok` every time.
+
+Three individually-correct facts composed into the hole. The suite skips when `References/` is
+absent, which is right — the tree is licensed material and git-ignored. Its escape
+`MJX_REQUIRE_PRESET_GEOMETRY` was set by no workflow. And the only job that extracts `References/`
+never named `-p mjx-dml`; `mjx-dml` appeared in no job in any workflow file. **An absent corpus reads
+exactly like success**, which is why two independent programmes built the same instrument and neither
+noticed.
+
+### The archive comes first, and that ordering is the finding
+
+The obvious fix — set the variable on `schema-validity` — **would have turned CI red**, because that
+job had no ECMA-376 Part 1 to read. A step written that cannot execute is this defect one level up,
+and the ticket committed it inside the ticket that names it.
+
+So `.github/scripts/fetch-ecma-schemas.sh` carries **Part 1** now, pinned in
+`.github/ecma-376-archives.sha256` by a SHA-256 computed from a fresh download off ECMA's own server
+— never from the copy sitting in a developer's `References/`, which is precisely the artefact whose
+provenance nobody can reconstruct later.
+
+Part 1 needs **two** of its six members (`OfficeOpenXML-XMLSchema-Strict` and
+`OfficeOpenXML-DrawingMLGeometries`), and the script's `outer|member|marker` entry format assumed
+one. Two entries sharing one outer archive is the tempting shape and it is wrong twice:
+`verify_archives` runs `sha256sum --check --strict` against a manifest that carries each file once,
+so the two lists stop corresponding and the next person adding a part cannot tell which is
+authoritative. The member field is a **list** instead, each member with its own marker, so one
+archive stays one entry — and a new guard refuses an `ARCHIVES` entry the manifest does not cover,
+which would otherwise be fetched and extracted unverified.
+
+**What it costs is two numbers, not one:** the download and the CI cache grow by **42 MB** (the
+outer archive is atomic and 35.3 MB of it is the part's PDF), while the extracted tree grows by
+**~1.5 MB**. The `-j`-plus-explicit-member extraction is what keeps the difference; the PDF is never
+written to disk.
+
+### Two gates, both observed executing rather than merely configured
+
+`schema-validity` now runs `cargo test -p mjx-dml --test guide_formula` under
+`MJX_REQUIRE_PRESET_GEOMETRY=1`, and `cargo test -p xtask --bin xtask`, which is the selector that
+reaches `the_committed_geometry_table_is_exactly_what_the_file_produces` — the byte-for-byte
+re-derivation of `crates/mjx-geometry/src/generated.rs`. That one had the same hole for a subtler
+reason: it lives in the xtask **binary's** unit tests, and `lint-test` runs `--workspace` without a
+schema tree while this job selected integration targets by name.
+
+Both steps run with `--nocapture` and both now **print the counts they evaluated**, because
+`cargo test` swallows a passing test's output and a green tick cannot distinguish "the corpus was
+swept" from "the corpus was absent". A log line with a number in it can.
+
+The sibling drift check over `mjx-ooxml-types` — the other programme's `codegen_drift.rs`, which
+needs this same Part 1 archive — is not in this tree. It is **MJXOFF-227**, whose stated precondition
+is the archive line added here.
+
+### And the class, closed by an instrument rather than by a sweep
+
+`xtask/tests/escape_hatches.rs` enumerates every `MJX_REQUIRE_…` in the workspace and fails on one
+that is neither bound by a workflow nor justified where it is defined. A one-time census was never
+going to be enough: **the roster expired twice while this ticket was open**, once from a child in
+this programme and once from a peer branch.
+
+Three states, not two, and the middle one is why the workflow is *parsed* rather than grepped. A
+string census cannot tell a binding from the comment a careful author writes explaining why there is
+no binding — and this repository has exactly that case, `MJX_REQUIRE_OFFICE_CORPUS` appearing in
+`ci.yml` only inside "deliberately NOT set". So the parser reads the file's indentation structure
+with comments removed quote-aware, and counts a key only under an `env` ancestor. The scanner has its
+own instrument tests over synthetic trees — including one proving a comment is not a binding and one
+proving the gate can go red at all — because a scanner that silently stops discriminating passes
+forever, which is this ticket's own defect class one level up.
+
+`MJX_REQUIRE_OFFICE_CORPUS` and `MJX_REQUIRE_OFFICE_EXPORTS` are marked `MJX-ESCAPE-UNSET` at their
+definition sites, with the reason they already carried in prose: both guard directories that ship
+empty by design and that no agent may fill, so binding either would make the build red about
+something no build can fix.
+
 ## [0.0.138] - 2026-09-08
 
 **The fidelity oracle — layered assertions, perceptual diffing, and the document plate gallery**

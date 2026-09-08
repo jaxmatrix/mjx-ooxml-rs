@@ -76,8 +76,9 @@ MJX_REQUIRE_SCHEMA=1 cargo test -p mjx-pptx --test schema_validity
 which validates every fixture part and every deck the library authors against the ECMA-376 Part 4
 Transitional and Part 2 OPC schemas via `xmllint`. It needs the reference schemas in the git-ignored
 `References/` tree (or `MJX_SCHEMA_DIR` / `MJX_OPC_SCHEMA_DIR`) and skips cleanly without them. To
-populate the tree — the same script the CI job runs, downloading the two published ECMA archives and
-verifying them against `.github/ecma-376-archives.sha256` before extracting:
+populate the tree — the same script the CI job runs, downloading the three published ECMA archives
+(Part 4 Transitional, Part 2 OPC, and Part 1 for the Strict schemas and `presetShapeDefinitions.xml`)
+and verifying them against `.github/ecma-376-archives.sha256` before extracting:
 
 ```sh
 .github/scripts/fetch-ecma-schemas.sh
@@ -86,6 +87,21 @@ verifying them against `.github/ecma-376-archives.sha256` before extracting:
 The `schema-validity (ECMA-376 XSDs)` CI job sets `MJX_REQUIRE_SCHEMA=1`, so in CI a missing schema or
 a missing `xmllint` is a hard failure and this coverage can never silently skip. **A new authoring
 path gets a case in that file**, or nothing checks the markup it emits.
+
+### Skips and their escape hatches
+
+`MJX_REQUIRE_SCHEMA` is one of a family. A suite that needs something the machine may not have — a
+licensed schema tree, LibreOffice, a graphics device, poppler — skips with a **named** notice, and
+carries an `MJX_REQUIRE_…` variable whose presence turns that absence into a hard failure. CI sets it,
+so "green" can never quietly mean "nothing ran".
+
+**If you add one, it must be either set by a workflow or explained where it is defined.**
+`cargo test -p xtask --test escape_hatches` enumerates every such variable in the tree, reads the
+workflows structurally, and fails on one that is neither — and its failure message says exactly which
+of the two to do. An escape nobody sets is a suite reporting coverage it does not have: the
+preset-shape geometry sweep sat in that state for the whole history of the repository, green every
+time, until MJXOFF-197. To leave one deliberately unset, write why in the comment block above one of
+its definition sites and mark that block `MJX-ESCAPE-UNSET`.
 
 ### The fuzz campaign
 

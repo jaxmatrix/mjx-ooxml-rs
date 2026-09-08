@@ -1203,6 +1203,16 @@ fn every_guide_of_every_preset_shape_definition_evaluates() {
         }
     }
 
+    // What the run actually evaluated, printed rather than only asserted (MJXOFF-197). This sweep
+    // had never executed on CI, and the reason nobody noticed is that a skip and a pass look
+    // identical from outside: `cargo test` swallows a passing test's output, so the log said `ok`
+    // either way. The `schema-validity` job runs this target with `--nocapture` so that a reader of
+    // a real CI log sees the corpus it swept, not a tick that could mean nothing ran.
+    eprintln!(
+        "preset-shape sweep: {shapes} shape blocks, {guides} guides, \
+         {references} coordinate references evaluated"
+    );
+
     // The December 2016 addendum: 187 shape blocks (`upDownArrow` is defined twice, byte-identical)
     // and 3923 guides between them.
     assert_eq!(shapes, 187, "shape blocks");

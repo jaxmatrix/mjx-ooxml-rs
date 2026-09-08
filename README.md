@@ -175,9 +175,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 The ECMA-376 reference schemas live under `References/` (git-ignored). They are read by `xtask` to
 regenerate `mjx-ooxml-types` — the generated source is committed, so normal builds do **not** need
-`References/` present — and by the schema-validity suite below. To populate the tree (the two
-published ECMA archives, verified against a committed SHA-256 manifest and extracted; the same script
-CI runs):
+`References/` present — and by the schema-validity suite below. To populate the tree (the three
+published ECMA archives — Part 4 Transitional, Part 2 OPC, and Part 1 for the Strict schemas and the
+preset-shape geometry addendum — verified against a committed SHA-256 manifest and extracted; the
+same script CI runs). It downloads 42 MB for Part 1 alone, of which ~1.5 MB is kept:
 
 ```sh
 .github/scripts/fetch-ecma-schemas.sh

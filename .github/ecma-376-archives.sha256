@@ -8,5 +8,19 @@
 #
 # Part 4 (Transitional) carries the markup schemas: pml.xsd, dml-main.xsd, dml-chart.xsd.
 # Part 2 (OPC) carries the packaging schemas: opc-relationships.xsd, opc-contentTypes.xsd.
+# Part 1 (Strict, plus the DrawingML geometry addendum) carries two members and both are needed:
+# `OfficeOpenXML-XMLSchema-Strict` is the Strict half of the namespace table the generator pairs
+# against Transitional, and `OfficeOpenXML-DrawingMLGeometries/presetShapeDefinitions.xml` is the
+# normative preset-shape corpus. Added by MJXOFF-197, because two gates that read that corpus had
+# never once executed on CI — they skipped, and an absent corpus reads exactly like success.
+#
+# Its 42 MB is the largest line here and it is deliberate: the outer download is atomic, so the
+# part's 35.3 MB PDF cannot be left behind on the server. Only ~1.5 MB of it is ever extracted.
+#
+# Every hash below is computed from a fresh download off
+# https://ecma-international.org/wp-content/uploads/<name> — never from a copy already sitting in a
+# developer's `References/`, which is precisely the artefact whose provenance nobody can reconstruct
+# later.
 bd25da1109f73762356596918bf5ff8b74a1331642dba5f1c1d1dfc6bed34ecd  ECMA-376-4_5th_edition_december_2016.zip
 1d489dc491168ea1f9e9a59063acc8dd5f02b4ad1d21aa7ec19ba9a58d020c70  ECMA-376-2_5th_edition_december_2021.zip
+9d0bcad9cf06054785b03762fcfadbf6bab7e54a5f9d69434e34b7fd464d4129  ECMA-376-1_5th_edition_december_2016.zip

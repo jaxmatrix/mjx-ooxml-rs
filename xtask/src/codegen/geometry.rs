@@ -828,10 +828,12 @@ struct Erratum {
 /// *exactly these eight*, by shape, guide and formula, applying the same correction — it drops the
 /// last whitespace-separated token. That suite was written by MJXOFF-155's DrawingML work and this
 /// table was written without reference to it, so the agreement is a check rather than a copy.
-/// (**That sweep has never run in CI**: `MJX_REQUIRE_PRESET_GEOMETRY` is set by no workflow and
-/// `mjx-dml` appears in no job that carries `References/`, so it prints a skip notice and passes.
-/// Filed as MJXOFF-197, not this child's to fix — but it does mean this table's corroboration came
-/// from reading that file rather than from watching it go green.)
+/// (**That sweep had never run in CI** when this was written: `MJX_REQUIRE_PRESET_GEOMETRY` was set
+/// by no workflow and `mjx-dml` appeared in no job that carried `References/`, so it printed a skip
+/// notice and passed, and this table's corroboration came from reading that file rather than from
+/// watching it go green. MJXOFF-197 fixed that: the `schema-validity` job now fetches ECMA-376
+/// Part 1 and runs the sweep under `MJX_REQUIRE_PRESET_GEOMETRY=1`, so the corroboration is
+/// continuous.)
 ///
 /// Two gates hold this table honest, and they are the reason it is safe to correct anything at all.
 /// [`apply_errata`] **fails** if a `written` text is not in the file any more, so a later edition
@@ -2098,6 +2100,16 @@ mod tests {
                 committed.lines().nth(line),
             );
         }
+
+        // Printed, not merely asserted (MJXOFF-197). This check skipped in every CI run before the
+        // `schema-validity` job fetched Part 1, and a skip is indistinguishable from a pass in a
+        // captured log. The job runs it with `--nocapture`, so a reader sees the size of the
+        // artefact that was actually compared.
+        eprintln!(
+            "committed geometry table: {} bytes re-derived from {} and compared byte for byte",
+            formatted.len(),
+            crate::codegen::GEOMETRIES_XML,
+        );
     }
 
     #[test]
