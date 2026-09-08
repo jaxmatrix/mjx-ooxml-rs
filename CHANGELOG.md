@@ -59,6 +59,86 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.144] - 2026-09-08
+
+### The landing: one entry point, and Phase G's register closed (MJXOFF-230, G13)
+
+**Ten guide sets were written in this phase and a person arriving at this repository still landed on
+a `README.md` that predated all of them.** Its "Guides" section listed the PowerPoint, Word and Excel
+pages one by one and named none of the other seven sets — not the facade's, not the packaging tier's,
+not DrawingML's, SpreadsheetML's, the upper markup's, the generated vocabulary's or the bindings'.
+This is the difference between *documentation exists* and *documentation is found*.
+
+- **`README.md` reaches every guide set in one hop**, one row per set linking that set's own index,
+  with `docs/api/README.md` named at the top as the one link that reaches everything. The
+  page-by-page tables are gone: they duplicated the index, and the duplicate is where the rot was.
+- **`PLAN.md` says what shipped.** Phases 4, 5 and 6 are marked done and a new section at the head of
+  the phase list says plainly that the list is now a record of how the library was built — naming the
+  two things that are *not* done, the human Office pass and rendering.
+- **Every crate root sends a reader somewhere.** Eleven of the twenty-one members said nothing about
+  where their prose lives, including `mjx-opc`, which *hosts* the packaging tier's whole guide set. A
+  crate with a guide now links it; the seven without one name the page that covers them, as a path
+  rather than an intra-doc link, because nothing may point upward.
+
+### A count on an entry-point document is derived, or it is absent
+
+`xtask/tests/entry_points.rs`, seven checks. **A landing page is where counts go to die** — the
+most-read and least-tested document in a repository, and exactly where a figure is typed once and
+quoted for a year. What the derivations found:
+
+| Claim | Was | Is |
+|---|---|---|
+| Runnable programs on the front page | twenty-six, listing twenty-five commands | **28**, and the list omitted `mjx-ooxml`'s `build_a_workbook`, `mjx-xlsx`'s `chart_range_cost` and `mjx-xml`'s `mjx248_measure` |
+| Excel guide pages (`PLAN.md`) | thirteen | **17** beside their index |
+| Excel examples (`PLAN.md`) | six | **7** |
+| Generated lines in `mjx-ooxml-types` | 84,107 | **84,128** |
+| That crate's own lines | 85,296 | **85,399** |
+| The child-order table | 59,512 | **59,529** |
+| Value classes (`docs/api/README.md`) | 185, where the guide it indexes said 186 | **181** |
+| Enumerations (`docs/api/README.md`) | 100 | **102** |
+| Enumerations (`test_enums.py`'s docstring) | seventy-four | **removed** — its own `MEMBER_COUNTS` pins 61 and the module projects 104, so the number matched neither |
+
+The three `mjx-ooxml-types` figures were wrong *when they were written* and had been copied into
+seven documents by the time anyone counted; no measure reproduces them, and the three deltas differ
+from each other, so they were not one alternative definition either. The value-class figure is the
+more interesting one: the guide's own sentence explains it — "beside the handles sit 186 value
+classes" is what you get by subtracting the enumerations and the exceptions from the class total
+*without* also subtracting the three handles and `Format`/`FormatFamily`.
+
+The sweep is what stops the next one. A number of five or more anywhere in `README.md`, `PLAN.md` or
+`docs/api/README.md` must lie inside a claim's sentence or inside a `NOT_A_COUNT` entry with its
+reason, and the exemption table cannot rot. Five is the line because **every count this phase found
+stale was at or above it**, and sweeping below five would need an exemption beside every "the two
+bindings" in the repository — a table of fifty exemptions is where a reviewer stops reading, which is
+the failure the file is about.
+
+### Known defect: run coalescing compares a resolved colour (MJXOFF-233)
+
+MJXOFF-219 found `theme_model.rs` asserting a colour loss as expected behaviour. The same loss has a
+second consumer, and this one **deletes content**. `coalesce_paragraph_runs` merges two adjacent runs
+whose *effective* properties compare equal; effective means resolved, and `resolve_fill` says in its
+own doc comment that a resolved `a:alpha` is not represented in the result. So two runs differing
+only by transparency compare equal and one is deleted — and so do a run carrying `a:schemeClr` and a
+run carrying the literal that scheme resolves to, which can leave a hard-coded colour where a theme
+link was. `unmodeled_state_eq` does not save either: `a:solidFill` is modelled, so both residuals are
+empty. Both methods sit in the preservation gate's `NEVER_EXERCISED` register, so nothing was going
+to find this by running.
+
+Documented on both methods, on both facade counterparts, in the guide beside the sentence that
+recommends the call, and in a new **Known defects** table at the head of the pptx fidelity page —
+which until now opened by saying that nothing on it was an oversight. Fixing it changes either a
+documented promise or the public output of every `effective_*` call across three formats and both
+bindings, so it is MJXOFF-233 rather than a change made in a documentation unit.
+
+### MJXOFF-198 §6 is closed
+
+Every item fixed, ticketed, or recorded as deliberate with its reason; the closing register is a
+comment on that epic. Newly ticketed here: **MJXOFF-232** (F4 — `add_table` writes `firstRow` and
+`bandRow` into a deck with no table style for them to resolve against, which is MJXOFF-200's shape
+with the half a resolution gate cannot see), **MJXOFF-233** above, and **MJXOFF-234** (nothing
+compares the `.pyi`'s docstrings against the Rust docs they restate — symbols are compared in both
+directions, the sentences beside them are not).
+
 ## [0.0.143] - 2026-09-08
 
 ### A colour-transform surface on `ColorSpec` (MJXOFF-219, G14)
