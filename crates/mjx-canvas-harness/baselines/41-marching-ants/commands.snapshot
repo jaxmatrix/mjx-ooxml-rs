@@ -1,0 +1,68 @@
+display-list page=400x266.6667 scale=1.3333334 bytes=2940
+section commands count=63
+section paints count=4
+section strokes count=1
+section geometries count=63
+0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0001 fill rect[24,16,376,250.66667] with #ffffffff
+0002 stroke outline[0x1 at 44,46.666668,46.666668,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0003 stroke outline[0x2 at 104.26667,46.666668,106.933334,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0004 stroke outline[0x3 at 164.53334,46.666668,167.20001,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0005 stroke outline[0x4 at 224.8,46.666668,227.46667,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0006 stroke outline[0x5 at 285.06668,46.666668,287.73334,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0007 stroke outline[0x6 at 345.33334,46.666668,348,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0008 stroke outline[0x7 at 44,46.666668,348,49.333336] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0009 stroke outline[0x8 at 44,85.333336,348,88] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0010 stroke outline[0x9 at 44,124,348,126.66667] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0011 stroke outline[0xa at 44,162.66667,348,165.33334] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0012 stroke outline[0xb at 44,201.33334,348,204] with width=0.6666667 cap=Flat join=Round dash=Solid alignment=Centered compound=Single paint=#efe9dcff
+0013 fill rect[105.600006,85.83339,110.933334,87.50005] with #1e7a49ff
+0014 fill rect[116.26667,85.83339,121.600006,87.50005] with #1e7a49ff
+0015 fill rect[126.933334,85.83339,132.26668,87.50005] with #1e7a49ff
+0016 fill rect[137.6,85.83339,142.93333,87.50005] with #1e7a49ff
+0017 fill rect[148.26668,85.83339,153.6,87.50005] with #1e7a49ff
+0018 fill rect[158.93333,85.83339,164.26668,87.50005] with #1e7a49ff
+0019 fill rect[169.6,85.83339,174.93333,87.50005] with #1e7a49ff
+0020 fill rect[180.26668,85.83339,185.6,87.50005] with #1e7a49ff
+0021 fill rect[190.93333,85.83339,196.26668,87.50005] with #1e7a49ff
+0022 fill rect[201.6,85.83339,206.93333,87.50005] with #1e7a49ff
+0023 fill rect[212.26668,85.83339,217.6,87.50005] with #1e7a49ff
+0024 fill rect[222.93333,85.83339,228.26668,87.50005] with #1e7a49ff
+0025 fill rect[233.6,85.83339,238.93333,87.50005] with #1e7a49ff
+0026 fill rect[244.26668,85.83339,249.6,87.50005] with #1e7a49ff
+0027 fill rect[254.93333,85.83339,260.26666,87.50005] with #1e7a49ff
+0028 fill rect[265.6,85.83339,270.93335,87.50005] with #1e7a49ff
+0029 fill rect[276.26666,85.83339,281.6,87.50005] with #1e7a49ff
+0030 fill rect[285.56674,86.66667,287.2334,92] with #1e7a49ff
+0031 fill rect[285.56674,97.333336,287.2334,102.66667] with #1e7a49ff
+0032 fill rect[285.56674,108,287.2334,113.333336] with #1e7a49ff
+0033 fill rect[285.56674,118.66667,287.2334,124] with #1e7a49ff
+0034 fill rect[285.56674,129.33334,287.2334,134.66667] with #1e7a49ff
+0035 fill rect[285.56674,140,287.2334,145.33334] with #1e7a49ff
+0036 fill rect[285.56674,150.66667,287.2334,156] with #1e7a49ff
+0037 fill rect[285.56674,161.33334,287.2334,164] with #1e7a49ff
+0038 fill rect[286.4,163.16672,291.73334,164.83339] with #1e7a49ff
+0039 fill rect[275.73334,163.16672,281.06668,164.83339] with #1e7a49ff
+0040 fill rect[265.06668,163.16672,270.4,164.83339] with #1e7a49ff
+0041 fill rect[254.40001,163.16672,259.73334,164.83339] with #1e7a49ff
+0042 fill rect[243.73334,163.16672,249.06668,164.83339] with #1e7a49ff
+0043 fill rect[233.06668,163.16672,238.40001,164.83339] with #1e7a49ff
+0044 fill rect[222.40001,163.16672,227.73334,164.83339] with #1e7a49ff
+0045 fill rect[211.73334,163.16672,217.06667,164.83339] with #1e7a49ff
+0046 fill rect[201.06667,163.16672,206.40001,164.83339] with #1e7a49ff
+0047 fill rect[190.40001,163.16672,195.73334,164.83339] with #1e7a49ff
+0048 fill rect[179.73334,163.16672,185.06667,164.83339] with #1e7a49ff
+0049 fill rect[169.06667,163.16672,174.40001,164.83339] with #1e7a49ff
+0050 fill rect[158.40001,163.16672,163.73334,164.83339] with #1e7a49ff
+0051 fill rect[147.73334,163.16672,153.06667,164.83339] with #1e7a49ff
+0052 fill rect[137.06667,163.16672,142.40001,164.83339] with #1e7a49ff
+0053 fill rect[126.4,163.16672,131.73334,164.83339] with #1e7a49ff
+0054 fill rect[115.73334,163.16672,121.06667,164.83339] with #1e7a49ff
+0055 fill rect[104.76672,164,106.43339,169.33334] with #1e7a49ff
+0056 fill rect[104.76672,153.33334,106.43339,158.66667] with #1e7a49ff
+0057 fill rect[104.76672,142.66667,106.43339,148] with #1e7a49ff
+0058 fill rect[104.76672,132,106.43339,137.33334] with #1e7a49ff
+0059 fill rect[104.76672,121.333336,106.43339,126.66667] with #1e7a49ff
+0060 fill rect[104.76672,110.66667,106.43339,116] with #1e7a49ff
+0061 fill rect[104.76672,100,106.43339,105.333336] with #1e7a49ff
+0062 fill rect[104.76672,89.333336,106.43339,92] with #1e7a49ff

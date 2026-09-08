@@ -83,6 +83,14 @@ members = [
     # graph. Nothing ranked may reach either. `publish = false`.
     "crates/mjx-render-oracle",
     "crates/mjx-reference-pack",
+    # Test-only, outside the rank graph: the canvas UI harness (MJXOFF-166). The sixty-one in-canvas
+    # elements of `docs/client-platform/CANVAS_UI_INVENTORY.md`, each a synthetic `FragmentTree`, a
+    # state matrix reachable by clicking, a hit-test visualiser drawn from the spatial index and a
+    # live token editor that writes back to the token source. It sits at the top beside
+    # `mjx-reference-pack` and reaches `mjx-render-oracle` for the PNG encoder, the plate manifest
+    # and the baseline store — the second consumer that rule was widened for. Nothing depends on it.
+    # `publish = false`.
+    "crates/mjx-canvas-harness",
     # Language bindings. They sit *above* `mjx-ooxml` and nothing depends on them, so the layering
     # rule is unaffected; they are members so that one `cargo test`, one lint policy and one version
     # number cover them too. The cross-build matrix excludes both: a PyO3 cdylib needs a Python
@@ -107,7 +115,7 @@ members = [
 # This is written here rather than only in `build-npm.sh` because that is where it was written
 # before, and it did not stop MJXOFF-156 from moving one file and leaving the wasm build red for two
 # children. `CLAUDE.md`'s versioning note says the same three things.
-version = "0.0.139"
+version = "0.0.140"
 edition = "2021"
 rust-version = "1.90"
 license = "MIT OR Apache-2.0"
@@ -248,6 +256,7 @@ mjx-ooxml = { path = "crates/mjx-ooxml" }
 mjx-paint = { path = "crates/mjx-paint" }
 mjx-render-oracle = { path = "crates/mjx-render-oracle" }
 mjx-reference-pack = { path = "crates/mjx-reference-pack" }
+mjx-canvas-harness = { path = "crates/mjx-canvas-harness" }
 
 # --- binding toolkits (used only by `bindings/*`) ---
 pyo3 = { version = "0.29", default-features = false, features = ["abi3-py39", "macros"] }

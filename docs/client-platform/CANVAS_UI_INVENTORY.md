@@ -152,3 +152,80 @@ a cost — it de-risks the platform piece long before the application needs it.
 **Track placement:** its own unit, **A6b**, immediately after A6 (the oracle and the plate
 generator), depending only on A4 and A5. It is not a sub-task of the Storybook catalogue and does not
 wait for A8.
+
+---
+
+## 4 · What was built (MJXOFF-166), and the one thing that was not
+
+`crates/mjx-canvas-harness`. Every requirement of §3 is met except the last paragraph's, and this
+section is the honest account of both halves.
+
+### 4.1 · The shape it took, and why
+
+**A local server and a browser, not a native window.** `cargo run -p mjx-canvas-harness -- serve`
+binds `127.0.0.1:7761` and prints a URL. The scene list, the state panel, the token editor and the
+overlay switches are HTML driven by the generated design tokens; **every pixel of the element itself
+is drawn in Rust** — `mjx-layout` → `mjx-scene` → `mjx-paint`'s software painter — and reaches the
+page as an `<img>`. There is no `<canvas>`, no SVG generation, no plotting library and no network
+reference anywhere in the page, and
+`crates/mjx-canvas-harness/tests/the_page_is_the_chrome_and_nothing_more.rs` is what holds that.
+
+Three reasons this shape was chosen over a native window, in the order they matter:
+
+1. **It reaches a phone.** `serve --host 0.0.0.0` and the machine's address on the same network puts
+   the harness in a real mobile browser, at a real density, under a real thumb. Eleven of the
+   sixty-one elements are about touch and none of them is judgeable any other way.
+2. **It is the same instrument at both sizes**, which is what the user's audit rule asks for: the
+   layout collapses below 900 pixels and the element stays the widest thing on the screen.
+3. **The workspace has no windowing crate**, and adding `winit` to reach a desktop-only surface would
+   have bought the one case a browser already serves.
+
+The pixel inspector is worth one line of its own. A browser can read a pixel out of an `<img>` with
+two lines of `getImageData`; it does not. The probe is an endpoint answered from the same `Pixels`
+the PNG was encoded from, because a second reading of the image would be a second answer to *"what
+colour is this"*, and the reason the canvas is in Rust is that there should be one.
+
+### 4.2 · ⚠ The mobile *surface* does not exist, and this child did not build it
+
+§3 says the harness "ships as both a native desktop binary and a build for the mobile surface", and
+MJXOFF-166 adds that this is "the earliest thing in the whole programme that forces the mobile
+render surface to exist — a `SurfaceHost` implementation over the platform's native surface,
+delivered as a small Tauri plugin (`tauri-plugin-mjx-surface`)". **That plugin was not written**, and
+the reason is not scope: a plugin that compiles and has never created a surface would satisfy the
+sentence and prove nothing, which is the shape of hand-off this programme keeps having to undo.
+
+What is missing, precisely:
+
+| Piece | State |
+|---|---|
+| A `SurfaceHost` over a platform window | **Exists** — `mjx_paint::DesktopWindow` takes `WindowHandles` and is already platform-agnostic |
+| An Android/iOS *shell* that owns a window and hands over its handle | Missing |
+| `tauri-plugin-mjx-surface`, a Tauri 2 mobile plugin wrapping that hand-over | Missing |
+| An Android SDK/NDK or Xcode toolchain to build and run either | Not present in this environment |
+
+**The premise that this child "first forces the mobile render surface to exist" is not quite right,
+and the correction is useful.** R08 generalised the surface already: `SurfaceHost` is a trait over
+`SurfaceTarget::Window(WindowHandles)`, and a mobile surface is a caller that supplies an
+`ANativeWindow` or a `CAMetalLayer` rather than a new implementation of anything. What is genuinely
+missing is a **shell** — an application that owns a window on a phone — and that is a Tauri and
+toolchain problem rather than a rendering one.
+
+Until it exists, the eleven touch entries are exercised in a **mobile browser** over the LAN. That is
+a real touch device, a real density and a real thumb, and it is not the native surface; a reader who
+needs the native path should treat this row of the inventory as covered by the harness and *not* by
+the platform.
+
+### 4.3 · The gates
+
+| Gate | What it refuses |
+|---|---|
+| `every_entry_draws.rs` | Sixty-one titled empty canvases. Five counters per entry — placeholders, draw calls, covered pixels, **distinct colours**, declared command kinds — plus a command count strictly above the bare stage's |
+| `the_axes_are_not_identities.rs` | A state toggle that does nothing. Each entry declares which axes move its pixels and the suite measures the declaration in both directions, prints the per-axis counts, and requires all sixty-one renders to be distinct pictures. Density gets its own gate: every stroke width in proportion at 1×, 2× and 3× |
+| `the_visualiser_shows_the_index.rs` | A hit-test overlay computed twice. A grab region records a *fragment*, and the rectangle is `SpatialIndex::bounds_of` inflated by the input device's padding |
+| `the_token_editor_writes_back.rs` | An editor that reformats the token source, or one whose changes do not reach the canvas |
+| `the_plates_go_through_the_oracle.rs` | An unapproved plate passing, a second manifest schema, and a human approval nobody gave |
+| `the_page_is_the_chrome_and_nothing_more.rs` | A page that draws, or that reaches the network |
+
+The audit checklist is `docs/client-platform/CANVAS_UI_AUDIT.md`, regenerated by
+`cargo run -p mjx-canvas-harness -- checklist`. **Nothing in it is ticked, and no agent may tick
+it.**

@@ -1,0 +1,20 @@
+fragment-tree nodes=19 roots=10
+#0 box rect=[0,0,3810000,2540000] transform=TransformId(0) clip=none part=1 path=/0 decoration=1 cell=none
+#1 box rect=[228600,152400,3581400,2387600] transform=TransformId(0) clip=none part=1 path=/1 decoration=2 cell=none
+#2 box rect=[533400,482600,2413000,1422400] transform=TransformId(0) clip=none part=1 path=/2 decoration=3 cell=none
+#3 box rect=[533400,482600,2413000,1422400] transform=TransformId(0) clip=ClipId(0) part=1 path=/3 decoration=4 cell=none
+  #4 box rect=[635000,584200,2260600,647700] transform=TransformId(0) clip=none part=1 path=/4 decoration=5 cell=none
+  #5 box rect=[635000,762000,2260600,825500] transform=TransformId(0) clip=none part=1 path=/5 decoration=6 cell=none
+  #6 box rect=[635000,939800,2260600,1003300] transform=TransformId(0) clip=none part=1 path=/6 decoration=7 cell=none
+  #7 box rect=[635000,1117600,2260600,1181100] transform=TransformId(0) clip=none part=1 path=/7 decoration=8 cell=none
+  #8 box rect=[635000,1295400,2260600,1358900] transform=TransformId(0) clip=none part=1 path=/8 decoration=9 cell=none
+  #9 box rect=[635000,1473200,2260600,1536700] transform=TransformId(0) clip=none part=1 path=/9 decoration=10 cell=none
+  #10 box rect=[635000,1651000,2260600,1714500] transform=TransformId(0) clip=none part=1 path=/10 decoration=11 cell=none
+#11 box rect=[1358900,1371600,1409700,1397000] transform=TransformId(0) clip=none part=1 path=/11 decoration=12 cell=none
+#12 box rect=[1447800,1371600,1498600,1397000] transform=TransformId(0) clip=none part=1 path=/12 decoration=13 cell=none
+#13 box rect=[1536700,1371600,1587500,1397000] transform=TransformId(0) clip=none part=1 path=/13 decoration=14 cell=none
+#14 box rect=[533400,482600,2413000,1422400] transform=TransformId(0) clip=none part=1 path=/14 decoration=15 cell=none
+#15 box rect=[2565400,558800,3352800,723900] transform=TransformId(0) clip=none part=1 path=/15 decoration=16 cell=none
+  #16 box rect=[2616200,609600,2946908,660400] transform=TransformId(0) clip=none part=1 path=/16 decoration=17 cell=none
+  #17 box rect=[2959100,609600,3242564,660400] transform=TransformId(0) clip=none part=1 path=/17 decoration=18 cell=none
+#18 shape rect=[2552700,901700,2705100,1028700] transform=TransformId(0) clip=none part=1 path=/18 geometry=1 decoration=19

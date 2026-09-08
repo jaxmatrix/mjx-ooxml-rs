@@ -388,6 +388,44 @@ jobs:
           path: target/oracle-gallery
           if-no-files-found: error
 
+  # The canvas UI harness (MJXOFF-166). Its own job for the same reason the oracle has one, one
+  # level in: what this gate produces is sixty-one pictures and a checklist, and *a failure a
+  # reviewer cannot see is a failure nobody fixes*.
+  #
+  # **It needs no graphics stack and no external reader.** Every image goes through `tiny-skia`,
+  # every plate is encoded by `mjx-render-oracle`'s own PNG writer, and the whole suite runs on a
+  # machine with nothing installed — which is what makes it a gate rather than a nightly.
+  #
+  # What it does **not** gate on, and this is worth reading before quoting a green run: whether
+  # anybody has looked at these images. Every baseline is stamped `approver = generator`, the
+  # checklist says `Human review: 0 of 61` on its own face, and the plate gallery says so at the
+  # top. That is a regression gate over a design nobody has approved yet, and MJXOFF-166's whole
+  # point is that the approval is a person's to give — from the harness, by hand, on a phone for
+  # the eleven touch entries.
+  canvas-harness:
+    name: the canvas UI harness
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: the completeness gate, the state matrix and the plates
+        run: cargo test -p mjx-canvas-harness --no-fail-fast -- --nocapture
+      - name: every plate against its approved baseline
+        run: cargo run -p mjx-canvas-harness -- check
+      - name: the plates and the gallery, so a failure can be looked at
+        if: always()
+        run: cargo run -p mjx-canvas-harness -- plates target/canvas-plates
+      - name: the audit checklist, as the artefact a person picks up
+        if: always()
+        run: cargo run -p mjx-canvas-harness -- checklist target/canvas-plates/CANVAS_UI_AUDIT.md
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: canvas-plates
+          path: target/canvas-plates
+          if-no-files-found: error
+
   # Every example runs, and every example reopens its own output and asserts something about it.
   # `cargo clippy --all-targets` in lint-test already compiles them; this proves they *work*.
   examples:

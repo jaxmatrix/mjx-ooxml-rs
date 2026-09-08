@@ -1,0 +1,12 @@
+display-list page=400x266.6667 scale=1.3333334 bytes=516
+section commands count=8
+section paints count=6
+section geometries count=8
+0000 fill rect[0,0,400,266.6667] with #fdfcf9ff
+0001 fill rect[24,16,376,250.66667] with #ffffffff
+0002 fill rect[45.333336,66.66667,325.33334,73.333336] with #223b3366
+0003 fill rect[45.333336,85.333336,306.6667,92] with #223b3366
+0004 fill rect[98.66667,66.66667,184,73.333336] with #2e9e63ff
+0005 fill rect[98.66667,76,184,76.66667] with #2e9e6388
+0006 fill rect[77.333336,85.333336,186.66667,92] with #1e7a49ff
+0007 fill rect[77.333336,94.66667,186.66667,95.66667] with #1e7a49ff
