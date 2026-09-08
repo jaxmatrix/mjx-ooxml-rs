@@ -116,6 +116,13 @@ Splitting runs repeatedly leaves a paragraph fragmented.
 [`coalesce_paragraph_runs`](Presentation::coalesce_paragraph_runs) merges adjacent runs back together
 when their *effective* formatting matches, and returns how many it removed.
 
+**Do not call it on a document somebody else wrote yet.** *Effective* formatting means resolved
+formatting, and resolution is lossy in two ways that matter here: a colour's `a:alpha` is dropped,
+and a theme colour is flattened to the literal `RRGGBB` it resolves to. Two runs differing only by
+transparency, or only by whether their colour is a theme link, therefore compare equal — and one of
+them is deleted. That is MJXOFF-233, and it is written up under *Built, not yet verified against
+Office* below.
+
 ## List formatting for the whole shape
 
 The four setters above each name a place in the text. A fifth scope sits underneath all of them: the

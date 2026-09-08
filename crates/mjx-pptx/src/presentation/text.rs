@@ -418,6 +418,16 @@ impl Presentation {
     /// A line break or field between two runs keeps them apart. When nothing merges, the call changes
     /// nothing and does not dirty the part.
     ///
+    /// # A known defect: MJXOFF-233
+    ///
+    /// **The effective comparison is lossy, so two runs it calls equal may not be.** The fill it
+    /// compares has been through `mjx_dml::resolve_fill`, which bakes a colour to `RRGGBB` and, as
+    /// its own doc comment states, does not represent a resolved `a:alpha`. Two runs differing
+    /// only by transparency therefore compare equal and one of them is deleted; so do a run
+    /// carrying `a:schemeClr` and a run carrying the literal colour that scheme resolves to, and
+    /// the survivor may be the one that hard-codes it. Neither is caught by the unmodeled-state
+    /// test above, because `a:solidFill` is modelled.
+    ///
     /// # Errors
     /// Returns [`PptxError`] if an index is out of range, the slide is malformed, or the shape has no
     /// text body.
@@ -487,7 +497,8 @@ impl Presentation {
 
     /// Merges adjacent identical runs across **every** paragraph of a shape's text body, returning the
     /// total number of runs merged away. The per-paragraph rule is
-    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs).
+    /// [`coalesce_paragraph_runs`](Self::coalesce_paragraph_runs), **including its known defect**:
+    /// see MJXOFF-233 there before calling this on a document somebody else wrote.
     ///
     /// # Errors
     /// Returns [`PptxError`] if the index is out of range, the slide is malformed, or the shape has no
