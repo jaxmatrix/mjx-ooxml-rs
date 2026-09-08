@@ -46,6 +46,7 @@ reconstructed afterwards.
 | `mjx_pptx::PptxError` gains `Sml(mjx_sml::SmlError)` | — | The same removal: a chart's embedded workbook is now written by `mjx-sml`, so its failures reach a PresentationML caller as themselves rather than being flattened into `Opc`. `PptxError` is deliberately not `#[non_exhaustive]`, so this is a breaking addition; `mjx_ooxml::Error` classifies it through the same `sml_code` that `mjx-xlsx`'s errors go through, and no `ErrorCode` was added — nothing changes for either binding. |
 | `mjx_chart::ChartLabelScope::Plot { plot_idx: usize }`, `Series { series_idx: usize }`, `Point { series_idx: usize, point_idx: u32 }` | `Plot { plot_index: u32 }`, `Series { series_index: u32 }`, `Point { series_index: u32, point_index: u32 }` | MJXOFF-118. These were the **last three public fields in the workspace spelled `*_idx`** — an abbreviation named after `c:idx`, which is exactly the case 0.0.69 already settled for `mjx_dml::StyleMatrixReference::idx`. The width goes with the name: this type crosses the facade to both bindings, and **both already published these three as `u32` and cast on the way in and out**, so the rename and the narrowing change nothing in Python or TypeScript and delete five casts (two of them `usize as u32`, which truncate rather than fail). |
 | `mjx_pptx::ShapeInfo::index`, `mjx_pptx::LayoutInfo::index`, `mjx_pptx::LayoutInfo::master_index` — `usize` | `u32` | MJXOFF-118, finishing A9's own recorded loose end (*"better normalised once at v0.1"*). All three structs are re-exported **verbatim** by `mjx-ooxml` and by both bindings, which means they bypass `crates/mjx-ooxml/src/index.rs` — the one place the facade's `u32`/model `usize` width difference is meant to be crossed — and carried a host-dependent width into a foreign-function-facing type. Both bindings already read all three as `u32`; those casts are gone. A `mjx-pptx` caller feeding one of these back into a `Presentation` method converts once (`usize::try_from`), which `crates/mjx-pptx/src/index.rs` documents; a `mjx-ooxml` caller can now pass `ShapeInfo::index` straight to a `Deck` method, which was not possible before. |
+| `mjx_dml::ColorSpec` — three variants, `#[derive(Eq)]` | a fourth variant `Transformed { base: Box<ColorSpec>, transforms: Vec<ColorTransform> }`; **no `Eq`** | MJXOFF-219. `ColorSpec` is what every authoring caller hands in, and it carried a colour's kind and value and **no transform children**, so nothing in this workspace could author a colour transform and `Color::spec()` silently dropped a producer's. The three existing variants and every construction site are untouched — the alternative shape (`ColorSpec { kind, value, transforms }`, the ticket's option 1) is faithful to the schema and rewrites 393 call sites; this one costs an arm in the seven places that `match` on the enum. `Eq` goes because a transform's value is a `Fraction`/`Angle` (both `f64`, both `PartialEq` only); nothing in the workspace required it, and every type that embeds a `ColorSpec` — `FillSpec`, `LineSpec`, `EffectListSpec`, `CharacterPropertiesSpec` — was already `PartialEq` alone. |
 
 Nothing else in the public surface changed name or shape. The sweep read all 1,561 public
 identifiers of the eleven merged PowerPoint children; everything else either already followed the
@@ -57,6 +58,62 @@ should become `suppress_*`, given that `delete` is the spec element's own name a
 dozen coherent `mjx-chart` identifiers — was decided in favour of the rename and taken in 0.0.69,
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
+
+## [0.0.143] - 2026-09-08
+
+### A colour-transform surface on `ColorSpec` (MJXOFF-219, G14)
+
+**`V-PPTX-02.4` is R3 — the third-highest risk item in this repository — and it was the only entry in
+the human Office pass with no artefact at all.** Not because nobody had written one, but because
+nobody *could*: `ColorSpec` is the interner-free description every authoring caller hands in, from
+`Color::from_spec` up through `FillSpec::solid`, `CharacterPropertiesSpec::with_color` and every
+facade call above them, and it carried a colour's kind and its value and **no transform children**.
+Both directions of the corpus were closed at once — nothing could generate a file with a colour
+transform in it, and no committed fixture has one either.
+
+The measurement that set the scope, taken across every committed `.pptx`/`.docx`/`.xlsx` before the
+decision:
+
+| `a:tint` | `a:satMod` | `a:shade` | `a:alpha` | `a:comp` | `a:gray` | `a:gamma` | `a:invGamma` |
+|---|---|---|---|---|---|---|---|
+| 35 | 23 | 13 | 7 | 0 | 0 | 0 | 0 |
+
+`V-PPTX-02.4` names the four that occur **zero** times; `tint`/`satMod`/`shade` are what Office
+writes constantly for theme-colour variants. Scoping this to the risk item alone would have shipped
+a surface nothing exercises while leaving the common cases unauthorable — so the scope is the whole
+of `EG_ColorTransform`, all twenty-eight members. (And all thirty-five occurrences sit in a
+`theme1.xml`, a `slideMaster` or a `slideLayout`. **Not one is on a slide**, because every fixture
+here was written by this project or by LibreOffice rather than by Office.)
+
+- **`mjx_dml::ColorTransform`** — the twenty-eight members with their values, plus an `Other` bucket
+  for an element the group does not name, or one it does whose `@val` is absent or unparseable, so a
+  transform this model cannot read still round-trips rather than being deleted.
+  **`mjx_dml::ColorTransformKind`** names the same twenty-nine without their values, and
+  **`ColorTransformValue`** says what each carries; that is the shape `ColorKind`/`ColorSpec` already
+  had one layer up, and it is what lets both bindings project the group as an *enumeration* their own
+  suites check member by member.
+- **Builders on `ColorSpec`** — one generic `with_transform`, plus six named conveniences for the
+  four transforms that occur in the corpus and the `lumMod`/`lumOff` pair PowerPoint writes for every
+  *"Accent 1, Lighter 40 %"*. **Every builder appends.** Order is part of the markup: the group is an
+  unbounded `xsd:choice` applied left to right, so the same transforms in another order are another
+  colour, and a builder that merged into a set would quietly write a different file.
+- **The read side closes with it.** `Color::spec()` used to drop transform children, so a
+  `spec()` → `from_spec()` round trip lost a producer's. It no longer does. An audit of every shipped
+  `.spec(` and `from_spec` call site found the loss was **latent**: every mutating API in the
+  workspace replaces a colour from the caller's own spec rather than reading one back, so no shipped
+  path performed that round trip on an opened file. The preservation gate would not have caught it
+  either — it is part-granular, its arguments are fresh literals, and no fixture carries a transform
+  on an editable surface.
+- **`xtask`'s validation catalogue gains the artefact.** `v-pptx-02-authored.pptx` grows two rows of
+  swatches: the four transforms `V-PPTX-02.4` names plus `a:inv` over a fixed `4472C4`, and
+  `tint`/`shade`/`satMod`/`lumMod`+`lumOff`/`alpha` over the theme's accent 1, each row led by an
+  untransformed baseline. Both bindings write the same twelve swatches, and the three artefacts are
+  still compared part by part, byte for byte.
+
+`crates/mjx-dml/src/resolve.rs`'s caveat stands and is meant to: `comp`/`gray`/`gamma`/`invGamma`
+follow *a documented interpretation* and are **not** guaranteed pixel-identical to Office, unlike
+`lumMod`/`shade`/`tint`/`alpha`. Being able to author one is not evidence that resolving it is right
+— it is what finally gives the person with PowerPoint open something to point the eyedropper at.
 
 ## [0.0.142] - 2026-09-08
 
