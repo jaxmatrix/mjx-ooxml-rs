@@ -22,8 +22,8 @@ second one, with a number.
 
 ```text
 binding surface exercised by its own suite:
-  Python        966 of 1619 declared member(s) (59.7%), 653 named by no test
-  WebAssembly   900 of 1743 declared member(s) (51.6%), 843 named by no test
+  Python        990 of 1637 declared member(s) (60.5%), 647 named by no test
+  WebAssembly   925 of 1761 declared member(s) (52.5%), 836 named by no test
 ```
 
 **Two fifths of the Python surface and half the WebAssembly surface is exercised by nothing.** That
@@ -46,9 +46,9 @@ front, or — in Python — as a keyword argument.
 **The two directions of that measure are not equally strong, and the asymmetry is the point.**
 
 * *Exercised* is an **upper bound**. The matcher works on names, so a `.rows` anywhere credits
-  `rows` on every class that declares one. The true figure is lower than 966 and lower than 900.
+  `rows` on every class that declares one. The true figure is lower than 990 and lower than 925.
 * *Not exercised* is **exact**. No test can call a member whose name appears nowhere in any test
-  source. 653 and 843 are floors on the untested surface, not estimates of it.
+  source. 647 and 836 are floors on the untested surface, not estimates of it.
 
 The number worth quoting is therefore the second one, which is why the gate's failure message prints
 the un-exercised set in full rather than the total.
@@ -69,13 +69,13 @@ a test *or* a test stops calling one, and the failure names the members. Updatin
 then a decision somebody takes on purpose, which is the only property a number in prose can have.
 
 The same file carries the other checkable claim about the projection:
-`every_javascript_name_is_the_camel_case_of_its_rust_name` holds all 1,743 exported functions to the
+`every_javascript_name_is_the_camel_case_of_its_rust_name` holds all 1,761 exported functions to the
 camelCase rule, with a written ledger of the seven that JavaScript itself forces — `toString`, which
 is a protocol rather than a name.
 
 ## What it does not measure, and what covers that instead
 
-* **Enumeration members.** `bindings/mjx-python/tests/test_enums.py` already holds all 100
+* **Enumeration members.** `bindings/mjx-python/tests/test_enums.py` already holds all 102
   enumerations to their Rust member names in both directions, and
   `bindings/mjx-wasm/tests/node/surface.mjs` checks the two `Format` enumerations member by member.
 * **Whether a call was made on the right class.** See the asymmetry above.

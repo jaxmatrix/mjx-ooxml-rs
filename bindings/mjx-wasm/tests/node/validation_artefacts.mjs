@@ -49,6 +49,8 @@ import {
   ChartWrap,
   Color,
   ColorSpec,
+  ColorTransform,
+  ColorTransformKind,
   ConnectionSite,
   CustomGeometrySpec,
   DataLabelPosition,
@@ -302,8 +304,71 @@ const vPptx02 = () =>
         ),
       ),
     );
+
+    writeColourTransformAreas(deck, slide, keep);
     return deck.save();
   });
+
+/**
+ * `V-PPTX-02.4` — the swatches the human Office pass needs, in the order the Rust catalogue writes
+ * them (`xtask/src/validation/presentation.rs`). The top row is the four transforms the entry names
+ * plus `a:inv`, over a fixed `4472C4`; the bottom row is what a real file actually contains, over
+ * the theme's accent 1. The first swatch in each row carries no transform and is that row's
+ * baseline.
+ */
+function writeColourTransformAreas(deck, surface, keep) {
+  const base = keep(ColorSpec.srgb("4472C4"));
+  const accent = keep(ColorSpec.scheme(SchemeColor.Accent1));
+  const half = keep(Fraction.of(0.5));
+  const marker = (kind) => {
+    const transform = ColorTransform.marker(kind);
+    assert.ok(transform, "a valueless member builds a marker transform");
+    return keep(transform);
+  };
+  const rows = [
+    [
+      2.4,
+      [
+        ["4472C4", base],
+        ["comp", keep(base.withTransform(marker(ColorTransformKind.Complement)))],
+        ["gray", keep(base.withTransform(marker(ColorTransformKind.Grayscale)))],
+        ["gamma", keep(base.withTransform(marker(ColorTransformKind.Gamma)))],
+        ["invGamma", keep(base.withTransform(marker(ColorTransformKind.InverseGamma)))],
+        ["inv", keep(base.withTransform(marker(ColorTransformKind.Inverse)))],
+      ],
+    ],
+    [
+      4.2,
+      [
+        ["accent 1", accent],
+        ["tint 50%", keep(accent.withTint(half))],
+        ["shade 50%", keep(accent.withShade(half))],
+        ["satMod 150%", keep(accent.withSaturationModulation(keep(Fraction.of(1.5))))],
+        [
+          "lumMod 60% + lumOff 40%",
+          keep(
+            keep(accent.withLuminanceModulation(keep(Fraction.of(0.6)))).withLuminanceOffset(
+              keep(Fraction.of(0.4)),
+            ),
+          ),
+        ],
+        ["alpha 50%", keep(accent.withAlpha(half))],
+      ],
+    ],
+  ];
+  for (const [top, swatches] of rows) {
+    for (const [column, [label, color]] of swatches.entries()) {
+      const swatch = deck.addShape(
+        surface,
+        PresetShapeType.Rectangle,
+        keep(ShapeBounds.fromInches(0.35 + 2.12 * column, top, 2.0, 1.3)),
+      );
+      deck.setShapeFill(surface, swatch, keep(FillSpec.solid(color)));
+      deck.setShapeTextContent(surface, swatch, label);
+      keep(deck.effectiveShapeFill(surface, swatch));
+    }
+  }
+}
 
 const vPptx03 = () =>
   owning((keep) => {

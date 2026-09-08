@@ -39,7 +39,7 @@
 //! # What is deliberately *not* checked here, and why
 //!
 //! * **Enumeration members.** `bindings/mjx-python/tests/test_enums.py` already holds all one
-//!   hundred enumerations to their Rust member names in both directions, and
+//!   hundred and two enumerations to their Rust member names in both directions, and
 //!   `bindings/mjx-wasm/tests/node/surface.mjs` names every member of the two `Format`
 //!   enumerations. A second, weaker check here would add noise, not cover.
 //! * **Which class a name was used on.** See the asymmetry above. Resolving `.rows` to a receiver
@@ -602,13 +602,13 @@ fn the_share_of_each_binding_its_suite_exercises_is_what_the_guide_says() {
 }
 
 /// Members the committed Python stub declares, enumeration members and dunders aside.
-const PYTHON_DECLARED: usize = 1_619;
+const PYTHON_DECLARED: usize = 1_637;
 /// How many of [`PYTHON_DECLARED`] some test under `bindings/mjx-python/tests/` names.
-const PYTHON_EXERCISED: usize = 966;
+const PYTHON_EXERCISED: usize = 990;
 /// Functions `wasm-bindgen` exports to JavaScript.
-const WASM_DECLARED: usize = 1_743;
+const WASM_DECLARED: usize = 1_761;
 /// How many of [`WASM_DECLARED`] some test under `bindings/mjx-wasm/tests/node/` names.
-const WASM_EXERCISED: usize = 900;
+const WASM_EXERCISED: usize = 925;
 
 /// A percentage, or zero when the denominator is.
 fn percentage(part: usize, whole: usize) -> f64 {
