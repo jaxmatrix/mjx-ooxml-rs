@@ -59,6 +59,62 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.145] - 2026-09-08
+
+### Run coalescing stops merging two runs a resolved colour cannot tell apart (MJXOFF-233, H1)
+
+0.0.144 documented this as a live defect. It is now fixed, and the pptx guide's **Known defects**
+table is empty.
+
+`Presentation::coalesce_paragraph_runs` merged two adjacent runs when their *effective* character
+properties compared equal. Effective means **resolved**, and resolution loses information in two
+directions, so "equal" was not the same as "the same":
+
+- **A transparency disappeared.** `resolve_fill` bakes a colour to `RRGGBB` and says in its own doc
+  comment that a resolved `a:alpha` is not represented. Two runs differing only by an `a:alpha`
+  compared equal and **one run's element was deleted**, taking its transparency with it.
+- **A theme link became a literal.** An `a:schemeClr` and the `a:srgbClr` it resolves to against the
+  deck's theme compared equal, so a merge could leave a hard-coded colour where a theme link had
+  been — the exact inverse of the standing rule that where OOXML lets a value inherit, it must
+  inherit. Which of the two survived was positional: `coalesce_adjacent_runs` merges the later run
+  into the earlier.
+- **The same held for fonts, which the ticket did not name.** `Presentation::resolve_theme_fonts`
+  replaces a `+mj-lt` / `+mn-lt` typeface with the font the theme's scheme names for it, so a run
+  that follows the theme and a run that hard-codes today's answer were indistinguishable once
+  resolved. Fixed with the same condition.
+
+`unmodeled_state_eq` caught none of it: `a:solidFill` and `a:latin` are modelled, so they are
+filtered out of the residual it compares and both runs' residuals were empty.
+
+**The fix narrows the merge rather than changing what resolution answers.** A third condition now
+holds before two runs join: their own, *unresolved* colours and typefaces must agree, via a new
+`mjx_dml::CharacterPropertiesSpec::resolution_sensitive_eq`. It lives in `mjx-dml` because that crate
+owns both the spec and the resolver, so the knowledge of what resolution discards sits beside the
+code that discards it; `mjx-pptx` consumes it downward. The ticket's other candidate — teaching
+`resolve_fill` to carry the alpha, now representable via 0.0.143's `ColorSpec::Transformed` — was
+rejected: it changes what every `effective_*` reader answers across three formats, the facade, both
+bindings and three `effective_properties.md` pages, and it does not address the theme-link half at
+all. Among candidate fixes, the one that cannot break a caller already working wins, and a condition
+that can only ever *refuse* a merge cannot.
+
+**What it costs, stated in the method's docs, the facade's, and the guide:** a run that names a
+colour or a typeface **explicitly** no longer merges with a neighbour that **inherits** the same one.
+Every other property still compares as meaning rather than as markup — a run stating `b="1"` still
+merges with a neighbour that inherits bold — and the method's own purpose, undoing
+`set_text_range_properties`' splitting, is untouched, because those runs all carry identical explicit
+properties. The comparison is confined to the seven resolution-sensitive fields and skips the ten
+resolution copies verbatim; it is written as a full destructuring with no `..`, so a property added
+to `CharacterPropertiesSpec` fails to compile there until someone has classified it.
+
+**Both methods leave the preservation gate's `NEVER_EXERCISED` register.** The register said a
+*fixture* holding two adjacent runs would retire them. It did not need one — the preparation makes
+the state, in two edits whose order is the point: formatting the first character alone splits the
+paragraph's opening run in two, and restyling the shape then gives the halves identical `a:rPr`.
+The old preparation only restyled, which is why it left one run per paragraph and nothing to merge.
+
+`mjx-docx` was checked and has no run coalescing at all — nothing there merges runs, and nothing else
+in the workspace compares resolved character properties for equality.
+
 ## [0.0.144] - 2026-09-08
 
 ### The landing: one entry point, and Phase G's register closed (MJXOFF-230, G13)
