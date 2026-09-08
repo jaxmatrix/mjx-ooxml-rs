@@ -1599,7 +1599,14 @@ pub(crate) const CASES: &[Case] = &[
         touches: Touches {
             rules: &[
                 changed_one(PRESENTATION),
-                changed(RELATIONSHIPS, Count::UpTo(1)),
+                // Any number of *other* slides may change, and any number of `.rels` with them:
+                // MJXOFF-212. A slide that hyperlinks to the removed one loses that hyperlink and
+                // the relationship naming it, because a package that kept either could never be
+                // saved. "As many as name it" is the contract, which is what buys `Any` here — and
+                // the presentation part is still pinned at exactly one, so the wildcard cannot hide
+                // a sweep over the deck.
+                changed(SLIDE, Count::Any),
+                changed(RELATIONSHIPS, Count::Any),
                 changed(CONTENT_TYPES, Count::UpTo(1)),
                 removed(SLIDE, Count::Exactly(1)),
                 removed(crate::rules::ANY_CLASS, Count::Any),

@@ -59,6 +59,107 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.146] - 2026-09-08
+
+### Removing a slide another slide links to no longer leaves a file that can never be saved (MJXOFF-212, H2)
+
+`Presentation::remove_slide` — and `Deck::remove_slide` with it — unwired the slide from
+`p:sldIdLst`, dropped the presentation's relationship to it and deleted the part, and left every
+*other* part's reference to that slide exactly where it was. On `tests/fixtures/hyperlinks.pptx`,
+where slide 0's rectangle jumps to slide 1:
+
+```rust
+deck.remove_slide(1)?;   // succeeded
+deck.save();             // Err(RelationshipTargetMissing { … "/ppt/slides/slide2.xml" })
+```
+
+`Package::validate` — which `save` runs — refuses a relationship whose internal target is not in the
+package, so **the edit succeeded and the document could never be written back**. Found by the
+MJXOFF-210 preservation gate on its first sweep, and registered in its `KNOWN_DEFECTS` until now.
+
+**What changed.** A slide is named from three places, and all three now go with it: the `p:sldId`
+that lists it (as before), an `a:hlinkClick` / `a:hlinkHover` on a run or on a shape's `p:cNvPr` in
+any part, and a custom show's `p:custShowLst > p:custShow > p:sldLst > p:sld`. Each is a
+relationship **plus** the element naming it, and both are removed — the element first, then the
+relationship.
+
+**The decision, and the two options rejected.** Dropping only the relationship and leaving the
+markup is not a fix at all: it trades `RelationshipTargetMissing` for
+`UndeclaredRelationshipReference`, still unwritable, and on a part this library never authored it
+would slip past `validate` altogether and hand PowerPoint a file to repair. Retargeting the link at
+whichever slide takes the removed one's place would put a destination the caller never chose in
+place of the one they deleted — the inverse of the standing rule that a default is supplied only in
+the absence of the user's own. Refusing the removal while another slide links to it damages nothing,
+but it makes a slide undeletable, and a deck can be *made* undeletable by adding a link to it. So a
+run that used to be a link **keeps its text and loses its link**, which is what PowerPoint does, and
+a custom show loses its entry while the show itself stays.
+
+**The rule is keyed on the reference, not on a list of element names.** Any element naming a
+relationship that resolved to the removed slide is removed, so markup outside the schema — a vendor
+extension, an `mc:AlternateContent` alternative — cannot quietly leave behind a reference `validate`
+would refuse. The sweep runs after the cascade, over parts that survive, and reads a part before it
+writes one: a part that holds a relationship it never names in markup keeps its original bytes.
+
+**A referring slide is rewritten**, and stops being re-emitted byte for byte. That is the price, it
+is stated on the method, in the facade, in both bindings and in the pptx guide, and it is bounded —
+only the parts that actually named the removed slide are touched. The preservation gate's
+declaration for `remove_slide` says so: `changed(SLIDE, Any)` and `changed(RELATIONSHIPS, Any)`, with
+the presentation part still pinned at exactly one so the wildcard cannot hide a sweep over the deck.
+
+**And the bound now has a test, which it did not when this was first written.** The sweep visits
+every part holding a relationship to the removed slide, and a part can hold one it names nowhere in
+markup — an unreferenced relationship is valid OOXML, and `remove_shape` leaves them behind on
+purpose. Such a part is read and not rewritten. That was documented, exercised on every removal, and
+guarded by nothing: forcing a rewrite of every visited part left `mjx-pptx` and the preservation gate
+entirely green.
+
+Two things had to be understood to close it. The first is that the case, though it fires on every
+single removal, only ever fired on `presentation.xml` — which `remove_sld_id` has dirtied an instant
+earlier, so the guard had no observable effect anywhere any test reached. The second is that
+**byte equality cannot express the property at all**: the fidelity serializer reproduces an unmutated
+tree byte for byte, so "kept its original bytes" and "re-serialized without changing anything" are
+the same bytes. What differs is *provenance*, and provenance decides **scope** — `validate` walks the
+parts this library authored and spares the ones it did not. So the assertion that bites is a
+user-visible one: a deck carrying something it *arrived* with that this library would refuse to
+author (two shapes sharing a `p:cNvPr@id`) opens, saves, has a slide removed, and **still saves**.
+Dirty the untouched slide and it stops saving, faulted for markup nobody asked us to touch.
+
+### `validate`'s markup-reference check is narrower than its name (MJXOFF-238)
+
+Recorded, not fixed here. `Package::validate`'s content-type and relationship checks are
+package-wide, but `check_relationship_references` — the one that catches markup naming a relationship
+nothing declares — walks `authored_xml_parts()` alone, and so does `mjx-pptx`'s `validate::check`.
+The scoping is deliberate and mostly right: a deck opened and left alone must never be faulted for
+what it arrived with, and the bound above depends on exactly that rule.
+
+It answers *"was this markup ours?"*, though, and not *"did our edit break this markup?"* — and those
+come apart for one shape: an edit that changes a part's **relationships** without touching its
+**body**, because a `.rels` edit does not mark its owning part authored. No shipped method does that
+today (this one rewrites the part in the same breath; `remove_hyperlink_rel_if_unreferenced` reads
+the markup first), but `Package::remove_relationship` is public and the next such edit would reopen
+it. It is why the rejected "drop the relationship, keep the markup" option was worse than MJXOFF-212
+itself said: on the referring slide of a real file it would not have been reported at all.
+
+### The same defect does not exist elsewhere, and one nearby gap is now ticketed
+
+MJXOFF-212 asked whether the shape generalises to the other `remove_*` methods. It does not, and the
+reason is structural rather than lucky: **every other part-deleting edit either unwires the inbound
+relationship before deleting, or refuses to delete a part anything still references.**
+`Package::remove_part_if_unreferenced` is what `mjx-docx` uses and cannot dangle by construction;
+`mjx-xlsx`'s two direct `remove_part` calls remove the sheet's relationships first (comments) or
+guard on `is_reachable` (a chart's embedded workbook); `clear_notes` is safe for a different reason
+again, in that nothing but its own slide ever names a notes slide. `remove_shape` leaves
+relationships alone on purpose, and that stays correct: an *unreferenced* relationship is valid
+OOXML, and only a *dangling* one is not.
+
+One nearby gap is now **MJXOFF-237**, recorded rather than fixed. PowerPoint's sections live in
+`presentation.xml`'s `extLst` and list slides by the slide's **id number, not by `r:id`**, so they
+are not relationship references, this sweep does not see them, and a section keeps an entry for a
+slide that has gone. That cannot make a package invalid and `validate` is right not to complain. The
+markup is a Microsoft extension outside ECMA-376 — it is not in `References/`, and no committed
+fixture carries one — so the ticket's first task is to confirm it against a file Office wrote rather
+than to change anything.
+
 ## [0.0.145] - 2026-09-08
 
 ### Run coalescing stops merging two runs a resolved colour cannot tell apart (MJXOFF-233, H1)
