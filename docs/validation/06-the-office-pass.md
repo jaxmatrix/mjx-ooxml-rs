@@ -137,17 +137,23 @@ or markup its producer wrote that the ECMA-376 XSDs reject. A third-party file i
 schema-valid: Apache POI 5.5.1 writes an empty `<c:tx/>` for an unnamed chart series, which
 `dml-chart.xsd` rejects outright, and reddening a build over that would teach nobody anything.
 
-### The one deviation to expect, which is ours
+### What the gate does not tell you about an extension
 
-**The first real Excel workbook, and any file carrying an Office chart, will report a schema
-deviation, and it is a defect of this project rather than of your file.** `mc:Ignorable` markup is
-resolved before validation; resolution removes an ignorable element together with its content; and
-`sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their wildcard as a bare
-`<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to 1. The emptied `<ext>` is then
-rejected with *Missing child element(s)*. The same worksheet with the compatibility attributes taken
-off and the extension content left in place validates, which is what makes the diagnosis complete:
-the schema does not object to the extension, it objects to the hole the resolution leaves.
-`xtask/tests/office_corpus.rs` reproduces all three views and fails the day somebody fixes it.
+**An `<ext>` carrying markup in a namespace the file declares `mc:Ignorable` reports nothing at all,
+and that is the honest state rather than a pass.** `mc:Ignorable` markup is resolved before
+validation, and resolution removes an ignorable element together with its content; `sml.xsd`'s and
+`dml-chart.xsd`'s `CT_Extension` declare their whole content model as a bare
+`<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to 1, so the emptied `<ext>` used to
+be rejected with *Missing child element(s)* on every conformant file Office has written since 2010.
+MJXOFF-196 closed that: an extension slot resolution empties is now dropped along with the extension
+it held, because such an element exists only to carry it.
+
+What remains is a **residue, not a deviation**: the gate says nothing about the markup *inside* an
+ignorable extension. It never could. `CT_Extension`'s wildcard is `processContents="lax"` and no
+schema for such a namespace is loaded, so keeping the content would only have had the validator
+accept it unread. `crates/mjx-schema-gate/src/wildcard_slots.rs` names the five elements this
+applies to, derived from the pinned XSDs rather than listed by hand, and
+`xtask/tests/mce_extension_seam.rs` holds all of it.
 
 ---
 
@@ -203,10 +209,11 @@ added to it by the generator.
 
 ---
 
-## 8 · Two things the programme escalated to this desk
+## 8 · One thing the programme escalated to this desk
 
-Neither is a validation entry. Both were judged the user's call by the child that found them, and
-both would otherwise live only in a merged pull request.
+It is not a validation entry. It was judged the user's call by the child that found it, and would
+otherwise live only in a merged pull request. (There were two until MJXOFF-196 took the second one
+back and fixed it; §5 records what the gate can and cannot say about an extension now.)
 
 **`CellReference::{new, relative, absolute}` take `(column, row)`**, while thirty-odd methods across
 `mjx-pptx`, `mjx-docx` and the facade take `(row, column)`. MJXOFF-118 wrote the reasoning onto the
@@ -215,17 +222,6 @@ rendering is `A1` — column letters then row number — so taking the row first
 `CellReference::relative(6, 1)` spell `B7`. The two idioms never meet at a call site, because nothing
 on the `Workbook` facade takes a `CellReference` at all. It is defensible and it is still an
 asymmetry in a shipped public API, which is why it is here rather than settled.
-
-**The `mc:Ignorable` / `CT_Extension` seam** described in §5 is a defect of ours, filed as
-**MJXOFF-196**. It is deliberately *not* recorded as a tolerance in
-`crates/mjx-schema-gate/src/tolerances.rs`, because a tolerance is for one file and one message and
-would file a gate defect as a quirk of somebody's spreadsheet. Three candidate fixes are on that
-ticket, and choosing between them is a decision about what the gate validates rather than a bug fix.
-It will not redden your build: the corpus suite *reports* a schema deviation in a file we did not
-write, and MJXOFF-130 changed the artefact harness to hold an `-edited` artefact to **no new
-defect** — everything its original arrived with is subtracted — because before that change it reached
-`assert_authored_deck_is_schema_valid`, which tolerates nothing and would have faulted the producer's
-markup.
 
 ---
 

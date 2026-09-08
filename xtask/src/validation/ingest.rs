@@ -25,36 +25,39 @@
 //!   else's markup teaches nobody anything**, so these are printed in full and fail nothing.
 //! * [`Verdict::Skipped`] — the check could not run: no `References/`, no `xmllint`.
 //!
-//! # The schema half will report a deviation on the first real Excel file, and it is ours
+//! # The schema half says nothing about an ignorable extension, and that is deliberate
 //!
 //! `mjx-schema-gate` validates the **markup-compatibility-resolved** view of a part, because
 //! `mc:Ignorable` names attributes the base schema has no declaration for. Resolution removes an
 //! ignorable element together with its content — and `sml.xsd`'s `CT_Extension` and
-//! `dml-chart.xsd`'s declare their wildcard as a bare `<xsd:any processContents="lax"/>`, whose
-//! `minOccurs` therefore defaults to **1**. An `<ext>` whose only child was ignorable is emptied by
-//! the resolution and then rejected by the schema:
+//! `dml-chart.xsd`'s declare their whole content model as a bare `<xsd:any processContents="lax"/>`,
+//! whose `minOccurs` therefore defaults to **1**. An `<ext>` whose only child was ignorable was
+//! emptied by the resolution and then rejected by the schema:
 //!
 //! ```text
 //! Element '{…/spreadsheetml/2006/main}ext': Missing child element(s). Expected is one of ( {*}*, * ).
 //! ```
 //!
-//! That is a defect in how MCE resolution and schema validation compose, **not** a quirk of anyone's
-//! spreadsheet: it fires identically on every conformant file that carries an ignorable extension,
-//! which is essentially every workbook and every chart Office has written since 2010. It is
-//! therefore neither a tolerance (those are per file and per message, and never for a defect of
-//! ours) nor a property of the corpus. `xtask/tests/office_corpus.rs` reproduces it from markup this
-//! repository authors for the purpose, and **MJXOFF-196** owns it — with the reproduction, the schema
-//! sweep behind it and three candidate fixes.
+//! That fired identically on every conformant file carrying an ignorable extension, which is
+//! essentially every workbook and every chart Office has written since 2010 — a defect in how MCE
+//! resolution and schema validation compose rather than a quirk of anyone's spreadsheet, and so
+//! neither a tolerance (those are per file and per message) nor a property of the corpus.
+//! **MJXOFF-196** closed it: an extension slot resolution empties is dropped along with the
+//! extension it held, because such an element exists only to carry it.
 //!
-//! **There is a third declaration of the same shape, and it is recorded here so that a fix cannot
-//! stop at two.** `vml-officeDrawing.xsd:175` declares `CT_EquationXml` as
-//! `<xsd:sequence><xsd:any namespace="##any"/></xsd:sequence>` — again no `minOccurs`, again
-//! defaulting to 1. It cannot fire today, for two independent reasons, and both are worth stating
-//! rather than leaving as an absence: nothing in this workspace models `CT_EquationXml`, and no VML
-//! part is schema-validated at all (`crates/mjx-schema-gate/src/categories.rs` puts a `.vml` part in
-//! category 2, because `vml-main.xsd` cannot compile without an `xml.xsd` the Transitional set does
-//! not ship). So it is not a fourth defect; it is the third address a fix has to visit, found by
-//! MJXOFF-221 while auditing the upper shared markup.
+//! Two things about that fix matter when reading a report here.
+//!
+//! * **The set of elements it applies to is derived from the schemas, not listed by hand.**
+//!   `crates/mjx-schema-gate/src/wildcard_slots.rs` computes every element whose content model is
+//!   `xsd:any` particles and nothing else and cannot match the empty sequence, and a test asserts
+//!   the committed table equals what the pinned XSDs say. It found **five**. This module used to
+//!   carry the third by hand — `vml-officeDrawing.xsd`'s `CT_EquationXml`, found by MJXOFF-221 —
+//!   with the note "so that a fix cannot stop at two"; a derivation is the general form of that
+//!   note, and it also found `sml.xsd`'s `CT_Schema` and `CT_DataBinding`.
+//! * **What is left is a residue.** The gate reports nothing about the markup *inside* an ignorable
+//!   extension, and it never could: `processContents="lax"` with no loaded schema for that namespace
+//!   means a validator handed the content accepts it unread. A report that is silent about an
+//!   `<ext>` has not checked it.
 //!
 //! # No I/O beyond reading the file it was handed
 //!

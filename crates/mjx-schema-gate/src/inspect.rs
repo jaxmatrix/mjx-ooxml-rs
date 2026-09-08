@@ -20,6 +20,34 @@
 //!
 //! Resolution runs **only** on parts that actually carry markup compatibility. Every other part is
 //! validated as the exact bytes the package holds, so the common path is never re-serialized.
+//!
+//! ## …and a slot resolution empties goes with the content it held (MJXOFF-196)
+//!
+//! Resolution removes an ignorable element **together with its content**, which is what ECMA-376
+//! Part 3 says and what [`mjx_mce::resolve`] correctly does. Composed with the base schemas it
+//! leaves a hole: `sml.xsd`'s and `dml-chart.xsd`'s `CT_Extension` declare their whole content model
+//! as a bare `<xsd:any processContents="lax"/>`, whose `minOccurs` defaults to **1**, so an `<ext>`
+//! whose only child was ignorable is rejected — *Missing child element(s)* — on every conformant
+//! file Office has written since 2010. So the gate drops such an element as well: an emptied
+//! [wildcard slot](crate::wildcard_slots) existed only to carry the extension that was ignored, and
+//! ignoring the extension without ignoring the slot is half a resolution.
+//!
+//! **Exactly one view is validated, and it is always this one.** There is no second attempt and no
+//! fall-back: a gate that reports only what fails in every view it tries is a gate that goes quiet,
+//! which is MJXOFF-88 §7's shape. Three properties keep the rule from quieting anything real:
+//!
+//! * It fires only on the elements [`crate::wildcard_slots::WILDCARD_SLOTS`] names, and that table is
+//!   *derived from the pinned XSDs by test* rather than written by hand.
+//! * Such an element's content model is wildcards and nothing else, so dropping it can never hide a
+//!   missing **named** child — the shape a defect of ours would take.
+//! * It fires only when the source element **had** element children. An `<ext/>` we authored empty
+//!   is still a failure, and `an_extension_slot_we_author_empty_is_still_a_failure` holds that.
+//!
+//! What it gives up is stated in [`crate::wildcard_slots`] and in `docs/validation/06-the-office-pass.md`:
+//! the gate no longer says anything about markup *inside* an ignorable extension. It never did.
+//! `CT_Extension`'s wildcard is `processContents="lax"` and no schema for such a namespace is
+//! loaded, so keeping the content would have had the validator accept it unread — the ticket's
+//! option 1 measured exactly that and called it "validates".
 
 use mjx_mce::{
     resolve, NamespaceScope, ResolveError, UnderstoodNamespaces, MARKUP_COMPATIBILITY_2006,
@@ -228,6 +256,12 @@ fn rebuild(
     let children: Vec<RawNode> = resolved
         .children
         .iter()
+        .filter(|child| match child {
+            mjx_mce::ResolvedNode::Element(child) => {
+                !resolution_emptied_a_wildcard_slot(child, source)
+            }
+            _ => true,
+        })
         .map(|child| match child {
             mjx_mce::ResolvedNode::Element(child) => {
                 RawNode::Element(rebuild(child, source, interner))
@@ -243,6 +277,38 @@ fn rebuild(
         children,
         empty,
     )
+}
+
+/// Whether markup-compatibility resolution emptied a [wildcard slot](crate::wildcard_slots) — an
+/// element the schema declares as holding one foreign child and nothing else.
+///
+/// All three conditions are load-bearing; the module documentation says why each one is there.
+/// A slot whose source was **already** childless answers `false`, so an `<ext/>` this library
+/// authored empty is still handed to the validator and still fails.
+///
+/// Applied by the parent, so a part *root* is never dropped. No slot in
+/// [`crate::wildcard_slots::WILDCARD_SLOTS`] is a part root — `x:ext`, `c:ext`, `x:Schema`,
+/// `x:DataBinding` and `o:equationxml` are all nested — and a part with no root element is not a
+/// part.
+fn resolution_emptied_a_wildcard_slot(
+    resolved: &mjx_mce::ResolvedElement<'_>,
+    interner: &Interner,
+) -> bool {
+    let name = resolved.name();
+    let namespace = name.namespace.map(|ns| interner.resolve(ns));
+    if !crate::wildcard_slots::is_wildcard_slot(namespace, interner.resolve(name.local)) {
+        return false;
+    }
+    let empty_now = !resolved
+        .children
+        .iter()
+        .any(|child| matches!(child, mjx_mce::ResolvedNode::Element(_)));
+    let held_something = resolved
+        .source
+        .children
+        .iter()
+        .any(|child| matches!(child, RawNode::Element(_)));
+    empty_now && held_something
 }
 
 /// Re-interns a name into a fresh interner.
