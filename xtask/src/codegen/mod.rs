@@ -1,18 +1,21 @@
 //! Schema code generation: parse the local `References/` XSDs and emit committed Rust source into
 //! `mjx-ooxml-types`. Deterministic — re-running produces no diff.
 
-// `pub` rather than private since MJXOFF-224: this module tree moved into `xtask`'s library target
-// so `xtask/tests/codegen_drift.rs` can be written against the generator's own tables, and a table
-// whose field types are private cannot be named from a test. `xtask` is host-only, `publish = false`
-// and nothing depends on it, so widening this widens no shipped surface.
-pub mod child_order;
-pub mod complex;
+mod child_order;
+mod complex;
+mod geometry;
+mod namespaces;
+mod spec;
+mod xsd;
+
+// These two are `pub` rather than private since MJXOFF-224, and only these two. This module tree
+// moved into `xtask`'s library target so `xtask/tests/codegen_drift.rs` can be written against the
+// generator's own tables rather than a text rendering of them, and [`SimpleTypeModule`] names
+// [`emit::Selection`] and [`naming::NameEngine`] in its public fields — a table whose field types
+// are private cannot be read from a test. The other six stay private: nothing outside needs them,
+// and every item made public is an item rustdoc then holds to CI's `-D warnings`.
 pub mod emit;
-pub mod geometry;
-pub mod namespaces;
 pub mod naming;
-pub mod spec;
-pub mod xsd;
 
 use std::fmt::Write as _;
 use std::io::Write as _;
@@ -377,11 +380,11 @@ fn generated_module_root() -> String {
 /// `shared-math` joined with MJXOFF-134 (C17): `mjx-omml` models all 72 `shared-math.xsd` complex
 /// types and writes `m:oMath`/`m:oMathPara`/every math object from a typed model, so a part carrying
 /// an equation is now ordered by construction too. It **left**
-/// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to get a table of its own here — exactly the move that
+/// `CHILD_ORDER_SCHEMA_DEPENDENCIES` to get a table of its own here — exactly the move that
 /// list's own doc comment describes for `dml-wordprocessingDrawing`.
 ///
 /// `dml-spreadsheetDrawing` joined with MJXOFF-107 (E3), and **left**
-/// [`CHILD_ORDER_SCHEMA_DEPENDENCIES`] to do it — the third schema to make that move, after
+/// `CHILD_ORDER_SCHEMA_DEPENDENCIES` to do it — the third schema to make that move, after
 /// `dml-wordprocessingDrawing` and `shared-math`. It was parsed as a dependency from MJXOFF-132
 /// onward because `sml.xsd`'s `CT_ObjectAnchor` places `xdr:from`/`xdr:to` by element `ref`; it now
 /// has a table of its own because `mjx-dml::spreadsheet_drawing` writes `xdr:wsDr` and all three
@@ -422,14 +425,14 @@ pub const CHILD_ORDER_SCHEMAS: &[&str] = &[
 /// Adding a schema here does **not** generate its own child-order table or flip its `COVERAGE.md`
 /// status — that stays the decision of the child that starts authoring *its* markup, by adding it
 /// to `CHILD_ORDER_SCHEMAS` instead.
-pub const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] =
+const CHILD_ORDER_SCHEMA_DEPENDENCIES: &[&str] =
     &["shared-customXmlSchemaProperties", "dml-picture"];
 
 /// The DrawingML simple types given comprehensive names so far (see `spec.rs` for the naming data).
 ///
 /// `dml-main.xsd` declares hundreds; only the curated ones are emitted, and the list grows as the
 /// DrawingML workstream ports each.
-pub const DRAWINGML_TYPES: &[&str] = &[
+const DRAWINGML_TYPES: &[&str] = &[
     "ST_ShapeType",
     "ST_SchemeColorVal",
     "ST_PresetPatternVal",
@@ -471,7 +474,7 @@ pub const DRAWINGML_TYPES: &[&str] = &[
 
 /// The PresentationML simple types given comprehensive names so far (see `spec.rs` for the naming
 /// data). Layout/placeholder identity first — the slide-layout workstream's vocabulary.
-pub const PRESENTATIONML_TYPES: &[&str] = &[
+const PRESENTATIONML_TYPES: &[&str] = &[
     "ST_PlaceholderType",
     "ST_PlaceholderSize",
     "ST_SlideLayoutType",
@@ -624,7 +627,7 @@ enum Table {
 /// in the Transitional set and that no stem appears twice. Nothing failed when a row's *claim*
 /// stopped being true — so a note reading `not modelled` could outlive the schema being generated,
 /// and a note reading `generated — every complex type` could outlive the schema leaving
-/// [`CHILD_ORDER_SCHEMAS`], at which point [`uncovered_note`] would print it and the document would
+/// [`CHILD_ORDER_SCHEMAS`], at which point `uncovered_note` would print it and the document would
 /// report coverage that does not exist.
 ///
 /// What is enforced is the rule the table's own doc comment already stated and nothing tested:
@@ -632,7 +635,7 @@ enum Table {
 /// * **a schema covered in both tables has no row at all** — its prose can never be read again, so
 ///   keeping it is keeping an assertion nobody will ever see fail;
 /// * **a note is empty exactly for the column that covers the schema**, and non-empty exactly for
-///   the column that does not. [`uncovered_note`] already rejected an empty note it needed; this
+///   the column that does not. `uncovered_note` already rejected an empty note it needed; this
 ///   rejects a note it will never need.
 /// * **a live note never opens with `generated`**, because by construction its table does not
 ///   generate that schema.

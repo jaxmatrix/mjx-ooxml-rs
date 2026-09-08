@@ -58,6 +58,126 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.141] - 2026-09-08
+
+### The crate nothing re-derived, audited then documented (MJXOFF-224, G11)
+
+**`mjx-ooxml-types` is 85,296 lines of which 84,107 are generated, and until this release nothing
+anywhere asked whether the committed output was still what the generator would produce.**
+`CLAUDE.md` decides that generated source is committed rather than built by a `build.rs`, and that
+decision is right — a `build.rs` would put a 5,000-page specification and a `rustfmt` run of 84,107
+lines on every consumer's critical path. Its consequence had never been written down:
+
+> Nothing re-derived the committed output, so a generator defect was frozen into the repository
+> rather than failing on the next build — and the committed file is the only artefact anyone reads,
+> which makes a defect indistinguishable from a deliberate choice.
+
+The compiler catches the structural half of that and no more. Rename a generated enum by hand and
+the crate stops compiling; change a wire token, a rank in a child-order table, a doc comment
+recording an `ST_*` symbol or a row of `COVERAGE.md`, and nothing notices. Those are precisely the
+parts a reader trusts and no build touches.
+
+**The answer to the question, asked for the first time: the committed output is exactly what the
+generator produces.** All thirteen artefacts, 2,626,921 bytes, byte for byte.
+
+### Added
+
+- **`xtask/tests/codegen_drift.rs`** — six tests in two tiers, because only one of them can run
+  everywhere.
+
+  `the_committed_output_is_what_the_generator_produces_today` regenerates every artefact in memory
+  and compares it byte for byte with what is committed. It is the whole answer, and it is
+  local-or-gated: it **skips** when `References/` is incomplete, and `MJX_REQUIRE_CODEGEN=1` turns
+  that absence into a failure. **No workflow can set it today**, and the obstacle is not a missing
+  switch: `.github/scripts/fetch-ecma-schemas.sh`'s `ARCHIVES` holds ECMA-376 Part 4 (Transitional
+  schemas) and Part 2 (OPC schemas), and this generator needs **Part 1** for two of its three inputs
+  — the Strict schema set and `presetShapeDefinitions.xml`. Growing that list is MJXOFF-197's, which
+  owns the same download for `crates/mjx-dml/tests/guide_formula.rs`'s preset-geometry sweep; one
+  archive unlocks both.
+
+  The five beside it re-derive everything in the committed output that needs **no schema at all**,
+  and run on every push: the module set and its visibilities against `SIMPLE_TYPE_MODULES`; the
+  file set and the `@generated` banner on each; `COVERAGE.md`'s nine simple-type counts against the
+  committed module files and its child-order rows against `CHILD_ORDER_SCHEMAS`; and the two
+  hand-written curation lists (`src/drawingml.rs`, `src/presentationml.rs`) against the generated
+  items they re-export, in both directions — nothing failed before when the generator emitted an
+  item that never reached them.
+
+  Every one was made to fail with a **reachable** mutation, and the first attempt was not: renaming
+  a generated enum broke the build instead, which proves the compiler catches that case and not
+  this one. The mutation that does prove it is a one-word edit to a doc comment.
+- **`cargo run -p xtask -- codegen --check`** — the same comparison as a command. `codegen::run` and
+  `codegen::check` are now two consumers of one `codegen::artefacts`, which renders every artefact
+  without writing anything. `codegen` moved into `xtask`'s library target for the same reason
+  `validation` did: an integration test cannot see a binary's modules, and this suite is written
+  against the generator's tables rather than a text rendering of them.
+- **A liveness check on `UNCOVERED_SCHEMAS`, closing MJXOFF-88 §9 B10.** That table writes prose
+  straight into `COVERAGE.md`, a shipped document, and the only things checked about a row were that
+  its stem exists and that no stem appears twice — nothing failed when a row's claim stopped being
+  true. `check_uncovered_schemas_are_live` enforces the rule the table's own doc comment already
+  stated and nothing tested: a schema covered in both tables has no row, a note is written only for
+  the column that needs one, and a live note never opens with `generated`. It found **three dead
+  rows** (`pml`, `wml`, `dml-main`, all covered in both tables since Phases C and D) and **one dead
+  note** — `dml-chart`'s child-order note said `generated — every complex type` about a column
+  computed elsewhere, and would have been printed verbatim into `COVERAGE.md` the moment `dml-chart`
+  left `CHILD_ORDER_SCHEMAS`. `COVERAGE.md` is byte-identical after the removals, which is what a
+  dead row means.
+- **`ALL_TABLES` in the generated child-order module**, and with it the end of a structurally blind
+  sweep. The four suites in `crates/mjx-ooxml-types/src/child_order.rs` that check rank order, the
+  unordered-type safety property and the content-model census each opened with a literal
+  `[&DML_MAIN_TYPES[..], &PML_TYPES[..], &DML_CHART_TYPES[..]]`, written when those were the only
+  three tables. Six schemas joined afterwards and none joined that list, so **819 of the 1,335
+  complex types went unchecked while every test stayed green** — including
+  `no_unordered_type_is_given_a_false_order`, whose own comment says a table that ranked a choice's
+  branches would *"fault conforming markup"*. The census's message said *no `xsd:all`*, which was
+  true of its three tables and false of the corpus: `CT_DocPartPr` in `wml.xsd` is one. The roster
+  is generated, so the next schema to join `CHILD_ORDER_SCHEMAS` joins the sweep with it, and the
+  census is now **806 sequences, 58 choices, one `xsd:all`, 470 empty**. The safety property holds
+  across all 1,335 — the exposure was real, the outcome is clean.
+
+  **The wider class is MJXOFF-225, filed rather than absorbed here**: other tests that sweep a
+  hand-written list of a population a generator produces more of. This unit closed the one instance
+  it stood on and did not become a coverage programme.
+- **A gate on the naming convention's audit trail.**
+  `every_curated_enumeration_cites_the_spec_section_its_names_came_from` requires each of the 110
+  enumerations whose variant names are curated to have at least one row sitting under a comment
+  naming the ECMA-376 section the names were read out of. `CLAUDE.md` requires a name that is not
+  inferable from its token to be *sourced from the prose, never guessed*, and a name with no
+  citation is indistinguishable from a guess. Six enumerations had none.
+- **Six guide pages** under `crates/mjx-ooxml-types/docs/guide/`, reachable from
+  `docs/api/README.md`, plus `mjx_ooxml_types::guide`.
+
+### Fixed
+
+- **The adjustment-bound closure is 334 guides, not 335.** `xtask/src/codegen/geometry.rs`'s header
+  had said 335 since it was written, and the figure was repeated into a ticket from there. The size
+  is now **derived into the generated table's own doc comment** rather than restated in a header
+  that cannot fail. The file's own total, 3,923, was right, and
+  `crates/mjx-dml/tests/guide_formula.rs` asserts it by walking the addendum.
+- **Six wrong ECMA-376 section citations in the DrawingML naming block**, found by checking every
+  `§` in `xtask/src/codegen/spec.rs` against the section titles of ECMA-376 Part 1:
+  `ST_PenAlignment` §20.1.10.40→.39, `ST_PresetLineDashVal` §20.1.10.48→.49, `ST_PresetShadowVal`
+  §20.1.10.50→.52, `ST_TextHorzOverflowType` §20.1.10.62→.69, `ST_LightRigDirection`
+  §20.1.10.31→.29, `ST_LightRigType` §20.1.10.32→.30. Every citation outside that block checked out;
+  the seven apparent SmartArt mismatches were an artefact of the audit script reading multi-citation
+  lines, not defects.
+- **`ST_PresetShadowVal`'s justification was factually wrong.** The comment beside `Shadow1` …
+  `Shadow20` said the tokens have *"no semantic name"*; §20.1.10.52 names all twenty (`shdw1` is
+  *Top Left Drop Shadow*, `shdw11` *Back Left Long Perspective Shadow*). The names are unchanged —
+  renaming twenty generated variants is an API break — and the divergence is now recorded where a
+  reader meets it.
+
+### Recorded, not fixed
+
+- **`ST_SchemeColorVal`'s `phClr` is `PlaceholderColor`; §20.1.10.54 titles it *Style Color*** and
+  describes it as *"a color used in theme definitions which means to use the color of the style"*.
+  `PlaceholderColor` reads the `ph` as *placeholder*, which is a guess the section does not support.
+  An audit of all 743 variant overrides against the Part 1 prose found no third divergence that is
+  not either deliberate and documented (`MYD`, `axisPage` — where the published friendly-name column
+  is itself wrong) or a plain expansion of the published name.
+- Both of the above, and the four things nothing here checks at all, are in
+  `crates/mjx-ooxml-types/docs/guide/what_to_distrust.md`.
+
 ## [0.0.140] - 2026-09-08
 
 ### The upper shared markup, audited then documented (MJXOFF-221, G10)

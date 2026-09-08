@@ -43,6 +43,22 @@ jobs:
       # (MJXOFF-197). A gate whose job is only implied is the gate that turns out not to run.
       - name: doc-gate (paths, symbols and the index)
         run: cargo test -p xtask --test doc_gate -- --nocapture
+      # The codegen drift check (MJXOFF-224). Named for the reason the doc-gate step above is:
+      # a gate whose job is only implied is the gate that turns out not to run.
+      #
+      # **This job can only run the schema-free half of it, and that is not a switch away.** The
+      # full check regenerates `mjx-ooxml-types` and compares it with what is committed, which needs
+      # ECMA-376 **Part 1** (the Strict schema set, and `presetShapeDefinitions.xml`). No job here
+      # downloads Part 1: `.github/scripts/fetch-ecma-schemas.sh`'s ARCHIVES holds Part 4
+      # (Transitional) and Part 2 (OPC). So `MJX_REQUIRE_CODEGEN` is deliberately NOT set — setting
+      # it would redden this job rather than run the test — and the drift test skips here while the
+      # five beside it, which re-derive the committed output from the generator's own tables and
+      # need no schema at all, run. `--nocapture` so the skip notice is visible rather than implied.
+      #
+      # Growing ARCHIVES is MJXOFF-197's, which owns the same download for `mjx-dml`'s
+      # preset-geometry sweep; one archive unlocks both, and this step is where the switch goes.
+      - name: codegen drift (schema-free tier; the full check needs References/)
+        run: cargo test -p xtask --test codegen_drift -- --nocapture
       # `--no-fail-fast`: a plain `cargo test` stops at the first failing test *binary*, so a second
       # broken crate is invisible until the first is fixed — one round trip per defect.
       - name: test
