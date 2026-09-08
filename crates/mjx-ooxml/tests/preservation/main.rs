@@ -302,24 +302,14 @@ pub(crate) const NEVER_EXERCISED: &[(Api, &str, &str)] = &[
 /// Nothing here is one of the three defects the unit locks in — those are fixed, and the mutations
 /// in the PR prove this suite reddens on each. These are new, found by pointing the gate at the
 /// corpus for the first time.
-pub(crate) const KNOWN_DEFECTS: &[(&str, Api, &str, &str)] = &[
-    (
-        "hyperlinks.pptx",
-        Api::Deck,
-        "remove_slide",
-        "MJXOFF-212: removing a slide another slide hyperlinks to leaves that relationship pointing \
-         at nothing, and `save()` then refuses the package — the file can never be written back. \
-         The fix needs a decision about what becomes of the hyperlink, so it is the user's.",
-    ),
-    (
-        "print_and_sheet_kinds.xlsx",
-        Api::Workbook,
-        "add_cell_comment",
-        "MJXOFF-213: a comment aimed at a dialogsheet is refused only after the comments part and \
+pub(crate) const KNOWN_DEFECTS: &[(&str, Api, &str, &str)] = &[(
+    "print_and_sheet_kinds.xlsx",
+    Api::Workbook,
+    "add_cell_comment",
+    "MJXOFF-213: a comment aimed at a dialogsheet is refused only after the comments part and \
          the sheet's relationship have been written, so the refusal leaves a file the caller never \
          asked for.",
-    ),
-];
+)];
 
 // =================================================================================================
 // The sweep

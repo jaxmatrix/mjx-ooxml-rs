@@ -2875,6 +2875,10 @@ impl Deck {
     /// Removes slide `slide_idx` from the deck, unwiring it completely: the `p:sldId` naming it,
     /// the presentation's relationship to it, the slide part, its own `.rels`, and its content-type
     /// `Override`.
+    ///
+    /// Every reference to the slide goes with it: a slide that hyperlinks to the removed one keeps
+    /// its text and loses the link, and a custom show loses its entry for it. Anything less leaves a
+    /// relationship pointing at a part that is no longer there, which `save` refuses.
     fn remove_slide(&mut self, slide_idx: u32) -> PyResult<()> {
         self.inner.remove_slide(slide_idx).map_err(to_py_err)
     }
