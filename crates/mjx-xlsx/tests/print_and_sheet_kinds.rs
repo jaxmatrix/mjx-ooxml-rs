@@ -28,8 +28,8 @@
 
 use mjx_opc::{Package, PartName, Relationship, TargetMode};
 use mjx_sml::CellReference;
-use mjx_sml::{CellValue, HeaderFooterSlot};
-use mjx_xlsx::{SheetKind, SheetMarkup, SpreadsheetDefect, Workbook, XlsxError};
+use mjx_sml::{CellRange, CellValue, HeaderFooterSlot, WorksheetTableSpec};
+use mjx_xlsx::{HyperlinkTarget, SheetKind, SheetMarkup, SpreadsheetDefect, Workbook, XlsxError};
 
 /// The fixture this suite is written against.
 const FIXTURE: &str = "print_and_sheet_kinds.xlsx";
@@ -635,4 +635,129 @@ fn append_sheet_entry(package: &mut Package, name: &str, sheet_id: u32, relation
     package
         .replace_part_bytes(&workbook_part, rewritten.into_bytes())
         .expect("the workbook part is replaced");
+}
+
+// -------------------------------------------------------------------------------------------
+// MJXOFF-241 — a refusal that says what the tab is, not that its part is gone
+// -------------------------------------------------------------------------------------------
+
+/// An edit only a worksheet can carry, aimed at a tab that is not one, is refused **by kind**.
+///
+/// Until MJXOFF-241 every one of these answered `MissingWorkbookPart("sheet N")`, which displays as
+/// *"workbook part sheet 1 is missing from the package"* — about a part that is present, correct and
+/// exactly what its `x:sheet` entry says it is. A caller who read that went looking for a broken
+/// container; the real answer is that a dialogsheet has no cell to address and a chartsheet is one
+/// chart over a whole tab.
+///
+/// Six calls across six modules rather than one, because the refusal was never in one place: it came
+/// out of whichever helper reached for `x:worksheet` markup first. They now share
+/// `require_worksheet_markup`, and a seventh call added to the crate cannot answer differently
+/// without going around it.
+#[test]
+fn an_edit_aimed_at_a_chartsheet_or_a_dialogsheet_names_the_kind_rather_than_a_missing_part() {
+    let bytes = workbook_with_all_three_kinds();
+
+    // The premise, asserted rather than assumed: a package that stops carrying these two kinds fails
+    // here instead of turning the loop below into a green statement about nothing.
+    let kinds: Vec<Option<SheetKind>> = Workbook::open(&bytes)
+        .expect("a three-kind workbook opens")
+        .sheets()
+        .iter()
+        .map(|sheet| sheet.kind)
+        .collect();
+    assert_eq!(
+        kinds,
+        vec![
+            Some(SheetKind::Worksheet),
+            Some(SheetKind::Dialogsheet),
+            Some(SheetKind::Chartsheet)
+        ]
+    );
+
+    let cell = CellReference::parse("A1").expect("A1 parses");
+    let range = CellRange::parse("A1:B2").expect("A1:B2 parses");
+
+    for (index, kind, word) in [
+        (1usize, SheetKind::Dialogsheet, "dialogsheet"),
+        (2usize, SheetKind::Chartsheet, "chartsheet"),
+    ] {
+        // Each call gets its own workbook, so a refusal cannot be the shadow of an earlier one.
+        let refusal = |name: &'static str,
+                       call: &dyn Fn(&mut Workbook) -> Result<(), XlsxError>|
+         -> (&'static str, XlsxError) {
+            let mut workbook = Workbook::open(&bytes).expect("a three-kind workbook opens");
+            match call(&mut workbook) {
+                Ok(()) => panic!("{name} must refuse tab {index}, which is a {word}"),
+                Err(error) => (name, error),
+            }
+        };
+
+        let refusals = [
+            refusal("set_cell_value", &|workbook| {
+                workbook.set_cell_value(index, cell, CellValue::Number(1.0))
+            }),
+            refusal("set_cell_style", &|workbook| {
+                workbook.set_cell_style(index, cell, Some(0))
+            }),
+            refusal("merge_cells", &|workbook| {
+                workbook.merge_cells(index, range)
+            }),
+            refusal("set_cell_hyperlink", &|workbook| {
+                workbook.set_cell_hyperlink(
+                    index,
+                    range,
+                    &HyperlinkTarget::Url("https://example.invalid/".to_owned()),
+                )
+            }),
+            refusal("add_table", &|workbook| {
+                workbook
+                    .add_table(
+                        index,
+                        &WorksheetTableSpec::new("Codes", range, &["Code", "Name"]),
+                    )
+                    .map(|_| ())
+            }),
+            refusal("add_comment", &|workbook| {
+                workbook
+                    .add_comment(index, cell, "Reviewer", "a remark")
+                    .map(|_| ())
+            }),
+        ];
+
+        for (name, error) in refusals {
+            assert!(
+                matches!(
+                    error,
+                    XlsxError::SheetIsNotAWorksheet { index: at, kind: Some(reported) }
+                        if at == index && reported == kind
+                ),
+                "{name} must refuse tab {index} as the {word} it is; it said: {error:?}"
+            );
+            let text = error.to_string();
+            assert!(
+                text.contains(word),
+                "{name}'s message must name the kind; it said: {text}"
+            );
+            assert!(
+                !text.contains("missing"),
+                "{name} must not report a part that is present as missing; it said: {text}"
+            );
+        }
+    }
+}
+
+/// The same calls on the worksheet still work, so the guard above is a guard and not a wall.
+#[test]
+fn the_worksheet_of_the_three_kinds_still_takes_the_edits_the_other_two_refuse() {
+    let bytes = workbook_with_all_three_kinds();
+    let mut workbook = Workbook::open(&bytes).expect("a three-kind workbook opens");
+    let cell = CellReference::parse("A1").expect("A1 parses");
+
+    workbook
+        .set_cell_value(0, cell, CellValue::Number(1.0))
+        .expect("tab 0 is a worksheet");
+    workbook
+        .add_comment(0, cell, "Reviewer", "a remark")
+        .expect("tab 0 is a worksheet");
+    workbook.save().expect("the edited workbook saves");
 }

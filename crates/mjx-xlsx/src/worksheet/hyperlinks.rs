@@ -236,7 +236,8 @@ impl Workbook {
     ///
     /// # Errors
     /// [`XlsxError::NoSuchSheet`] if `index` names no tab, [`XlsxError::MissingWorkbookPart`] if it
-    /// reaches no worksheet part, or [`XlsxError`] if the package refuses the relationship.
+    /// reaches no part, [`XlsxError::SheetIsNotAWorksheet`] if the part it reaches is not a
+    /// worksheet, or [`XlsxError`] if the package refuses the relationship.
     pub fn set_cell_hyperlink(
         &mut self,
         index: usize,
@@ -250,9 +251,7 @@ impl Workbook {
         let anchor = CellReference::relative(bounds.first_column(), bounds.first_row())
             .map_err(mjx_sml::SmlError::from)?;
 
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
 
         // Everything that can fail without touching the package happens first, so a refusal leaves
         // the workbook exactly as it was.
@@ -341,9 +340,7 @@ impl Workbook {
         reference: CellReference,
     ) -> Result<bool, XlsxError> {
         let sheet_part = self.sheet_part(index)?;
-        let mut markup = self
-            .worksheet_markup(index)?
-            .ok_or_else(|| XlsxError::MissingWorkbookPart(format!("sheet {index}")))?;
+        let mut markup = self.require_worksheet_markup(index)?;
         let Some(at) = markup.hyperlink_position_covering(reference) else {
             return Ok(false);
         };
