@@ -60,6 +60,66 @@ dozen coherent `mjx-chart` identifiers — was decided in favour of the rename a
 whole rather than in part: renaming only the `mjx-pptx` method would have traded one inconsistency
 for another. It is the row above. A grep in CI now keeps the spelling from drifting back.
 
+## [0.0.158] - 2026-09-09
+
+### The stub stopped writing its own prose (MJXOFF-234, H14)
+
+`bindings/mjx-python/python/mjx_ooxml/__init__.pyi` is a committed contract and
+`bindings/mjx-python/tests/test_stub_parity.py` holds it to the compiled module in both directions —
+over **names**. Beside each name sat a sentence, hand-copied from the `///` comment it restates, and
+nothing compared those. MJXOFF-226 found the two disagreeing about the same item and differently
+wrong in each, which is what two hand-maintained copies of one fact always eventually do.
+
+**Generated, not compared, and the measurement is what decided it.** The two were never independent
+prose: PyO3 compiles each `///` doc comment verbatim into the member's `__doc__`, so the compiled
+module already carries the Rust sentence and the stub can be written from it with no parser in
+between. Before any edit, **1,861 of the 1,924 docstrings the stub shared with the Rust were already
+that comment's first paragraph, character for character** — so generation changes about three per
+cent of the file rather than overwriting editorial work, which is the empirical question the ticket
+said to answer before choosing. The ticket's own argument for comparison — *"equality would fail on
+every one of 1,637 members"* — was false in the direction that mattered.
+
+* `bindings/mjx-python/tools/stub_docs.py` restates the stub's docstrings from the module;
+  `--check` writes nothing and reports. Committed output, never a `build.rs`.
+* `bindings/mjx-python/tests/test_stub_docs.py` is the drift check over **1,937 governed
+  docstrings** — 300 classes and 1,637 members, the ticket's figure exactly — with the floor phrased
+  as *the scanner has stopped matching* and each half of the walk floored separately, because a scan
+  that matches nothing rewrites the file to itself and passes.
+* The stub's header says so, and editing a docstring there is now a test failure.
+
+### Fixed
+
+- **Six doc comments described `regenerate_chart_workbook` and were attached to
+  `refresh_chart_workbook`** — three per binding, so `help(mjx_ooxml.Deck.refresh_chart_workbook)`
+  and `mjx_ooxml.d.ts` both said the call "rewrites the embedded workbook so its cells hold exactly
+  what the chart now draws". The facade says the opposite of the important half: it writes *the
+  cells its own `c:f` formulas name, and nothing else*, and every other sheet, format and name the
+  workbook carried survives. **The committed `.pyi` had it right and the Rust comment beside it had
+  it wrong**, which is the drift class above caught in the act.
+- **Eight `///` comments in the bindings were prose about Rust.** Five carried a rustdoc intra-doc
+  link — `[`save_unchecked`](Deck::save_unchecked)` renders as broken markup in `help()` and in a
+  `.d.ts` — and three said "see this module's own doc comment", naming a module the reader of the
+  projected surface cannot open. The binding's `///` **is** the Python docstring, so these were
+  already wrong for their real audience before the stub was generated from them.
+- **`OoxmlError` and `IndexOutOfRangeError` said less at run time than the stub said about them.**
+  The stub's fuller wording is now the C string literal in `bindings/mjx-python/src/errors.rs`, so
+  `help()` gains it too. The other ten exception classes already agreed.
+- **CI's `rustdoc` job was red on `epic/phase-h`** (MJXOFF-267). `crates/mjx-schema-gate` names
+  `crate::harness` in an intra-doc link, and the crate has both a `harness` module and a `harness`
+  function, so `cargo doc --workspace` under CI's `RUSTDOCFLAGS` refused to document it. Introduced
+  by the previous unit, and invisible to `fmt`, `clippy` and `test --workspace` — which is the part
+  worth carrying: broken links are denied by rustdoc alone, so the two `cargo doc` runs belong in
+  every gate set, not only in the units that touch documentation.
+
+### Recorded, not fixed
+
+- **The two bindings' `///` comments are written independently**, so a TypeScript reader and a
+  Python reader can be told different things about the same method — the second half of MJXOFF-234,
+  which it raised and did not resolve. Of the 1,610 members both bindings document under the same
+  class and Rust name, **1,440 carry the same sentence character for character** and 170 differ; a
+  large part of the 170 is forced (`chart_series` against `chartSeries`, `str` against `string`), so
+  equality cannot be the gate and the instrument needs designing. Filed as **MJXOFF-266**.
+
 ## [0.0.157] - 2026-09-09
 
 ### A named child comes back where the file put it, and a `.vml` part is validated child by child (MJXOFF-251, MJXOFF-245, H13)
