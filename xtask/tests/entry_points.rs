@@ -1500,7 +1500,13 @@ fn every_crate_root_points_a_reader_at_a_guide() {
             .take_while(|line| line.starts_with("//!") || line.is_empty())
             .collect::<Vec<_>>()
             .join(" ");
-        let hosts_a_guide = source.contains("pub mod guide");
+        // The declaration, not a prefix of it. `xtask` grew a `pub mod guide_examples` in
+        // MJXOFF-254 — the extractor behind the tri-language guide blocks, not a guide — and a
+        // substring match classified it as hosting one, so the crate that deliberately has no
+        // guide was asked to link the guide it does not have.
+        let hosts_a_guide = source
+            .lines()
+            .any(|line| line.trim_start() == "pub mod guide;");
         if hosts_a_guide {
             with_a_guide += 1;
             if !header.contains("[`guide`]") && !header.contains("](guide)") {
