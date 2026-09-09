@@ -24,9 +24,8 @@ use mjx_ooxml as ooxml;
 
 use crate::enums::{
     ApplyFlag, BorderStyle, CalculationMode, ColorSchemeSlot, FormatAspect, FormatLayer,
-    GeometrySource,
-    GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior, SheetKind,
-    SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
+    GeometrySource, GridAnomalyKind, HyperlinkKind, PartKind, ReferenceMode, ResizingBehavior,
+    SheetKind, SpreadsheetFontScheme, SpreadsheetPatternType, StyleIndexSource, TotalsRowFunction,
     UnderlineType,
 };
 use crate::errors::to_py_err;

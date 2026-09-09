@@ -535,7 +535,10 @@ const PYTHON_STUB: &str = "bindings/mjx-python/python/mjx_ooxml/__init__.pyi";
 /// exercises them. Nothing else belongs here: a value class that cannot be obtained is the defect
 /// this file is written against, not an entry to be added.
 const UNOBTAINABLE_BY_DESIGN: &[(&str, &str)] = &[
-    ("OoxmlError", "raised, never returned — the base of the hierarchy"),
+    (
+        "OoxmlError",
+        "raised, never returned — the base of the hierarchy",
+    ),
     ("IoError", "raised, never returned"),
     ("MalformedDocumentError", "raised, never returned"),
     ("InvalidDocumentError", "raised, never returned"),

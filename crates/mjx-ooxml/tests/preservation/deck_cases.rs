@@ -2638,9 +2638,7 @@ pub(crate) const CASES: &[Case] = &[
     Case {
         method: "resolved_scheme_color",
         touches: NOTHING,
-        call: |deck, a| {
-            ran!(deck.resolved_scheme_color(a.surface, mjx_ooxml::SchemeColor::Accent1))
-        },
+        call: |deck, a| ran!(deck.resolved_scheme_color(a.surface, mjx_ooxml::SchemeColor::Accent1)),
     },
     Case {
         method: "table_style_flags",

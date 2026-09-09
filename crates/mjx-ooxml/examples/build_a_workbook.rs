@@ -106,8 +106,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         color: Some(Color::from_opaque_rgb("FFFFFF")),
         ..FontProperties::default()
     })?;
-    let fill = workbook
-        .append_pattern_fill(&PatternFillSpec::solid_from_theme(ColorSchemeSlot::Accent1, None))?;
+    let fill = workbook.append_pattern_fill(&PatternFillSpec::solid_from_theme(
+        ColorSchemeSlot::Accent1,
+        None,
+    ))?;
     let border = workbook.append_border(&BorderSpec {
         bottom: Some(BorderEdgeSpec::styled(BorderStyle::Medium)),
         ..BorderSpec::default()

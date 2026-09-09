@@ -9,9 +9,8 @@ use mjx_dml::{
     resolve_line, CellBorder, CharacterPropertiesSpec, ColorMap, ColorSpec, EffectList,
     EffectListSpec, Fill, FillSpec, FontSlot, IndentLevel, LineProperties, LineSpec, OnOffStyle,
     ParagraphPropertiesSpec, ResolvedColor, SchemeColor, SchemeColors, TableStyleBorder,
-    TableStyleCellStyle,
-    TableStylePart, TableStyleTextStyle, TextBody, TextFont, TextListStyle, Theme,
-    ThemeableLineStyle, Transform2D,
+    TableStyleCellStyle, TableStylePart, TableStyleTextStyle, TextBody, TextFont, TextListStyle,
+    Theme, ThemeableLineStyle, Transform2D,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement};
 use mjx_ooxml_types::namespaces::PML;

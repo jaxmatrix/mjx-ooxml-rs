@@ -398,11 +398,16 @@ fn every_subject_of_the_facade_is_reachable_on_the_re_exported_deck() {
         .expect("writing an adjustment");
 
     // --- effective readers -------------------------------------------------------------------------
-    // MJXOFF-228: `ResolvedColor` is re-exported, and this is what produces one.
-    assert!(deck
-        .resolved_scheme_color(slide, mjx_ooxml::SchemeColor::Accent1)
-        .expect("resolving")
-        .is_some());
+    // MJXOFF-228: `ResolvedColor` is re-exported, and this is what produces one. The hex is the
+    // blank deck's own `accent1`, and both binding suites assert the same value — a blank deck that
+    // stopped carrying the Office palette would fail in three languages at once.
+    assert_eq!(
+        deck.resolved_scheme_color(slide, mjx_ooxml::SchemeColor::Accent1)
+            .expect("resolving")
+            .expect("a blank deck's theme defines accent1")
+            .to_hex(),
+        "4472C4"
+    );
     let _ = deck
         .effective_shape_fill(slide, shape.clone())
         .expect("an effective fill");

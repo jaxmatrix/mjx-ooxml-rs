@@ -117,8 +117,12 @@ def test_the_deck_declares_every_bound_method(stub: ast.Module) -> None:
     # now that `refresh_chart_workbook` patches it instead. This number is a *checked* count — it is
     # re-derived from the compiled module on every run, which is what separates it from the prose
     # counts MJXOFF-118 deleted elsewhere for having quietly stopped being true.
-    assert len(actual) == 255, (
-        f"expected 255 methods on Deck without the `vml` feature, found {len(actual)}"
+    # 255 until MJXOFF-223 added `set_shape_adjustments` — the writing half of `shape_adjustments`,
+    # which the facade had had a reader for and no writer — and MJXOFF-228 added the three readers
+    # that produce the three classes this module exported and nothing could obtain:
+    # `resolved_scheme_color`, `table_style_flags` and `shape_backdrop`.
+    assert len(actual) == 259, (
+        f"expected 259 methods on Deck without the `vml` feature, found {len(actual)}"
     )
 
 

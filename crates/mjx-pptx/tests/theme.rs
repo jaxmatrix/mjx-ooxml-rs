@@ -242,11 +242,7 @@ fn with_an_inverted_color_map() -> Vec<u8> {
         mjx_opc::PartName::new("/ppt/slideMasters/slideMaster1.xml").expect("a literal part name");
     let bytes = package.part_bytes(&master).expect("the master").to_vec();
     let markup = String::from_utf8(bytes).expect("the master is utf-8");
-    let inverted = markup.replacen(
-        r#"bg1="lt1" tx1="dk1""#,
-        r#"bg1="dk1" tx1="lt1""#,
-        1,
-    );
+    let inverted = markup.replacen(r#"bg1="lt1" tx1="dk1""#, r#"bg1="dk1" tx1="lt1""#, 1);
     assert_ne!(inverted, markup, "the fixture's colour map was not found");
     package
         .replace_part_bytes(&master, inverted.into_bytes())

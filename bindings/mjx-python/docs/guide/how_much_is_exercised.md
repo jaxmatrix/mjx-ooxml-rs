@@ -22,7 +22,7 @@ second one, with a number.
 
 ```text
 binding surface exercised by its own suite:
-  Python       1006 of 1643 declared member(s) (61.2%), 637 named by no test
+  Python       1008 of 1643 declared member(s) (61.4%), 635 named by no test
   WebAssembly   943 of 1767 declared member(s) (53.4%), 824 named by no test
 ```
 
@@ -46,7 +46,7 @@ front, or — in Python — as a keyword argument.
 **The two directions of that measure are not equally strong, and the asymmetry is the point.**
 
 * *Exercised* is an **upper bound**. The matcher works on names, so a `.rows` anywhere credits
-  `rows` on every class that declares one. The true figure is lower than 1,006 and lower than 943.
+  `rows` on every class that declares one. The true figure is lower than 1,008 and lower than 943.
 * *Not exercised* is **exact**. No test can call a member whose name appears nowhere in any test
   source. 647 and 836 are floors on the untested surface, not estimates of it.
 

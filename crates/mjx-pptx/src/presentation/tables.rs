@@ -2,8 +2,8 @@
 //! whole-column edits, and the table style a table draws itself with.
 
 use mjx_dml::{
-    ColorSpec, ColorTransform, Emu, FillSpec, Fraction, OnOffStyle, SchemeColor, Table, TableColumn,
-    TablePart, TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleFlags,
+    ColorSpec, ColorTransform, Emu, FillSpec, Fraction, OnOffStyle, SchemeColor, Table,
+    TableColumn, TablePart, TablePartStyle, TableProperties, TableRow, TableStyle, TableStyleFlags,
     TableStyleList, TableStylePart,
 };
 use mjx_ooxml_core::{FromXml, Interner, RawDocument, RawElement, RawNode, ToXml};

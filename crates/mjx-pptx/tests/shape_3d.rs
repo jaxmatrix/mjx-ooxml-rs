@@ -357,7 +357,9 @@ fn deck_with_a_backdrop() -> (Presentation, usize) {
         .replace_part_bytes(&slide, patched.into_bytes())
         .expect("replacing the slide");
 
-    let bytes = package.save_unchecked().expect("saving the patched package");
+    let bytes = package
+        .save_unchecked()
+        .expect("saving the patched package");
     (Presentation::open(&bytes).expect("reopen"), idx)
 }
 
@@ -395,7 +397,9 @@ fn a_backdrop_is_read_typed_and_a_shape_without_one_answers_none() {
     // A scene with no backdrop, and a shape with no scene, are both `None` and not an error.
     let mut plain = Presentation::open(&fixture("sample.pptx")).expect("open");
     let scened = added_shape(&mut plain);
-    plain.set_shape_scene_3d(0, scened, &scene()).expect("scene");
+    plain
+        .set_shape_scene_3d(0, scened, &scene())
+        .expect("scene");
     assert_eq!(plain.shape_backdrop(0, scened).expect("reading"), None);
     let flat = added_shape(&mut plain);
     assert_eq!(plain.shape_backdrop(0, flat).expect("reading"), None);

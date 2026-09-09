@@ -1350,8 +1350,7 @@ fn a_theme_following_fill_builds_a_theme_reference_and_not_a_literal() {
         .build(&mut interner, None);
     let root = fill.to_xml(&mut interner);
     let document = RawDocument::new(interner, false, Vec::new(), root, Vec::new());
-    let markup =
-        String::from_utf8(mjx_xml::fidelity::serialize_to_vec(&document)).expect("utf-8");
+    let markup = String::from_utf8(mjx_xml::fidelity::serialize_to_vec(&document)).expect("utf-8");
 
     assert!(
         markup.contains(r#"theme="4""#),

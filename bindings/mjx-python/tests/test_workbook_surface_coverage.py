@@ -725,17 +725,29 @@ def test_each_apply_flag_is_three_valued_and_independent(
 def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None:
     """The two theme-following constructors, and what makes them worth having.
 
-    `Color.from_theme` states the file's own number and `Color.from_theme_slot` names the slot;
-    they must agree, so this asserts the pair rather than the number, and it asserts a slot whose
-    position is *not* its ordinal in the enumeration (`Accent1` is `4`, not `0`) — a mapping that
-    had drifted by one would pass on `Dark1` alone.
+    `Color.from_theme` states the file's own number and `Color.from_theme_slot` names the slot; they
+    must agree, so this asserts the pair rather than the number, and it asserts a slot whose position
+    is *not* its ordinal in the enumeration (`Accent1` is `4`, not `0`) — a mapping that had drifted
+    by one would pass on `Dark1` alone.
+
+    The comparison is field by field rather than `==`: `Color` is a frozen value class with no
+    `__eq__`, so `==` on two of them is identity and would be false for two colours that say exactly
+    the same thing.
 
     `PatternFillSpec.solid_from_theme` is the same claim one level up: the fill pins nothing, which
     is the whole point of it beside `solid`.
     """
-    assert Color.from_theme_slot(ColorSchemeSlot.Accent1) == Color.from_theme(4)
-    assert Color.from_theme_slot(ColorSchemeSlot.Dark1, -0.25) == Color.from_theme(0, -0.25)
-    assert Color.from_theme_slot(ColorSchemeSlot.FollowedHyperlink) == Color.from_theme(11)
+
+    def stated(color: Color) -> tuple[int | None, float | None, str | None]:
+        return (color.theme, color.tint, color.rgb)
+
+    assert stated(Color.from_theme_slot(ColorSchemeSlot.Accent1)) == stated(Color.from_theme(4))
+    assert stated(Color.from_theme_slot(ColorSchemeSlot.Dark1, -0.25)) == stated(
+        Color.from_theme(0, -0.25)
+    )
+    assert stated(Color.from_theme_slot(ColorSchemeSlot.FollowedHyperlink)) == stated(
+        Color.from_theme(11)
+    )
     assert Color.from_theme_slot(ColorSchemeSlot.Accent1).tint is None
 
     fill = PatternFillSpec.solid_from_theme(ColorSchemeSlot.Accent2, 0.4)
@@ -744,7 +756,6 @@ def test_a_theme_slot_names_the_position_the_numeric_constructor_takes() -> None
     assert foreground.theme == 5
     assert foreground.tint == pytest.approx(0.4)
     assert foreground.rgb is None, "a theme-following fill pins no literal"
-    assert fill == PatternFillSpec(
-        pattern=SpreadsheetPatternType.Solid,
-        foreground=Color.from_theme_slot(ColorSchemeSlot.Accent2, 0.4),
-    )
+    # …and nothing but the colour differs from the hex-taking sibling.
+    assert fill.pattern == SpreadsheetPatternType.Solid == PatternFillSpec.solid("FF0000").pattern
+    assert fill.background is None
